@@ -49,10 +49,27 @@ function readsOf<T extends { current: Row[] }>(chain: T) {
 }
 
 /**
+ * Storage that fails the test on any use: an archive with no stored image must never touch it
+ * (`archive-images.ts`). A test of the images passes its own (`archive-images.fixtures.ts`).
+ */
+const UNTOUCHABLE_STORAGE = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      throw new Error(`storage.${String(property)} used by an archive with no stored image`);
+    },
+  },
+);
+
+/**
  * `byFunction` answers the database functions a restore calls (`supabaseRpc`: a function not
  * named throws). Without it every call answers nothing.
  */
-function makeSupabase(rows: TableRows, byFunction?: Readonly<Record<string, RpcAnswer>>) {
+function makeSupabase(
+  rows: TableRows,
+  byFunction?: Readonly<Record<string, RpcAnswer>>,
+  storage: unknown = UNTOUCHABLE_STORAGE,
+) {
   const inserted: Record<string, Record<string, unknown>[]> = {};
   const from = vi.fn((table: string) => {
     const tableRows = rows[table] ?? [];
@@ -85,14 +102,15 @@ function makeSupabase(rows: TableRows, byFunction?: Readonly<Record<string, RpcA
     ? supabaseRpc(byFunction)
     : vi.fn(() => Promise.resolve({ data: null, error: null }));
 
-  return { supabase: { service: { from, rpc } }, inserted, rpc };
+  return { supabase: { service: { from, rpc, storage } }, inserted, rpc };
 }
 
 export function makeService(
   rows: TableRows = {},
   byFunction?: Readonly<Record<string, RpcAnswer>>,
+  storage?: unknown,
 ) {
-  const { supabase, inserted, rpc } = makeSupabase(rows, byFunction);
+  const { supabase, inserted, rpc } = makeSupabase(rows, byFunction, storage);
   const orgs = { assertOrgRole: vi.fn(() => Promise.resolve()) };
   return {
     // Every club pair in these archives may be kept (`archive-rulesets.test.ts` has the refusal).

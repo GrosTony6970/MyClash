@@ -41,7 +41,8 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
-import { EVENT_HERO_UPLOAD, EVENT_LOGO_UPLOAD, EventsService } from './events.service';
+import { EVENT_HERO_UPLOAD, EVENT_LOGO_UPLOAD } from './event-assets';
+import { EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
 import { readMatchConfig, withEffectiveRules } from './match-config';
 

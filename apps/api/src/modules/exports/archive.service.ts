@@ -15,6 +15,9 @@ import { dropRestoredPins } from './archive-pins';
 import { assertRestoredRulesetsUsable } from './archive-rulesets';
 import { readArchivedRows } from './archive-read';
 import { danglingReferences, describeDangling } from './archive-references';
+import { ARCHIVE_DATA_MAX_BYTES, ARCHIVE_UPLOAD, readArchiveFile } from './archive-file';
+import { collectArchiveImages } from './archive-images';
+import { imagesOfArchive, restoreArchiveImages, type UsableImage } from './archive-images-restore';
 import {
   buildTournamentReportRows,
   buildTournamentReports,
@@ -82,6 +85,8 @@ type RestoreTargets = {
   targetTournamentId?: string;
   crossOrg?: boolean;
   boutsWithoutCopies?: boolean;
+  /** The images to store again in the copy's own folders (`archive-images.ts`). */
+  images?: readonly UsableImage[];
 };
 
 /**
@@ -190,8 +195,9 @@ export class ArchiveService {
   }
 
   async previewRestore(buffer: Buffer, _userId: string): Promise<RestorePreview> {
-    const archive = this.parseArchive(buffer);
+    const { archive, entries } = this.parseArchive(buffer);
     const counts = this.countArchiveRows(archive);
+    const images = imagesOfArchive(archive, normalizeArchiveTables(archive.data), entries);
     const warnings: string[] = [];
     const sourceStatus =
       archive.scope === 'tournament' ? archive.source.tournamentStatus : archive.source.eventStatus;
@@ -208,6 +214,8 @@ export class ArchiveService {
       include: archive.include,
       source: archive.source,
       counts,
+      images: images.usable.reduce((sum, image) => sum + image.refs.length, 0),
+      imagesKept: images.keptLinks,
       warnings,
       canRestore: warnings.length === 0,
     };
@@ -223,7 +231,7 @@ export class ArchiveService {
         `Restore confirmation must exactly match: ${RESTORE_CONFIRMATION}`,
       );
     }
-    const archive = this.parseArchive(buffer);
+    const { archive, entries } = this.parseArchive(buffer);
     const sourceStatus =
       archive.scope === 'tournament' ? archive.source.tournamentStatus : archive.source.eventStatus;
     if (sourceStatus === 'running') {
@@ -236,28 +244,42 @@ export class ArchiveService {
     const dangling = danglingReferences(archive);
     if (dangling.length > 0) throw new BadRequestException(describeDangling(dangling));
 
+    // Checked on the archive's own rows and ids, before a restore rewrites any of them.
+    const images = imagesOfArchive(archive, normalizeArchiveTables(archive.data), entries).usable;
     if (archive.scope === 'event') {
-      return this.restoreEventCopy(archive, userId, options);
+      return this.restoreEventCopy(archive, userId, options, images);
     }
-    return this.restoreTournamentCopy(archive, userId, options);
+    return this.restoreTournamentCopy(archive, userId, options, images);
   }
 
+  /** The JSON download keeps image links only (ruling 405). */
   archiveToJsonBuffer(archive: MyClashArchive): Buffer {
     return Buffer.from(JSON.stringify(archive, null, 2), 'utf8');
   }
 
-  archiveToZipBuffer(archive: MyClashArchive): Buffer {
-    const files: Record<string, string> = {
-      'manifest.json': JSON.stringify(archive, null, 2),
-    };
+  /** The zip: the manifest, the reports, and the stored images that fit (ruling 403). */
+  async archiveToZipBuffer(archive: MyClashArchive): Promise<Buffer> {
+    const reports: Record<string, string> = {};
     for (const report of archive.reports.tournaments) {
       const prefix = `reports/${safeFilename(report.tournamentName)}`;
-      files[`${prefix}/matches.csv`] = report.matchesCsv;
-      files[`${prefix}/exchanges.csv`] = report.exchangesCsv;
-      files[`${prefix}/results.csv`] = report.resultsCsv;
-      files[`${prefix}/rankings.csv`] = report.rankingsCsv;
+      reports[`${prefix}/matches.csv`] = report.matchesCsv;
+      reports[`${prefix}/exchanges.csv`] = report.exchangesCsv;
+      reports[`${prefix}/results.csv`] = report.resultsCsv;
+      reports[`${prefix}/rankings.csv`] = report.rankingsCsv;
     }
-    return createStoredZip(files);
+    const { manifest, files } = await collectArchiveImages({
+      storage: this.supabase.service.storage,
+      scope: archive.scope,
+      data: archive.data,
+      serialise: (images) => JSON.stringify({ ...archive, images }, null, 2),
+      otherEntries: Object.entries(reports).map(([name, text]) => ({
+        name,
+        bytes: Buffer.byteLength(text, 'utf8'),
+      })),
+      maxZipBytes: ARCHIVE_UPLOAD.maxBytes,
+      maxDataBytes: ARCHIVE_DATA_MAX_BYTES,
+    });
+    return createStoredZip({ 'manifest.json': manifest, ...reports, ...files });
   }
 
   /**
@@ -269,6 +291,7 @@ export class ArchiveService {
     archive: MyClashArchive,
     userId: string,
     options: RestoreOptions,
+    images: readonly UsableImage[],
   ): Promise<RestoreResult> {
     const targetOrganizationId =
       options.targetOrganizationId ??
@@ -313,10 +336,11 @@ export class ArchiveService {
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
     await this.assertRestoredRulesets(data, targetOrganizationId, userId);
     const droppedPins = await dropRestoredPins(this.supabase, data, targetOrganizationId);
-    await this.insertMappedTables(data, maps, {
+    const imagesKept = await this.insertMappedTables(data, maps, {
       targetEventId: restoredEventId,
       crossOrg,
       boutsWithoutCopies: carriesBoutsWithoutCopies(archive.data),
+      images,
     });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
     return {
@@ -325,6 +349,7 @@ export class ArchiveService {
       restoredSlug,
       counts: this.countArchiveRows(archive),
       ...droppedPins,
+      imagesKept,
     };
   }
 
@@ -332,6 +357,7 @@ export class ArchiveService {
     archive: MyClashArchive,
     userId: string,
     options: RestoreOptions,
+    images: readonly UsableImage[],
   ): Promise<RestoreResult> {
     if (!options.targetEventId) {
       throw new BadRequestException('targetEventId is required for tournament restore.');
@@ -410,11 +436,12 @@ export class ArchiveService {
     const crossOrg = sourceOrgId !== undefined && sourceOrgId !== targetOrgId;
     await this.assertRestoredRulesets(data, targetOrgId, userId);
     const droppedPins = await dropRestoredPins(this.supabase, data, targetOrgId);
-    await this.insertMappedTables(data, maps, {
+    const imagesKept = await this.insertMappedTables(data, maps, {
       targetEventId: options.targetEventId,
       targetTournamentId: restoredTournamentId,
       crossOrg,
       boutsWithoutCopies: carriesBoutsWithoutCopies(archive.data),
+      images,
     });
     await this.auditRestore(
       userId,
@@ -428,9 +455,11 @@ export class ArchiveService {
       restoredSlug,
       counts: this.countArchiveRows(archive),
       ...droppedPins,
+      imagesKept,
     };
   }
 
+  /** Writes the rows of a restore; returns how many images kept their old link (ruling 408). */
   private async insertMappedTables(data: ArchiveTables, maps: IdMaps, targets: RestoreTargets) {
     // EVERY id map complete before ANY row is remapped.
     //
@@ -455,6 +484,7 @@ export class ArchiveService {
         if (typeof rowId === 'string' && !map.has(rowId)) map.set(rowId, randomUUID());
       }
     }
+    const imagesKept = await this.storeImages(data, maps, targets.images ?? []);
 
     // An archive made before 0240 gets the columns its Fighters' status is worked out from, on
     // its own ids, before they are remapped.
@@ -477,6 +507,13 @@ export class ArchiveService {
       if (mapped.length === 0) continue;
       await this.insertRows(table, mapped);
     }
+    return imagesKept;
+  }
+
+  /** The images, each in the copy's own folder, once every id map is complete: `archive-images.ts`. */
+  private storeImages(data: ArchiveTables, maps: IdMaps, images: readonly UsableImage[]) {
+    const newIdOf = (table: ArchiveTableName, id: string) => idMapForTable(table, maps).get(id);
+    return restoreArchiveImages(this.supabase.service.storage, data, newIdOf, images);
   }
 
   private remapRow(
@@ -737,31 +774,12 @@ export class ArchiveService {
     };
   }
 
-  private parseArchive(buffer: Buffer): MyClashArchive {
-    const trimmed = buffer.toString('utf8').trimStart();
-    const parsed = trimmed.startsWith('{') ? JSON.parse(trimmed) : this.parseZipManifest(buffer);
+  private parseArchive(buffer: Buffer): { archive: MyClashArchive; entries: Map<string, Buffer> } {
+    const { parsed, entries } = readArchiveFile(buffer);
     if (!isArchive(parsed)) {
       throw new BadRequestException('Unsupported archive format.');
     }
-    return parsed;
-  }
-
-  private parseZipManifest(buffer: Buffer): unknown {
-    let offset = 0;
-    while (offset + 30 < buffer.length) {
-      if (buffer.readUInt32LE(offset) !== 0x04034b50) break;
-      const compressedSize = buffer.readUInt32LE(offset + 18);
-      const fileNameLength = buffer.readUInt16LE(offset + 26);
-      const extraLength = buffer.readUInt16LE(offset + 28);
-      const nameStart = offset + 30;
-      const dataStart = nameStart + fileNameLength + extraLength;
-      const name = buffer.subarray(nameStart, nameStart + fileNameLength).toString('utf8');
-      if (name === 'manifest.json') {
-        return JSON.parse(buffer.subarray(dataStart, dataStart + compressedSize).toString('utf8'));
-      }
-      offset = dataStart + compressedSize;
-    }
-    throw new BadRequestException('Unsupported archive format.');
+    return { archive: parsed, entries };
   }
 
   private countArchiveRows(archive: MyClashArchive): Record<string, number> {

@@ -2838,6 +2838,19 @@ export const organizer = {
       "Règlements de pénalités retirés : {count}. Ce club ne peut pas les utiliser ; la copie restaurée utilise celui de l'événement ou le règlement intégré.",
     restoreDroppedCompensationPlans:
       'Réglages de compensation des arbitres retirés : {count}. Ce club ne peut pas utiliser leur plan de compensation ; choisissez-en un à nouveau.',
+    // The images an archive carries (rulings 403-410).
+    imagesOnlyInZip: 'Les images ne sont que dans le zip.',
+    previewImagesStored: '1 image sera enregistrée avec la copie.',
+    previewImagesStoredPlural: '{count} images seront enregistrées avec la copie.',
+    previewImagesKept: '1 image garde son ancien lien.',
+    previewImagesKeptPlural: '{count} images gardent leur ancien lien.',
+    restoreImagesKept: "1 image n'a pas pu être enregistrée à nouveau. Elle garde son ancien lien.",
+    restoreImagesKeptPlural:
+      "{count} images n'ont pas pu être enregistrées à nouveau. Elles gardent leur ancien lien.",
+    // A restore refuses an archive whose data is over its limit, by the code
+    // `archive_data_too_large` (ruling 409).
+    dataTooLarge:
+      'Les données de cette archive dépassent la limite de {mb} Mo. Elle ne peut pas être restaurée.',
     scopes: {
       event: 'Événement',
       tournament: 'Tournoi',

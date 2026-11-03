@@ -18,7 +18,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { UploadLimit } from '../../common/read-upload';
+import { ensurePublicBucket } from '../../common/storage-bucket';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
@@ -29,18 +29,11 @@ import { canReadEvent, type PublicReader } from '../../common/auth/competition-v
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
-
-// Workshop logos live in their own bucket (not the shared 10 MB
-// `event-assets`) so the 15 MB cap is actually honored — a shared
-// bucket's fileSizeLimit would reject the larger uploads.
-const WORKSHOP_LOGO_BUCKET = 'workshop-assets';
-const WORKSHOP_LOGO_MAX_BYTES = 15 * 1024 * 1024;
-/** The Workshop logo, read under it (`read-upload.ts`). */
-export const WORKSHOP_LOGO_UPLOAD: UploadLimit = {
-  maxBytes: WORKSHOP_LOGO_MAX_BYTES,
-  tooLarge: 'Logo upload exceeds the 15 MB size limit.',
-};
-const ALLOWED_WORKSHOP_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+import {
+  ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
+  WORKSHOP_LOGO_BUCKET,
+  WORKSHOP_LOGO_MAX_BYTES,
+} from './workshop-assets';
 
 /** Multipart file payload for the workshop logo upload endpoint. */
 export interface WorkshopLogoUpload {
@@ -616,7 +609,12 @@ export class WorkshopsService {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }
 
-    await this.ensureWorkshopLogoBucket();
+    await ensurePublicBucket(
+      this.supabase.service.storage,
+      WORKSHOP_LOGO_BUCKET,
+      WORKSHOP_LOGO_MAX_BYTES,
+      ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
+    );
     const extension =
       file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
     const safeBase = file.filename
@@ -642,20 +640,6 @@ export class WorkshopsService {
     if (updateError) throw new BadRequestException(updateError.message);
 
     return { url };
-  }
-
-  private async ensureWorkshopLogoBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(WORKSHOP_LOGO_BUCKET);
-    if (data && !error) return;
-    const created = await storage.createBucket(WORKSHOP_LOGO_BUCKET, {
-      public: true,
-      fileSizeLimit: WORKSHOP_LOGO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_WORKSHOP_LOGO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
   }
 
   // ── Add instructor ────────────────────────────────────────────────────────────

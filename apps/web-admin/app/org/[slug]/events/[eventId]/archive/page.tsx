@@ -136,6 +136,8 @@ export default function OrganizerArchivePage() {
               <option value="zip">{t('organizer.archive.formats.zip')}</option>
               <option value="json">{t('organizer.archive.formats.json')}</option>
             </select>
+            {/* The JSON download keeps image links only (ruling 405). */}
+            <p className="mt-1 text-xs text-muted">{t('organizer.archive.imagesOnlyInZip')}</p>
           </Field>
         </div>
 

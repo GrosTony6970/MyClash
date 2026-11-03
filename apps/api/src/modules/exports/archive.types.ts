@@ -1,3 +1,4 @@
+import type { ArchiveImages } from './archive-images';
 import type { ArchiveRow } from './archive.table-spec';
 import type { ArchiveKey } from './archive.tables';
 
@@ -51,6 +52,9 @@ export interface MyClashArchive {
   reports: {
     tournaments: TournamentArchiveReports[];
   };
+  /** The image files of a zip (ruling 403). Absent from a JSON download (ruling 405) and from
+   *  any archive made before it. */
+  images?: ArchiveImages;
 }
 
 export interface RestorePreview {
@@ -60,6 +64,10 @@ export interface RestorePreview {
   include: ArchiveInclude;
   source: ArchiveSource;
   counts: Record<string, number>;
+  /** Rows whose image the copy gets as its own file. */
+  images: number;
+  /** Rows whose image keeps its old link: left out of the zip, or unusable. */
+  imagesKept: number;
   warnings: string[];
   canRestore: boolean;
 }
@@ -82,4 +90,6 @@ export interface RestoreResult {
   /** Event compensation settings dropped because the target organisation may
    *  not use their plan (operator ruling 69). */
   droppedCompensationPlans: number;
+  /** Rows whose image storage refused to take again: they keep their old link (ruling 408). */
+  imagesKept: number;
 }

@@ -2873,6 +2873,17 @@ export const organizer = {
       'Penalty rulesets removed: {count}. This club may not use them, so the restored copy uses the Event default or the built-in.',
     restoreDroppedCompensationPlans:
       'Referee compensation settings removed: {count}. This club may not use their compensation plan, so choose a plan again.',
+    // The images an archive carries (rulings 403-410).
+    imagesOnlyInZip: 'Images are only in the zip.',
+    previewImagesStored: '1 image will be stored with the copy.',
+    previewImagesStoredPlural: '{count} images will be stored with the copy.',
+    previewImagesKept: '1 image keeps its old link.',
+    previewImagesKeptPlural: '{count} images keep their old link.',
+    restoreImagesKept: '1 image could not be stored again. It keeps its old link.',
+    restoreImagesKeptPlural: '{count} images could not be stored again. They keep their old link.',
+    // A restore refuses an archive whose data is over its limit, by the code
+    // `archive_data_too_large` (ruling 409).
+    dataTooLarge: "This archive's data is larger than the {mb} MB limit. It cannot be restored.",
     scopes: {
       event: 'Event',
       tournament: 'Tournament',

@@ -90,6 +90,9 @@
     // The archive service over seeded tables, split out of its test when the restore of an older
     // archive got a test file of its own (0229). It imports vitest.
     "src/modules/exports/archive.fixtures.ts",
+    // The storage double and seeded rows of the archive's image tests (ruling 211), shared by its
+    // three test files. It imports vitest.
+    "src/modules/exports/archive-images.fixtures.ts",
     // createTournament's seeded tables, shared by its two test files, split out
     // when its test reached the 400-line cap. It imports vitest.
     "src/modules/events/create-tournament.fixtures.ts",

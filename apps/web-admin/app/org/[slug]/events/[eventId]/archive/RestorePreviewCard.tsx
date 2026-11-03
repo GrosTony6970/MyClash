@@ -10,6 +10,10 @@ export interface RestorePreview {
     tournamentName?: string;
   };
   counts: Record<string, number>;
+  /** Rows whose image the copy gets as its own file. */
+  images: number;
+  /** Rows whose image keeps its old link. */
+  imagesKept: number;
   warnings: string[];
   canRestore: boolean;
 }
@@ -72,6 +76,30 @@ export function RestorePreviewCard({
   );
 }
 
+/** How many images the copy gets as its own files, and how many keep their old link. */
+function ImageLines({ stored, kept }: { stored: number; kept: number }) {
+  const { t } = useI18n();
+  if (stored === 0 && kept === 0) return null;
+  return (
+    <ul className="mt-4 text-sm text-foreground-secondary">
+      {stored > 0 && (
+        <li>
+          {stored === 1
+            ? t('organizer.archive.previewImagesStored')
+            : t('organizer.archive.previewImagesStoredPlural', { count: stored })}
+        </li>
+      )}
+      {kept > 0 && (
+        <li>
+          {kept === 1
+            ? t('organizer.archive.previewImagesKept')
+            : t('organizer.archive.previewImagesKeptPlural', { count: kept })}
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /** The file's source, what it includes, its counts per table and its warnings. */
 function PreviewSummary({ preview }: { preview: RestorePreview }) {
   const { t } = useI18n();
@@ -103,6 +131,7 @@ function PreviewSummary({ preview }: { preview: RestorePreview }) {
             </div>
           ))}
       </dl>
+      <ImageLines stored={preview.images} kept={preview.imagesKept} />
       {preview.warnings.length > 0 && (
         <ul className="mt-4 list-disc pl-5 text-sm text-danger">
           {preview.warnings.map((warning) => (

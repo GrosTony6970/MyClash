@@ -4,6 +4,8 @@ export interface RestoreAnswer {
   droppedPenaltyRulesetPins?: number;
   /** Event compensation settings the restore dropped: the club may not use their plan. */
   droppedCompensationPlans?: number;
+  /** Images storage would not take again: they keep their old link (ruling 408). */
+  imagesKept?: number;
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -23,5 +25,8 @@ export function restoredNotice(t: Translate, answer: RestoreAnswer): string {
   const plans = answer.droppedCompensationPlans ?? 0;
   if (plans > 0)
     lines.push(t('organizer.archive.restoreDroppedCompensationPlans', { count: plans }));
+  const kept = answer.imagesKept ?? 0;
+  if (kept === 1) lines.push(t('organizer.archive.restoreImagesKept'));
+  if (kept > 1) lines.push(t('organizer.archive.restoreImagesKeptPlural', { count: kept }));
   return lines.join(' ');
 }

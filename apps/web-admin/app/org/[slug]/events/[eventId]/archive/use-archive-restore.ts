@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 import { restoredNotice, type RestoreAnswer } from './restore-notice';
@@ -12,13 +12,30 @@ import { RESTORE_CONFIRMATION, type RestorePreview } from './RestorePreviewCard'
 type Sent<T> = { ok: true; data: T } | { ok: false; message: string | null };
 
 /** Posts the picked archive file; a refusal comes back in words (the server's, or `fallback`). */
-async function postArchive<T>(path: string, file: File, t: Translator, fallback: string) {
+async function postArchive<T>(
+  path: string,
+  file: File,
+  t: Translator,
+  fallback: string,
+): Promise<Sent<T>> {
   const body = new FormData();
   body.set('file', file);
   const r = await apiRequest<T>(getPublicApiUrl(), path, { method: 'POST', body });
   // The restore reader names the table or the version it choked on: the whole value
   // of a preview step, which "Could not read this archive." used to replace.
-  return (r.ok ? r : { ok: false, message: failureMessage(r, t, t(fallback)) }) as Sent<T>;
+  if (r.ok) return { ok: true, data: r.data };
+  return { ok: false, message: dataTooLargeMessage(r, t) ?? failureMessage(r, t, t(fallback)) };
+}
+
+/**
+ * An archive whose data is over its limit (ruling 409): only this screen sends one, so it is
+ * worded here, not in `failureMessage`. The limit comes with it, as a file's limit does.
+ */
+export function dataTooLargeMessage(failure: ApiFailure, t: Translator): string | null {
+  if (failureCode(failure) !== 'archive_data_too_large' || failure.kind !== 'http') return null;
+  const maxBytes = failure.details?.['maxBytes'];
+  if (typeof maxBytes !== 'number') return null;
+  return t('organizer.archive.dataTooLarge', { mb: String(Math.floor(maxBytes / (1024 * 1024))) });
 }
 
 /**

@@ -32,9 +32,10 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isPlatformStaff } from '../../common/auth/platform-role';
 import { ANONYMOUS_USER_ID, resolveRequestUserId } from '../../common/auth/request-user';
 import { CsvDownloadQueryDto, csvDownload } from '../../common/csv-download';
-import { readUpload, type UploadLimit } from '../../common/read-upload';
+import { readUpload } from '../../common/read-upload';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ARCHIVE_UPLOAD } from './archive-file';
 import { ArchiveService } from './archive.service';
 import type { ArchiveInclude, RestoreOptions } from './archive.types';
 import { ExportsService } from './exports.service';
@@ -136,7 +137,7 @@ export class ExportsController {
     const archive = await this.archives.generateEventArchive(eventId, userId, {
       include: normalizeInclude(include),
     });
-    this.sendArchive(reply, archive.source.eventSlug, normalizeFormat(format), archive);
+    await this.sendArchive(reply, archive.source.eventSlug, normalizeFormat(format), archive);
   }
 
   @Get('tournaments/:tournamentId/archive')
@@ -156,7 +157,7 @@ export class ExportsController {
     const archive = await this.archives.generateTournamentArchive(tournamentId, userId, {
       include: normalizeInclude(include),
     });
-    this.sendArchive(
+    await this.sendArchive(
       reply,
       archive.source.tournamentSlug ?? archive.source.eventSlug,
       normalizeFormat(format),
@@ -253,12 +254,12 @@ export class ExportsController {
     return userId;
   }
 
-  private sendArchive(
+  private async sendArchive(
     reply: FastifyReply,
     basename: string,
     format: 'zip' | 'json',
     archive: Awaited<ReturnType<ArchiveService['generateEventArchive']>>,
-  ) {
+  ): Promise<void> {
     const safeName = basename.replace(/[^a-zA-Z0-9-]+/g, '-');
     if (format === 'json') {
       void reply
@@ -267,10 +268,11 @@ export class ExportsController {
         .send(this.archives.archiveToJsonBuffer(archive));
       return;
     }
+    const zip = await this.archives.archiveToZipBuffer(archive);
     void reply
       .header('Content-Type', 'application/zip')
       .header('Content-Disposition', `attachment; filename="${safeName}.archive.zip"`)
-      .send(this.archives.archiveToZipBuffer(archive));
+      .send(zip);
   }
 }
 
@@ -280,15 +282,6 @@ function sendCsv(reply: FastifyReply, filename: string, text: string): void {
     .header('Content-Disposition', `attachment; filename="${filename}"`)
     .send(text);
 }
-
-/**
- * An archive to restore (operator ruling, 2026-10-30: 25 MB). An archive is data only, a few MB for
- * a real Event; parsing one takes several times its size, up to ~24× for a crafted file.
- */
-export const ARCHIVE_UPLOAD: UploadLimit = {
-  maxBytes: 25 * 1024 * 1024,
-  tooLarge: 'Archive upload exceeds the 25 MB size limit.',
-};
 
 /** The archive's name is checked before a byte of it is read. */
 async function readUploadedArchive(req: FastifyRequest): Promise<Buffer> {

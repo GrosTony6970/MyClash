@@ -47,7 +47,8 @@ import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
-import { WORKSHOP_LOGO_UPLOAD, WorkshopsService } from './workshops.service';
+import { WORKSHOP_LOGO_UPLOAD } from './workshop-assets';
+import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
 

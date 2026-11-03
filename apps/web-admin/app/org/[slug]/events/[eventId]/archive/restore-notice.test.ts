@@ -25,6 +25,22 @@ describe('restoredNotice', () => {
     );
   });
 
+  it('names the images storage would not take again, one and many, in both languages (ruling 408)', () => {
+    expect(restoredNotice(tEn, { imagesKept: 0 })).toBe('Archive restore started.');
+    expect(restoredNotice(tEn, { imagesKept: 1 })).toBe(
+      'Archive restore started. 1 image could not be stored again. It keeps its old link.',
+    );
+    expect(restoredNotice(tEn, { imagesKept: 3 })).toBe(
+      'Archive restore started. 3 images could not be stored again. They keep their old link.',
+    );
+    expect(restoredNotice(tFr, { imagesKept: 1 })).toContain(
+      "1 image n'a pas pu être enregistrée à nouveau. Elle garde son ancien lien.",
+    );
+    expect(restoredNotice(tFr, { imagesKept: 2 })).toContain(
+      "2 images n'ont pas pu être enregistrées à nouveau. Elles gardent leur ancien lien.",
+    );
+  });
+
   it('names dropped compensation settings too, after the penalty pins (ruling 69)', () => {
     const notice = restoredNotice(tEn, {
       droppedPenaltyRulesetPins: 1,

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildMigrationSchema } from '../../common/testing/migration-schema';
+import { ARCHIVE_IMAGE_COLUMNS } from './archive-images';
 import {
   ARCHIVE_COLLECTED_TABLES,
   ARCHIVE_EXCLUDED_TABLES,
@@ -265,6 +266,12 @@ function jsonColumnsWithDeclaredPaths(table: string): Set<string> {
   return new Set(declared.map((entry) => entry.path.split(/[.[]/)[0]!));
 }
 
+/** Link columns of archived tables the archive carries as links only (rulings 403, 406). */
+const URL_COLUMNS_NOT_CARRIED = new Set<string>([
+  // 0001. No route writes it: `WorkshopsService.addInstructor` stores a name only.
+  'workshop_instructors.photo_url',
+]);
+
 describe('archive column coverage', () => {
   const { columns, jsonColumns } = buildMigrationSchema();
 
@@ -351,8 +358,34 @@ describe('archive column coverage', () => {
     ).toEqual([]);
   });
 
-  it('the two allowlists name real columns (guards against typos / dead entries)', () => {
-    const stale = [...JSON_COLUMNS_WITHOUT_IDS, ...FK_COLUMNS_NOT_REMAPPED]
+  it('every link column on an archived table is a carried image or consciously not', () => {
+    const carried = new Set(ARCHIVE_IMAGE_COLUMNS.map((spec) => `${spec.table}.${spec.column}`));
+    const unbucketed: string[] = [];
+    for (const table of [...ARCHIVE_COLLECTED_TABLES].sort()) {
+      for (const column of [...(columns.get(table) ?? [])].sort()) {
+        if (!/_url$/.test(column)) continue;
+        const name = `${table}.${column}`;
+        if (!carried.has(name) && !URL_COLUMNS_NOT_CARRIED.has(name)) unbucketed.push(name);
+      }
+    }
+    expect(carried.size, 'sanity: the carried list reaches this test').toBe(4);
+    expect(
+      unbucketed,
+      `These link columns are on archived tables and nobody has said whether they hold an ` +
+        `image this server stores. If one does, a restore on another server shows a dead image. ` +
+        `Add it to ARCHIVE_IMAGE_COLUMNS (archive-images.ts), or list it in ` +
+        `URL_COLUMNS_NOT_CARRIED with the reason:\n` +
+        unbucketed.map((entry) => `  - ${entry}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('the allowlists name real columns (guards against typos / dead entries)', () => {
+    const stale = [
+      ...JSON_COLUMNS_WITHOUT_IDS,
+      ...FK_COLUMNS_NOT_REMAPPED,
+      ...URL_COLUMNS_NOT_CARRIED,
+      ...ARCHIVE_IMAGE_COLUMNS.map((spec) => `${spec.table}.${spec.column}`),
+    ]
       .filter((entry) => {
         const [table, column] = entry.split('.') as [string, string];
         return !columns.get(table)?.has(column);

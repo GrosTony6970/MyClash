@@ -7,7 +7,13 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import type { UploadLimit } from '../../common/read-upload';
+import { ensurePublicBucket } from '../../common/storage-bucket';
+import {
+  ALLOWED_EVENT_HERO_MIME_TYPES,
+  ALLOWED_EVENT_LOGO_MIME_TYPES,
+  EVENT_LOGO_BUCKET,
+  EVENT_LOGO_MAX_BYTES,
+} from './event-assets';
 import {
   allowsDirectHardDelete,
   asEventKind,
@@ -151,24 +157,6 @@ export function countUniqueActiveFighters(
 export function countDistinctPersonIds(rows: Array<{ person_id: string }>): number {
   return new Set(rows.map((r) => r.person_id)).size;
 }
-
-const EVENT_LOGO_BUCKET = 'event-assets';
-const EVENT_LOGO_MAX_BYTES = 10 * 1024 * 1024;
-const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
-/** The Event's and a Tournament's logo, read under it (`read-upload.ts`). */
-export const EVENT_LOGO_UPLOAD: UploadLimit = {
-  maxBytes: EVENT_LOGO_MAX_BYTES,
-  tooLarge: 'Logo upload exceeds the 10 MB size limit.',
-};
-
-// Hero shares the bucket + MIME allowlist with logos; cap matches
-// the logo limit so high-resolution camera JPEGs upload without a
-// re-encode step.
-export const EVENT_HERO_UPLOAD: UploadLimit = {
-  maxBytes: 10 * 1024 * 1024,
-  tooLarge: 'Hero upload exceeds the 10 MB size limit.',
-};
-const ALLOWED_EVENT_HERO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export interface EventLogoUpload {
   buffer: Buffer;
@@ -4297,17 +4285,12 @@ export class EventsService {
   }
 
   private async ensureLogoBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(EVENT_LOGO_BUCKET);
-    if (data && !error) return;
-    const created = await storage.createBucket(EVENT_LOGO_BUCKET, {
-      public: true,
-      fileSizeLimit: EVENT_LOGO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_EVENT_LOGO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
+    await ensurePublicBucket(
+      this.supabase.service.storage,
+      EVENT_LOGO_BUCKET,
+      EVENT_LOGO_MAX_BYTES,
+      ALLOWED_EVENT_LOGO_MIME_TYPES,
+    );
   }
 
   /**
