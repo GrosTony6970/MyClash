@@ -141,6 +141,13 @@ here.
 - Accessibility tests should capture page errors, keep colour-contrast checks on, and assert
   keyboard activation on representative controls. An Axe-only smoke test passes while real runtime
   and keyboard regressions survive.
+- **A timer a cleanup stops must be one the setup starts again.** React may clean an effect up and
+  set it up again while the component stays, its state kept: Strict Mode does it once as a page
+  hydrates, a hidden `<Activity>` does it when shown again. A timer that only a click starts and
+  only a cleanup stops is then lost. "Copied!" stayed on the Share button, and the browser suite went red on CI
+  about once in 450 runs: CI tapped while the page was still hydrating (2026-11-03; the lice
+  display's bar and the HEMA Ratings sync wait had the same shape). Let the effect start the timer,
+  keyed on the state the timer ends. Test it by hiding and showing an `<Activity>` mid-timer.
 
 ## Build & packaging
 

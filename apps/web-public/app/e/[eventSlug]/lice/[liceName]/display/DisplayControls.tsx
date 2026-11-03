@@ -34,10 +34,26 @@ export function DisplayControls({ eventSlug, currentLiceName, settings }: Props)
   const hideTimer = useRef<number | null>(null);
   const requested = useRef(false);
 
-  const reveal = useCallback(() => {
-    setVisible(true);
+  // The ONE place the hide timer starts: on each touch, and by the effect below.
+  const hideLater = useCallback(() => {
     if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => setVisible(false), HIDE_AFTER_MS);
+  }, []);
+
+  // React may clean an effect up and set it up again while the bar stays (Strict Mode as the
+  // page wakes up, a hidden `<Activity>` shown again). Its cleanup stops the timer, so its setup
+  // starts it again: a timer only a touch started was lost, and the bar stayed up.
+  useEffect(() => {
+    if (!visible) return;
+    hideLater();
+    return () => {
+      if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
+    };
+  }, [visible, hideLater]);
+
+  const reveal = useCallback(() => {
+    setVisible(true);
+    hideLater();
 
     // Fetched on the first reveal, not on mount: a screen nobody touches must
     // cost nothing beyond the match feed it exists to show.
@@ -64,7 +80,7 @@ export function DisplayControls({ eventSlug, currentLiceName, settings }: Props)
       .catch(() => {
         // Offline kiosk: the switcher stays empty, the display keeps running.
       });
-  }, [eventSlug]);
+  }, [eventSlug, hideLater]);
 
   useEffect(() => {
     window.addEventListener('pointermove', reveal, { passive: true });
@@ -74,7 +90,6 @@ export function DisplayControls({ eventSlug, currentLiceName, settings }: Props)
       window.removeEventListener('pointermove', reveal);
       window.removeEventListener('touchstart', reveal);
       window.removeEventListener('keydown', reveal);
-      if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
     };
   }, [reveal]);
 

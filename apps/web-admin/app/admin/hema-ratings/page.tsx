@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -93,19 +93,8 @@ export default function HemaRatingsAdminPage() {
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [history, setHistory] = useState<SyncHistoryEntry[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const stopSyncPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (pollTimeoutRef.current) {
-      clearTimeout(pollTimeoutRef.current);
-      pollTimeoutRef.current = null;
-    }
-  }, []);
+  // The snapshot a queued sync waits to see replaced; null while no sync waits.
+  const [waitingFor, setWaitingFor] = useState<{ syncedAt: string | null } | null>(null);
 
   const loadFighters = useCallback(async () => {
     setLoadError(null);
@@ -126,7 +115,36 @@ export default function HemaRatingsAdminPage() {
     void loadFighters();
   }, [loadFighters]);
 
-  useEffect(() => stopSyncPolling, [stopSyncPolling]);
+  // The wait for the worker's new snapshot. The effect owns both timers: React may clean an
+  // effect up and set it up again while the page stays (Strict Mode as the page wakes up, a
+  // hidden `<Activity>` shown again), and timers the click started were lost, "Syncing…" left on.
+  // The wait ends once: a read still on its way when it gave up or the page went is dropped, and
+  // a give-up due in the same moment as a completed read does not overwrite it.
+  useEffect(() => {
+    if (!waitingFor) return;
+    let waiting = true;
+    const end = (message: string) => {
+      if (!waiting) return;
+      waiting = false;
+      setWaitingFor(null);
+      setSyncing(false);
+      setSyncMessage(message);
+    };
+    const poll = setInterval(() => {
+      void loadFighters().then((next) => {
+        const nextSyncedAt = next[0]?.syncedAt ?? null;
+        if (nextSyncedAt && nextSyncedAt !== waitingFor.syncedAt) {
+          end(t('admin.hemaRatings.syncCompleted'));
+        }
+      });
+    }, SYNC_POLL_INTERVAL_MS);
+    const giveUp = setTimeout(() => end(t('admin.hemaRatings.syncTimeout')), SYNC_POLL_TIMEOUT_MS);
+    return () => {
+      waiting = false;
+      clearInterval(poll);
+      clearTimeout(giveUp);
+    };
+  }, [waitingFor, loadFighters, t]);
 
   const latestSyncedAt = useMemo(() => fighters?.[0]?.syncedAt ?? null, [fighters]);
 
@@ -151,45 +169,24 @@ export default function HemaRatingsAdminPage() {
 
   async function handleRunSync() {
     if (syncing) return;
-    // Snapshot the pre-sync timestamp so the polling loop can detect
+    // Snapshot the pre-sync timestamp so the wait can detect
     // when the worker has written a new row to hema_ratings_snapshots.
     const preSyncedAt = fighters?.[0]?.syncedAt ?? null;
-    stopSyncPolling();
     setSyncing(true);
     setSyncMessage(null);
-    // No `try`: `apiRequest` does not throw, and the two exits own their own
-    // cleanup — the failure path stops the poll and clears the flag, the
-    // success path hands both to the interval and the timeout below.
+    // No `try`: `apiRequest` does not throw. The failure path clears the flag;
+    // the success path hands it to the wait above, which clears it as it ends.
     const r = await apiRequest(API_URL, '/api/v1/admin/hema-ratings/sync', { method: 'POST' });
     if (!r.ok) {
-      stopSyncPolling();
       setSyncing(false);
       const message = failureMessage(r, t, t('admin.hemaRatings.syncFailed'));
       if (message) setSyncMessage(message);
       return;
     }
-    // 202 — job enqueued. Switch to "waiting" message and start polling
-    // the fighters endpoint until syncedAt advances past preSyncedAt or
-    // the safety timeout fires.
+    // 202 — job enqueued. The wait reads the fighters until syncedAt
+    // advances past preSyncedAt, or gives up.
     setSyncMessage(t('admin.hemaRatings.syncWaiting'));
-
-    pollIntervalRef.current = setInterval(() => {
-      void (async () => {
-        const next = await loadFighters();
-        const nextSyncedAt = next?.[0]?.syncedAt ?? null;
-        if (nextSyncedAt && nextSyncedAt !== preSyncedAt) {
-          stopSyncPolling();
-          setSyncing(false);
-          setSyncMessage(t('admin.hemaRatings.syncCompleted'));
-        }
-      })();
-    }, SYNC_POLL_INTERVAL_MS);
-
-    pollTimeoutRef.current = setTimeout(() => {
-      stopSyncPolling();
-      setSyncing(false);
-      setSyncMessage(t('admin.hemaRatings.syncTimeout'));
-    }, SYNC_POLL_TIMEOUT_MS);
+    setWaitingFor({ syncedAt: preSyncedAt });
   }
 
   async function handleRefreshOne(globalPersonId: string) {

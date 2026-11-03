@@ -20,28 +20,34 @@ const SHOWS_MS = { copied: 2000, failed: 6000 } as const;
  * sheet, and not as "closed by the person", so that refusal would copy the link
  * and say "Copied!" under the sheet. A tap is ignored until the one before it
  * has its answer.
+ *
+ * The timer that ends a message belongs to the effect, not to the tap: React
+ * may clean an effect up and set it up again while the button stays (Strict
+ * Mode as the page wakes up, a hidden `<Activity>` shown again), and a timer
+ * the tap started would be lost, leaving "Copied!" for good.
  */
 export function ShareButton({ path }: { path: string }) {
   const { t } = useI18n();
-  const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
+  // A new object per tap: a second tap starts the message's time again.
+  const [shown, setShown] = useState<{ outcome: ShareOutcome } | null>(null);
   const underWay = useRef(false);
-  const hide = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  useEffect(() => () => clearTimeout(hide.current), []);
+  useEffect(() => {
+    const outcome = shown?.outcome;
+    if (outcome !== 'copied' && outcome !== 'failed') return;
+    const hide = setTimeout(() => setShown(null), SHOWS_MS[outcome]);
+    return () => clearTimeout(hide);
+  }, [shown]);
 
   const share = async () => {
     if (underWay.current) return;
     underWay.current = true;
-    clearTimeout(hide.current);
-    const did = await shareLink(window.location.origin + path, document.title, navigator);
+    const outcome = await shareLink(window.location.origin + path, document.title, navigator);
     underWay.current = false;
-    setOutcome(did);
-    if (did === 'copied' || did === 'failed') {
-      hide.current = setTimeout(() => setOutcome(null), SHOWS_MS[did]);
-    }
+    setShown({ outcome });
   };
 
-  const messageKey = shareMessageKey(outcome);
+  const messageKey = shareMessageKey(shown?.outcome ?? null);
 
   return (
     <>
