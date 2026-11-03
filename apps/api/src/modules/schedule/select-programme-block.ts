@@ -22,7 +22,8 @@ export interface BlockWindow {
  * says so through `unknownZone`, for the caller to log (this module has no logger).
  *
  * A day before `firstDay` is day 0: the board shows the first day's programme rather than none.
- * So is a `firstDay` that is not a date (the column is TEXT), and `unknownFirstDay` says so.
+ * So is a missing `firstDay`, and `unknownFirstDay` says so. The column is DATE NOT NULL (0223):
+ * only a lost projection gets here.
  */
 export function boardClock(
   nowIso: string,
