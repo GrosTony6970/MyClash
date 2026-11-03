@@ -99,7 +99,8 @@ export function useRefereeCrewConflicts(args: {
   }, [matches]);
 
   // A pending re-read must not fire into an unmounted tree.
-  useEffect(() => () => gateRef.current?.cancel(), []);
+  // Its setup need not arm it again: shown again, both effects above run again too.
+  useEffect(() => () => void gateRef.current?.cancel(), []);
 
   return { result };
 }

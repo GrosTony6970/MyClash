@@ -111,8 +111,11 @@ describe('createRefetchGate', () => {
       clearTimer: clock.clearTimer,
     });
 
+    expect(gate.cancel()).toBe(false);
     gate.schedule();
-    gate.cancel();
+    // It says one was pending, so a board that stays can arm it again.
+    expect(gate.cancel()).toBe(true);
+    expect(gate.cancel()).toBe(false);
     clock.tick();
 
     expect(refetches).toBe(0);
@@ -133,7 +136,8 @@ describe('createRefetchGate', () => {
 
     gate.schedule();
     clock.tick();
-    gate.cancel();
+    // The rearmed refetch is still pending.
+    expect(gate.cancel()).toBe(true);
     clock.tick();
 
     expect(refetches).toBe(0);

@@ -121,7 +121,12 @@ function file(size: number): Blob {
   return new Blob([new Uint8Array(size)]);
 }
 
-async function upload(w: ReturnType<typeof world>, size: number, signal?: AbortSignal) {
+async function upload(
+  w: ReturnType<typeof world>,
+  size: number,
+  signal?: AbortSignal,
+  uploadId?: string,
+) {
   const phases: string[] = [];
   const outcome = await uploadInChunks(
     file(size),
@@ -131,6 +136,7 @@ async function upload(w: ReturnType<typeof world>, size: number, signal?: AbortS
       clock: w.clock,
       signal,
       onProgress: (progress) => phases.push(progress.phase),
+      uploadId,
     },
   );
   return { outcome, phases };
@@ -157,6 +163,24 @@ describe('uploadInChunks: the bytes', () => {
     const w = world(10 * MIB, { received: 8 * MIB });
     expect((await upload(w, 10 * MIB)).outcome.ok).toBe(true);
     expect(w.server.sent).toEqual([8 * MIB]);
+  });
+
+  it('an upload the server has is followed by its id: no start, the bytes still missing', async () => {
+    const w = world(10 * MIB, { received: 8 * MIB });
+    // A start would be refused: only the status read lets it go on.
+    w.faults.start = [() => http(409, 'upload_not_receiving')];
+    expect((await upload(w, 10 * MIB, undefined, 'u1')).outcome.ok).toBe(true);
+    expect(w.server.sent).toEqual([8 * MIB]);
+  });
+
+  it('an upload the server is checking is followed to its end: nothing is sent again', async () => {
+    const w = world(10 * MIB, { received: 10 * MIB });
+    w.server.state = 'verifying';
+    w.faults.start = [() => http(409, 'upload_not_receiving')];
+    const { outcome } = await upload(w, 10 * MIB, undefined, 'u1');
+    expect(outcome.ok).toBe(true);
+    expect(w.server.sent).toEqual([]);
+    expect(w.server.completes).toBe(1);
   });
 
   it('a lost answer: asks where the upload is, and never sends a byte twice', async () => {

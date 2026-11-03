@@ -66,6 +66,9 @@ export interface UploadOptions {
   onProgress?: (progress: UploadProgress) => void;
   /** The server's id of this upload, once it has one: what Cancel removes. */
   onStart?: (uploadId: string) => void;
+  /** An upload the server already has (a run started again): followed by its id, never started
+   *  again, so it goes on from where the server is, the check included. */
+  uploadId?: string;
   signal?: AbortSignal;
 }
 
@@ -96,12 +99,15 @@ export async function uploadInChunks(
   options: UploadOptions,
 ): Promise<UploadOutcome> {
   const run: Run = { ...options, lastAnswer: options.clock.now() };
+  const { uploadId } = options;
   const started = await call(run, () =>
-    transport.start({
-      filename: start.filename,
-      sizeBytes: file.size,
-      fingerprint: start.fingerprint,
-    }),
+    uploadId
+      ? transport.status(uploadId)
+      : transport.start({
+          filename: start.filename,
+          sizeBytes: file.size,
+          fingerprint: start.fingerprint,
+        }),
   );
   if (!started.ok) return failed(started);
   run.onStart?.(started.data.uploadId);

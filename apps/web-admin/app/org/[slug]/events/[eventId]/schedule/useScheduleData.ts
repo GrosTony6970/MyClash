@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
@@ -93,10 +93,7 @@ function useScheduleRealtime(args: {
     });
     gateRef.current.schedule();
   }, []);
-  // The pending timer used to outlive the component and fire a refetch into an
-  // unmounted tree. Nothing surfaced it — the setters no-op after unmount — but
-  // the request still went out.
-  useEffect(() => () => gateRef.current?.cancel(), []);
+  useRefetchAcrossCleanup(gateRef, scheduleRefetch);
   const liceIdsCsv = liceIds.join(',');
   useRealtimeWithFallback({
     channelName: `schedule-${eventId}`,
@@ -113,6 +110,29 @@ function useScheduleRealtime(args: {
     fallbackPollMs: 30_000,
   });
   return scheduleRefetch;
+}
+
+/**
+ * The pending timer used to outlive the component and fire a refetch into an
+ * unmounted tree. Nothing surfaced it — the setters no-op after unmount — but
+ * the request still went out. So the cleanup drops it. But React may clean up
+ * and set up again while the board stays (Strict Mode as the page wakes up, a
+ * hidden `<Activity>` shown again): the setup then arms the dropped refetch
+ * again, or the board stays stale until the next event or the 30 s poll.
+ */
+function useRefetchAcrossCleanup(
+  gateRef: RefObject<RefetchGate | null>,
+  scheduleRefetch: () => void,
+): void {
+  const droppedRef = useRef(false);
+  useEffect(() => {
+    // The ref, not its value: the gate is built on the first event, after this setup.
+    const gate = gateRef;
+    if (droppedRef.current) scheduleRefetch();
+    return () => {
+      droppedRef.current = gate.current?.cancel() ?? false;
+    };
+  }, [gateRef, scheduleRefetch]);
 }
 
 export interface ScheduleData {

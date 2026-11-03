@@ -23,8 +23,9 @@
 export interface RefetchGate {
   /** A reason to re-read arrived. Restarts the debounce window. */
   schedule(): void;
-  /** Drop any pending refetch — the board is going away. */
-  cancel(): void;
+  /** Drop any pending refetch — the board is going away.
+   *  @returns whether one was pending, so a board that stays can arm it again. */
+  cancel(): boolean;
 }
 
 export function createRefetchGate(args: {
@@ -58,10 +59,11 @@ export function createRefetchGate(args: {
       if (pending !== null) clearTimer(pending);
       arm();
     },
-    cancel(): void {
-      if (pending === null) return;
+    cancel(): boolean {
+      if (pending === null) return false;
       clearTimer(pending);
       pending = null;
+      return true;
     },
   };
 }

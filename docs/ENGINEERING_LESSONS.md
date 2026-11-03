@@ -147,7 +147,10 @@ here.
   only a cleanup stops is then lost. "Copied!" stayed on the Share button, and the browser suite went red on CI
   about once in 450 runs: CI tapped while the page was still hydrating (2026-11-03; the lice
   display's bar and the HEMA Ratings sync wait had the same shape). Let the effect start the timer,
-  keyed on the state the timer ends. Test it by hiding and showing an `<Activity>` mid-timer.
+  keyed on the state the timer ends. Work kept out of state (a pending refetch inside the
+  schedule board's gate; a 2 GB upload, held in a ref so a render never touches it) is noted by
+  the cleanup and started again by the next setup; the upload follows its upload id from where
+  the server is (ruling 419). Test it by hiding and showing an `<Activity>` mid-timer.
 
 ## Build & packaging
 
