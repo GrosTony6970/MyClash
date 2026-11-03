@@ -3876,10 +3876,11 @@ Response:
     runningMatch: LiveMatch | null; // status = 'running'
     nextMatch: LiveMatch | null; // earliest scheduled match after now
   }>;
+  timezone: string; // IANA zone the blocks were picked by (events.timezone, or the default)
 }
 ```
 
-Block detection: converts `day_index` offset from `event.start_date` + block `start_time`/`end_time` to wall-clock comparison against `now()`. No new database table.
+Block detection: compares block `start_time`/`end_time` against `now()` on the Event's wall clock (`events.timezone`, read through `eventZone`), on the `day_index` of the Event's calendar day counted from `event.start_date` (`boardClock`, ruling 411). No new database table.
 
 ### 25.3 Frontend
 

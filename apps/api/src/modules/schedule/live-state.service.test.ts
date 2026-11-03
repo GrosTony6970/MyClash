@@ -66,6 +66,7 @@ beforeEach(() => {
     // does; the gate consumes them without a second round-trip.
     data: {
       start_date: new Date().toISOString(),
+      timezone: 'Europe/Paris',
       status: 'published',
       organization_id: 'org-1',
     },
@@ -179,6 +180,7 @@ describe('LiveStateService — a refused read is not an empty one', () => {
         data: {
           id: EVENT_ID,
           start_date: new Date().toISOString(),
+          timezone: 'Europe/Paris',
           status,
           organization_id: 'org-1',
           event_kind: eventKind,

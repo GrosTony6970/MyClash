@@ -5,7 +5,8 @@ import { addDays, DEFAULT_EVENT_TIMEZONE, isIanaZone, zonedToUtcIso } from '@myc
 /**
  * An Event's clock: its first day and the zone its wall-clock times are read in. The one owner
  * of that read and of turning a programme bar's day and "HH:MM" into an instant (ruling 414).
- * The programme lays, moves and clears bouts with it; the next-bout end reads its bars with it.
+ * The programme lays, moves and clears bouts with it; the next-bout end reads its bars with it;
+ * the live board picks its day and bar with `eventZone` (`boardClock`).
  */
 
 /**

@@ -1,10 +1,13 @@
 /**
  * Which programme block is running right now.
  *
- * Extracted from LiveStateService so the live control room can read the same
- * answer without duplicating the rule. Pure: the caller fetches the blocks and
- * supplies the clock. No I/O, no Nest.
+ * Read by LiveStateService (the live board). The caller fetches the blocks and
+ * supplies the clock. No I/O; calls no Nest; reads the zone through `eventZone`
+ * (`common/event-clock.ts`).
  */
+
+import { dayIndexInZone, utcToZonedParts } from '@myclash/time';
+import { eventZone } from '../../common/event-clock';
 
 /** The shape `selectProgrammeBlocks` needs — a subset of ProgrammeBlock. */
 export interface BlockWindow {
@@ -13,26 +16,42 @@ export interface BlockWindow {
 }
 
 /**
- * Which day of the event `nowMs` falls on, as a 0-based index from the event's
- * start date. Out-of-range dates clamp to day 0 rather than going negative:
- * an unparseable or future start date should show the first day's programme,
- * not none of it.
+ * Where `nowIso` falls on the Event's wall clock (ruling 411): the programme day, 0-based from
+ * `firstDay` and counted in the Event's calendar days, and the "HH:MM" `selectProgrammeBlocks`
+ * compares. `timezone` is the stored one: `eventZone` reads an unknown one in the default zone and
+ * says so through `unknownZone`, for the caller to log (this module has no logger).
+ *
+ * A day before `firstDay` is day 0: the board shows the first day's programme rather than none.
+ * So is a `firstDay` that is not a date (the column is TEXT), and `unknownFirstDay` says so.
  */
-export function dayIndexFor(startDate: string | null | undefined, nowMs: number): number {
-  const start = new Date(startDate ?? '');
-  if (isNaN(start.getTime())) return 0;
-  return Math.max(0, Math.floor((nowMs - start.getTime()) / (24 * 60 * 60 * 1000)));
+export function boardClock(
+  nowIso: string,
+  firstDay: string | null | undefined,
+  timezone: unknown,
+): {
+  dayIndex: number;
+  hhmm: string;
+  zone: string;
+  unknownZone: boolean;
+  unknownFirstDay: boolean;
+} {
+  const { zone, unknownZone } = eventZone(timezone);
+  const dayIndex = dayIndexInZone(nowIso, firstDay?.slice(0, 10), zone);
+  return {
+    dayIndex: dayIndex ?? 0,
+    // Null only on an invalid instant or zone: `nowIso` comes from a Date, `zone` from eventZone.
+    hhmm: utcToZonedParts(nowIso, zone)!.hhmm,
+    zone,
+    unknownZone,
+    unknownFirstDay: dayIndex === null,
+  };
 }
 
 /**
  * Split a day's blocks into the one covering `nowHHMM` and the next one due.
  *
- * `nowHHMM` is a local-clock "HH:MM" and the comparison is a string compare,
- * which works because both sides are zero-padded 24h. That the clock is the
- * SERVER's local time is a pre-existing property of this rule, deliberately
- * preserved here — moving it would change /live-state's output for every
- * deployment whose container is not on venue time, which is a decision, not a
- * refactor.
+ * `nowHHMM` is the Event's wall clock, from `boardClock`, and the comparison is
+ * a string compare, which works because both sides are zero-padded 24h.
  *
  * Blocks are expected in `sort_order`; `next` is the first block starting after
  * now, so an unsorted input yields an arbitrary-but-valid pick.
@@ -53,9 +72,4 @@ export function selectProgrammeBlocks<T extends BlockWindow>(
     }
   }
   return { current, next };
-}
-
-/** Local-clock "HH:MM" for a Date, the format `selectProgrammeBlocks` compares. */
-export function toHHMM(now: Date): string {
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }

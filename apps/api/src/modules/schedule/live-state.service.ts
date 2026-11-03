@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
@@ -12,7 +17,8 @@ import {
   type PublicReader,
 } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
-import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
+import { unknownZoneWarning } from '../../common/event-clock';
+import { boardClock, selectProgrammeBlocks } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
@@ -51,6 +57,9 @@ export interface LiveStateResponse {
    * expressed in. The organiser's live banner used to compare them against a
    * browser-local `new Date()`, which reported "480 min left" for a block with
    * two hours to run whenever the viewer sat in a different zone.
+   *
+   * Always an IANA name: the zone the board picked its blocks by. An unknown
+   * stored zone answers `DEFAULT_EVENT_TIMEZONE`.
    */
   timezone: string;
 }
@@ -87,6 +96,8 @@ interface ReadResult<T> {
 
 @Injectable()
 export class LiveStateService {
+  private readonly logger = new Logger(LiveStateService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -114,7 +125,7 @@ export class LiveStateService {
   }
 
   async getLiveState(eventIdOrSlug: string, reader: PublicReader): Promise<LiveStateResponse> {
-    const now = new Date();
+    const nowIso = new Date().toISOString();
 
     const eventId = UUID_RE.test(eventIdOrSlug)
       ? eventIdOrSlug
@@ -151,7 +162,14 @@ export class LiveStateService {
     if (!eventRow || (!isPublicEvent(eventRow) && !insider)) {
       return unknownBoard(eventIdOrSlug);
     }
-    const dayIndex = dayIndexFor(eventRow?.['start_date'] as string | null, now.getTime());
+    const clock = boardClock(nowIso, eventRow['start_date'] as string | null, eventRow['timezone']);
+    if (clock.unknownZone) this.logger.warn(unknownZoneWarning(eventId, eventRow['timezone']));
+    if (clock.unknownFirstDay) {
+      const firstDay = JSON.stringify(eventRow['start_date']);
+      this.logger.warn(
+        `Event ${eventId}: first day ${firstDay} is not a date; the board shows day 0`,
+      );
+    }
 
     const lices =
       this.orThrow(
@@ -163,20 +181,19 @@ export class LiveStateService {
       .from('event_programme_blocks')
       .select('*')
       .eq('event_id', eventId)
-      .eq('day_index', dayIndex)
+      .eq('day_index', clock.dayIndex)
       .order('sort_order', { ascending: true });
 
     const blocksData =
       this.orThrow(blocksRes as ReadResult<Record<string, unknown>[]>, 'programme blocks') ?? [];
     const blocks = blocksData.map((r) => this.mapBlock(r));
-    const { current: currentBlock, next: nextBlock } = selectProgrammeBlocks(blocks, toHHMM(now));
+    const { current: currentBlock, next: nextBlock } = selectProgrammeBlocks(blocks, clock.hhmm);
 
     const matchRows = await this.readBouts(
       lices.map((l) => l.id),
       insider,
     );
 
-    const nowIso = now.toISOString();
     const liceStates: LiveLiceState[] = lices.map((lice) => {
       const liceMatches = matchRows.filter((m) => m['lice_id'] === lice.id);
       // `running` wins over `paused` when a piste somehow carries both —
@@ -205,7 +222,7 @@ export class LiveStateService {
       currentBlock,
       nextBlock,
       lices: liceStates,
-      timezone: (eventRow?.['timezone'] as string | null) ?? DEFAULT_EVENT_TIMEZONE,
+      timezone: clock.zone,
     };
   }
 
