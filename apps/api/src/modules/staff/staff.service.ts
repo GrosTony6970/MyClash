@@ -43,7 +43,8 @@ import {
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { getStaffSession } from '../../common/auth/identity';
 import { hasPlatformTier } from '../../common/auth/platform-role';
-import { eventOpenWindow, unknownZoneWarning } from '../../common/event-open-window';
+import { unknownZoneWarning } from '../../common/event-clock';
+import { eventOpenWindow } from '../../common/event-open-window';
 import { isOver } from '../../common/live-status';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';

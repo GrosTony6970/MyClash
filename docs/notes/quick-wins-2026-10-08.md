@@ -4034,6 +4034,19 @@ or after this server lost its image files, the links are dead. Plan:
 | Big data (409)    | A large Event's data is over 25 MB, images or not.                                                       | **The export still downloads it; the restore refuses it with its own sentence.**                                                 | `archive-file.ts`, `use-archive-restore.ts`   |
 | Old address (410) | A logo saved before the server's address changed is on this server's storage, under the old address.     | **Recognised by its storage path, whatever the address**, a short `/storage/…` link included.                                    | `archive-images.ts`                           |
 
+### Rulings — operator, 2026-11-03: Event time zones (ticker plan §8)
+
+Asked in session 2e915188. Recon of the rows the ticker slice named, not fixed (rulings 155, 156).
+It found one more, worse than the board: Generate and the bar tools placed bouts on the SERVER's
+clock. Plan: `slice-event-clock-a-bouts-plan.md`, converged in 2 review passes.
+
+| Row              | Story                                                                                                     | Ruling                                                                                                                                                                                  | Files                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Scope (411)      | A New York Event's 09:00 bar got its bouts at 03:00 New York; the live board picks its bar by the server. | **In: A (bouts on the Event's clock), B (the live board), C (the zone door). D stays named**: upcoming count, landing Event, archive grace, HEMA Ratings window, guest and pass expiry. | —                                           |
+| Order (412)      | A writes data, B reads it, C changes a form and the API.                                                  | **One slice per row, A first, then B, then C.**                                                                                                                                         | —                                           |
+| Twice (413)      | The October 02:30 happens twice; the library's answer depended on today's date.                           | **A repeated wall time is the EARLIER instant**, for every app, in its own commit.                                                                                                      | `packages/time/src/index.ts`                |
+| One reader (414) | next-bout-end already read the Event's first day and zone.                                                | **One shared reader.** A junk zone gets its schedule-page ends on the Paris clock instead of none.                                                                                      | `common/event-clock.ts`, `next-bout-end.ts` |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

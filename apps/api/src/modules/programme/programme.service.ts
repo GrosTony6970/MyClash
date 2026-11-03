@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import type {
   BlockDiagnostic,
   GenerateResult,
@@ -14,6 +20,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { MatchPlacementService } from '../matches/match-placement.service';
 import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
+import { barDay, barInstant, readEventClock } from '../../common/event-clock';
 import {
   hiddenTournamentIds,
   readableEvent,
@@ -38,7 +45,6 @@ import {
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import {
   DAY_LAST_MIN,
-  localDateIso,
   planBlockMove,
   planDayDelay,
   type MoveCandidateMatch,
@@ -197,6 +203,9 @@ export function decidePoolAffinity(input: {
 
 @Injectable()
 export class ProgrammeService {
+  /** Warns about an Event whose stored zone is not an IANA name (`readEventClock`). */
+  private readonly logger = new Logger(ProgrammeService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -223,6 +232,13 @@ export class ProgrammeService {
    */
   private async assertWriter(eventId: string, userId: string): Promise<void> {
     await assertCanManageEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
+  }
+
+  /** The calendar day of a bar's day index; a 400 when the index is not a number. */
+  private dayOfBar(firstDay: string, dayIndex: number): string {
+    const day = barDay(firstDay, dayIndex);
+    if (!day) throw new BadRequestException(`Cannot place day ${dayIndex} of the Event`);
+    return day;
   }
 
   /**
@@ -935,14 +951,8 @@ export class ProgrammeService {
       .order('sort_order', { ascending: true });
     if (blocksErr) throw new BadRequestException(blocksErr.message);
 
-    const { data: eventData } = await this.supabase.service
-      .from('events')
-      .select('start_date')
-      .eq('id', eventId)
-      .single();
-    if (!eventData) throw new NotFoundException('Event not found');
-
-    const startDate = new Date((eventData as Record<string, string>)['start_date'] ?? '');
+    // The bars' "HH:MM" are on the Event's clock, never the server's (ruling 411).
+    const { firstDay, zone } = await readEventClock(this.supabase.service, eventId, this.logger);
 
     const { data: licesData } = await this.supabase.service
       .from('lices')
@@ -1045,17 +1055,14 @@ export class ProgrammeService {
       const allocatedEndMin = effStartMin + storedDurationMin;
 
       if (block.blockType === 'competition' && block.competitionId) {
-        const dayDate = new Date(startDate);
-        dayDate.setDate(dayDate.getDate() + block.dayIndex);
-
         // Anchor the run at the swept start (not the stored start) so it begins
-        // after whatever precedes it on the day. blockEndDt is the allocated
+        // after whatever precedes it on the day. The end is the allocated
         // window (stored duration shifted to the swept start) — only used for
         // the advisory overflow warning; the real end is the realized one.
-        const blockStartDt = new Date(dayDate);
-        blockStartDt.setHours(Math.floor(effStartMin / 60), effStartMin % 60, 0, 0);
-        const blockEndDt = new Date(dayDate);
-        blockEndDt.setHours(Math.floor(allocatedEndMin / 60), allocatedEndMin % 60, 0, 0);
+        // A real day and a minute ≥ 0 always place: the `!` narrows, it hides no case.
+        const day = this.dayOfBar(firstDay, block.dayIndex);
+        const blockStartIso = barInstant(day, effStartMin, zone)!;
+        const blockEndDt = new Date(barInstant(day, allocatedEndMin, zone)!);
 
         const matches = await this.fetchCompetitionMatches(
           block.competitionId,
@@ -1138,7 +1145,7 @@ export class ProgrammeService {
           })),
           blockLices.map((l) => ({ id: l.id, name: l.name, sortOrder: l.sort_order })),
           {
-            startTime: blockStartDt.toISOString(),
+            startTime: blockStartIso,
             transitionMinutes: sheet.matchGapSeconds / 60,
             // The bar's own Tournament, as its lengths are read above.
             midRestMinutes: sheetRestFor(sheet, tournamentId),
@@ -1349,27 +1356,13 @@ export class ProgrammeService {
 
     const newEndTime = clampedMinToTime(timeToMin(block.endTime) + deltaMin);
 
-    // Look up the event date so we can scope cascade shifts to the
-    // block's day. start_date + dayIndex → date for THIS block.
-    //
-    // WALL-CLOCK, not UTC. The scheduler stores matches with `setHours` (see
-    // the `blockStartDt` construction in generate), i.e. container-local time
-    // via `TZ` in docker-compose. This used to read them back with
-    // getUTCHours/setUTCDate, so on any container that is not UTC the two
-    // disagreed by the offset: a block at 09:00 local is stored as 08:00Z, and
-    // `480 < 540` skipped EVERY match. The bar moved and not one match followed
-    // it — silently, on every non-UTC deployment. `deleteBlock` already used
-    // wall-clock math and its comment pointed here; this is that fix.
-    const { data: eventData } = await this.supabase.service
-      .from('events')
-      .select('start_date')
-      .eq('id', eventId)
-      .single();
-    if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
-
-    const startDate = new Date(`${(eventData as Record<string, string>)['start_date']}T00:00:00`);
-    startDate.setDate(startDate.getDate() + block.dayIndex);
-    const blockDateIso = localDateIso(startDate);
+    // The bar's day, so the cascade shifts only that day's bouts, and the
+    // Event's zone, the clock both the bar's "HH:MM" and its bouts are read on.
+    // Never the server's clock (ruling 411), and never UTC: either one files the
+    // bouts of an Event in another zone under another hour, and the bar moves
+    // with not one bout following it.
+    const { firstDay, zone } = await readEventClock(this.supabase.service, eventId, this.logger);
+    const blockDateIso = this.dayOfBar(firstDay, block.dayIndex);
 
     const { shiftedMatches, updatedRows } = await this.applyDayShift(
       eventId,
@@ -1381,6 +1374,7 @@ export class ProgrammeService {
           deltaMin,
           oldStartMin: timeToMin(block.startTime),
           blockDateIso,
+          zone,
           dayBlocks,
           matches,
         }),
@@ -1418,18 +1412,10 @@ export class ProgrammeService {
       return { deltaMinutes: 0, shiftedMatches: 0, shiftedBlocks: 0 };
     }
 
-    const { data: eventData } = await this.supabase.service
-      .from('events')
-      .select('start_date')
-      .eq('id', eventId)
-      .single();
-    if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
-
-    // WALL-CLOCK, not UTC — the same reasoning as `moveBlock`, which this
-    // shares its writer with.
-    const startDate = new Date(`${(eventData as Record<string, string>)['start_date']}T00:00:00`);
-    startDate.setDate(startDate.getDate() + dto.dayIndex);
-    const blockDateIso = localDateIso(startDate);
+    // The Event's clock — the same reasoning as `moveBlock`, which this shares
+    // its writer with.
+    const { firstDay, zone } = await readEventClock(this.supabase.service, eventId, this.logger);
+    const blockDateIso = this.dayOfBar(firstDay, dto.dayIndex);
 
     const { shiftedMatches, updatedRows } = await this.applyDayShift(
       eventId,
@@ -1439,6 +1425,7 @@ export class ProgrammeService {
           deltaMin: dto.deltaMinutes,
           fromMin: timeToMin(dto.fromTime),
           blockDateIso,
+          zone,
           dayBlocks,
           matches,
         }),
@@ -1927,11 +1914,9 @@ export class ProgrammeService {
    * Matches OUTSIDE the window are left in place; operator runs
    * Generate Grid for a full reflow.
    *
-   * Uses wall-clock (`setHours`/`setDate`) date math matching the
-   * scheduler — both must agree on what timezone "10:00" means so the
-   * [start, end) window catches exactly the matches the scheduler placed
-   * inside the block. `moveBlock` now does the same; it used to use UTC math,
-   * which silently shifted NOTHING on a non-UTC container.
+   * Reads "10:00" on the Event's clock (`readEventClock`, `barInstant`), the
+   * clock Generate placed the bouts on, so the [start, end) window catches
+   * exactly the bouts inside the bar. `moveBlock` and `delayDay` read the same.
    */
   async deleteBlock(
     eventId: string,
@@ -1949,30 +1934,15 @@ export class ProgrammeService {
     if (blockErr) throw new BadRequestException(`Failed to load block: ${blockErr.message}`);
     if (!blockRow) throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
 
-    // 2. Compute [startIso, endIso) for the block's day. Must match
-    //    the scheduler's wall-clock interpretation (programme.service
-    //    lines 517-520 use `setHours`/`setDate` — i.e. container-local
-    //    TZ via `TZ=${TZ}` in docker-compose). Mismatching this with
-    //    setUTCHours would leave matches stored at "10:00 local" =
-    //    "08:00 UTC" outside an [09:30 UTC, 10:00 UTC) window, but
-    //    *also* match an unrelated set of matches at 09:30 UTC =
-    //    11:30 local — the delete then unschedules the wrong day.
-    const { data: eventData, error: evErr } = await this.supabase.service
-      .from('events')
-      .select('start_date')
-      .eq('id', eventId)
-      .single();
-    if (evErr) throw new BadRequestException(`Failed to load event: ${evErr.message}`);
-    if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
-
-    const dayDate = new Date(`${(eventData as Record<string, string>)['start_date']}T00:00:00`);
-    dayDate.setDate(dayDate.getDate() + (blockRow.day_index as number));
-    const [sh, sm] = (blockRow.start_time as string).split(':').map(Number);
-    const [eh, em] = (blockRow.end_time as string).split(':').map(Number);
-    const startIso = new Date(dayDate);
-    startIso.setHours(sh ?? 0, sm ?? 0, 0, 0);
-    const endIso = new Date(dayDate);
-    endIso.setHours(eh ?? 0, em ?? 0, 0, 0);
+    // 2. Compute [startIso, endIso) for the block's day, on the Event's clock:
+    //    the clock Generate placed the bouts on (ruling 411). Any other clock
+    //    misses the bouts under the bar and catches an unrelated set an offset
+    //    away — the delete then unschedules the wrong ones.
+    const { firstDay, zone } = await readEventClock(this.supabase.service, eventId, this.logger);
+    const day = this.dayOfBar(firstDay, blockRow.day_index as number);
+    // A real day and a minute ≥ 0 always place: the `!` narrows, it hides no case.
+    const startIso = barInstant(day, timeToMin(blockRow.start_time as string), zone)!;
+    const endIso = barInstant(day, timeToMin(blockRow.end_time as string), zone)!;
 
     // 3. Unschedule matches whose scheduled_at falls inside the window.
     //    Scope through tournaments → phases of THIS event so the update
@@ -1999,8 +1969,8 @@ export class ProgrammeService {
           .from('matches')
           .update({ scheduled_at: null, lice_id: null })
           .in('phase_id', phaseIds)
-          .gte('scheduled_at', startIso.toISOString())
-          .lt('scheduled_at', endIso.toISOString())
+          .gte('scheduled_at', startIso)
+          .lt('scheduled_at', endIso)
           .select('id');
         if (matchErr)
           throw new BadRequestException(

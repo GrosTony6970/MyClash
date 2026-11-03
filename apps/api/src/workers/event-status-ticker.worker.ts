@@ -38,7 +38,8 @@ import { addDays } from '@myclash/time';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { LeaguesService } from '../modules/leagues/leagues.service';
-import { eventOpenWindow, unknownZoneWarning } from '../common/event-open-window';
+import { unknownZoneWarning } from '../common/event-clock';
+import { eventOpenWindow } from '../common/event-open-window';
 
 export const EVENT_STATUS_TICK_QUEUE = 'event-status-ticker';
 export const EVENT_STATUS_TICK_JOB = 'tick';

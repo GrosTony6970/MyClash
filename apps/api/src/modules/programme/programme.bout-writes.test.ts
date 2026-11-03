@@ -89,7 +89,9 @@ function queueGenerate(from: ReturnType<typeof vi.fn>) {
         error: null,
       }),
     )
-    .mockReturnValueOnce(chain({ data: { start_date: '2026-05-21' }, error: null }))
+    .mockReturnValueOnce(
+      chain({ data: { start_date: '2026-05-21', timezone: 'Europe/Paris' }, error: null }),
+    )
     .mockReturnValueOnce(chain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
     .mockReturnValueOnce(chain({ data: [], error: null })) // tournament_phase_venues
     .mockReturnValueOnce(chain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))

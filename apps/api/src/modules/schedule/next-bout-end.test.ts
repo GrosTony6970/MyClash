@@ -93,6 +93,19 @@ describe('resolveNextBoutEnds', () => {
     expect(ends.get('A')).toBe('2027-06-05T07:20:00.000Z');
   });
 
+  it('reads an unknown zone on the default clock, and says so, rather than giving no end', async () => {
+    const { client } = db({ event: { timezone: 'Mars/Olympus' } });
+    const log = logger();
+
+    const ends = await resolveNextBoutEnds(client, log, EVENT, asked('B', 'C'));
+
+    // The Paris reading (ruling 414): the same ends as the Paris Event, one warn.
+    expect(ends.get('B')).toBe('2027-06-05T07:40:00.000Z');
+    expect(ends.get('C')).toBe('2027-06-05T11:00:00.000Z');
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain('"Mars/Olympus"');
+  });
+
   it('ends a bout at an admin bar, or a break bar, that comes before its next bout', async () => {
     const { client } = db();
 

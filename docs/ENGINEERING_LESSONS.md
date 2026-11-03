@@ -309,11 +309,16 @@ here.
 - **TS2352 on `Promise & {...}` intersections**: cast through `unknown` first —
   `(chain as unknown as Record<string, unknown>)[key] = …`. Applies whenever you `Object.assign`
   onto a Promise and then mutate its properties.
-- **A UTC-only test run cannot see a wall-clock bug.** The scheduler and the programme service do
-  wall-clock arithmetic (`setHours`/`getHours`); code that reaches for `getUTCHours` instead agrees
-  with them exactly on a UTC runner and nowhere else. Measured: reintroducing the `getUTCHours` bug
-  `moveBlock` once shipped leaves the API suite **fully green under `TZ=UTC` (45 passed)** and reds
-  four specs under `TZ=Europe/Paris`. Several specs already documented themselves as only meaningful
+- **A UTC-only test run cannot see a wall-clock bug.** The programme once did its wall-clock
+  arithmetic on the SERVER's clock (`setHours`/`getHours`); it now reads the Event's zone through
+  `common/event-clock.ts` (ruling 411), so a test's Event must sit in a zone no run uses (New York,
+  Tokyo), or a server-clock read passes unseen. Code that reaches for `getUTCHours` agrees with a
+  UTC runner and nowhere else. Measured then: reintroducing the `getUTCHours` bug
+  `moveBlock` once shipped left the API suite **fully green under `TZ=UTC` (45 passed)** and red
+  four specs under `TZ=Europe/Paris`. Since ruling 411 the programme's fixtures are Paris Events and
+  its New York and Tokyo cells are red on BOTH legs, so for the programme the UTC leg is now the one
+  that catches a slip back to the server's clock; the Paris leg guards the other wall-clock code.
+  Several specs already documented themselves as only meaningful
   off UTC; until CI grew a second leg they asserted nothing there. GitHub runners are UTC, so CI now
   runs `pnpm turbo run test` twice — `TZ=UTC` then `TZ=Europe/Paris` (the operator's own zone) —
   with `!cancelled()` on the second so a UTC failure cannot mask a zone-only one. The suite is green

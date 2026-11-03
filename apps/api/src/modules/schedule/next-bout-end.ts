@@ -1,6 +1,7 @@
 import { BadRequestException, type Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { addDays, zonedDay, zonedToUtcIso } from '@myclash/time';
+import { zonedDay, zonedToUtcIso } from '@myclash/time';
+import { barDay, readEventClock } from '../../common/event-clock';
 
 /**
  * Where a bout ends when its planned length cannot be known — a FALLBACK only
@@ -42,25 +43,6 @@ function dayOf(iso: string, timezone: string): string {
   const day = zonedDay(iso, timezone);
   if (!day) throw new BadRequestException(`${iso} cannot be read in ${timezone}`);
   return day;
-}
-
-async function readClock(
-  db: SupabaseClient,
-  eventId: string,
-): Promise<{ firstDay: string; timezone: string }> {
-  const { data, error } = await db
-    .from('events')
-    .select('start_date, timezone')
-    .eq('id', eventId)
-    .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
-  const row = data as { start_date: string; timezone: string } | null;
-  if (!row) throw new BadRequestException(`Event ${eventId} does not exist`);
-  const firstDay = addDays(row.start_date.slice(0, 10), 0);
-  if (!firstDay) {
-    throw new BadRequestException(`Event ${eventId} starts on "${row.start_date}", not a day`);
-  }
-  return { firstDay, timezone: row.timezone };
 }
 
 async function readBarRows(
@@ -125,13 +107,13 @@ export async function resolveNextBoutEnds(
   if (placed.length === 0) return ends;
   try {
     const liceIds = [...new Set(placed.flatMap((bout) => (bout.liceId ? [bout.liceId] : [])))];
-    const [{ firstDay, timezone }, barRows, pisteRows] = await Promise.all([
-      readClock(db, eventId),
+    const [{ firstDay, zone: timezone }, barRows, pisteRows] = await Promise.all([
+      readEventClock(db, eventId, logger),
       readBarRows(db, eventId),
       readPisteRows(db, liceIds),
     ]);
     const bars = barRows.map((row): Dated => {
-      const day = addDays(firstDay, row.day_index);
+      const day = barDay(firstDay, row.day_index);
       const iso = zonedToUtcIso(day, row.start_time.slice(0, 5), timezone);
       if (!day || !iso)
         throw new BadRequestException(`A bar on day ${row.day_index} cannot be placed`);

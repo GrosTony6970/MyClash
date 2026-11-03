@@ -1,16 +1,20 @@
+import { zonedToUtcIso } from '@myclash/time';
 import { describe, expect, it } from 'vitest';
 import { planBlockMove, type MoveCandidateMatch, type MoveDayBlock } from './block-move-plan';
 
+/** The Event's zone in these cases; the New York and Tokyo ones are in `.zone.test.ts`. */
+const ZONE = 'Europe/Paris';
+const pad = (n: number) => String(n).padStart(2, '0');
+
 /**
- * A `scheduled_at` for a WALL-CLOCK time, built from local parts.
+ * A `scheduled_at` for a WALL-CLOCK time on the Event's clock.
  *
- * Never a hard-coded `...Z` string. That quietly asserts UTC semantics and
- * passes only where the machine runs UTC — the exact shape that let `moveBlock`
- * shift nothing at all on every non-UTC deployment while its tests stayed
- * green.
+ * Never a hard-coded `...Z` string, and never the test run's own clock: the
+ * planner reads a bout on the Event's clock, so the case must too, or it holds
+ * only on a machine whose zone happens to match.
  */
 const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
-  new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+  zonedToUtcIso(`${y}-${pad(m)}-${pad(d)}`, `${pad(hh)}:${pad(mm)}`, ZONE)!;
 
 const DAY = '2026-06-02';
 
@@ -39,6 +43,7 @@ function lunchMovedForward(overrides: {
     deltaMin: overrides.deltaMin ?? 120,
     oldStartMin: 12 * 60,
     blockDateIso: DAY,
+    zone: ZONE,
     dayBlocks: overrides.dayBlocks ?? [bar('lunch', 'Lunch', 12 * 60, 13 * 60)],
     matches: overrides.matches ?? [],
   });
@@ -117,6 +122,7 @@ describe('planBlockMove — the midnight refusal', () => {
       deltaMin: -90,
       oldStartMin: 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: [bar('reg', 'Registration', 60, 120)],
       matches: [],
     });
@@ -146,6 +152,7 @@ describe('planBlockMove — the midnight refusal', () => {
       deltaMin: -60,
       oldStartMin: 0,
       blockDateIso: DAY,
+      zone: ZONE,
       // The bar itself survives the pull-back; only the bout crosses.
       dayBlocks: [bar('reg', 'Registration', 60, 120)],
       matches: [bout('early', at(2026, 6, 2, 0, 30))],
@@ -238,6 +245,7 @@ describe('planBlockMove — what the refusal buys', () => {
       deltaMin: -60,
       oldStartMin: 8 * 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: [
         bar('reg', 'Registration', 8 * 60, 9 * 60),
         bar('pools', 'Pools', 9 * 60, 12 * 60),
@@ -259,6 +267,7 @@ describe('planBlockMove — what the refusal buys', () => {
       deltaMin: -60,
       oldStartMin: 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: [bar('reg', 'Registration', 60, 120)],
       matches: [],
     });
@@ -270,6 +279,7 @@ describe('planBlockMove — what the refusal buys', () => {
       deltaMin: 29,
       oldStartMin: 22 * 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: [bar('finals', 'Finals', 22 * 60, 23 * 60 + 30)],
       matches: [],
     });
@@ -286,6 +296,7 @@ describe('planBlockMove — what the refusal buys', () => {
       deltaMin: 600,
       oldStartMin: 12 * 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: [bar('finals', 'Finals', 22 * 60, 23 * 60)],
       matches: [],
     });

@@ -1,5 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
+import { zonedToUtcIso } from '@myclash/time';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * The Event's zone in these cases. The service reads bar times on it (ruling 411), so every
+ * expected instant is built on it too, never on the runner's clock. The zone-specific cases
+ * (New York, Tokyo) are in `programme.event-clock.test.ts`.
+ */
+const ZONE = 'Europe/Paris';
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** A `scheduled_at` for a wall-clock time on the Event's clock. */
+const wallAt = (y: number, m: number, d: number, hh: number, mm: number): string =>
+  zonedToUtcIso(`${y}-${pad2(m)}-${pad2(d)}`, `${pad2(hh)}:${pad2(mm)}`, ZONE)!;
 
 /** Org-role check stands in for OrganizationsService; see the authz suite. */
 const mockOrgs = { assertOrgRole: vi.fn() };
@@ -863,7 +875,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
@@ -918,7 +932,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(
         makeChain({
           data: [
@@ -1007,7 +1023,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheet)
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
@@ -1068,7 +1086,9 @@ describe('ProgrammeService', () => {
         }),
       )
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(
         makeChain({
           data: [{ id: 'lice-1', name: 'Lice 1', sort_order: 0, venue_id: null }],
@@ -1153,7 +1173,9 @@ describe('ProgrammeService', () => {
         }),
       )
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(
         makeChain({
           data: [{ id: 'lice-1', name: 'Lice 1', sort_order: 0, venue_id: null }],
@@ -1243,7 +1265,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
@@ -1302,7 +1326,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [], error: null })); // ← no lices
 
     await expect(service.generate('event-1', {}, CALLER)).rejects.toThrow(/lice/i);
@@ -1334,7 +1360,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
@@ -1426,7 +1454,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
@@ -1511,7 +1541,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
@@ -1582,7 +1614,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       // admin block is first + unshifted → no DB write; then the pool block:
@@ -1608,12 +1642,9 @@ describe('ProgrammeService', () => {
 
     // Block start clamped to 10:00 (after admin), not its stale 09:00.
     expect(syncPayload).toMatchObject({ start_time: '10:00' });
-    // The match itself lands at 10:00 wall-clock (compute via the same
-    // setHours formula the scheduler uses, so this holds on any runner TZ).
-    const expectedStart = new Date('2026-05-21T00:00:00');
-    expectedStart.setHours(10, 0, 0, 0);
+    // The match itself lands at 10:00 on the Event's clock, whatever the runner's zone.
     expect(rowsSentTo('programme_place_bouts')[0]!['scheduled_at']).toBe(
-      expectedStart.toISOString(),
+      zonedToUtcIso('2026-05-21', '10:00', ZONE),
     );
   });
 
@@ -1674,7 +1705,9 @@ describe('ProgrammeService', () => {
         sheetChain({ poolMatchDurationMinutes: 30, matchGapSeconds: 0, minRestMinutes: 0 }),
       )
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
@@ -1729,7 +1762,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      ) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
@@ -1744,19 +1779,12 @@ describe('ProgrammeService', () => {
 
   describe('moveBlock', () => {
     /**
-     * A `scheduled_at` for a WALL-CLOCK time on the event's day.
-     *
-     * These fixtures used to be hard-coded `...Z` strings, which quietly
-     * asserted UTC semantics and passed only because CI runs in UTC. The
-     * scheduler stores matches with `setHours` (container-local `TZ`), and
-     * moveBlock now reads them back the same way — so on a UTC+1 container a
-     * match written "08:30Z" is 09:30 local and genuinely IS after a 09:00
-     * block. Constructing the fixture from local parts makes each test mean
-     * the same thing on every machine, which is the property that was missing
-     * when moveBlock silently shifted nothing in production.
+     * A `scheduled_at` for a WALL-CLOCK time on the Event's day, on the Event's
+     * clock. Never a hard-coded `...Z` string and never the runner's clock:
+     * moveBlock reads a bout on the Event's clock (ruling 411), so a fixture on
+     * any other clock means something different on every machine.
      */
-    const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
-      new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+    const at = wallAt;
 
     /** A match row as PostgREST returns it to the move's candidate read. */
     type MoveMatchRow = {
@@ -1836,7 +1864,9 @@ describe('ProgrammeService', () => {
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: opts.block, error: null })) // block fetch
-        .mockReturnValueOnce(makeChain({ data: { start_date: opts.eventStartDate }, error: null })) // event fetch
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: opts.eventStartDate, timezone: ZONE }, error: null }),
+        ) // event fetch
         .mockReturnValueOnce(makeChain({ data: tournamentIds.map((id) => ({ id })), error: null })) // tournaments fetch
         .mockReturnValueOnce(makeChain({ data: phaseIds.map((id) => ({ id })), error: null })) // phases fetch
         .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches fetch
@@ -2013,18 +2043,16 @@ describe('ProgrammeService', () => {
 
     /**
      * THE REGRESSION. moveBlock used to compare `getUTCHours()` against a block
-     * time that the scheduler had written with `setHours`. On any container
-     * whose TZ is not UTC the two disagree by the offset, and east of Greenwich
-     * the comparison fails low: a 09:00 block is stored 08:00Z, `480 < 540`,
-     * and EVERY match is skipped. The bar moved; nothing followed it; nothing
-     * threw. `20-schedule.spec.ts` caught it against the real deployment.
+     * time the scheduler had written on another clock. The two disagree by the
+     * offset, and east of Greenwich the comparison fails low: a 09:00 block is
+     * stored 08:00Z, `480 < 540`, and EVERY match is skipped. The bar moved;
+     * nothing followed it; nothing threw. `20-schedule.spec.ts` caught it
+     * against the real deployment.
      *
      * The fixture is a match at the block's exact start — the boundary the old
-     * code got wrong — expressed in wall-clock terms, so this test fails on the
-     * UTC implementation on any non-UTC machine and passes on the fixed one
-     * everywhere.
+     * code got wrong — on the Event's clock, so this holds on every runner.
      */
-    it('shifts a match sitting exactly on the block start, whatever the container TZ', async () => {
+    it('shifts a match sitting exactly on the block start, whatever the runner zone', async () => {
       const { updates } = buildMoveMocks({
         block: {
           id: 'block-tz',
@@ -2112,7 +2140,9 @@ describe('ProgrammeService', () => {
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: movedBlock, error: null })) // block fetch
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // event
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-02', timezone: ZONE }, error: null }),
+        ) // event
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournaments → skip match shift
         .mockReturnValueOnce(
           makeChain({
@@ -2305,8 +2335,7 @@ describe('ProgrammeService', () => {
    * dragged bar.
    */
   describe('delayDay', () => {
-    const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
-      new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+    const at = wallAt;
 
     function buildDelayMocks(opts: {
       eventStartDate: string;
@@ -2334,7 +2363,9 @@ describe('ProgrammeService', () => {
       });
 
       fromMock
-        .mockReturnValueOnce(makeChain({ data: { start_date: opts.eventStartDate }, error: null })) // event
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: opts.eventStartDate, timezone: ZONE }, error: null }),
+        ) // event
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null })) // tournaments
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
         .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches
@@ -2540,7 +2571,9 @@ describe('ProgrammeService', () => {
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: blockRow, error: null })) // event_programme_blocks select
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // events select
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-02', timezone: ZONE }, error: null }),
+        ) // events select
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null })) // tournaments select
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases select
         .mockReturnValueOnce(matchesChain) // matches update.in.gte.lt.select
@@ -2550,25 +2583,9 @@ describe('ProgrammeService', () => {
 
       expect(captured.payload).toEqual({ scheduled_at: null, lice_id: null });
       expect(captured.phaseIds).toEqual(['phase-1']);
-      // Compute the expected ISO bounds via the same wall-clock formula
-      // the service uses (container TZ via setHours). Hard-coding
-      // `…T10:00:00.000Z` would have a different value on a Paris-TZ
-      // runner than on a UTC runner — and would silently pass the
-      // earlier bug where setUTCHours mismatched the scheduler's
-      // setHours, leaving a 2-hour delete window the operator never
-      // asked for.
-      const expectedStart = new Date('2026-06-02T00:00:00');
-      expectedStart.setHours(10, 0, 0, 0);
-      const expectedEnd = new Date('2026-06-02T00:00:00');
-      expectedEnd.setHours(11, 0, 0, 0);
-      expect(captured.gte).toEqual({
-        column: 'scheduled_at',
-        value: expectedStart.toISOString(),
-      });
-      expect(captured.lt).toEqual({
-        column: 'scheduled_at',
-        value: expectedEnd.toISOString(),
-      });
+      // The bounds are 10:00 and 11:00 on the Event's clock, whatever the runner's zone.
+      expect(captured.gte).toEqual({ column: 'scheduled_at', value: wallAt(2026, 6, 2, 10, 0) });
+      expect(captured.lt).toEqual({ column: 'scheduled_at', value: wallAt(2026, 6, 2, 11, 0) });
       expect(result).toEqual({
         deletedId: 'block-1',
         unscheduledMatchIds: ['match-inside-1', 'match-inside-2'],
@@ -2594,7 +2611,9 @@ describe('ProgrammeService', () => {
       ]);
       fromMock
         .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-02', timezone: ZONE }, error: null }),
+        )
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
         .mockReturnValueOnce(matchesChain)
@@ -2605,15 +2624,13 @@ describe('ProgrammeService', () => {
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-inside-1', 'match-inside-2']);
     });
 
-    it("uses the same wall-clock TZ as the scheduler so the [start, end) window matches matches' stored ISOs", async () => {
+    it("reads the window on the Event's clock, as Generate placed the bouts, so it matches their stored ISOs", async () => {
       // Reproduces the operator-reported bug: deleting a 09:30-10:00
       // block sent matches scheduled at 10:00+ back to unscheduled,
       // because the scheduler stored them at "10:00 local" (08:00 UTC
       // in Paris summer) while the BE used setUTCHours, producing
       // [09:30 UTC, 10:00 UTC) — a window that lands at 11:30-12:00
-      // Paris. The runtime check: both ends use setHours (container
-      // local) and the test simulates the scheduler's stored ISO via
-      // the same formula.
+      // Paris. Both now read the Event's clock (ruling 411).
       const blockRow = {
         id: 'block-tz',
         event_id: 'event-tz',
@@ -2624,7 +2641,9 @@ describe('ProgrammeService', () => {
       const { chain: matchesChain, captured } = makeMatchesUpdateChain([]);
       fromMock
         .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-27' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-27', timezone: ZONE }, error: null }),
+        )
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
         .mockReturnValueOnce(matchesChain)
@@ -2632,24 +2651,15 @@ describe('ProgrammeService', () => {
 
       await service.deleteBlock('event-tz', 'block-tz', CALLER);
 
-      // A match scheduled by the scheduler at "10:00 local" (via
-      // setHours, matching grid.tsx slotToTime) — the BE delete must
-      // NOT catch it because 10:00 is the exclusive end.
-      const matchAtExactEnd = new Date('2026-06-27T00:00:00');
-      matchAtExactEnd.setHours(10, 0, 0, 0);
-      // A match strictly inside the window (09:45 local) — must be
-      // caught.
-      const matchInside = new Date('2026-06-27T00:00:00');
-      matchInside.setHours(9, 45, 0, 0);
+      // A bout at 10:00 on the Event's clock is NOT caught (10:00 is the
+      // exclusive end); one at 09:45 is.
+      const matchAtExactEnd = wallAt(2026, 6, 27, 10, 0);
+      const matchInside = wallAt(2026, 6, 27, 9, 45);
 
       const gteValue = captured.gte!.value;
       const ltValue = captured.lt!.value;
-      expect(matchInside.toISOString() >= gteValue && matchInside.toISOString() < ltValue).toBe(
-        true,
-      );
-      expect(
-        matchAtExactEnd.toISOString() >= gteValue && matchAtExactEnd.toISOString() < ltValue,
-      ).toBe(false);
+      expect(matchInside >= gteValue && matchInside < ltValue).toBe(true);
+      expect(matchAtExactEnd >= gteValue && matchAtExactEnd < ltValue).toBe(false);
     });
 
     it('still deletes the block when the event has no tournaments', async () => {
@@ -2663,7 +2673,9 @@ describe('ProgrammeService', () => {
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: blockRow, error: null })) // block select
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // event select
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-02', timezone: ZONE }, error: null }),
+        ) // event select
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournaments select — empty
         .mockReturnValueOnce(makeChain({ data: null, error: null })); // block delete
 
@@ -2696,7 +2708,9 @@ describe('ProgrammeService', () => {
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({ data: { start_date: '2026-06-02', timezone: ZONE }, error: null }),
+        )
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
         .mockReturnValueOnce(failingMatchesChain)
@@ -2737,7 +2751,9 @@ describe('ProgrammeService', () => {
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
-      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: { start_date: '2026-05-21', timezone: ZONE }, error: null }),
+      )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))

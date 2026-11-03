@@ -1,3 +1,4 @@
+import { utcToZonedParts } from '@myclash/time';
 import { shiftBlocksFrom, type CascadeBlock } from './block-cascade';
 
 /**
@@ -87,24 +88,17 @@ export interface BlockMovePlan {
 }
 
 /**
- * `YYYY-MM-DD` for the WALL-CLOCK day a Date falls on.
- *
- * Not `toISOString().slice(0, 10)`, which is the UTC day: an event day whose
- * 09:00 local start is stored as 08:00Z is the same date here but would drift
- * across midnight for late-evening bouts in a positive-offset zone. The
- * scheduler places bouts with `setHours` (container-local `TZ`), so every
- * read-back that compares days has to speak the same clock.
+ * A bout's day (`YYYY-MM-DD`), clock (`HH:MM`) and minute of the day, on the
+ * EVENT's clock: the clock its bar's "HH:MM" is on. Not the UTC prefix of the
+ * ISO string and not the server's clock, either of which files a late bout
+ * under the wrong day wherever the Event's zone is not the server's. `ms` is
+ * an instant already read (one parser per bout, as before: `Date.parse`).
  */
-export function localDateIso(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/** `HH:MM` of a Date's wall clock. */
-function clockOf(date: Date): string {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+function onEventClock(ms: number, zone: string): { day: string; hhmm: string; min: number } {
+  // A finite instant in a zone `eventZone` vouched for always reads.
+  const parts = utcToZonedParts(new Date(ms).toISOString(), zone)!;
+  const [h = 0, m = 0] = parts.hhmm.split(':').map(Number);
+  return { ...parts, min: h * 60 + m };
 }
 
 /**
@@ -178,6 +172,7 @@ function planMatchShifts(input: {
   deltaMin: number;
   fromMin: number;
   blockDateIso: string;
+  zone: string;
   matches: MoveCandidateMatch[];
 }): { shifts: PlannedMatchShift[]; crossing: Crossing | null } {
   const candidates = input.matches
@@ -189,25 +184,26 @@ function planMatchShifts(input: {
     // History, not plan. A bout that has started, finished or been voided keeps
     // the time it was given — see fault 1.
     if (match.status !== MOVABLE_STATUS) continue;
-    const at = new Date(match.scheduledAt);
-    // Same calendar day as the bar, in WALL-CLOCK terms — the stored instant's
-    // local date, not the UTC prefix of its ISO string.
-    if (localDateIso(at) !== input.blockDateIso) continue;
-    // At or after the bar's old start, read the same way.
-    if (at.getHours() * 60 + at.getMinutes() < input.fromMin) continue;
+    const atMs = Date.parse(match.scheduledAt);
+    if (Number.isNaN(atMs)) continue; // an unreadable time is not on any day
+    const at = onEventClock(atMs, input.zone);
+    // Same Event day as the bar, and at or after the cut, on the Event's clock.
+    if (at.day !== input.blockDateIso || at.min < input.fromMin) continue;
 
-    const shifted = new Date(at.getTime() + input.deltaMin * 60_000);
-    if (localDateIso(shifted) !== input.blockDateIso) {
+    const shiftedMs = atMs + input.deltaMin * 60_000;
+    const shiftedIso = new Date(shiftedMs).toISOString();
+    const shifted = onEventClock(shiftedMs, input.zone);
+    if (shifted.day !== input.blockDateIso) {
       return {
         shifts: [],
         crossing: {
           what: match.label ? `the fight ${match.label}` : 'a fight',
-          from: clockOf(at),
-          to: clockOf(shifted),
+          from: at.hhmm,
+          to: shifted.hhmm,
         },
       };
     }
-    shifts.push({ id: match.id, scheduledAt: shifted.toISOString() });
+    shifts.push({ id: match.id, scheduledAt: shiftedIso });
   }
   return { shifts, crossing: null };
 }
@@ -231,6 +227,8 @@ export function planTimeShift(input: {
   fromMin: number;
   /** The wall-clock day being shifted, as `YYYY-MM-DD`. */
   blockDateIso: string;
+  /** The Event's zone: the clock the bars' "HH:MM" and this day are on. */
+  zone: string;
   dayBlocks: MoveDayBlock[];
   matches: MoveCandidateMatch[];
 }): BlockMovePlan {
@@ -257,6 +255,7 @@ export function planBlockMove(input: {
   /** The moved bar's start before the drag. */
   oldStartMin: number;
   blockDateIso: string;
+  zone: string;
   dayBlocks: MoveDayBlock[];
   matches: MoveCandidateMatch[];
 }): BlockMovePlan {
@@ -269,6 +268,7 @@ export function planBlockMove(input: {
     deltaMin: input.deltaMin,
     fromMin: input.oldStartMin,
     blockDateIso: input.blockDateIso,
+    zone: input.zone,
     dayBlocks: movedIsOnTheDay ? input.dayBlocks : [],
     matches: input.matches,
   });
@@ -286,6 +286,7 @@ export function planDayDelay(input: {
   deltaMin: number;
   fromMin: number;
   blockDateIso: string;
+  zone: string;
   dayBlocks: MoveDayBlock[];
   matches: MoveCandidateMatch[];
 }): BlockMovePlan {

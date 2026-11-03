@@ -1,3 +1,4 @@
+import { zonedToUtcIso } from '@myclash/time';
 import { describe, expect, it } from 'vitest';
 import { planDayDelay, type MoveCandidateMatch, type MoveDayBlock } from './block-move-plan';
 
@@ -13,8 +14,12 @@ import { planDayDelay, type MoveCandidateMatch, type MoveDayBlock } from './bloc
  * The helpers are duplicated on purpose. They are four lines, and a fixture
  * module shared between two suites is a thing that grows a personality.
  */
+const ZONE = 'Europe/Paris';
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** A `scheduled_at` for a wall-clock time on the Event's clock, never the test run's. */
 const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
-  new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+  zonedToUtcIso(`${y}-${pad(m)}-${pad(d)}`, `${pad(hh)}:${pad(mm)}`, ZONE)!;
 
 const DAY = '2026-06-02';
 
@@ -42,6 +47,7 @@ describe('planDayDelay', () => {
       deltaMin: over.deltaMin ?? 20,
       fromMin: over.fromMin ?? 14 * 60,
       blockDateIso: DAY,
+      zone: ZONE,
       dayBlocks: over.dayBlocks ?? [],
       matches: over.matches ?? [],
     });
