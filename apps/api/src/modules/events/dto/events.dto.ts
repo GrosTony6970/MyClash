@@ -5,6 +5,7 @@ import {
   ForfeitRulesPatchSchema,
   MAX_AUTHORED_TARGET_VALUE,
 } from '@myclash/rulesets';
+import { canonicalZone } from '@myclash/time';
 import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
 import { settingsAuditSchema } from './rules-audit.schema';
 
@@ -13,6 +14,21 @@ import { settingsAuditSchema } from './rules-audit.schema';
  * takes (`isCalendarDay`: no 2027-02-30, no year 0000). The order of two days is the service's.
  */
 const calendarDay = z.iso.date().refine(isCalendarDay, 'Not a calendar day');
+
+/**
+ * An Event's zone: an IANA name, stored in its one spelling (`canonicalZone`: `europe/paris` →
+ * `Europe/Paris`), so a picker never shows one zone twice. Every clock of the Event is read in it
+ * (ruling 411 row C); "Paris time" used to be stored as given.
+ */
+const eventTimezone = z
+  .string()
+  .max(64)
+  .transform((zone, ctx) => {
+    const canonical = canonicalZone(zone);
+    if (canonical !== null) return canonical;
+    ctx.addIssue({ code: 'custom', message: 'Not an IANA time zone' });
+    return z.NEVER;
+  });
 
 /**
  * A ruleset code a door may name. A club's code is generated, `custom_` + a slug of up to 60 + `-`
@@ -33,6 +49,8 @@ const createEventSchema = z
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
+    // None: the Event is on DEFAULT_EVENT_TIMEZONE (Paris).
+    timezone: eventTimezone.optional(),
     // Nullish: the FE edit form sends `publicLandingMd: value || null`, so a
     // bare `.optional()` 400'd the whole payload for empty descriptions.
     publicLandingMd: z.string().nullish(),
@@ -61,8 +79,7 @@ const updateEventSchema = z
     country: z.string().min(2).max(2).nullable().optional(),
     startDate: calendarDay.optional(),
     endDate: calendarDay.optional(),
-    // IANA timezone
-    timezone: z.string().max(64).optional(),
+    timezone: eventTimezone.optional(),
     // Nullish: null clears the landing description (FE sends `value || null`).
     publicLandingMd: z.string().nullish(),
     status: z.enum(['draft', 'published', 'running', 'completed', 'archived']).optional(),

@@ -21,7 +21,7 @@ export function eventZone(timezone: unknown): { zone: string; unknownZone: boole
   return { zone, unknownZone: zone !== timezone };
 }
 
-/** The warning for an unknown zone. The zone is quoted: an organiser typed it. */
+/** The warning for an unknown zone. The zone is quoted as stored: only a hand edit puts one there. */
 export function unknownZoneWarning(eventId: string, timezone: unknown): string {
   return `Event ${eventId}: unknown time zone ${JSON.stringify(timezone)}; days read in ${DEFAULT_EVENT_TIMEZONE}`;
 }

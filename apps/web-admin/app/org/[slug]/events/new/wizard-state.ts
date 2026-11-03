@@ -1,3 +1,4 @@
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { DEFAULT_EVENT_KIND, type EventKind } from '@myclash/types';
 
 export interface CatalogueVenue {
@@ -22,6 +23,8 @@ export interface WizardState {
   endDate: string;
   city: string;
   country: string | null;
+  /** The IANA zone every clock of the Event reads in (ruling 411 row C). */
+  timezone: string;
   venueMode: VenueMode;
   selectedVenueId: string | null;
   newVenueName: string;
@@ -44,6 +47,7 @@ export const INITIAL: WizardState = {
   endDate: '',
   city: '',
   country: null,
+  timezone: DEFAULT_EVENT_TIMEZONE,
   venueMode: 'new',
   selectedVenueId: null,
   newVenueName: '',

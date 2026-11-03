@@ -906,6 +906,8 @@ export const organizer = {
     cityPlaceholder: 'Lyon',
     country: 'Country',
     countryPlaceholder: 'Select a country',
+    timezone: 'Time zone',
+    timezoneHelp: 'Bout times, the programme and the live board all run on this clock.',
     eventKind: 'Event kind',
     kinds: {
       standard: 'Standard',
@@ -946,6 +948,7 @@ export const organizer = {
     logoHelp: 'PNG, JPEG, or WebP up to 10 MB.',
     logoPreviewAlt: 'Event logo preview',
     reviewEvent: 'Event',
+    reviewTimezone: 'Time zone: {zone}',
     reviewVenueExisting: 'Venue (existing)',
     reviewVenueNew: 'Venue (new)',
     reviewLices: 'Lices ({count})',
@@ -2881,6 +2884,8 @@ export const organizer = {
     previewImagesKeptPlural: '{count} images keep their old link.',
     restoreImagesKept: '1 image could not be stored again. It keeps its old link.',
     restoreImagesKeptPlural: '{count} images could not be stored again. They keep their old link.',
+    restoreTimezoneReset:
+      'The archive named no known time zone, so the copy is on {zone}. Check it in the Event settings.',
     // A restore refuses an archive whose data is over its limit, by the code
     // `archive_data_too_large` (ruling 409).
     dataTooLarge: "This archive's data is larger than the {mb} MB limit. It cannot be restored.",

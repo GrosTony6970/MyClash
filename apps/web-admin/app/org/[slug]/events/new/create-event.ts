@@ -143,6 +143,7 @@ function basicsOf(state: WizardState) {
     endDate: state.endDate,
     city: state.city.trim() || null,
     country: state.country || null,
+    timezone: state.timezone,
     eventKind: state.eventKind,
   };
 }

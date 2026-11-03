@@ -91,6 +91,28 @@ describe('createEventSteps', () => {
     expect(api.said()[0]).toBe('POST /api/v1/organizations/org-1/venues');
   });
 
+  it('makes the Event on the zone picked, Paris when none was (ruling 411 row C)', async () => {
+    const paris = server();
+    await run(FORM, NO_PROGRESS, paris.send);
+    expect(paris.calls[0]!.body).toMatchObject({ timezone: 'Europe/Paris' });
+
+    const tokyo = server();
+    await run({ ...FORM, timezone: 'Asia/Tokyo' }, NO_PROGRESS, tokyo.send);
+    expect(tokyo.calls[0]!.body).toMatchObject({ timezone: 'Asia/Tokyo' });
+  });
+
+  it('moves the Event to a zone picked between tries', async () => {
+    const first = await run(
+      FORM,
+      NO_PROGRESS,
+      server(['POST /api/v1/organizations/org-1/venues']).send,
+    );
+    const api = server();
+    await run({ ...FORM, timezone: 'America/New_York' }, first.progress, api.send);
+    const edits = api.calls.filter((c) => c.call === 'PATCH /api/v1/events/id-1');
+    expect(edits.map((edit) => edit.body['timezone'])).toEqual(['America/New_York']);
+  });
+
   it('changes the Event once when its name changed between tries, never its address', async () => {
     const first = await run(
       FORM,

@@ -11132,6 +11132,7 @@ export interface components {
       endDate: string;
       city?: string | null;
       country?: string | null;
+      timezone?: string;
       publicLandingMd?: string | null;
       /** @enum {string} */
       eventKind?: 'standard' | 'test' | 'club';

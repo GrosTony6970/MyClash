@@ -41,6 +41,14 @@ describe('restoredNotice', () => {
     );
   });
 
+  it('says the copy is on Paris when the archive named no known zone, in both languages (ruling 415)', () => {
+    expect(restoredNotice(tEn, { timezoneReset: false })).toBe('Archive restore started.');
+    expect(restoredNotice(tEn, { timezoneReset: true })).toBe(
+      'Archive restore started. The archive named no known time zone, so the copy is on Europe/Paris. Check it in the Event settings.',
+    );
+    expect(restoredNotice(tFr, { timezoneReset: true })).toContain('la copie est sur Europe/Paris');
+  });
+
   it('names dropped compensation settings too, after the penalty pins (ruling 69)', () => {
     const notice = restoredNotice(tEn, {
       droppedPenaltyRulesetPins: 1,

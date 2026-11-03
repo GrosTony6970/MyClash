@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addDays,
   calendarGapBetweenDays,
+  canonicalZone,
   dayIndexInZone,
   dayStartUtcIso,
   formatCalendarGap,
@@ -99,10 +100,38 @@ describe('isIanaZone', () => {
 
   // Luxon reads the first four as the SYSTEM zone and the fifth as a fixed offset, all as valid
   // zones, so a stored value like these would quietly put an Event on the server's clock.
-  it.each<unknown>([undefined, null, 'local', 'system', 'UTC+3', '', 'Mars/Olympus'])(
-    'refuses %s',
+  it.each<unknown>([
+    undefined,
+    null,
+    'local',
+    'system',
+    'UTC+3',
+    '+03:00',
+    '-0500',
+    '+03',
+    '',
+    'Mars/Olympus',
+  ])('refuses %s', (zone) => {
+    expect(isIanaZone(zone)).toBe(false);
+  });
+});
+
+describe('canonicalZone', () => {
+  // A spelling Luxon accepts is stored as the one name every picker and reader shows.
+  it.each([
+    [PARIS, PARIS],
+    ['europe/paris', PARIS],
+    ['US/Eastern', NY],
+    ['GMT', 'UTC'],
+    ['Asia/Tokyo', 'Asia/Tokyo'],
+  ])('spells %s as %s', (zone, canonical) => {
+    expect(canonicalZone(zone)).toBe(canonical);
+  });
+
+  it.each<unknown>([undefined, null, 'local', 'system', 'UTC+3', '+03:00', '', 'Paris time', 42])(
+    'has no name for %s',
     (zone) => {
-      expect(isIanaZone(zone)).toBe(false);
+      expect(canonicalZone(zone)).toBeNull();
     },
   );
 });

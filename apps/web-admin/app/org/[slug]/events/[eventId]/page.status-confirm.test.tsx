@@ -137,6 +137,24 @@ describe('the status menu of a Tournament on the Event dashboard', () => {
   });
 });
 
+describe("the Event's zone on the Event dashboard", () => {
+  it('shows the zone the Event is on, and saves the one picked', async () => {
+    const onTokyo = {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}`]: { ...EVENT, timezone: 'Asia/Tokyo' },
+    };
+    page = await openEventPage(<EventDetailPage />, onTokyo, {
+      [`PATCH /api/v1/events/${EVENT_ID}`]: {},
+    });
+    const zone = document.getElementById('eventTimezone') as HTMLSelectElement;
+    expect(zone.value).toBe('Asia/Tokyo');
+    await act(async () => type(zone, 'America/New_York'));
+    await page.settle();
+    expect(page.writes()).toEqual([`PATCH /api/v1/events/${EVENT_ID}`]);
+    expect(saved()).toEqual({ timezone: 'America/New_York' });
+  });
+});
+
 describe('the links of a Tournament row on the Event dashboard (O7)', () => {
   it("open each page on that row's Tournament", async () => {
     await open();

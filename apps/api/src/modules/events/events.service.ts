@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import {
   ALLOWED_EVENT_HERO_MIME_TYPES,
@@ -697,6 +698,7 @@ export class EventsService {
         end_date: dto.endDate,
         city: dto.city ?? null,
         country: dto.country ?? null,
+        timezone: dto.timezone ?? DEFAULT_EVENT_TIMEZONE,
         public_landing_md: dto.publicLandingMd ?? null,
         status: 'draft',
         event_kind: dto.eventKind ?? DEFAULT_EVENT_KIND,

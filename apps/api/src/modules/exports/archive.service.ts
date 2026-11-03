@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RulesetRegistry } from '@myclash/rulesets';
+import { canonicalZone, DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { createStoredZip } from '../../common/stored-zip';
 import { archivedEventRefusal } from '../../common/event-readonly/event-readonly.guard';
 import { withFighterStatusCauses } from './archive-fighter-status';
@@ -318,6 +319,9 @@ export class ArchiveService {
       `${sourceEvent['slug'] as string}-restored-${restoredEventId.slice(0, 8)}`,
     );
 
+    // Only an IANA name is stored, in its one spelling; any other becomes the default, and the
+    // result says so (ruling 415).
+    const zone = canonicalZone(sourceEvent['timezone']);
     const data = normalizeArchiveTables(archive.data);
     data.events = [
       this.cleanRow({
@@ -326,6 +330,7 @@ export class ArchiveService {
         organization_id: targetOrganizationId,
         slug: restoredSlug,
         name: `${sourceEvent['name'] as string} (restored)`,
+        timezone: zone ?? DEFAULT_EVENT_TIMEZONE,
         status: 'draft',
         created_at: undefined,
         updated_at: undefined,
@@ -350,6 +355,7 @@ export class ArchiveService {
       counts: this.countArchiveRows(archive),
       ...droppedPins,
       imagesKept,
+      timezoneReset: zone === null,
     };
   }
 
@@ -456,6 +462,8 @@ export class ArchiveService {
       counts: this.countArchiveRows(archive),
       ...droppedPins,
       imagesKept,
+      // A Tournament restores into an Event that exists: its zone is not touched.
+      timezoneReset: false,
     };
   }
 

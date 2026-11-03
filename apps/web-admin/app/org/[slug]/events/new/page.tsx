@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { EventZoneSelect } from '@/components/EventZoneSelect';
 import {
   INITIAL,
   wizardDirty,
@@ -333,6 +334,25 @@ function Step1({
             placeholder={t('organizer.newEvent.countryPlaceholder')}
           />
         </div>
+      </div>
+
+      <div>
+        <label
+          htmlFor="wizard-timezone"
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
+          {t('organizer.newEvent.timezone')}
+        </label>
+        <EventZoneSelect
+          id="wizard-timezone"
+          value={state.timezone}
+          onChange={(zone) => dispatch({ type: 'SET_FIELD', field: 'timezone', value: zone })}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          describedBy="wizard-timezone-help"
+        />
+        <p id="wizard-timezone-help" className="mt-1 text-xs text-muted">
+          {t('organizer.newEvent.timezoneHelp')}
+        </p>
       </div>
 
       <fieldset className="rounded-lg border border-border bg-background p-3">
@@ -756,6 +776,9 @@ function Step4({
             const place = [state.city, countryName].filter(Boolean).join(', ');
             return place ? ` - ${place}` : '';
           })()}
+        </p>
+        <p className="mt-0.5 text-muted">
+          {t('organizer.newEvent.reviewTimezone', { zone: state.timezone })}
         </p>
       </div>
 

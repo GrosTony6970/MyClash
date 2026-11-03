@@ -92,4 +92,6 @@ export interface RestoreResult {
   droppedCompensationPlans: number;
   /** Rows whose image storage refused to take again: they keep their old link (ruling 408). */
   imagesKept: number;
+  /** The archive's Event zone was not an IANA name: the copy is on the default (ruling 415). */
+  timezoneReset: boolean;
 }

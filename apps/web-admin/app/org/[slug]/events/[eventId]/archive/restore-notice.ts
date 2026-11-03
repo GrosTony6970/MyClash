@@ -1,3 +1,5 @@
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
+
 /** What a restore answers that the archive page reads. */
 export interface RestoreAnswer {
   /** Penalty ruleset pins the restore cleared: the target club may not use them. */
@@ -6,6 +8,8 @@ export interface RestoreAnswer {
   droppedCompensationPlans?: number;
   /** Images storage would not take again: they keep their old link (ruling 408). */
   imagesKept?: number;
+  /** The archive named no IANA zone: the copy is on Europe/Paris (ruling 415). */
+  timezoneReset?: boolean;
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -16,7 +20,8 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
  * drops the compensation settings of an Event whose plan it may not use (ruling
  * 69). The organiser is told how many of each, or the restored copy would
  * quietly score cards or pay referees under definitions other than the archive
- * named.
+ * named. It also names the images that kept their old link (ruling 408), and a
+ * zone that was no IANA name, now the default (ruling 415).
  */
 export function restoredNotice(t: Translate, answer: RestoreAnswer): string {
   const lines = [t('organizer.archive.restoreStarted')];
@@ -28,5 +33,8 @@ export function restoredNotice(t: Translate, answer: RestoreAnswer): string {
   const kept = answer.imagesKept ?? 0;
   if (kept === 1) lines.push(t('organizer.archive.restoreImagesKept'));
   if (kept > 1) lines.push(t('organizer.archive.restoreImagesKeptPlural', { count: kept }));
+  if (answer.timezoneReset) {
+    lines.push(t('organizer.archive.restoreTimezoneReset', { zone: DEFAULT_EVENT_TIMEZONE }));
+  }
   return lines.join(' ');
 }

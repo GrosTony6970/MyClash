@@ -899,6 +899,9 @@ export const organizer = {
     cityPlaceholder: 'Lyon',
     country: 'Pays',
     countryPlaceholder: 'Choisir un pays',
+    timezone: 'Fuseau horaire',
+    timezoneHelp:
+      'Les horaires des combats, le programme et le tableau en direct suivent cette heure.',
     eventKind: "Type d'événement",
     kinds: {
       standard: 'Standard',
@@ -940,6 +943,7 @@ export const organizer = {
     logoHelp: "PNG, JPEG ou WebP jusqu'à 10 Mo.",
     logoPreviewAlt: 'Aperçu du logo événement',
     reviewEvent: 'Événement',
+    reviewTimezone: 'Fuseau horaire : {zone}',
     reviewVenueExisting: 'Lieu (existant)',
     reviewVenueNew: 'Lieu (nouveau)',
     reviewLices: 'Lices ({count})',
@@ -2847,6 +2851,8 @@ export const organizer = {
     restoreImagesKept: "1 image n'a pas pu être enregistrée à nouveau. Elle garde son ancien lien.",
     restoreImagesKeptPlural:
       "{count} images n'ont pas pu être enregistrées à nouveau. Elles gardent leur ancien lien.",
+    restoreTimezoneReset:
+      "L'archive ne nommait aucun fuseau horaire connu : la copie est sur {zone}. Vérifiez-le dans les réglages de l'événement.",
     // A restore refuses an archive whose data is over its limit, by the code
     // `archive_data_too_large` (ruling 409).
     dataTooLarge:

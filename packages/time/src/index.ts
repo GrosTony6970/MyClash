@@ -81,10 +81,24 @@ export function dayStartUtcIso(day: string, tz: string, hour = 0): string | null
  *
  * Luxon itself is not the check: it reads `undefined`, `null`, `'local'` and
  * `'system'` as the SYSTEM zone and `'UTC+3'` as a fixed offset, all valid, so a
- * stored value like those would quietly put an Event on the server's clock.
+ * stored value like those would quietly put an Event on the server's clock. Intl
+ * takes an offset (`'+03:00'`, `'-0500'`) as a zone too; it is no IANA name.
  */
 export function isIanaZone(tz: unknown): boolean {
-  return typeof tz === 'string' && IANAZone.isValidZone(tz);
+  return typeof tz === 'string' && !/^[+-]/u.test(tz) && IANAZone.isValidZone(tz);
+}
+
+/**
+ * The one spelling of an IANA zone, as Intl resolves it (`europe/paris` → `Europe/Paris`,
+ * `US/Eastern` → `America/New_York`), or null when `tz` is not one (`isIanaZone`). What an Event
+ * stores, so a picker never shows the same zone twice under two names.
+ *
+ * The spelling is the runtime's ICU: Node 26 (ICU 78) still answers the older names
+ * `Europe/Kiev` for `Europe/Kyiv` and `Asia/Calcutta` for `Asia/Kolkata`. Both read the same clock.
+ */
+export function canonicalZone(tz: unknown): string | null {
+  if (!isIanaZone(tz)) return null;
+  return new Intl.DateTimeFormat('en', { timeZone: tz as string }).resolvedOptions().timeZone;
 }
 
 /** The local calendar date (`YYYY-MM-DD`, in `tz`) of a UTC ISO instant. */

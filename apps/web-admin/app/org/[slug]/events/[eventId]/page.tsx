@@ -38,6 +38,7 @@ import { statusChangeQuestion } from './tournaments/_lib/status-change-question'
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { withTournament } from '@/lib/tournament-choice';
+import { EventZoneSelect } from '@/components/EventZoneSelect';
 
 interface Tournament {
   id: string;
@@ -120,28 +121,6 @@ function localDay(now: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-
-// Common IANA timezones for the event settings picker. The current stored
-// value is always merged in, so a zone outside this list still displays.
-const COMMON_TIMEZONES = [
-  'Europe/Paris',
-  'Europe/London',
-  'Europe/Madrid',
-  'Europe/Berlin',
-  'Europe/Rome',
-  'Europe/Amsterdam',
-  'Europe/Brussels',
-  'Europe/Zurich',
-  'Europe/Stockholm',
-  'Europe/Warsaw',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Sao_Paulo',
-  'Australia/Sydney',
-  'UTC',
-];
 
 export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -890,19 +869,13 @@ export default function EventDetailPage() {
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
             {t('organizer.eventHub.timezone')}
           </span>
-          <select
+          <EventZoneSelect
             id="eventTimezone"
             value={timezone}
             disabled={savingTz || isReadOnly}
-            onChange={(e) => void handleSaveTimezone(e.target.value)}
+            onChange={(zone) => void handleSaveTimezone(zone)}
             className="mt-1 w-full max-w-xs rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
-          >
-            {Array.from(new Set([timezone, ...COMMON_TIMEZONES])).map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </select>
+          />
         </label>
       </section>
 
