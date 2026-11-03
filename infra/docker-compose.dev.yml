@@ -266,10 +266,10 @@ services:
       # ($$ escapes Compose interpolation so Traefik receives $1.)
       - traefik.http.middlewares.dev-supabase-realtime-ws.replacepathregex.regex=^/realtime/v1/(.*)
       - traefik.http.middlewares.dev-supabase-realtime-ws.replacepathregex.replacement=/socket/$$1
-      - traefik.http.middlewares.dev-supabase-realtime-api.replacepathregex.regex=^/realtime/v1/api/(.*)
-      - traefik.http.middlewares.dev-supabase-realtime-api.replacepathregex.replacement=/api/$$1
-      # /realtime/v1/api must win over the broader /realtime/v1 rule.
-      - traefik.http.routers.dev-realtime-api.rule=Host(`api.myclash.localhost`) && PathPrefix(`/realtime/v1/api`)
+      - traefik.http.middlewares.dev-supabase-realtime-api.replacepath.path=/api/ping
+      # Only /realtime/v1/api/ping, as in prod: the other /api routes are Realtime's
+      # tenant management (ruling 420). It must win over the broader /realtime/v1 rule.
+      - traefik.http.routers.dev-realtime-api.rule=Host(`api.myclash.localhost`) && Path(`/realtime/v1/api/ping`)
       - traefik.http.routers.dev-realtime-api.entrypoints=websecure
       - traefik.http.routers.dev-realtime-api.tls=true
       - traefik.http.routers.dev-realtime-api.priority=25

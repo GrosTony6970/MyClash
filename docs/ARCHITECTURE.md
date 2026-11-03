@@ -3144,9 +3144,11 @@ tables in §17.1 below carry the image tags and roles, so these diagrams deliber
 Six public hostnames fan out into 21 routers. What a flat table cannot show is **priority**: on
 `app.${DOMAIN}` GoTrue's own sign-up door `/auth/v1/signup` (60) is refused for everyone first (it
 would store a password before the mailbox is proven; our sign-ups go through the API, §12.7), then a
-request is tested against `/api/v1` (30) before `/realtime/v1/api` (25) before the
-`/realtime/v1`, `/auth/v1`, `/rest/v1` and `/storage/v1` prefixes (20), and only falls through to
-web-public (1) if nothing else matched.
+request is tested against `/api/v1` (30) before the one path `/realtime/v1/api/ping` (25) before
+the `/realtime/v1`, `/auth/v1`, `/rest/v1` and `/storage/v1` prefixes (20), and only falls through
+to web-public (1) if nothing else matched. Realtime's other `/api` routes are its tenant management,
+which takes any token signed with its API secret: they fall to `/realtime/v1` and answer 404
+(ruling 420).
 
 ```mermaid
 flowchart LR
@@ -3167,7 +3169,7 @@ flowchart LR
   H_MK -->|"all · www → apex"| MKT
   H_APP -->|"/auth/v1/signup · 60"| DENY["403 · nobody allowed"]
   H_APP -->|"/api/v1 · 30"| API
-  H_APP -->|"/realtime/v1/api · 25"| RT
+  H_APP -->|"/realtime/v1/api/ping · 25"| RT
   H_APP -->|"/realtime/v1 · 20"| RT
   H_APP -->|"/auth/v1 · 20 🔒"| AUTH
   H_APP -->|"/rest/v1 · 20"| REST
@@ -3492,7 +3494,7 @@ Until 2026-11 every service logged in to Postgres as the superuser `supabase_adm
 
 **Time limits.** `authenticator` logs in with `statement_timeout = 8s`, `lock_timeout = 8s` and `safeupdate` (an UPDATE or DELETE without WHERE is refused). PostgREST applies the request role's own setting on top, so the same init script gives `service_role` (the api) `statement_timeout = 60s` (rulings 395, 397). The lock wait stays 8 s (398) and `safeupdate` stays on (399). A role setting is not in a `pg_dump`; the init script runs on every new database, a restored one included.
 
-**What this does not remove.** GoTrue, Storage and PostgREST all hold `SUPABASE_JWT_SECRET`. A broken one can still sign a `service_role` token and read or write every `public` row through PostgREST. The change takes away superuser powers (DDL, other schemas, `COPY … PROGRAM`, role changes), not data access. Realtime's management API is signed with the same secret and Realtime runs as the superuser: named, not examined.
+**What this does not remove.** GoTrue, Storage and PostgREST all hold `SUPABASE_JWT_SECRET`. A broken one can still sign a `service_role` token and read or write every `public` row through PostgREST. The change takes away superuser powers (DDL, other schemas, `COPY … PROGRAM`, role changes), not data access. Realtime runs as the superuser, and its management API (`/api/tenants`: list, read, create, update, delete) takes any token signed with the same secret, the public anon key included. The edge forwarded it from the internet; since ruling 420 it lets only `/realtime/v1/api/ping` through (pinned by `infra:review`, probed by `check-edge-tls.mjs`). Any container on the `myclash` network can still reach it with the anon key.
 
 **Proof.** CI's `Deploy migration run` job (`scripts/check-service-db-users.sh`) runs on the fresh database it just migrated: every `auth` table is `supabase_auth_admin`'s, `storage`'s are `supabase_storage_admin`'s, PostgREST's connection is `authenticator`'s; each user logs in over the docker network with its own key and is refused with `POSTGRES_PASSWORD`; and from `myclash` neither meta nor Studio answers. `check-infra-review.mjs` pins each service's user and key, where `${POSTGRES_PASSWORD}` may appear, and the network layout.
 

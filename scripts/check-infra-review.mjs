@@ -849,6 +849,99 @@ requireContains(
   `/api/tenants/${realtimeTenants.get('prod supabase-realtime') ?? 'app'}/health`,
 );
 
+// Ruling 420: Realtime's other /api routes are its tenant management, which takes any token
+// signed with API_JWT_SECRET, the public anon key included. No edge path may reach them: exactly
+// two routers reach Realtime, the REST one matches only ping and rewrites to the fixed /api/ping,
+// the socket one rewrites under /socket/, and the Realtime container itself carries no router
+// (one there would bind to its service without naming it).
+const labelValues = (text, key) =>
+  [...text.matchAll(new RegExp(`- ${escapeRegExp(key)}=(.*)`, 'gu'))].map((m) => m[1]);
+for (const edge of [
+  {
+    label: 'prod',
+    text: composeText,
+    realtime: services.get('supabase-realtime') ?? '',
+    service: 'myclash-supabase-realtime',
+    host: 'app.${DOMAIN}',
+    rest: ['myclash-realtime-api', 'supabase-realtime-api'],
+    socket: ['myclash-realtime', 'supabase-realtime-ws'],
+    chainHead: '${MW_GEO_PUBLIC}myclash-security-headers@file,',
+    upstreams: 1,
+  },
+  {
+    label: 'dev',
+    text: devComposeText,
+    realtime: devServices.get('supabase-realtime') ?? '',
+    service: 'dev-realtime',
+    host: 'api.myclash.localhost',
+    rest: ['dev-realtime-api', 'dev-supabase-realtime-api'],
+    socket: ['dev-realtime', 'dev-supabase-realtime-ws'],
+    chainHead: 'myclash-geoblock-public@file,',
+    // dev binds its service to the container by port, not by URL.
+    upstreams: 0,
+  },
+]) {
+  const { label, text, service, host, rest, socket, chainHead } = edge;
+  const fail = (what) =>
+    errors.push(
+      `${label} Realtime edge (ruling 420): ${what}. Realtime's tenant management would be open to the anon key.`,
+    );
+  const bound = [...text.matchAll(/traefik\.http\.routers\.([\w-]+)\.service=(\S+)/gu)]
+    .filter((m) => m[2].replace(/@docker$/u, '') === service)
+    .map((m) => m[1])
+    .sort();
+  if (bound.join(',') !== [rest[0], socket[0]].sort().join(',')) {
+    fail(
+      `the routers bound to ${service} are [${bound.join(', ')}], not exactly ${rest[0]} and ${socket[0]}`,
+    );
+  }
+  const routerRules = (router) => labelValues(text, `traefik.http.routers.${router}.rule`);
+  // The socket rewrite forwards a path its regex does not match unchanged, so the socket rule is
+  // pinned as tightly as the REST one, and so are both middleware chains.
+  for (const [router, rule, rewrite] of [
+    [rest[0], `Host(\`${host}\`) && Path(\`/realtime/v1/api/ping\`)`, rest[1]],
+    [socket[0], `Host(\`${host}\`) && PathPrefix(\`/realtime/v1\`)`, socket[1]],
+  ]) {
+    const rules = routerRules(router).join(' | ');
+    if (rules !== rule) fail(`${router} must have the one rule ${rule}, found ${rules || 'none'}`);
+    const chain = labelValues(text, `traefik.http.routers.${router}.middlewares`).join(' | ');
+    if (chain !== `${chainHead}${rewrite}`) {
+      fail(`${router} must have the middlewares ${chainHead}${rewrite}, found ${chain || 'none'}`);
+    }
+  }
+  const upstreams = (text.match(/loadbalancer\.server\.url=\S*supabase-realtime:4000/gu) ?? [])
+    .length;
+  if (upstreams !== edge.upstreams) {
+    fail(`${upstreams} services point at supabase-realtime:4000, expected ${edge.upstreams}`);
+  }
+  const middleware = (name) =>
+    [
+      ...text.matchAll(
+        new RegExp(`traefik\\.http\\.middlewares\\.${escapeRegExp(name)}\\.(.*)`, 'gu'),
+      ),
+    ]
+      .map((m) => m[1])
+      .join(' | ');
+  if (middleware(rest[1]) !== 'replacepath.path=/api/ping') {
+    fail(
+      `${rest[1]} must be exactly replacepath.path=/api/ping, found ${middleware(rest[1]) || 'none'}`,
+    );
+  }
+  const socketRewrite =
+    'replacepathregex.regex=^/realtime/v1/(.*) | replacepathregex.replacement=/socket/$$1';
+  if (middleware(socket[1]) !== socketRewrite) {
+    fail(`${socket[1]} must be exactly ${socketRewrite}, found ${middleware(socket[1]) || 'none'}`);
+  }
+  const ownRouters = new Set(
+    [...edge.realtime.matchAll(/traefik\.http\.routers\.([\w-]+)\./gu)].map((m) => m[1]),
+  );
+  for (const router of ownRouters) {
+    if (router !== rest[0] && router !== socket[0]) {
+      fail(`the supabase-realtime service carries router ${router}`);
+    }
+  }
+}
+
 const prodStorage = services.get('supabase-storage') ?? '';
 requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5000/status');
 requireContains(

@@ -176,6 +176,23 @@ if (!checkedKeys.has('app')) {
         `SELF_HOST_TENANT_NAME against the Host Traefik forwards; websockets are dead.`,
     );
   }
+  // Realtime's other /api routes are its tenant management, which takes the anon key: the
+  // edge must not forward them (ruling 420), whatever label form a change gives the route.
+  const tenants = await request({
+    protocol: 'https:',
+    host: `app.${domain}`,
+    path: '/realtime/v1/api/tenants',
+    method: 'GET',
+    headers: { Authorization: `Bearer ${realtimeKey}` },
+    timeoutMs: 10_000,
+    rejectUnauthorized: false, // see the health probe above
+  });
+  if (tenants.statusCode !== 404) {
+    errors.push(
+      `https://app.${domain}/realtime/v1/api/tenants returned ${tenants.statusCode ?? 'no response'} ` +
+        '(expected 404): the edge forwards Realtime tenant management, open to the anon key.',
+    );
+  }
 } else {
   console.warn(
     'SUPABASE_ANON_KEY not set — skipped the realtime tenant-resolution probe on ' +

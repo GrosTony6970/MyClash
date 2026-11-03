@@ -794,16 +794,17 @@ services:
       # Realtime: supabase/realtime v2.94 serves its Phoenix socket at
       # /socket/websocket and its REST API at /api/* — NOT under /realtime/v1.
       # The browser client (supabase-js) connects to /realtime/v1/websocket, so
-      # we replicate Kong's realtime routes: rewrite /realtime/v1/api/* -> /api/*
-      # and the rest of /realtime/v1/* -> /socket/* (so /realtime/v1/websocket ->
-      # /socket/websocket). Passing /realtime/v1 through unchanged 404s at the
-      # realtime app. ($$ escapes compose interpolation so Traefik sees $1.)
+      # /realtime/v1/* is rewritten to /socket/* (so /realtime/v1/websocket ->
+      # /socket/websocket), and the one REST path /realtime/v1/api/ping to
+      # /api/ping: a fixed path, so no other /api route can come out of it
+      # (ruling 420, see the router below). Passing /realtime/v1 through
+      # unchanged 404s at the realtime app. ($$ escapes compose interpolation so
+      # Traefik sees $1.)
       - traefik.http.middlewares.supabase-auth-strip.stripprefix.prefixes=/auth/v1
       - traefik.http.middlewares.supabase-storage-strip.stripprefix.prefixes=/storage/v1
       - traefik.http.middlewares.supabase-realtime-ws.replacepathregex.regex=^/realtime/v1/(.*)
       - traefik.http.middlewares.supabase-realtime-ws.replacepathregex.replacement=/socket/$$1
-      - traefik.http.middlewares.supabase-realtime-api.replacepathregex.regex=^/realtime/v1/api/(.*)
-      - traefik.http.middlewares.supabase-realtime-api.replacepathregex.replacement=/api/$$1
+      - traefik.http.middlewares.supabase-realtime-api.replacepath.path=/api/ping
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
@@ -828,9 +829,16 @@ services:
       - traefik.http.routers.myclash-auth-signup.middlewares=myclash-security-headers@file,myclash-gotrue-signup-refused@docker
       - traefik.http.routers.myclash-auth-signup.priority=60
       - traefik.http.routers.myclash-auth-signup.service=myclash-supabase-auth
-      # Realtime REST (broadcast/presence): /realtime/v1/api/* -> /api/*. Higher
-      # priority than the websocket router so the more specific /api prefix wins.
-      - traefik.http.routers.myclash-realtime-api.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1/api`)
+      # Realtime REST: /realtime/v1/api/ping -> /api/ping, and nothing else. The
+      # edge TLS check probes ping (it resolves the tenant from the Host, as the
+      # socket does); our apps call no other /api route (the API's RealtimeService
+      # would broadcast over REST, but nothing injects it). Every other one is
+      # Realtime's tenant management, which takes ANY token signed with
+      # API_JWT_SECRET, the public anon key included (ruling 420): it used to be
+      # open to the internet. The rest of /realtime/v1/api now falls to the
+      # websocket router below, whose /socket/api/* answers 404. Higher priority
+      # than the websocket router so ping still wins.
+      - traefik.http.routers.myclash-realtime-api.rule=Host(`app.${DOMAIN}`) && Path(`/realtime/v1/api/ping`)
       - traefik.http.routers.myclash-realtime-api.entrypoints=websecure
       - traefik.http.routers.myclash-realtime-api.tls=true
       - traefik.http.routers.myclash-realtime-api.tls.certresolver=letsencrypt
