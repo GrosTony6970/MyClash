@@ -4049,6 +4049,18 @@ clock. Plan: `slice-event-clock-a-bouts-plan.md`, converged in 2 review passes.
 | Restore (415)    | An archive edited by hand says "Paris time"; a restore copied it into the new Event as given.                                               | **Store `Europe/Paris` and say so in the restore result**, as for dropped ruleset pins and compensation plans (rulings 67, 69).                                                         | `exports/archive.service.ts`                |
 | Reads (416)      | About 9 server reads and 12 web fallbacks take the zone unchecked; once every way in refuses a bad zone, only a hand SQL edit reaches them. | **Shut the doors only**: the form, the API and the restore. The reads stay as they are.                                                                                                 | —                                           |
 
+### Rulings — operator, 2026-11-03: timers a cleanup can strand
+
+Asked in sessions 5995fdba (417, 418) and d76fcd9b (419). The share-button flake was a product bug:
+a tap started a 2 s timer that only a React cleanup stopped. In `next dev`, Strict Mode re-ran the
+effect after an early tap; its cleanup killed the fresh timer and "Copied!" stayed forever.
+
+| Row                 | Story                                                                                                                                      | Ruling                                                                                                         | Files                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| The class (417)     | The lice display's control bar and the HEMA Ratings sync wait have the same shape: a handler starts the timer, only a cleanup ends it.     | **Fix all three in one commit**: each timer starts in an effect keyed on the state it ends.                    | `ShareButton.tsx`, `DisplayControls.tsx`, `hema-ratings/page.tsx` |
+| A DOM (418)         | web-public has no React component tests; a test that hides and shows a screen mid-timer needs a DOM.                                       | **`jsdom` in web-public's devDependencies**, JSX and `@/` in its vitest config, one `<Activity>` test per fix. | `apps/web-public/package.json`, `vitest.config.ts`                |
+| Two survivors (419) | The schedule board can drop a realtime refetch, and a backup upload can abort, when a cleanup and a setup run mid-wait. Unreachable today. | **Fix both, in one commit**, the same way, with one `<Activity>` test each.                                    | `useScheduleData.ts`, `use-backup-upload.ts`                      |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
