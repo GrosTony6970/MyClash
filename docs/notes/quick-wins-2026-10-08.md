@@ -4005,6 +4005,17 @@ as the superuser with one password. ARCHITECTURE §17.7 holds the result.
 | Deploy's own code (400)     | deploy.sh repaired `.env` with the OLD code, then pulled and ran on as the old script.                                                                                                   | **It re-runs itself from the new checkout right after the pull**, in its own commit.                                                        | `ef452001`       |
 | Public admin password (401) | `.env.example` ships `SEED_ADMIN_PASSWORD=ChangeMe-Admin-2026!` since `70191c5c`; the `.env` repair refused only an older sample, and bootstrap sets the super admin's password from it. | **Refuse it too, in the service-users commit.**                                                                                             | `441b74f7`       |
 
+### Rulings — operator, 2026-11-03: Dependabot PR #91
+
+Asked in session c46efca1. #91 holds eslint 10.14 and `@opentelemetry/api` 1.10. The Mistral SDK
+did not change: its peer `^1.9.0` always took 1.10. The red came from the OTel SDK 2.x packages
+pnpm installed as Mistral's optional peers (they take only `<1.10.0`). With 1.10, pnpm leaves them
+out; Mistral loads them only for its own telemetry, off unless `MISTRAL_SDK_TELEMETRY` is set.
+
+| Row           | Story                                                                                            | Ruling                                                             | Files                                 |
+| ------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------- |
+| Landing (402) | #91 is green, but on a base older than the `Deploy migration run` job, so CI never ran it on it. | **Our own commit**, the PR's four files byte for byte, as #79-#89. | `package.json` (x3), `pnpm-lock.yaml` |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
