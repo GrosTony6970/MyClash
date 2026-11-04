@@ -55,6 +55,8 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
       'SUPABASE_SERVICE_ROLE_KEY=change-me-service-role-jwt',
       'MYCLASH_GUEST_JWT_SECRET=change-me-guest-jwt-secret',
       'MYCLASH_STAFF_JWT_SECRET=change-me-staff-jwt-secret',
+      'PHOTO_TOKEN_SECRET=change-me-photo-token-secret',
+      'PHOTO_DEVICE_JWT_SECRET=change-me-photo-device-jwt-secret',
       'OPS_RUNNER_SECRET=change-me-ops-runner-secret',
       'RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       'MAIL_FROM=noreply@myclash.fr',
@@ -161,6 +163,12 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   assert.notEqual(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'change-me-realtime-db-enc-key');
   assertRealtimeDbEncKey(values.get('SUPABASE_REALTIME_DB_ENC_KEY'));
   assert.notEqual(values.get('OPS_RUNNER_SECRET'), 'change-me-ops-runner-secret');
+  // Event photos: the QR token and the device cookie are signed with secrets the deploy makes,
+  // so the operator has nothing to do for them.
+  for (const key of ['PHOTO_TOKEN_SECRET', 'PHOTO_DEVICE_JWT_SECRET']) {
+    assert.match(values.get(key) ?? '', /^[A-Za-z0-9_-]{64}$/, `${key} was not generated`);
+  }
+  assert.notEqual(values.get('PHOTO_TOKEN_SECRET'), values.get('PHOTO_DEVICE_JWT_SECRET'));
   assert.ok(values.get('VAPID_PUBLIC_KEY'));
   assert.ok(values.get('VAPID_PRIVATE_KEY'));
 });

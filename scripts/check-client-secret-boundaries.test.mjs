@@ -98,7 +98,12 @@ test('the keys taken over from infra:review are still in the list', () => {
 test('the photo bucket key pair is forbidden, and a component naming it reports', () => {
   // The photo bucket has its own key pair (operator, 2026-11-04). The API reads it; a browser
   // never has a reason to.
-  for (const key of ['PHOTO_BUCKET_ACCESS_KEY', 'PHOTO_BUCKET_SECRET_KEY']) {
+  for (const key of [
+    'PHOTO_BUCKET_ACCESS_KEY',
+    'PHOTO_BUCKET_SECRET_KEY',
+    'PHOTO_TOKEN_SECRET',
+    'PHOTO_DEVICE_JWT_SECRET',
+  ]) {
     assert.ok(forbiddenEnvKeys.includes(key), `${key} is not guarded`);
     assert.deepEqual(mostSpecificMatches(`const k = process.env.${key};`, forbiddenEnvKeys), [key]);
   }

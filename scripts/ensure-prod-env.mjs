@@ -51,6 +51,8 @@ const SAMPLE_VALUES = new Map([
   ['SUPABASE_SERVICE_ROLE_KEY', new Set(['change-me-service-role-jwt'])],
   ['MYCLASH_GUEST_JWT_SECRET', new Set(['change-me-guest-jwt-secret'])],
   ['MYCLASH_STAFF_JWT_SECRET', new Set(['change-me-staff-jwt-secret'])],
+  ['PHOTO_TOKEN_SECRET', new Set(['change-me-photo-token-secret'])],
+  ['PHOTO_DEVICE_JWT_SECRET', new Set(['change-me-photo-device-jwt-secret'])],
   ['OPS_RUNNER_SECRET', new Set(['change-me-ops-runner-secret'])],
   ['RESEND_API_KEY', new Set(['re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])],
   ['MAIL_FROM', new Set(['noreply@yourdomain.com'])],
@@ -96,6 +98,8 @@ export const SECRET_GENERATORS = {
   SUPABASE_REALTIME_DB_ENC_KEY: () => randomBytes(12).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
+  PHOTO_TOKEN_SECRET: () => randomBytes(48).toString('base64url'),
+  PHOTO_DEVICE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
   AI_KEY_SECRET: () => randomBytes(32).toString('hex'),
   // Generate a strong random password for the bootstrap super admin.

@@ -1,10 +1,16 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { describe, expect, it, vi } from 'vitest';
 import {
   headPhotoBucket,
   photoBucketClientConfig,
+  photoStoreOf,
   readPhotoBucketSetting,
   type PhotoBucketConfig,
 } from './photo-bucket';
@@ -128,6 +134,60 @@ describe('the client built from photoBucketClientConfig', () => {
       server.closeAllConnections();
       server.close();
     }
+  });
+});
+
+describe('photoStoreOf', () => {
+  it('is nothing when the bucket is not configured, so the upload can say so', () => {
+    expect(photoStoreOf({ kind: 'off' })).toBeNull();
+    expect(photoStoreOf({ kind: 'partial', missing: ['PHOTO_BUCKET_NAME'] })).toBeNull();
+  });
+
+  it('writes a JPEG under its key in the configured bucket, with a bounded wait', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const store = photoStoreOf({ kind: 'on', config: FR_PAR }, { send } as never)!;
+    const bytes = Buffer.from('jpeg bytes');
+
+    await store.put('events/e/p/original.jpg', bytes);
+
+    const [command, options] = send.mock.calls[0] as [
+      PutObjectCommand,
+      { abortSignal: AbortSignal },
+    ];
+    expect(command).toBeInstanceOf(PutObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'myclash-photos',
+      Key: 'events/e/p/original.jpg',
+      Body: bytes,
+      ContentType: 'image/jpeg',
+    });
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('deletes by key in the configured bucket, with a bounded wait', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const store = photoStoreOf({ kind: 'on', config: FR_PAR }, { send } as never)!;
+
+    await store.remove('events/e/p/preview.jpg');
+
+    const [command, options] = send.mock.calls[0] as [
+      DeleteObjectCommand,
+      { abortSignal: AbortSignal },
+    ];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    expect(command.input).toEqual({ Bucket: 'myclash-photos', Key: 'events/e/p/preview.jpg' });
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('re-tells a refused write by its status', async () => {
+    const send = vi.fn().mockRejectedValue(
+      Object.assign(new Error('UnknownError'), {
+        name: '403',
+        $metadata: { httpStatusCode: 403 },
+      }),
+    );
+    const store = photoStoreOf({ kind: 'on', config: FR_PAR }, { send } as never)!;
+    await expect(store.put('k', Buffer.from('x'))).rejects.toThrow('HTTP 403');
   });
 });
 

@@ -83,17 +83,19 @@ Rotation procedure:
 
 Rotation targets:
 
-| Secret                      | Rotation owner | Notes                                                       |
-| --------------------------- | -------------- | ----------------------------------------------------------- |
-| `SUPABASE_JWT_SECRET`       | Owner          | Rotate with Supabase JWT keys; expect auth/session impact.  |
-| `SUPABASE_SERVICE_ROLE_KEY` | Owner          | Server-only; redeploy API and ops scripts.                  |
-| `MYCLASH_GUEST_JWT_SECRET`  | Owner          | Invalidates active guest sessions after rotation.           |
-| `MYCLASH_STAFF_JWT_SECRET`  | Owner          | Invalidates active staff sessions after rotation.           |
-| `COOKIE_SECRET`             | Owner          | Rotate with care; signed cookies may be invalidated.        |
-| `VAPID_PRIVATE_KEY`         | Owner          | Requires push subscription validation after deploy.         |
-| `AI_KEY_SECRET`             | Owner          | Re-encrypt stored BYOK keys before retiring the old secret. |
-| SMTP/Resend keys            | Owner          | Rotate in provider dashboard and production env.            |
-| `OPS_RUNNER_SECRET`         | Owner          | Rotate with deployment automation consumers.                |
+| Secret                      | Rotation owner | Notes                                                        |
+| --------------------------- | -------------- | ------------------------------------------------------------ |
+| `SUPABASE_JWT_SECRET`       | Owner          | Rotate with Supabase JWT keys; expect auth/session impact.   |
+| `SUPABASE_SERVICE_ROLE_KEY` | Owner          | Server-only; redeploy API and ops scripts.                   |
+| `MYCLASH_GUEST_JWT_SECRET`  | Owner          | Invalidates active guest sessions after rotation.            |
+| `MYCLASH_STAFF_JWT_SECRET`  | Owner          | Invalidates active staff sessions after rotation.            |
+| `PHOTO_TOKEN_SECRET`        | Owner          | Retires every printed photo QR code; reprint after rotation. |
+| `PHOTO_DEVICE_JWT_SECRET`   | Owner          | Resets every phone's photo limit; nothing else is lost.      |
+| `COOKIE_SECRET`             | Owner          | Rotate with care; signed cookies may be invalidated.         |
+| `VAPID_PRIVATE_KEY`         | Owner          | Requires push subscription validation after deploy.          |
+| `AI_KEY_SECRET`             | Owner          | Re-encrypt stored BYOK keys before retiring the old secret.  |
+| SMTP/Resend keys            | Owner          | Rotate in provider dashboard and production env.             |
+| `OPS_RUNNER_SECRET`         | Owner          | Rotate with deployment automation consumers.                 |
 
 Gitleaks runs in CI as the automated secret-scan gate.
 

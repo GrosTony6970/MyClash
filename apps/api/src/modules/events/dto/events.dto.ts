@@ -8,6 +8,7 @@ import {
 import { canonicalZone } from '@myclash/time';
 import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
 import { settingsAuditSchema } from './rules-audit.schema';
+import { PHOTO_MODES } from '../../photos/photo-token';
 
 /**
  * A day of an Event (DATE since 0223): `format: date` for the OpenAPI client, and a day Postgres
@@ -90,6 +91,8 @@ const updateEventSchema = z
     // Change the event kind (see CreateEventDto). Flipping between a rated and
     // an unrated kind recomputes any league this event feeds.
     eventKind: z.enum(EVENT_KINDS).optional(),
+    // Event photos: off (default), live, or approve first.
+    photoMode: z.enum(PHOTO_MODES).optional(),
   })
   .strict();
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}

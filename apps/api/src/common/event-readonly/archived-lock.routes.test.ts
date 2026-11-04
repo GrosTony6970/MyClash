@@ -134,7 +134,9 @@ describe('the archived-Event lock, API-wide', () => {
 
   it('pins the routes it places, and NAMED_OPEN may only shrink', () => {
     // 184: B-Swiss's `POST swiss-phases/:phaseId/reinstate`, placed by its phase.
-    expect(placed).toHaveLength(184);
+    // 186: Event photos' `POST events/:eventId/photos` and `…/photos/link/rotate`, placed by
+    // their Event: no photo arrives at, and no link is rotated for, an archived Event.
+    expect(placed).toHaveLength(186);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

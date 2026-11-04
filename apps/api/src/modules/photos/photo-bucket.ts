@@ -1,4 +1,10 @@
-import { HeadBucketCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+  type S3ClientConfig,
+} from '@aws-sdk/client-s3';
 
 /**
  * The photo bucket's settings and its S3 client. One owner: nothing else reads a `PHOTO_BUCKET_*`
@@ -43,6 +49,15 @@ export const PHOTO_BUCKET_CONNECT_TIMEOUT_MS = 5_000;
 export const PHOTO_BUCKET_REQUEST_TIMEOUT_MS = 30_000;
 /** The health probe is a list-class call: 10 s. */
 export const PHOTO_BUCKET_PROBE_TIMEOUT_MS = 10_000;
+/** One object written: 30 s. One object deleted: 10 s. */
+export const PHOTO_BUCKET_WRITE_TIMEOUT_MS = 30_000;
+export const PHOTO_BUCKET_DELETE_TIMEOUT_MS = 10_000;
+
+/** Where photo images are written and removed. Every call has its own bounded wait. */
+export interface PhotoStore {
+  put(key: string, bytes: Buffer): Promise<void>;
+  remove(key: string): Promise<void>;
+}
 
 export type PhotoBucketProbe = (config: PhotoBucketConfig, signal: AbortSignal) => Promise<void>;
 
@@ -101,6 +116,43 @@ export function headPhotoBucket(client: Pick<S3Client, 'send'>): PhotoBucketProb
     } catch (err) {
       throw refusalOf(err, config.bucket);
     }
+  };
+}
+
+/**
+ * The photo store over the configured bucket, or null when it is not configured: the upload then
+ * answers "Photos are unavailable" rather than failing a write it could never make.
+ */
+export function photoStoreOf(
+  setting: PhotoBucketSetting,
+  client?: Pick<S3Client, 'send'>,
+): PhotoStore | null {
+  if (setting.kind !== 'on') return null;
+  const { config } = setting;
+  const s3 = client ?? createPhotoBucketClient(config);
+  const send = async (command: PutObjectCommand | DeleteObjectCommand, timeoutMs: number) => {
+    try {
+      await s3.send(command as never, { abortSignal: AbortSignal.timeout(timeoutMs) });
+    } catch (err) {
+      throw refusalOf(err, config.bucket);
+    }
+  };
+  return {
+    put: (key, bytes) =>
+      send(
+        new PutObjectCommand({
+          Bucket: config.bucket,
+          Key: key,
+          Body: bytes,
+          ContentType: 'image/jpeg',
+        }),
+        PHOTO_BUCKET_WRITE_TIMEOUT_MS,
+      ),
+    remove: (key) =>
+      send(
+        new DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
+        PHOTO_BUCKET_DELETE_TIMEOUT_MS,
+      ),
   };
 }
 

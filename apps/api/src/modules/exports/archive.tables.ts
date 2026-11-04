@@ -636,6 +636,10 @@ export const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   // them further from the promise they were given under with every hop. The
   // author still gets their own rows through the GDPR subject export.
   'event_feedback',
+  // Event photos are short-lived by design: every image is deleted 30 days after
+  // the Event, and the uploader was told so. An archive copy would outlive that
+  // promise, and the rows point at objects the copy could never reach.
+  'event_photos',
   'organizer_ai_assistant_drafts',
   'organizer_chat_conversations',
   'organizer_chat_messages',

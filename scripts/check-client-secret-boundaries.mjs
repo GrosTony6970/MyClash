@@ -33,6 +33,8 @@ export const forbiddenEnvKeys = [
   'SMTP_PASSWORD',
   'PHOTO_BUCKET_ACCESS_KEY',
   'PHOTO_BUCKET_SECRET_KEY',
+  'PHOTO_TOKEN_SECRET',
+  'PHOTO_DEVICE_JWT_SECRET',
   // Taken over from check-infra-review.mjs, which held them as per-file checks
   // against nine hand-named files. These four belong to whoever scans the whole
   // frontend, because a leak in the tenth file was never the less dangerous one.

@@ -420,6 +420,8 @@ services:
       # reason docker-compose.staging-certs.yml sets this in the staging overlay.
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
+      PHOTO_TOKEN_SECRET: ${PHOTO_TOKEN_SECRET:-dev-photo-token-secret-change-me}
+      PHOTO_DEVICE_JWT_SECRET: ${PHOTO_DEVICE_JWT_SECRET:-dev-photo-device-secret-change-me}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
@@ -639,6 +641,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
+      PHOTO_TOKEN_SECRET: ${PHOTO_TOKEN_SECRET:-dev-photo-token-secret-change-me}
+      PHOTO_DEVICE_JWT_SECRET: ${PHOTO_DEVICE_JWT_SECRET:-dev-photo-device-secret-change-me}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-cookie-secret-change-me}
       AI_KEY_SECRET: ${AI_KEY_SECRET:-dev-ai-key-secret-change-me}

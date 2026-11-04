@@ -752,6 +752,7 @@ export class EventsService {
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
     if (dto.eventKind !== undefined) updates['event_kind'] = dto.eventKind;
+    if (dto.photoMode !== undefined) updates['photo_mode'] = dto.photoMode;
 
     const previousKind = asEventKind((event as { event_kind?: string }).event_kind);
     const nextKind = dto.eventKind ?? previousKind;

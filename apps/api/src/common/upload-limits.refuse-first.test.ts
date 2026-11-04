@@ -7,7 +7,8 @@
  * refuse first too, in a guard or in the handler.
  */
 import 'reflect-metadata';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { photoDoor } from '../modules/photos/testing/photo-door';
 import { describe, expect, it } from 'vitest';
 import { EventsController } from '../modules/events/events.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
@@ -39,5 +40,25 @@ describe('an upload route refuses a signed-out caller before it reads', () => {
     const upload = tooLargeUpload(null);
     await expect(door(upload.req)).rejects.toThrow(UnauthorizedException);
     expect(upload.file).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The photo route takes no account (operator ruling Q1, 2026-11-04): its door is the QR link's
+ * token, so a wrong one is its refusal before the read. Every other refusal before the read is
+ * pinned in `photo-upload.service.test.ts`.
+ */
+describe('the anonymous photo route refuses a wrong QR link before it reads', () => {
+  it('POST events/:eventId/photos: 403 photo_link_invalid, and the file is never asked for', async () => {
+    const upload = tooLargeUpload(null);
+    const refusal = await photoDoor(EVENT, { token: 'not-the-link' })(upload.req).catch(
+      (err: unknown) => err,
+    );
+    expect(refusal).toBeInstanceOf(ForbiddenException);
+    expect((refusal as ForbiddenException).getResponse()).toMatchObject({
+      code: 'photo_link_invalid',
+    });
+    expect(upload.file).not.toHaveBeenCalled();
+    expect(upload.parts).not.toHaveBeenCalled();
   });
 });

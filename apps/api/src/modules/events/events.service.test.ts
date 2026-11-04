@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
+import { photoToken } from '../photos/photo-token';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 
@@ -969,6 +970,26 @@ describe('EventsService', () => {
       return service.getEventBySlug('club-night', caller);
     };
 
+    it('hands the public the photo token version but never the token', async () => {
+      const secret = 'test-photo-token-secret-at-least-32-characters';
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'e1',
+            slug: 'club-night',
+            event_kind: 'club',
+            status: 'published',
+            organization_id: 'org-1',
+            photo_token_version: 3,
+          },
+          error: null,
+        }),
+      );
+      const body = JSON.stringify(await service.getEventBySlug('club-night', ANON));
+      expect(body).toContain('"photo_token_version":3');
+      expect(body).not.toContain(photoToken(secret, 'e1', 3));
+    });
+
     it('404s a test event for an anonymous caller, and asks nobody who she is', async () => {
       const err = await resolve('test', ANON).catch((e: unknown) => e as Error);
 
@@ -1393,6 +1414,24 @@ describe('EventsService', () => {
       const written = updateChain.update.mock.calls[0]![0] as Record<string, unknown>;
       expect(written['end_date']).toBe('2027-03-15');
       expect(written).not.toHaveProperty('start_date');
+    });
+
+    it('writes the photo mode it was sent as photo_mode', async () => {
+      const updateChain = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { id: 'event-1' }, error: null }),
+      };
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: stored, error: null }))
+        .mockReturnValueOnce(updateChain);
+      assertOrgRole.mockResolvedValue(undefined);
+
+      await service.updateEvent('event-1', { photoMode: 'approve' }, 'user-7');
+
+      const written = updateChain.update.mock.calls[0]![0] as Record<string, unknown>;
+      expect(written['photo_mode']).toBe('approve');
     });
   });
 

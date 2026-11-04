@@ -52,6 +52,7 @@ import { TournamentQueryModule } from './modules/tournament-query/tournament-que
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { PeopleContextModule } from './modules/people-context/people-context.module';
 import { SiteStatsModule } from './modules/site-stats/site-stats.module';
+import { PhotosModule } from './modules/photos/photos.module';
 import { applyRequestLogging } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
@@ -125,6 +126,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     PoolStandingsModule,
     PeopleContextModule,
     SiteStatsModule,
+    PhotosModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override

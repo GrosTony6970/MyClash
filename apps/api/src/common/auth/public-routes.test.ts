@@ -66,6 +66,7 @@ const EXPECTED_PUBLIC = [
   'POST /auth/signup',
   'POST /auth/signup-choose-password',
   'POST /events/:eventId/guest-sessions', // mints the guest cookie
+  'POST /events/:eventId/photos', // a photo from the Event's QR link; the link's token is its lock (Q1, 2026-11-04)
   'POST /staff-auth/login', // mints the staff cookie — web-staff dies without it
   'POST /staff-auth/logout', // idempotent; reads no identity
   // ── ops ──
@@ -213,7 +214,9 @@ const EXPECTED_PUBLIC = [
  * A public route may read. It may not destroy.
  *
  * POST is allowed only for the bootstrap routes that mint a session or are
- * idempotent — enumerated, never a blanket. DELETE/PUT/PATCH are never allowed:
+ * idempotent, or for an anonymous contribution locked by an Event secret and
+ * rate limits (operator ruling Q1, 2026-11-04: Event photos) — enumerated,
+ * never a blanket. DELETE/PUT/PATCH are never allowed:
  * that rule alone would have blocked the 33 unauthenticated mutating routes this
  * work exists to close, among them DELETE /events/:eventId/programme/full and
  * DELETE /registrations/:id.
@@ -231,6 +234,7 @@ const PUBLIC_POST_ALLOWLIST = new Set([
   'POST /auth/signup',
   'POST /auth/signup-choose-password',
   'POST /events/:eventId/guest-sessions',
+  'POST /events/:eventId/photos',
   'POST /staff-auth/login',
   'POST /staff-auth/logout',
 ]);

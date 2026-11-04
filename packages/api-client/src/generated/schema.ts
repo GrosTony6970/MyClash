@@ -9746,6 +9746,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/photos': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send a photo to an Event from its QR link (anonymous) */
+    post: operations['PhotosController_upload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/link': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The Event's photo QR link token (organisers) */
+    get: operations['PhotosController_readLink'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/link/rotate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retire the photo QR link and issue a new one (organisers) */
+    post: operations['PhotosController_rotateLink'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -11154,6 +11205,8 @@ export interface components {
       aiSpendCapEur?: number | null;
       /** @enum {string} */
       eventKind?: 'standard' | 'test' | 'club';
+      /** @enum {string} */
+      photoMode?: 'off' | 'live' | 'approve';
     };
     UpsertEventThemeDto: {
       logoUrl?: string | null;
@@ -26416,6 +26469,80 @@ export interface operations {
         content: {
           'application/json': components['schemas']['SiteStatsDto'];
         };
+      };
+    };
+  };
+  PhotosController_upload: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The token of the Event QR link */
+        'x-photo-token': string;
+      };
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          name?: string;
+          caption?: string;
+          /** Format: uuid */
+          tournamentId?: string;
+          /** Format: uuid */
+          workshopId?: string;
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description { id, status: waiting | approved } */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_readLink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_rotateLink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

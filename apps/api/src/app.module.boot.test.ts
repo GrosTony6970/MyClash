@@ -43,6 +43,8 @@ describe('AppModule', () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'boot-test-service-role-key');
     vi.stubEnv('RESEND_API_KEY', 'boot-test-resend-key');
     vi.stubEnv('MYCLASH_GUEST_JWT_SECRET', 'boot-test-guest-secret-at-least-32-characters');
+    vi.stubEnv('PHOTO_TOKEN_SECRET', 'boot-test-photo-token-secret-at-least-32-characters');
+    vi.stubEnv('PHOTO_DEVICE_JWT_SECRET', 'boot-test-photo-device-secret-at-least-32-chars');
     vi.stubEnv('REDIS_URL', 'redis://127.0.0.1:9');
   });
 
