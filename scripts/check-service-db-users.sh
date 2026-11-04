@@ -13,7 +13,9 @@
 # with POSTGRES_PASSWORD; none is superuser or BYPASSRLS; GoTrue owns every `auth` function
 # (0248); service_role carries a 60 s statement limit and no lock limit of its own (395, 398).
 # And the database console (meta, Studio) cannot be reached from `myclash`, by name or by
-# address, while Studio's own SQL route still works (ruling 396).
+# address, while Studio's own SQL route still works (ruling 396). And the db log holds no
+# password, while DDL is still logged after init (ruling 423b), and pg_stat_statements holds
+# none either (ruling 426).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -173,6 +175,52 @@ if docker exec myclash-supabase-studio node -e 'fetch("http://localhost:3000/api
   ok "Studio's SQL route reaches meta and the database"
 else
   red "Studio's SQL route does not reach meta"
+fi
+
+echo "--- the db log holds no password (ruling 423b)"
+# The image logs every DDL statement. Init sets passwords in SQL text with logging off for the
+# session and the database (01-supabase-roles.sh), and the database's setting is reset after the
+# image's migrate.sh (supabase-service-roles.sh). An empty value matches every line: red.
+# pg_stat_statements keeps statement text too (ruling 426): read here and searched here, so no
+# password is put on a command line to look for it.
+db_log=$(docker logs myclash-db 2>&1)
+stats=$(sql "select query from extensions.pg_stat_statements")
+[[ -n "$stats" ]] || red "pg_stat_statements is empty: the search below would prove nothing"
+for key in POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD SUPABASE_AUTH_ADMIN_PASSWORD \
+  SUPABASE_STORAGE_ADMIN_PASSWORD; do
+  lines=$(grep -cF -- "${!key}" <<<"$db_log" || true)
+  if [[ "$lines" -eq 0 ]]; then
+    ok "the db log holds no $key"
+  else
+    red "the db log holds $key on $lines line(s)"
+  fi
+  if grep -qF -- "${!key}" <<<"$stats"; then
+    red "pg_stat_statements holds $key"
+  else
+    ok "pg_stat_statements holds no $key"
+  fi
+done
+left=$(sql "select count(*) from pg_db_role_setting where setrole = 0 and array_to_string(setconfig, ',') like '%log_statement%'")
+if [[ "$left" == 0 ]]; then
+  ok "init left no database-level log_statement"
+else
+  red "init left a database-level log_statement ($left): DDL would go unlogged"
+fi
+# The reset is what keeps DDL logged: postgres has no log setting of its own.
+docker exec myclash-db psql -h 127.0.0.1 -U postgres -d "$POSTGRES_DB" -Atc \
+  'create temporary table log_probe_423b (x int)' >/dev/null || red "the DDL probe did not run as postgres"
+logged=0
+for _ in 1 2 3 4 5; do
+  if docker logs myclash-db 2>&1 | grep -q 'statement: create temporary table log_probe_423b'; then
+    logged=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$logged" -eq 1 ]]; then
+  ok "DDL is still logged after init"
+else
+  red "DDL is no longer logged after init"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

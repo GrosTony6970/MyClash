@@ -13,6 +13,11 @@
 # not in a pg_dump: init runs on every new database, a restored one included. The lock wait
 # stays authenticator's 8 s (ruling 398).
 #
+# Last, it resets the database's `log_statement` that 01-supabase-roles.sh turned off so the
+# image's migrate.sh would not log a password (ruling 423b): DDL is logged again from here on.
+# And it clears pg_stat_statements, which keeps the ALTER ROLE lines above with their passwords
+# in plain text (ruling 426); the image's migrate.sh does the same for its own part.
+#
 # Init scripts run once, on a fresh volume. Changing a value later: a wipe, or ALTER ROLE by
 # hand.
 #
@@ -34,6 +39,8 @@ printf '%s\n' \
   "ALTER ROLE authenticator PASSWORD :'rest_pw';" \
   "ALTER ROLE supabase_auth_admin PASSWORD :'auth_pw';" \
   "ALTER ROLE supabase_storage_admin PASSWORD :'storage_pw';" \
-  "ALTER ROLE service_role SET statement_timeout = '60s';" |
+  "ALTER ROLE service_role SET statement_timeout = '60s';" \
+  'ALTER DATABASE :"DBNAME" RESET log_statement;' \
+  'SELECT extensions.pg_stat_statements_reset();' |
   psql -v ON_ERROR_STOP=1 --no-psqlrc \
     --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"
