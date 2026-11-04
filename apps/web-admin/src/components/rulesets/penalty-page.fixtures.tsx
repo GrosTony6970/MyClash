@@ -126,8 +126,9 @@ export async function typeInto(testId: string | HTMLInputElement, value: string)
   });
 }
 
-export async function choose(testId: string, value: string): Promise<void> {
-  const select = control<HTMLSelectElement>(testId);
+/** Picks `value` in a select, the way React hears it. */
+export async function choose(testId: string | HTMLSelectElement, value: string): Promise<void> {
+  const select = typeof testId === 'string' ? control<HTMLSelectElement>(testId) : testId;
   await act(async () => {
     select.value = value;
     select.dispatchEvent(new Event('change', { bubbles: true }));

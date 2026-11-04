@@ -2,6 +2,7 @@ import type * as ApiClient from '@myclash/api-client';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  choose,
   labelled,
   openPenaltyPage,
   save,
@@ -47,14 +48,9 @@ async function open(id: string, row: Record<string, unknown>) {
 const patchOf = (id: string) =>
   page.saves.find((s) => s.path === `/api/v1/organizations/org-1/custom-rulesets/${id}`);
 
-/** Picks `value` in the select labelled `words`, the way React hears it. */
-async function pick(words: string, value: string): Promise<void> {
-  const select = labelled(words) as unknown as HTMLSelectElement;
-  await act(async () => {
-    select.value = value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-}
+/** Picks `value` in the select labelled `words`. */
+const pick = (words: string, value: string) =>
+  choose(labelled(words) as unknown as HTMLSelectElement, value);
 
 /** Presses the Reset beside the field labelled `words`. */
 async function resetOf(words: string): Promise<void> {

@@ -111,15 +111,16 @@ describe('the Match format tab', () => {
   it('shows a best-of beyond 7 as itself, in force and as the start (ruling 51)', async () => {
     const start = {
       ...EFFECTIVE_RULES.start,
-      matchFormat: normalizeMatchFormatConfig({ bestOf: { pool: 9, bracket: 11 } }),
+      matchFormat: normalizeMatchFormatConfig({ bestOf: { pool: 3, bracket: 11 } }),
     };
     const matchFormat = normalizeMatchFormatConfig({ bestOf: { pool: 9, bracket: 1 } });
     opened = await openTab('match-format', { effectiveRules: { matchFormat, start } });
     const shown = (text: string) =>
       (control(text) as unknown as HTMLSelectElement).selectedOptions[0]?.textContent;
 
+    // Pool's 9 is in force only, Bracket's 11 the start only: each held value is shown.
     expect(shown('Pool best-of')).toBe('Best of 9');
-    expect(rowOf('Pool best-of').textContent).not.toContain('modified');
+    expect(rowOf('Pool best-of').textContent).toContain('modified');
     await reset('Bracket best-of');
     expect(shown('Bracket best-of')).toBe('Best of 11');
     await save();
