@@ -3,6 +3,7 @@ import { act } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  choose,
   labelled,
   openPenaltyPage,
   save,
@@ -121,10 +122,13 @@ describe('a ruleset’s own match format', () => {
     });
   });
 
-  it('shows a stored best-of beyond 7 as itself, and keeps it on an untouched Save', async () => {
+  it('shows a stored best-of beyond 7 as itself, and offers it again after another pick', async () => {
     await openForm(row({ match_format_defaults: { bestOf: { finals: 9 } } }));
     const select = labelled('Finals best-of') as unknown as HTMLSelectElement;
+    expect(select.selectedOptions[0]?.textContent).toBe('Best of 9');
 
+    await choose(select, '5');
+    await choose(select, '9');
     expect(select.selectedOptions[0]?.textContent).toBe('Best of 9');
     await save();
 

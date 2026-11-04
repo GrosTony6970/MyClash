@@ -57,6 +57,8 @@ export function Step2MatchFormat({
     { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
   const hasAfterblow = Boolean(grammar?.hasAfterblow);
   const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
+  // The best-of read: a select keeps offering it after another pick (a 9 is no standard choice).
+  const loaded = rules.rules?.matchFormat.bestOf;
 
   async function saveAndAdvance() {
     // Recorded, not inferred: the step is sent with whatever changed, alone when nothing did.
@@ -129,19 +131,19 @@ export function Step2MatchFormat({
         hint={t('organizer.tournaments.settings.bestOfHelp')}
         value={String(data.bestOf.pool)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
-        options={bestOfOptions(t, data.bestOf.pool)}
+        options={bestOfOptions(t, data.bestOf.pool, loaded?.pool)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
         value={String(data.bestOf.bracket)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, bracket: Number(v) } })}
-        options={bestOfOptions(t, data.bestOf.bracket)}
+        options={bestOfOptions(t, data.bestOf.bracket, loaded?.bracket)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
         value={String(data.bestOf.finals)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, finals: Number(v) } })}
-        options={bestOfOptions(t, data.bestOf.finals)}
+        options={bestOfOptions(t, data.bestOf.finals, loaded?.finals)}
       />
 
       <NumberField

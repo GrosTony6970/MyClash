@@ -57,6 +57,8 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
   const hasAfterblow = Boolean(grammar?.hasAfterblow);
   const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
   const start = rules.rules?.start ? matchFormatForm(rules.rules.start) : null;
+  // The best-of read: a select keeps offering it after another pick (a 9 is no standard choice).
+  const loaded = rules.rules?.matchFormat.bestOf;
   const set = (next: Partial<MatchFormat>) => setData({ ...data, ...next });
   const setTime = (phase: 'pool' | 'bracket' | 'finals', v: number | null) =>
     set({ timeLimitsSeconds: { ...data.timeLimitsSeconds, [phase]: v } });
@@ -126,21 +128,21 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
         value={String(data.bestOf.pool)}
         defaultValue={start ? String(start.bestOf.pool) : undefined}
         onChange={(v) => setBestOf('pool', v)}
-        options={bestOfOptions(t, data.bestOf.pool, start?.bestOf.pool)}
+        options={bestOfOptions(t, data.bestOf.pool, start?.bestOf.pool, loaded?.pool)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
         value={String(data.bestOf.bracket)}
         defaultValue={start ? String(start.bestOf.bracket) : undefined}
         onChange={(v) => setBestOf('bracket', v)}
-        options={bestOfOptions(t, data.bestOf.bracket, start?.bestOf.bracket)}
+        options={bestOfOptions(t, data.bestOf.bracket, start?.bestOf.bracket, loaded?.bracket)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
         value={String(data.bestOf.finals)}
         defaultValue={start ? String(start.bestOf.finals) : undefined}
         onChange={(v) => setBestOf('finals', v)}
-        options={bestOfOptions(t, data.bestOf.finals, start?.bestOf.finals)}
+        options={bestOfOptions(t, data.bestOf.finals, start?.bestOf.finals, loaded?.finals)}
       />
 
       <NumberField

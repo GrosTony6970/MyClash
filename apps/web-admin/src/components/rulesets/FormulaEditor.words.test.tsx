@@ -43,6 +43,7 @@ describe('the words of the ruleset editor', () => {
         <I18nProvider locale="fr">
           <RulesetMatchFormatBox
             own={{}}
+            loaded={{}}
             onChange={() => undefined}
             onValidity={() => undefined}
             hasMaxDoubles

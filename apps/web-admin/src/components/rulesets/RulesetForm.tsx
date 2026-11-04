@@ -368,6 +368,7 @@ export function RulesetForm({
 
       <RulesetMatchFormatBox
         own={ownMatchFormat}
+        loaded={initial.ownMatchFormat}
         onChange={setOwnMatchFormat}
         onValidity={(leaf, valid) => validity(leaf)(valid)}
         hasMaxDoubles={sections.maxDoubles}

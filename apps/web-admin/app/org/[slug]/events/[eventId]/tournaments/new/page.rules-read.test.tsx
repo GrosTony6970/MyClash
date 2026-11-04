@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { normalizeMatchFormatConfig } from '@myclash/rulesets';
-import { FAILED_READ, openEventPage, type OpenedPage } from '../../archived-page.fixtures';
+import { FAILED_READ, openEventPage, type, type OpenedPage } from '../../archived-page.fixtures';
 import {
   EFFECTIVE_RULES,
   TOURNAMENT_READS,
@@ -96,10 +96,14 @@ describe("the wizard's rules steps", () => {
       { ...READS, [TOURNAMENT]: { ...TOURNAMENT_ROW, effectiveRules: rules } },
       { [SAVE]: {} },
     );
-    const shown = [...document.body.querySelectorAll('select')].map(
-      (s) => s.selectedOptions[0]?.textContent,
+    const finals = [...document.body.querySelectorAll('select')].find(
+      (s) => s.selectedOptions[0]?.textContent === 'Best of 9',
     );
-    expect(shown).toContain('Best of 9');
+    if (!finals) throw new Error('no select shows Best of 9');
+    // Picked away and back: the 9 read stays a choice, so the step sends nothing new.
+    await act(async () => type(finals, '1'));
+    await act(async () => type(finals, '9'));
+    expect(finals.selectedOptions[0]?.textContent).toBe('Best of 9');
     await tap('Next');
     expect(stepSaves()).toEqual([{ wizardStep: 2 }]);
   });

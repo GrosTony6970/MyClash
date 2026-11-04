@@ -121,6 +121,10 @@ describe('the Match format tab', () => {
     // Pool's 9 is in force only, Bracket's 11 the start only: each held value is shown.
     expect(shown('Pool best-of')).toBe('Best of 9');
     expect(rowOf('Pool best-of').textContent).toContain('modified');
+    // Picked away and back: the 9 read stays a choice.
+    await set('Pool best-of', '1');
+    await set('Pool best-of', '9');
+    expect(shown('Pool best-of')).toBe('Best of 9');
     await reset('Bracket best-of');
     expect(shown('Bracket best-of')).toBe('Best of 11');
     await save();

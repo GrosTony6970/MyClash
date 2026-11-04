@@ -17,6 +17,8 @@ import {
 
 interface Props {
   own: OwnMatchFormat;
+  /** What the ruleset stored when the form opened: a best-of select keeps offering its value. */
+  loaded: OwnMatchFormat;
   onChange: (own: OwnMatchFormat) => void;
   /** Called with a field's key and whether its typed value can be saved. */
   onValidity: (leaf: MatchFormatLeaf, valid: boolean) => void;
@@ -36,7 +38,7 @@ interface NumberSpec {
 const TIME = { min: 0, max: 3600, nullable: true };
 
 /** The box's kinds of field, each wired to one leaf of the ruleset's own match format. */
-function leafFields({ own, onChange, onValidity, disabled }: Props, t: Translator) {
+function leafFields({ own, loaded, onChange, onValidity, disabled }: Props, t: Translator) {
   const affordance = (leaf: MatchFormatLeaf) => ({
     modified: differsFromEngine(own, leaf),
     onReset: () => onChange(withoutOwn(own, leaf)),
@@ -65,7 +67,7 @@ function leafFields({ own, onChange, onValidity, disabled }: Props, t: Translato
   // The select answers a string; the engine takes a number ("3" would be stored and refused).
   const bestOf = (leaf: BestOfLeaf, label: string) => {
     const shown = shownLeaf(own, leaf) as number;
-    const options = bestOfOptions(t, shown);
+    const options = bestOfOptions(t, shown, shownLeaf(loaded, leaf) as number);
     return (
       <SelectField
         {...affordance(leaf)}
