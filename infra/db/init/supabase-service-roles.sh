@@ -18,8 +18,8 @@
 # And it clears pg_stat_statements, which keeps the ALTER ROLE lines above with their passwords
 # in plain text (ruling 426); the image's migrate.sh does the same for its own part.
 #
-# Init scripts run once, on a fresh volume. Changing a value later: a wipe, or ALTER ROLE by
-# hand.
+# Init scripts run once, on a fresh volume. Changing a value later: a wipe, or psql's
+# `\password <user>` by hand, which hashes the value before sending it (ruling 427).
 #
 # Plain `set -e` like the other init scripts: the entrypoint SOURCES a non-executable .sh,
 # so `set -u` here would carry into the rest of its init. `${VAR:?}` needs no `-u`.

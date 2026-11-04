@@ -106,8 +106,10 @@ infra/scripts/restore.sh --storage-only <storage-file>   # images only, same nig
 - **Changing a service user's password** (`AUTHENTICATOR_PASSWORD`,
   `SUPABASE_AUTH_ADMIN_PASSWORD`, `SUPABASE_STORAGE_ADMIN_PASSWORD`): the init script sets them
   once, on a fresh volume. To change one on a running database, set the new value in `.env`, run
-  `ALTER ROLE <user> PASSWORD '<new value>'` through the psql shell (infra/scripts/README.md), then
-  recreate that service.
+  `\password <user>` in the psql shell (infra/scripts/README.md) and type the new value at its
+  prompt, then recreate that service. Not `ALTER ROLE <user> PASSWORD '…'`: psql's `\password`
+  hashes the value before sending it, so it reaches neither the db log (a mistyped role name logs
+  the failed statement in full) nor `pg_stat_statements` (ruling 427).
 
 - **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window; the `docs/superpowers/specs/2026-05-19-consistent-backups-design.md` quiesce lock is the planned mitigation.
 - **Integrity is truncation/corruption-level (`gunzip -t` / `gzip -t`), not a SHA-256 manifest.** A per-set checksum manifest is a deferred enhancement; it was intentionally left out of the current pass to avoid destabilizing the tested retention/listing logic.
