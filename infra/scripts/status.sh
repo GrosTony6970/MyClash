@@ -259,9 +259,11 @@ set +a
 
 if "${COMPOSE[@]}" exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
   ok "Postgres accepting connections"
+  # No password: the image's pg_hba trusts 127.0.0.1 inside the container (as
+  # lib/database-url.sh relies on), so one on the command line was only an
+  # exposure, readable by every user of the host (ruling 425).
   CONN_COUNT=$(
     "${COMPOSE[@]}" exec -T \
-      -e PGPASSWORD="$POSTGRES_PASSWORD" \
       -e PGCONNECT_TIMEOUT=5 \
       -e PGOPTIONS='-c statement_timeout=5000' \
       db psql -w -h 127.0.0.1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" \

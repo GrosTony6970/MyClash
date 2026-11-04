@@ -82,7 +82,8 @@ fi
 
 echo "--- logins over the docker network"
 login() { # user password -> exit status of a TCP login to db
-  docker run --rm --network myclash -e PGPASSWORD="$2" -e PGCONNECT_TIMEOUT=5 \
+  # By name, from the environment: a command line is readable by every user of the host.
+  PGPASSWORD="$2" docker run --rm --network myclash -e PGPASSWORD -e PGCONNECT_TIMEOUT=5 \
     --entrypoint psql "$DB_IMAGE" -h db -U "$1" -d "$POSTGRES_DB" -Atc 'select 1' >/dev/null 2>&1
 }
 if login authenticator wrong-password-on-purpose; then

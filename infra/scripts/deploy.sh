@@ -86,13 +86,13 @@ Usage: infra/scripts/deploy.sh [options]
 
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
 To (re)provision the demo org without a full deploy, run the seeder directly
-(after: set -a; source .env; set +a; source infra/scripts/lib/database-url.sh):
+(after: set -a; source .env; source .env.e2e; set +a; source infra/scripts/lib/database-url.sh):
   docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm \\
     -e SUPABASE_URL=http://supabase-auth:9999 \\
-    -e SUPABASE_SERVICE_ROLE_KEY="\$SUPABASE_SERVICE_ROLE_KEY" \\
     -e DATABASE_URL \\
-    -e E2E_ADMIN_EMAIL=... -e E2E_ADMIN_PASSWORD=... -e E2E_ORG_SLUG=... \\
+    -e E2E_ADMIN_EMAIL -e E2E_ADMIN_PASSWORD -e E2E_ORG_SLUG \\
     api node /app/scripts/create-demo-org.mjs
+A value goes in by name only: a command line is readable by every user of the host.
 EOF
       exit 0
       ;;
@@ -395,10 +395,12 @@ hdr "Validating configuration"
 
 ENV_RESULT=$(node scripts/ensure-prod-env.mjs .env)
 ok ".env validated/repaired"
-GENERATED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.generated||[]).join(' '))" "$ENV_RESULT")
-GENERATED_CREDENTIALS=$(node -e "const r=JSON.parse(process.argv[1]); for (const c of r.generatedCredentials||[]) console.log([c.service,c.username,c.password].join('\t'))" "$ENV_RESULT")
-PROMPTED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.prompted||[]).join(' '))" "$ENV_RESULT")
-NORMALIZED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.normalized||[]).join(' '))" "$ENV_RESULT")
+# The JSON holds the generated passwords: it goes in through the environment,
+# never as an argument, which every user of the host can read (ruling 425).
+GENERATED_KEYS=$(ENV_RESULT="$ENV_RESULT" node -e "const r=JSON.parse(process.env.ENV_RESULT); console.log((r.generated||[]).join(' '))")
+GENERATED_CREDENTIALS=$(ENV_RESULT="$ENV_RESULT" node -e "const r=JSON.parse(process.env.ENV_RESULT); for (const c of r.generatedCredentials||[]) console.log([c.service,c.username,c.password].join('\t'))")
+PROMPTED_KEYS=$(ENV_RESULT="$ENV_RESULT" node -e "const r=JSON.parse(process.env.ENV_RESULT); console.log((r.prompted||[]).join(' '))")
+NORMALIZED_KEYS=$(ENV_RESULT="$ENV_RESULT" node -e "const r=JSON.parse(process.env.ENV_RESULT); console.log((r.normalized||[]).join(' '))")
 [[ -n "$PROMPTED_KEYS" ]] && info "Captured required values: $PROMPTED_KEYS"
 [[ -n "$NORMALIZED_KEYS" ]] && info "Normalized values: $NORMALIZED_KEYS"
 
@@ -711,13 +713,15 @@ mc_verify_edge_plugins || true
 # ── Bootstrap super admin (first deploy only) ────────────────────
 hdr "Super admin bootstrap"
 
+# Secrets go in by name, from the environment `set -a` loaded `.env` into: a
+# command line is readable by every user of the host (ruling 425). The api
+# service's own compose environment already carries SUPABASE_SERVICE_ROLE_KEY.
 BOOTSTRAP_RESULT=$("${COMPOSE[@]}" \
   run --rm \
   -e SUPABASE_URL="http://supabase-auth:9999" \
-  -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
   -e DATABASE_URL \
   -e SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}" \
-  -e SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD}" \
+  -e SEED_ADMIN_PASSWORD \
   api node /app/scripts/bootstrap-super-admin.mjs || echo '{"error":"bootstrap failed"}')
 
 BOOTSTRAP_CREATED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.created?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
@@ -734,7 +738,7 @@ if [[ -n "$BOOTSTRAP_ERROR" ]]; then
   warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
   [[ -n "$BOOTSTRAP_DETAIL" ]] && warn "Bootstrap detail: $BOOTSTRAP_DETAIL"
   [[ "$BOOTSTRAP_ERROR" == "Failed to verify synced admin user password" ]] && warn "SEED_ADMIN_PASSWORD was not accepted by GoTrue."
-  warn "You can run it manually (with .env and lib/database-url.sh sourced): docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm -e DATABASE_URL -e SUPABASE_URL=http://supabase-auth:9999 -e SUPABASE_SERVICE_ROLE_KEY -e SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@${DOMAIN}} -e SEED_ADMIN_PASSWORD api node /app/scripts/bootstrap-super-admin.mjs"
+  warn "You can run it manually (with .env and lib/database-url.sh sourced): docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm -e DATABASE_URL -e SUPABASE_URL=http://supabase-auth:9999 -e SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@${DOMAIN}} -e SEED_ADMIN_PASSWORD api node /app/scripts/bootstrap-super-admin.mjs"
 elif [[ "$BOOTSTRAP_CREATED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
   SUPER_ADMIN_STATE=created
   ok "Super admin account created — credentials print in the final Deployment secrets section"
@@ -769,10 +773,9 @@ if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
   DEMO_ORG_RESULT=$("${COMPOSE[@]}" \
     run --rm \
     -e SUPABASE_URL="http://supabase-auth:9999" \
-    -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
     -e DATABASE_URL \
     -e E2E_ADMIN_EMAIL="${E2E_ADMIN_EMAIL}" \
-    -e E2E_ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD}" \
+    -e E2E_ADMIN_PASSWORD \
     -e E2E_ORG_SLUG="${E2E_ORG_SLUG}" \
     -e DEMO_ORG_NAME="test ai org" \
     api node /app/scripts/create-demo-org.mjs || echo '{"error":"create-demo-org failed"}')

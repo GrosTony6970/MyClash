@@ -25,13 +25,15 @@ set -e
 : "${SUPABASE_STORAGE_ADMIN_PASSWORD:?SUPABASE_STORAGE_ADMIN_PASSWORD is empty, Storage could not log in}"
 
 # psql variables, not text pasted into SQL: a quote in a value cannot break the statement.
+# `\getenv` reads each one from psql's environment, not from `-v` arguments: a command line is
+# readable by every user of the host, a container's processes included (ruling 425).
 printf '%s\n' \
+  '\getenv rest_pw AUTHENTICATOR_PASSWORD' \
+  '\getenv auth_pw SUPABASE_AUTH_ADMIN_PASSWORD' \
+  '\getenv storage_pw SUPABASE_STORAGE_ADMIN_PASSWORD' \
   "ALTER ROLE authenticator PASSWORD :'rest_pw';" \
   "ALTER ROLE supabase_auth_admin PASSWORD :'auth_pw';" \
   "ALTER ROLE supabase_storage_admin PASSWORD :'storage_pw';" \
   "ALTER ROLE service_role SET statement_timeout = '60s';" |
   psql -v ON_ERROR_STOP=1 --no-psqlrc \
-    -v rest_pw="$AUTHENTICATOR_PASSWORD" \
-    -v auth_pw="$SUPABASE_AUTH_ADMIN_PASSWORD" \
-    -v storage_pw="$SUPABASE_STORAGE_ADMIN_PASSWORD" \
     --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"

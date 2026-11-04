@@ -203,14 +203,13 @@ mc_verify_edge_plugins() {
     dashboard_auth="$(mc_read_env_value TRAEFIK_DASHBOARD_AUTH)"
   fi
 
-  # `env` rather than an exported variable: the credential reaches node and
-  # nothing else, same rule as the targeted reads above.
-  local probe=(
-    env "TRAEFIK_DASHBOARD_PASSWORD=$dashboard_password" "TRAEFIK_DASHBOARD_AUTH=$dashboard_auth"
-    node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$edge_domain"
-  )
+  # An environment prefix rather than an exported variable: the credential
+  # reaches node and nothing else, same rule as the targeted reads above. Not
+  # `env NAME=…`: env is a program, and its command line would carry the
+  # password, readable by every user of the host (ruling 425).
+  local deep=()
   if [[ -n "$dashboard_password" ]]; then
-    probe+=(--deep)
+    deep=(--deep)
   else
     # Degrading to the shallow probe without saying so is how this check went
     # hollow in the first place: green, and asserting nothing about the jails.
@@ -221,16 +220,23 @@ mc_verify_edge_plugins() {
   # Earlier attempts run silent: a not-yet-built router set is expected right
   # after `up`, and printing its diagnosis four times would bury the one verdict
   # that matters. The final attempt runs visibly, whatever it finds.
+  # Reads this function's locals: bash scopes them dynamically, so it works only
+  # when called from in here (once defined it is global; nothing else calls it).
+  mc_edge_plugin_probe() {
+    TRAEFIK_DASHBOARD_PASSWORD="$dashboard_password" TRAEFIK_DASHBOARD_AUTH="$dashboard_auth" \
+      node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$edge_domain" "${deep[@]}"
+  }
+
   local i
   for ((i = 1; i < attempts; i++)); do
-    if "${probe[@]}" >/dev/null 2>&1; then
+    if mc_edge_plugin_probe >/dev/null 2>&1; then
       ok "Edge plugin middlewares are built and attached."
       return 0
     fi
     sleep "$delay"
   done
 
-  if "${probe[@]}"; then
+  if mc_edge_plugin_probe; then
     return 0
   fi
 

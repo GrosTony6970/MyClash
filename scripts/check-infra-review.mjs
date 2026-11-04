@@ -57,12 +57,14 @@
  */
 import path from 'node:path';
 
+import { argvSecretFindings } from './lib/argv-secrets.mjs';
 import {
   runnerStageWorkspaces,
   runtimeWorkspaces,
   unshippedRuntimeFiles,
 } from './lib/dockerfile-workspaces.mjs';
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 
@@ -1447,7 +1449,6 @@ if (!deployText.includes('is in .env as TRAEFIK_DASHBOARD_PASSWORD')) {
   errors.push('deploy.sh must say where the current Traefik dashboard password is stored.');
 }
 for (const expected of [
-  'PGPASSWORD="$POSTGRES_PASSWORD"',
   'PGCONNECT_TIMEOUT=5',
   "PGOPTIONS='-c statement_timeout=5000'",
   'psql -w -h 127.0.0.1 -tA',
@@ -1476,6 +1477,42 @@ for (const serviceName of [
 ]) {
   if (!statusText.includes(serviceName)) {
     errors.push(`status.sh Container health must include ${serviceName}.`);
+  }
+}
+
+// ── Secrets on a command line (ruling 425) ──────────────────────────────────
+// A command line is readable by every user of the host while it runs; a secret
+// goes in the environment and the command names it. Every shell script and
+// workflow is read, so a NEW script is covered without a line here. What the
+// rule can and cannot see is listed in scripts/lib/argv-secrets.mjs.
+{
+  const files = [
+    ...walkRepoFiles(path.join(rootDir, 'infra'), { extensions: ['.sh'] }),
+    ...walkRepoFiles(path.join(rootDir, 'scripts'), { extensions: ['.sh'] }),
+    ...walkRepoFiles(path.join(rootDir, '.github', 'workflows'), { extensions: ['.yml', '.yaml'] }),
+  ];
+  const scanned = new Set(files.map((file) => toRepoPath(file, rootDir)));
+  for (const expected of [
+    'infra/scripts/deploy.sh',
+    'infra/scripts/status.sh',
+    'infra/db/init/supabase-service-roles.sh',
+    'scripts/check-service-db-users.sh',
+    '.github/workflows/ci.yml',
+  ]) {
+    if (!scanned.has(expected)) {
+      errors.push(
+        `The command-line secrets scan (ruling 425) no longer reads ${expected}: it would pass on a file it cannot see.`,
+      );
+    }
+  }
+  for (const file of files) {
+    const text = await pinned.readPinnedFile(file);
+    if (isMissingPinnedFile(text)) continue;
+    for (const finding of argvSecretFindings(toRepoPath(file, rootDir), text)) {
+      errors.push(
+        `${finding.file}:${finding.line}: ${finding.why}. A command line is readable by every user of the host (ruling 425).`,
+      );
+    }
   }
 }
 
