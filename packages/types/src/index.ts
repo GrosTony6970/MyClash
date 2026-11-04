@@ -17,6 +17,7 @@ export type { EffectiveRules, EffectiveTfRules, RulesStart } from './effective-r
 export * from './event-kind';
 export * from './final-ranking';
 export * from './html';
+export * from './event-photos';
 export * from './league-ranking';
 export * from './legal';
 export * from './lice-placement';

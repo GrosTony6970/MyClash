@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { PHOTO_HEIF_BRANDS } from '@myclash/types';
 import { MAX_PIXELS, PhotoRefusalError, sniffPhoto, stripJpeg } from './jpeg-strip';
 import {
   ALL_CANARIES,
@@ -118,6 +119,10 @@ describe('sniffPhoto', () => {
     expect(sniffPhoto(Buffer.from('\x00\x00\x00\x18ftypmif1', 'latin1'))).toBe('heic');
     expect(sniffPhoto(Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'))).toBe('unknown');
     expect(sniffPhoto(Buffer.alloc(0))).toBe('unknown');
+  });
+
+  it.each(PHOTO_HEIF_BRANDS)('names every HEIF brand the phone page names, %s too', (brand) => {
+    expect(sniffPhoto(Buffer.from(`\x00\x00\x00\x18ftyp${brand}`, 'latin1'))).toBe('heic');
   });
 });
 

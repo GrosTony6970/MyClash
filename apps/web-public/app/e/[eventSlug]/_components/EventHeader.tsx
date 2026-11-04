@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
-import { asEventKind, type EventKind } from '@myclash/types';
+import { asEventKind, asPhotoMode, type EventKind, type PhotoMode } from '@myclash/types';
 import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
 import { eventReadFailure, type EventRead } from '../_lib/event-read';
 
@@ -36,6 +36,8 @@ export interface EventInfo {
   /** Both null-safe: the header degrades to plain text without them. */
   organizationId: string | null;
   organizationSlug: string | null;
+  /** `null`: the read carried no mode this build knows (`asPhotoMode`). */
+  photoMode: PhotoMode | null;
 }
 
 function formatEventPlace(
@@ -124,6 +126,7 @@ function eventInfoOf(
     // selects *), so linking + following needs no API change.
     organizationId: typeof raw['organization_id'] === 'string' ? raw['organization_id'] : null,
     organizationSlug: typeof org?.slug === 'string' ? org.slug : null,
+    photoMode: asPhotoMode(raw['photo_mode']),
   };
 }
 

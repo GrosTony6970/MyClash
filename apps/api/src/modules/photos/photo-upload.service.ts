@@ -13,20 +13,26 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyRequest } from 'fastify';
+import {
+  PHOTO_CAPTION_MAX,
+  PHOTO_MAX_BYTES,
+  PHOTO_NAME_MAX,
+  type PhotoMode,
+  type PhotoUploadRefusal,
+} from '@myclash/types';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { readUploadParts, type UploadLimit } from '../../common/read-upload';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PhotoRefusalError, stripJpeg } from './jpeg-strip';
 import type { PhotoStore } from './photo-bucket';
 import { makePreview } from './photo-preview';
-import { photoTokenMatches, type PhotoMode } from './photo-token';
+import { photoTokenMatches } from './photo-token';
 import { photoUploadWindow } from './photo-window';
 
-const MIB = 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const PHOTO_UPLOAD: UploadLimit = {
-  maxBytes: 12 * MIB,
+  maxBytes: PHOTO_MAX_BYTES,
   tooLarge: 'Photo exceeds the 12 MB size limit.',
 };
 /** Photos processed at once: about 50 MB each, inside the one 1 GB API (design, "Concurrency cap"). */
@@ -34,8 +40,6 @@ export const PHOTO_UPLOAD_SLOTS = 4;
 export const DEVICE_PHOTOS_PER_HOUR = 20;
 export const EVENT_PHOTOS_PER_HOUR = 300;
 export const EVENT_PHOTO_BYTES = 15 * 1000 ** 3;
-export const PHOTO_NAME_MAX = 40;
-export const PHOTO_CAPTION_MAX = 200;
 
 /** The DI token of the photo store; null when the bucket is not configured. */
 export const PHOTO_STORE = Symbol('PHOTO_STORE');
@@ -49,14 +53,18 @@ interface PhotoEvent {
   photo_token_version: number;
 }
 
-const refuse = (Kind: new (body: object) => HttpException, code: string, message: string) =>
-  new Kind({ message, code });
+/** Every code below is a `PhotoUploadRefusal`: the phone page translates each one by name. */
+const refuse = (
+  Kind: new (body: object) => HttpException,
+  code: PhotoUploadRefusal,
+  message: string,
+) => new Kind({ message, code });
 const unavailable = () =>
   new OperationalUnavailableException({
     code: 'photos_unavailable',
     message: 'Photos are unavailable right now, try again.',
-  });
-const tooMany = (code: string, message: string) =>
+  } satisfies { code: PhotoUploadRefusal; message: string });
+const tooMany = (code: PhotoUploadRefusal, message: string) =>
   new HttpException({ message, code }, HttpStatus.TOO_MANY_REQUESTS);
 
 /**
@@ -114,7 +122,7 @@ export class PhotoUploadService {
       throw new OperationalUnavailableException({
         code: 'photos_busy',
         message: 'Many photos are arriving at once; retrying shortly.',
-      });
+      } satisfies { code: PhotoUploadRefusal; message: string });
     }
     this.inFlight += 1;
     try {

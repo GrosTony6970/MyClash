@@ -38,6 +38,10 @@ describe('the read itself', () => {
     expect(source).not.toContain('return null;');
   });
 
+  it("reads the photo mode off the row, through the one reader of it (the phone page's Off)", () => {
+    expect(source).toContain("photoMode: asPhotoMode(raw['photo_mode']),");
+  });
+
   /**
    * The layout once read the Event a second time, through a helper this file's
    * sweep could not see, to set a CSS variable and a data attribute that nothing

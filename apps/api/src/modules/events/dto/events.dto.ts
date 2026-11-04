@@ -6,9 +6,8 @@ import {
   MAX_AUTHORED_TARGET_VALUE,
 } from '@myclash/rulesets';
 import { canonicalZone } from '@myclash/time';
-import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
+import { EVENT_KINDS, isCalendarDay, PHOTO_MODES } from '@myclash/types';
 import { settingsAuditSchema } from './rules-audit.schema';
-import { PHOTO_MODES } from '../../photos/photo-token';
 
 /**
  * A day of an Event (DATE since 0223): `format: date` for the OpenAPI client, and a day Postgres

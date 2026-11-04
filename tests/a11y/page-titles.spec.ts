@@ -23,6 +23,7 @@ const INSIDE_AN_EVENT: Array<[path: string, title: string]> = [
   ['pass', 'My pass · Open de Lyon'],
   ['people', 'Find a participant · Open de Lyon'],
   ['people/p-1', 'Participant · Open de Lyon'],
+  ['photos/send', 'Send photos · Open de Lyon'],
   // A bout names its two fighters; with a name missing, its number.
   ['match/bout-1', 'Jean Dupont vs Paul Martin · Open de Lyon'],
   ['match/bout-nameless', 'Match L1-P1-M03 · Open de Lyon'],

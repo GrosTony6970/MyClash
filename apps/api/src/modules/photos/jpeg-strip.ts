@@ -22,16 +22,11 @@
  * refused.
  */
 
-export type PhotoRefusalCode =
-  | 'photo_not_jpeg'
-  | 'photo_heic'
-  | 'photo_unsupported_jpeg'
-  | 'photo_too_many_pixels'
-  | 'photo_corrupt';
+import { PHOTO_HEIF_BRANDS, type PhotoFileRefusal } from '@myclash/types';
 
 export class PhotoRefusalError extends Error {
   constructor(
-    readonly code: PhotoRefusalCode,
+    readonly code: PhotoFileRefusal,
     message: string,
   ) {
     super(message);
@@ -51,7 +46,7 @@ export interface StrippedJpeg {
   orientation: Orientation;
 }
 
-const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1']);
+const HEIC_BRANDS = new Set<string>(PHOTO_HEIF_BRANDS);
 
 export function sniffPhoto(bytes: Buffer): 'jpeg' | 'webp' | 'heic' | 'unknown' {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {

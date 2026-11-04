@@ -30,6 +30,14 @@ const EVENTS = {
   'quiet-event': { id: 'ev-quiet', name: 'Coupe de Dijon', status: 'published' },
   // A draft: the API shows it to a member of its club only. Any login stands for one here.
   'draft-event': { id: 'ev-draft', name: 'Tournoi de Nancy', status: 'draft', membersOnly: true },
+  // The photo QR page (`tests/a11y/photo-send.spec.ts`): one Event taking photos, one not.
+  'photo-event': { id: 'ev-photo', name: 'Open de Lyon', status: 'running', photoMode: 'approve' },
+  'photo-off-event': {
+    id: 'ev-photo-off',
+    name: 'Open de Lyon',
+    status: 'running',
+    photoMode: 'off',
+  },
 };
 
 function eventRow(slug) {
@@ -47,6 +55,8 @@ function eventRow(slug) {
     timezone: 'Europe/Paris',
     organization_id: 'org-1',
     organizations: { name: 'Cercle de Lyon', slug: 'cercle-de-lyon' },
+    // Only where a fixture names one, so every older fixture reads as it always did.
+    ...(event.photoMode ? { photo_mode: event.photoMode } : {}),
   };
 }
 
