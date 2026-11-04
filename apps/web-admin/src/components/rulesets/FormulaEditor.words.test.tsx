@@ -51,11 +51,20 @@ describe('the words of the ruleset editor', () => {
       ),
     );
     const options = [...container.querySelectorAll('option')].map((o) => o.textContent);
+    const bestOf = ['Manche unique', 'Au meilleur des 3', 'Au meilleur des 5', 'Au meilleur des 7'];
     expect(options).toEqual([
       'Compte à rebours',
       'Chronomètre croissant',
       'Normal',
       'Inversé (zéro perd)',
+      ...bestOf,
+      ...bestOf,
+      ...bestOf,
     ]);
+    const labels = [...container.querySelectorAll('label')].map((l) => l.textContent);
+    expect(labels).toEqual(
+      expect.arrayContaining(['Manches poules', 'Manches brackets', 'Manches finales']),
+    );
+    expect(container.textContent).not.toContain('Best of');
   });
 });

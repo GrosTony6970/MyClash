@@ -1,4 +1,5 @@
 import type * as ApiClient from '@myclash/api-client';
+import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   labelled,
@@ -8,9 +9,9 @@ import {
   type OpenedPenaltyPage,
 } from '../../../../../../../src/components/rulesets/penalty-page.fixtures';
 import {
-  BEST_OF_MARKER,
   FORK_TF_CONFIG,
   formulaRow,
+  HIDDEN_MARKER,
   tfForkRow,
 } from '../../../../../../../src/components/rulesets/scoring-page.fixtures';
 import OrgEditScoringRulesetPage from './page';
@@ -46,8 +47,27 @@ async function open(id: string, row: Record<string, unknown>) {
 const patchOf = (id: string) =>
   page.saves.find((s) => s.path === `/api/v1/organizations/org-1/custom-rulesets/${id}`);
 
+/** Picks `value` in the select labelled `words`, the way React hears it. */
+async function pick(words: string, value: string): Promise<void> {
+  const select = labelled(words) as unknown as HTMLSelectElement;
+  await act(async () => {
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+/** Presses the Reset beside the field labelled `words`. */
+async function resetOf(words: string): Promise<void> {
+  const head = labelled(words).previousElementSibling;
+  const reset = [...(head?.querySelectorAll('button') ?? [])].find(
+    (b) => b.textContent?.trim() === 'Reset',
+  );
+  if (!reset) throw new Error(`no Reset beside ${words}`);
+  await act(async () => reset.click());
+}
+
 describe('an organisation’s formula ruleset', () => {
-  it('saves the changed pool time beside its own stored values, and nothing else', async () => {
+  it('saves the changed pool time beside its own stored values, the hidden level chain included', async () => {
     await open('rs-formula', formulaRow());
 
     await typeInto(labelled('Time limit · pool'), '150');
@@ -55,8 +75,34 @@ describe('an organisation’s formula ruleset', () => {
 
     expect(patchOf('rs-formula')?.body['matchFormatDefaults']).toEqual({
       pointCap: 7,
-      bestOf: BEST_OF_MARKER,
+      bestOf: { pool: 3 },
+      ...HIDDEN_MARKER,
       timeLimitsSeconds: { pool: 150 },
+    });
+  });
+
+  it('shows its own best-of and saves a picked one beside it, as numbers', async () => {
+    await open('rs-formula', formulaRow());
+    const shown = labelled('Pool best-of') as unknown as HTMLSelectElement;
+    expect(shown.selectedOptions[0]?.textContent).toBe('Best of 3');
+
+    await pick('Bracket best-of', '5');
+    await save();
+
+    expect(patchOf('rs-formula')?.body['matchFormatDefaults']).toMatchObject({
+      bestOf: { pool: 3, bracket: 5 },
+    });
+  });
+
+  it('drops a reset best-of from the Save', async () => {
+    await open('rs-formula', formulaRow());
+
+    await resetOf('Pool best-of');
+    await save();
+
+    expect(patchOf('rs-formula')?.body['matchFormatDefaults']).toEqual({
+      pointCap: 7,
+      ...HIDDEN_MARKER,
     });
   });
 });
@@ -69,6 +115,17 @@ describe('an organisation’s TF_v1 copy', () => {
 
     expect(patchOf('rs-fork')?.body['tfConfig']).toEqual(FORK_TF_CONFIG);
     expect(patchOf('rs-fork')?.body).not.toHaveProperty('targets');
+  });
+
+  it('writes a picked best-of to its tf_config match format', async () => {
+    await open('rs-fork', tfForkRow());
+
+    await pick('Bracket best-of', '5');
+    await save();
+
+    expect(patchOf('rs-fork')?.body['tfConfig']).toMatchObject({
+      matchFormat: { pointCap: 7, bestOf: { bracket: 5 } },
+    });
   });
 
   it('writes a changed target to the flat column and to tf_config', async () => {

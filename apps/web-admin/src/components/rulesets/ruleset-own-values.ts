@@ -22,33 +22,51 @@ import {
 export type OwnMatchFormat = Record<string, unknown>;
 
 export type PhaseLeaf = 'pool' | 'bracket' | 'finals';
-/** The match format values the editor's box shows (the time limits are the three phases). */
+export type BestOfLeaf = 'bestOfPool' | 'bestOfBracket' | 'bestOfFinals';
+/**
+ * The match format values the editor's box shows. The time limits are the three phases; the
+ * best-of leaves are the three phases of `bestOf`.
+ */
 export type MatchFormatLeaf =
   | 'pointCap'
   | 'timerMode'
   | 'scoringDirection'
   | 'softClockLimitSeconds'
   | 'maxDoubleHits'
-  | PhaseLeaf;
+  | PhaseLeaf
+  | BestOfLeaf;
 export type LeafValue = number | string | null;
 
-const PHASES: readonly string[] = ['pool', 'bracket', 'finals'];
-const isPhase = (leaf: MatchFormatLeaf): leaf is PhaseLeaf => PHASES.includes(leaf);
+type PhasedLeaf = PhaseLeaf | BestOfLeaf;
+/** Each leaf stored inside a per-phase object: that object's key, and the phase. */
+const PHASED: Record<PhasedLeaf, { parent: 'timeLimitsSeconds' | 'bestOf'; phase: PhaseLeaf }> = {
+  pool: { parent: 'timeLimitsSeconds', phase: 'pool' },
+  bracket: { parent: 'timeLimitsSeconds', phase: 'bracket' },
+  finals: { parent: 'timeLimitsSeconds', phase: 'finals' },
+  bestOfPool: { parent: 'bestOf', phase: 'pool' },
+  bestOfBracket: { parent: 'bestOf', phase: 'bracket' },
+  bestOfFinals: { parent: 'bestOf', phase: 'finals' },
+};
+const isPhased = (leaf: MatchFormatLeaf): leaf is PhasedLeaf => leaf in PHASED;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function leafSchema(leaf: MatchFormatLeaf) {
-  return isPhase(leaf)
-    ? MatchFormatConfigSchema.shape.timeLimitsSeconds.unwrap().shape[leaf]
-    : MatchFormatConfigSchema.shape[leaf];
+  if (!isPhased(leaf)) return MatchFormatConfigSchema.shape[leaf];
+  const { parent, phase } = PHASED[leaf];
+  const phases =
+    parent === 'bestOf'
+      ? MatchFormatConfigSchema.shape.bestOf.unwrap().shape
+      : MatchFormatConfigSchema.shape.timeLimitsSeconds.unwrap().shape;
+  return phases[phase];
 }
 
 /** The engine's value of `leaf`. */
 export function engineLeaf(leaf: MatchFormatLeaf): LeafValue {
-  return isPhase(leaf)
-    ? DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds[leaf]
-    : DEFAULT_MATCH_FORMAT_CONFIG[leaf];
+  if (!isPhased(leaf)) return DEFAULT_MATCH_FORMAT_CONFIG[leaf];
+  const { parent, phase } = PHASED[leaf];
+  return DEFAULT_MATCH_FORMAT_CONFIG[parent][phase];
 }
 
 /** Whether the engine takes `value` for `leaf` (a time limit's null is "no limit"). */
@@ -57,9 +75,10 @@ export function acceptsLeaf(leaf: MatchFormatLeaf, value: unknown): boolean {
 }
 
 function stored(own: OwnMatchFormat, leaf: MatchFormatLeaf): unknown {
-  if (!isPhase(leaf)) return own[leaf];
-  const phases = own['timeLimitsSeconds'];
-  return isObject(phases) ? phases[leaf] : undefined;
+  if (!isPhased(leaf)) return own[leaf];
+  const { parent, phase } = PHASED[leaf];
+  const phases = own[parent];
+  return isObject(phases) ? phases[phase] : undefined;
 }
 
 /** What the field of `leaf` shows: the ruleset's own value when the engine takes it, else the engine's. */
@@ -72,17 +91,19 @@ export function differsFromEngine(own: OwnMatchFormat, leaf: MatchFormatLeaf): b
   return shownLeaf(own, leaf) !== engineLeaf(leaf);
 }
 
-/** `own` without `leaf`: the field follows the engine. An emptied time-limits object goes too. */
+/** `own` without `leaf`: the field follows the engine. An emptied per-phase object goes too. */
 export function withoutOwn(own: OwnMatchFormat, leaf: MatchFormatLeaf): OwnMatchFormat {
   const next = { ...own };
-  if (!isPhase(leaf)) {
+  if (!isPhased(leaf)) {
     delete next[leaf];
     return next;
   }
-  const phases = isObject(own['timeLimitsSeconds']) ? { ...own['timeLimitsSeconds'] } : {};
-  delete phases[leaf];
-  if (Object.keys(phases).length > 0) next['timeLimitsSeconds'] = phases;
-  else delete next['timeLimitsSeconds'];
+  const { parent, phase } = PHASED[leaf];
+  const current = own[parent];
+  const phases: Record<string, unknown> = isObject(current) ? { ...current } : {};
+  delete phases[phase];
+  if (Object.keys(phases).length > 0) next[parent] = phases;
+  else delete next[parent];
   return next;
 }
 
@@ -93,9 +114,10 @@ export function withOwn(
   value: LeafValue,
 ): OwnMatchFormat {
   if (value === engineLeaf(leaf)) return withoutOwn(own, leaf);
-  if (!isPhase(leaf)) return { ...own, [leaf]: value };
-  const phases = isObject(own['timeLimitsSeconds']) ? own['timeLimitsSeconds'] : {};
-  return { ...own, timeLimitsSeconds: { ...phases, [leaf]: value } };
+  if (!isPhased(leaf)) return { ...own, [leaf]: value };
+  const { parent, phase } = PHASED[leaf];
+  const current = own[parent];
+  return { ...own, [parent]: { ...(isObject(current) ? current : {}), [phase]: value } };
 }
 
 /** What a Save stores: null when the ruleset sets nothing of its own. */

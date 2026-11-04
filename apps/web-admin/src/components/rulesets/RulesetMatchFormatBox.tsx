@@ -1,6 +1,7 @@
 'use client';
 
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
+import { BEST_OF_OPTIONS } from '@/lib/best-of-options';
 import { NumberField, SelectField } from './RulesetFormFields';
 import {
   acceptsLeaf,
@@ -9,6 +10,7 @@ import {
   shownLeaf,
   withOwn,
   withoutOwn,
+  type BestOfLeaf,
   type MatchFormatLeaf,
   type OwnMatchFormat,
 } from './ruleset-own-values';
@@ -33,8 +35,8 @@ interface NumberSpec {
 
 const TIME = { min: 0, max: 3600, nullable: true };
 
-/** The box's two kinds of field, each wired to one leaf of the ruleset's own match format. */
-function leafFields({ own, onChange, onValidity, disabled }: Props) {
+/** The box's kinds of field, each wired to one leaf of the ruleset's own match format. */
+function leafFields({ own, onChange, onValidity, disabled }: Props, t: Translator) {
   const affordance = (leaf: MatchFormatLeaf) => ({
     modified: differsFromEngine(own, leaf),
     onReset: () => onChange(withoutOwn(own, leaf)),
@@ -60,7 +62,19 @@ function leafFields({ own, onChange, onValidity, disabled }: Props) {
       options={Object.entries(options).map(([value, text]) => ({ value, label: text }))}
     />
   );
-  return { number, select };
+  const bestOfOptions = BEST_OF_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }));
+  // The select answers a string; the engine takes a number ("3" would be stored and refused).
+  const bestOf = (leaf: BestOfLeaf, label: string) => (
+    <SelectField
+      {...affordance(leaf)}
+      onChange={(v) => onChange(withOwn(own, leaf, Number(v)))}
+      label={label}
+      value={String(shownLeaf(own, leaf))}
+      engineLabel={bestOfOptions.find((o) => o.value === String(engineLeaf(leaf)))?.label}
+      options={bestOfOptions}
+    />
+  );
+  return { number, select, bestOf };
 }
 
 /**
@@ -70,7 +84,7 @@ function leafFields({ own, onChange, onValidity, disabled }: Props) {
  */
 export function RulesetMatchFormatBox(props: Props) {
   const { t } = useI18n();
-  const { number, select } = leafFields(props);
+  const { number, select, bestOf } = leafFields(props, t);
 
   return (
     <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
@@ -91,6 +105,9 @@ export function RulesetMatchFormatBox(props: Props) {
         {number('pool', { label: t('admin.srcComponents.timeLimitPoolLabel'), ...TIME })}
         {number('bracket', { label: t('admin.srcComponents.timeLimitBracketLabel'), ...TIME })}
         {number('finals', { label: t('admin.srcComponents.timeLimitFinalsLabel'), ...TIME })}
+        {bestOf('bestOfPool', t('organizer.tournaments.settings.bestOfPool'))}
+        {bestOf('bestOfBracket', t('organizer.tournaments.settings.bestOfBracket'))}
+        {bestOf('bestOfFinals', t('organizer.tournaments.settings.bestOfFinals'))}
         {number('softClockLimitSeconds', {
           label: t('admin.srcComponents.softClockLabel'),
           min: 0,

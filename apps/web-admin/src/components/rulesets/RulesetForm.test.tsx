@@ -11,7 +11,7 @@ import {
 } from './penalty-page.fixtures';
 import { RulesetForm, type RulesetFormValue } from './RulesetForm';
 import { rulesetFormInitial, type RulesetRowLike } from './ruleset-form-initial';
-import { VICTORIES } from './scoring-page.fixtures';
+import { HIDDEN_MARKER, VICTORIES } from './scoring-page.fixtures';
 
 /**
  * The ruleset editor shows the engine's values and saves only what the author changed (operator
@@ -108,15 +108,15 @@ describe('the match format box of an empty ruleset', () => {
 });
 
 describe('a ruleset’s own match format', () => {
-  it('saves only the changed field beside what it stored, the hidden best-of included', async () => {
-    await openForm(row({ match_format_defaults: { pointCap: 7, bestOf: { pool: 3 } } }));
+  it('saves only the changed field beside what it stored, the hidden level chain included', async () => {
+    await openForm(row({ match_format_defaults: { pointCap: 7, ...HIDDEN_MARKER } }));
 
     await typeInto(labelled('Time limit · pool'), '150');
     await save();
 
     expect(submitted[0]?.['matchFormatDefaults']).toEqual({
       pointCap: 7,
-      bestOf: { pool: 3 },
+      ...HIDDEN_MARKER,
       timeLimitsSeconds: { pool: 150 },
     });
   });

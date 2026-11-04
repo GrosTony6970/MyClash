@@ -10,8 +10,11 @@ import { Generic_PointsCap } from '@myclash/rulesets';
 /** A score formula the form accepts as it is. */
 export const VICTORIES = { type: 'var', name: 'victories' };
 
-/** A best-of the match format box does not show: a Save must keep it as stored. */
-export const BEST_OF_MARKER = { pool: 3 };
+/**
+ * A level chain the match format box does not show (the engine's pool draws): a Save must keep it
+ * as stored.
+ */
+export const HIDDEN_MARKER = { levelAtTime: { pool: [{ kind: 'sudden_death' }] } };
 
 /** The row fields every scoring ruleset carries. */
 function base(id: string, code: string): Record<string, unknown> {
@@ -45,13 +48,13 @@ function base(id: string, code: string): Record<string, unknown> {
   };
 }
 
-/** A club's own formula ruleset: cap 7 and a best-of of its own. */
+/** A club's own formula ruleset: cap 7, a best-of and a level chain of its own. */
 export function formulaRow(): Record<string, unknown> {
   return {
     ...base('rs-formula', 'custom_house-1'),
     score_formula: VICTORIES,
     tiebreakers: [{ variable: 'victories', direction: 'desc' }],
-    match_format_defaults: { pointCap: 7, bestOf: BEST_OF_MARKER },
+    match_format_defaults: { pointCap: 7, bestOf: { pool: 3 }, ...HIDDEN_MARKER },
     targets: [{ name: 'Hit', value: 1 }],
   };
 }

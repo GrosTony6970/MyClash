@@ -16,18 +16,9 @@ import { RulesFormState } from '../../../_shared/RulesFormState';
 import { startAffordance } from '../../../_shared/start-affordance';
 import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
+import { BEST_OF_OPTIONS } from '@/lib/best-of-options';
 
 type MatchFormat = WizardMatchFormat;
-
-// Best-of selector options — odd values only (the engine rejects even N).
-// Keys, not strings: resolved at module init these bound to the EN-only
-// module-level `t`, so the selector read English whatever the organiser chose.
-const BEST_OF_OPTIONS = [
-  { value: '1', labelKey: 'organizer.tournaments.settings.bestOfSingle' },
-  { value: '3', labelKey: 'organizer.tournaments.settings.bestOf3' },
-  { value: '5', labelKey: 'organizer.tournaments.settings.bestOf5' },
-  { value: '7', labelKey: 'organizer.tournaments.settings.bestOf7' },
-] as const;
 
 /**
  * The match format in force (`effectiveRules`), and a Save of only what the organiser changed

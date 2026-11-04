@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { buildSeededScoringConfig } from './ruleset-defaults';
+import { validateTournamentRulesetConfig } from './tournament-config';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { assertOrgRole, makeChain, seedHarness } from './create-tournament.fixtures';
 
@@ -263,6 +264,42 @@ describe('createTournament — seeds scoring_config_json', () => {
     expect(rulesetConfig()).toEqual({
       matchFormat: normalizeMatchFormatConfig({ softClockLimitSeconds: 30, pointCap: 7 }),
     });
+  });
+
+  const OWN_BEST_OF = { pool: 3, bracket: 5 };
+  it.each([
+    ['a formula club ruleset', { match_format_defaults: { bestOf: OWN_BEST_OF } }],
+    [
+      'a TF_v1 copy',
+      {
+        base_code: 'TF_v1',
+        base_version: '1.0.0',
+        tf_config: { matchFormat: { bestOf: OWN_BEST_OF } },
+      },
+    ],
+  ])('starts a Tournament on %s from its own best-of, which the engine keeps', async (_k, own) => {
+    const { svc, rulesetConfig } = seedHarness({
+      customRow: {
+        is_system: false,
+        base_code: null,
+        tf_config: null,
+        match_format_defaults: null,
+        double_penalty_formula: null,
+        targets: [{ name: 'Hit', value: 1 }],
+        has_afterblow: false,
+        afterblow_mode: null,
+        afterblow_valuation: null,
+        ...own,
+      },
+    });
+    const dto = { slug: 's', name: 'T', rulesetCode: 'custom_bo', rulesetVersion: '1.0.0' };
+    await svc.createTournament('e1', dto as never, 'u1');
+
+    const stored = rulesetConfig() as { matchFormat: { bestOf: unknown } };
+    expect(stored.matchFormat.bestOf).toMatchObject(OWN_BEST_OF);
+    // The parse every read of the Tournament's settings runs: a strip would happen here.
+    const parsed = validateTournamentRulesetConfig('custom_bo', stored);
+    expect(parsed.matchFormat.bestOf).toMatchObject(OWN_BEST_OF);
   });
 
   it('records wizard_step 1, so the seed is not read as a completed wizard', async () => {

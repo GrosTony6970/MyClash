@@ -9,7 +9,7 @@ const TF_MATCH_FORMAT = {
   timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
   softClockLimitSeconds: 5,
   maxDoubleHits: 4,
-  bestOf: { pool: 3 },
+  levelAtTime: { pool: [{ kind: 'sudden_death' as const }] },
 };
 
 /**
