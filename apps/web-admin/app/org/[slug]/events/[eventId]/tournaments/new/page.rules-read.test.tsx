@@ -88,6 +88,22 @@ describe("the wizard's rules steps", () => {
     },
   );
 
+  it('step 2 shows a best-of beyond 7 as itself', async () => {
+    STEP.n = 2;
+    const rules = { ...MARKED, matchFormat: normalizeMatchFormatConfig({ bestOf: { finals: 9 } }) };
+    page = await openEventPage(
+      <NewTournamentPage />,
+      { ...READS, [TOURNAMENT]: { ...TOURNAMENT_ROW, effectiveRules: rules } },
+      { [SAVE]: {} },
+    );
+    const shown = [...document.body.querySelectorAll('select')].map(
+      (s) => s.selectedOptions[0]?.textContent,
+    );
+    expect(shown).toContain('Best of 9');
+    await tap('Next');
+    expect(stepSaves()).toEqual([{ wizardStep: 2 }]);
+  });
+
   it.each([2, 3, 4])(
     'step %i shows the error and a Retry, and no save, when the read fails',
     async (step) => {

@@ -121,6 +121,16 @@ describe('a ruleset’s own match format', () => {
     });
   });
 
+  it('shows a stored best-of beyond 7 as itself, and keeps it on an untouched Save', async () => {
+    await openForm(row({ match_format_defaults: { bestOf: { finals: 9 } } }));
+    const select = labelled('Finals best-of') as unknown as HTMLSelectElement;
+
+    expect(select.selectedOptions[0]?.textContent).toBe('Best of 9');
+    await save();
+
+    expect(submitted[0]?.['matchFormatDefaults']).toEqual({ bestOf: { finals: 9 } });
+  });
+
   it('saves a 0 typed into a time limit as "no limit"', async () => {
     await openForm(row({}));
 

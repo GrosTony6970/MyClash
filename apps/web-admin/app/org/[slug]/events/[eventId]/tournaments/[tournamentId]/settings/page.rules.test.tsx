@@ -108,6 +108,24 @@ describe('the Match format tab', () => {
     expect(opened.saved).toEqual([{ rulesetConfig: { matchFormat: { maxDoubleHits: null } } }]);
   });
 
+  it('shows a best-of beyond 7 as itself, in force and as the start (ruling 51)', async () => {
+    const start = {
+      ...EFFECTIVE_RULES.start,
+      matchFormat: normalizeMatchFormatConfig({ bestOf: { pool: 9, bracket: 11 } }),
+    };
+    const matchFormat = normalizeMatchFormatConfig({ bestOf: { pool: 9, bracket: 1 } });
+    opened = await openTab('match-format', { effectiveRules: { matchFormat, start } });
+    const shown = (text: string) =>
+      (control(text) as unknown as HTMLSelectElement).selectedOptions[0]?.textContent;
+
+    expect(shown('Pool best-of')).toBe('Best of 9');
+    expect(rowOf('Pool best-of').textContent).not.toContain('modified');
+    await reset('Bracket best-of');
+    expect(shown('Bracket best-of')).toBe('Best of 11');
+    await save();
+    expect(opened.saved).toEqual([{ rulesetConfig: { matchFormat: { bestOf: { bracket: 11 } } } }]);
+  });
+
   it('shows no badge and no Reset when what the ruleset starts from is unknown', async () => {
     opened = await openTab('match-format', { effectiveRules: { ...CAP_7, start: null } });
     await set('Point cap', '9');

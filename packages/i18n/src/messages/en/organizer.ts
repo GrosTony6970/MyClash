@@ -764,6 +764,7 @@ export const organizer = {
       bestOf3: 'Best of 3',
       bestOf5: 'Best of 5',
       bestOf7: 'Best of 7',
+      bestOfN: 'Best of {n}',
       bestOfHelp:
         'Number of rounds; winning the majority of rounds takes the match. Single round = current behaviour.',
       softClock: 'Soft clock',

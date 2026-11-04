@@ -755,6 +755,7 @@ export const organizer = {
       bestOf3: 'Au meilleur des 3',
       bestOf5: 'Au meilleur des 5',
       bestOf7: 'Au meilleur des 7',
+      bestOfN: 'Au meilleur des {n}',
       bestOfHelp:
         'Nombre de manches; gagner la majorité des manches remporte le match. Manche unique = comportement actuel.',
       softClock: 'Horloge souple',

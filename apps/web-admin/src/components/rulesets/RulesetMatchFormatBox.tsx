@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
-import { BEST_OF_OPTIONS } from '@/lib/best-of-options';
+import { bestOfOptions } from '@/lib/best-of-options';
 import { NumberField, SelectField } from './RulesetFormFields';
 import {
   acceptsLeaf,
@@ -62,18 +62,21 @@ function leafFields({ own, onChange, onValidity, disabled }: Props, t: Translato
       options={Object.entries(options).map(([value, text]) => ({ value, label: text }))}
     />
   );
-  const bestOfOptions = BEST_OF_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }));
   // The select answers a string; the engine takes a number ("3" would be stored and refused).
-  const bestOf = (leaf: BestOfLeaf, label: string) => (
-    <SelectField
-      {...affordance(leaf)}
-      onChange={(v) => onChange(withOwn(own, leaf, Number(v)))}
-      label={label}
-      value={String(shownLeaf(own, leaf))}
-      engineLabel={bestOfOptions.find((o) => o.value === String(engineLeaf(leaf)))?.label}
-      options={bestOfOptions}
-    />
-  );
+  const bestOf = (leaf: BestOfLeaf, label: string) => {
+    const shown = shownLeaf(own, leaf) as number;
+    const options = bestOfOptions(t, shown);
+    return (
+      <SelectField
+        {...affordance(leaf)}
+        onChange={(v) => onChange(withOwn(own, leaf, Number(v)))}
+        label={label}
+        value={String(shown)}
+        engineLabel={options.find((o) => o.value === String(engineLeaf(leaf)))?.label}
+        options={options}
+      />
+    );
+  };
   return { number, select, bestOf };
 }
 

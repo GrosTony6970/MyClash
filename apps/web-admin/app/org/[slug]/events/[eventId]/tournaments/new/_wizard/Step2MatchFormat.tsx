@@ -2,6 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useToast } from '@myclash/ui';
+import { bestOfOptions } from '@/lib/best-of-options';
 import {
   MATCH_FORMAT_FORM,
   MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
@@ -128,34 +129,19 @@ export function Step2MatchFormat({
         hint={t('organizer.tournaments.settings.bestOfHelp')}
         value={String(data.bestOf.pool)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
-        options={[
-          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
-          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
-          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
-          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
-        ]}
+        options={bestOfOptions(t, data.bestOf.pool)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
         value={String(data.bestOf.bracket)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, bracket: Number(v) } })}
-        options={[
-          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
-          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
-          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
-          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
-        ]}
+        options={bestOfOptions(t, data.bestOf.bracket)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
         value={String(data.bestOf.finals)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, finals: Number(v) } })}
-        options={[
-          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
-          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
-          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
-          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
-        ]}
+        options={bestOfOptions(t, data.bestOf.finals)}
       />
 
       <NumberField

@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useId, useMemo } from 'react';
+import { useId } from 'react';
 
 // One owner for the option list, so the two surfaces cannot offer different
 // wording — or different values — for the same setting.
@@ -16,7 +16,7 @@ import { RulesFormState } from '../../../_shared/RulesFormState';
 import { startAffordance } from '../../../_shared/start-affordance';
 import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
-import { BEST_OF_OPTIONS } from '@/lib/best-of-options';
+import { bestOfOptions } from '@/lib/best-of-options';
 
 type MatchFormat = WizardMatchFormat;
 
@@ -28,10 +28,6 @@ type MatchFormat = WizardMatchFormat;
 export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }: TabProps) {
   const { t } = useI18n();
 
-  const bestOfOptions = useMemo(
-    () => BEST_OF_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
-    [t],
-  );
   const rules = useTabRules(tournamentId, MATCH_FORMAT_FORM, props);
   const { form: data, setForm: setData } = rules;
 
@@ -130,21 +126,21 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
         value={String(data.bestOf.pool)}
         defaultValue={start ? String(start.bestOf.pool) : undefined}
         onChange={(v) => setBestOf('pool', v)}
-        options={bestOfOptions}
+        options={bestOfOptions(t, data.bestOf.pool, start?.bestOf.pool)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
         value={String(data.bestOf.bracket)}
         defaultValue={start ? String(start.bestOf.bracket) : undefined}
         onChange={(v) => setBestOf('bracket', v)}
-        options={bestOfOptions}
+        options={bestOfOptions(t, data.bestOf.bracket, start?.bestOf.bracket)}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
         value={String(data.bestOf.finals)}
         defaultValue={start ? String(start.bestOf.finals) : undefined}
         onChange={(v) => setBestOf('finals', v)}
-        options={bestOfOptions}
+        options={bestOfOptions(t, data.bestOf.finals, start?.bestOf.finals)}
       />
 
       <NumberField
