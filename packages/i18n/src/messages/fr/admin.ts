@@ -2847,7 +2847,8 @@ export const admin = {
     },
     runtimeHealth: {
       title: 'État du système',
-      description: 'État en direct de la base, de Redis, des files et du disque.',
+      description:
+        'État en direct de la base, de Redis, des files, du disque et du stockage des photos.',
       recheck: 'Actualiser',
       rechecking: 'Actualisation...',
       checkedAt: 'Vérifié à',
@@ -2858,6 +2859,7 @@ export const admin = {
         warning: 'Avertissement',
         critical: 'Critique',
         unavailable: 'Indisponible',
+        notConfigured: 'Non configuré',
       },
       db: {
         title: 'Postgres',
@@ -2882,6 +2884,12 @@ export const admin = {
         title: 'Disque',
         used: 'Utilisé',
         free: 'Libre',
+      },
+      photoStorage: {
+        title: 'Stockage des photos',
+        bucket: 'Bucket',
+        latency: 'Temps de réponse',
+        notConfigured: "Aucun bucket défini dans l'environnement",
       },
       trend: {
         title: 'Tendance',

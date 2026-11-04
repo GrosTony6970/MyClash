@@ -80,6 +80,7 @@ const snapshot: RuntimeHealthResponseDto = {
     availBytes: 50,
     usePercent: 50,
   },
+  photoStorage: { status: 'not_configured' },
 };
 
 describe('RuntimeHealthSamplesService.record', () => {

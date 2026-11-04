@@ -49,6 +49,14 @@ import { collectDb } from './runtime-health/db-collector';
 import { collectRedis } from './runtime-health/redis-collector';
 import { collectQueues } from './runtime-health/queue-collector';
 import { collectDisk } from './runtime-health/disk-collector';
+import type { S3Client } from '@aws-sdk/client-s3';
+import { collectPhotoStorage } from './runtime-health/photo-storage-collector';
+import {
+  createPhotoBucketClient,
+  headPhotoBucket,
+  readPhotoBucketSetting,
+  type PhotoBucketProbe,
+} from '../photos/photo-bucket';
 import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
@@ -159,11 +167,17 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
         config: ConfigService,
       ) => {
         const redis = createRuntimeHealthRedis(config);
+        const photoBucket = readPhotoBucketSetting((key) => config.get<string>(key));
+        // The client is built on the first probe, so an unset bucket never builds one.
+        let photoClient: S3Client | undefined;
+        const photoProbe: PhotoBucketProbe = (bucket, signal) =>
+          headPhotoBucket((photoClient ??= createPhotoBucketClient(bucket)))(bucket, signal);
         return new AdminRuntimeHealthService(settings, {
           collectDb: () => collectDb(supabase),
           collectRedis: () => collectRedis(redis),
           collectQueues: () => collectQueues(redis),
           collectDisk: () => collectDisk(systemActions),
+          collectPhotoStorage: () => collectPhotoStorage(photoBucket, photoProbe),
         });
       },
       inject: [

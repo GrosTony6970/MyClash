@@ -4,11 +4,13 @@ import type { RuntimeHealthAlertSettingsService } from './runtime-health-alert-s
 import type {
   DbMetric,
   DiskMetric,
+  PhotoStorageMetric,
   QueueMetric,
   RedisMetric,
   RuntimeHealthAlertSettings,
   RuntimeHealthResponseDto,
 } from './dto/runtime-health.dto';
+import type { PhotoStorageReading } from './runtime-health/photo-storage-collector';
 import { deriveStatus, worstStatus } from './runtime-health/status';
 
 interface Collectors {
@@ -34,6 +36,7 @@ interface Collectors {
     availBytes: number;
     usePercent: number;
   }>;
+  collectPhotoStorage: () => Promise<PhotoStorageReading>;
 }
 type QueueRow = { name: string; active: number; waiting: number; delayed: number; failed: number };
 
@@ -50,17 +53,19 @@ export class AdminRuntimeHealthService {
 
   async collect(): Promise<RuntimeHealthResponseDto> {
     const settings = await this.settingsService.getSettings();
-    const [db, redis, queues, disk] = await Promise.allSettled([
+    const [db, redis, queues, disk, photos] = await Promise.allSettled([
       this.collectors.collectDb(),
       this.collectors.collectRedis(),
       this.collectors.collectQueues(),
       this.collectors.collectDisk(),
+      this.collectors.collectPhotoStorage(),
     ]);
 
     const database = this.mapDb(db, settings);
     const redisMetric = this.mapRedis(redis, settings);
     const queueMetric = this.mapQueues(queues, settings);
     const diskMetric = this.mapDisk(disk, settings);
+    const photoStorage = this.mapPhotoStorage(photos);
 
     return {
       checkedAt: new Date().toISOString(),
@@ -69,12 +74,20 @@ export class AdminRuntimeHealthService {
         redisMetric.status,
         queueMetric.status,
         diskMetric.status,
+        ...(photoStorage.status === 'not_configured' ? [] : [photoStorage.status]),
       ),
       database,
       redis: redisMetric,
       queues: queueMetric,
       disk: diskMetric,
+      photoStorage,
     };
+  }
+
+  private mapPhotoStorage(r: PromiseSettledResult<PhotoStorageReading>): PhotoStorageMetric {
+    if (r.status === 'rejected') return { status: 'unavailable', error: errorText(r.reason) };
+    if (!r.value.configured) return { status: 'not_configured' };
+    return { status: 'healthy', bucket: r.value.bucket, latencyMs: r.value.latencyMs };
   }
 
   private mapDb(

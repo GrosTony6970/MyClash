@@ -40,7 +40,8 @@ interface AlertState {
   lastCheckedAt: number;
 }
 
-const METRIC_KEYS = ['database', 'redis', 'queues', 'disk'] as const;
+// photoStorage's 'not_configured' is in neither alert tier, so an unset bucket stays quiet.
+const METRIC_KEYS = ['database', 'redis', 'queues', 'disk', 'photoStorage'] as const;
 
 @Processor(RUNTIME_HEALTH_MONITOR_QUEUE)
 @Injectable()

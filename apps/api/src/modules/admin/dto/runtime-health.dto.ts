@@ -56,6 +56,17 @@ export interface DiskMetricOk {
 }
 export type DiskMetric = DiskMetricOk | Unavailable;
 
+export interface PhotoStorageMetricOk {
+  status: 'healthy';
+  bucket: string;
+  latencyMs: number;
+}
+/** No photo bucket keys in the environment. Left out of `overall`: photos may simply be unused. */
+export interface PhotoStorageNotConfigured {
+  status: 'not_configured';
+}
+export type PhotoStorageMetric = PhotoStorageMetricOk | PhotoStorageNotConfigured | Unavailable;
+
 export interface RuntimeHealthResponseDto {
   checkedAt: string;
   overall: MetricStatus;
@@ -63,6 +74,7 @@ export interface RuntimeHealthResponseDto {
   redis: RedisMetric;
   queues: QueueMetric;
   disk: DiskMetric;
+  photoStorage: PhotoStorageMetric;
 }
 
 /**

@@ -425,6 +425,12 @@ services:
       TZ: ${TZ:-Europe/Paris}
       # See prod compose — without this passthrough the whitelist can't be set.
       THROTTLE_IP_WHITELIST: ${THROTTLE_IP_WHITELIST:-}
+      # Event photos bucket (its own keys, never the backup ones). Empty = "Not configured".
+      PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
+      PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
+      PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
+      PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
+      PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -638,6 +644,12 @@ services:
       AI_KEY_SECRET: ${AI_KEY_SECRET:-dev-ai-key-secret-change-me}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
+      # The runtime-health monitor runs here too, so it reads the same photo bucket keys.
+      PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
+      PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
+      PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
+      PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
+      PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

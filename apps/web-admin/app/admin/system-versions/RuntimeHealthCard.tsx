@@ -8,8 +8,11 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
+import { photoStorageRows, type PhotoStorageTile } from './photo-storage-rows';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
+/** A tile's pill. `not_configured` is the photo bucket's alone and never reaches `overall`. */
+type TileStatus = MetricStatus | 'not_configured';
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 interface RuntimeHealth {
@@ -40,6 +43,7 @@ interface RuntimeHealth {
     availBytes?: number;
     error?: string;
   };
+  photoStorage: PhotoStorageTile;
 }
 
 interface AlertSettings {
@@ -59,7 +63,9 @@ interface AlertSettings {
   updatedAt: string | null;
 }
 
-function statusLabel(t: Translate, s: MetricStatus): string {
+// Both switches are exhaustive with no `default:`, so a new status fails the typecheck here
+// instead of reading as "Unavailable".
+function statusLabel(t: Translate, s: TileStatus): string {
   switch (s) {
     case 'healthy':
       return t('admin.systemVersions.runtimeHealth.statuses.healthy');
@@ -67,25 +73,28 @@ function statusLabel(t: Translate, s: MetricStatus): string {
       return t('admin.systemVersions.runtimeHealth.statuses.warning');
     case 'critical':
       return t('admin.systemVersions.runtimeHealth.statuses.critical');
-    default:
+    case 'unavailable':
       return t('admin.systemVersions.runtimeHealth.statuses.unavailable');
+    case 'not_configured':
+      return t('admin.systemVersions.runtimeHealth.statuses.notConfigured');
   }
 }
 
-function statusClasses(s: MetricStatus): string {
+function statusClasses(s: TileStatus): string {
   switch (s) {
     case 'healthy':
       return 'bg-success/10 text-success';
     case 'critical':
       return 'bg-danger/10 text-danger';
     case 'unavailable':
+    case 'not_configured':
       return 'bg-background text-muted';
-    default:
+    case 'warning':
       return 'bg-warning/10 text-warning';
   }
 }
 
-function StatusPill({ t, status }: { t: Translate; status: MetricStatus }) {
+function StatusPill({ t, status }: { t: Translate; status: TileStatus }) {
   return (
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClasses(status)}`}
@@ -351,6 +360,14 @@ export function RuntimeHealthCard() {
                     ]
               }
             />
+            <div className="sm:col-span-2">
+              <MetricTile
+                t={t}
+                status={health.photoStorage.status}
+                title={t('admin.systemVersions.runtimeHealth.photoStorage.title')}
+                rows={photoStorageRows(t, health.photoStorage)}
+              />
+            </div>
           </div>
           <RuntimeHealthTrend />
           <div className="px-4 py-2 text-xs text-muted border-t border-border">
@@ -381,7 +398,7 @@ function MetricTile({
 }: {
   t: Translate;
   title: string;
-  status: MetricStatus;
+  status: TileStatus;
   rows: Array<[string, string]>;
 }) {
   return (

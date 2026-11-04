@@ -95,6 +95,15 @@ test('the keys taken over from infra:review are still in the list', () => {
   }
 });
 
+test('the photo bucket key pair is forbidden, and a component naming it reports', () => {
+  // The photo bucket has its own key pair (operator, 2026-11-04). The API reads it; a browser
+  // never has a reason to.
+  for (const key of ['PHOTO_BUCKET_ACCESS_KEY', 'PHOTO_BUCKET_SECRET_KEY']) {
+    assert.ok(forbiddenEnvKeys.includes(key), `${key} is not guarded`);
+    assert.deepEqual(mostSpecificMatches(`const k = process.env.${key};`, forbiddenEnvKeys), [key]);
+  }
+});
+
 test('the scan reports how many files it read, not how many leaked', () => {
   // The count is what the harness checks for an empty scan, so it has to be the
   // number of files READ. Before it existed this gate printed the same clean

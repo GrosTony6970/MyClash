@@ -31,6 +31,8 @@ export const forbiddenEnvKeys = [
   'OPS_RUNNER_SECRET',
   'RESEND_API_KEY',
   'SMTP_PASSWORD',
+  'PHOTO_BUCKET_ACCESS_KEY',
+  'PHOTO_BUCKET_SECRET_KEY',
   // Taken over from check-infra-review.mjs, which held them as per-file checks
   // against nine hand-named files. These four belong to whoever scans the whole
   // frontend, because a leak in the tenth file was never the less dangerous one.

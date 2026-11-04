@@ -2348,7 +2348,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Aggregated runtime health (DB, Redis, queues, disk) */
+    /** Aggregated runtime health (DB, Redis, queues, disk, photo storage) */
     get: operations['RuntimeHealthAdminController_getRuntimeHealth'];
     put?: never;
     post?: never;

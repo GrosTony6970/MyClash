@@ -39,6 +39,7 @@ const healthy = {
   redis: { status: 'healthy' },
   queues: { status: 'healthy' },
   disk: { status: 'healthy' },
+  photoStorage: { status: 'not_configured' },
 };
 const dbCritical = { ...healthy, database: { status: 'critical' } };
 
@@ -106,6 +107,24 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
     expect(result.emailed).toBe(true);
     expect(mail.sendNotification).toHaveBeenCalledOnce();
     expect(result.criticalKeys).toContain('database');
+  });
+
+  it('emails when the photo bucket stops answering', async () => {
+    const down = { ...healthy, photoStorage: { status: 'unavailable' } };
+    const { worker, mail } = makeDeps({ snapshot: down });
+    const result = await worker.tick(Date.now());
+    expect(result.emailed).toBe(true);
+    expect(result.criticalKeys).toEqual(['photoStorage']);
+    expect(mail.sendNotification).toHaveBeenCalledOnce();
+  });
+
+  it('stays quiet about a photo bucket that is not configured, at either email level', async () => {
+    for (const emailLevel of ['critical', 'warning'] as const) {
+      const { worker, mail } = makeDeps({ snapshot: healthy, settings: { emailLevel } });
+      const result = await worker.tick(Date.now());
+      expect(result.emailed).toBe(false);
+      expect(mail.sendNotification).not.toHaveBeenCalled();
+    }
   });
 
   it('fails closed (never emails) when the de-dup store read fails', async () => {

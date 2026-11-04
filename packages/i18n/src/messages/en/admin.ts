@@ -2833,7 +2833,7 @@ export const admin = {
     },
     runtimeHealth: {
       title: 'Runtime health',
-      description: 'Live database, Redis, queue and disk status.',
+      description: 'Live database, Redis, queue, disk and photo storage status.',
       recheck: 'Refresh',
       rechecking: 'Refreshing...',
       checkedAt: 'Checked at',
@@ -2844,6 +2844,7 @@ export const admin = {
         warning: 'Warning',
         critical: 'Critical',
         unavailable: 'Unavailable',
+        notConfigured: 'Not configured',
       },
       db: {
         title: 'Postgres',
@@ -2868,6 +2869,12 @@ export const admin = {
         title: 'Disk',
         used: 'Used',
         free: 'Free',
+      },
+      photoStorage: {
+        title: 'Photo storage',
+        bucket: 'Bucket',
+        latency: 'Response time',
+        notConfigured: 'No bucket set in the environment',
       },
       trend: {
         title: 'Trend',

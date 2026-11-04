@@ -673,6 +673,14 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
+      # Event photos bucket: its own bucket and key pair, never the BACKUP_SCW_* ones. Optional
+      # until photo uploads ship; empty = "Not configured" on the runtime-health card. The API
+      # owns the region/endpoint defaults, so none is set here.
+      PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
+      PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
+      PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
+      PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
+      PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
       # Gate-health card. Both optional: absent means unauthenticated GitHub
       # reads (60/h per IP), which the ten-minute cache stays well inside. The
       # worker never serves this endpoint, so it is passed to the api only.
@@ -964,6 +972,12 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
+      # The runtime-health monitor runs here too, so it reads the same photo bucket keys.
+      PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
+      PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
+      PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
+      PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
+      PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
