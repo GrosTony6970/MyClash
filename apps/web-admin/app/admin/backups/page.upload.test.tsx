@@ -1,5 +1,5 @@
 import { Activity, act, useEffect, useState, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import * as ApiClientModule from '@myclash/api-client';
 import {
@@ -44,6 +44,8 @@ import {
 
 let page: OpenedPage;
 afterEach(() => page.unmount());
+// Every test runs with a late fingerprint, so one that does not wait for it fails on any machine.
+beforeEach(() => slowFingerprint());
 const press = makePress(() => page);
 
 describe('the backups screen and an uploaded night', () => {
@@ -60,7 +62,7 @@ describe('the backups screen and an uploaded night', () => {
       },
     });
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     await page.settle();
     expect(page.writes()).toEqual([
       `POST ${UPLOADS}`,
@@ -81,7 +83,7 @@ describe('the backups screen and an uploaded night', () => {
       init?.method === 'PUT' ? new Promise(() => undefined) : stand(base, path, init),
     );
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     expect(document.querySelector('[role="progressbar"]')).not.toBeNull();
     expect(text()).toContain('0 B of 1 B sent (0 %)');
     await press('Cancel upload');
@@ -101,7 +103,7 @@ describe('the backups screen and an uploaded night', () => {
       path === `${UPLOADS}/u1/complete` ? new Promise(() => undefined) : stand(base, path, init),
     );
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     await page.settle();
     expect(text()).toContain('Checking the file…');
     expect(buttonIn(document.body, 'Cancel upload')).toBeUndefined();
@@ -114,7 +116,7 @@ describe('the backups screen and an uploaded night', () => {
       init?.method === 'PUT' ? new Promise(() => undefined) : stand(base, path, init),
     );
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     await press('Cancel upload');
     expect(page.writes()).toContain(`DELETE ${UPLOADS}/u1`);
     expect(text()).toContain('The server did not confirm removing what it received');
@@ -150,7 +152,7 @@ describe('the backups screen and an uploaded night', () => {
         : stand(base, path, init),
     );
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Préparer l');
+    await stage('Préparer l');
     expect(text()).toContain('Espace disque insuffisant sur le serveur : 3.0 GB libres');
     expect(text()).toContain('3.5 GB');
     expect(text()).not.toContain('Not enough free disk space');
@@ -214,6 +216,34 @@ async function hideAndShow() {
   await page.settle();
 }
 
+/**
+ * The fingerprint answers late, as on a loaded CI runner: `crypto.subtle.digest` runs off the
+ * main thread and can outlast `settle`'s five rounds. Until it answers, no upload id is known.
+ */
+function slowFingerprint() {
+  const digest = crypto.subtle.digest.bind(crypto.subtle);
+  const spy = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (...args) => {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    return digest(...args);
+  });
+  onTestFinished(() => {
+    spy.mockRestore();
+  });
+}
+
+/** Press Stage, then wait until the start goes out: the fingerprint is read off the main thread. */
+async function stage(label = 'Stage upload') {
+  await press(label);
+  await vi.waitFor(() =>
+    expect(
+      vi
+        .mocked(ApiClientModule.apiRequest)
+        .mock.calls.some(([, path, init]) => init?.method === 'POST' && path === UPLOADS),
+    ).toBe(true),
+  );
+  await page.settle();
+}
+
 const openShown = (reads: Record<string, unknown>, taken: Record<string, unknown>) =>
   openEventPage(
     <Shown>
@@ -235,7 +265,7 @@ describe('the backups screen cleaned up and set up again mid-upload (419)', () =
     );
     const chunk = hold(`PUT ${UPLOADS}/u1/chunks?offset=0`);
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     expect(document.querySelector('[role="progressbar"]')).not.toBeNull();
 
     await hideAndShow();
@@ -265,7 +295,7 @@ describe('the backups screen cleaned up and set up again mid-upload (419)', () =
     );
     const check = hold(`POST ${UPLOADS}/u1/complete`);
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     expect(text()).toContain('Checking the file…');
 
     await hideAndShow();
@@ -290,7 +320,7 @@ describe('the backups screen cleaned up and set up again mid-upload (419)', () =
     );
     hold(`POST ${UPLOADS}/u1/complete`, [`GET ${STATUS}`]);
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     await hideAndShow();
     expect(text()).toContain('Checking the file…');
     expect(buttonIn(document.body, 'Cancel upload')).toBeUndefined();
@@ -307,7 +337,7 @@ describe('the backups screen cleaned up and set up again mid-upload (419)', () =
     // The run started again is still asking where the upload is when Cancel is pressed.
     hold(`PUT ${UPLOADS}/u1/chunks?offset=0`, [`GET ${STATUS}`]);
     await pick(new File(['x'], 'storage-20261029T030000Z.tar.gz'));
-    await press('Stage upload');
+    await stage();
     await hideAndShow();
     await press('Cancel upload');
     expect(page.writes()).toEqual([`POST ${UPLOADS}`, `DELETE ${UPLOADS}/u1`]);
