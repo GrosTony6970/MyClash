@@ -147,7 +147,9 @@ export class PhotosController {
     return this.moderation.list(event, query.filter, query.before);
   }
 
+  /** Open on an archived Event (ruling 443): a photo still waiting at archive can still be shown. */
   @Post('events/:eventId/photos/:photoId/approve')
+  @AllowOnArchivedEvent()
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth('sb-access-token')
   @ApiOperation({ summary: 'Approve a photo: the public sees it (organisers)' })

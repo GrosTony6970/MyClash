@@ -74,7 +74,6 @@ function PhotoSections({
         hasMore={photos.next !== null}
         loadingMore={photos.loadingMore}
         busy={photos.busy}
-        readOnly={photos.isReadOnly}
         onFilter={photos.setFilter}
         onApprove={photos.approve}
         onDelete={photos.remove}

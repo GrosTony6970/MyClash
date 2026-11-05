@@ -100,6 +100,8 @@ describe('the archived-Event lock, API-wide', () => {
       'POST admin/review-queue/:type/:id/reject',
       'POST deletion-requests',
       'POST events/:eventId/feedback',
+      // Event photos (ruling 443): a photo still waiting at archive can still be shown.
+      'POST events/:eventId/photos/:photoId/approve',
       'POST matches/:id/clock',
       'POST matches/:id/exchanges',
       'POST matches/:id/level-resolution/advance',
@@ -138,7 +140,8 @@ describe('the archived-Event lock, API-wide', () => {
     // 184: B-Swiss's `POST swiss-phases/:phaseId/reinstate`, placed by its phase.
     // 186: Event photos' `POST events/:eventId/photos` and `…/photos/link/rotate`, placed by
     // their Event: no photo arrives at, and no link is rotated for, an archived Event.
-    // 188: the moderator's `POST …/photos/:photoId/approve` and `DELETE …/photos/:photoId`.
+    // 188: the organiser's `POST …/photos/:photoId/approve` and `DELETE …/photos/:photoId`,
+    // both opted out (443, privacy) and still placed: the count reads the path, not the mark.
     expect(placed).toHaveLength(188);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });

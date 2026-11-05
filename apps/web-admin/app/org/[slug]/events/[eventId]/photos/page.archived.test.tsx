@@ -6,9 +6,10 @@ import EventPhotosPage from './page';
 import { photoReads } from './photos-page.fixtures';
 
 /**
- * The Photos page of an archived Event (ruling 377): approve, the mode and New link are refused
- * by the server, so the page offers none of them. Delete stays open: a person in a photo may ask
- * for it to go after the Event (design, "Constraints").
+ * The Photos page of an archived Event (ruling 377): the mode and New link are refused by the
+ * server, so the page offers neither. Delete stays open: a person in a photo may ask for it to go
+ * after the Event (design, "Constraints"). Approve stays open too: a photo still waiting when the
+ * Event was archived can still be shown (ruling 443).
  */
 vi.mock('next/navigation', () => ({
   useParams: () => ({ slug: 'club', eventId: 'ev1' }),
@@ -31,18 +32,20 @@ let page: OpenedPage;
 afterEach(() => page.unmount());
 
 describe('the Photos page of an archived Event', () => {
-  it('sends deletes, and nothing else', async () => {
-    const deletes = {
+  it('sends approves and deletes, and nothing else', async () => {
+    const taken = {
+      'POST /api/v1/events/ev1/photos/p1/approve': { id: 'p1', status: 'approved' },
+      'POST /api/v1/events/ev1/photos/p2/approve': { id: 'p2', status: 'approved' },
       'DELETE /api/v1/events/ev1/photos/p1': null,
       'DELETE /api/v1/events/ev1/photos/p2': null,
     };
     // Print poster opens a window: jsdom has none to give, so the page says it was blocked.
     vi.stubGlobal('open', () => null);
-    page = await openArchivedPage(<EventPhotosPage />, photoReads(), deletes);
+    page = await openArchivedPage(<EventPhotosPage />, photoReads(), taken);
 
     await page.pressEverything();
 
     const sent = page.writes();
-    expect(new Set(sent)).toEqual(new Set(Object.keys(deletes)));
+    expect(new Set(sent)).toEqual(new Set(Object.keys(taken)));
   });
 });

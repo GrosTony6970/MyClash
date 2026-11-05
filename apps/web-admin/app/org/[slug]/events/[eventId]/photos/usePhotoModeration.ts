@@ -60,7 +60,7 @@ export function usePhotoModeration(eventId: string) {
   const base = `/api/v1/events/${eventId}`;
   const data = usePhotoData(base);
   const writes = usePhotoWrites(base, data.reload);
-  // The server refuses approve, mode and new link on an archived Event; delete stays open.
+  // The server refuses mode and new link on an archived Event; approve (443) and delete stay open.
   const { isReadOnly } = useEventStatus(eventId);
   // A write's refusal outlives the reload that follows it; a read's error goes with the next read.
   return { ...data, ...writes, outcome: writes.outcome ?? data.loadOutcome, isReadOnly };

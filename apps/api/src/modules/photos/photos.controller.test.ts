@@ -148,7 +148,7 @@ describe('the moderation routes', () => {
     expect(moderation.remove).not.toHaveBeenCalled();
   });
 
-  it('only the delete stays open on an archived Event', () => {
+  it('the approve and the delete stay open on an archived Event (ruling 443)', () => {
     const reflector = new Reflector();
     const open = (handler: keyof PhotosController) =>
       reflector.get<boolean>(
@@ -156,7 +156,8 @@ describe('the moderation routes', () => {
         PhotosController.prototype[handler] as never,
       ) === true;
     expect(open('remove')).toBe(true);
-    expect(open('approve')).toBe(false);
+    expect(open('approve')).toBe(true);
+    expect(open('rotateLink')).toBe(false);
   });
 });
 

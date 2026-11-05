@@ -14,7 +14,6 @@ interface QueueProps {
   hasMore: boolean;
   loadingMore: boolean;
   busy: boolean;
-  readOnly: boolean;
   onFilter: (filter: PhotoQueueFilter) => void;
   onApprove: (photo: ModerationPhoto) => Promise<unknown>;
   onDelete: (photo: ModerationPhoto) => Promise<unknown>;
@@ -25,7 +24,8 @@ interface QueueProps {
 /**
  * The queue: Waiting (with its count) and All, newest first. Reported and Keep come with the
  * public Report button (ruling 436). Approve is a quiet button: one accent per page, and a grid
- * of red buttons has none. Delete asks first, and stays open on an archived Event (privacy).
+ * of red buttons has none. Delete asks first. Both stay open on an archived Event: Delete for
+ * privacy, Approve for a photo still waiting when the Event was archived (ruling 443).
  */
 export function PhotoQueue(props: QueueProps) {
   const { t } = useI18n();
@@ -135,7 +135,7 @@ function PhotoTile({
             <Button
               size="sm"
               variant="secondary"
-              disabled={queue.busy || queue.readOnly}
+              disabled={queue.busy}
               onClick={() => void queue.onApprove(photo)}
             >
               {t('organizer.photos.queue.approve')}
