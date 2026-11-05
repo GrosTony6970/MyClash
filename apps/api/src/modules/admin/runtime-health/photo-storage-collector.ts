@@ -1,4 +1,5 @@
 import {
+  boundedCall,
   PHOTO_BUCKET_PROBE_TIMEOUT_MS,
   type PhotoBucketProbe,
   type PhotoBucketSetting,
@@ -8,8 +9,8 @@ export type PhotoStorageReading =
   { configured: false } | { configured: true; bucket: string; latencyMs: number };
 
 /**
- * Whether the photo bucket answers. The probe is raced against a timer: when the timer fires it
- * aborts the probe and gives up, so the health card answers even if the SDK ignores the abort.
+ * Whether the photo bucket answers. The probe is bounded by `boundedCall`: at the timeout it is
+ * aborted and given up on, so the health card answers even if the SDK ignores the abort.
  */
 export async function collectPhotoStorage(
   setting: PhotoBucketSetting,
@@ -21,20 +22,7 @@ export async function collectPhotoStorage(
     throw new Error(`Photo bucket is partly configured: missing ${setting.missing.join(', ')}`);
   }
 
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const gaveUp = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error(`Photo bucket did not answer within ${timeoutMs} ms`));
-    }, timeoutMs);
-  });
-
   const started = now();
-  try {
-    await Promise.race([probe(setting.config, controller.signal), gaveUp]);
-  } finally {
-    clearTimeout(timer);
-  }
+  await boundedCall((signal) => probe(setting.config, signal), timeoutMs, 'probe');
   return { configured: true, bucket: setting.config.bucket, latencyMs: now() - started };
 }

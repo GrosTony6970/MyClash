@@ -311,16 +311,23 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
     function is `SECURITY INVOKER` with a pinned `search_path` (it runs as the deleting role, the API's
     service role; a `SECURITY DEFINER` function would be an RLS bypass to justify).
   - Cascades fire row triggers, so Event delete, org delete, deletion-request approval, account erasure,
-    moderator delete and the nightly job all land there.
+    moderator delete and the expiry job all land there.
   - A worker job empties the tombstones: it deletes the object, then the tombstone. It retries and is
     safe to re-run.
-- **Nightly expiry job:** for every Event past its deletion instant, it deletes its photo rows. The
-  trigger queues their objects. It logs what it deleted.
+- **Expiry job** **[rev slice 3]** **(every 5 minutes, not nightly):** for every Event past its deletion
+  instant, it deletes its photo rows. The trigger queues their objects, and the drain in the same run
+  deletes them. It logs what it deleted. A nightly run at one hour would reach an Event on another
+  clock up to a day late (slice 3 plan, assumption 1).
 - **[rev] Deletion instant, one owner:** 00:00 on `end_date + 31` days, on the Event's clock.
   - One helper serves the job, the admin "deletion date" label and the download button.
   - It follows the current `end_date`, so editing the dates moves it.
-- **[rev] Orphan sweep:** nightly, delete any bucket prefix `events/{eventId}/` whose Event row no longer
-  exists.
+- **[rev slice 3] Orphan sweep:** hourly, delete any object at least an hour old, of an Event this
+  database holds, that no photo row names (an upload whose row was never written). It does **not**
+  delete the prefixes of Events it does not hold. Another stack given the same bucket keys would
+  otherwise delete photos it knows nothing of, and the bucket has no backup. It first calls a function
+  only the service role may run, so a wrong key fails instead of reading the photo table as empty.
+  Event deletes queue their keys through the trigger; the lifecycle rule takes the rest (slice 3 plan,
+  assumption 2).
 - **[rev] Backstop:** a bucket lifecycle rule expires every object after 120 days (operator step).
 - The bucket is not in the nightly backup, so deletion is final for the images.
 
@@ -455,7 +462,8 @@ viewers is the larger line, and it is still small.
 - The drain deletes the object first, and keeps the tombstone when the bucket fails.
 - Expiry: an Event at its deletion instant minus 1 s keeps its photos; at the instant it loses them.
   Time-zone cells: UTC, Paris, New York, Kiritimati.
-- Orphan sweep: a prefix with no Event row is removed, and one with a row is kept.
+- Orphan sweep **[rev slice 3]**: an old object of an Event here with no photo row is removed; one with a
+  row, a young one, and one of an Event not here are kept.
 
 **Download test**
 

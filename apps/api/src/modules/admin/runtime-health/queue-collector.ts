@@ -9,6 +9,7 @@ export const RUNTIME_HEALTH_QUEUE_NAMES = [
   'data-quality-deterministic',
   'tls-cert-monitor',
   'runtime-health-monitor',
+  'photo-cleanup',
 ] as const;
 
 interface QueueLike {

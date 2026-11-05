@@ -5,7 +5,7 @@
  * database is `pnpm db:rls-probe`'s.
  */
 import { describe, expect, it } from 'vitest';
-import { allSql, flat, functionStatement } from './migration-sql';
+import { allSql, flat, functionStatement, triggerStatement } from './migration-sql';
 
 const sql = flat(allSql());
 
@@ -52,5 +52,62 @@ describe('Event photos', () => {
     expect(sql).toContain(
       'grant execute on function public.event_photo_usage(uuid, uuid) to service_role',
     );
+  });
+});
+
+/**
+ * Event photo tombstones (migration 0250): every path that removes a photo row queues its two
+ * image keys, in the same transaction, for the worker to delete from the bucket. The committed
+ * cascade probe proves the paths on a running database.
+ */
+describe('Event photo tombstones', () => {
+  const table = /create table if not exists public\.event_photo_tombstones \([\s\S]*?\n\);/i;
+
+  it('creates event_photo_tombstones with RLS on, no policy and no foreign key', () => {
+    const statement = flat(allSql().match(table)?.[0]);
+    expect(statement).toContain('object_key text primary key');
+    expect(statement).not.toContain('references');
+    expect(sql).toContain('alter table public.event_photo_tombstones enable row level security');
+    expect(sql).not.toMatch(/create policy[^;]*on (public\.)?event_photo_tombstones/);
+  });
+
+  it('queues both keys on every row delete', () => {
+    expect(triggerStatement(allSql(), 'event_photos_tombstone_row')).toBe(
+      'create trigger event_photos_tombstone_row after delete on public.event_photos for each row execute function public.event_photo_tombstone_row();',
+    );
+    const fn = functionStatement(allSql(), 'event_photo_tombstone_row');
+    expect(fn).toContain('values (old.original_key), (old.preview_key) on conflict do nothing');
+  });
+
+  it('queues every key when the table is truncated', () => {
+    expect(triggerStatement(allSql(), 'event_photos_tombstone_truncate')).toBe(
+      'create trigger event_photos_tombstone_truncate before truncate on public.event_photos for each statement execute function public.event_photo_tombstone_all();',
+    );
+    const fn = functionStatement(allSql(), 'event_photo_tombstone_all');
+    expect(fn).toContain('select original_key from public.event_photos');
+    expect(fn).toContain('select preview_key from public.event_photos');
+  });
+
+  it.each(['event_photo_tombstone_row', 'event_photo_tombstone_all', 'event_photo_events'])(
+    'keeps %s an invoker function with a pinned path, out of reach of web roles',
+    (name) => {
+      const fn = functionStatement(allSql(), name);
+      expect(fn).toContain('security invoker');
+      expect(fn).toContain('set search_path = public, pg_catalog');
+      expect(sql).toMatch(
+        new RegExp(
+          `revoke execute on function public\\.${name}\\([^)]*\\) from public, anon, authenticated`,
+        ),
+      );
+    },
+  );
+
+  it('lists only the Events that still hold a photo, for the service role alone', () => {
+    const fn = functionStatement(allSql(), 'event_photo_events');
+    expect(fn).toContain('returns table (event_id uuid, end_date date, timezone text)');
+    expect(fn).toContain(
+      'where exists (select 1 from public.event_photos p where p.event_id = e.id)',
+    );
+    expect(sql).toContain('grant execute on function public.event_photo_events() to service_role');
   });
 });

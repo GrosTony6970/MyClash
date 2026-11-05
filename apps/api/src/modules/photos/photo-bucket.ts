@@ -1,6 +1,8 @@
 import {
   DeleteObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
+  type ListObjectsV2CommandOutput,
   PutObjectCommand,
   S3Client,
   type S3ClientConfig,
@@ -53,10 +55,85 @@ export const PHOTO_BUCKET_PROBE_TIMEOUT_MS = 10_000;
 export const PHOTO_BUCKET_WRITE_TIMEOUT_MS = 30_000;
 export const PHOTO_BUCKET_DELETE_TIMEOUT_MS = 10_000;
 
-/** Where photo images are written and removed. Every call has its own bounded wait. */
+/** The DI token of the photo store; null when the bucket is not configured. */
+export const PHOTO_STORE = Symbol('PHOTO_STORE');
+
+/** A key in the bucket, with the time it was written: the orphan sweep keeps a young one. */
+export interface PhotoObject {
+  key: string;
+  lastModified: Date;
+}
+
+/** One page of a listing. `undated` counts entries with no key or date: they cannot be judged. */
+export interface PhotoPage {
+  objects: PhotoObject[];
+  next?: string;
+  undated: number;
+}
+
+/** Where photo images are written, listed and removed. Every call has its own bounded wait. */
 export interface PhotoStore {
   put(key: string, bytes: Buffer): Promise<void>;
   remove(key: string): Promise<void>;
+  /** One page of keys under `prefix`, at most 1,000. `next` is set while more remain. */
+  list(prefix: string, next?: string): Promise<PhotoPage>;
+}
+
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const PHOTO_KEY = new RegExp(`^events/(${UUID})/(${UUID})/(?:original|preview)\\.jpg$`, 'i');
+
+/** Where a photo's two images live in the bucket. The one owner of the key shape. */
+export function photoObjectKeys(
+  eventId: string,
+  photoId: string,
+): { original_key: string; preview_key: string } {
+  return {
+    original_key: `events/${eventId}/${photoId}/original.jpg`,
+    preview_key: `events/${eventId}/${photoId}/preview.jpg`,
+  };
+}
+
+/** The Event and photo a key names, lower-cased, or null for a key in any other shape. */
+export function photoKeyParts(key: string): { eventId: string; photoId: string } | null {
+  const hit = PHOTO_KEY.exec(key);
+  return hit ? { eventId: hit[1]!.toLowerCase(), photoId: hit[2]!.toLowerCase() } : null;
+}
+
+/** The store's waits; the defaults are the design's, tests pass shorter ones. */
+export interface PhotoStoreTimeouts {
+  writeMs: number;
+  deleteMs: number;
+  listMs: number;
+}
+
+const STORE_TIMEOUTS: PhotoStoreTimeouts = {
+  writeMs: PHOTO_BUCKET_WRITE_TIMEOUT_MS,
+  deleteMs: PHOTO_BUCKET_DELETE_TIMEOUT_MS,
+  listMs: PHOTO_BUCKET_PROBE_TIMEOUT_MS,
+};
+
+/**
+ * Runs `call` with an abort signal and gives up at `ms`, whether or not the call honours the
+ * signal: the SDK's retries outlast its connection timeout, so a signal alone is not a bound.
+ */
+export async function boundedCall<T>(
+  call: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  what: string,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const gaveUp = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Photo bucket did not answer within ${ms} ms (${what})`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([call(controller.signal), gaveUp]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export type PhotoBucketProbe = (config: PhotoBucketConfig, signal: AbortSignal) => Promise<void>;
@@ -126,38 +203,80 @@ export function headPhotoBucket(client: Pick<S3Client, 'send'>): PhotoBucketProb
 export function photoStoreOf(
   setting: PhotoBucketSetting,
   client?: Pick<S3Client, 'send'>,
+  timeouts: PhotoStoreTimeouts = STORE_TIMEOUTS,
 ): PhotoStore | null {
   if (setting.kind !== 'on') return null;
-  const { config } = setting;
-  const s3 = client ?? createPhotoBucketClient(config);
-  const send = async (command: PutObjectCommand | DeleteObjectCommand, timeoutMs: number) => {
-    try {
-      await s3.send(command as never, { abortSignal: AbortSignal.timeout(timeoutMs) });
-    } catch (err) {
-      throw refusalOf(err, config.bucket);
-    }
-  };
+  const { bucket } = setting.config;
+  const send = sender(client ?? createPhotoBucketClient(setting.config), bucket);
   return {
-    put: (key, bytes) =>
-      send(
-        new PutObjectCommand({
-          Bucket: config.bucket,
-          Key: key,
-          Body: bytes,
-          ContentType: 'image/jpeg',
-        }),
-        PHOTO_BUCKET_WRITE_TIMEOUT_MS,
-      ),
-    remove: (key) =>
-      send(
-        new DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
-        PHOTO_BUCKET_DELETE_TIMEOUT_MS,
-      ),
+    put: async (key, bytes) => {
+      const body = { Bucket: bucket, Key: key, Body: bytes, ContentType: 'image/jpeg' };
+      await send(new PutObjectCommand(body), timeouts.writeMs, 'write');
+    },
+    remove: async (key) => {
+      try {
+        await send(
+          new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+          timeouts.deleteMs,
+          'delete',
+        );
+      } catch (err) {
+        // A key already gone is the goal reached; a missing BUCKET is still a failure.
+        if (!(err instanceof MissingKey)) throw err;
+      }
+    },
+    list: async (prefix, next) => {
+      const input = { Bucket: bucket, Prefix: prefix, ContinuationToken: next, MaxKeys: 1000 };
+      const page = await send<ListObjectsV2CommandOutput>(
+        new ListObjectsV2Command(input),
+        timeouts.listMs,
+        'list',
+      );
+      const contents = page.Contents ?? [];
+      const objects = objectsOf(contents);
+      return {
+        objects,
+        next: page.NextContinuationToken,
+        undated: contents.length - objects.length,
+      };
+    },
   };
 }
 
+/** One bucket call, bounded, its refusal re-told by status. */
+function sender(s3: Pick<S3Client, 'send'>, bucket: string) {
+  return async <T>(
+    command: PutObjectCommand | DeleteObjectCommand | ListObjectsV2Command,
+    timeoutMs: number,
+    what: string,
+  ): Promise<T> => {
+    try {
+      return await boundedCall(
+        (signal) => s3.send(command as never, { abortSignal: signal }) as Promise<T>,
+        timeoutMs,
+        what,
+      );
+    } catch (err) {
+      throw refusalOf(err, bucket);
+    }
+  };
+}
+
+/** The listed keys with their dates. An entry with no key or no date cannot be judged: skipped. */
+function objectsOf(contents: NonNullable<ListObjectsV2CommandOutput['Contents']>): PhotoObject[] {
+  return contents.flatMap((entry) =>
+    entry.Key && entry.LastModified ? [{ key: entry.Key, lastModified: entry.LastModified }] : [],
+  );
+}
+
+/** A 404 that names the KEY, not the bucket: S3 may answer it to a delete of a key already gone. */
+class MissingKey extends Error {}
+
 function refusalOf(err: unknown, bucket: string): unknown {
   const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+  if (status === 404 && (err as Error).name === 'NoSuchKey') {
+    return new MissingKey(`Photo bucket has no such key (HTTP 404)`);
+  }
   if (status === undefined) return err;
   if (status === 403) {
     return new Error(`Photo bucket refused the key (HTTP 403): check its access to ${bucket}`);

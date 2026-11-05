@@ -77,3 +77,12 @@ INSERT INTO referee_compensation_plans (id, name, organization_id) VALUES
   ('ca5c0000-0000-4000-8000-000000000a01', 'Probe plan', 'ca5c0000-0000-4000-8000-000000000001');
 INSERT INTO referee_compensation_event_settings (event_id, plan_id) VALUES
   ('ca5c0000-0000-4000-8000-0000000000e1', 'ca5c0000-0000-4000-8000-000000000a01');
+-- A photo on the Event, tagged with its Tournament: every delete path must queue its two keys
+-- (0250). Synthetic keys; no image exists anywhere.
+INSERT INTO event_photos (id, event_id, tournament_id, status, device_id, original_key, preview_key,
+                          byte_size, crc32) VALUES
+  ('ca5c0000-0000-4000-8000-000000000b01', 'ca5c0000-0000-4000-8000-0000000000e1',
+   'ca5c0000-0000-4000-8000-0000000000f1', 'approved', 'ca5c0000-0000-4000-8000-000000000b02',
+   'events/ca5c0000-0000-4000-8000-0000000000e1/ca5c0000-0000-4000-8000-000000000b01/original.jpg',
+   'events/ca5c0000-0000-4000-8000-0000000000e1/ca5c0000-0000-4000-8000-000000000b01/preview.jpg',
+   1024, 0);

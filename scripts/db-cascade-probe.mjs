@@ -29,13 +29,24 @@
  *   - a delete of a registration a bout names, a person with a registration, the copy a bout holds,
  *     a referee skill slots list and a compensation plan an Event uses is refused (23503) by one of
  *     the keys that protect it;
- *   - the club delete commits, and leaves none of the seeded rows.
+ *   - every path that removes a photo row (its delete and the Event delete, by the API's role too;
+ *     the club delete; a TRUNCATE, a cascading one too) queues both its image keys, a Tournament
+ *     delete only untags it, and a web role reads no tombstone (0250,
+ *     `lib/photo-tombstone-probe.mjs`);
+ *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import postgres from 'postgres';
+
+import {
+  noTombstoneBeforeDeletes,
+  PHOTO_SEEDED,
+  photoTombstoneCases,
+  tombstonesAfterClubDelete,
+} from './lib/photo-tombstone-probe.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -55,7 +66,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 47;
+const EXPECTED_CHECKS = 61;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -110,6 +121,7 @@ const SEEDED = [
   ['event_slot_config_default_skills', 'skill_id', SKILL],
   ['referee_compensation_plans', 'id', PLAN],
   ['referee_compensation_event_settings', 'plan_id', PLAN],
+  PHOTO_SEEDED,
 ];
 
 let checks = 0;
@@ -291,11 +303,14 @@ async function nothingLeft() {
 try {
   await noKeyTrippableByOrder();
   await seedCommitted();
+  await noTombstoneBeforeDeletes(sql, check);
   try {
     await deletesSucceed();
     await refusalsHold();
+    await photoTombstoneCases({ tryAndRollBack, check });
   } finally {
     await seedDeleted();
+    await tombstonesAfterClubDelete(sql, check);
   }
   await nothingLeft();
   if (checks !== EXPECTED_CHECKS)
@@ -307,7 +322,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images.`,
     );
   }
 } catch (error) {

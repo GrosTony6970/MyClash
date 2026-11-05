@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { photoUploadWindow } from './photo-window';
+import { photoDeletionInstant, photoUploadWindow } from './photo-window';
 
 /** 00:00 of `day` on `zone`'s clock, as an instant: what an organiser in that zone calls midnight. */
 function midnight(day: string, zone: string): number {
@@ -21,6 +21,33 @@ function midnight(day: string, zone: string): number {
   }
   return guess;
 }
+
+describe('photoDeletionInstant — an Event ending 17 May 2026', () => {
+  it.each(['UTC', 'Europe/Paris', 'America/New_York', 'Pacific/Kiritimati'])(
+    'on %s, is 00:00 of 17 June, the 31st day after the last, on the Event clock',
+    (zone) => {
+      const instant = photoDeletionInstant({ end_date: '2026-05-17', timezone: zone });
+      expect(instant?.getTime()).toBe(midnight('2026-06-17', zone));
+    },
+  );
+
+  it('follows the current end date: moving the last day moves the instant', () => {
+    expect(photoDeletionInstant({ end_date: '2026-05-18', timezone: 'UTC' })?.toISOString()).toBe(
+      '2026-06-18T00:00:00.000Z',
+    );
+  });
+
+  it('is null when the end date cannot be read', () => {
+    expect(photoDeletionInstant({ end_date: 'next Tuesday', timezone: 'UTC' })).toBeNull();
+    expect(photoDeletionInstant({ end_date: null, timezone: 'UTC' })).toBeNull();
+  });
+
+  it('reads an unknown zone on the default Event clock', () => {
+    expect(
+      photoDeletionInstant({ end_date: '2026-05-17', timezone: 'Mars/Olympus' })?.getTime(),
+    ).toBe(midnight('2026-06-17', 'Europe/Paris'));
+  });
+});
 
 describe('photoUploadWindow — an Event on 16 and 17 May 2026', () => {
   it.each(['UTC', 'Europe/Paris', 'America/New_York', 'Pacific/Kiritimati'])(

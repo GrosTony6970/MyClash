@@ -73,6 +73,9 @@ function setup(options: Setup = {}) {
   const store: PhotoStore = {
     put: vi.fn(async (key: string, bytes: Buffer) => void stored.set(key, bytes)),
     remove: vi.fn(async (key: string) => void stored.delete(key)),
+    list: vi.fn(async () => {
+      throw new Error('the upload never lists the bucket');
+    }),
   };
   const chosen = options.store === undefined ? store : options.store;
   const service = new PhotoUploadService(

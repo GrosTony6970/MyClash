@@ -11,6 +11,7 @@ describe('collectQueues', () => {
       'data-quality-deterministic',
       'tls-cert-monitor',
       'runtime-health-monitor',
+      'photo-cleanup',
     ]);
   });
 

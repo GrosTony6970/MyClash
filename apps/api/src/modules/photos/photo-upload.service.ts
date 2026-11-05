@@ -24,7 +24,7 @@ import { OperationalUnavailableException } from '../../common/operational-except
 import { readUploadParts, type UploadLimit } from '../../common/read-upload';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PhotoRefusalError, stripJpeg } from './jpeg-strip';
-import type { PhotoStore } from './photo-bucket';
+import { PHOTO_STORE, photoObjectKeys, type PhotoStore } from './photo-bucket';
 import { makePreview } from './photo-preview';
 import { photoTokenMatches } from './photo-token';
 import { photoUploadWindow } from './photo-window';
@@ -40,9 +40,6 @@ export const PHOTO_UPLOAD_SLOTS = 4;
 export const DEVICE_PHOTOS_PER_HOUR = 20;
 export const EVENT_PHOTOS_PER_HOUR = 300;
 export const EVENT_PHOTO_BYTES = 15 * 1000 ** 3;
-
-/** The DI token of the photo store; null when the bucket is not configured. */
-export const PHOTO_STORE = Symbol('PHOTO_STORE');
 
 interface PhotoEvent {
   id: string;
@@ -181,10 +178,7 @@ export class PhotoUploadService {
     const { original, preview } = await this.processPhoto(buffer);
 
     const id = randomUUID();
-    const keys = {
-      original_key: `events/${event.id}/${id}/original.jpg`,
-      preview_key: `events/${event.id}/${id}/preview.jpg`,
-    };
+    const keys = photoObjectKeys(event.id, id);
     await this.storeBoth(store, keys, original, preview);
 
     const status = event.photo_mode === 'live' ? 'approved' : 'waiting';

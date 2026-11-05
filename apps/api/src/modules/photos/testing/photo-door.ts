@@ -43,7 +43,13 @@ export function photoDoor(
     },
   );
   const config = { getOrThrow: () => SECRET, get: () => 'test' } as never;
-  const store = { put: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) };
+  const store = {
+    put: vi.fn(async () => undefined),
+    remove: vi.fn(async () => undefined),
+    list: vi.fn(async () => {
+      throw new Error('the upload never lists the bucket');
+    }),
+  };
   const controller = new PhotosController(
     new PhotoUploadService(db as never, config, store),
     new PhotoDeviceService(config),
