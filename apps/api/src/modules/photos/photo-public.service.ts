@@ -4,6 +4,7 @@ import {
   PHOTO_REPORT_LIMIT,
   PHOTO_REPORTS_PER_HOUR,
   PHOTO_REPORTS_PER_PHOTO,
+  photosShown,
   type PublicPhoto,
   type PublicPhotoPage,
 } from '@myclash/types';
@@ -101,17 +102,19 @@ export class PhotoPublicService {
   }
 
   /**
-   * A phone's Report of a public photo: one per phone and photo, a repeat adds nothing (the
+   * A phone's Report of a public photo: one per phone and photo, a repeat adds no report (the
    * table's key). The photo stays visible. A photo the caller cannot see in the list answers 404.
-   * A photo holding its 20 reports takes no more, and the phone is told "reported" all the same
-   * (ruling 449). The hour's count and the write are two statements: taps sent at the same
-   * instant can pass a limit by a few, which a convenience limit allows.
+   * A photo holding 20 other phones' reports takes no new phone, and the phone is told "reported"
+   * all the same (ruling 449); a phone among them may still change its comment (453). The hour's
+   * count and the write are two statements: taps sent at the same instant can pass a limit by a
+   * few, which a convenience limit allows.
    */
   async report(
     eventId: string,
     photoId: string,
     deviceId: string,
     reader: PublicReader,
+    comment: string | null,
   ): Promise<{ reported: true }> {
     const now = this.now();
     if (!(await this.openEvent(eventId, reader, now))) throw photoNotFound();
@@ -126,13 +129,19 @@ export class PhotoPublicService {
     if (!data) throw photoNotFound();
 
     await this.checkReportLimit(deviceId, now);
-    if (await this.photoIsFull(photoId)) return { reported: true };
-    const { error: written } = await this.supabase.service
-      .from('event_photo_reports')
-      .upsert(
-        { photo_id: photoId, device_id: deviceId },
-        { onConflict: 'photo_id,device_id', ignoreDuplicates: true },
-      );
+    if (await this.photoIsFull(photoId, deviceId)) return { reported: true };
+    const reports = this.supabase.service.from('event_photo_reports');
+    // With a comment, the key's row takes it, replacing the phone's last one (453); without, a
+    // repeat is ignored, so an empty Report never erases a comment. `created_at` is never sent.
+    const { error: written } = comment
+      ? await reports.upsert(
+          { photo_id: photoId, device_id: deviceId, comment },
+          { onConflict: 'photo_id,device_id' },
+        )
+      : await reports.upsert(
+          { photo_id: photoId, device_id: deviceId },
+          { onConflict: 'photo_id,device_id', ignoreDuplicates: true },
+        );
     if (written?.code === FOREIGN_KEY_VIOLATION) throw photoNotFound();
     if (written) throw new Error(written.message);
     return { reported: true };
@@ -152,7 +161,7 @@ export class PhotoPublicService {
     if (!competition) throw eventNotFound(eventId);
     const photos = await photoEvent(this.supabase, eventId);
     const mode = asPhotoMode(photos.photo_mode);
-    if (mode === null || mode === 'off') return null;
+    if (!photosShown(mode)) return null;
     const deletion = photoDeletionInstant(photos);
     if (deletion && now.getTime() >= deletion.getTime()) return null;
     return competition;
@@ -193,12 +202,16 @@ export class PhotoPublicService {
     }
   }
 
-  /** Does the photo hold its reports already (ruling 449)? */
-  private async photoIsFull(photoId: string): Promise<boolean> {
+  /**
+   * Does the photo hold its reports already (ruling 449)? Counted without this phone, whose own
+   * row may change its comment (453) and is never a new one.
+   */
+  private async photoIsFull(photoId: string, deviceId: string): Promise<boolean> {
     const { count, error } = await this.supabase.service
       .from('event_photo_reports')
       .select('device_id', { count: 'exact', head: true })
-      .eq('photo_id', photoId);
+      .eq('photo_id', photoId)
+      .neq('device_id', deviceId);
     if (error) throw new Error(error.message);
     return (count ?? 0) >= PHOTO_REPORTS_PER_PHOTO;
   }

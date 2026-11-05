@@ -38,6 +38,14 @@ for (const [path, title] of INSIDE_AN_EVENT) {
   });
 }
 
+// The photos page opens only while the Event takes photos: `test-event` takes none.
+test('/e/photo-event/photos reads "Photos · Open de Lyon"', async ({ page }) => {
+  await stubPublicApi(page);
+  await page.goto(`${PUBLIC}/e/photo-event/photos`);
+
+  await expect(page).toHaveTitle('Photos · Open de Lyon');
+});
+
 test('a page of an Event with no words of its own reads the Event alone', async ({ page }) => {
   await stubPublicApi(page);
   // A TV screen: fullscreen on a wall, it gives no title. Not "Open de Lyon · MyClash".

@@ -447,7 +447,6 @@ export default function AdminPenaltyRulesetsPage() {
         cancelLabel={t('actions.cancel')}
         open={rejectShareTarget !== null}
         title={t('admin.rulesets.rejectAction')}
-        description={t('admin.rulesets.rejectReasonPrompt')}
         placeholder={t('admin.rulesets.rejectReasonPrompt')}
         confirmLabel={t('admin.rulesets.rejectAction')}
         danger

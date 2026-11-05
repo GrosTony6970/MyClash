@@ -310,6 +310,12 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
   public until the deletion date. Keep deletes the photo's reports, so a later report counts again
   (448). The page is a route `/e/<event>/photos` with a home card (446, slice 4b); the Reported
   tab is slice 4c.
+- **[rev 450-453, slice 4b]** The page reads the newest 30 every 30 s while visible and keeps what
+  Load more added; a picture whose link has expired shows "Image unavailable" until a reload
+  (450). The card stays after the deletion date; the page then says photos are deleted 30 days
+  after the Event (451). Report asks first, with an optional comment of 200 characters at most,
+  stored with the report (migration 0253) for the moderators (452); the phone's next comment
+  replaces it, an empty Report leaves it (453).
 
 ### Storage and deletion
 

@@ -8,8 +8,9 @@ export const SCHEDULE_READ_LIMIT_MS = 20_000;
 
 /**
  * Reads a schedule now, and again when the signal returns, when the visitor
- * comes back to the page, and once a minute while it is in view. Each answer
- * goes to `take`. Returns what ends it.
+ * comes back to the page, and every `everyMs` while it is in view (a minute by
+ * default; the photos page asks every 30 s). Each answer goes to `take`.
+ * Returns what ends it.
  *
  * The race, named: two reads out at once, the older answering last. There is
  * never a second read: a tick that finds one out does nothing, so an answer is
@@ -21,6 +22,7 @@ export const SCHEDULE_READ_LIMIT_MS = 20_000;
 export function watchSchedule<T>(
   readOnce: (signal: AbortSignal) => Promise<ScheduleRead<T>>,
   take: (answer: ScheduleAnswer<T>) => void,
+  everyMs: number = SCHEDULE_REREAD_MS,
 ): () => void {
   let gone = false;
   let out: AbortController | null = null;
@@ -44,7 +46,7 @@ export function watchSchedule<T>(
   };
 
   read();
-  const timer = setInterval(readIfInView, SCHEDULE_REREAD_MS);
+  const timer = setInterval(readIfInView, everyMs);
   window.addEventListener('online', read);
   document.addEventListener('visibilitychange', readIfInView);
   return () => {

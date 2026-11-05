@@ -11,28 +11,15 @@ import {
   readPhotoLinkToken,
   subscribeToHash,
 } from '@/lib/photos/photo-link-token';
-import type { PhotoTag } from '@/lib/photos/send-photo';
+import { tagOf } from '@/lib/photos/photo-tag';
+import { PHOTO_FIELD_CLS } from '../_components/photo-field';
+import { TagOptions, type PhotoTags } from '../_components/TagOptions';
 import { PhotoQueue } from './PhotoQueue';
 import { usePhotoQueue } from './use-photo-queue';
 
-export interface PhotoTags {
-  tournaments: Array<{ id: string; name: string }>;
-  workshops: Array<{ id: string; title: string }>;
-}
-
 type Queue = ReturnType<typeof usePhotoQueue>;
 
-const FIELD_CLS =
-  'mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent';
 const LABEL_CLS = 'block text-sm font-medium text-foreground';
-
-/** `t:<id>` or `w:<id>`, the picker's value, as the tag the API takes. */
-function tagOf(value: string): PhotoTag | null {
-  const id = value.slice(2);
-  if (value.startsWith('t:') && id) return { kind: 'tournament', id };
-  if (value.startsWith('w:') && id) return { kind: 'workshop', id };
-  return null;
-}
 
 /** Why nothing can be sent from here, and the way to the Event instead. */
 function ClosedPanel({ message, eventSlug }: { message: string; eventSlug: string }) {
@@ -68,29 +55,12 @@ function TagPicker(props: { tags: PhotoTags; value: string; onChange: (v: string
       <OptionalLabel htmlFor="photo-tag" label={t('publicApp.photoSend.tagLabel')} />
       <select
         id="photo-tag"
-        className={FIELD_CLS}
+        className={PHOTO_FIELD_CLS}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
       >
         <option value="">{t('publicApp.photoSend.tagNone')}</option>
-        {tournaments.length > 0 && (
-          <optgroup label={t('publicApp.photoSend.tournaments')}>
-            {tournaments.map(({ id, name }) => (
-              <option key={id} value={`t:${id}`}>
-                {name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {workshops.length > 0 && (
-          <optgroup label={t('publicApp.photoSend.workshops')}>
-            {workshops.map(({ id, title }) => (
-              <option key={id} value={`w:${id}`}>
-                {title}
-              </option>
-            ))}
-          </optgroup>
-        )}
+        <TagOptions tags={props.tags} />
       </select>
     </div>
   );
@@ -109,7 +79,7 @@ function TextField(props: {
       <input
         id={props.id}
         type="text"
-        className={FIELD_CLS}
+        className={PHOTO_FIELD_CLS}
         maxLength={props.max}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}

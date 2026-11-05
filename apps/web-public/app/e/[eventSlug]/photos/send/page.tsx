@@ -10,7 +10,7 @@ import { getServerApiUrl } from '@/lib/api-url';
 import { titled } from '@/lib/page-metadata';
 import { getServerT } from '@myclash/next-i18n/server';
 import { eventOrNotFound } from '../../_lib/event-or-not-found';
-import { fetchTournaments, fetchWorkshops } from '../../home/_lib/public-event-data';
+import { readPhotoTags } from '../_lib/photo-tags';
 import { PhotoSendForm } from './PhotoSendForm';
 
 interface Props {
@@ -28,10 +28,7 @@ export default async function PhotoSendPage({ params }: Props) {
   const t = await getServerT();
   const apiUrl = getServerApiUrl();
   const event = await eventOrNotFound(eventSlug);
-  const [tournaments, workshops] = await Promise.all([
-    fetchTournaments(event.id, apiUrl),
-    fetchWorkshops(eventSlug, apiUrl),
-  ]);
+  const tags = await readPhotoTags(event.id, eventSlug, apiUrl);
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6">
@@ -48,13 +45,7 @@ export default async function PhotoSendPage({ params }: Props) {
         eventId={event.id}
         eventSlug={eventSlug}
         photoMode={event.photoMode}
-        tags={{
-          tournaments: tournaments.map(({ id, name }) => ({ id, name })),
-          workshops: workshops.map(({ id, title: workshopTitle }) => ({
-            id,
-            title: workshopTitle,
-          })),
-        }}
+        tags={tags}
       />
     </main>
   );

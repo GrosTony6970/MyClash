@@ -8,7 +8,7 @@ import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { PhotoDeviceService, PHOTO_DEVICE_COOKIE } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
-import { publicPhotoQuerySchema } from './photo-public.dto';
+import { photoReportBodySchema, publicPhotoQuerySchema } from './photo-public.dto';
 import { photoQueueQuerySchema } from './photo-queue.dto';
 import { photoToken, photoTokenMatches } from './photo-token';
 import { PhotosController } from './photos.controller';
@@ -203,17 +203,36 @@ describe('the public photo routes', () => {
   it('a Report from a phone with no cookie gives it one, and counts under that id', async () => {
     const { ctl, publicPhotos } = controller();
     const r = reply();
-    await ctl.report(EVENT, PHOTO, req(), r as never);
+    await ctl.report(EVENT, PHOTO, { comment: 'this is me' }, req(), r as never);
 
     expect(r.setCookie).toHaveBeenCalledOnce();
     const [name, token] = r.setCookie.mock.calls[0]!;
     expect(name).toBe(PHOTO_DEVICE_COOKIE);
     const { deviceId } = devices.deviceOf(token);
-    expect(publicPhotos.report).toHaveBeenCalledWith(EVENT, PHOTO, deviceId, {
-      userId: ANONYMOUS_USER_ID,
-      staff: null,
-    });
+    expect(publicPhotos.report).toHaveBeenCalledWith(
+      EVENT,
+      PHOTO,
+      deviceId,
+      { userId: ANONYMOUS_USER_ID, staff: null },
+      'this is me',
+    );
   });
+
+  it.each([{}, { comment: null }, { comment: '' }])(
+    'a Report with %o carries no comment (ruling 452)',
+    async (body) => {
+      const { ctl, publicPhotos } = controller();
+      // The pipe trims before the handler sees it: '' stands for a comment of spaces.
+      await ctl.report(EVENT, PHOTO, body, req(), reply() as never);
+      expect(publicPhotos.report).toHaveBeenCalledWith(
+        EVENT,
+        PHOTO,
+        expect.any(String),
+        expect.anything(),
+        null,
+      );
+    },
+  );
 
   it('a Report from a known phone keeps its cookie and its id', async () => {
     const { ctl, publicPhotos } = controller();
@@ -222,12 +241,13 @@ describe('the public photo routes', () => {
     await ctl.report(
       EVENT,
       PHOTO,
+      {},
       req({ [PHOTO_DEVICE_COOKIE]: devices.sign(known).token }),
       r as never,
     );
 
     expect(r.setCookie).not.toHaveBeenCalled();
-    expect(publicPhotos.report).toHaveBeenCalledWith(EVENT, PHOTO, known, expect.anything());
+    expect(publicPhotos.report).toHaveBeenCalledWith(EVENT, PHOTO, known, expect.anything(), null);
   });
 
   it('a Report is public, and open on an archived Event (ruling 447)', () => {
@@ -254,6 +274,34 @@ describe('PublicPhotoQueryDto', () => {
     expect(parse({ tournamentId: T, workshopId: T }).success).toBe(false);
     expect(parse({ before: 'yesterday' }).success).toBe(false);
     expect(parse({ filter: 'all' }).success).toBe(false);
+  });
+});
+
+describe('PhotoReportBodyDto', () => {
+  const parse = (body: unknown) => photoReportBodySchema.safeParse(body);
+
+  it('takes a comment of 200 characters, trimmed, or none', () => {
+    expect(parse({ comment: `  ${'x'.repeat(200)}  ` })).toEqual({
+      success: true,
+      data: { comment: 'x'.repeat(200) },
+    });
+    expect(parse({}).success).toBe(true);
+    expect(parse({ comment: null }).success).toBe(true);
+  });
+
+  it('counts characters as a caption does: 200 emoji are taken, 201 are not', () => {
+    expect(parse({ comment: '🤺'.repeat(200) }).success).toBe(true);
+    expect(parse({ comment: '🤺'.repeat(201) }).success).toBe(false);
+  });
+
+  it('refuses a NUL, which Postgres would refuse with a 500', () => {
+    expect(parse({ comment: 'this is\u0000 me' }).success).toBe(false);
+  });
+
+  it('refuses 201 characters, an unknown key, and no body', () => {
+    expect(parse({ comment: 'x'.repeat(201) }).success).toBe(false);
+    expect(parse({ reason: 'spam' }).success).toBe(false);
+    expect(parse(undefined).success).toBe(false);
   });
 });
 

@@ -12271,6 +12271,9 @@ export interface components {
        */
       fighters: number;
     };
+    PhotoReportBodyDto: {
+      comment?: string | null;
+    };
   };
   responses: never;
   parameters: never;
@@ -26751,7 +26754,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PhotoReportBodyDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

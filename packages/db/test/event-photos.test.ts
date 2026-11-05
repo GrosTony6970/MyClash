@@ -116,6 +116,12 @@ describe('Event photo tombstones', () => {
     expect(sql).not.toMatch(/create policy[^;]*on (public\.)?event_photo_reports/);
   });
 
+  it('gives a report an optional comment of 1 to 200 characters, by a named check (ruling 452)', () => {
+    expect(sql).toContain(
+      'add column if not exists comment text null constraint event_photo_reports_comment_length check (comment is null or char_length(comment) between 1 and 200)',
+    );
+  });
+
   it('lists only the Events that still hold a photo, for the service role alone', () => {
     const fn = functionStatement(allSql(), 'event_photo_events');
     expect(fn).toContain('returns table (event_id uuid, end_date date, timezone text)');

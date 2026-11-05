@@ -20,6 +20,7 @@ import { TournamentCard } from './_components/TournamentCard';
 import { WorkshopCard } from './_components/WorkshopCard';
 import { LiveNowSection } from './_components/LiveNowSection';
 import { MyScheduleCard } from './_components/MyScheduleCard';
+import { PhotosCard } from './_components/PhotosCard';
 import { liveBlockPlace } from './_lib/live-block-place';
 import {
   fetchLiveState,
@@ -121,6 +122,8 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
       <MyScheduleCard eventSlug={eventSlug} tr={tr} />
 
       {livePlace === 'top' && liveNow}
+
+      <PhotosCard eventSlug={eventSlug} photoMode={event.photoMode} tr={tr} />
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>

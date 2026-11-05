@@ -359,7 +359,6 @@ export default function AdminRulesetsPage() {
         cancelLabel={t('actions.cancel')}
         open={rejectSubmissionTarget !== null}
         title={t('admin.rulesets.rejectAction')}
-        description={t('admin.rulesets.rejectReasonPrompt')}
         placeholder={t('admin.rulesets.rejectReasonPrompt')}
         confirmLabel={t('admin.rulesets.rejectAction')}
         danger

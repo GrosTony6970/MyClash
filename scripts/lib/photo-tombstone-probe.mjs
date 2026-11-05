@@ -85,7 +85,47 @@ export async function photoTombstoneCases({ tryAndRollBack, check }) {
   }
   await tournamentDeleteUntags({ tryAndRollBack, check });
   await secondReportAddsNothing({ tryAndRollBack, check });
+  await reportComments({ tryAndRollBack, check });
   await webRoleReadsNone({ tryAndRollBack, check });
+}
+
+async function commentOf(tx) {
+  return (await tx`SELECT comment FROM event_photo_reports WHERE device_id = ${REPORTER}`).map(
+    (row) => row.comment,
+  );
+}
+
+/**
+ * A report's comment (0253): a repeat with a comment replaces it and stays one row (ruling 453);
+ * 1 to 200 characters, an empty one refused (the API sends NULL for it).
+ */
+async function reportComments({ tryAndRollBack, check }) {
+  const { error, observed } = await tryAndRollBack(
+    (tx) => tx`
+      INSERT INTO event_photo_reports (photo_id, device_id, comment)
+      VALUES (${PHOTO}, ${REPORTER}, 'please, it is urgent')
+      ON CONFLICT (photo_id, device_id) DO UPDATE SET comment = EXCLUDED.comment`,
+    commentOf,
+  );
+  check(
+    "a second report's comment replaces the first, in one row",
+    error === null && JSON.stringify(observed) === '["please, it is urgent"]',
+    error?.message ?? JSON.stringify(observed),
+  );
+  for (const [what, comment, refused] of [
+    ['a comment of 201 characters is refused', 'x'.repeat(201), true],
+    ['an empty comment is refused', '', true],
+    ['a comment of 200 characters is taken', 'x'.repeat(200), false],
+  ]) {
+    const { error: written } = await tryAndRollBack(
+      (tx) => tx`UPDATE event_photo_reports SET comment = ${comment} WHERE device_id = ${REPORTER}`,
+    );
+    check(
+      what,
+      refused ? written?.code === '23514' : written === null,
+      written?.message ?? 'written',
+    );
+  }
 }
 
 /** The API's write: the same phone reporting the same photo again leaves one row (0252's key). */

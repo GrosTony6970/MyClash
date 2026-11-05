@@ -19,6 +19,14 @@ export function asPhotoMode(value: unknown): PhotoMode | null {
   return (PHOTO_MODES as readonly unknown[]).includes(value) ? (value as PhotoMode) : null;
 }
 
+/**
+ * Does the Event show its photos to the public: Live, or Approve first? Off and an unknown mode
+ * do not. The public list, the photos page and the home card read it here.
+ */
+export function photosShown(mode: PhotoMode | null): boolean {
+  return mode === 'live' || mode === 'approve';
+}
+
 /** One photo, as sent: the original is kept, never shrunk (design, "The uploader"). */
 export const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 /** Counted in characters (code points), as Postgres' `char_length` does. */
@@ -134,6 +142,13 @@ export const PHOTO_REPORTS_PER_HOUR = 30;
  * phone with no cookie is a new phone each time, so only this bounds the rows a script can add.
  */
 export const PHOTO_REPORTS_PER_PHOTO = 20;
+/** The longest comment a Report takes (ruling 452), as a caption. */
+export const PHOTO_REPORT_COMMENT_MAX = 200;
+
+/** The Report's body: why the phone reports the photo, optional (452). */
+export interface PhotoReportBody {
+  comment?: string | null;
+}
 
 /** The head of the organiser's Photos page. */
 export interface PhotoSummary {

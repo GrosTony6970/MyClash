@@ -6,7 +6,8 @@ import { ANONYMOUS, PHONE, publicPhotos } from './testing/public-doubles';
 
 /**
  * A phone's Report of a public photo (design, "The public"): one per phone and photo, at most 30
- * photos an hour, never of a photo the public cannot see. The photo stays visible.
+ * photos an hour, never of a photo the public cannot see. The photo stays visible. An optional
+ * comment goes with it (452); the phone's next comment replaces it (453).
  */
 
 const NOW = new Date('2026-11-07T15:02:00Z');
@@ -64,10 +65,10 @@ const refusal = (call: Promise<unknown>) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe('a Report', () => {
-  it('records one report per phone and photo, a repeat ignored by the key', async () => {
+  it('records one report per phone and photo with no comment, a repeat ignored by the key, so an earlier comment stays (453)', async () => {
     const { service, supabase } = opened();
 
-    expect(await service.report(EVENT, PHOTO, PHONE, ANONYMOUS)).toEqual({ reported: true });
+    expect(await service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)).toEqual({ reported: true });
 
     const [write] = writesTo(supabase, 'event_photo_reports');
     expect(write?.op).toBe('upsert');
@@ -79,9 +80,24 @@ describe('a Report', () => {
     ]);
   });
 
+  it('stores the comment, and a repeat with a comment replaces the old one (452, 453)', async () => {
+    const { service, supabase } = opened();
+
+    await service.report(EVENT, PHOTO, PHONE, ANONYMOUS, 'this is me');
+
+    // No `ignoreDuplicates`: on the key, the row's comment is replaced; `created_at` is not sent,
+    // so the phone's hour is unchanged.
+    expect(upsertCalls(supabase.from, 'event_photo_reports')).toEqual([
+      [
+        { photo_id: PHOTO, device_id: PHONE, comment: 'this is me' },
+        { onConflict: 'photo_id,device_id' },
+      ],
+    ]);
+  });
+
   it('asks for an approved photo of this Event', async () => {
     const { service, supabase } = opened();
-    await service.report(EVENT, PHOTO, PHONE, ANONYMOUS);
+    await service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null);
     const photoRead = supabase.from.mock.results.find(
       (_result, i) => supabase.from.mock.calls[i]?.[0] === 'event_photos',
     )?.value as { eq: { mock: { calls: unknown[][] } } };
@@ -95,12 +111,12 @@ describe('a Report', () => {
   it('lets a phone report 30 photos in an hour, and refuses the 31st before writing', async () => {
     // Another phone's 30 reports of the same hour do not count against this one.
     const under = opened({ reports: [...reportsOf(29), ...reportsOf(30, 1, OTHER_PHONE)] });
-    await expect(under.service.report(EVENT, PHOTO, PHONE, ANONYMOUS)).resolves.toEqual({
+    await expect(under.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)).resolves.toEqual({
       reported: true,
     });
 
     const at = opened({ reports: reportsOf(30) });
-    const answer = await refusal(at.service.report(EVENT, PHOTO, PHONE, ANONYMOUS));
+    const answer = await refusal(at.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null));
     expect(answer?.[0]).toBe(429);
     expect(answer?.[1]).toMatchObject({ code: 'photo_report_limit' });
     expect(writesTo(at.supabase, 'event_photo_reports')).toEqual([]);
@@ -109,7 +125,7 @@ describe('a Report', () => {
   it('counts only the last hour of the phone', async () => {
     // 30 reports, the newest 61 minutes back: none counts.
     const { service } = opened({ reports: reportsOf(30, 61) });
-    await expect(service.report(EVENT, PHOTO, PHONE, ANONYMOUS)).resolves.toEqual({
+    await expect(service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)).resolves.toEqual({
       reported: true,
     });
   });
@@ -120,12 +136,12 @@ describe('a Report', () => {
       { photo_id: PHOTO, device_id: PHONE, created_at: NOW.toISOString() },
     ];
     const { service } = opened({ reports });
-    expect((await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS)))?.[0]).toBe(429);
+    expect((await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)))?.[0]).toBe(429);
   });
 
   it('stores no more than 20 reports of one photo, and still answers "reported" (ruling 449)', async () => {
     const full = opened({ reports: reportsOfPhoto(20) });
-    await expect(full.service.report(EVENT, PHOTO, PHONE, ANONYMOUS)).resolves.toEqual({
+    await expect(full.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)).resolves.toEqual({
       reported: true,
     });
     expect(writesTo(full.supabase, 'event_photo_reports')).toEqual([]);
@@ -133,8 +149,19 @@ describe('a Report', () => {
     // 19 of its own, and 20 of another photo: this one still takes its 20th.
     const reports = [...reportsOfPhoto(19), ...reportsOfPhoto(20, OTHER_PHOTO)];
     const room = opened({ reports });
-    await room.service.report(EVENT, PHOTO, PHONE, ANONYMOUS);
+    await room.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null);
     expect(writesTo(room.supabase, 'event_photo_reports')).toHaveLength(1);
+  });
+
+  it('lets a phone among the 20 change its comment, and keeps a 21st phone out (453)', async () => {
+    const own = { photo_id: PHOTO, device_id: PHONE, created_at: '2026-11-06T15:02:00.000Z' };
+    const among = opened({ reports: [...reportsOfPhoto(19), own] });
+    await among.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, 'please, it is urgent');
+    expect(writesTo(among.supabase, 'event_photo_reports')).toHaveLength(1);
+
+    const outside = opened({ reports: reportsOfPhoto(20) });
+    await outside.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, 'me too');
+    expect(writesTo(outside.supabase, 'event_photo_reports')).toEqual([]);
   });
 
   it.each([
@@ -144,7 +171,7 @@ describe('a Report', () => {
     ['a photo under an unknown mode', { event: { photo_mode: 'sideways' } }],
   ])('answers 404 photo_not_found for %s, writing nothing', async (_what, options) => {
     const { service, supabase } = opened(options);
-    const answer = await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS));
+    const answer = await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null));
     expect(answer?.[0]).toBe(404);
     expect(answer?.[1]).toMatchObject({ code: 'photo_not_found' });
     expect(writesTo(supabase, 'event_photo_reports')).toEqual([]);
@@ -152,25 +179,33 @@ describe('a Report', () => {
 
   it('answers 404 photo_not_found from the deletion instant on', async () => {
     const before = opened({}, new Date(DELETION.getTime() - 1));
-    await expect(before.service.report(EVENT, PHOTO, PHONE, ANONYMOUS)).resolves.toBeTruthy();
+    await expect(before.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)).resolves.toBeTruthy();
 
     const at = opened({}, DELETION);
-    expect((await refusal(at.service.report(EVENT, PHOTO, PHONE, ANONYMOUS)))?.[0]).toBe(404);
+    expect((await refusal(at.service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null)))?.[0]).toBe(404);
   });
 
   it('answers 404 photo_not_found when the photo is deleted before the write lands', async () => {
     const { service } = opened({
       reportError: { code: '23503', message: 'insert violates foreign key constraint' },
     });
-    const answer = await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS));
+    const answer = await refusal(service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null));
     expect(answer?.[0]).toBe(404);
     expect(answer?.[1]).toMatchObject({ code: 'photo_not_found' });
   });
 
   it('answers an unknown Event and a hidden one with the same 404', async () => {
-    const a = await refusal(opened({ event: null }).service.report(EVENT, PHOTO, PHONE, ANONYMOUS));
+    const a = await refusal(
+      opened({ event: null }).service.report(EVENT, PHOTO, PHONE, ANONYMOUS, null),
+    );
     const b = await refusal(
-      opened({ event: { event_kind: 'test' } }).service.report(EVENT, PHOTO, PHONE, ANONYMOUS),
+      opened({ event: { event_kind: 'test' } }).service.report(
+        EVENT,
+        PHOTO,
+        PHONE,
+        ANONYMOUS,
+        null,
+      ),
     );
     expect(a?.[0]).toBe(404);
     expect(a).toEqual(b);

@@ -128,14 +128,12 @@ export function PromptDialog({
         {description ? <p className={DIALOG_DESCRIPTION}>{description}</p> : null}
         <div className="mt-4">
           {multiline ? (
-            <textarea
-              autoFocus
+            <PromptTextarea
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={setValue}
               placeholder={placeholder}
-              aria-label={fieldLabel}
-              rows={3}
-              className={DIALOG_FIELD}
+              fieldLabel={fieldLabel}
+              reason={reason}
             />
           ) : (
             <PromptInput
@@ -220,6 +218,49 @@ function PromptInput({
           <RevealButton shown={shown} onToggle={() => setShown((now) => !now)} words={revealable} />
         )}
       </div>
+      {reason !== null && (
+        <p id={`${fieldId}-reason`} className="mt-1 text-sm text-danger">
+          {reason}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * The several-line field, drawn as the one-line field is: its visible name above it, the reason it
+ * cannot be confirmed under it. It used to be named for a screen reader only, and a `validate`
+ * on it only closed Confirm, telling nobody why.
+ */
+function PromptTextarea({
+  value,
+  onChange,
+  placeholder,
+  fieldLabel,
+  reason,
+}: Pick<PromptInputProps, 'value' | 'onChange' | 'placeholder' | 'fieldLabel' | 'reason'>) {
+  const fieldId = useId();
+  return (
+    <>
+      {fieldLabel && (
+        <label
+          htmlFor={fieldId}
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
+          {fieldLabel}
+        </label>
+      )}
+      <textarea
+        id={fieldId}
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-invalid={reason !== null}
+        aria-describedby={reason !== null ? `${fieldId}-reason` : undefined}
+        rows={3}
+        className={DIALOG_FIELD}
+      />
       {reason !== null && (
         <p id={`${fieldId}-reason`} className="mt-1 text-sm text-danger">
           {reason}

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -36,7 +37,7 @@ import { PHOTO_DEVICE_COOKIE, PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
 import type { PhotoEventRow } from './photo-organiser';
-import { PublicPhotoQueryDto } from './photo-public.dto';
+import { PhotoReportBodyDto, PublicPhotoQueryDto } from './photo-public.dto';
 import { PhotoPublicService } from './photo-public.service';
 import { PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
@@ -123,11 +124,14 @@ export class PhotosController {
   async report(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Body() body: PhotoReportBodyDto,
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ reported: true }> {
     const deviceId = this.deviceFor(req, reply);
-    return this.publicPhotos.report(eventId, photoId, deviceId, publicReader(req));
+    // The pipe trimmed it: a comment of spaces is none (ruling 452).
+    const comment = body.comment || null;
+    return this.publicPhotos.report(eventId, photoId, deviceId, publicReader(req), comment);
   }
 
   @Get('events/:eventId/photos/link')

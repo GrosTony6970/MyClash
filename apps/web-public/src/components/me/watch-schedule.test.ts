@@ -41,11 +41,11 @@ function server() {
   return { asked, readOnce };
 }
 
-function watching(visibility?: 'visible' | 'hidden') {
+function watching(visibility?: 'visible' | 'hidden', everyMs?: number) {
   const page = browser(visibility);
   const api = server();
   const taken: ScheduleAnswer<Paul>[] = [];
-  const end = watchSchedule<Paul>(api.readOnce, (answer) => taken.push(answer));
+  const end = watchSchedule<Paul>(api.readOnce, (answer) => taken.push(answer), everyMs);
   return { page, asked: api.asked, taken, end };
 }
 
@@ -92,6 +92,23 @@ describe('when a schedule page reads', () => {
     expect(asked).toHaveLength(1);
 
     page.comesBack();
+    expect(asked).toHaveLength(2);
+  });
+
+  it('as often as it is told: every 30 s for the photos page, not behind a hidden page', async () => {
+    const { asked, page } = watching('visible', 30_000);
+    asked[0].answer(PAUL);
+    await settle();
+
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(asked).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(asked).toHaveLength(2);
+    asked[1].answer(PAUL);
+    await settle();
+
+    page.isHidden();
+    await vi.advanceTimersByTimeAsync(30_000 * 3);
     expect(asked).toHaveLength(2);
   });
 
