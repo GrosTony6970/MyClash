@@ -91,6 +91,7 @@ const STAFF_ROLE: Record<StaffRole, string> = {
   scoring: 'common.status.staffRole.scoring',
   checkin: 'common.status.staffRole.checkin',
   gear: 'common.status.staffRole.gear',
+  photos: 'common.status.staffRole.photos',
 };
 
 // The words a screen showed raw before X1 (operator ruling 2026-10-15), each over its own

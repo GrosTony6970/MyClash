@@ -137,6 +137,7 @@ export const common = {
       scoring: 'Scoring',
       checkin: 'Accueil',
       gear: 'Contrôle du matériel',
+      photos: 'Photos',
     },
     swissRound: {
       pending: 'Pas commencée',

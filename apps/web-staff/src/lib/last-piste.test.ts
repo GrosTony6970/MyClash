@@ -263,7 +263,7 @@ describe('the screens of the pad', () => {
 
   it('the app, the PIN sign-in and the sign-in by link all land as an arrival', () => {
     expect(read('app', 'page.tsx')).toContain(
-      "router.replace(decision.kind === 'allow' ? PISTES_ON_ARRIVAL : '/login');",
+      "router.replace(decision.kind === 'allow' ? arrivalPathForRole(job) : '/login');",
     );
     expect(read('app', 'login', 'useStaffPinLogin.ts')).toContain(
       'window.location.href = arrivalPathForRole(me?.account?.role);',

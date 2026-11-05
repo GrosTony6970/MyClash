@@ -23,8 +23,8 @@ interface Props {
  * and that tab's accounts.
  *
  * Owns the tab state rather than taking it as a prop, because nothing above it
- * needs to know: the event-level header and sign-in links are identical for all
- * three roles. That keeps the page a straight composition of two independent
+ * needs to know: the event-level header and sign-in links are identical for
+ * every role. That keeps the page a straight composition of two independent
  * sections.
  */
 export function StaffRoleSection({ staff, staffUrl, publicAppUrl, eventSlug }: Props) {

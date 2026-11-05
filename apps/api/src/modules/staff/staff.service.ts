@@ -200,6 +200,18 @@ export interface StaffPickerEvent {
  */
 const STAFF_PICKER_LIMIT = 50;
 
+/** The six picker fields, built by hand: never a spread of the row. */
+function pickerEventOf(row: Record<string, unknown>): StaffPickerEvent {
+  return {
+    id: row['id'] as string,
+    slug: row['slug'] as string,
+    name: row['name'] as string,
+    startDate: (row['start_date'] as string | null) ?? null,
+    status: row['status'] as string,
+    kind: row['event_kind'] as string,
+  };
+}
+
 /** A prev/next match summary for the scoring pad's header tiles. */
 export interface NeighborTile {
   id: string;
@@ -483,7 +495,6 @@ export class StaffService {
     const event = dto.eventId
       ? await this.getEventById(dto.eventId)
       : await this.findEventBySlug(dto.eventSlugOrCode);
-    this.assertEventScorable(event);
 
     const { data: account, error } = await this.supabase.service
       .from('event_staff_accounts')
@@ -495,6 +506,12 @@ export class StaffService {
       .eq('username', normalizeStaffUsername(dto.username))
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
+    // Before the name, the "disabled" state and the PIN, as it always was: only the job is read
+    // first, because a `photos` login outlives the Event's completion (ruling 437).
+    this.assertEventOpenFor(
+      event,
+      account ? parseStaffRole((account as StaffAccountRow).role) : null,
+    );
     if (!account) throw new UnauthorizedException('Invalid staff credentials');
 
     const staff = account as StaffAccountRow;
@@ -522,7 +539,7 @@ export class StaffService {
    *
    * The desk and the gear table live in their own modules but must resolve a
    * staff session exactly as the scoring routes do: same cookie, same JWT
-   * verification, same disabled-account and event-scorable checks, and the same
+   * verification, same disabled-account and Event-over checks, and the same
    * per-request read of `role` from the row. Exporting this rather than letting
    * each module re-derive it keeps one owner of what an mc_staff session means.
    *
@@ -555,31 +572,39 @@ export class StaffService {
    *      stays invisible. The inner embed is a lateral join returning a nested
    *      array, NOT a row-multiplying join, so an event with six staff accounts
    *      is still one row (same shape as the weapon filter in listEvents).
-   *   2. Status limited to the three an mc_staff session can exist for.
-   *      `assertEventScorable` refuses completed and archived, so listing them
+   *   2. Status limited to those an mc_staff session can exist for
+   *      (`assertEventOpenFor`): draft, published and running for every job;
+   *      completed only where an active `photos` login exists (ruling 440),
+   *      listed after the open ones, the newest first. Archived never: it
    *      would offer a door that cannot open.
    *
    * The embedded accounts are dropped in the mapping below. Nothing about a
    * staff account — not its count, not its usernames — reaches the response.
    */
   async listPickerEvents(): Promise<StaffPickerEvent[]> {
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .select('id,slug,name,start_date,status,event_kind,event_staff_accounts!inner(id)')
-      .eq('event_staff_accounts.status', 'active')
-      .in('status', ['draft', 'published', 'running'])
-      .order('start_date', { ascending: true, nullsFirst: false })
-      .limit(STAFF_PICKER_LIMIT);
-    if (error) throw new BadRequestException(error.message);
+    const [open, ended] = await Promise.all([
+      this.supabase.service
+        .from('events')
+        .select('id,slug,name,start_date,status,event_kind,event_staff_accounts!inner(id)')
+        .eq('event_staff_accounts.status', 'active')
+        .in('status', ['draft', 'published', 'running'])
+        .order('start_date', { ascending: true, nullsFirst: false })
+        .limit(STAFF_PICKER_LIMIT),
+      this.supabase.service
+        .from('events')
+        .select('id,slug,name,start_date,status,event_kind,event_staff_accounts!inner(id)')
+        .eq('event_staff_accounts.status', 'active')
+        .eq('event_staff_accounts.role', 'photos')
+        .eq('status', 'completed')
+        .order('start_date', { ascending: false, nullsFirst: false })
+        .limit(STAFF_PICKER_LIMIT),
+    ]);
+    if (open.error) throw new BadRequestException(open.error.message);
+    if (ended.error) throw new BadRequestException(ended.error.message);
 
-    return ((data ?? []) as unknown as Array<Record<string, unknown>>).map((row) => ({
-      id: row['id'] as string,
-      slug: row['slug'] as string,
-      name: row['name'] as string,
-      startDate: (row['start_date'] as string | null) ?? null,
-      status: row['status'] as string,
-      kind: row['event_kind'] as string,
-    }));
+    return [...(open.data ?? []), ...(ended.data ?? [])]
+      .slice(0, STAFF_PICKER_LIMIT)
+      .map((row) => pickerEventOf(row as unknown as Record<string, unknown>));
   }
 
   async listAssignedLices(req: FastifyRequest) {
@@ -1168,8 +1193,8 @@ export class StaffService {
    * the token has none, so the landing route after sign-in and every
    * role-specific nav item read it from here.
    *
-   * `lices` stays on the payload for all three roles and is simply empty for a
-   * desk or gear account, which never has an assignment.
+   * `lices` stays on the payload for every role and is simply empty for a
+   * desk, gear or photos account, which never has an assignment.
    *
    * The embedded event carries `logo_url` and `kind` because every staff screen
    * banners the event it is signed into — a volunteer handed a borrowed tablet
@@ -1562,7 +1587,10 @@ export class StaffService {
       throw staffRoleNotAllowed();
     }
     if (whenOver === 'refuse') {
-      this.assertEventScorable(await this.getEventById(account.event_id));
+      this.assertEventOpenFor(
+        await this.getEventById(account.event_id),
+        parseStaffRole(account.role),
+      );
     }
     return account;
   }
@@ -1621,10 +1649,14 @@ export class StaffService {
     return data as EventRow;
   }
 
-  private assertEventScorable(event: EventRow) {
-    if (event.status === 'completed' || event.status === 'archived') {
-      throw eventNotOpenForStaff();
-    }
+  /**
+   * Whether a staff login may still act on this Event. Archived: no job. Completed: only the
+   * `photos` job, because phones send photos until the end of the day after the last day and
+   * someone approves them (ruling 437). A null job (no such account) is refused like every job but `photos`.
+   */
+  private assertEventOpenFor(event: EventRow, job: StaffRole | null) {
+    if (event.status === 'archived') throw eventNotOpenForStaff();
+    if (event.status === 'completed' && job !== 'photos') throw eventNotOpenForStaff();
   }
 
   /** Until the Event closes, 06:00 after its last day on its own clock (rulings 154, 155). */

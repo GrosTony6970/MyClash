@@ -47,7 +47,7 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   registration: ['registered', 'checked_in', 'withdrawn', 'disqualified', 'waitlist'],
   claim: ['unclaimed', 'guest_active', 'claimed'],
   orgRole: ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead', 'read_only'],
-  staffRole: ['scoring', 'checkin', 'gear'],
+  staffRole: ['scoring', 'checkin', 'gear', 'photos'],
   swissRound: ['pending', 'running', 'completed'],
   poolState: ['in_progress', 'completed'],
   aiDraft: ['draft', 'ready', 'failed', 'applied', 'rejected'],

@@ -7,6 +7,10 @@
  *   checkin   The check-in desk. Marks fighters as arrived. No piste.
  *   gear      The gear-check table. Records a per-weapon equipment pass.
  *             No piste.
+ *   photos    The Event's photo queue: approves and deletes what spectators
+ *             send. No piste. The one job that keeps working once the Event
+ *             is completed, until it is archived (ruling 437): phones send
+ *             until the end of the day after the last day.
  *
  * ## Why this is not in the token
  *
@@ -39,7 +43,7 @@
  * Ordered as the admin tabs read, left to right. `scoring` is first because it
  * is the default and by far the largest population at any event.
  */
-export const STAFF_ROLES = ['scoring', 'checkin', 'gear'] as const;
+export const STAFF_ROLES = ['scoring', 'checkin', 'gear', 'photos'] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
 

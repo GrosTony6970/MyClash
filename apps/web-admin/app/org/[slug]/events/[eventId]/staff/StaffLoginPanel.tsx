@@ -11,7 +11,7 @@ interface Props {
 }
 
 /**
- * The two event-level URLs, shared by all three roles.
+ * The two event-level URLs, shared by every role.
  *
  * The staff app is ONE door: the same sign-in link serves a piste scorer, a
  * check-in volunteer and a gear checker, and the role on their account decides

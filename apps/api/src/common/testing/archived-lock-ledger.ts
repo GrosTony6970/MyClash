@@ -218,14 +218,16 @@ export const PLACED_BY_BODY: readonly string[] = [
 export const LOCKED_ELSEWHERE: Readonly<Record<string, readonly string[]>> = {
   'A Tournament restored into an existing Event: the restore refuses an archived one (ArchiveService.restoreTournamentCopy): archive.service.test.ts.':
     ['POST archive/restore'],
-  'A staff session is refused once its Event is completed or archived (StaffService.requireStaffFromRequest and login): staff.service.event-over.test.ts.':
+  'A staff session is refused once its Event is archived, and once it is completed except for the photos job (ruling 437) (StaffService.requireStaffFromRequest and login): staff.service.event-over.test.ts.':
     [
+      'DELETE staff/photos/:photoId',
       'POST staff-auth/login',
       'POST staff/checkin/:personId/arrive',
       'POST staff/checkin/:personId/undo',
       'POST staff/checkin/scan',
       'POST staff/gear/:personId/:weaponId',
       'POST staff/heartbeat',
+      'POST staff/photos/:photoId/approve',
     ],
 };
 

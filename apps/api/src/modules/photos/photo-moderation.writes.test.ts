@@ -28,9 +28,9 @@ describe('the organiser gate', () => {
   it.each(['approve', 'remove'] as const)(
     '%s refuses a non-admin and writes nothing',
     async (call) => {
-      const { service, supabase, queue } = moderation({ allowed: false, photos: [mine] });
+      const { organiser, supabase, queue } = moderation({ allowed: false, photos: [mine] });
 
-      await expect(service[call](EVENT, MINE, USER)).rejects.toThrow('Not an admin of this club');
+      await expect(organiser[call](EVENT, MINE, USER)).rejects.toThrow('Not an admin of this club');
 
       expect(writesTo(supabase, 'event_photos')).toEqual([]);
       expect(queue.add).not.toHaveBeenCalled();
@@ -40,9 +40,9 @@ describe('the organiser gate', () => {
 
 describe('approve', () => {
   it('approves the photo of this Event', async () => {
-    const { service, supabase } = moderation({ photos: [mine, theirs] });
+    const { organiser, supabase } = moderation({ photos: [mine, theirs] });
 
-    await expect(service.approve(EVENT, MINE, USER)).resolves.toEqual({
+    await expect(organiser.approve(EVENT, MINE, USER)).resolves.toEqual({
       id: MINE,
       status: 'approved',
     });
@@ -54,16 +54,16 @@ describe('approve', () => {
   });
 
   it("answers photo_not_found for another Event's photo", async () => {
-    const { service } = moderation({ photos: [mine, theirs] });
-    await notFound(service.approve(EVENT, THEIRS, USER));
+    const { organiser } = moderation({ photos: [mine, theirs] });
+    await notFound(organiser.approve(EVENT, THEIRS, USER));
   });
 });
 
 describe('remove', () => {
   it('deletes the photo of this Event and asks for a drain now', async () => {
-    const { service, supabase, queue } = moderation({ photos: [mine, theirs] });
+    const { organiser, supabase, queue } = moderation({ photos: [mine, theirs] });
 
-    await service.remove(EVENT, MINE, USER);
+    await organiser.remove(EVENT, MINE, USER);
 
     const [write] = writesTo(supabase, 'event_photos');
     expect(write?.op).toBe('delete');
@@ -78,11 +78,11 @@ describe('remove', () => {
   });
 
   it("answers photo_not_found for another Event's photo, or one already gone, and queues nothing", async () => {
-    const { service, queue } = moderation({ photos: [mine, theirs] });
-    await notFound(service.remove(EVENT, THEIRS, USER));
+    const { organiser, queue } = moderation({ photos: [mine, theirs] });
+    await notFound(organiser.remove(EVENT, THEIRS, USER));
 
     const gone = moderation({ photos: [] });
-    await notFound(gone.service.remove(EVENT, MINE, USER));
+    await notFound(gone.organiser.remove(EVENT, MINE, USER));
 
     expect(queue.add).not.toHaveBeenCalled();
     expect(gone.queue.add).not.toHaveBeenCalled();
@@ -90,14 +90,14 @@ describe('remove', () => {
 
   it('still deletes when the drain cannot be queued, and says so in the log', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const { service, supabase } = moderation({
+    const { organiser, supabase } = moderation({
       photos: [mine],
       add: async () => {
         throw new Error('Redis is down');
       },
     });
 
-    await expect(service.remove(EVENT, MINE, USER)).resolves.toBeUndefined();
+    await expect(organiser.remove(EVENT, MINE, USER)).resolves.toBeUndefined();
     await vi.waitFor(() =>
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('Redis is down')),
     );
@@ -105,7 +105,7 @@ describe('remove', () => {
   });
 
   it('does not wait for a queue that never answers', async () => {
-    const { service } = moderation({ photos: [mine], add: () => new Promise(() => undefined) });
-    await expect(service.remove(EVENT, MINE, USER)).resolves.toBeUndefined();
+    const { organiser } = moderation({ photos: [mine], add: () => new Promise(() => undefined) });
+    await expect(organiser.remove(EVENT, MINE, USER)).resolves.toBeUndefined();
   });
 });

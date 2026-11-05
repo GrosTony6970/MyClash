@@ -20,6 +20,7 @@ function controller() {
   const upload = { upload: vi.fn(async () => ({ id: 'p1', status: 'approved' as const })) };
   const links = { read: vi.fn(), rotate: vi.fn() };
   const moderation = {
+    eventForOrganiser: vi.fn(async (eventId: string) => ({ id: eventId, gate: 'organiser' })),
     summary: vi.fn(async () => ({})),
     list: vi.fn(async () => ({ photos: [], next: null })),
     approve: vi.fn(async () => ({ id: PHOTO, status: 'approved' })),
@@ -121,17 +122,22 @@ describe('PhotoLinkService', () => {
 describe('the moderation routes', () => {
   const signedIn = () => req({ 'sb-access-token': 'session' });
 
-  it('pass the signed-in organiser to the service', async () => {
+  it('pass the Event of the organiser gate to each call', async () => {
     const { ctl, moderation } = controller();
     await ctl.summary(EVENT, signedIn());
     await ctl.queue(EVENT, { filter: 'all', before: undefined }, signedIn());
     await ctl.approve(EVENT, PHOTO, signedIn());
     await ctl.remove(EVENT, PHOTO, signedIn());
 
-    expect(moderation.summary).toHaveBeenCalledWith(EVENT, 'user-7');
-    expect(moderation.list).toHaveBeenCalledWith(EVENT, 'user-7', 'all', undefined);
-    expect(moderation.approve).toHaveBeenCalledWith(EVENT, PHOTO, 'user-7');
-    expect(moderation.remove).toHaveBeenCalledWith(EVENT, PHOTO, 'user-7');
+    expect(moderation.eventForOrganiser).toHaveBeenCalledTimes(4);
+    for (const call of moderation.eventForOrganiser.mock.calls) {
+      expect(call).toEqual([EVENT, 'user-7']);
+    }
+    const gated = { id: EVENT, gate: 'organiser' };
+    expect(moderation.summary).toHaveBeenCalledWith(gated);
+    expect(moderation.list).toHaveBeenCalledWith(gated, 'all', undefined);
+    expect(moderation.approve).toHaveBeenCalledWith(gated, PHOTO);
+    expect(moderation.remove).toHaveBeenCalledWith(gated, PHOTO);
   });
 
   it('refuse a caller with no session before asking the service', async () => {

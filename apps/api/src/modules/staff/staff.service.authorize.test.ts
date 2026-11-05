@@ -54,7 +54,7 @@ const OTHER_MATCH = 'match-2';
 const OTHER_LICE = 'lice-2';
 const OTHER_ACCOUNT = 'staff-2';
 
-/** `running` so `assertEventScorable` passes on the staff branch. */
+/** `running` so `assertEventOpenFor` passes on the staff branch. */
 const EVENT_ROW = {
   id: EVENT,
   organization_id: ORG,
@@ -67,7 +67,7 @@ const EVENT_ROW = {
 
 /**
  * Last year's event, and COMPLETED — so a staff session that reads the wrong
- * event row is refused by `assertEventScorable` rather than quietly scoring
+ * event row is refused by `assertEventOpenFor` rather than quietly scoring
  * against it.
  */
 const OTHER_EVENT_ROW = {

@@ -183,6 +183,7 @@ export const common = {
       scoring: 'Scoring',
       checkin: 'Check-in',
       gear: 'Gear check',
+      photos: 'Photos',
     },
     swissRound: {
       pending: 'Not started',

@@ -6,13 +6,16 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, fetchMe } from '@myclash/api-client';
 import { getApiUrl } from '../src/lib/api-url';
-import { PISTES_ON_ARRIVAL, pisteWithNoNetwork, rememberedPiste } from '../src/lib/last-piste';
+import { arrivalPathForRole } from '../src/lib/landing';
+import { pisteWithNoNetwork, rememberedPiste } from '../src/lib/last-piste';
 import { answeredFault, neverLanded, resolveStaffSession } from '../src/lib/staff-session-decision';
 
 /**
  * Root page - checks auth and redirects:
- * - a staff PIN session, or a claimed account -> /lices, as an arrival: the
- *   piste list opens the last piste at once (`last-piste.ts`)
+ * - a staff PIN session -> its job's screen (`arrivalPathForRole`): a scoring
+ *   one to /lices as an arrival, where the piste list opens the last piste at
+ *   once (`last-piste.ts`); a desk, gear or photos one to its own screen
+ * - a claimed account (no job) -> /lices, as an arrival
  * - no network, with the service worker or without it -> the piste the tablet
  *   last had, from its own copy (`pisteWithNoNetwork`): neither session can be
  *   verified, and sign-in cannot work either
@@ -38,10 +41,7 @@ export default function RootPage() {
 
   useEffect(() => {
     void (async () => {
-      const staff = await apiRequest(apiUrl, '/api/v1/staff-auth/me');
-      // Only asked when there is no PIN session — the common pad case answers
-      // on the first call.
-      const account = staff.ok ? null : await fetchMe(apiUrl);
+      const { staff, account } = await readSessions(apiUrl);
       const decision = resolveStaffSession(
         staff.ok,
         account?.ok ? account.data : null,
@@ -57,7 +57,9 @@ export default function RootPage() {
         router.replace(pisteWithNoNetwork(rememberedPiste()));
         return;
       }
-      router.replace(decision.kind === 'allow' ? PISTES_ON_ARRIVAL : '/login');
+      // A PIN session lands on its job's screen, as the PIN sign-in does; an account has no job.
+      const job = staff.ok ? staff.data.account?.role : undefined;
+      router.replace(decision.kind === 'allow' ? arrivalPathForRole(job) : '/login');
     })();
   }, [apiUrl, router]);
 
@@ -78,6 +80,14 @@ export default function RootPage() {
       </div>
     </main>
   );
+}
+
+/** Both sessions: the PIN one first, with its job (`account.role`), and `/me` only without it. */
+async function readSessions(apiUrl: string) {
+  const staff = await apiRequest<{ account?: { role?: unknown } }>(apiUrl, '/api/v1/staff-auth/me');
+  // Only asked when there is no PIN session — the common pad case answers on the first call.
+  const account = staff.ok ? null : await fetchMe(apiUrl);
+  return { staff, account };
 }
 
 /** `/me` answered a fault: the page could not check, and says so with the one way on. */

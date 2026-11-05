@@ -103,9 +103,10 @@ describe('StaffService.listPickerEvents', () => {
   });
 
   it('offers only statuses a staff session can actually be created for', async () => {
-    // `assertEventScorable` refuses completed and archived, so listing one
-    // would offer a door that cannot open — the volunteer taps it, types their
-    // PIN, and gets a 403 with no explanation of which part was wrong.
+    // `assertEventOpenFor` refuses archived, and completed for every job but
+    // `photos`, so listing one would offer a door that cannot open — the
+    // volunteer taps it, types their PIN, and gets a 403 with no explanation of
+    // which part was wrong.
     const { service } = serviceFor([
       eventRow({ id: 'e-running', status: 'running' }),
       eventRow({ id: 'e-done', status: 'completed' }),
@@ -115,6 +116,39 @@ describe('StaffService.listPickerEvents', () => {
     const rows = await service.listPickerEvents();
 
     expect(rows.map((r) => r.id)).toEqual(['e-running']);
+  });
+
+  // Ruling 440: on the Monday after, a `photos` volunteer must find the
+  // completed Event to sign in (ruling 437). The double reads a dotted filter
+  // off a flat row key, so one row models one account; real PostgREST applies
+  // both embedded filters to the same embedded row.
+  it('lists a completed Event with an active photos login, after the open ones', async () => {
+    const photos = { 'event_staff_accounts.role': 'photos' };
+    const { service, from } = serviceFor([
+      eventRow({ id: 'e-old', status: 'completed', start_date: '2026-05-01', ...photos }),
+      eventRow({ id: 'e-new', status: 'completed', start_date: '2026-10-01', ...photos }),
+      eventRow({ id: 'e-running', status: 'running' }),
+      eventRow({
+        id: 'e-photos-off',
+        status: 'completed',
+        ...photos,
+        'event_staff_accounts.status': 'disabled',
+      }),
+      eventRow({
+        id: 'e-scoring-only',
+        status: 'completed',
+        'event_staff_accounts.role': 'scoring',
+      }),
+      eventRow({ id: 'e-archived', status: 'archived', ...photos }),
+    ]);
+
+    const rows = await service.listPickerEvents();
+
+    // The newest ended Event first: one with no Tournament is never archived.
+    expect(rows.map((r) => r.id)).toEqual(['e-running', 'e-new', 'e-old']);
+    const selects = selectsFor(from, 'events');
+    expect(selects).toHaveLength(2);
+    for (const select of selects) expect(select).toContain('event_staff_accounts!inner');
   });
 
   it('keeps test, club and draft events reachable', async () => {

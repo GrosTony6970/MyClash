@@ -27,7 +27,7 @@ export interface EventInfo {
  * Unlike the platform accounts console — whose tabs are predicates, so one
  * account can appear under two of them — `event_staff_accounts.role` is a
  * single NOT NULL column, so every account lands under exactly one tab and the
- * three counts sum to the total. That is why the create form can set the role
+ * per-role counts sum to the total. That is why the create form can set the role
  * implicitly from the active tab: there is no case where the answer is
  * ambiguous.
  */
@@ -50,16 +50,19 @@ export const STAFF_TAB_HINT_KEYS: Record<StaffRole, string> = {
   scoring: 'organizer.staff.tabHint.scoring',
   checkin: 'organizer.staff.tabHint.checkin',
   gear: 'organizer.staff.tabHint.gear',
+  photos: 'organizer.staff.tabHint.photos',
 };
 
 export const STAFF_TAB_EMPTY_KEYS: Record<StaffRole, string> = {
   scoring: 'organizer.staff.emptyScoring',
   checkin: 'organizer.staff.emptyCheckin',
   gear: 'organizer.staff.emptyGear',
+  photos: 'organizer.staff.emptyPhotos',
 };
 
 export const STAFF_TAB_CREATE_KEYS: Record<StaffRole, string> = {
   scoring: 'organizer.staff.createScoring',
   checkin: 'organizer.staff.createCheckin',
   gear: 'organizer.staff.createGear',
+  photos: 'organizer.staff.createPhotos',
 };

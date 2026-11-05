@@ -4,8 +4,8 @@ import { STAFF_PIN_MAX_LENGTH, STAFF_PIN_MIN_LENGTH, STAFF_ROLES } from '@myclas
 
 /**
  * Which job the account does. Mirrors the `event_staff_accounts_role_allowed`
- * CHECK from 0173 — the DTO and the table hold the same rule, so a caller that
- * bypasses this schema still cannot store a fourth value.
+ * CHECK (0173, widened by 0251) — the DTO and the table hold the same rule, so
+ * a caller that bypasses this schema still cannot store another value.
  */
 const staffRoleSchema = z.enum(STAFF_ROLES);
 

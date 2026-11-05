@@ -9849,6 +9849,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/photos/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The login's Event: its waiting count and clock (photos staff) */
+    get: operations['PhotosStaffController_summary'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/photos': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One page of the photo moderation queue, newest first (photos staff) */
+    get: operations['PhotosStaffController_queue'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/photos/{photoId}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve a photo: the public sees it (photos staff) */
+    post: operations['PhotosStaffController_approve'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/photos/{photoId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a photo and its images (photos staff) */
+    delete: operations['PhotosStaffController_remove'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10902,7 +10970,7 @@ export interface components {
       username: string;
       pin: string;
       /** @enum {string} */
-      role?: 'scoring' | 'checkin' | 'gear';
+      role?: 'scoring' | 'checkin' | 'gear' | 'photos';
     };
     UpdateStaffAccountDto: {
       displayName?: string;
@@ -10910,7 +10978,7 @@ export interface components {
       /** @enum {string} */
       status?: 'active' | 'disabled';
       /** @enum {string} */
-      role?: 'scoring' | 'checkin' | 'gear';
+      role?: 'scoring' | 'checkin' | 'gear' | 'photos';
     };
     ResetStaffPinDto: {
       pin: string;
@@ -26665,6 +26733,81 @@ export interface operations {
       header?: never;
       path: {
         eventId: string;
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosStaffController_summary: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosStaffController_queue: {
+    parameters: {
+      query?: {
+        filter?: 'waiting' | 'all';
+        before?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosStaffController_approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosStaffController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
         photoId: string;
       };
       cookie?: never;

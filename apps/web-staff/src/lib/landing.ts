@@ -4,9 +4,10 @@ import { PISTES_ON_ARRIVAL } from './last-piste';
 /**
  * Where a staff account lands after signing in.
  *
- * One door, three destinations — the role picks which. A check-in volunteer
- * dropped on the piste list would see an empty screen (they have no Lice
- * assignment and never will) and no way to guess where their actual job lives.
+ * One door, one destination per job. A check-in volunteer dropped on the piste
+ * list would see an empty screen (they have no Lice assignment and never will)
+ * and no way to guess where their actual job lives. The switch has no
+ * `default`: a new job fails to compile here instead of landing on the pistes.
  *
  * The role comes from the login response's `account.role`, NOT from the
  * mc_staff token, which carries none. See `staff-role.ts` for why that is
@@ -19,9 +20,16 @@ import { PISTES_ON_ARRIVAL } from './last-piste';
  */
 export function landingPathForRole(role: unknown): string {
   const parsed: StaffRole = parseStaffRole(role);
-  if (parsed === 'checkin') return '/desk';
-  if (parsed === 'gear') return '/gear';
-  return '/lices';
+  switch (parsed) {
+    case 'scoring':
+      return '/lices';
+    case 'checkin':
+      return '/desk';
+    case 'gear':
+      return '/gear';
+    case 'photos':
+      return '/photos';
+  }
 }
 
 /**

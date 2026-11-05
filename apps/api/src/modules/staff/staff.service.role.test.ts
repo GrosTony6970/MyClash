@@ -21,7 +21,7 @@ import { mockSupabase } from '../../common/testing/supabase-chain';
  *      Test 3 proves it by changing the stored row under a fixed token.
  */
 
-/** The event every fixture belongs to. `running` so `assertEventScorable` passes. */
+/** The event every fixture belongs to. `running` so `assertEventOpenFor` passes. */
 const EVENT = {
   id: 'event-1',
   organization_id: 'org-1',

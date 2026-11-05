@@ -44,6 +44,20 @@ describe('partitionPickerEvents', () => {
     expect(live).toEqual([]);
     expect(upcoming.map((e) => e.id)).toEqual(['draft']);
   });
+
+  // Ruling 440: a completed Event is listed for its `photos` login. It is not
+  // "upcoming".
+  it('files a completed Event under ended', () => {
+    const events = [
+      event({ id: 'done', status: 'completed' }),
+      event({ id: 'soon', status: 'published' }),
+    ];
+
+    const { upcoming, ended } = partitionPickerEvents(events);
+
+    expect(ended.map((e) => e.id)).toEqual(['done']);
+    expect(upcoming.map((e) => e.id)).toEqual(['soon']);
+  });
 });
 
 describe('defaultPickerTab', () => {
@@ -56,6 +70,12 @@ describe('defaultPickerTab', () => {
   it('opens on Upcoming when nothing is live, so the first tab is never empty', () => {
     expect(defaultPickerTab(partitionPickerEvents([event({ id: 'a', status: 'published' })]))).toBe(
       'upcoming',
+    );
+  });
+
+  it('opens on Ended when only an ended Event is listed', () => {
+    expect(defaultPickerTab(partitionPickerEvents([event({ id: 'a', status: 'completed' })]))).toBe(
+      'ended',
     );
   });
 

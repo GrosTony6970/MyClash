@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import type { PhotoQueueFilter } from '@myclash/types';
 import { vi } from 'vitest';
 import { mockSupabase, type SupabaseRow } from '../../../common/testing/supabase-chain';
 import type { PhotoStore } from '../photo-bucket';
@@ -52,8 +53,13 @@ export const recordingStore = (failOn?: string): PhotoStore => ({
   }),
 });
 
+/** The request a staff route hands its gate; the staff double reads nothing off it. */
+export const STAFF_REQ = { cookies: { mc_staff: 'signed' } } as never;
+
 export interface ModerationSetup {
   allowed?: boolean;
+  /** The staff gate's answer: the login's Event, or a refusal. */
+  staff?: { eventId: string } | Error;
   event?: Partial<SupabaseRow> | null;
   photos?: SupabaseRow[];
   store?: PhotoStore | null;
@@ -96,13 +102,40 @@ export function moderation(options: ModerationSetup = {}) {
       if (options.allowed === false) throw new ForbiddenException('Not an admin of this club');
     }),
   };
+  const staff = staffGate(options.staff ?? { eventId: EVENT });
   const store = options.store === undefined ? recordingStore() : options.store;
   const queue = { add: vi.fn(options.add ?? (async () => ({ id: 'job-1' }))) };
   const service = new PhotoModerationService(
     supabase as never,
     orgs as never,
+    staff as never,
     store,
     queue as never,
   );
-  return { service, supabase, orgs, store, queue };
+  return { service, organiser: asOrganiser(service), supabase, orgs, staff, store, queue };
+}
+
+/** `StaffService.requireStaffWithRole`: the login's Event, or the refusal it was given. */
+function staffGate(answer: { eventId: string } | Error) {
+  return {
+    requireStaffWithRole: vi.fn(async () => {
+      if (answer instanceof Error) throw answer;
+      return { id: 'staff-1', event_id: answer.eventId, role: 'photos' };
+    }),
+  };
+}
+
+/** The four calls behind the organiser's gate, as `PhotosController` makes them. */
+function asOrganiser(service: PhotoModerationService) {
+  const gate = (eventId: string, userId: string) => service.eventForOrganiser(eventId, userId);
+  return {
+    summary: async (eventId: string, userId: string) =>
+      service.summary(await gate(eventId, userId)),
+    list: async (eventId: string, userId: string, filter: PhotoQueueFilter, before?: string) =>
+      service.list(await gate(eventId, userId), filter, before),
+    approve: async (eventId: string, photoId: string, userId: string) =>
+      service.approve(await gate(eventId, userId), photoId),
+    remove: async (eventId: string, photoId: string, userId: string) =>
+      service.remove(await gate(eventId, userId), photoId),
+  };
 }

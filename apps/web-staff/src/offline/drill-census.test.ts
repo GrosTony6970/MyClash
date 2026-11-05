@@ -96,6 +96,8 @@ const EXPECTED: Record<string, string> = {
   // open: the gear checks of a bout's two fighters, and the Events of the sign-in, reads.
   'src/lib/useMatchGear.ts': 'api.get 1',
   'src/lib/usePickerEvents.ts': 'api.get 1',
+  // open: the photo queue of the `photos` job is online only, no part of a bout.
+  'src/lib/usePhotoQueue.ts': 'apiRequest 1',
   // drill: the void of a hit or a card, for the undo and for its settle.
   'src/lib/void-entry.ts': 'padRequest 1',
   // open: setup data, a read kept on the tablet.

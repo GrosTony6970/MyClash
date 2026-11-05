@@ -32,15 +32,18 @@ export function eventDateLabel(startDate: string, locale: string): string {
   });
 }
 
-export type PickerTab = 'live' | 'upcoming';
+export type PickerTab = 'live' | 'upcoming' | 'ended';
 
 export interface PartitionedEvents {
   live: PickerEvent[];
   upcoming: PickerEvent[];
+  /** Completed Events, listed only for their `photos` login (ruling 440). */
+  ended: PickerEvent[];
 }
 
 /**
- * Live means the event is RUNNING right now; everything else is upcoming.
+ * Live means the event is RUNNING right now; a completed one is ended (listed only
+ * for its `photos` login, ruling 440); everything else is upcoming.
  *
  * Deliberately keyed on `status` rather than on comparing `startDate` to the
  * clock. A tablet with a wrong clock is a known failure here (it is why
@@ -52,18 +55,21 @@ export interface PartitionedEvents {
 export function partitionPickerEvents(events: readonly PickerEvent[]): PartitionedEvents {
   return {
     live: events.filter((event) => event.status === 'running'),
-    upcoming: events.filter((event) => event.status !== 'running'),
+    upcoming: events.filter((event) => event.status !== 'running' && event.status !== 'completed'),
+    ended: events.filter((event) => event.status === 'completed'),
   };
 }
 
 /**
- * Open on the tab that has rows.
+ * Open on the tab that has rows: Live, then Upcoming, then Ended.
  *
  * A volunteer signing in before the doors open should not land on an empty
  * Live tab and have to work out that the other one exists.
  */
 export function defaultPickerTab(partitioned: PartitionedEvents): PickerTab {
-  return partitioned.live.length > 0 ? 'live' : 'upcoming';
+  if (partitioned.live.length > 0) return 'live';
+  if (partitioned.upcoming.length === 0 && partitioned.ended.length > 0) return 'ended';
+  return 'upcoming';
 }
 
 /**

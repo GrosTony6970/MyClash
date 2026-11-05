@@ -25,7 +25,21 @@ describe('resolveScreenAccess', () => {
     });
   });
 
-  it.each(['checkin', 'gear'] as const)(
+  it('sends a photos account away from the gear screen, to the photo queue', () => {
+    expect(resolveScreenAccess('gear', 'photos')).toEqual({
+      kind: 'wrong_role',
+      landingPath: '/photos',
+    });
+  });
+
+  it('sends a scoring account away from the photo queue, to the pistes', () => {
+    expect(resolveScreenAccess('photos', 'scoring')).toEqual({
+      kind: 'wrong_role',
+      landingPath: '/lices',
+    });
+  });
+
+  it.each(['checkin', 'gear', 'photos'] as const)(
     'sends a %s account away from the piste screens',
     (role) => {
       expect(resolveScreenAccess('scoring', role).kind).toBe('wrong_role');

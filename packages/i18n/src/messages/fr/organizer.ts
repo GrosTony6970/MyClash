@@ -2779,14 +2779,19 @@ export const organizer = {
       checkin:
         "Tient la table d'accueil et enregistre les arrivées des combattants. Aucune affectation de lice.",
       gear: 'Tient la table de contrôle du matériel et enregistre un contrôle par arme. Aucune affectation de lice.',
+      photos:
+        "Valide et supprime les photos envoyées par le public, jusqu'à l'archivage de l'événement. En ligne uniquement. Aucune affectation de lice.",
     },
     emptyScoring: 'Aucun compte de scoring pour le moment. Créez-en un par tablette de piste.',
     emptyCheckin: "Aucun compte d'accueil pour le moment. Créez-en un par personne à la table.",
     emptyGear:
       'Aucun compte de contrôle du matériel pour le moment. Créez-en un par personne qui contrôle.',
+    emptyPhotos:
+      'Aucun compte photos pour le moment. Créez-en un par personne qui modère les photos.',
     createScoring: 'Créer un compte de scoring',
     createCheckin: "Créer un compte d'accueil",
     createGear: 'Créer un compte de contrôle du matériel',
+    createPhotos: 'Créer un compte photos',
     moveTo: 'Déplacer vers',
     active: 'Actif',
     disabled: 'Désactivé',

@@ -32,6 +32,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_DEVICE_COOKIE, PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
+import type { PhotoEventRow } from './photo-organiser';
 import { PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
 
@@ -130,7 +131,7 @@ export class PhotosController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ): Promise<PhotoSummary> {
-    return this.moderation.summary(eventId, await requireRequestUserId(req, this.supabase));
+    return this.moderation.summary(await this.organisersEvent(eventId, req));
   }
 
   @Get('events/:eventId/photos')
@@ -142,8 +143,8 @@ export class PhotosController {
     @Query() query: PhotoQueueQueryDto,
     @Req() req: FastifyRequest,
   ): Promise<PhotoQueuePage> {
-    const userId = await requireRequestUserId(req, this.supabase);
-    return this.moderation.list(eventId, userId, query.filter, query.before);
+    const event = await this.organisersEvent(eventId, req);
+    return this.moderation.list(event, query.filter, query.before);
   }
 
   @Post('events/:eventId/photos/:photoId/approve')
@@ -157,8 +158,7 @@ export class PhotosController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; status: 'approved' }> {
-    const userId = await requireRequestUserId(req, this.supabase);
-    return this.moderation.approve(eventId, photoId, userId);
+    return this.moderation.approve(await this.organisersEvent(eventId, req), photoId);
   }
 
   /** Open on an archived Event: a person in a photo may ask for it to go (design, privacy). */
@@ -174,6 +174,12 @@ export class PhotosController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Req() req: FastifyRequest,
   ): Promise<void> {
-    await this.moderation.remove(eventId, photoId, await requireRequestUserId(req, this.supabase));
+    await this.moderation.remove(await this.organisersEvent(eventId, req), photoId);
+  }
+
+  /** The signed-in caller, as an admin of the Event's club: the gate of the four calls above. */
+  private async organisersEvent(eventId: string, req: FastifyRequest): Promise<PhotoEventRow> {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.moderation.eventForOrganiser(eventId, userId);
   }
 }

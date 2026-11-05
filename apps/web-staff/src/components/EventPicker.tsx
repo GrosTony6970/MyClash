@@ -9,6 +9,7 @@ import {
   defaultPickerTab,
   eventDateLabel,
   partitionPickerEvents,
+  type PartitionedEvents,
   type PickerEvent,
   type PickerTab,
 } from './picker-events';
@@ -33,7 +34,7 @@ interface Props {
 export function EventPicker({ events, loading, selectedId, onSelect }: Props) {
   const { t } = useI18n();
   const remembered = useRememberedEvent();
-  const { live, upcoming } = partitionPickerEvents(events);
+  const partitioned = partitionPickerEvents(events);
 
   // `null` means "untouched, follow the data"; a tap takes over from there.
   // The same shape the login page uses for its link prefills, and for the same
@@ -42,8 +43,8 @@ export function EventPicker({ events, loading, selectedId, onSelect }: Props) {
   // for the rest of the session even at a live event. Deriving it each render
   // lets the default follow the data in without an effect.
   const [tabEdit, setTabEdit] = useState<PickerTab | null>(null);
-  const tab = tabEdit ?? defaultPickerTab({ live, upcoming });
-  const shown = tab === 'live' ? live : upcoming;
+  const tab = tabEdit ?? defaultPickerTab(partitioned);
+  const shown = partitioned[tab];
 
   if (loading) {
     return <p className="text-sm text-muted">{t('scoring.login.picker.loading')}</p>;
@@ -55,13 +56,7 @@ export function EventPicker({ events, loading, selectedId, onSelect }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <SegmentedTabs
-        tabs={[
-          { value: 'live' as const, label: `${t('scoring.login.picker.live')} (${live.length})` },
-          {
-            value: 'upcoming' as const,
-            label: `${t('scoring.login.picker.upcoming')} (${upcoming.length})`,
-          },
-        ]}
+        tabs={pickerTabs(partitioned, t)}
         value={tab}
         onChange={setTabEdit}
         aria-label={t('scoring.login.picker.tabsLabel')}
@@ -74,6 +69,21 @@ export function EventPicker({ events, loading, selectedId, onSelect }: Props) {
       />
     </div>
   );
+}
+
+/** Live and Upcoming, each with its count; Ended only when a completed Event is listed (ruling 440). */
+function pickerTabs(
+  { live, upcoming, ended }: PartitionedEvents,
+  t: ReturnType<typeof useI18n>['t'],
+): Array<{ value: PickerTab; label: string }> {
+  const tabs: Array<{ value: PickerTab; label: string }> = [
+    { value: 'live', label: `${t('scoring.login.picker.live')} (${live.length})` },
+    { value: 'upcoming', label: `${t('scoring.login.picker.upcoming')} (${upcoming.length})` },
+  ];
+  if (ended.length > 0) {
+    tabs.push({ value: 'ended', label: `${t('scoring.login.picker.ended')} (${ended.length})` });
+  }
+  return tabs;
 }
 
 function EventList({

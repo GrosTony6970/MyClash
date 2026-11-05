@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import type { FastifyRequest } from 'fastify';
 import {
   asPhotoMode,
   PHOTO_NOT_FOUND,
@@ -14,7 +15,8 @@ import { PHOTO_CLEANUP_QUEUE, PHOTO_DRAIN } from '../../workers/photo-cleanup.wo
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_STORE, type PhotoStore } from './photo-bucket';
-import { organisersEvent, type PhotoEventRow } from './photo-organiser';
+import { StaffService } from '../staff/staff.service';
+import { organisersEvent, photoEvent, type PhotoEventRow } from './photo-organiser';
 import { EVENT_PHOTO_BYTES, EVENT_PHOTOS_PER_HOUR } from './photo-upload.service';
 import { photoDeletionInstant } from './photo-window';
 
@@ -39,9 +41,14 @@ interface QueueRow {
 const photoNotFound = () =>
   new NotFoundException({ message: 'This photo is not in this Event.', code: PHOTO_NOT_FOUND });
 
+/** The staff job that moderates photos (design, "Moderation"). */
+const PHOTO_STAFF_ROLES = ['photos'] as const;
+
 /**
- * The organiser's moderation queue (design, "Moderation"): what the Event has received, approve,
- * delete. Every call passes the organiser gate first (`organisersEvent`, org admin).
+ * The moderation queue (design, "Moderation"): what the Event has received, approve, delete. Two
+ * gates hand the calls their Event: `eventForOrganiser` (org admin, the admin page) and
+ * `eventForStaff` (a staff login with the `photos` job, the staff app, on the login's own Event).
+ * A call never takes an Event that did not come through one of them.
  *
  * A delete removes the row; the 0250 trigger queues both images, and a drain job queued here
  * takes them out of the bucket now rather than at the next 5-minute tick.
@@ -55,12 +62,27 @@ export class PhotoModerationService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    private readonly staff: StaffService,
     @Inject(PHOTO_STORE) private readonly store: PhotoStore | null,
     @InjectQueue(PHOTO_CLEANUP_QUEUE) private readonly queue: Queue,
   ) {}
 
-  async summary(eventId: string, userId: string): Promise<PhotoSummary> {
-    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+  /** The organiser's gate: an admin of the Event's club. */
+  eventForOrganiser(eventId: string, userId: string): Promise<PhotoEventRow> {
+    return organisersEvent(this.supabase, this.orgs, eventId, userId);
+  }
+
+  /**
+   * The staff gate: a staff session with the `photos` job, active, on an Event that is not
+   * archived (completed is open to this job, ruling 437). The Event is the session's own: a staff
+   * route names none.
+   */
+  async eventForStaff(req: FastifyRequest): Promise<PhotoEventRow> {
+    const staff = await this.staff.requireStaffWithRole(req, PHOTO_STAFF_ROLES);
+    return photoEvent(this.supabase, staff.event_id);
+  }
+
+  async summary(event: PhotoEventRow): Promise<PhotoSummary> {
     // From the deletion instant on the queue is empty, so its count says so too.
     const expired = this.expired(event, this.now());
     const [usage, waiting] = await Promise.all([
@@ -90,12 +112,10 @@ export class PhotoModerationService {
    * From the deletion instant on the queue is empty: the expiry job is removing those images.
    */
   async list(
-    eventId: string,
-    userId: string,
+    event: PhotoEventRow,
     filter: PhotoQueueFilter,
     before?: string,
   ): Promise<PhotoQueuePage> {
-    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
     const now = this.now();
     if (this.expired(event, now)) return { photos: [], next: null };
 
@@ -120,11 +140,9 @@ export class PhotoModerationService {
 
   /** Shown to the public from now on. Approving an approved photo changes nothing. */
   async approve(
-    eventId: string,
+    event: PhotoEventRow,
     photoId: string,
-    userId: string,
   ): Promise<{ id: string; status: 'approved' }> {
-    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .update({ status: 'approved' })
@@ -141,8 +159,7 @@ export class PhotoModerationService {
    * NOT awaited: with Redis down a queue add waits in the client's offline queue for minutes, and
    * the 5-minute tick drains the tombstone anyway.
    */
-  async remove(eventId: string, photoId: string, userId: string): Promise<void> {
-    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+  async remove(event: PhotoEventRow, photoId: string): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .delete()

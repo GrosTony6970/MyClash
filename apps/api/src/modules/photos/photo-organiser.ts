@@ -18,13 +18,26 @@ export interface PhotoEventRow {
 /**
  * The Event, once its caller is shown to be an admin of the Event's club, as `PATCH events/:id`
  * requires. The one gate of every organiser photo route: the QR link and the moderation queue.
- * The select is one literal, so the schema-conformance sweep reads its columns.
  */
 export async function organisersEvent(
   supabase: SupabaseService,
   orgs: OrganizationsService,
   eventId: string,
   userId: string,
+): Promise<PhotoEventRow> {
+  const event = await photoEvent(supabase, eventId);
+  await orgs.assertOrgRole(event.organization_id, userId, 'admin');
+  return event;
+}
+
+/**
+ * The Event's photo columns, or 404. No gate: each caller holds one (the organiser's above, the
+ * `photos` staff job's in `PhotoModerationService.eventForStaff`). The select is one literal, so
+ * the schema-conformance sweep reads its columns.
+ */
+export async function photoEvent(
+  supabase: SupabaseService,
+  eventId: string,
 ): Promise<PhotoEventRow> {
   const { data, error } = await supabase.service
     .from('events')
@@ -35,7 +48,5 @@ export async function organisersEvent(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new NotFoundException('Event not found');
-  const event = data as PhotoEventRow;
-  await orgs.assertOrgRole(event.organization_id, userId, 'admin');
-  return event;
+  return data as PhotoEventRow;
 }
