@@ -71,3 +71,63 @@ export type PhotoUploadRefusal = (typeof PHOTO_UPLOAD_REFUSALS)[number];
 export function isPhotoUploadRefusal(code: string | null): code is PhotoUploadRefusal {
   return code !== null && (PHOTO_UPLOAD_REFUSALS as readonly string[]).includes(code);
 }
+
+/**
+ * Where a phone sends photos to an Event: web-public's `app/e/[eventSlug]/photos/send/`. The token
+ * rides in the hash, so it never reaches a server log; the admin's QR code and poster print it.
+ */
+export function photoSendPath(eventSlug: string, token: string): string {
+  return `/e/${encodeURIComponent(eventSlug)}/photos/send#${token}`;
+}
+
+/** The Event's photo QR link: its token (derived, never stored) and the version it was made from. */
+export interface PhotoLink {
+  token: string;
+  version: number;
+}
+
+// ── The moderation queue (organisers; design, "Moderation") ─────────────────────────────────
+
+/** A moderator's refusal when the photo is not, or no longer, in this Event. */
+export const PHOTO_NOT_FOUND = 'photo_not_found';
+
+/** The queue's tabs. Reported and Keep come with the public Report button (ruling 436). */
+export const PHOTO_QUEUE_FILTERS = ['waiting', 'all'] as const;
+export type PhotoQueueFilter = (typeof PHOTO_QUEUE_FILTERS)[number];
+
+/** One photo in the moderation queue. Both links are signed for 15 minutes; null without one. */
+export interface ModerationPhoto {
+  id: string;
+  status: 'waiting' | 'approved';
+  uploaderName: string | null;
+  caption: string | null;
+  tag: { kind: 'tournament' | 'workshop'; name: string } | null;
+  createdAt: string;
+  previewUrl: string | null;
+  /** The original, opened on tap. */
+  originalUrl: string | null;
+}
+
+/** One page of the queue, newest first. `next` is the cursor of the following page. */
+export interface PhotoQueuePage {
+  photos: ModerationPhoto[];
+  next: string | null;
+}
+
+/** The head of the organiser's Photos page. */
+export interface PhotoSummary {
+  mode: PhotoMode;
+  eventSlug: string;
+  eventName: string;
+  /** Whether the photo bucket is configured. */
+  storage: 'on' | 'off';
+  lastHour: number;
+  perHourCap: number;
+  bytes: number;
+  bytesCap: number;
+  waiting: number;
+  /** When every photo of the Event is deleted (ISO), or null when its dates cannot be read. */
+  deletesAt: string | null;
+  /** The Event's clock, to show `deletesAt` in it. */
+  timezone: string;
+}

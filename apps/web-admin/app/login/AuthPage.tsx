@@ -18,6 +18,7 @@ import {
   type AuthFormCode,
   type SignupIntent,
 } from './auth-form-state';
+import { publicAppUrl as readPublicAppUrl } from '@/lib/public-app-url';
 import { AlternativeMethods, ResetForm, SignInForm, type LoadingAction } from './signin-forms';
 import {
   AccountStepForm,
@@ -67,7 +68,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
   const { initialTab, refused } = props;
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
-  const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
+  const publicAppUrl = readPublicAppUrl();
 
   const [tab, setTab] = useState<AuthTab>(initialTab);
   // One draft across the tabs on purpose: someone who tried to sign in and

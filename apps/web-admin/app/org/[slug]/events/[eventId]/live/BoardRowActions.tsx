@@ -1,11 +1,12 @@
 'use client';
 import Link from 'next/link';
 import type { Translator } from '@myclash/next-i18n/client';
+import { publicAppUrl } from '@/lib/public-app-url';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 
 type T = Translator;
 
-const PUBLIC_APP_URL = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
+const PUBLIC_APP_URL = publicAppUrl();
 
 const ACTION_CLASS =
   'rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-surface-2';

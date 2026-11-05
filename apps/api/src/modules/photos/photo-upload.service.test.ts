@@ -76,6 +76,9 @@ function setup(options: Setup = {}) {
     list: vi.fn(async () => {
       throw new Error('the upload never lists the bucket');
     }),
+    link: vi.fn(async () => {
+      throw new Error('the upload never signs a link');
+    }),
   };
   const chosen = options.store === undefined ? store : options.store;
   const service = new PhotoUploadService(

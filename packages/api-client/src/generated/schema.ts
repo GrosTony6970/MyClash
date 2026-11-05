@@ -9753,7 +9753,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** One page of the photo moderation queue, newest first (organisers) */
+    get: operations['PhotosController_queue'];
     put?: never;
     /** Send a photo to an Event from its QR link (anonymous) */
     post: operations['PhotosController_upload'];
@@ -9792,6 +9793,57 @@ export interface paths {
     /** Retire the photo QR link and issue a new one (organisers) */
     post: operations['PhotosController_rotateLink'];
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The Event's photo mode, caps and deletion date (organisers) */
+    get: operations['PhotosController_summary'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/{photoId}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve a photo: the public sees it (organisers) */
+    post: operations['PhotosController_approve'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/{photoId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a photo and its images (organisers) */
+    delete: operations['PhotosController_remove'];
     options?: never;
     head?: never;
     patch?: never;
@@ -26472,6 +26524,28 @@ export interface operations {
       };
     };
   };
+  PhotosController_queue: {
+    parameters: {
+      query?: {
+        filter?: 'waiting' | 'all';
+        before?: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PhotosController_upload: {
     parameters: {
       query?: never;
@@ -26539,6 +26613,65 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_summary: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
         headers: {
           [name: string]: unknown;
         };

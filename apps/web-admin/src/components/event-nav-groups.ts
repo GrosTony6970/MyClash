@@ -110,6 +110,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.notifications',
         icon: 'notifications',
       },
+      { href: 'photos', labelKey: 'organizer.eventHub.sections.photos', icon: 'photos' },
       { href: 'theme', labelKey: 'organizer.eventHub.sections.theme', icon: 'theme' },
       { href: 'archive', labelKey: 'organizer.archive.navLabel', icon: 'archive' },
       {

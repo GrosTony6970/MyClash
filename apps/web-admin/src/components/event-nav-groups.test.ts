@@ -51,7 +51,7 @@ describe('event nav taxonomy', () => {
     ...EVENT_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
   ];
 
-  it('covers exactly the 25 expected routes', () => {
+  it('covers exactly the 26 expected routes', () => {
     const expected = [
       '',
       'persons',
@@ -74,6 +74,7 @@ describe('event nav taxonomy', () => {
       'penalties',
       'compensation',
       'notifications',
+      'photos',
       'theme',
       'archive',
       'ai-assistant',

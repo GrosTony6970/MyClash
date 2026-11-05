@@ -1,28 +1,41 @@
 import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
+import { ALLOW_ON_ARCHIVED_EVENT_KEY } from '../../common/event-readonly/allow-on-archived.decorator';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { PhotoDeviceService, PHOTO_DEVICE_COOKIE } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
+import { photoQueueQuerySchema } from './photo-queue.dto';
 import { photoToken, photoTokenMatches } from './photo-token';
 import { PhotosController } from './photos.controller';
 
 const DEVICE_SECRET = 'test-photo-device-secret-at-least-32-characters';
 const TOKEN_SECRET = 'test-photo-token-secret-at-least-32-characters';
 const EVENT = '6f9619ff-8b86-4011-b42d-00c04fc964ff';
+const PHOTO = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 
 const devices = new PhotoDeviceService({ getOrThrow: () => DEVICE_SECRET } as never);
 
 function controller() {
   const upload = { upload: vi.fn(async () => ({ id: 'p1', status: 'approved' as const })) };
   const links = { read: vi.fn(), rotate: vi.fn() };
+  const moderation = {
+    summary: vi.fn(async () => ({})),
+    list: vi.fn(async () => ({ photos: [], next: null })),
+    approve: vi.fn(async () => ({ id: PHOTO, status: 'approved' })),
+    remove: vi.fn(async () => undefined),
+  };
+  // A signed-in organiser: `requireRequestUserId` turns the session cookie into this user.
+  const supabase = { getAuthUser: vi.fn(async () => ({ id: 'user-7' })) };
   const ctl = new PhotosController(
     upload as never,
     devices,
     links as never,
     { get: () => 'production' } as never,
-    {} as never,
+    supabase as never,
+    moderation as never,
   );
-  return { ctl, upload };
+  return { ctl, upload, moderation };
 }
 
 const reply = () => ({ setCookie: vi.fn() });
@@ -103,4 +116,64 @@ describe('PhotoLinkService', () => {
     await service.rotate(EVENT, 'user-2').catch(() => undefined);
     expect(writesTo(supabase, 'events')).toEqual([]);
   });
+});
+
+describe('the moderation routes', () => {
+  const signedIn = () => req({ 'sb-access-token': 'session' });
+
+  it('pass the signed-in organiser to the service', async () => {
+    const { ctl, moderation } = controller();
+    await ctl.summary(EVENT, signedIn());
+    await ctl.queue(EVENT, { filter: 'all', before: undefined }, signedIn());
+    await ctl.approve(EVENT, PHOTO, signedIn());
+    await ctl.remove(EVENT, PHOTO, signedIn());
+
+    expect(moderation.summary).toHaveBeenCalledWith(EVENT, 'user-7');
+    expect(moderation.list).toHaveBeenCalledWith(EVENT, 'user-7', 'all', undefined);
+    expect(moderation.approve).toHaveBeenCalledWith(EVENT, PHOTO, 'user-7');
+    expect(moderation.remove).toHaveBeenCalledWith(EVENT, PHOTO, 'user-7');
+  });
+
+  it('refuse a caller with no session before asking the service', async () => {
+    const { ctl, moderation } = controller();
+    await expect(ctl.summary(EVENT, req())).rejects.toThrow('Authentication required');
+    await expect(ctl.remove(EVENT, PHOTO, req())).rejects.toThrow('Authentication required');
+    expect(moderation.summary).not.toHaveBeenCalled();
+    expect(moderation.remove).not.toHaveBeenCalled();
+  });
+
+  it('only the delete stays open on an archived Event', () => {
+    const reflector = new Reflector();
+    const open = (handler: keyof PhotosController) =>
+      reflector.get<boolean>(
+        ALLOW_ON_ARCHIVED_EVENT_KEY,
+        PhotosController.prototype[handler] as never,
+      ) === true;
+    expect(open('remove')).toBe(true);
+    expect(open('approve')).toBe(false);
+  });
+});
+
+describe('PhotoQueueQueryDto', () => {
+  const parse = (query: Record<string, string | undefined>) =>
+    photoQueueQuerySchema.safeParse(query);
+
+  it('takes the cursor as PostgREST writes it, unchanged', () => {
+    const before = '2026-11-05T12:00:00.123456+00:00';
+    expect(parse({ filter: 'all', before })).toEqual({
+      success: true,
+      data: { filter: 'all', before },
+    });
+  });
+
+  it('reads the Waiting tab by default', () => {
+    expect(parse({})).toEqual({ success: true, data: { filter: 'waiting' } });
+  });
+
+  it.each([{ filter: 'reported' }, { before: 'yesterday' }, { page: '2' }])(
+    'refuses %o',
+    (query) => {
+      expect(parse(query).success).toBe(false);
+    },
+  );
 });

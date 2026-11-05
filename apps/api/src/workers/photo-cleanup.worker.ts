@@ -10,6 +10,8 @@
  *             (00:00 of end_date + 31, Event clock), then drain the tombstones. Every 5 minutes,
  *             not nightly, so an image is gone within minutes of the instant on any clock.
  *   "orphans" hourly at :50: delete the bucket objects no photo row names.
+ *   "drain"   queued by a moderator's delete: drain the tombstones now, without expiring, so the
+ *             deleted images go at once rather than at the next tick.
  *
  * A failed run fails its job, so Sentry hears of it; the queue is on the runtime-health card.
  * Both runs are safe to repeat, and to run twice at once.
@@ -26,6 +28,7 @@ import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 export const PHOTO_CLEANUP_QUEUE = 'photo-cleanup';
 export const PHOTO_CLEANUP_TICK = 'tick';
 export const PHOTO_ORPHAN_SWEEP = 'orphans';
+export const PHOTO_DRAIN = 'drain';
 
 @Processor(PHOTO_CLEANUP_QUEUE)
 @Injectable()
@@ -76,6 +79,10 @@ export class PhotoCleanupWorker extends SentryReportingWorkerHost implements OnM
     }
     if (job.name === PHOTO_ORPHAN_SWEEP) {
       await this.cleanup.sweep();
+      return;
+    }
+    if (job.name === PHOTO_DRAIN) {
+      await this.cleanup.drain();
       return;
     }
     throw new Error(`Unknown photo clean-up job ${JSON.stringify(job.name)}`);

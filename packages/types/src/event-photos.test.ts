@@ -9,6 +9,7 @@ import {
   PHOTO_MODES,
   PHOTO_NAME_MAX,
   PHOTO_UPLOAD_REFUSALS,
+  photoSendPath,
 } from './event-photos';
 
 describe('the photo contract the page and the API share', () => {
@@ -44,5 +45,12 @@ describe('the photo contract the page and the API share', () => {
     expect(isPhotoUploadRefusal('photo_heic')).toBe(true);
     expect(isPhotoUploadRefusal('file_too_large')).toBe(false);
     expect(isPhotoUploadRefusal(null)).toBe(false);
+  });
+
+  it('puts the QR token in the hash, never in the path or the query, and encodes the slug', () => {
+    const url = new URL(photoSendPath('été 2026', 'tok'), 'https://app.test');
+    expect(url.pathname).toBe('/e/%C3%A9t%C3%A9%202026/photos/send');
+    expect(url.search).toBe('');
+    expect(url.hash).toBe('#tok');
   });
 });

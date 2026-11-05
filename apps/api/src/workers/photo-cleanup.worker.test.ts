@@ -1,6 +1,11 @@
 import type { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { PHOTO_CLEANUP_TICK, PHOTO_ORPHAN_SWEEP, PhotoCleanupWorker } from './photo-cleanup.worker';
+import {
+  PHOTO_CLEANUP_TICK,
+  PHOTO_DRAIN,
+  PHOTO_ORPHAN_SWEEP,
+  PhotoCleanupWorker,
+} from './photo-cleanup.worker';
 
 function makeWorker() {
   const queue = { upsertJobScheduler: vi.fn().mockResolvedValue(undefined) };
@@ -66,6 +71,12 @@ describe('PhotoCleanupWorker', () => {
     const { worker, calls } = makeWorker();
     await worker.process({ name: PHOTO_ORPHAN_SWEEP } as never);
     expect(calls).toEqual(['sweep']);
+  });
+
+  it("drains, and expires nothing, on a moderator's drain job", async () => {
+    const { worker, calls } = makeWorker();
+    await worker.process({ name: PHOTO_DRAIN } as never);
+    expect(calls).toEqual(['drain']);
   });
 
   it('fails the job when the drain fails, so BullMQ records it and Sentry sees it', async () => {

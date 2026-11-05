@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
@@ -7,6 +8,7 @@ import {
   S3Client,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
  * The photo bucket's settings and its S3 client. One owner: nothing else reads a `PHOTO_BUCKET_*`
@@ -77,6 +79,40 @@ export interface PhotoStore {
   remove(key: string): Promise<void>;
   /** One page of keys under `prefix`, at most 1,000. `next` is set while more remain. */
   list(prefix: string, next?: string): Promise<PhotoPage>;
+  /**
+   * A signed GET link to one image, valid `PHOTO_LINK_TTL_S` from the 5-minute mark before
+   * `now`. Signing is local (no bucket call), so it needs no bound and works with the bucket down.
+   */
+  link(key: string, now: Date): Promise<string>;
+}
+
+/** A signed link lasts 15 minutes from its signing time (design, "Storage and deletion"). */
+export const PHOTO_LINK_TTL_S = 900;
+const PHOTO_LINK_STEP_MS = 5 * 60_000;
+
+/**
+ * A link's signing time: `now` rounded down to the 5-minute mark, so every call in one window
+ * signs the same URL and the browser caches the image. A link handed out lives 10-15 minutes.
+ */
+export function photoLinkSigningDate(now: Date): Date {
+  return new Date(Math.floor(now.getTime() / PHOTO_LINK_STEP_MS) * PHOTO_LINK_STEP_MS);
+}
+
+/** Signs a GET of `key` at `signingDate`, valid `expiresIn` seconds. */
+export type PhotoLinkPresign = (
+  key: string,
+  signingDate: Date,
+  expiresIn: number,
+) => Promise<string>;
+
+/** The real signer, over its own client: signing needs the full client, not only `send`. */
+export function photoLinkSigner(config: PhotoBucketConfig): PhotoLinkPresign {
+  const s3 = createPhotoBucketClient(config);
+  return (key, signingDate, expiresIn) =>
+    getSignedUrl(s3, new GetObjectCommand({ Bucket: config.bucket, Key: key }), {
+      expiresIn,
+      signingDate,
+    });
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -204,11 +240,14 @@ export function photoStoreOf(
   setting: PhotoBucketSetting,
   client?: Pick<S3Client, 'send'>,
   timeouts: PhotoStoreTimeouts = STORE_TIMEOUTS,
+  presign?: PhotoLinkPresign,
 ): PhotoStore | null {
   if (setting.kind !== 'on') return null;
   const { bucket } = setting.config;
   const send = sender(client ?? createPhotoBucketClient(setting.config), bucket);
+  const sign = presign ?? photoLinkSigner(setting.config);
   return {
+    link: (key, now) => sign(key, photoLinkSigningDate(now), PHOTO_LINK_TTL_S),
     put: async (key, bytes) => {
       const body = { Bucket: bucket, Key: key, Body: bytes, ContentType: 'image/jpeg' };
       await send(new PutObjectCommand(body), timeouts.writeMs, 'write');

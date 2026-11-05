@@ -80,6 +80,8 @@ describe('the archived-Event lock, API-wide', () => {
   it('opens on an archived Event exactly the routes a ruling opened', () => {
     expect(routes.filter((route) => route.allowedOnArchived).map((route) => route.key)).toEqual([
       'DELETE admin/leagues/:leagueId/events/:eventId/tournament-links',
+      // Event photos (design, "Constraints"): a person in a photo may ask for it to go.
+      'DELETE events/:eventId/photos/:photoId',
       'DELETE events/:id',
       'PATCH admin/events/:eventId/league-tournament-links/:linkId',
       'PATCH deletion-requests/:id/cancel',
@@ -136,7 +138,8 @@ describe('the archived-Event lock, API-wide', () => {
     // 184: B-Swiss's `POST swiss-phases/:phaseId/reinstate`, placed by its phase.
     // 186: Event photos' `POST events/:eventId/photos` and `…/photos/link/rotate`, placed by
     // their Event: no photo arrives at, and no link is rotated for, an archived Event.
-    expect(placed).toHaveLength(186);
+    // 188: the moderator's `POST …/photos/:photoId/approve` and `DELETE …/photos/:photoId`.
+    expect(placed).toHaveLength(188);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

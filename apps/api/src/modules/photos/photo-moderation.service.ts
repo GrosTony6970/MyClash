@@ -1,0 +1,225 @@
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
+import {
+  asPhotoMode,
+  PHOTO_NOT_FOUND,
+  type ModerationPhoto,
+  type PhotoQueueFilter,
+  type PhotoQueuePage,
+  type PhotoSummary,
+} from '@myclash/types';
+import { eventZone } from '../../common/event-clock';
+import { PHOTO_CLEANUP_QUEUE, PHOTO_DRAIN } from '../../workers/photo-cleanup.worker';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { PHOTO_STORE, type PhotoStore } from './photo-bucket';
+import { organisersEvent, type PhotoEventRow } from './photo-organiser';
+import { EVENT_PHOTO_BYTES, EVENT_PHOTOS_PER_HOUR } from './photo-upload.service';
+import { photoDeletionInstant } from './photo-window';
+
+/** Photos per page of the queue. */
+export const PHOTO_QUEUE_PAGE = 60;
+
+/** `event_photo_usage` also counts one device; the queue asks for none. */
+const NO_DEVICE = '00000000-0000-0000-0000-000000000000';
+
+interface QueueRow {
+  id: string;
+  status: 'waiting' | 'approved';
+  uploader_name: string | null;
+  caption: string | null;
+  created_at: string;
+  preview_key: string;
+  original_key: string;
+  tournament: { name: string } | null;
+  workshop: { title: string } | null;
+}
+
+const photoNotFound = () =>
+  new NotFoundException({ message: 'This photo is not in this Event.', code: PHOTO_NOT_FOUND });
+
+/**
+ * The organiser's moderation queue (design, "Moderation"): what the Event has received, approve,
+ * delete. Every call passes the organiser gate first (`organisersEvent`, org admin).
+ *
+ * A delete removes the row; the 0250 trigger queues both images, and a drain job queued here
+ * takes them out of the bucket now rather than at the next 5-minute tick.
+ */
+@Injectable()
+export class PhotoModerationService {
+  private readonly logger = new Logger(PhotoModerationService.name);
+  /** The clock of the deletion instant and of the links. Tests set it. */
+  now: () => Date = () => new Date();
+
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+    @Inject(PHOTO_STORE) private readonly store: PhotoStore | null,
+    @InjectQueue(PHOTO_CLEANUP_QUEUE) private readonly queue: Queue,
+  ) {}
+
+  async summary(eventId: string, userId: string): Promise<PhotoSummary> {
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+    // From the deletion instant on the queue is empty, so its count says so too.
+    const expired = this.expired(event, this.now());
+    const [usage, waiting] = await Promise.all([
+      this.usage(event.id),
+      expired ? 0 : this.waiting(event.id),
+    ]);
+    const mode = asPhotoMode(event.photo_mode);
+    if (!mode) throw new Error(`Event ${event.id}: unknown photo mode ${event.photo_mode}`);
+    return {
+      mode,
+      eventSlug: event.slug,
+      eventName: event.name,
+      storage: this.store ? 'on' : 'off',
+      lastHour: usage.lastHour,
+      perHourCap: EVENT_PHOTOS_PER_HOUR,
+      bytes: usage.bytes,
+      bytesCap: EVENT_PHOTO_BYTES,
+      waiting,
+      deletesAt: photoDeletionInstant(event)?.toISOString() ?? null,
+      timezone: eventZone(event.timezone).zone,
+    };
+  }
+
+  /**
+   * One page of the queue, newest first. `before` is the previous page's cursor: a row's
+   * `created_at` exactly as the database wrote it, never re-formatted, so no row is skipped.
+   * From the deletion instant on the queue is empty: the expiry job is removing those images.
+   */
+  async list(
+    eventId: string,
+    userId: string,
+    filter: PhotoQueueFilter,
+    before?: string,
+  ): Promise<PhotoQueuePage> {
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+    const now = this.now();
+    if (this.expired(event, now)) return { photos: [], next: null };
+
+    let query = this.supabase.service
+      .from('event_photos')
+      .select(
+        'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title)',
+      )
+      .eq('event_id', event.id);
+    if (filter === 'waiting') query = query.eq('status', 'waiting');
+    if (before) query = query.lt('created_at', before);
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(PHOTO_QUEUE_PAGE);
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as unknown as QueueRow[];
+    const photos = await Promise.all(rows.map((row) => this.photoOf(row, now)));
+    const last = rows.length === PHOTO_QUEUE_PAGE ? rows[rows.length - 1] : undefined;
+    return { photos, next: last ? last.created_at : null };
+  }
+
+  /** Shown to the public from now on. Approving an approved photo changes nothing. */
+  async approve(
+    eventId: string,
+    photoId: string,
+    userId: string,
+  ): Promise<{ id: string; status: 'approved' }> {
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_photos')
+      .update({ status: 'approved' })
+      .eq('id', photoId)
+      .eq('event_id', event.id)
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw photoNotFound();
+    return { id: photoId, status: 'approved' };
+  }
+
+  /**
+   * Deletes the photo. Its images are queued by the row trigger; the drain is asked for now and
+   * NOT awaited: with Redis down a queue add waits in the client's offline queue for minutes, and
+   * the 5-minute tick drains the tombstone anyway.
+   */
+  async remove(eventId: string, photoId: string, userId: string): Promise<void> {
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_photos')
+      .delete()
+      .eq('id', photoId)
+      .eq('event_id', event.id)
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw photoNotFound();
+    void this.queue
+      .add(PHOTO_DRAIN, {}, { removeOnComplete: true, removeOnFail: { age: 86_400, count: 100 } })
+      .catch((err: unknown) => {
+        const reason = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Photo ${photoId} deleted; its drain was not queued: ${reason}`);
+      });
+  }
+
+  private expired(event: PhotoEventRow, now: Date): boolean {
+    const instant = photoDeletionInstant(event);
+    return instant !== null && now.getTime() >= instant.getTime();
+  }
+
+  private async photoOf(row: QueueRow, now: Date): Promise<ModerationPhoto> {
+    const tag = row.tournament
+      ? { kind: 'tournament' as const, name: row.tournament.name }
+      : row.workshop
+        ? { kind: 'workshop' as const, name: row.workshop.title }
+        : null;
+    return {
+      id: row.id,
+      status: row.status,
+      uploaderName: row.uploader_name,
+      caption: row.caption,
+      tag,
+      createdAt: row.created_at,
+      ...(await this.linksOf(row, now)),
+    };
+  }
+
+  /** Both links, or neither: a signer that fails leaves this tile "image unavailable". */
+  private async linksOf(
+    row: QueueRow,
+    now: Date,
+  ): Promise<{ previewUrl: string | null; originalUrl: string | null }> {
+    if (!this.store) return { previewUrl: null, originalUrl: null };
+    try {
+      const [previewUrl, originalUrl] = await Promise.all([
+        this.store.link(row.preview_key, now),
+        this.store.link(row.original_key, now),
+      ]);
+      return { previewUrl, originalUrl };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Photo ${row.id}: could not sign its links: ${reason}`);
+      return { previewUrl: null, originalUrl: null };
+    }
+  }
+
+  private async usage(eventId: string): Promise<{ lastHour: number; bytes: number }> {
+    const { data, error } = await this.supabase.service.rpc('event_photo_usage', {
+      p_event_id: eventId,
+      p_device_id: NO_DEVICE,
+    });
+    if (error) throw new Error(error.message);
+    const row = (Array.isArray(data) ? data[0] : data) as {
+      event_last_hour: number;
+      event_bytes: number | string;
+    };
+    return { lastHour: row.event_last_hour, bytes: Number(row.event_bytes) };
+  }
+
+  private async waiting(eventId: string): Promise<number> {
+    const { count, error } = await this.supabase.service
+      .from('event_photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('status', 'waiting');
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+}

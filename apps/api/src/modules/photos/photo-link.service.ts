@@ -1,13 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { PhotoLink } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { organisersEvent } from './photo-organiser';
 import { photoToken } from './photo-token';
-
-export interface PhotoLink {
-  token: string;
-  version: number;
-}
 
 /**
  * The Event's photo QR link, for its organisers only (org admin, as `PATCH events/:id`). The token
@@ -30,12 +27,12 @@ export class PhotoLinkService {
   }
 
   async read(eventId: string, userId: string): Promise<PhotoLink> {
-    const event = await this.organisersEvent(eventId, userId);
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
     return this.linkOf(event.id, event.photo_token_version);
   }
 
   async rotate(eventId: string, userId: string): Promise<PhotoLink> {
-    const event = await this.organisersEvent(eventId, userId);
+    const event = await organisersEvent(this.supabase, this.orgs, eventId, userId);
     const version = event.photo_token_version + 1;
     const { error } = await this.supabase.service
       .from('events')
@@ -43,22 +40,6 @@ export class PhotoLinkService {
       .eq('id', event.id);
     if (error) throw new Error(error.message);
     return this.linkOf(event.id, version);
-  }
-
-  private async organisersEvent(
-    eventId: string,
-    userId: string,
-  ): Promise<{ id: string; photo_token_version: number }> {
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .select('id, organization_id, photo_token_version')
-      .eq('id', eventId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw new NotFoundException('Event not found');
-    const event = data as { id: string; organization_id: string; photo_token_version: number };
-    await this.orgs.assertOrgRole(event.organization_id, userId, 'admin');
-    return event;
   }
 
   private linkOf(eventId: string, version: number): PhotoLink {

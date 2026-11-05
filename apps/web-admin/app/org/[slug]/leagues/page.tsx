@@ -9,9 +9,10 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { LeagueAttachmentsSection } from './_components/LeagueAttachmentsSection';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { publicAppUrl as readPublicAppUrl } from '@/lib/public-app-url';
 
 const apiUrl = getPublicApiUrl();
-const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
+const publicAppUrl = readPublicAppUrl();
 
 interface OrgRow {
   id: string;

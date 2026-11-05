@@ -63,6 +63,9 @@ export function memoryStore(
         undated: opts.undated ?? 0,
       };
     },
+    link: async () => {
+      throw new Error('the clean-up never signs a link');
+    },
   };
   return { store, removed, lists };
 }

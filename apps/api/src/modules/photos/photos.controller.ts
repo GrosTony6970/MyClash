@@ -1,14 +1,17 @@
 import {
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
+import type { PhotoLink, PhotoQueuePage, PhotoSummary } from '@myclash/types';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBody,
@@ -23,10 +26,13 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../../common/auth/public.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_DEVICE_COOKIE, PhotoDeviceService } from './photo-device';
-import { PhotoLinkService, type PhotoLink } from './photo-link.service';
+import { PhotoLinkService } from './photo-link.service';
+import { PhotoModerationService } from './photo-moderation.service';
+import { PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
 
 type CookieReply = FastifyReply & {
@@ -42,6 +48,7 @@ export class PhotosController {
     private readonly links: PhotoLinkService,
     private readonly config: ConfigService,
     private readonly supabase: SupabaseService,
+    private readonly moderation: PhotoModerationService,
   ) {}
 
   /**
@@ -113,5 +120,60 @@ export class PhotosController {
     @Req() req: FastifyRequest,
   ): Promise<PhotoLink> {
     return this.links.rotate(eventId, await requireRequestUserId(req, this.supabase));
+  }
+
+  @Get('events/:eventId/photos/summary')
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: "The Event's photo mode, caps and deletion date (organisers)" })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  async summary(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<PhotoSummary> {
+    return this.moderation.summary(eventId, await requireRequestUserId(req, this.supabase));
+  }
+
+  @Get('events/:eventId/photos')
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: 'One page of the photo moderation queue, newest first (organisers)' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  async queue(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: PhotoQueueQueryDto,
+    @Req() req: FastifyRequest,
+  ): Promise<PhotoQueuePage> {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.moderation.list(eventId, userId, query.filter, query.before);
+  }
+
+  @Post('events/:eventId/photos/:photoId/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: 'Approve a photo: the public sees it (organisers)' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiParam({ name: 'photoId', format: 'uuid' })
+  async approve(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<{ id: string; status: 'approved' }> {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.moderation.approve(eventId, photoId, userId);
+  }
+
+  /** Open on an archived Event: a person in a photo may ask for it to go (design, privacy). */
+  @Delete('events/:eventId/photos/:photoId')
+  @AllowOnArchivedEvent()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: 'Delete a photo and its images (organisers)' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiParam({ name: 'photoId', format: 'uuid' })
+  async remove(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<void> {
+    await this.moderation.remove(eventId, photoId, await requireRequestUserId(req, this.supabase));
   }
 }

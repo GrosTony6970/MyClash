@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getStaffUrl } from '@/lib/staff-url';
+import { publicAppUrl as readPublicAppUrl } from '@/lib/public-app-url';
 import { BackLink } from '@/components/BackLink';
 import { StaffLoginPanel } from './StaffLoginPanel';
 import { StaffRoleSection } from './StaffRoleSection';
@@ -25,7 +26,7 @@ export default function EventStaffPage() {
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
 
-  const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
+  const publicAppUrl = readPublicAppUrl();
   const staffUrl = getStaffUrl();
   const staff = useStaffAccounts(eventId);
 

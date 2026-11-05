@@ -43,23 +43,31 @@ export function photoDoor(
     },
   );
   const config = { getOrThrow: () => SECRET, get: () => 'test' } as never;
-  const store = {
-    put: vi.fn(async () => undefined),
-    remove: vi.fn(async () => undefined),
-    list: vi.fn(async () => {
-      throw new Error('the upload never lists the bucket');
-    }),
-  };
   const controller = new PhotosController(
-    new PhotoUploadService(db as never, config, store),
+    new PhotoUploadService(db as never, config, uploadOnlyStore()),
     new PhotoDeviceService(config),
     {} as never,
     config,
     db as never,
+    {} as never,
   );
   return (req) => {
     (req as { headers: Record<string, string> }).headers['x-photo-token'] =
       token ?? photoToken(SECRET, eventId, 1);
     return controller.upload(eventId, req, { setCookie: () => undefined } as never);
+  };
+}
+
+/** A store that takes writes and refuses what an upload never does. */
+function uploadOnlyStore() {
+  return {
+    put: vi.fn(async () => undefined),
+    remove: vi.fn(async () => undefined),
+    list: vi.fn(async () => {
+      throw new Error('the upload never lists the bucket');
+    }),
+    link: vi.fn(async () => {
+      throw new Error('the upload never signs a link');
+    }),
   };
 }
