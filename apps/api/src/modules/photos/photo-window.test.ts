@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { photoDeletionInstant, photoUploadWindow } from './photo-window';
+import { photoArchiveHold, photoDeletionInstant, photoUploadWindow } from './photo-window';
 
 /** 00:00 of `day` on `zone`'s clock, as an instant: what an organiser in that zone calls midnight. */
 function midnight(day: string, zone: string): number {
@@ -76,5 +76,56 @@ describe('photoUploadWindow — an Event on 16 and 17 May 2026', () => {
         timezone: 'Mars/Olympus',
       }),
     ).not.toBeNull();
+  });
+});
+
+describe('photoArchiveHold — an Event on 16 and 17 May 2026 (ruling 441)', () => {
+  const cup = (photo_mode: string, timezone: unknown = 'Europe/Paris') => ({
+    start_date: '2026-05-16',
+    end_date: '2026-05-17',
+    timezone,
+    photo_mode,
+  });
+  const at = (instant: number) => new Date(instant);
+
+  it.each(['UTC', 'Europe/Paris', 'America/New_York', 'Pacific/Kiritimati'])(
+    'on %s, holds the archive until the window closes, and not at the close itself',
+    (zone) => {
+      const close = midnight('2026-05-19', zone);
+      expect(photoArchiveHold(cup('approve', zone), at(close - 1))?.getTime()).toBe(close);
+      expect(photoArchiveHold(cup('approve', zone), at(close))).toBeNull();
+    },
+  );
+
+  it('holds in Live mode too', () => {
+    const close = midnight('2026-05-19', 'Europe/Paris');
+    expect(photoArchiveHold(cup('live'), at(close - 1))?.getTime()).toBe(close);
+  });
+
+  it('never holds when photos are Off', () => {
+    expect(photoArchiveHold(cup('off'), at(midnight('2026-05-18', 'Europe/Paris')))).toBeNull();
+  });
+
+  it('ends at midnight on the Event clock across a clock change (Paris, back on 25 Oct)', () => {
+    const event = {
+      start_date: '2026-10-24',
+      end_date: '2026-10-24',
+      timezone: 'Europe/Paris',
+      photo_mode: 'approve',
+    };
+    expect(photoArchiveHold(event, new Date('2026-10-25T22:59:59.999Z'))?.toISOString()).toBe(
+      '2026-10-25T23:00:00.000Z',
+    );
+    expect(photoArchiveHold(event, new Date('2026-10-25T23:00:00.000Z'))).toBeNull();
+  });
+
+  it('reads an unknown zone on the default Event clock, as the upload door does', () => {
+    const close = midnight('2026-05-19', 'Europe/Paris');
+    expect(photoArchiveHold(cup('approve', 'Mars/Olympus'), at(close - 1))?.getTime()).toBe(close);
+  });
+
+  it('never holds when the window cannot be read: the door then refuses every photo', () => {
+    const event = { ...cup('approve'), start_date: null };
+    expect(photoArchiveHold(event, at(midnight('2026-05-18', 'Europe/Paris')))).toBeNull();
   });
 });

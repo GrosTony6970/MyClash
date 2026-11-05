@@ -44,7 +44,9 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
    visible** until a moderator deletes it.
 7. **Upload window**, in the Event's own time zone: from the start of the day before the Event's first
    day to the end of the day after its last day. The day before lets the organiser test a printed QR
-   code on set-up day. Earlier scans are refused.
+   code on set-up day. Earlier scans are refused. **[rev 441]** While photos are not Off, the hourly
+   auto-archive waits until this window has closed. The organiser may still archive by hand at any
+   time (442); Approve after archive is the next slice (443).
    7b. **A notice above the Send button, with no checkbox.** In substance: "Share only photos you took. The
    people in them should be fine with it being shown publicly for 30 days." Nothing is recorded about
    it. The final EN and FR wording is the builder's draft, for the operator to read in review.

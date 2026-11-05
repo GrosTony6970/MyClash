@@ -2620,8 +2620,9 @@ that resolves the event by a params **name** fails open on a route that spells t
 differently. `EventReadOnlyGuard` (`apps/api/src/common/event-readonly/`) refuses every write to an
 archived Event, and the routes marked `@BlockOnCompletedEvent()` on a completed one.
 
-An Event archives itself a day after both its end date and its last Tournament's completion
-(`workers/event-archive.worker.ts`) and nothing un-archives it, so the guard's reach is the
+An Event archives itself a day after both its end date and its last Tournament's completion, and,
+while its photos are not Off, once its photo upload window has closed (ruling 441;
+`workers/event-archive.worker.ts`). Nothing un-archives it, so the guard's reach is the
 Event's whole afterlife. `resolve-event-id.ts` finds the Event of a write from the route the router
 MATCHED (`request.routeOptions.url`) and the decoded params, never the address as written: the
 router decodes `%61` before it matches, and a pattern run over `request.url` was passed by one

@@ -40,3 +40,23 @@ export function photoUploadWindow(event: {
   if (!opensAt || !closesAt) return null;
   return { opensAt: new Date(opensAt), closesAt: new Date(closesAt) };
 }
+
+/**
+ * Until when the auto-archive leaves an Event alone so its phones can still send photos (ruling
+ * 441): the window's close until it has passed, else null. Photos Off, or no readable window, hold
+ * nothing: the upload door (`photo-upload.service.ts`) takes no photo then either.
+ */
+export function photoArchiveHold(
+  event: {
+    start_date: string | null;
+    end_date: string | null;
+    timezone: unknown;
+    photo_mode: unknown;
+  },
+  now: Date,
+): Date | null {
+  if (event.photo_mode === 'off') return null;
+  const window = photoUploadWindow(event);
+  if (!window || now.getTime() >= window.closesAt.getTime()) return null;
+  return window.closesAt;
+}

@@ -9,6 +9,7 @@
  *   - event.end_date < 24h ago
  *   - ALL tournaments for the event have status = 'completed'
  *   - max(end_date, last tournament updated_at) < 24h ago
+ *   - while photos are not Off, the photo upload window has closed (ruling 441)
  *
  * When an event is archived:
  *   - event.status is set to 'archived'
@@ -24,10 +25,13 @@ import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { insertAuditLog } from '../common/audit-log';
+import { photoArchiveHold } from '../modules/photos/photo-window';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
 export const EVENT_ARCHIVE_QUEUE = 'event-archive';
 export const EVENT_ARCHIVE_JOB = 'archive';
+
+type ArchiveCandidate = Parameters<typeof photoArchiveHold>[0] & { id: string; end_date: string };
 
 @Processor(EVENT_ARCHIVE_QUEUE)
 @Injectable()
@@ -64,10 +68,10 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
 
     const { data: candidates, error: candidatesErr } = await this.supabase.service
       .from('events')
-      .select('id, status, end_date')
+      .select('id, status, start_date, end_date, timezone, photo_mode')
       .eq('status', 'completed')
       // end_date is a DATE (0223): every Event that ended on or before the day 24 h ago, the same
-      // rows the old text comparison with the full timestamp took. The loop below holds the 24 h.
+      // rows the old text comparison with the full timestamp took. `dueForArchive` holds the 24 h.
       .lte('end_date', twentyFourHoursAgo.toISOString().slice(0, 10));
 
     if (candidatesErr) {
@@ -77,27 +81,8 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
 
     const archived: string[] = [];
 
-    for (const event of (candidates ?? []) as Array<{ id: string; end_date: string }>) {
-      const { data: tournaments } = await this.supabase.service
-        .from('tournaments')
-        .select('id, status, updated_at')
-        .eq('event_id', event.id);
-
-      if (!tournaments?.length) continue;
-
-      const allCompleted = (tournaments as Array<{ status: string }>).every(
-        (t) => t.status === 'completed',
-      );
-      if (!allCompleted) continue;
-
-      const lastTournamentDoneMs = (tournaments as Array<{ updated_at: string }>)
-        .map((t) => new Date(t.updated_at).getTime())
-        .reduce((a, b) => Math.max(a, b), 0);
-
-      const endDateMs = new Date(event.end_date).getTime();
-      const lastMilestone = Math.max(endDateMs, lastTournamentDoneMs);
-
-      if (now.getTime() - lastMilestone < 24 * 60 * 60 * 1000) continue;
+    for (const event of (candidates ?? []) as ArchiveCandidate[]) {
+      if (!(await this.dueForArchive(event, now))) continue;
 
       // Still completed: an Event reopened since the read is left alone.
       const { data: hit, error: updateErr } = await this.supabase.service
@@ -122,6 +107,42 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
 
     this.logger.log(`Auto-archived ${archived.length} events`);
     return { archived };
+  }
+
+  /**
+   * Every Tournament completed, 24 h past both the end date and the last of them, and, while the
+   * Event's photos are not Off, its photo upload window closed (ruling 441).
+   */
+  private async dueForArchive(event: ArchiveCandidate, now: Date): Promise<boolean> {
+    const { data: tournaments } = await this.supabase.service
+      .from('tournaments')
+      .select('id, status, updated_at')
+      .eq('event_id', event.id);
+
+    if (!tournaments?.length) return false;
+
+    const allCompleted = (tournaments as Array<{ status: string }>).every(
+      (t) => t.status === 'completed',
+    );
+    if (!allCompleted) return false;
+
+    const lastTournamentDoneMs = (tournaments as Array<{ updated_at: string }>)
+      .map((t) => new Date(t.updated_at).getTime())
+      .reduce((a, b) => Math.max(a, b), 0);
+
+    const endDateMs = new Date(event.end_date).getTime();
+    const lastMilestone = Math.max(endDateMs, lastTournamentDoneMs);
+
+    if (now.getTime() - lastMilestone < 24 * 60 * 60 * 1000) return false;
+
+    const hold = photoArchiveHold(event, now);
+    if (hold) {
+      this.logger.log(
+        `Event ${event.id}: photo uploads open until ${hold.toISOString()}; not archived`,
+      );
+      return false;
+    }
+    return true;
   }
 
   private async writeAuditLog(eventId: string, now: string): Promise<void> {

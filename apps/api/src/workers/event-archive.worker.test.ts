@@ -7,12 +7,19 @@
  *   ✓ event with a non-completed tournament is skipped
  *   ✓ audit_log row is written for archived events
  *   ✓ only a completed Event is archived (ruling 156), on the seeded double
+ *   ✓ while photos are not Off, the Event waits for its photo upload window to close (ruling 441)
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Logger } from '@nestjs/common';
 import { EventArchiveWorker } from './event-archive.worker';
-import { mockSupabase, scopedTo, supabaseChain, writesTo } from '../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  scopedTo,
+  selectsFor,
+  supabaseChain,
+  writesTo,
+} from '../common/testing/supabase-chain';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
@@ -263,6 +270,98 @@ describe('EventArchiveWorker: a completed Event only', () => {
     expect(writesTo(supabase, 'audit_log')).toEqual([]);
     expect(log.mock.calls.map(([message]) => String(message))).toContain(
       'Event done: no longer completed; not archived',
+    );
+  });
+});
+
+/**
+ * Ruling 441: while an Event's photos are not Off, the job waits for the photo upload window to
+ * close. The Event ended Saturday 17 Oct 2026 in Paris (CEST); its last Tournament was completed at
+ * 18:00Z, so the 24 h rule is met from Sunday 18:00Z; phones may send until 00:00 Monday Paris time,
+ * 2026-10-18T22:00Z.
+ */
+describe('EventArchiveWorker: the photo upload window (ruling 441)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function cup(photo_mode: string) {
+    return mockSupabase({
+      events: {
+        rows: [
+          {
+            id: 'cup',
+            status: 'completed',
+            start_date: '2026-10-16',
+            end_date: '2026-10-17',
+            timezone: 'Europe/Paris',
+            photo_mode,
+          },
+        ],
+      },
+      tournaments: {
+        rows: [
+          {
+            id: 't-cup',
+            event_id: 'cup',
+            status: 'completed',
+            updated_at: '2026-10-17T18:00:00.000Z',
+          },
+        ],
+      },
+      audit_log: { rows: [] },
+    });
+  }
+
+  async function runAt(now: string, supabase: ReturnType<typeof cup>) {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(now) });
+    const worker = new EventArchiveWorker(makeQueue(), supabase as never);
+    const log = vi.spyOn((worker as unknown as { logger: Logger }).logger, 'log');
+    log.mockImplementation(() => undefined);
+    const result = await worker.runAutoArchive();
+    return { result, logged: log.mock.calls.map(([message]) => String(message)) };
+  }
+
+  it('leaves the Event completed while phones may still send, and says so', async () => {
+    const supabase = cup('approve');
+
+    const { result, logged } = await runAt('2026-10-18T21:30:00.000Z', supabase);
+
+    expect(result.archived).toEqual([]);
+    expect(writesTo(supabase, 'events')).toEqual([]);
+    expect(writesTo(supabase, 'audit_log')).toEqual([]);
+    expect(logged).toContain(
+      'Event cup: photo uploads open until 2026-10-18T22:00:00.000Z; not archived',
+    );
+  });
+
+  it('archives at the same instant when photos are Off: the 24 h rule alone, as before', async () => {
+    const supabase = cup('off');
+
+    const { result } = await runAt('2026-10-18T21:30:00.000Z', supabase);
+
+    expect(result.archived).toEqual(['cup']);
+  });
+
+  it('archives at the first run after the window has closed', async () => {
+    const supabase = cup('live');
+
+    const { result } = await runAt('2026-10-18T22:30:00.000Z', supabase);
+
+    expect(result.archived).toEqual(['cup']);
+    expect(writesTo(supabase, 'audit_log')).toHaveLength(1);
+  });
+
+  it('reads the mode and both ends of the window with the candidates', async () => {
+    const supabase = cup('approve');
+
+    await runAt('2026-10-18T21:30:00.000Z', supabase);
+
+    const columns = selectsFor(supabase.from, 'events')[0]!
+      .split(',')
+      .map((c) => c.trim());
+    expect(columns).toEqual(
+      expect.arrayContaining(['id', 'start_date', 'end_date', 'timezone', 'photo_mode']),
     );
   });
 });

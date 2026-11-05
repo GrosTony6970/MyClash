@@ -418,7 +418,6 @@
     "apps/api/src/modules/workshops/workshops.service.test.ts:26",
     "apps/api/src/modules/workshops/workshops.service.ts:482",
     "apps/api/src/modules/workshops/workshops.service.ts:873",
-    "apps/api/src/workers/event-archive.worker.ts:61",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:186",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:81",
     "apps/api/src/workers/runtime-health-monitor.worker.ts:76",
