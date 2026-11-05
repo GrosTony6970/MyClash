@@ -109,3 +109,42 @@ describe('remove', () => {
     await expect(organiser.remove(EVENT, MINE, USER)).resolves.toBeUndefined();
   });
 });
+
+describe('keep', () => {
+  const PHONE = '55555555-5555-4555-8555-555555555555';
+
+  it("clears the photo's reports, and only its own (ruling 448)", async () => {
+    const reports = [
+      { photo_id: MINE, device_id: PHONE },
+      { photo_id: THEIRS, device_id: PHONE },
+    ];
+    const { organiser, supabase } = moderation({ photos: [mine, theirs], reports });
+
+    await expect(organiser.keep(EVENT, MINE, USER)).resolves.toEqual({ id: MINE, kept: true });
+
+    const [write] = writesTo(supabase, 'event_photo_reports');
+    expect(write?.op).toBe('delete');
+    expect(scopedTo(write, 'photo_id')).toBe(MINE);
+    expect(writesTo(supabase, 'event_photos')).toEqual([]);
+  });
+
+  it('answers 200 for a photo with no report', async () => {
+    const { organiser } = moderation({ photos: [mine] });
+    await expect(organiser.keep(EVENT, MINE, USER)).resolves.toEqual({ id: MINE, kept: true });
+  });
+
+  it("answers photo_not_found for another Event's photo, and clears nothing", async () => {
+    const { organiser, supabase } = moderation({
+      photos: [mine, theirs],
+      reports: [{ photo_id: THEIRS, device_id: PHONE }],
+    });
+    await notFound(organiser.keep(EVENT, THEIRS, USER));
+    expect(writesTo(supabase, 'event_photo_reports')).toEqual([]);
+  });
+
+  it('refuses a non-admin and clears nothing', async () => {
+    const { organiser, supabase } = moderation({ allowed: false, photos: [mine] });
+    await expect(organiser.keep(EVENT, MINE, USER)).rejects.toThrow('Not an admin of this club');
+    expect(writesTo(supabase, 'event_photo_reports')).toEqual([]);
+  });
+});

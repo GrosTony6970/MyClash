@@ -17,8 +17,9 @@ import { PhotoModerationService } from './photo-moderation.service';
 import { PhotoQueueQueryDto } from './photo-queue.dto';
 
 /**
- * The photo queue for a staff login with the `photos` job (design, "Moderation"): the organiser's four calls,
- * on the login's own Event. The address names no Event: the staff session does. Open on a
+ * The photo queue for a staff login with the `photos` job (design, "Moderation"): the organiser's
+ * queue calls (not the QR link), on the login's own Event. The address names no Event: the staff
+ * session does. Open on a
  * completed Event, refused once it is archived (rulings 437, 438): the archived-Event lock cannot
  * place these routes, so `archived-lock-ledger.ts` files them under the staff session's check.
  */
@@ -52,6 +53,17 @@ export class PhotosStaffController {
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; status: 'approved' }> {
     return this.moderation.approve(await this.moderation.eventForStaff(req), photoId);
+  }
+
+  @Post(':photoId/keep')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Keep a reported photo: clear its reports (photos staff)' })
+  @ApiParam({ name: 'photoId', format: 'uuid' })
+  async keep(
+    @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<{ id: string; kept: true }> {
+    return this.moderation.keep(await this.moderation.eventForStaff(req), photoId);
   }
 
   @Delete(':photoId')

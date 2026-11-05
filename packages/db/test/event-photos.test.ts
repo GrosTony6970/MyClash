@@ -102,6 +102,20 @@ describe('Event photo tombstones', () => {
     },
   );
 
+  it('creates event_photo_reports with RLS on, no policy, one row per photo and phone', () => {
+    const statement = flat(
+      allSql().match(
+        /create table if not exists public\.event_photo_reports \([\s\S]*?\n\);/i,
+      )?.[0],
+    );
+    expect(statement).toContain(
+      'photo_id uuid not null references public.event_photos(id) on delete cascade',
+    );
+    expect(statement).toContain('primary key (photo_id, device_id)');
+    expect(sql).toContain('alter table public.event_photo_reports enable row level security');
+    expect(sql).not.toMatch(/create policy[^;]*on (public\.)?event_photo_reports/);
+  });
+
   it('lists only the Events that still hold a photo, for the service role alone', () => {
     const fn = functionStatement(allSql(), 'event_photo_events');
     expect(fn).toContain('returns table (event_id uuid, end_date date, timezone text)');

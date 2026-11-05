@@ -50,6 +50,7 @@ export function photoDoor(
     config,
     db as never,
     {} as never,
+    {} as never,
   );
   return (req) => {
     (req as { headers: Record<string, string> }).headers['x-photo-token'] =

@@ -32,7 +32,8 @@ export async function organisersEvent(
 
 /**
  * The Event's photo columns, or 404. No gate: each caller holds one (the organiser's above, the
- * `photos` staff job's in `PhotoModerationService.eventForStaff`). The select is one literal, so
+ * `photos` staff job's in `PhotoModerationService.eventForStaff`, and the public list's and
+ * Report's `readableEvent` in `PhotoPublicService`). The select is one literal, so
  * the schema-conformance sweep reads its columns.
  */
 export async function photoEvent(

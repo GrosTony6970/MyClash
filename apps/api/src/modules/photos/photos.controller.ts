@@ -11,8 +11,9 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import type { PhotoLink, PhotoQueuePage, PhotoSummary } from '@myclash/types';
+import type { PhotoLink, PhotoQueuePage, PhotoSummary, PublicPhotoPage } from '@myclash/types';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBody,
   ApiConsumes,
@@ -24,15 +25,19 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
+import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_DEVICE_COOKIE, PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
 import type { PhotoEventRow } from './photo-organiser';
+import { PublicPhotoQueryDto } from './photo-public.dto';
+import { PhotoPublicService } from './photo-public.service';
 import { PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
 
@@ -50,6 +55,7 @@ export class PhotosController {
     private readonly config: ConfigService,
     private readonly supabase: SupabaseService,
     private readonly moderation: PhotoModerationService,
+    private readonly publicPhotos: PhotoPublicService,
   ) {}
 
   /**
@@ -85,19 +91,43 @@ export class PhotosController {
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ id: string; status: 'waiting' | 'approved' }> {
-    const cookie = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies?.[
-      PHOTO_DEVICE_COOKIE
-    ];
-    const { deviceId, fresh } = this.devices.deviceOf(cookie);
-    if (fresh) {
-      const { token, expires } = this.devices.sign(deviceId);
-      (reply as CookieReply).setCookie(
-        PHOTO_DEVICE_COOKIE,
-        token,
-        buildSessionCookieOptions({ env: this.config.get<string>('NODE_ENV'), expires }),
-      );
-    }
+    const deviceId = this.deviceFor(req, reply);
     return this.uploads.upload(eventId, req.headers['x-photo-token'], deviceId, req);
+  }
+
+  /** The Event's approved photos, newest first, for whoever may see the Event (design, "The public"). */
+  @Public()
+  @Get('events/:eventId/photos/public')
+  @Throttle(PUBLIC_LIVE_READ_THROTTLE)
+  @ApiOperation({ summary: "One page of an Event's approved photos, newest first (public)" })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  async publicList(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: PublicPhotoQueryDto,
+    @Req() req: FastifyRequest,
+  ): Promise<PublicPhotoPage> {
+    return this.publicPhotos.feed(eventId, publicReader(req), query);
+  }
+
+  /**
+   * A phone's Report of a public photo: no account, counted once per phone (ruling 428). Open on
+   * an archived Event (ruling 447): its photos stay public until the deletion date.
+   */
+  @Public()
+  @Post('events/:eventId/photos/:photoId/report')
+  @AllowOnArchivedEvent()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Report a public photo to the moderators (anonymous)' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiParam({ name: 'photoId', format: 'uuid' })
+  async report(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ reported: true }> {
+    const deviceId = this.deviceFor(req, reply);
+    return this.publicPhotos.report(eventId, photoId, deviceId, publicReader(req));
   }
 
   @Get('events/:eventId/photos/link')
@@ -179,9 +209,45 @@ export class PhotosController {
     await this.moderation.remove(await this.organisersEvent(eventId, req), photoId);
   }
 
-  /** The signed-in caller, as an admin of the Event's club: the gate of the four calls above. */
+  /** Clears a photo's reports; the photo stays. Open on an archived Event, as Delete (ruling 447). */
+  @Post('events/:eventId/photos/:photoId/keep')
+  @AllowOnArchivedEvent()
+  @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: 'Keep a reported photo: clear its reports (organisers)' })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiParam({ name: 'photoId', format: 'uuid' })
+  async keep(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<{ id: string; kept: true }> {
+    return this.moderation.keep(await this.organisersEvent(eventId, req), photoId);
+  }
+
+  /** The signed-in caller, as an admin of the Event's club: the gate of the organiser's calls above. */
   private async organisersEvent(eventId: string, req: FastifyRequest): Promise<PhotoEventRow> {
     const userId = await requireRequestUserId(req, this.supabase);
     return this.moderation.eventForOrganiser(eventId, userId);
+  }
+
+  /**
+   * The phone, from its signed cookie; a phone with none (or a forged one) gets a new id and its
+   * cookie. The upload's per-phone limit and the Report's both count by it.
+   */
+  private deviceFor(req: FastifyRequest, reply: FastifyReply): string {
+    const cookie = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies?.[
+      PHOTO_DEVICE_COOKIE
+    ];
+    const { deviceId, fresh } = this.devices.deviceOf(cookie);
+    if (fresh) {
+      const { token, expires } = this.devices.sign(deviceId);
+      (reply as CookieReply).setCookie(
+        PHOTO_DEVICE_COOKIE,
+        token,
+        buildSessionCookieOptions({ env: this.config.get<string>('NODE_ENV'), expires }),
+      );
+    }
+    return deviceId;
   }
 }

@@ -114,6 +114,27 @@ export interface PhotoQueuePage {
   next: string | null;
 }
 
+// ── The public list and the Report (design, "The public") ───────────────────────────────────
+
+/** An approved photo as the public sees it: no status, nothing of the phone that sent it. */
+export type PublicPhoto = Omit<ModerationPhoto, 'status'>;
+
+/** One page of an Event's public photos, newest first. `next` is the following page's cursor. */
+export interface PublicPhotoPage {
+  photos: PublicPhoto[];
+  next: string | null;
+}
+
+/** A phone's refusal when it has reported its photos for this hour. */
+export const PHOTO_REPORT_LIMIT = 'photo_report_limit';
+/** The photos one phone may report in an hour; a repeat of one photo adds no report. */
+export const PHOTO_REPORTS_PER_HOUR = 30;
+/**
+ * The reports one photo keeps (ruling 449): past it a Report is answered and not stored. A
+ * phone with no cookie is a new phone each time, so only this bounds the rows a script can add.
+ */
+export const PHOTO_REPORTS_PER_PHOTO = 20;
+
 /** The head of the organiser's Photos page. */
 export interface PhotoSummary {
   mode: PhotoMode;

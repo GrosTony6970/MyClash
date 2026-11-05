@@ -5,6 +5,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
+import { PhotoPublicService } from './photo-public.service';
 import { photoStoreProvider } from './photo-store.provider';
 import { PhotoUploadService } from './photo-upload.service';
 import { StaffModule } from '../staff/staff.module';
@@ -26,6 +27,7 @@ import { PhotosStaffController } from './photos-staff.controller';
     PhotoDeviceService,
     PhotoLinkService,
     PhotoModerationService,
+    PhotoPublicService,
     photoStoreProvider,
   ],
 })

@@ -1,10 +1,14 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
+import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
+import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 import { ALLOW_ON_ARCHIVED_EVENT_KEY } from '../../common/event-readonly/allow-on-archived.decorator';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
+import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { PhotoDeviceService, PHOTO_DEVICE_COOKIE } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
+import { publicPhotoQuerySchema } from './photo-public.dto';
 import { photoQueueQuerySchema } from './photo-queue.dto';
 import { photoToken, photoTokenMatches } from './photo-token';
 import { PhotosController } from './photos.controller';
@@ -25,6 +29,11 @@ function controller() {
     list: vi.fn(async () => ({ photos: [], next: null })),
     approve: vi.fn(async () => ({ id: PHOTO, status: 'approved' })),
     remove: vi.fn(async () => undefined),
+    keep: vi.fn(async () => ({ id: PHOTO, kept: true })),
+  };
+  const publicPhotos = {
+    feed: vi.fn(async () => ({ photos: [], next: null })),
+    report: vi.fn(async () => ({ reported: true })),
   };
   // A signed-in organiser: `requireRequestUserId` turns the session cookie into this user.
   const supabase = { getAuthUser: vi.fn(async () => ({ id: 'user-7' })) };
@@ -35,9 +44,15 @@ function controller() {
     { get: () => 'production' } as never,
     supabase as never,
     moderation as never,
+    publicPhotos as never,
   );
-  return { ctl, upload, moderation };
+  return { ctl, upload, moderation, publicPhotos };
 }
+
+/** `@Throttle({ global: … })`'s limit, as `@nestjs/throttler` stores it (as auth.controller.test.ts). */
+const THROTTLE_LIMIT = 'THROTTLER:LIMITglobal';
+const marked = (key: string, handler: keyof PhotosController): unknown =>
+  new Reflector().get(key, PhotosController.prototype[handler] as never);
 
 const reply = () => ({ setCookie: vi.fn() });
 const req = (cookies: Record<string, string> = {}, headers: Record<string, string> = {}) =>
@@ -158,6 +173,87 @@ describe('the moderation routes', () => {
     expect(open('remove')).toBe(true);
     expect(open('approve')).toBe(true);
     expect(open('rotateLink')).toBe(false);
+  });
+
+  it("Keep clears a photo's reports behind the organiser gate, open on an archived Event (447)", async () => {
+    const { ctl, moderation } = controller();
+    await expect(ctl.keep(EVENT, PHOTO, signedIn())).resolves.toEqual({ id: PHOTO, kept: true });
+    expect(moderation.eventForOrganiser).toHaveBeenCalledWith(EVENT, 'user-7');
+    expect(moderation.keep).toHaveBeenCalledWith({ id: EVENT, gate: 'organiser' }, PHOTO);
+
+    await expect(ctl.keep(EVENT, PHOTO, req())).rejects.toThrow('Authentication required');
+    expect(marked(ALLOW_ON_ARCHIVED_EVENT_KEY, 'keep')).toBe(true);
+  });
+});
+
+describe('the public photo routes', () => {
+  it('the list reads as the caller, with the query, under the live-read throttle', async () => {
+    const { ctl, publicPhotos } = controller();
+    await ctl.publicList(EVENT, { tournamentId: PHOTO }, req());
+
+    expect(publicPhotos.feed).toHaveBeenCalledWith(
+      EVENT,
+      { userId: ANONYMOUS_USER_ID, staff: null },
+      { tournamentId: PHOTO },
+    );
+    expect(marked(IS_PUBLIC_KEY, 'publicList')).toBe(true);
+    expect(marked(THROTTLE_LIMIT, 'publicList')).toBe(PUBLIC_LIVE_READ_THROTTLE.global.limit);
+  });
+
+  it('a Report from a phone with no cookie gives it one, and counts under that id', async () => {
+    const { ctl, publicPhotos } = controller();
+    const r = reply();
+    await ctl.report(EVENT, PHOTO, req(), r as never);
+
+    expect(r.setCookie).toHaveBeenCalledOnce();
+    const [name, token] = r.setCookie.mock.calls[0]!;
+    expect(name).toBe(PHOTO_DEVICE_COOKIE);
+    const { deviceId } = devices.deviceOf(token);
+    expect(publicPhotos.report).toHaveBeenCalledWith(EVENT, PHOTO, deviceId, {
+      userId: ANONYMOUS_USER_ID,
+      staff: null,
+    });
+  });
+
+  it('a Report from a known phone keeps its cookie and its id', async () => {
+    const { ctl, publicPhotos } = controller();
+    const known = '2b1e8a6c-0d4f-4c3e-9a7b-5f6e7d8c9b0a';
+    const r = reply();
+    await ctl.report(
+      EVENT,
+      PHOTO,
+      req({ [PHOTO_DEVICE_COOKIE]: devices.sign(known).token }),
+      r as never,
+    );
+
+    expect(r.setCookie).not.toHaveBeenCalled();
+    expect(publicPhotos.report).toHaveBeenCalledWith(EVENT, PHOTO, known, expect.anything());
+  });
+
+  it('a Report is public, and open on an archived Event (ruling 447)', () => {
+    expect(marked(IS_PUBLIC_KEY, 'report')).toBe(true);
+    expect(marked(ALLOW_ON_ARCHIVED_EVENT_KEY, 'report')).toBe(true);
+    expect(marked(THROTTLE_LIMIT, 'report')).toBeUndefined();
+  });
+});
+
+describe('PublicPhotoQueryDto', () => {
+  const parse = (query: Record<string, string | undefined>) =>
+    publicPhotoQuerySchema.safeParse(query);
+  const T = '11111111-1111-4111-8111-111111111111';
+
+  it('takes a cursor as PostgREST writes it, and one filter', () => {
+    const before = '2026-11-05T12:00:00.123456+00:00';
+    expect(parse({ before, tournamentId: T })).toEqual({
+      success: true,
+      data: { before, tournamentId: T },
+    });
+  });
+
+  it('refuses both filters at once, a cursor that is no instant, and an unknown key', () => {
+    expect(parse({ tournamentId: T, workshopId: T }).success).toBe(false);
+    expect(parse({ before: 'yesterday' }).success).toBe(false);
+    expect(parse({ filter: 'all' }).success).toBe(false);
   });
 });
 

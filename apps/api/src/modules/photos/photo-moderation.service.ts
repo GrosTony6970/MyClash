@@ -15,6 +15,7 @@ import { PHOTO_CLEANUP_QUEUE, PHOTO_DRAIN } from '../../workers/photo-cleanup.wo
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_STORE, type PhotoStore } from './photo-bucket';
+import { photoLinks } from './photo-links';
 import { StaffService } from '../staff/staff.service';
 import { organisersEvent, photoEvent, type PhotoEventRow } from './photo-organiser';
 import { EVENT_PHOTO_BYTES, EVENT_PHOTOS_PER_HOUR } from './photo-upload.service';
@@ -38,7 +39,8 @@ interface QueueRow {
   workshop: { title: string } | null;
 }
 
-const photoNotFound = () =>
+/** The photo is not, or no longer, in this Event: the moderators' and the Report's 404. */
+export const photoNotFound = () =>
   new NotFoundException({ message: 'This photo is not in this Event.', code: PHOTO_NOT_FOUND });
 
 /** The staff job that moderates photos (design, "Moderation"). */
@@ -155,6 +157,27 @@ export class PhotoModerationService {
   }
 
   /**
+   * Keep: the photo stays, its reports go. A later report counts again (ruling 448), as the
+   * table's key is free once more. A photo with no report changes nothing.
+   */
+  async keep(event: PhotoEventRow, photoId: string): Promise<{ id: string; kept: true }> {
+    const { data, error } = await this.supabase.service
+      .from('event_photos')
+      .select('id')
+      .eq('id', photoId)
+      .eq('event_id', event.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw photoNotFound();
+    const { error: cleared } = await this.supabase.service
+      .from('event_photo_reports')
+      .delete()
+      .eq('photo_id', photoId);
+    if (cleared) throw new Error(cleared.message);
+    return { id: photoId, kept: true };
+  }
+
+  /**
    * Deletes the photo. Its images are queued by the row trigger; the drain is asked for now and
    * NOT awaited: with Redis down a queue add waits in the client's offline queue for minutes, and
    * the 5-minute tick drains the tombstone anyway.
@@ -194,27 +217,8 @@ export class PhotoModerationService {
       caption: row.caption,
       tag,
       createdAt: row.created_at,
-      ...(await this.linksOf(row, now)),
+      ...(await photoLinks(this.store, row, now, this.logger)),
     };
-  }
-
-  /** Both links, or neither: a signer that fails leaves this tile "image unavailable". */
-  private async linksOf(
-    row: QueueRow,
-    now: Date,
-  ): Promise<{ previewUrl: string | null; originalUrl: string | null }> {
-    if (!this.store) return { previewUrl: null, originalUrl: null };
-    try {
-      const [previewUrl, originalUrl] = await Promise.all([
-        this.store.link(row.preview_key, now),
-        this.store.link(row.original_key, now),
-      ]);
-      return { previewUrl, originalUrl };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`Photo ${row.id}: could not sign its links: ${reason}`);
-      return { previewUrl: null, originalUrl: null };
-    }
   }
 
   private async usage(eventId: string): Promise<{ lastHour: number; bytes: number }> {

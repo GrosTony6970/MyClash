@@ -2636,7 +2636,9 @@ neither placed, nor opted out, nor filed with its reason in `common/testing/arch
 `@AllowOnArchivedEvent()` marks what stays open, each by a ruling: deletion requests and their
 review, a Workshop or Event rating (223, 223a), a roster row's edit but not its deletion (222b),
 a League link, its request, its detach and the League recompute (224, 224a), an organiser's
-delete of an Event photo (privacy) and approve of one (443), and the score
+delete of an Event photo (privacy), approve of one (443) and Keep of a reported one, and a
+phone's Report of a public photo (447: an archived Event's photos stay public until their
+deletion date), and the score
 corrections, which follow the rules of a completed Event (222a): `FrozenResultsGuard` reads
 completed and archived alike, so an Exchange's void goes through a super admin's review and a
 forfeit's void is a super admin's in its handler (no caller reaches it over HTTP, see 250 below);

@@ -86,3 +86,6 @@ INSERT INTO event_photos (id, event_id, tournament_id, status, device_id, origin
    'events/ca5c0000-0000-4000-8000-0000000000e1/ca5c0000-0000-4000-8000-000000000b01/original.jpg',
    'events/ca5c0000-0000-4000-8000-0000000000e1/ca5c0000-0000-4000-8000-000000000b01/preview.jpg',
    1024, 0);
+-- A phone's Report of that photo: it must go with the photo on every path (0252).
+INSERT INTO event_photo_reports (photo_id, device_id) VALUES
+  ('ca5c0000-0000-4000-8000-000000000b01', 'ca5c0000-0000-4000-8000-000000000b03');

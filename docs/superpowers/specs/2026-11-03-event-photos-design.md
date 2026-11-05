@@ -302,6 +302,14 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
     response (`canReadTournament` / hidden ids).
 - Each photo has a Report button. **[rev]** Reports are limited and de-duplicated per device and photo,
   never per IP. Reported photos stay visible.
+- **[rev 445-448, slice 4a]** The list is `GET events/:eventId/photos/public`, 30 a page, empty while
+  photos are Off and from the deletion instant on. A Report is one row per photo and phone
+  (`event_photo_reports`, migration 0252), at most 30 photos per phone per hour and 20 reports per
+  photo (449: past it a Report is answered and not stored); a photo the public cannot see answers
+  "not found". It is taken on an archived Event too (447), whose photos stay
+  public until the deletion date. Keep deletes the photo's reports, so a later report counts again
+  (448). The page is a route `/e/<event>/photos` with a home card (446, slice 4b); the Reported
+  tab is slice 4c.
 
 ### Storage and deletion
 

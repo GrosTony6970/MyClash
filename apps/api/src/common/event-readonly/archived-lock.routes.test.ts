@@ -102,6 +102,10 @@ describe('the archived-Event lock, API-wide', () => {
       'POST events/:eventId/feedback',
       // Event photos (ruling 443): a photo still waiting at archive can still be shown.
       'POST events/:eventId/photos/:photoId/approve',
+      // Event photos (ruling 447): an archived Event's photos stay public until the deletion
+      // date, so a Report still reaches the organiser, who may Keep the photo.
+      'POST events/:eventId/photos/:photoId/keep',
+      'POST events/:eventId/photos/:photoId/report',
       'POST matches/:id/clock',
       'POST matches/:id/exchanges',
       'POST matches/:id/level-resolution/advance',
@@ -142,7 +146,9 @@ describe('the archived-Event lock, API-wide', () => {
     // their Event: no photo arrives at, and no link is rotated for, an archived Event.
     // 188: the organiser's `POST …/photos/:photoId/approve` and `DELETE …/photos/:photoId`,
     // both opted out (443, privacy) and still placed: the count reads the path, not the mark.
-    expect(placed).toHaveLength(188);
+    // 190: the organiser's `POST …/photos/:photoId/keep` and the public `…/report` (447), opted
+    // out and placed alike. The public list is a GET: not a write, not counted.
+    expect(placed).toHaveLength(190);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

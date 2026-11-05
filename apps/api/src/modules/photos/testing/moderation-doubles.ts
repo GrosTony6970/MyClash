@@ -62,6 +62,7 @@ export interface ModerationSetup {
   staff?: { eventId: string } | Error;
   event?: Partial<SupabaseRow> | null;
   photos?: SupabaseRow[];
+  reports?: SupabaseRow[];
   store?: PhotoStore | null;
   usage?: { event_last_hour: number; event_bytes: number | string };
   add?: () => Promise<unknown>;
@@ -87,6 +88,7 @@ export function moderation(options: ModerationSetup = {}) {
     {
       events: { data: event, error: null },
       event_photos: { rows: options.photos ?? [] },
+      event_photo_reports: { rows: options.reports ?? [] },
     },
     {
       event_photo_usage: () => ({
@@ -125,7 +127,7 @@ function staffGate(answer: { eventId: string } | Error) {
   };
 }
 
-/** The four calls behind the organiser's gate, as `PhotosController` makes them. */
+/** The calls behind the organiser's gate, as `PhotosController` makes them. */
 function asOrganiser(service: PhotoModerationService) {
   const gate = (eventId: string, userId: string) => service.eventForOrganiser(eventId, userId);
   return {
@@ -137,5 +139,7 @@ function asOrganiser(service: PhotoModerationService) {
       service.approve(await gate(eventId, userId), photoId),
     remove: async (eventId: string, photoId: string, userId: string) =>
       service.remove(await gate(eventId, userId), photoId),
+    keep: async (eventId: string, photoId: string, userId: string) =>
+      service.keep(await gate(eventId, userId), photoId),
   };
 }

@@ -18,6 +18,9 @@ export const PHOTO_KEYS = [
   `events/${EVENT}/${PHOTO}/preview.jpg`,
 ];
 export const PHOTO_SEEDED = ['event_photos', 'id', PHOTO];
+/** A phone's Report of the photo (0252): it goes with the photo on every path. */
+const REPORTER = 'ca5c0000-0000-4000-8000-000000000b03';
+export const REPORT_SEEDED = ['event_photo_reports', 'device_id', REPORTER];
 const BOTH = JSON.stringify([...PHOTO_KEYS].sort());
 
 async function queuedKeys(tx) {
@@ -31,6 +34,11 @@ async function photoLeft(tx) {
   return (await tx`SELECT count(*)::int AS n FROM event_photos WHERE id = ${PHOTO}`)[0].n;
 }
 
+async function reportsLeft(tx) {
+  return (await tx`SELECT count(*)::int AS n FROM event_photo_reports WHERE photo_id = ${PHOTO}`)[0]
+    .n;
+}
+
 /** As the API's role: it deletes Events and photos as `service_role`, through the invoker trigger. */
 const asService = (statement) => async (tx) => {
   await tx`SET LOCAL ROLE service_role`;
@@ -42,7 +50,8 @@ const PATHS = [
   ['a photo delete', (tx) => tx`DELETE FROM event_photos WHERE id = ${PHOTO}`],
   ['the Event delete', (tx) => tx`DELETE FROM events WHERE id = ${EVENT}`],
   ['the club delete', (tx) => tx`DELETE FROM organizations WHERE id = ${CLUB}`],
-  ['a TRUNCATE', (tx) => tx`TRUNCATE event_photos`],
+  // CASCADE: a plain TRUNCATE is refused once the reports' key points at the table (0252).
+  ['a TRUNCATE', (tx) => tx`TRUNCATE event_photos CASCADE`],
   ['a TRUNCATE of the clubs, cascading', (tx) => tx`TRUNCATE organizations CASCADE`],
   [
     "a photo delete by the API's role",
@@ -60,21 +69,38 @@ export async function noTombstoneBeforeDeletes(sql, check) {
   check('no photo tombstone before the deletes', left.length === 0, left.join(', '));
 }
 
-/** The rolled-back cases: each delete path removes the photo and queues both keys. */
+/** The rolled-back cases: each delete path removes the photo and its report, and queues both keys. */
 export async function photoTombstoneCases({ tryAndRollBack, check }) {
   for (const [what, statement] of PATHS) {
     const { error, observed } = await tryAndRollBack(statement, async (tx) => ({
       queued: JSON.stringify(await queuedKeys(tx)),
       left: await photoLeft(tx),
+      reports: await reportsLeft(tx),
     }));
     check(
-      `${what} removes the photo and queues both its keys`,
-      error === null && observed.queued === BOTH && observed.left === 0,
+      `${what} removes the photo and its report, and queues both its keys`,
+      error === null && observed.queued === BOTH && observed.left === 0 && observed.reports === 0,
       error?.message ?? JSON.stringify(observed),
     );
   }
   await tournamentDeleteUntags({ tryAndRollBack, check });
+  await secondReportAddsNothing({ tryAndRollBack, check });
   await webRoleReadsNone({ tryAndRollBack, check });
+}
+
+/** The API's write: the same phone reporting the same photo again leaves one row (0252's key). */
+async function secondReportAddsNothing({ tryAndRollBack, check }) {
+  const { error, observed } = await tryAndRollBack(
+    (tx) => tx`
+      INSERT INTO event_photo_reports (photo_id, device_id) VALUES (${PHOTO}, ${REPORTER})
+      ON CONFLICT (photo_id, device_id) DO NOTHING`,
+    reportsLeft,
+  );
+  check(
+    'a second report by the same phone adds no row',
+    error === null && observed === 1,
+    error?.message ?? `${observed} rows`,
+  );
 }
 
 async function tournamentDeleteUntags({ tryAndRollBack, check }) {

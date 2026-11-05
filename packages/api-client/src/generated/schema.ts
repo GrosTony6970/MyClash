@@ -9764,6 +9764,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/photos/public': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One page of an Event's approved photos, newest first (public) */
+    get: operations['PhotosController_publicList'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/photos/{photoId}/report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Report a public photo to the moderators (anonymous) */
+    post: operations['PhotosController_report'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/photos/link': {
     parameters: {
       query?: never;
@@ -9849,6 +9883,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/photos/{photoId}/keep': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Keep a reported photo: clear its reports (organisers) */
+    post: operations['PhotosController_keep'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff/photos/summary': {
     parameters: {
       query?: never;
@@ -9894,6 +9945,23 @@ export interface paths {
     put?: never;
     /** Approve a photo: the public sees it (photos staff) */
     post: operations['PhotosStaffController_approve'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/photos/{photoId}/keep': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Keep a reported photo: clear its reports (photos staff) */
+    post: operations['PhotosStaffController_keep'];
     delete?: never;
     options?: never;
     head?: never;
@@ -26650,6 +26718,49 @@ export interface operations {
       };
     };
   };
+  PhotosController_publicList: {
+    parameters: {
+      query?: {
+        before?: string;
+        tournamentId?: string;
+        workshopId?: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_report: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PhotosController_readLink: {
     parameters: {
       query?: never;
@@ -26747,6 +26858,26 @@ export interface operations {
       };
     };
   };
+  PhotosController_keep: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PhotosStaffController_summary: {
     parameters: {
       query?: never;
@@ -26785,6 +26916,25 @@ export interface operations {
     };
   };
   PhotosStaffController_approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosStaffController_keep: {
     parameters: {
       query?: never;
       header?: never;

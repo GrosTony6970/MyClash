@@ -50,7 +50,7 @@ describe('the staff gate', () => {
     expect(filtersFor(supabase.from, 'events', 'eq')).toEqual([['id', OTHER_EVENT]]);
   });
 
-  it.each(['summary', 'queue', 'approve', 'remove'] as const)(
+  it.each(['summary', 'queue', 'approve', 'remove', 'keep'] as const)(
     '%s reads and writes nothing for a session the gate refuses',
     async (call) => {
       const refused = new ForbiddenException({ code: 'staff_role_not_allowed' });
@@ -108,11 +108,23 @@ describe('the staff writes, on the login’s Event only', () => {
     },
   );
 
+  it("keeps a photo of the login's Event, clearing its reports only", async () => {
+    const reports = [{ photo_id: MINE, device_id: '55555555-5555-4555-8555-555555555555' }];
+    const { ctl, supabase } = staffController({ reports });
+
+    await expect(ctl.keep(MINE, STAFF_REQ)).resolves.toEqual({ id: MINE, kept: true });
+
+    const [write] = writesTo(supabase, 'event_photo_reports');
+    expect(write?.op).toBe('delete');
+    expect(scopedTo(write, 'photo_id')).toBe(MINE);
+    await notFound(ctl.keep(THEIRS, STAFF_REQ));
+  });
+
   // Ruling 438: the `photos` login stops at archive, Delete included. The staff session's check
   // refuses it (staff.service.event-over.test.ts); no route here opts out of the archived lock.
   it('opens no staff route on an archived Event', () => {
     const reflector = new Reflector();
-    for (const handler of ['approve', 'remove'] as const) {
+    for (const handler of ['approve', 'remove', 'keep'] as const) {
       const open = reflector.get<boolean>(
         ALLOW_ON_ARCHIVED_EVENT_KEY,
         PhotosStaffController.prototype[handler] as never,
