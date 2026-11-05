@@ -6,6 +6,10 @@ export const SUMMARY_READ = '/api/v1/events/ev1/photos/summary';
 export const LINK_READ = '/api/v1/events/ev1/photos/link';
 export const waitingRead = '/api/v1/events/ev1/photos?filter=waiting';
 export const allRead = '/api/v1/events/ev1/photos?filter=all';
+export const reportedRead = '/api/v1/events/ev1/photos?filter=reported';
+
+/** The newest report of the reported photo p3, as the database wrote it. */
+export const LAST_REPORT = '2026-11-07T16:30:00.654321+00:00';
 
 export const SUMMARY: PhotoSummary = {
   mode: 'approve',
@@ -17,6 +21,7 @@ export const SUMMARY: PhotoSummary = {
   bytes: 2_500_000_000,
   bytesCap: 15_000_000_000,
   waiting: 2,
+  reported: 1,
   deletesAt: '2026-12-08T23:00:00.000Z',
   timezone: 'Europe/Paris',
 };
@@ -31,18 +36,38 @@ export function photo(id: string, over: Partial<ModerationPhoto> = {}): Moderati
     createdAt: '2026-11-07T15:00:00.123456+00:00',
     previewUrl: `https://bucket.test/${id}/preview.jpg?sig=1`,
     originalUrl: `https://bucket.test/${id}/original.jpg?sig=1`,
+    reportCount: 0,
+    reportComments: [],
+    lastReportAt: null,
     ...over,
   };
 }
+
+/** An approved photo three phones reported, two of them with a comment. */
+export const reportedPhoto = (id = 'p3'): ModerationPhoto =>
+  photo(id, {
+    status: 'approved',
+    reportCount: 3,
+    reportComments: ['this is me, please remove', 'blurry'],
+    lastReportAt: LAST_REPORT,
+  });
 
 export const page = (photos: ModerationPhoto[], next: string | null = null): PhotoQueuePage => ({
   photos,
   next,
 });
 
-/** Every read of the page with two waiting photos, p1 and p2. */
+/**
+ * Every read of the page with two waiting photos, p1 and p2, and the reported photo p3. Reported
+ * is answered by default: a page that presses every tab reads it.
+ */
 export function photoReads(
-  over: { summary?: Partial<PhotoSummary>; waiting?: PhotoQueuePage; all?: PhotoQueuePage } = {},
+  over: {
+    summary?: Partial<PhotoSummary>;
+    waiting?: PhotoQueuePage;
+    reported?: PhotoQueuePage;
+    all?: PhotoQueuePage;
+  } = {},
 ): Record<string, unknown> {
   const waiting = over.waiting ?? page([photo('p1'), photo('p2')]);
   return {
@@ -50,6 +75,7 @@ export function photoReads(
     [SUMMARY_READ]: { ...SUMMARY, ...over.summary },
     [LINK_READ]: { token: 'tok_1', version: 1 },
     [waitingRead]: waiting,
+    [reportedRead]: over.reported ?? page([reportedPhoto()]),
     [allRead]: over.all ?? waiting,
   };
 }

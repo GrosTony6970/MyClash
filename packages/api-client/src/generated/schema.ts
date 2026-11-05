@@ -9892,7 +9892,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Keep a reported photo: clear its reports (organisers) */
+    /** Keep a reported photo: clear its reports up to the newest shown (organisers) */
     post: operations['PhotosController_keep'];
     delete?: never;
     options?: never;
@@ -9960,7 +9960,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Keep a reported photo: clear its reports (photos staff) */
+    /** Keep a reported photo: clear its reports up to the newest shown (photos staff) */
     post: operations['PhotosStaffController_keep'];
     delete?: never;
     options?: never;
@@ -12273,6 +12273,10 @@ export interface components {
     };
     PhotoReportBodyDto: {
       comment?: string | null;
+    };
+    PhotoKeepBodyDto: {
+      /** Format: date-time */
+      reportsUpTo: string;
     };
   };
   responses: never;
@@ -26666,7 +26670,7 @@ export interface operations {
   PhotosController_queue: {
     parameters: {
       query?: {
-        filter?: 'waiting' | 'all';
+        filter?: 'waiting' | 'reported' | 'all';
         before?: string;
       };
       header?: never;
@@ -26875,7 +26879,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PhotoKeepBodyDto'];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -26905,7 +26913,7 @@ export interface operations {
   PhotosStaffController_queue: {
     parameters: {
       query?: {
-        filter?: 'waiting' | 'all';
+        filter?: 'waiting' | 'reported' | 'all';
         before?: string;
       };
       header?: never;
@@ -26950,7 +26958,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PhotoKeepBodyDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

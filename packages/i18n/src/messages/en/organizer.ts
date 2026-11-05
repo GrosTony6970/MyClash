@@ -2794,6 +2794,11 @@ export const organizer = {
       photoAlt: 'A photo sent to the event',
       imageUnavailable: 'Image unavailable',
       loadMore: 'Load more',
+      reported: 'Reported ({count})',
+      emptyReported: 'No photo is reported.',
+      reportCount: 'Reports: {count}',
+      reportComments: 'Comments from the reports',
+      keep: 'Keep',
     },
   },
   staff: {

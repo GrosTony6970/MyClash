@@ -280,7 +280,15 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
     E2E suite and `sw.test.ts` stay green.
 - **Actions:** approve, delete, and **keep**, which clears a photo's reports (my call). Delete removes the
   row; the object goes through the tombstone queue (see Storage and deletion).
-- Reports reach moderators only as a count in the "Reported" tab. No email or push (my call).
+- Reports reach moderators only in the "Reported" tab. No email or push (my call).
+- **[rev 452, 454-457, slice 4c]** Each reported photo shows its report count and its reports'
+  comments, newest first, on every tab it appears in (456). The Reported tab lists by when the
+  photo was sent, as Waiting and All (455). Keep acts without asking (454) and clears only the
+  reports up to the newest the screen showed; a later one stays, and so does the photo in
+  Reported (457). Known gap, accepted with the plan (its assumption 9): "later" is the report's
+  first time. A phone that already reported and only changes its comment after the screen was
+  read keeps that time, so Keep clears the changed comment unseen. Closing it needs a "comment
+  changed at" column (a migration).
 - **Mode changes** (my calls):
   - **Off** hides every photo from the public and stops uploads. It is the organiser's kill switch.
     Turning photos back on shows the approved ones again. **[rev]** Links already handed out stay valid
@@ -309,7 +317,7 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
   "not found". It is taken on an archived Event too (447), whose photos stay
   public until the deletion date. Keep deletes the photo's reports, so a later report counts again
   (448). The page is a route `/e/<event>/photos` with a home card (446, slice 4b); the Reported
-  tab is slice 4c.
+  tab is slice 4c (see "Moderation").
 - **[rev 450-453, slice 4b]** The page reads the newest 30 every 30 s while visible and keeps what
   Load more added; a picture whose link has expired shows "Image unavailable" until a reload
   (450). The card stays after the deletion date; the page then says photos are deleted 30 days

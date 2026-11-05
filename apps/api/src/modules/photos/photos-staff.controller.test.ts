@@ -15,6 +15,8 @@ const mine = photoRow(0);
 const theirs = photoRow(1, { event_id: OTHER_EVENT });
 const MINE = mine.id as string;
 const THEIRS = theirs.id as string;
+/** The newest report the screen showed, as the database wrote it. */
+const SHOWN = '2026-11-07T12:00:00.123456+00:00';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -61,7 +63,9 @@ describe('the staff gate', () => {
           ? ctl.queue({ filter: 'all' }, STAFF_REQ)
           : call === 'summary'
             ? ctl.summary(STAFF_REQ)
-            : ctl[call](MINE, STAFF_REQ);
+            : call === 'keep'
+              ? ctl.keep(MINE, { reportsUpTo: SHOWN }, STAFF_REQ)
+              : ctl[call](MINE, STAFF_REQ);
       await expect(run).rejects.toBe(refused);
 
       expect(queriedTables(supabase.from)).toEqual([]);
@@ -108,16 +112,19 @@ describe('the staff writes, on the login’s Event only', () => {
     },
   );
 
-  it("keeps a photo of the login's Event, clearing its reports only", async () => {
+  it("keeps a photo of the login's Event, clearing its reports up to the newest shown", async () => {
     const reports = [{ photo_id: MINE, device_id: '55555555-5555-4555-8555-555555555555' }];
     const { ctl, supabase } = staffController({ reports });
+    const body = { reportsUpTo: SHOWN };
 
-    await expect(ctl.keep(MINE, STAFF_REQ)).resolves.toEqual({ id: MINE, kept: true });
+    await expect(ctl.keep(MINE, body, STAFF_REQ)).resolves.toEqual({ id: MINE, kept: true });
 
     const [write] = writesTo(supabase, 'event_photo_reports');
     expect(write?.op).toBe('delete');
     expect(scopedTo(write, 'photo_id')).toBe(MINE);
-    await notFound(ctl.keep(THEIRS, STAFF_REQ));
+    const bound = write?.filters.filter((filter) => filter.method === 'lte');
+    expect(bound?.map((filter) => filter.args)).toEqual([['created_at', SHOWN]]);
+    await notFound(ctl.keep(THEIRS, body, STAFF_REQ));
   });
 
   // Ruling 438: the `photos` login stops at archive, Delete included. The staff session's check

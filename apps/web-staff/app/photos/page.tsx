@@ -11,13 +11,17 @@ import { PhotoTile } from './PhotoTile';
 // Literal keys, never a template: a computed t() key is invisible to t-key-references.test.ts.
 const EMPTY_KEYS = {
   waiting: 'scoring.photos.emptyWaiting',
+  reported: 'scoring.photos.emptyReported',
   all: 'scoring.photos.empty',
 } as const satisfies Record<PhotoQueueFilter, string>;
 
+type Queue = ReturnType<typeof usePhotoQueue>;
+
 /**
  * The photo queue for a staff login with the `photos` job (design, "Moderation"): what
- * the Event has received, newest first, with Approve and Delete. The organiser's admin page holds
- * the mode, the QR poster and the caps; this screen holds the queue alone. Online only.
+ * the Event has received and what the public reported, newest first, with Approve, Keep and
+ * Delete. The organiser's admin page holds the mode, the QR poster and the caps; this screen
+ * holds the queue alone. Online only.
  */
 export default function PhotosPage() {
   const { t } = useI18n();
@@ -50,18 +54,7 @@ export default function PhotosPage() {
             {t('scoring.photos.refresh')}
           </button>
         </div>
-        <SegmentedTabs
-          tabs={[
-            {
-              value: 'waiting' as const,
-              label: t('scoring.photos.waiting', { count: String(queue.summary?.waiting ?? 0) }),
-            },
-            { value: 'all' as const, label: t('scoring.photos.all') },
-          ]}
-          value={queue.filter}
-          onChange={queue.setFilter}
-          aria-label={t('scoring.photos.tabsLabel')}
-        />
+        <QueueTabs queue={queue} />
         {queue.error && <p className="mt-3 text-sm text-danger">{queue.error}</p>}
         <PhotoList queue={queue} onDelete={(photo) => void remove(photo)} />
       </div>
@@ -70,11 +63,35 @@ export default function PhotosPage() {
   );
 }
 
+/** Waiting and Reported with their counts, then All. */
+function QueueTabs({ queue }: { queue: Queue }) {
+  const { t } = useI18n();
+  const count = (n: number | undefined) => ({ count: String(n ?? 0) });
+  return (
+    <SegmentedTabs
+      tabs={[
+        {
+          value: 'waiting' as const,
+          label: t('scoring.photos.waiting', count(queue.summary?.waiting)),
+        },
+        {
+          value: 'reported' as const,
+          label: t('scoring.photos.reported', count(queue.summary?.reported)),
+        },
+        { value: 'all' as const, label: t('scoring.photos.all') },
+      ]}
+      value={queue.filter}
+      onChange={queue.setFilter}
+      aria-label={t('scoring.photos.tabsLabel')}
+    />
+  );
+}
+
 function PhotoList({
   queue,
   onDelete,
 }: {
-  queue: ReturnType<typeof usePhotoQueue>;
+  queue: Queue;
   onDelete: (photo: ModerationPhoto) => void;
 }) {
   const { t } = useI18n();
@@ -97,6 +114,7 @@ function PhotoList({
             timezone={timezone}
             busy={queue.busy}
             onApprove={(p) => void queue.approve(p)}
+            onKeep={(p) => void queue.keep(p)}
             onDelete={onDelete}
             onImageError={queue.onImageError}
           />

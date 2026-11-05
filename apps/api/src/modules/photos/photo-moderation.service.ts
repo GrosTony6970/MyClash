@@ -37,6 +37,8 @@ interface QueueRow {
   original_key: string;
   tournament: { name: string } | null;
   workshop: { title: string } | null;
+  /** A to-many embed: always an array, `[]` with no report (0252's key is composite). */
+  reports: { comment: string | null; created_at: string }[];
 }
 
 /** The photo is not, or no longer, in this Event: the moderators' and the Report's 404. */
@@ -47,7 +49,8 @@ export const photoNotFound = () =>
 const PHOTO_STAFF_ROLES = ['photos'] as const;
 
 /**
- * The moderation queue (design, "Moderation"): what the Event has received, approve, delete. Two
+ * The moderation queue (design, "Moderation"): what the Event has received and what the public
+ * reported (each photo with its reports' count and comments), approve, keep, delete. Two
  * gates hand the calls their Event: `eventForOrganiser` (org admin, the admin page) and
  * `eventForStaff` (a staff login with the `photos` job, the staff app, on the login's own Event).
  * A call never takes an Event that did not come through one of them.
@@ -87,9 +90,10 @@ export class PhotoModerationService {
   async summary(event: PhotoEventRow): Promise<PhotoSummary> {
     // From the deletion instant on the queue is empty, so its count says so too.
     const expired = this.expired(event, this.now());
-    const [usage, waiting] = await Promise.all([
+    const [usage, waiting, reported] = await Promise.all([
       this.usage(event.id),
       expired ? 0 : this.waiting(event.id),
+      expired ? 0 : this.reported(event.id),
     ]);
     const mode = asPhotoMode(event.photo_mode);
     if (!mode) throw new Error(`Event ${event.id}: unknown photo mode ${event.photo_mode}`);
@@ -103,6 +107,7 @@ export class PhotoModerationService {
       bytes: usage.bytes,
       bytesCap: EVENT_PHOTO_BYTES,
       waiting,
+      reported,
       deletesAt: photoDeletionInstant(event)?.toISOString() ?? null,
       timezone: eventZone(event.timezone).zone,
     };
@@ -121,12 +126,7 @@ export class PhotoModerationService {
     const now = this.now();
     if (this.expired(event, now)) return { photos: [], next: null };
 
-    let query = this.supabase.service
-      .from('event_photos')
-      .select(
-        'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title)',
-      )
-      .eq('event_id', event.id);
+    let query = this.queueRead(event.id, filter);
     if (filter === 'waiting') query = query.eq('status', 'waiting');
     if (before) query = query.lt('created_at', before);
     const { data, error } = await query
@@ -157,10 +157,16 @@ export class PhotoModerationService {
   }
 
   /**
-   * Keep: the photo stays, its reports go. A later report counts again (ruling 448), as the
-   * table's key is free once more. A photo with no report changes nothing.
+   * Keep: the photo stays, the reports the moderator saw go. `reportsUpTo` is the newest report
+   * the screen showed, as the database wrote it; a report made after it stays, unread, and keeps
+   * the photo in Reported (ruling 457). A later report counts again (448), as the table's key is
+   * free once more. A photo with no report changes nothing.
    */
-  async keep(event: PhotoEventRow, photoId: string): Promise<{ id: string; kept: true }> {
+  async keep(
+    event: PhotoEventRow,
+    photoId: string,
+    reportsUpTo: string,
+  ): Promise<{ id: string; kept: true }> {
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .select('id')
@@ -172,7 +178,8 @@ export class PhotoModerationService {
     const { error: cleared } = await this.supabase.service
       .from('event_photo_reports')
       .delete()
-      .eq('photo_id', photoId);
+      .eq('photo_id', photoId)
+      .lte('created_at', reportsUpTo);
     if (cleared) throw new Error(cleared.message);
     return { id: photoId, kept: true };
   }
@@ -199,6 +206,24 @@ export class PhotoModerationService {
       });
   }
 
+  /**
+   * The queue's read of one Event, each photo with its reports. Reported embeds them `!inner`, so
+   * PostgREST lists only photos with one. Two whole literals, so the schema-conformance sweep
+   * reads both (`supabase-query-scan.ts`: a select built from a constant is skipped).
+   */
+  private queueRead(eventId: string, filter: PhotoQueueFilter) {
+    const photos = this.supabase.service.from('event_photos');
+    const read =
+      filter === 'reported'
+        ? photos.select(
+            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports!inner(comment, created_at)',
+          )
+        : photos.select(
+            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, created_at)',
+          );
+    return read.eq('event_id', eventId);
+  }
+
   private expired(event: PhotoEventRow, now: Date): boolean {
     const instant = photoDeletionInstant(event);
     return instant !== null && now.getTime() >= instant.getTime();
@@ -210,6 +235,11 @@ export class PhotoModerationService {
       : row.workshop
         ? { kind: 'workshop' as const, name: row.workshop.title }
         : null;
+    // Newest first, compared as written (all UTC, as PostgREST answers), by code unit: a
+    // locale-aware compare may weigh the `+` and `.` of a time differently.
+    const reports = [...row.reports].sort((a, b) =>
+      a.created_at === b.created_at ? 0 : a.created_at < b.created_at ? 1 : -1,
+    );
     return {
       id: row.id,
       status: row.status,
@@ -218,6 +248,9 @@ export class PhotoModerationService {
       tag,
       createdAt: row.created_at,
       ...(await photoLinks(this.store, row, now, this.logger)),
+      reportCount: reports.length,
+      reportComments: reports.flatMap((report) => (report.comment ? [report.comment] : [])),
+      lastReportAt: reports[0]?.created_at ?? null,
     };
   }
 
@@ -240,6 +273,16 @@ export class PhotoModerationService {
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
       .eq('status', 'waiting');
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  /** The photos with at least one report: `!inner` counts each photo once, however many it holds. */
+  private async reported(eventId: string): Promise<number> {
+    const { count, error } = await this.supabase.service
+      .from('event_photos')
+      .select('id, event_photo_reports!inner(photo_id)', { count: 'exact', head: true })
+      .eq('event_id', eventId);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }

@@ -2756,6 +2756,11 @@ export const organizer = {
       photoAlt: 'Une photo envoyée à l’événement',
       imageUnavailable: 'Image indisponible',
       loadMore: 'Afficher plus',
+      reported: 'Signalées ({count})',
+      emptyReported: 'Aucune photo n’est signalée.',
+      reportCount: 'Signalements : {count}',
+      reportComments: 'Commentaires des signalements',
+      keep: 'Conserver',
     },
   },
   staff: {

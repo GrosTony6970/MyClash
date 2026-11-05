@@ -112,6 +112,8 @@ describe('remove', () => {
 
 describe('keep', () => {
   const PHONE = '55555555-5555-4555-8555-555555555555';
+  /** The newest report the screen showed, as the database wrote it. */
+  const SHOWN = '2026-11-07T12:00:00.123456+00:00';
 
   it("clears the photo's reports, and only its own (ruling 448)", async () => {
     const reports = [
@@ -120,7 +122,10 @@ describe('keep', () => {
     ];
     const { organiser, supabase } = moderation({ photos: [mine, theirs], reports });
 
-    await expect(organiser.keep(EVENT, MINE, USER)).resolves.toEqual({ id: MINE, kept: true });
+    await expect(organiser.keep(EVENT, MINE, USER, SHOWN)).resolves.toEqual({
+      id: MINE,
+      kept: true,
+    });
 
     const [write] = writesTo(supabase, 'event_photo_reports');
     expect(write?.op).toBe('delete');
@@ -128,9 +133,22 @@ describe('keep', () => {
     expect(writesTo(supabase, 'event_photos')).toEqual([]);
   });
 
+  it('clears the reports up to the newest one shown, and no later one (ruling 457)', async () => {
+    const { organiser, supabase } = moderation({ photos: [mine] });
+
+    await organiser.keep(EVENT, MINE, USER, SHOWN);
+
+    const [write] = writesTo(supabase, 'event_photo_reports');
+    const bound = write?.filters.filter((filter) => filter.method === 'lte');
+    expect(bound?.map((filter) => filter.args)).toEqual([['created_at', SHOWN]]);
+  });
+
   it('answers 200 for a photo with no report', async () => {
     const { organiser } = moderation({ photos: [mine] });
-    await expect(organiser.keep(EVENT, MINE, USER)).resolves.toEqual({ id: MINE, kept: true });
+    await expect(organiser.keep(EVENT, MINE, USER, SHOWN)).resolves.toEqual({
+      id: MINE,
+      kept: true,
+    });
   });
 
   it("answers photo_not_found for another Event's photo, and clears nothing", async () => {
@@ -138,13 +156,15 @@ describe('keep', () => {
       photos: [mine, theirs],
       reports: [{ photo_id: THEIRS, device_id: PHONE }],
     });
-    await notFound(organiser.keep(EVENT, THEIRS, USER));
+    await notFound(organiser.keep(EVENT, THEIRS, USER, SHOWN));
     expect(writesTo(supabase, 'event_photo_reports')).toEqual([]);
   });
 
   it('refuses a non-admin and clears nothing', async () => {
     const { organiser, supabase } = moderation({ allowed: false, photos: [mine] });
-    await expect(organiser.keep(EVENT, MINE, USER)).rejects.toThrow('Not an admin of this club');
+    await expect(organiser.keep(EVENT, MINE, USER, SHOWN)).rejects.toThrow(
+      'Not an admin of this club',
+    );
     expect(writesTo(supabase, 'event_photo_reports')).toEqual([]);
   });
 });

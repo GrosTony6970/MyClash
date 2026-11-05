@@ -26,6 +26,9 @@ const photo = (id: string, name: string) => ({
   createdAt: '2026-11-08T14:05:00.123456+00:00',
   previewUrl: null,
   originalUrl: null,
+  reportCount: 0,
+  reportComments: [],
+  lastReportAt: null,
 });
 
 const SUMMARY = {
@@ -38,6 +41,7 @@ const SUMMARY = {
   bytes: 0,
   bytesCap: 15e9,
   waiting: 2,
+  reported: 0,
   deletesAt: null,
   timezone: 'Europe/Paris',
 };

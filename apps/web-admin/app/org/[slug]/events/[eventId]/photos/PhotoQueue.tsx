@@ -10,22 +10,25 @@ interface QueueProps {
   photos: ModerationPhoto[];
   filter: PhotoQueueFilter;
   waiting: number;
+  reported: number;
   timezone: string;
   hasMore: boolean;
   loadingMore: boolean;
   busy: boolean;
   onFilter: (filter: PhotoQueueFilter) => void;
   onApprove: (photo: ModerationPhoto) => Promise<unknown>;
+  onKeep: (photo: ModerationPhoto) => Promise<unknown>;
   onDelete: (photo: ModerationPhoto) => Promise<unknown>;
   onLoadMore: () => Promise<void>;
   onImageError: () => void;
 }
 
 /**
- * The queue: Waiting (with its count) and All, newest first. Reported and Keep come with the
- * public Report button (ruling 436). Approve is a quiet button: one accent per page, and a grid
- * of red buttons has none. Delete asks first. Both stay open on an archived Event: Delete for
- * privacy, Approve for a photo still waiting when the Event was archived (ruling 443).
+ * The queue: Waiting and Reported (each with its count) and All, newest first. A reported photo
+ * shows its reports wherever it appears (ruling 456). Approve and Keep are quiet buttons: one
+ * accent per page, and a grid of red buttons has none. Delete asks first; Keep does not (454).
+ * All three stay open on an archived Event: Delete for privacy, Approve for a photo still waiting
+ * when the Event was archived (443), Keep for a report made after it (447).
  */
 export function PhotoQueue(props: QueueProps) {
   const { t } = useI18n();
@@ -44,7 +47,7 @@ export function PhotoQueue(props: QueueProps) {
 
   return (
     <section className="space-y-4">
-      <QueueTabs filter={props.filter} waiting={props.waiting} onFilter={props.onFilter} />
+      <QueueTabs {...props} />
       {props.photos.length === 0 ? (
         <EmptyState title={t(EMPTY_KEYS[props.filter])} />
       ) : (
@@ -70,19 +73,25 @@ export function PhotoQueue(props: QueueProps) {
 
 const EMPTY_KEYS = {
   waiting: 'organizer.photos.queue.emptyWaiting',
+  reported: 'organizer.photos.queue.emptyReported',
   all: 'organizer.photos.queue.empty',
 } as const satisfies Record<PhotoQueueFilter, string>;
 
 function QueueTabs({
   filter,
   waiting,
+  reported,
   onFilter,
-}: Pick<QueueProps, 'filter' | 'waiting' | 'onFilter'>) {
+}: Pick<QueueProps, 'filter' | 'waiting' | 'reported' | 'onFilter'>) {
   const { t } = useI18n();
   const tabs = [
     {
       value: 'waiting' as const,
       label: t('organizer.photos.queue.waiting', { count: String(waiting) }),
+    },
+    {
+      value: 'reported' as const,
+      label: t('organizer.photos.queue.reported', { count: String(reported) }),
     },
     { value: 'all' as const, label: t('organizer.photos.queue.all') },
   ];
@@ -130,28 +139,75 @@ function PhotoTile({
         <p className="text-xs text-muted">
           {[photo.tag?.name, when, approved].filter(Boolean).join(' · ')}
         </p>
-        <div className="flex gap-2 pt-1">
-          {photo.status === 'waiting' && (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={queue.busy}
-              onClick={() => void queue.onApprove(photo)}
-            >
-              {t('organizer.photos.queue.approve')}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={queue.busy}
-            onClick={() => void onDelete(photo)}
-          >
-            {t('actions.delete')}
-          </Button>
-        </div>
+        <ReportLines photo={photo} />
+        <TileActions photo={photo} queue={queue} onDelete={onDelete} />
       </div>
     </li>
+  );
+}
+
+/** How many phones reported the photo and what they wrote, newest first; nothing with no report. */
+function ReportLines({ photo }: { photo: ModerationPhoto }) {
+  const { t } = useI18n();
+  if (photo.reportCount === 0) return null;
+  return (
+    <div className="space-y-1 pt-1">
+      <p className="text-xs font-semibold text-danger">
+        {t('organizer.photos.queue.reportCount', { count: String(photo.reportCount) })}
+      </p>
+      {photo.reportComments.length > 0 && (
+        <ul
+          aria-label={t('organizer.photos.queue.reportComments')}
+          className="space-y-1 text-xs text-foreground-secondary"
+        >
+          {photo.reportComments.map((comment, index) => (
+            <li key={index} className="break-words border-l-2 border-border pl-2">
+              {comment}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Approve (waiting only), Keep (reported only, at once: 454) and Delete (asks first). */
+function TileActions({
+  photo,
+  queue,
+  onDelete,
+}: {
+  photo: ModerationPhoto;
+  queue: QueueProps;
+  onDelete: (photo: ModerationPhoto) => Promise<void>;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex gap-2 pt-1">
+      {photo.status === 'waiting' && (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={queue.busy}
+          onClick={() => void queue.onApprove(photo)}
+        >
+          {t('organizer.photos.queue.approve')}
+        </Button>
+      )}
+      {photo.reportCount > 0 && (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={queue.busy}
+          onClick={() => void queue.onKeep(photo)}
+        >
+          {t('organizer.photos.queue.keep')}
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" disabled={queue.busy} onClick={() => void onDelete(photo)}>
+        {t('actions.delete')}
+      </Button>
+    </div>
   );
 }
 

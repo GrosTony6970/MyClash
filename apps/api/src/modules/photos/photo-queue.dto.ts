@@ -13,3 +13,12 @@ export const photoQueueQuerySchema = z
   })
   .strict();
 export class PhotoQueueQueryDto extends createZodDto(photoQueueQuerySchema) {}
+
+/**
+ * `POST …/photos/:photoId/keep` (organiser and staff): the newest report the screen showed, as
+ * the queue gave it (`lastReportAt`). Keep clears the reports up to it (ruling 457).
+ */
+export const photoKeepBodySchema = z
+  .object({ reportsUpTo: z.iso.datetime({ offset: true }) })
+  .strict();
+export class PhotoKeepBodyDto extends createZodDto(photoKeepBodySchema) {}

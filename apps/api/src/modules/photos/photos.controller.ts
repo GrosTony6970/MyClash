@@ -39,7 +39,7 @@ import { PhotoModerationService } from './photo-moderation.service';
 import type { PhotoEventRow } from './photo-organiser';
 import { PhotoReportBodyDto, PublicPhotoQueryDto } from './photo-public.dto';
 import { PhotoPublicService } from './photo-public.service';
-import { PhotoQueueQueryDto } from './photo-queue.dto';
+import { PhotoKeepBodyDto, PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
 
 type CookieReply = FastifyReply & {
@@ -213,20 +213,27 @@ export class PhotosController {
     await this.moderation.remove(await this.organisersEvent(eventId, req), photoId);
   }
 
-  /** Clears a photo's reports; the photo stays. Open on an archived Event, as Delete (ruling 447). */
+  /**
+   * Clears the photo's reports up to the newest the screen showed (457); the photo stays. Open on
+   * an archived Event, as Delete (ruling 447).
+   */
   @Post('events/:eventId/photos/:photoId/keep')
   @AllowOnArchivedEvent()
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth('sb-access-token')
-  @ApiOperation({ summary: 'Keep a reported photo: clear its reports (organisers)' })
+  @ApiOperation({
+    summary: 'Keep a reported photo: clear its reports up to the newest shown (organisers)',
+  })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   @ApiParam({ name: 'photoId', format: 'uuid' })
   async keep(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Body() body: PhotoKeepBodyDto,
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; kept: true }> {
-    return this.moderation.keep(await this.organisersEvent(eventId, req), photoId);
+    const event = await this.organisersEvent(eventId, req);
+    return this.moderation.keep(event, photoId, body.reportsUpTo);
   }
 
   /** The signed-in caller, as an admin of the Event's club: the gate of the organiser's calls above. */

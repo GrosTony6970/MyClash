@@ -19,6 +19,9 @@ const photo = (id: string): ModerationPhoto => ({
   createdAt: '2026-11-05T12:00:00.123456+00:00',
   previewUrl: null,
   originalUrl: null,
+  reportCount: 0,
+  reportComments: [],
+  lastReportAt: null,
 });
 const page = (ids: string[], next: string | null = null): PhotoQueuePage => ({
   photos: ids.map(photo),

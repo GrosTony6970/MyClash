@@ -99,8 +99,8 @@ export interface PhotoLink {
 /** A moderator's refusal when the photo is not, or no longer, in this Event. */
 export const PHOTO_NOT_FOUND = 'photo_not_found';
 
-/** The queue's tabs. Reported and Keep come with the public Report button (ruling 436). */
-export const PHOTO_QUEUE_FILTERS = ['waiting', 'all'] as const;
+/** The queue's tabs, in the order the screens show them. Reported lists photos with a report. */
+export const PHOTO_QUEUE_FILTERS = ['waiting', 'reported', 'all'] as const;
 export type PhotoQueueFilter = (typeof PHOTO_QUEUE_FILTERS)[number];
 
 /** One photo in the moderation queue. Both links are signed for 15 minutes; null without one. */
@@ -114,6 +114,12 @@ export interface ModerationPhoto {
   previewUrl: string | null;
   /** The original, opened on tap. */
   originalUrl: string | null;
+  /** The phones that reported it (at most `PHOTO_REPORTS_PER_PHOTO`). */
+  reportCount: number;
+  /** What they wrote, newest report first; a report with no comment adds none. */
+  reportComments: string[];
+  /** The newest report's time as the database wrote it, or null with none: Keep's bound (457). */
+  lastReportAt: string | null;
 }
 
 /** One page of the queue, newest first. `next` is the cursor of the following page. */
@@ -124,8 +130,14 @@ export interface PhotoQueuePage {
 
 // ── The public list and the Report (design, "The public") ───────────────────────────────────
 
-/** An approved photo as the public sees it: no status, nothing of the phone that sent it. */
-export type PublicPhoto = Omit<ModerationPhoto, 'status'>;
+/**
+ * An approved photo as the public sees it: no status, nothing of the phone that sent it, and
+ * nothing of its reports, whose comments are for the moderators only.
+ */
+export type PublicPhoto = Omit<
+  ModerationPhoto,
+  'status' | 'reportCount' | 'reportComments' | 'lastReportAt'
+>;
 
 /** One page of an Event's public photos, newest first. `next` is the following page's cursor. */
 export interface PublicPhotoPage {
@@ -162,6 +174,8 @@ export interface PhotoSummary {
   bytes: number;
   bytesCap: number;
   waiting: number;
+  /** The photos with at least one report. */
+  reported: number;
   /** When every photo of the Event is deleted (ISO), or null when its dates cannot be read. */
   deletesAt: string | null;
   /** The Event's clock, to show `deletesAt` in it. */

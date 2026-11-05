@@ -32,6 +32,7 @@ export function photoRow(n: number, over: Partial<SupabaseRow> = {}): SupabaseRo
     original_key: `events/${EVENT}/${id}/original.jpg`,
     tournament: null,
     workshop: null,
+    reports: [],
     ...over,
   };
 }
@@ -139,7 +140,7 @@ function asOrganiser(service: PhotoModerationService) {
       service.approve(await gate(eventId, userId), photoId),
     remove: async (eventId: string, photoId: string, userId: string) =>
       service.remove(await gate(eventId, userId), photoId),
-    keep: async (eventId: string, photoId: string, userId: string) =>
-      service.keep(await gate(eventId, userId), photoId),
+    keep: async (eventId: string, photoId: string, userId: string, reportsUpTo: string) =>
+      service.keep(await gate(eventId, userId), photoId, reportsUpTo),
   };
 }

@@ -9,7 +9,7 @@ import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-prof
 import { PhotoDeviceService, PHOTO_DEVICE_COOKIE } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { photoReportBodySchema, publicPhotoQuerySchema } from './photo-public.dto';
-import { photoQueueQuerySchema } from './photo-queue.dto';
+import { photoKeepBodySchema, photoQueueQuerySchema } from './photo-queue.dto';
 import { photoToken, photoTokenMatches } from './photo-token';
 import { PhotosController } from './photos.controller';
 
@@ -17,6 +17,8 @@ const DEVICE_SECRET = 'test-photo-device-secret-at-least-32-characters';
 const TOKEN_SECRET = 'test-photo-token-secret-at-least-32-characters';
 const EVENT = '6f9619ff-8b86-4011-b42d-00c04fc964ff';
 const PHOTO = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+/** The newest report a moderator's screen showed, as the database wrote it. */
+const SHOWN = '2026-11-07T12:00:00.123456+00:00';
 
 const devices = new PhotoDeviceService({ getOrThrow: () => DEVICE_SECRET } as never);
 
@@ -175,13 +177,17 @@ describe('the moderation routes', () => {
     expect(open('rotateLink')).toBe(false);
   });
 
-  it("Keep clears a photo's reports behind the organiser gate, open on an archived Event (447)", async () => {
+  it("Keep clears a photo's reports up to the newest shown, behind the organiser gate, open on an archived Event (447, 457)", async () => {
     const { ctl, moderation } = controller();
-    await expect(ctl.keep(EVENT, PHOTO, signedIn())).resolves.toEqual({ id: PHOTO, kept: true });
+    const body = { reportsUpTo: SHOWN };
+    await expect(ctl.keep(EVENT, PHOTO, body, signedIn())).resolves.toEqual({
+      id: PHOTO,
+      kept: true,
+    });
     expect(moderation.eventForOrganiser).toHaveBeenCalledWith(EVENT, 'user-7');
-    expect(moderation.keep).toHaveBeenCalledWith({ id: EVENT, gate: 'organiser' }, PHOTO);
+    expect(moderation.keep).toHaveBeenCalledWith({ id: EVENT, gate: 'organiser' }, PHOTO, SHOWN);
 
-    await expect(ctl.keep(EVENT, PHOTO, req())).rejects.toThrow('Authentication required');
+    await expect(ctl.keep(EVENT, PHOTO, body, req())).rejects.toThrow('Authentication required');
     expect(marked(ALLOW_ON_ARCHIVED_EVENT_KEY, 'keep')).toBe(true);
   });
 });
@@ -321,10 +327,30 @@ describe('PhotoQueueQueryDto', () => {
     expect(parse({})).toEqual({ success: true, data: { filter: 'waiting' } });
   });
 
-  it.each([{ filter: 'reported' }, { before: 'yesterday' }, { page: '2' }])(
-    'refuses %o',
-    (query) => {
-      expect(parse(query).success).toBe(false);
-    },
-  );
+  it('reads the Reported tab', () => {
+    expect(parse({ filter: 'reported' })).toEqual({ success: true, data: { filter: 'reported' } });
+  });
+
+  it.each([{ filter: 'bogus' }, { before: 'yesterday' }, { page: '2' }])('refuses %o', (query) => {
+    expect(parse(query).success).toBe(false);
+  });
+});
+
+describe('PhotoKeepBodyDto', () => {
+  const parse = (body: unknown) => photoKeepBodySchema.safeParse(body);
+
+  it('takes the newest report time as PostgREST writes it, unchanged', () => {
+    expect(parse({ reportsUpTo: SHOWN })).toEqual({ success: true, data: { reportsUpTo: SHOWN } });
+  });
+
+  it.each([
+    undefined,
+    {},
+    { reportsUpTo: null },
+    { reportsUpTo: 'yesterday' },
+    { reportsUpTo: '2026-11-07T12:00:00.123456' },
+    { reportsUpTo: SHOWN, all: true },
+  ])('refuses %o', (body) => {
+    expect(parse(body).success).toBe(false);
+  });
 });

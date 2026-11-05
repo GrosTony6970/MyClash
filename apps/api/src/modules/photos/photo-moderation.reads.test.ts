@@ -18,7 +18,7 @@ import {
 
 const NOW = new Date('2026-11-07T15:02:00Z');
 const QUEUE_SELECT =
-  'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title)';
+  'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, created_at)';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -193,6 +193,9 @@ describe('summary', () => {
       bytes: 2_500_000_000,
       bytesCap: 15_000_000_000,
       waiting: 2,
+      // The double ignores `!inner` and counts every photo of the Event; the Reported tab's
+      // own tests pin what PostgREST is asked (`photo-moderation.reported.test.ts`).
+      reported: 3,
       deletesAt: '2026-12-08T23:00:00.000Z',
       timezone: 'Europe/Paris',
     });
@@ -200,7 +203,10 @@ describe('summary', () => {
       p_event_id: EVENT,
       p_device_id: '00000000-0000-0000-0000-000000000000',
     });
-    expect(selectsFor(supabase.from, 'event_photos')).toEqual(['id']);
+    expect(selectsFor(supabase.from, 'event_photos')).toEqual([
+      'id',
+      'id, event_photo_reports!inner(photo_id)',
+    ]);
   });
 
   it('counts nothing waiting from the deletion instant on, as the queue shows nothing', async () => {

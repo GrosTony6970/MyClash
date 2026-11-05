@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -14,7 +15,7 @@ import type { PhotoQueuePage, PhotoSummary } from '@myclash/types';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { PhotoModerationService } from './photo-moderation.service';
-import { PhotoQueueQueryDto } from './photo-queue.dto';
+import { PhotoKeepBodyDto, PhotoQueueQueryDto } from './photo-queue.dto';
 
 /**
  * The photo queue for a staff login with the `photos` job (design, "Moderation"): the organiser's
@@ -57,13 +58,17 @@ export class PhotosStaffController {
 
   @Post(':photoId/keep')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Keep a reported photo: clear its reports (photos staff)' })
+  @ApiOperation({
+    summary: 'Keep a reported photo: clear its reports up to the newest shown (photos staff)',
+  })
   @ApiParam({ name: 'photoId', format: 'uuid' })
   async keep(
     @Param('photoId', ParseUUIDPipe) photoId: string,
+    @Body() body: PhotoKeepBodyDto,
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; kept: true }> {
-    return this.moderation.keep(await this.moderation.eventForStaff(req), photoId);
+    const event = await this.moderation.eventForStaff(req);
+    return this.moderation.keep(event, photoId, body.reportsUpTo);
   }
 
   @Delete(':photoId')

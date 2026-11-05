@@ -70,12 +70,14 @@ function PhotoSections({
         photos={photos.photos}
         filter={photos.filter}
         waiting={summary.waiting}
+        reported={summary.reported}
         timezone={summary.timezone}
         hasMore={photos.next !== null}
         loadingMore={photos.loadingMore}
         busy={photos.busy}
         onFilter={photos.setFilter}
         onApprove={photos.approve}
+        onKeep={photos.keep}
         onDelete={photos.remove}
         onLoadMore={photos.loadMore}
         onImageError={photos.onImageError}

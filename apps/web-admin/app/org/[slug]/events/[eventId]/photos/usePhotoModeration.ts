@@ -201,6 +201,13 @@ function usePhotoWrites(base: string, reload: () => void) {
     busy,
     approve: (photo: ModerationPhoto) =>
       send(`${base}/photos/${photo.id}/approve`, { method: 'POST' }),
+    // The newest report shown: a later one stays for the next read (ruling 457). Keep shows on a
+    // reported photo only, whose time is never null.
+    keep: (photo: ModerationPhoto) =>
+      send(`${base}/photos/${photo.id}/keep`, {
+        method: 'POST',
+        body: { reportsUpTo: photo.lastReportAt },
+      }),
     remove: (photo: ModerationPhoto) => send(`${base}/photos/${photo.id}`, { method: 'DELETE' }),
     setMode: (mode: PhotoMode) => send(base, { method: 'PATCH', body: { photoMode: mode } }),
     // The reload that follows reads the new link.

@@ -27,8 +27,9 @@ type Translate = ReturnType<typeof useI18n>['t'];
 function request<T>(
   path: string,
   method: 'GET' | 'POST' | 'DELETE' = 'GET',
+  body?: unknown,
 ): Promise<ApiResult<T>> {
-  return apiRequest<T>(getApiUrl(), path, { method });
+  return apiRequest<T>(getApiUrl(), path, body === undefined ? { method } : { method, body });
 }
 
 /** Pure I/O at module scope, so the read effect writes no state synchronously. */
@@ -153,10 +154,10 @@ function useQueueWrites(reload: () => void) {
   const clearError = useCallback(() => setError(null), []);
 
   const send = useCallback(
-    async (path: string, method: 'POST' | 'DELETE') => {
+    async (path: string, method: 'POST' | 'DELETE', body?: unknown) => {
       setBusy(true);
       setError(null);
-      const res = await request<unknown>(path, method);
+      const res = await request<unknown>(path, method, body);
       setBusy(false);
       if (!res.ok) setError(refusalText(res, t, t('scoring.photos.actionError')));
       reload();
@@ -169,6 +170,10 @@ function useQueueWrites(reload: () => void) {
     error,
     clearError,
     approve: (photo: ModerationPhoto) => send(`/api/v1/staff/photos/${photo.id}/approve`, 'POST'),
+    // The newest report shown: a later one stays for the next read (ruling 457). Keep shows on a
+    // reported photo only, whose time is never null.
+    keep: (photo: ModerationPhoto) =>
+      send(`/api/v1/staff/photos/${photo.id}/keep`, 'POST', { reportsUpTo: photo.lastReportAt }),
     remove: (photo: ModerationPhoto) => send(`/api/v1/staff/photos/${photo.id}`, 'DELETE'),
   };
 }
