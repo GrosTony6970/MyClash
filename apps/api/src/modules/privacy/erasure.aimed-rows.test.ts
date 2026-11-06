@@ -68,6 +68,7 @@ function tables(): Record<string, TableSeed> {
     organization_follows: { rows: [] },
     notification_preferences: { rows: [] },
     push_subscriptions: { rows: [] },
+    event_photos: { rows: [] },
     // Canned: its read filters with `contains`, which the seeded double does not model.
     audit_log: { data: [], error: null },
   };

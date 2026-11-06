@@ -34,6 +34,9 @@
  *     report (0252), a Tournament delete only untags it, a second report by the same phone adds no
  *     row, its comment replaces the first and holds 1 to 200 characters (0253), and a web role
  *     reads no tombstone (0250, `lib/photo-tombstone-probe.mjs`);
+ *   - a photo sent from an account refuses the auth server's delete of that account, erasure's
+ *     delete of it queues both keys first, and a photo has one sender and a name of 40 (a phone)
+ *     or 200 (an account) characters at most (0254, `lib/photo-account-probe.mjs`);
  *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
@@ -49,6 +52,7 @@ import {
   REPORT_SEEDED,
   tombstonesAfterClubDelete,
 } from './lib/photo-tombstone-probe.mjs';
+import { photoAccountCases } from './lib/photo-account-probe.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -68,7 +72,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 67;
+const EXPECTED_CHECKS = 74;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -311,6 +315,7 @@ try {
     await deletesSucceed();
     await refusalsHold();
     await photoTombstoneCases({ tryAndRollBack, check });
+    await photoAccountCases({ tryAndRollBack, check });
   } finally {
     await seedDeleted();
     await tombstonesAfterClubDelete(sql, check);

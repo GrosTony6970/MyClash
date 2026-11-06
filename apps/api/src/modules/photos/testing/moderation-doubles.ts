@@ -94,7 +94,7 @@ export function moderation(options: ModerationSetup = {}) {
     {
       event_photo_usage: () => ({
         data: [
-          { device_last_hour: 0, ...(options.usage ?? { event_last_hour: 0, event_bytes: 0 }) },
+          { sender_last_hour: 0, ...(options.usage ?? { event_last_hour: 0, event_bytes: 0 }) },
         ],
         error: null,
       }),

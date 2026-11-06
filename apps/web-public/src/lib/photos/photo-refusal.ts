@@ -22,7 +22,10 @@ export interface RefusalView {
 
 type Translate = (key: string, values?: Record<string, string>) => string;
 
-/** Every code of `POST events/:eventId/photos`: a new code that is not here does not compile. */
+/**
+ * Every code of `POST events/:eventId/photos` and `POST me/events/:eventId/photos`: a new code
+ * that is not here does not compile.
+ */
 const REFUSALS: Record<PhotoUploadRefusal, { key: string; end: RefusalEnd }> = {
   photo_not_jpeg: { key: 'publicApp.photoSend.refusal.notJpeg', end: 'photo' },
   photo_heic: { key: 'publicApp.photoSend.refusal.heic', end: 'photo' },
@@ -41,6 +44,10 @@ const REFUSALS: Record<PhotoUploadRefusal, { key: string; end: RefusalEnd }> = {
   photo_device_limit: { key: 'publicApp.photoSend.refusal.deviceLimit', end: 'closed' },
   photo_event_limit: { key: 'publicApp.photoSend.refusal.eventLimit', end: 'closed' },
   photo_event_storage_full: { key: 'publicApp.photoSend.refusal.storageFull', end: 'closed' },
+  // A photo sent from a personal space (`POST me/events/:eventId/photos`).
+  photo_not_your_event: { key: 'publicApp.photoSend.refusal.notYourEvent', end: 'closed' },
+  photo_no_name: { key: 'publicApp.photoSend.refusal.noName', end: 'closed' },
+  photo_account_limit: { key: 'publicApp.photoSend.refusal.accountLimit', end: 'closed' },
 };
 
 const MIB = 1024 * 1024;

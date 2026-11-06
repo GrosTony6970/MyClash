@@ -11,10 +11,12 @@ import {
   type PhotoSummary,
 } from '@myclash/types';
 import { eventZone } from '../../common/event-clock';
-import { PHOTO_CLEANUP_QUEUE, PHOTO_DRAIN } from '../../workers/photo-cleanup.worker';
+import { PHOTO_CLEANUP_QUEUE } from '../../workers/photo-cleanup.worker';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_STORE, type PhotoStore } from './photo-bucket';
+import { requestDrain } from './photo-drain';
+import { photoTag } from './photo-tag';
 import { photoLinks } from './photo-links';
 import { StaffService } from '../staff/staff.service';
 import { organisersEvent, photoEvent, type PhotoEventRow } from './photo-organiser';
@@ -184,11 +186,7 @@ export class PhotoModerationService {
     return { id: photoId, kept: true };
   }
 
-  /**
-   * Deletes the photo. Its images are queued by the row trigger; the drain is asked for now and
-   * NOT awaited: with Redis down a queue add waits in the client's offline queue for minutes, and
-   * the 5-minute tick drains the tombstone anyway.
-   */
+  /** Deletes the photo. Its images are queued by the row trigger; the drain is asked for now. */
   async remove(event: PhotoEventRow, photoId: string): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('event_photos')
@@ -198,12 +196,7 @@ export class PhotoModerationService {
       .select('id');
     if (error) throw new Error(error.message);
     if (!data?.length) throw photoNotFound();
-    void this.queue
-      .add(PHOTO_DRAIN, {}, { removeOnComplete: true, removeOnFail: { age: 86_400, count: 100 } })
-      .catch((err: unknown) => {
-        const reason = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`Photo ${photoId} deleted; its drain was not queued: ${reason}`);
-      });
+    requestDrain(this.queue, this.logger, photoId);
   }
 
   /**
@@ -230,11 +223,6 @@ export class PhotoModerationService {
   }
 
   private async photoOf(row: QueueRow, now: Date): Promise<ModerationPhoto> {
-    const tag = row.tournament
-      ? { kind: 'tournament' as const, name: row.tournament.name }
-      : row.workshop
-        ? { kind: 'workshop' as const, name: row.workshop.title }
-        : null;
     // Newest first, compared as written (all UTC, as PostgREST answers), by code unit: a
     // locale-aware compare may weigh the `+` and `.` of a time differently.
     const reports = [...row.reports].sort((a, b) =>
@@ -245,7 +233,7 @@ export class PhotoModerationService {
       status: row.status,
       uploaderName: row.uploader_name,
       caption: row.caption,
-      tag,
+      tag: photoTag(row),
       createdAt: row.created_at,
       ...(await photoLinks(this.store, row, now, this.logger)),
       reportCount: reports.length,

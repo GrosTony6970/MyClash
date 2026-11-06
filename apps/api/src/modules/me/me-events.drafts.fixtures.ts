@@ -116,6 +116,8 @@ export function baseTables(): Tables {
     workshop_enrollments: { rows: [] },
     event_instructors: { rows: [{ person_id: 'gp-lea', event_id: 'e-draft', events: AUTUMN }] },
     workshop_instructors: { rows: [] },
+    // `GET me/events` asks each listed Event whether she has photos there (slice 6).
+    event_photos: { rows: [] },
     event_referees: { rows: [] },
     organization_members: {
       rows: [

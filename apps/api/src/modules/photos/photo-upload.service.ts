@@ -20,12 +20,16 @@ import {
   type PhotoMode,
   type PhotoUploadRefusal,
 } from '@myclash/types';
+import type { PublicReader } from '../../common/auth/competition-visibility';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { readUploadParts, type UploadLimit } from '../../common/read-upload';
+import { MeEventsService } from '../me/me-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PhotoRefusalError, stripJpeg } from './jpeg-strip';
+import { accountPhotoName } from './photo-account';
 import { PHOTO_STORE, photoObjectKeys, type PhotoStore } from './photo-bucket';
 import { makePreview } from './photo-preview';
+import { photosUnavailable } from './photo-refusals';
 import { photoTokenMatches } from './photo-token';
 import { photoUploadWindow } from './photo-window';
 
@@ -38,8 +42,22 @@ export const PHOTO_UPLOAD: UploadLimit = {
 /** Photos processed at once: about 50 MB each, inside the one 1 GB API (design, "Concurrency cap"). */
 export const PHOTO_UPLOAD_SLOTS = 4;
 export const DEVICE_PHOTOS_PER_HOUR = 20;
+/** A signed-in sender's hour per Event, the phone's number (design Goal 11). */
+export const ACCOUNT_PHOTOS_PER_HOUR = 20;
 export const EVENT_PHOTOS_PER_HOUR = 300;
 export const EVENT_PHOTO_BYTES = 15 * 1000 ** 3;
+
+/**
+ * Who sends: a phone from the QR link (its token, its cookie id), or a signed-in person from her
+ * personal space (design Goal 11). A QR upload stays anonymous even when its sender is signed in.
+ */
+export type PhotoSender =
+  { kind: 'phone'; token: unknown; deviceId: string } | { kind: 'account'; reader: PublicReader };
+
+/** The row's sender columns, and the name an account's photo carries (null: read the typed one). */
+type PhotoSource =
+  | { device_id: string; uploader_user_id: null; name: null }
+  | { device_id: null; uploader_user_id: string; name: string };
 
 interface PhotoEvent {
   id: string;
@@ -56,20 +74,17 @@ const refuse = (
   code: PhotoUploadRefusal,
   message: string,
 ) => new Kind({ message, code });
-const unavailable = () =>
-  new OperationalUnavailableException({
-    code: 'photos_unavailable',
-    message: 'Photos are unavailable right now, try again.',
-  } satisfies { code: PhotoUploadRefusal; message: string });
 const tooMany = (code: PhotoUploadRefusal, message: string) =>
   new HttpException({ message, code }, HttpStatus.TOO_MANY_REQUESTS);
 
 /**
- * A photo sent from an Event's QR link: checked, stripped of everything hidden, previewed, stored,
- * recorded (design, "The server").
+ * A photo sent from an Event's QR link, or from a signed-in person's personal space (design Goal
+ * 11): checked, stripped of everything hidden, previewed, stored, recorded (design, "The server").
  *
  * Every refusal that does not need the file comes first, cheapest first, and the file is read only
- * once they all pass: the token, the mode, the window, the bucket, a processing slot, the limits.
+ * once they all pass: the token (a phone), the mode, the window, "one of her Events" and her name
+ * (an account), the bucket, a processing slot, the limits. The account's membership read is the
+ * whole "my events" read: accepted at 20 photos an hour per account.
  *
  * The races, named:
  * - Two uploads may read the counts before either writes, so a cap can be passed by at most
@@ -88,18 +103,43 @@ export class PhotoUploadService {
     private readonly supabase: SupabaseService,
     config: ConfigService,
     @Inject(PHOTO_STORE) private readonly store: PhotoStore | null,
+    private readonly myEvents: MeEventsService,
   ) {
     this.secret = config.getOrThrow<string>('PHOTO_TOKEN_SECRET');
   }
 
   async upload(
     eventId: string,
-    token: unknown,
-    deviceId: string,
+    sender: PhotoSender,
     req: FastifyRequest,
   ): Promise<{ id: string; status: 'waiting' | 'approved' }> {
     const event = await this.readEvent(eventId);
-    if (!photoTokenMatches(this.secret, event.id, event.photo_token_version, token)) {
+    const source = await this.admit(event, sender);
+    if (!this.store) throw photosUnavailable();
+    if (this.inFlight >= PHOTO_UPLOAD_SLOTS) {
+      throw new OperationalUnavailableException({
+        code: 'photos_busy',
+        message: 'Many photos are arriving at once; retrying shortly.',
+      } satisfies { code: PhotoUploadRefusal; message: string });
+    }
+    this.inFlight += 1;
+    try {
+      await this.checkLimits(event.id, source);
+      return await this.receive(event, source, req, this.store);
+    } finally {
+      this.inFlight -= 1;
+    }
+  }
+
+  /**
+   * Each sender's own checks, in the order the QR path always had: the phone's token first; then
+   * the mode and the window for both; then, for an account, "one of her Events" and her name.
+   */
+  private async admit(event: PhotoEvent, sender: PhotoSender): Promise<PhotoSource> {
+    if (
+      sender.kind === 'phone' &&
+      !photoTokenMatches(this.secret, event.id, event.photo_token_version, sender.token)
+    ) {
       throw refuse(ForbiddenException, 'photo_link_invalid', 'This photo link is not valid.');
     }
     if (event.photo_mode === 'off') {
@@ -114,20 +154,34 @@ export class PhotoUploadService {
         'Photos are not open for this Event.',
       );
     }
-    if (!this.store) throw unavailable();
-    if (this.inFlight >= PHOTO_UPLOAD_SLOTS) {
-      throw new OperationalUnavailableException({
-        code: 'photos_busy',
-        message: 'Many photos are arriving at once; retrying shortly.',
-      } satisfies { code: PhotoUploadRefusal; message: string });
+    if (sender.kind === 'phone') {
+      return { device_id: sender.deviceId, uploader_user_id: null, name: null };
     }
-    this.inFlight += 1;
-    try {
-      await this.checkLimits(event.id, deviceId);
-      return await this.receive(event, deviceId, req, this.store);
-    } finally {
-      this.inFlight -= 1;
+    return this.member(event, sender.reader);
+  }
+
+  /**
+   * "One of her Events" is the personal space's own list (design: one predicate for both), and
+   * her name is her profile's, else her sign-up name (ruling 458). A read that fails is a 503,
+   * never "not your event" (ruling 461).
+   */
+  private async member(event: PhotoEvent, reader: PublicReader): Promise<PhotoSource> {
+    const mine = await this.myEvents.listMyEvents(reader).catch((err: unknown) => {
+      this.logger.warn(`My events not read: ${err instanceof Error ? err.message : String(err)}`);
+      throw photosUnavailable();
+    });
+    if (!mine.some((entry) => entry.event.id === event.id)) {
+      throw refuse(
+        ForbiddenException,
+        'photo_not_your_event',
+        'Photos are sent from a personal space only to its own Events.',
+      );
     }
+    const name = await accountPhotoName(this.supabase, reader.userId);
+    if (name === null) {
+      throw refuse(ForbiddenException, 'photo_no_name', 'A photo carries its sender’s name.');
+    }
+    return { device_id: null, uploader_user_id: reader.userId, name };
   }
 
   private async readEvent(eventId: string): Promise<PhotoEvent> {
@@ -141,18 +195,22 @@ export class PhotoUploadService {
     return data as PhotoEvent;
   }
 
-  private async checkLimits(eventId: string, deviceId: string): Promise<void> {
+  private async checkLimits(eventId: string, source: PhotoSource): Promise<void> {
     const { data, error } = await this.supabase.service.rpc('event_photo_usage', {
       p_event_id: eventId,
-      p_device_id: deviceId,
+      p_device_id: source.device_id,
+      p_user_id: source.uploader_user_id,
     });
     if (error) throw new Error(error.message);
     const usage = (Array.isArray(data) ? data[0] : data) as {
       event_last_hour: number;
       event_bytes: number;
-      device_last_hour: number;
+      sender_last_hour: number;
     };
-    if (usage.device_last_hour >= DEVICE_PHOTOS_PER_HOUR) {
+    if (source.uploader_user_id !== null && usage.sender_last_hour >= ACCOUNT_PHOTOS_PER_HOUR) {
+      throw tooMany('photo_account_limit', 'This account has sent its photos for this hour.');
+    }
+    if (source.device_id !== null && usage.sender_last_hour >= DEVICE_PHOTOS_PER_HOUR) {
       throw tooMany('photo_device_limit', 'This phone has sent its photos for this hour.');
     }
     if (usage.event_last_hour >= EVENT_PHOTOS_PER_HOUR) {
@@ -166,13 +224,14 @@ export class PhotoUploadService {
 
   private async receive(
     event: PhotoEvent,
-    deviceId: string,
+    source: PhotoSource,
     req: FastifyRequest,
     store: PhotoStore,
   ): Promise<{ id: string; status: 'waiting' | 'approved' }> {
     const { buffer, fields } = await readUploadParts(req, PHOTO_UPLOAD);
     if (!buffer) throw refuse(BadRequestException, 'photo_missing', 'No photo was sent.');
-    const name = textField(fields['name'], PHOTO_NAME_MAX);
+    // An account's photo carries her name, whatever name was sent (design Goal 11).
+    const name = source.name ?? textField(fields['name'], PHOTO_NAME_MAX);
     const caption = textField(fields['caption'], PHOTO_CAPTION_MAX);
     const tag = await this.readTag(event.id, fields['tournamentId'], fields['workshopId']);
     const { original, preview } = await this.processPhoto(buffer);
@@ -189,7 +248,8 @@ export class PhotoUploadService {
       status,
       uploader_name: name,
       caption,
-      device_id: deviceId,
+      device_id: source.device_id,
+      uploader_user_id: source.uploader_user_id,
       ...keys,
       byte_size: original.length,
       crc32: crc32(original),
@@ -246,7 +306,7 @@ export class PhotoUploadService {
     } catch (err) {
       this.logger.warn(`Photo not stored: ${err instanceof Error ? err.message : String(err)}`);
       await this.removeQuietly(store, [keys.original_key, keys.preview_key]);
-      throw unavailable();
+      throw photosUnavailable();
     }
   }
 

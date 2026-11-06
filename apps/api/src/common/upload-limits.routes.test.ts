@@ -23,7 +23,7 @@ import { LeaguesController } from '../modules/leagues/leagues.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
 import { PersonsController } from '../modules/persons/persons.controller';
 import { WorkshopsController } from '../modules/workshops/workshops.controller';
-import { photoDoor } from '../modules/photos/testing/photo-door';
+import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
 import { FILE_TOO_LARGE_CODE } from './read-upload';
 import { mockSupabase } from './testing/supabase-chain';
 import {
@@ -158,6 +158,13 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
     photoDoor(EVENT),
   ],
   [
+    'POST me/events/:eventId/photos',
+    12 * MIB,
+    'Photo exceeds the 12 MB size limit.',
+    'parts',
+    myPhotoDoor(EVENT),
+  ],
+  [
     'POST events/:eventId/persons/import',
     10 * MIB,
     'Roster import file exceeds the 10 MB size limit.',
@@ -167,8 +174,8 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
 ];
 
 describe('each upload route reads under its own limit', () => {
-  it('names all fifteen routes', () => {
-    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(15);
+  it('names all sixteen routes', () => {
+    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(16);
   });
 
   it.each(ROUTES)(

@@ -21,6 +21,12 @@ export class PublicPhotoQueryDto extends createZodDto(publicPhotoQuerySchema) {}
 
 export type PublicPhotoQuery = z.infer<typeof publicPhotoQuerySchema>;
 
+/** `GET me/events/:eventId/photos`: the previous page's cursor, as the public list's. */
+export const myPhotoQuerySchema = z
+  .object({ before: z.iso.datetime({ offset: true }).optional() })
+  .strict();
+export class MyPhotoQueryDto extends createZodDto(myPhotoQuerySchema) {}
+
 /**
  * `POST events/:eventId/photos/:photoId/report`: why the phone reports the photo, optional
  * (ruling 452). Trimmed; a comment of spaces reaches the handler as `''`, which stores none.

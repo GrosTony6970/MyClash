@@ -30,6 +30,14 @@ const DEVICE = '2b1e8a6c-0d4f-4c3e-9a7b-5f6e7d8c9b0a';
 const TOURNAMENT = '3c2f9b7d-1e5a-4d4f-8b8c-6a7f8e9d0c1b';
 const TODAY = new Date().toISOString().slice(0, 10);
 const TOKEN = photoToken(SECRET, EVENT, 2);
+/** A phone from the QR link; the account path is `photo-upload.account.test.ts`. */
+const phone = (token: unknown) => ({ kind: 'phone' as const, token, deviceId: DEVICE });
+/** The QR path never asks who she is: a membership read here is a bug. */
+const NO_ACCOUNT_READ = {
+  listMyEvents: () => {
+    throw new Error('the QR path never reads "my events"');
+  },
+};
 
 let photo: Buffer;
 beforeAll(async () => {
@@ -39,7 +47,7 @@ beforeAll(async () => {
 interface Setup {
   mode?: 'off' | 'live' | 'approve';
   days?: [string, string];
-  usage?: { event_last_hour?: number; event_bytes?: number; device_last_hour?: number };
+  usage?: { event_last_hour?: number; event_bytes?: number; sender_last_hour?: number };
   store?: PhotoStore | null;
   insertError?: { message: string };
   tagError?: { message: string };
@@ -55,7 +63,7 @@ function setup(options: Setup = {}) {
     photo_token_version: 2,
   };
   const usage: RpcAnswer = () => ({
-    data: [{ event_last_hour: 0, event_bytes: 0, device_last_hour: 0, ...options.usage }],
+    data: [{ event_last_hour: 0, event_bytes: 0, sender_last_hour: 0, ...options.usage }],
     error: null,
   });
   const supabase = mockSupabase(
@@ -85,6 +93,7 @@ function setup(options: Setup = {}) {
     supabase as never,
     { getOrThrow: () => SECRET } as never,
     chosen,
+    NO_ACCOUNT_READ as never,
   );
   return { service, supabase, store, stored };
 }
@@ -131,7 +140,7 @@ describe('PhotoUploadService — refused before the file is read', () => {
     ['no bucket', { store: null }, TOKEN, 503, 'photos_unavailable'],
     [
       'the device limit',
-      { usage: { device_last_hour: DEVICE_PHOTOS_PER_HOUR } },
+      { usage: { sender_last_hour: DEVICE_PHOTOS_PER_HOUR } },
       TOKEN,
       429,
       'photo_device_limit',
@@ -153,25 +162,26 @@ describe('PhotoUploadService — refused before the file is read', () => {
   ] as const)('%s', async (_name, options, token, status, code) => {
     const { service } = setup(options as Setup);
     const { req, parts } = request();
-    expect(await refusal(service.upload(EVENT, token, DEVICE, req))).toEqual({ status, code });
+    expect(await refusal(service.upload(EVENT, phone(token), req))).toEqual({ status, code });
     expect(parts).not.toHaveBeenCalled();
   });
 
   it('answers the bucket-down and busy refusals through the operational marker', async () => {
     const { service } = setup({ store: null });
-    const err = await service.upload(EVENT, TOKEN, DEVICE, request().req).catch((e: unknown) => e);
+    const err = await service.upload(EVENT, phone(TOKEN), request().req).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(OperationalUnavailableException);
   });
 
   it('asks the database for exactly the Event columns it checks, and counts by function', async () => {
     const { service, supabase } = setup();
-    await service.upload(EVENT, TOKEN, DEVICE, request().req);
+    await service.upload(EVENT, phone(TOKEN), request().req);
     expect(selectsFor(supabase.from, 'events')).toEqual([
       'id, start_date, end_date, timezone, photo_mode, photo_token_version',
     ]);
     expect(supabase.rpc).toHaveBeenCalledWith('event_photo_usage', {
       p_event_id: EVENT,
       p_device_id: DEVICE,
+      p_user_id: null,
     });
   });
 });
@@ -181,8 +191,7 @@ describe('PhotoUploadService — a photo that passes', () => {
     const { service, supabase, stored } = setup({ mode: 'live' });
     const result = await service.upload(
       EVENT,
-      TOKEN,
-      DEVICE,
+      phone(TOKEN),
       request({ name: '  Alex  ', caption: 'Final, piste 2', tournamentId: TOURNAMENT }).req,
     );
 
@@ -198,6 +207,7 @@ describe('PhotoUploadService — a photo that passes', () => {
       uploader_name: 'Alex',
       caption: 'Final, piste 2',
       device_id: DEVICE,
+      uploader_user_id: null,
       original_key: `events/${EVENT}/${String(row!['id'])}/original.jpg`,
       preview_key: `events/${EVENT}/${String(row!['id'])}/preview.jpg`,
       byte_size: original.length,
@@ -210,14 +220,14 @@ describe('PhotoUploadService — a photo that passes', () => {
 
   it('waits for approval in approve-first mode', async () => {
     const { service } = setup({ mode: 'approve' });
-    expect(await service.upload(EVENT, TOKEN, DEVICE, request().req)).toMatchObject({
+    expect(await service.upload(EVENT, phone(TOKEN), request().req)).toMatchObject({
       status: 'waiting',
     });
   });
 
   it('stores an empty name and caption as none', async () => {
     const { service, supabase } = setup();
-    await service.upload(EVENT, TOKEN, DEVICE, request({ name: '   ', caption: '' }).req);
+    await service.upload(EVENT, phone(TOKEN), request({ name: '   ', caption: '' }).req);
     expect(writesTo(supabase, 'event_photos')[0]!.row).toMatchObject({
       uploader_name: null,
       caption: null,
@@ -237,7 +247,7 @@ describe('PhotoUploadService — refused after the read', () => {
     ['two tags', { tournamentId: TOURNAMENT, workshopId: TOURNAMENT }, 'photo_tag_invalid'],
   ])('%s', async (_name, fields, code) => {
     const { service, store } = setup();
-    expect(await refusal(service.upload(EVENT, TOKEN, DEVICE, request(fields).req))).toEqual({
+    expect(await refusal(service.upload(EVENT, phone(TOKEN), request(fields).req))).toEqual({
       status: 400,
       code,
     });
@@ -247,7 +257,7 @@ describe('PhotoUploadService — refused after the read', () => {
   it('refuses a HEIC with its own code, and stores nothing', async () => {
     const { service, store } = setup();
     const heic = Buffer.from('\x00\x00\x00\x18ftypheic0000', 'latin1');
-    expect(await refusal(service.upload(EVENT, TOKEN, DEVICE, request({}, heic).req))).toEqual({
+    expect(await refusal(service.upload(EVENT, phone(TOKEN), request({}, heic).req))).toEqual({
       status: 422,
       code: 'photo_heic',
     });
@@ -262,7 +272,7 @@ describe('PhotoUploadService — never a row without both images', () => {
       .mockImplementationOnce(async (key, bytes) => void stored.set(key, bytes))
       .mockRejectedValueOnce(new Error('bucket timeout'));
 
-    expect(await refusal(service.upload(EVENT, TOKEN, DEVICE, request().req))).toEqual({
+    expect(await refusal(service.upload(EVENT, phone(TOKEN), request().req))).toEqual({
       status: 503,
       code: 'photos_unavailable',
     });
@@ -272,7 +282,7 @@ describe('PhotoUploadService — never a row without both images', () => {
 
   it('deletes both images when the row cannot be written', async () => {
     const { service, stored } = setup({ insertError: { message: 'insert failed' } });
-    await expect(service.upload(EVENT, TOKEN, DEVICE, request().req)).rejects.toThrow();
+    await expect(service.upload(EVENT, phone(TOKEN), request().req)).rejects.toThrow();
     expect(stored.size).toBe(0);
   });
 });
@@ -283,7 +293,7 @@ describe('PhotoUploadService — faults leave a trace', () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     vi.mocked(makePreview).mockRejectedValueOnce(new Error('vips: out of memory'));
 
-    expect(await refusal(service.upload(EVENT, TOKEN, DEVICE, request().req))).toEqual({
+    expect(await refusal(service.upload(EVENT, phone(TOKEN), request().req))).toEqual({
       status: 422,
       code: 'photo_corrupt',
     });
@@ -300,14 +310,14 @@ describe('PhotoUploadService — faults leave a trace', () => {
         throw new Error('timed out waiting for the answer');
       });
 
-    await service.upload(EVENT, TOKEN, DEVICE, request().req).catch(() => undefined);
+    await service.upload(EVENT, phone(TOKEN), request().req).catch(() => undefined);
     expect(stored.size).toBe(0);
   });
 
   it('reports a database fault on the tag check instead of calling the tag invalid', async () => {
     const { service } = setup({ tagError: { message: 'db down' } });
     const err = await service
-      .upload(EVENT, TOKEN, DEVICE, request({ tournamentId: TOURNAMENT }).req)
+      .upload(EVENT, phone(TOKEN), request({ tournamentId: TOURNAMENT }).req)
       .catch((e: unknown) => e);
     expect(err).not.toBeInstanceOf(HttpException);
     expect(String(err)).toContain('db down');
@@ -316,7 +326,7 @@ describe('PhotoUploadService — faults leave a trace', () => {
   it('refuses a tag that is not an id without asking the database', async () => {
     const { service, supabase } = setup();
     expect(
-      await refusal(service.upload(EVENT, TOKEN, DEVICE, request({ tournamentId: 'abc' }).req)),
+      await refusal(service.upload(EVENT, phone(TOKEN), request({ tournamentId: 'abc' }).req)),
     ).toEqual({ status: 400, code: 'photo_tag_invalid' });
     expect(supabase.from.mock.calls.map(([t]) => t)).not.toContain('tournaments');
   });
@@ -337,12 +347,12 @@ describe('PhotoUploadService — at most four photos at once', () => {
     );
 
     const running = Array.from({ length: PHOTO_UPLOAD_SLOTS }, () =>
-      service.upload(EVENT, TOKEN, DEVICE, request().req),
+      service.upload(EVENT, phone(TOKEN), request().req),
     );
     await vi.waitFor(() => expect(gates).toHaveLength(PHOTO_UPLOAD_SLOTS));
 
     const fifth = request();
-    expect(await refusal(service.upload(EVENT, TOKEN, DEVICE, fifth.req))).toEqual({
+    expect(await refusal(service.upload(EVENT, phone(TOKEN), fifth.req))).toEqual({
       status: 503,
       code: 'photos_busy',
     });
@@ -351,15 +361,15 @@ describe('PhotoUploadService — at most four photos at once', () => {
     vi.mocked(store.put).mockImplementation(async (key, bytes) => void stored.set(key, bytes));
     while (gates.length > 0) gates.shift()!();
     await Promise.all(running);
-    await expect(service.upload(EVENT, TOKEN, DEVICE, request().req)).resolves.toBeTruthy();
+    await expect(service.upload(EVENT, phone(TOKEN), request().req)).resolves.toBeTruthy();
   });
 
   it('gives the slot back when the photo is refused after the read', async () => {
     const { service } = setup();
     const heic = Buffer.from('\x00\x00\x00\x18ftypheic0000', 'latin1');
     for (let i = 0; i < PHOTO_UPLOAD_SLOTS + 1; i += 1) {
-      await service.upload(EVENT, TOKEN, DEVICE, request({}, heic).req).catch(() => undefined);
+      await service.upload(EVENT, phone(TOKEN), request({}, heic).req).catch(() => undefined);
     }
-    await expect(service.upload(EVENT, TOKEN, DEVICE, request().req)).resolves.toBeTruthy();
+    await expect(service.upload(EVENT, phone(TOKEN), request().req)).resolves.toBeTruthy();
   });
 });

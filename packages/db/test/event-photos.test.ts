@@ -5,7 +5,7 @@
  * database is `pnpm db:rls-probe`'s.
  */
 import { describe, expect, it } from 'vitest';
-import { allSql, flat, functionStatement, triggerStatement } from './migration-sql';
+import { allSql, flat, functionStatement, lastIndex, triggerStatement } from './migration-sql';
 
 const sql = flat(allSql());
 
@@ -129,5 +129,69 @@ describe('Event photo tombstones', () => {
       'where exists (select 1 from public.event_photos p where p.event_id = e.id)',
     );
     expect(sql).toContain('grant execute on function public.event_photo_events() to service_role');
+  });
+});
+
+/**
+ * A photo sent from a personal space (migration 0254, slice 6a): it names the account that sent
+ * it, from a phone or an account, never both. The migrations are read as one text where 0249's
+ * lines stay, so each assertion pins 0254's own statement and where it falls.
+ */
+describe('Event photos sent from an account', () => {
+  const at = (pattern: string) => lastIndex(sql, pattern);
+
+  it('links a photo to the account that sent it, and refuses to lose it in a cascade', () => {
+    expect(sql).toContain(
+      'add column if not exists uploader_user_id uuid references auth.users(id);',
+    );
+    expect(sql).not.toMatch(/uploader_user_id uuid references auth\.users\(id\) on delete/);
+  });
+
+  it('takes a photo from a phone or an account, never both', () => {
+    expect(at('alter\\s+column\\s+device_id\\s+drop\\s+not\\s+null')).toBeGreaterThan(
+      at('create\\s+table\\s+if\\s+not\\s+exists\\s+public\\.event_photos\\s*\\('),
+    );
+    expect(sql).toContain(
+      'add constraint event_photos_one_sender check (num_nonnulls(device_id, uploader_user_id) = 1) not valid',
+    );
+    expect(sql).toContain('validate constraint event_photos_one_sender');
+  });
+
+  it("lets an account's name run to 200, a typed name to 40", () => {
+    const dropped = at('drop\\s+constraint\\s+event_photos_uploader_name_check\\s*;');
+    expect(dropped).toBeGreaterThan(at('char_length\\(uploader_name\\) between 1 and 40\\)'));
+    expect(at('add\\s+constraint\\s+event_photos_uploader_name_len')).toBeGreaterThan(dropped);
+    expect(sql).toContain(
+      'check (uploader_name is null or char_length(uploader_name) between 1 and case when uploader_user_id is null then 40 else 200 end)',
+    );
+  });
+
+  it('counts the sender by phone or by account, out of reach of web roles', () => {
+    const fn = functionStatement(allSql(), 'event_photo_usage');
+    expect(fn).toContain('p_user_id uuid default null');
+    expect(fn).toContain('sender_last_hour integer');
+    expect(fn).toContain('(device_id = p_device_id or uploader_user_id = p_user_id)');
+    expect(fn).toContain('security invoker');
+    expect(fn).toContain('set search_path = public, pg_catalog');
+    const dropped = at('drop\\s+function\\s+public\\.event_photo_usage\\(uuid,\\s*uuid\\)\\s*;');
+    expect(dropped).toBeGreaterThan(
+      at('grant execute on function public.event_photo_usage\\(uuid, uuid\\) to'),
+    );
+    expect(
+      at(
+        'revoke execute on function public\\.event_photo_usage\\(uuid, uuid, uuid\\) from public, anon, authenticated',
+      ),
+    ).toBeGreaterThan(dropped);
+    expect(
+      at(
+        'grant execute on function public\\.event_photo_usage\\(uuid, uuid, uuid\\) to service_role',
+      ),
+    ).toBeGreaterThan(dropped);
+  });
+
+  it('indexes the account, its Event and the time', () => {
+    expect(sql).toContain(
+      'create index if not exists event_photos_uploader_idx on public.event_photos (uploader_user_id, event_id, created_at desc) where uploader_user_id is not null',
+    );
   });
 });

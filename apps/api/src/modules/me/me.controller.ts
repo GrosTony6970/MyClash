@@ -17,6 +17,7 @@ import type { FastifyRequest } from 'fastify';
 import type { PublicReader } from '../../common/auth/competition-visibility';
 import { getStaffSession } from '../../common/auth/identity';
 import { SupabaseService } from '../supabase/supabase.service';
+import { withOwnPhotos } from './me-event-photos';
 import { MeEventsService } from './me-events.service';
 
 async function resolveUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -56,7 +57,14 @@ export class MeController {
     summary: 'List the events the current user is involved in (competitor / referee / workshops)',
   })
   async events(@Req() req: FastifyRequest) {
-    return this.me.listMyEvents(await resolveReader(req, this.supabase));
+    const reader = await resolveReader(req, this.supabase);
+    // Each Event also says whether she has photos there, for the Photos tab (slice 6).
+    return withOwnPhotos(
+      this.supabase,
+      await this.me.listMyEvents(reader),
+      reader.userId,
+      new Date(),
+    );
   }
 
   @Get('upcoming')

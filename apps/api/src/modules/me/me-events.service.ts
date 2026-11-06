@@ -19,7 +19,13 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
+import {
+  asEventKind,
+  asPhotoMode,
+  isPubliclyVisible,
+  type EventKind,
+  type PhotoMode,
+} from '@myclash/types';
 import {
   type CompetitionEvent,
   type PublicReader,
@@ -46,6 +52,11 @@ export interface MyEventInfo {
   timezone: string | null;
   /** Drives the "Club event" tag in the personal space. Never 'test' here — see mapEvent. */
   kind: EventKind;
+  /**
+   * The Event's photo mode, for the personal space's Photos tab (slice 6). Null when unknown, and
+   * from the workshop-history reads, which do not ask for it.
+   */
+  photoMode: PhotoMode | null;
 }
 
 export interface MyEventTournament {
@@ -608,12 +619,13 @@ export class MeEventsService {
   private async fetchClaimedPersons(
     userId: string,
   ): Promise<Array<{ id: string; eventId: string; event: MyEventInfo | null }>> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select(
-        'id, event_id, events(id, slug, name, start_date, end_date, status, timezone, event_kind)',
+        'id, event_id, events(id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode)',
       )
       .eq('claimed_by_user_id', userId);
+    if (error) throw new Error(`My events: claimed roster rows not read: ${error.message}`);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
     return rows.map((r) => ({
       id: String(r['id']),
@@ -623,11 +635,12 @@ export class MeEventsService {
   }
 
   private async resolveGlobalPersonId(userId: string): Promise<string | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('global_persons')
       .select('id')
       .eq('claimed_by_user_id', userId)
       .maybeSingle();
+    if (error) throw new Error(`My events: profile not read: ${error.message}`);
     return (data as { id: string } | null)?.id ?? null;
   }
 
@@ -641,7 +654,7 @@ export class MeEventsService {
       .select(
         `
         id, role, event_id, pool_id, match_id,
-        events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
+        events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode ),
         pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ),
         matches (
           bracket_slot_id,
@@ -653,9 +666,7 @@ export class MeEventsService {
       `,
       )
       .eq('person_id', globalPersonId);
-    if (error) {
-      this.logger.warn(`Referee duties unreadable for ${globalPersonId}: ${error.message}`);
-    }
+    if (error) throw new Error(`My events: referee duties not read: ${error.message}`);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
 
     const assignments = rows.map((r) => {
@@ -830,13 +841,14 @@ export class MeEventsService {
     personIds: string[],
   ): Promise<Map<string, MyEventInfo | null>> {
     if (personIds.length === 0) return new Map();
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('workshop_enrollments')
       .select(
-        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, event_kind ) ) )',
+        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode ) ) )',
       )
       .in('user_id', personIds)
       .in('status', ['confirmed', 'intent', 'waitlisted']);
+    if (error) throw new Error(`My events: workshop enrolments not read: ${error.message}`);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
     const map = new Map<string, MyEventInfo | null>();
     for (const r of rows) {
@@ -871,19 +883,23 @@ export class MeEventsService {
     const [rosterRes, workshopRes] = await Promise.all([
       this.supabase.service
         .from('event_instructors')
-        .select('events ( id, slug, name, start_date, end_date, status, timezone, event_kind )')
+        .select(
+          'events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode )',
+        )
         .eq('person_id', globalPersonId),
       this.supabase.service
         .from('workshop_instructors')
         .select(
           `workshops (
             id, slug, title, event_id,
-            events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
+            events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode ),
             workshop_sessions ( id, starts_at, ends_at, location_label )
           )`,
         )
         .eq('global_person_id', globalPersonId),
     ]);
+    const failed = rosterRes.error ?? workshopRes.error;
+    if (failed) throw new Error(`My events: teaching not read: ${failed.message}`);
 
     const rosterRows = Array.isArray(rosterRes.data) ? (rosterRes.data as Row[]) : [];
     for (const r of rosterRows) {
@@ -1063,6 +1079,7 @@ export class MeEventsService {
       status: String(row['status'] ?? ''),
       timezone: (row['timezone'] as string | null) ?? null,
       kind,
+      photoMode: asPhotoMode(row['photo_mode']),
     };
   }
 

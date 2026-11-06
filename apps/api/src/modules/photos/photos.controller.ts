@@ -92,8 +92,13 @@ export class PhotosController {
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ id: string; status: 'waiting' | 'approved' }> {
-    const deviceId = this.deviceFor(req, reply);
-    return this.uploads.upload(eventId, req.headers['x-photo-token'], deviceId, req);
+    // Anonymous even when she is signed in (design Goal 11): the session is never read here.
+    const sender = {
+      kind: 'phone' as const,
+      token: req.headers['x-photo-token'],
+      deviceId: this.deviceFor(req, reply),
+    };
+    return this.uploads.upload(eventId, sender, req);
   }
 
   /** The Event's approved photos, newest first, for whoever may see the Event (design, "The public"). */

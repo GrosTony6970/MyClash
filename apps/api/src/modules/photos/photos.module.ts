@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { PHOTO_CLEANUP_QUEUE } from '../../workers/photo-cleanup.worker';
+import { MeModule } from '../me/me.module';
+import { MyPhotosController } from './my-photos.controller';
+import { MyPhotosService } from './my-photos.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
@@ -16,13 +19,16 @@ import { PhotosStaffController } from './photos-staff.controller';
   // The clean-up queue, registered here too so a moderator's delete can ask for a drain now
   // (as `hema-ratings.module.ts` does for its own queue).
   // StaffModule: the `photos` staff job's gate (`StaffService.requireStaffWithRole`).
+  // MeModule: a signed-in upload's "one of her Events" (`MeEventsService.listMyEvents`).
   imports: [
     OrganizationsModule,
     StaffModule,
+    MeModule,
     BullModule.registerQueue({ name: PHOTO_CLEANUP_QUEUE }),
   ],
-  controllers: [PhotosController, PhotosStaffController],
+  controllers: [PhotosController, PhotosStaffController, MyPhotosController],
   providers: [
+    MyPhotosService,
     PhotoUploadService,
     PhotoDeviceService,
     PhotoLinkService,

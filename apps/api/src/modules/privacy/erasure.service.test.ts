@@ -162,6 +162,8 @@ describe('ErasureService.redactSubject', () => {
       'organization_follows',
       'notification_preferences',
       'push_subscriptions',
+      // The photos the account sent from its personal space (slice 6a).
+      'event_photos',
     ]) {
       expect(log[table]?.deletes, `${table} should be deleted`).toBeGreaterThan(0);
     }

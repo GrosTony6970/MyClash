@@ -28,6 +28,9 @@ const STATUS: Record<PhotoUploadRefusal, number> = {
   photo_text_too_long: 400,
   photo_tag_invalid: 400,
   photo_missing: 400,
+  photo_not_your_event: 403,
+  photo_no_name: 403,
+  photo_account_limit: 429,
 };
 
 const END: Record<PhotoUploadRefusal, RefusalEnd> = {
@@ -47,6 +50,9 @@ const END: Record<PhotoUploadRefusal, RefusalEnd> = {
   photo_device_limit: 'closed',
   photo_event_limit: 'closed',
   photo_event_storage_full: 'closed',
+  photo_not_your_event: 'closed',
+  photo_no_name: 'closed',
+  photo_account_limit: 'closed',
 };
 
 /** A refusal as `responseFailure` files it: every 401 and 403 is `unauthenticated`. */

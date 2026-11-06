@@ -92,8 +92,10 @@ export class ErasureService {
 
   /**
    * Rows owned outright by the subject: credentials, pending requests, their
-   * outbound social graph and comms preferences. All keyed by a single uid
-   * column, so they share one shape.
+   * outbound social graph, comms preferences and the photos they sent from their
+   * personal space. All keyed by a single uid column, so they share one shape.
+   * The photos must go here: their account link refuses the account's delete
+   * (migration 0254), and the row trigger queues their images for the bucket.
    */
   private async deleteOwnedRows(uid: string): Promise<RedactionCounts> {
     const OWNED: readonly [table: string, column: string][] = [
@@ -105,6 +107,7 @@ export class ErasureService {
       ['organization_follows', 'follower_user_id'],
       ['notification_preferences', 'user_id'],
       ['push_subscriptions', 'user_id'],
+      ['event_photos', 'uploader_user_id'],
     ];
     const counts: RedactionCounts = {};
     for (const [table, column] of OWNED) {
@@ -175,12 +178,16 @@ export class ErasureService {
     // answer 410 Gone. Only its hash is kept — the slug embeds the name.
     // Returned rather than stashed on the instance: this is a singleton, and a
     // field would race between concurrent anonymisations.
-    const { data: existing } = await this.supabase.service
+    const { data: existing, error } = await this.supabase.service
       .from('global_persons')
-      .select('slug')
+      .select('slug, claimed_by_user_id')
       .eq('id', globalPersonId)
       .maybeSingle();
-    const previousSlug = (existing as { slug?: string } | null)?.slug ?? null;
+    // Her photos are found by this read (ruling 462): a failure stops here, retryable, rather
+    // than renaming her and leaving her photos under her name.
+    if (error) throw new Error(`anonymise global_persons: ${error.message}`);
+    const profile = existing as { slug?: string; claimed_by_user_id?: string | null } | null;
+    const previousSlug = profile?.slug ?? null;
 
     counts['global_persons'] = await this.update('global_persons', 'id', globalPersonId, {
       ...nulls(GLOBAL_PERSON_NULLED),
@@ -200,6 +207,11 @@ export class ErasureService {
     });
     counts['guest_sessions'] = await this.deleteIn('guest_sessions', 'person_id', personIds);
     Object.assign(counts, await this.deleteRowsAimedAt([globalPersonId]));
+    // Her personal-space photos carry the old name (ruling 462). The account link survives the
+    // update above, so they are still found by it.
+    const account = profile?.claimed_by_user_id;
+    if (account)
+      counts['event_photos'] = await this.deleteWhere('event_photos', 'uploader_user_id', account);
 
     return { counts, previousSlugHash: previousSlug ? hashSlug(previousSlug) : null };
   }

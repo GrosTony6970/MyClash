@@ -9985,6 +9985,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/events/{eventId}/photos': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The photos she sent to this Event from her personal space */
+    get: operations['MyPhotosController_list'];
+    put?: never;
+    /** Send a photo to one of her own Events, under her name */
+    post: operations['MyPhotosController_upload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/events/{eventId}/photos/{photoId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a photo she sent from her personal space */
+    delete: operations['MyPhotosController_remove'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -26977,6 +27012,79 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
+        photoId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MyPhotosController_list: {
+    parameters: {
+      query?: {
+        before?: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MyPhotosController_upload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          caption?: string;
+          /** Format: uuid */
+          tournamentId?: string;
+          /** Format: uuid */
+          workshopId?: string;
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description { id, status: waiting | approved } */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MyPhotosController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
         photoId: string;
       };
       cookie?: never;

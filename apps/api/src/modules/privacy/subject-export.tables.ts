@@ -129,6 +129,14 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'respondent_person_id', reach: 'person' }],
     file: 'events.csv',
   },
+  event_photos: {
+    // The photos the subject sent from their personal space (Goal 11): their own contribution,
+    // under their name. The rows only; the images stay in the photo bucket and are deleted 30
+    // days after the Event. A photo sent from the QR page names nobody (its `device_id` is a
+    // random cookie id), so it is not reached.
+    reaches: [{ column: 'uploader_user_id', reach: 'uid' }],
+    file: 'photos.csv',
+  },
   swiss_entrants: {
     // The Swiss phase roster. Personal data: it records that this person was
     // entered into this phase and, via `withdrawn_at_round`, that they pulled

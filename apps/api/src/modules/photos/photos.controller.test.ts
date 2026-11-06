@@ -71,7 +71,11 @@ describe('POST events/:eventId/photos', () => {
     expect(name).toBe(PHOTO_DEVICE_COOKIE);
     expect(options).toMatchObject({ httpOnly: true, sameSite: 'lax', secure: true, path: '/' });
     const { deviceId } = devices.deviceOf(token);
-    expect(upload.upload).toHaveBeenCalledWith(EVENT, 'tok', deviceId, expect.anything());
+    expect(upload.upload).toHaveBeenCalledWith(
+      EVENT,
+      { kind: 'phone', token: 'tok', deviceId },
+      expect.anything(),
+    );
   });
 
   it('keeps the cookie of a phone it already knows', async () => {
@@ -81,7 +85,11 @@ describe('POST events/:eventId/photos', () => {
     await ctl.upload(EVENT, req({ [PHOTO_DEVICE_COOKIE]: devices.sign(known).token }), r as never);
 
     expect(r.setCookie).not.toHaveBeenCalled();
-    expect(upload.upload).toHaveBeenCalledWith(EVENT, undefined, known, expect.anything());
+    expect(upload.upload).toHaveBeenCalledWith(
+      EVENT,
+      { kind: 'phone', token: undefined, deviceId: known },
+      expect.anything(),
+    );
   });
 });
 

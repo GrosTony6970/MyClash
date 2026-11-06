@@ -83,6 +83,8 @@ describe('the archived-Event lock, API-wide', () => {
       // Event photos (design, "Constraints"): a person in a photo may ask for it to go.
       'DELETE events/:eventId/photos/:photoId',
       'DELETE events/:id',
+      // Event photos (slice 6a): she may ask for a photo she sent from her personal space to go.
+      'DELETE me/events/:eventId/photos/:photoId',
       'PATCH admin/events/:eventId/league-tournament-links/:linkId',
       'PATCH deletion-requests/:id/cancel',
       'PATCH exchanges/:id/edit',
@@ -148,7 +150,9 @@ describe('the archived-Event lock, API-wide', () => {
     // both opted out (443, privacy) and still placed: the count reads the path, not the mark.
     // 190: the organiser's `POST …/photos/:photoId/keep` and the public `…/report` (447), opted
     // out and placed alike. The public list is a GET: not a write, not counted.
-    expect(placed).toHaveLength(190);
+    // 192: a personal space's `POST me/events/:eventId/photos` (locked on archive, as the QR
+    // route) and `DELETE me/events/:eventId/photos/:photoId` (opted out), placed by their Event.
+    expect(placed).toHaveLength(192);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

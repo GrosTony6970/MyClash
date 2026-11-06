@@ -32,6 +32,11 @@ export const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 /** Counted in characters (code points), as Postgres' `char_length` does. */
 export const PHOTO_NAME_MAX = 40;
 export const PHOTO_CAPTION_MAX = 200;
+/**
+ * The name a photo sent from a personal space carries: the profile name, or the sign-up name, cut
+ * at the profile's own limit (design Goal 11, ruling 458). A name typed on the QR page stays at 40.
+ */
+export const PHOTO_ACCOUNT_NAME_MAX = 200;
 
 /**
  * The HEIF major brands (bytes 8-11 after `ftyp`) that mean "a HEIC photo". The page refuses one
@@ -73,6 +78,11 @@ export const PHOTO_UPLOAD_REFUSALS = [
   'photo_text_too_long',
   'photo_tag_invalid',
   'photo_missing',
+  // A photo sent from a personal space (slice 6a): not one of her Events, no name to carry, her
+  // account's hour.
+  'photo_not_your_event',
+  'photo_no_name',
+  'photo_account_limit',
 ] as const;
 export type PhotoUploadRefusal = (typeof PHOTO_UPLOAD_REFUSALS)[number];
 
@@ -142,6 +152,27 @@ export type PublicPhoto = Omit<
 /** One page of an Event's public photos, newest first. `next` is the following page's cursor. */
 export interface PublicPhotoPage {
   photos: PublicPhoto[];
+  next: string | null;
+}
+
+// ── A personal space's own photos (design Goal 11, slice 6) ─────────────────────────────────
+
+/**
+ * A photo she sent from her personal space, as she sees it: its status and both images, a
+ * waiting one too (it is hers). Her name is the page's `posterName`, not repeated per photo.
+ */
+export type MyPhoto = Pick<
+  ModerationPhoto,
+  'id' | 'status' | 'caption' | 'tag' | 'createdAt' | 'previewUrl' | 'originalUrl'
+>;
+
+/**
+ * One page of her photos of one Event, newest first, and the name her photos carry (null: she has
+ * none yet, and an upload is refused with `photo_no_name`). `next` as `PublicPhotoPage.next`.
+ */
+export interface MyPhotos {
+  posterName: string | null;
+  photos: MyPhoto[];
   next: string | null;
 }
 

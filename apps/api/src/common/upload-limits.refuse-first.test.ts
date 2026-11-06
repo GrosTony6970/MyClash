@@ -8,7 +8,7 @@
  */
 import 'reflect-metadata';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { photoDoor } from '../modules/photos/testing/photo-door';
+import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
 import { describe, expect, it } from 'vitest';
 import { EventsController } from '../modules/events/events.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
@@ -57,6 +57,32 @@ describe('the anonymous photo route refuses a wrong QR link before it reads', ()
     expect(refusal).toBeInstanceOf(ForbiddenException);
     expect((refusal as ForbiddenException).getResponse()).toMatchObject({
       code: 'photo_link_invalid',
+    });
+    expect(upload.file).not.toHaveBeenCalled();
+    expect(upload.parts).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The personal-space photo route (slice 6a) takes an account: a signed-out caller is its 401, and
+ * an Event outside her own is its refusal, both before the read.
+ */
+describe('the personal-space photo route refuses before it reads', () => {
+  it('POST me/events/:eventId/photos: a signed-out caller is 401, and the file is never asked for', async () => {
+    const upload = tooLargeUpload(null);
+    await expect(myPhotoDoor(EVENT)(upload.req)).rejects.toThrow(UnauthorizedException);
+    expect(upload.file).not.toHaveBeenCalled();
+    expect(upload.parts).not.toHaveBeenCalled();
+  });
+
+  it('POST me/events/:eventId/photos: not her Event is 403 photo_not_your_event, before the read', async () => {
+    const upload = tooLargeUpload();
+    const refusal = await myPhotoDoor(EVENT, { member: false })(upload.req).catch(
+      (err: unknown) => err,
+    );
+    expect(refusal).toBeInstanceOf(ForbiddenException);
+    expect((refusal as ForbiddenException).getResponse()).toMatchObject({
+      code: 'photo_not_your_event',
     });
     expect(upload.file).not.toHaveBeenCalled();
     expect(upload.parts).not.toHaveBeenCalled();

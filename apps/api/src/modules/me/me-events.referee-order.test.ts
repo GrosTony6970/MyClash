@@ -115,7 +115,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
         .trim(),
     ).toBe(
       'id, role, event_id, pool_id, match_id, ' +
-        'events ( id, slug, name, start_date, end_date, status, timezone, event_kind ), ' +
+        'events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode ), ' +
         'pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ), ' +
         'matches ( bracket_slot_id, pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ), ' +
         'phases ( type, config_json, tournaments ( id, name ) ), lices ( name, venues ( name ) ) ), ' +
@@ -206,12 +206,13 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
     expect(lookup?.in).toHaveBeenCalledWith('id', ['m-sw']);
   });
 
-  it('says so when the duties themselves cannot be read', async () => {
-    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  // Ruling 461: an unread duty list used to leave her Events out with a warning; a list one read
+  // short told a referee "not your event" when she sent a photo.
+  it('fails the list when the duties themselves cannot be read', async () => {
     windowsAre({});
     const { service } = buildService({ data: null, error: { message: 'column does not exist' } });
-    expect(await service.listMyEvents(READER)).toEqual([]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain('column does not exist');
+    await expect(service.listMyEvents(READER)).rejects.toThrow(
+      'My events: referee duties not read: column does not exist',
+    );
   });
 });

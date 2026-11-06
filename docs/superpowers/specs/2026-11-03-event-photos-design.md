@@ -76,6 +76,14 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
     - Deleting the account deletes their photos (my call).
     - A QR upload by a signed-in person stays anonymous: the QR route's handler ignores the session
       **[rev]**. The guard still resolves it, as it does on every request.
+    - **[rev 458-462, slice 6a]** The name is the fighter-profile name, else the name typed at
+      sign-up, never the email (458); with neither, the upload is refused (`photo_no_name`). It is
+      copied when the photo is sent, kept whole up to 200 characters (a typed QR name stays at 40).
+      "Her own Events" is exactly the "my events" list (`listMyEvents`); its reads now fail loudly,
+      so a database hiccup answers "photos are unavailable", never "not your event" (461). Her
+      own photos are listed 30 at a time and deleted by her alone, after archive too. The account
+      link refuses the account's delete instead of cascading (erasure deletes the photos first);
+      anonymising her profile deletes them too (462). Two commits: 6a server, 6b the tab (459).
 
 ## Non-goals
 

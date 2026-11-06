@@ -105,6 +105,11 @@ export async function writeChosenPassword(
   return 'unknown';
 }
 
+/** Read one account from the auth server, bounded like every call here. */
+export function readAccount(service: SupabaseClient, userId: string) {
+  return heldToLimit(service.auth.admin.getUserById(userId));
+}
+
 /** Remove an account from the auth server. */
 export function removeAccount(service: SupabaseClient, userId: string) {
   return heldToLimit(service.auth.admin.deleteUser(userId));

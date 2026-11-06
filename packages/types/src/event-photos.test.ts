@@ -26,9 +26,9 @@ describe('the photo contract the page and the API share', () => {
     );
   });
 
-  it('names sixteen distinct refusals, the five file ones among them', () => {
-    expect(PHOTO_UPLOAD_REFUSALS).toHaveLength(16);
-    expect(new Set(PHOTO_UPLOAD_REFUSALS).size).toBe(16);
+  it('names nineteen distinct refusals, the five file ones among them', () => {
+    expect(PHOTO_UPLOAD_REFUSALS).toHaveLength(19);
+    expect(new Set(PHOTO_UPLOAD_REFUSALS).size).toBe(19);
     for (const code of PHOTO_FILE_REFUSALS) expect(PHOTO_UPLOAD_REFUSALS).toContain(code);
   });
 
