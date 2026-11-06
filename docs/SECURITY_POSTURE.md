@@ -48,6 +48,7 @@ Cookie-backed sessions:
 | `sb-refresh-token` | Supabase auth refresh token | `httpOnly`, `sameSite=lax`, `path=/`, `secure` in production |
 | `mc_guest`         | Event guest session JWT     | `httpOnly`, `sameSite=lax`, `path=/`, `secure` in production |
 | `mc_staff`         | Event staff session JWT     | `httpOnly`, `sameSite=lax`, `path=/`, `secure` in production |
+| `mc_photo_device`  | Event photo sender id JWT   | `httpOnly`, `sameSite=lax`, `path=/`, `secure` in production |
 
 Clear-cookie calls use matching `path`, `sameSite`, and production `secure` posture. The shared cookie helpers are tested in `apps/api/src/security/http-security.test.ts`.
 

@@ -52,7 +52,9 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // 2026-11-06: §3bis on Event photos (new processing: images of people, the
     // sender's name, the phone's cookie, the 30-day deletion, the organiser's
     // zip); §1.1, §2.4, §4, §5, §6, §6.1, §7 and §11 point at it. Bumped: this
-    // EXPANDS processing (rulings 472-473).
+    // EXPANDS processing (rulings 472-473). §9 now lists every cookie (`mc_staff`
+    // and `mc_theme` were missing since 2026-08-04) and §2 no longer counts the
+    // export's tables and files, which had drifted (ruling 474).
     //
     // 2026-10-29: rewrote what §7, §7.1 and §8 say Sentry receives. The policy
     // said no IP address and no personal data reach it; Sentry 10 did not honour

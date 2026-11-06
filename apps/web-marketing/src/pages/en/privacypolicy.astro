@@ -46,7 +46,7 @@ import Legal from '../../layouts/Legal.astro';
 
 <!-- 2 -->
 <h2>2. What data we hold</h2>
-<p>The list below is not a summary written from memory: it mirrors the technical inventory the platform uses to build your data export (42 tables, grouped into the twelve files you receive). Anything we hold about you appears in one of these categories.</p>
+<p>The list below is not a summary written from memory: it mirrors the technical inventory the platform uses to build your data export — every database table that can concern you, and the file of the archive it goes into. Anything we hold about you appears in one of these categories.</p>
 
 <h3>2.1 Identity and profile</h3>
 <table>
@@ -243,17 +243,21 @@ import Legal from '../../layouts/Legal.astro';
 
 <!-- 9 -->
 <h2>9. Cookies</h2>
-<p>MyClash sets <strong>four cookies, all our own</strong>. None is used for advertising, audience measurement or tracking.</p>
+<p>MyClash sets <strong>only its own cookies</strong>, all listed below. None is used for advertising, audience measurement or tracking.</p>
 <table>
   <thead><tr><th>Cookie</th><th>Purpose</th><th>Lifetime</th></tr></thead>
   <tbody>
-    <tr><td><code>sb-access-token</code></td><td>Keeps you signed in</td><td>Session, renewed while you stay active</td></tr>
+    <tr><td><code>sb-access-token</code></td><td>Keeps you signed in</td><td>30 days, renewed while you stay active</td></tr>
     <tr><td><code>sb-refresh-token</code></td><td>Renews your session without asking you to sign in again</td><td>30 days</td></tr>
+    <tr><td><code>mc-oauth-…-code-verifier</code></td><td>During a Google sign-in, links the return from Google to the browser that started it; deleted once used</td><td>1 hour</td></tr>
     <tr><td><code>mc_guest</code></td><td>Your guest session at an event, when you have no account</td><td>Until 7 days after the event</td></tr>
+    <tr><td><code>mc_staff</code></td><td>Signs a staff tablet or phone (scoring, check-in desk, gear, photos) in to one event, once its code is entered</td><td>Until 6 am the day after the event's last day; 12 hours for a sign-in made after that time (photo moderation)</td></tr>
     <tr><td><code>mc_locale</code></td><td>Remembers whether you chose French or English</td><td>1 year</td></tr>
+    <tr><td><code>mc_theme</code></td><td>Remembers the colour theme chosen on a scoring tablet</td><td>1 year</td></tr>
+    <tr><td><code>mc_photo_device</code></td><td>A random number that counts the photos and reports sent from one phone, so a single device cannot flood an event. It does not say who you are</td><td>30 days</td></tr>
   </tbody>
 </table>
-<p><strong>This is why you will not see a cookie banner.</strong> A consent banner is required for cookies that are not necessary — advertising, analytics, third-party trackers. MyClash sets none. The first three cookies are strictly necessary for a service you asked for by signing in; the fourth records a choice you made yourself. Displaying a consent dialog that decides nothing would only teach you to dismiss the ones that matter.</p>
+<p><strong>This is why you will not see a cookie banner.</strong> A consent banner is required for cookies that are not necessary — advertising, analytics, third-party trackers. MyClash sets none. <code>sb-access-token</code>, <code>sb-refresh-token</code>, <code>mc-oauth-…-code-verifier</code>, <code>mc_guest</code> and <code>mc_staff</code> are strictly necessary for a service you asked for by signing in; <code>mc_photo_device</code> protects the photo sending you are using; <code>mc_locale</code> and <code>mc_theme</code> record a choice you made yourself. Displaying a consent dialog that decides nothing would only teach you to dismiss the ones that matter.</p>
 <p>If MyClash ever adds a measurement tool, this section changes and a real consent mechanism will come with it — one that blocks the tool until you agree.</p>
 
 <!-- 10 -->

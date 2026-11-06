@@ -21,7 +21,7 @@ The facts, each re-checkable rather than taken on trust:
 'plausible|umami|matomo|gtag|google-analytics'` across `apps/` and `packages/` returns nothing.
   Sentry is loaded, but it is error reporting on first-party infrastructure and sets no
   identifying cookie.
-- **Five cookies exist, all first-party.** `sb-access-token` / `sb-refresh-token` (the auth
+- **Cookies exist, all first-party.** `sb-access-token` / `sb-refresh-token` (the auth
   session), `mc_guest` (the signed guest-session cookie minted at
   `apps/api/src/modules/auth/guest-sessions.controller.ts`), `mc_locale` (the language the
   user picked, read by `packages/next-i18n/src/server.ts`), `mc_staff` (the event staff
@@ -29,6 +29,14 @@ The facts, each re-checkable rather than taken on trust:
   theme preference). No advertising identifier, no cross-site cookie, no third-party domain.
   `mc_staff` is strictly necessary and `mc_theme` is user-set, so both sit inside the Art. 5(3)
   exemption and the decision below is unaffected.
+  [rev slice 8] `mc_photo_device` (`apps/api/src/modules/photos/photo-device.ts`) carries a
+  random number and nothing else, is set only on a photo send or a Report the person asked for
+  by pressing the button, and exists only to limit abuse of that sending, so it is strictly
+  necessary to the service requested: inside the exemption. A legal reading, the operator's to
+  confirm. During a Google sign-in, `mc-oauth-…-code-verifier` holds the one-time PKCE check for
+  an hour at most (`packages/api-client/src/oauth-storage.ts`): strictly necessary to the sign-in
+  asked for. The privacy policy's §9 lists every cookie, and `scripts/privacy-cookies.test.mjs`
+  holds that list against the code both ways.
 - **The policies existed but were unreachable from the product.** They are static pages on
   `web-marketing` (`src/pages/terms.astro`, `src/pages/privacypolicy.astro`, with `/en` siblings; they lived under `public/` before the Astro rebuild). Before this
   slice, `grep -i 'terms|privacy|consent'` across `web-public`, `web-admin` and `web-staff`

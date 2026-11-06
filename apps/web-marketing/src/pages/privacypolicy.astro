@@ -46,7 +46,7 @@ import Legal from '../layouts/Legal.astro';
 
 <!-- 2 -->
 <h2>2. Quelles données détenons-nous ?</h2>
-<p>La liste ci-dessous n'est pas un résumé écrit de mémoire : elle reprend l'inventaire technique que la plateforme utilise pour construire votre export de données (42 tables, regroupées dans les douze fichiers que vous recevez). Tout ce que nous détenons sur vous figure dans l'une de ces catégories.</p>
+<p>La liste ci-dessous n'est pas un résumé écrit de mémoire : elle reprend l'inventaire technique que la plateforme utilise pour construire votre export de données — chaque table de la base qui peut vous concerner, et le fichier de l'archive où elle se trouve. Tout ce que nous détenons sur vous figure dans l'une de ces catégories.</p>
 
 <h3>2.1 Identité et profil</h3>
 <table>
@@ -243,17 +243,21 @@ import Legal from '../layouts/Legal.astro';
 
 <!-- 9 -->
 <h2>9. Cookies</h2>
-<p>MyClash dépose <strong>quatre cookies, tous les nôtres</strong>. Aucun ne sert à la publicité, à la mesure d'audience ou au pistage.</p>
+<p>MyClash ne dépose <strong>que ses propres cookies</strong>, tous listés ci-dessous. Aucun ne sert à la publicité, à la mesure d'audience ou au pistage.</p>
 <table>
   <thead><tr><th>Cookie</th><th>Rôle</th><th>Durée</th></tr></thead>
   <tbody>
-    <tr><td><code>sb-access-token</code></td><td>Vous maintient connecté</td><td>Session, renouvelée tant que vous restez actif</td></tr>
+    <tr><td><code>sb-access-token</code></td><td>Vous maintient connecté</td><td>30 jours, renouvelé tant que vous restez actif</td></tr>
     <tr><td><code>sb-refresh-token</code></td><td>Renouvelle votre session sans vous redemander de vous connecter</td><td>30 jours</td></tr>
+    <tr><td><code>mc-oauth-…-code-verifier</code></td><td>Pendant une connexion avec Google, relie le retour de Google au navigateur qui l'a commencée ; supprimé dès qu'il a servi</td><td>1 heure</td></tr>
     <tr><td><code>mc_guest</code></td><td>Votre session invité sur un événement, lorsque vous n'avez pas de compte</td><td>Jusqu'à 7 jours après l'événement</td></tr>
+    <tr><td><code>mc_staff</code></td><td>Connecte une tablette ou un téléphone du personnel (arbitrage, accueil, matériel, photos) à un événement, après la saisie de son code</td><td>Jusqu'à 6 h le lendemain du dernier jour de l'événement ; 12 heures pour une connexion ouverte après cette heure (la modération des photos)</td></tr>
     <tr><td><code>mc_locale</code></td><td>Retient si vous avez choisi le français ou l'anglais</td><td>1 an</td></tr>
+    <tr><td><code>mc_theme</code></td><td>Retient le thème de couleurs choisi sur une tablette d'arbitrage</td><td>1 an</td></tr>
+    <tr><td><code>mc_photo_device</code></td><td>Un numéro aléatoire qui compte les photos et les signalements envoyés depuis un même téléphone, pour qu'un seul appareil ne puisse pas submerger un événement. Il ne dit pas qui vous êtes</td><td>30 jours</td></tr>
   </tbody>
 </table>
-<p><strong>C'est pourquoi vous ne verrez pas de bandeau cookies.</strong> Un bandeau de consentement s'impose pour les cookies non nécessaires — publicité, mesure d'audience, traceurs tiers. MyClash n'en dépose aucun. Les trois premiers cookies sont strictement nécessaires à un service que vous avez demandé en vous connectant ; le quatrième enregistre un choix que vous avez fait vous-même. Afficher une fenêtre de consentement qui ne décide de rien ne ferait que vous habituer à écarter celles qui comptent.</p>
+<p><strong>C'est pourquoi vous ne verrez pas de bandeau cookies.</strong> Un bandeau de consentement s'impose pour les cookies non nécessaires — publicité, mesure d'audience, traceurs tiers. MyClash n'en dépose aucun. <code>sb-access-token</code>, <code>sb-refresh-token</code>, <code>mc-oauth-…-code-verifier</code>, <code>mc_guest</code> et <code>mc_staff</code> sont strictement nécessaires à un service que vous avez demandé en vous connectant ; <code>mc_photo_device</code> protège l'envoi de photos que vous utilisez ; <code>mc_locale</code> et <code>mc_theme</code> enregistrent un choix que vous avez fait vous-même. Afficher une fenêtre de consentement qui ne décide de rien ne ferait que vous habituer à écarter celles qui comptent.</p>
 <p>Si MyClash ajoutait un jour un outil de mesure, cette section changerait et un véritable mécanisme de consentement l'accompagnerait — un mécanisme qui bloque l'outil tant que vous n'avez pas accepté.</p>
 
 <!-- 10 -->
