@@ -2779,6 +2779,22 @@ export const organizer = {
       stored: '{used} GB / {cap} GB stored',
       deletesOn: 'Every photo is deleted on {date}.',
     },
+    download: {
+      title: 'Download the photos',
+      filterLabel: 'Photos to download',
+      allPhotos: 'All photos',
+      tournaments: 'Tournaments',
+      workshops: 'Workshops',
+      listFailed:
+        'The Tournament and Workshop lists could not be loaded: only all photos can be downloaded.',
+      button: 'Download zip',
+      copiesNote:
+        'One zip of the chosen photos still stored, with photos.csv. Copies you download are yours to keep safe and delete: the photos here are deleted on {date}.',
+      copiesNoteUndated:
+        'One zip of the chosen photos still stored, with photos.csv. Copies you download are yours to keep safe and delete.',
+      deleted: 'The photos of this Event are deleted: there is nothing left to download.',
+      failed: 'The download could not start.',
+    },
     queue: {
       tabsLabel: 'Photo queue',
       waiting: 'Waiting ({count})',

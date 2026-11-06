@@ -6,6 +6,7 @@ import { AdminPageHeader, Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { BackLink } from '@/components/BackLink';
 import { PageAlert } from '@/components/PageAlert';
+import { PhotoDownload } from './PhotoDownload';
 import { PhotoLinkPanel } from './PhotoLinkPanel';
 import { PhotoModePanel } from './PhotoModePanel';
 import { PhotoQueue } from './PhotoQueue';
@@ -36,15 +37,19 @@ export default function EventPhotosPage() {
         />
       </div>
       <PageAlert outcome={photos.outcome} className="mb-6" />
-      {photos.summary && <PhotoSections summary={photos.summary} photos={photos} />}
+      {photos.summary && (
+        <PhotoSections eventId={eventId} summary={photos.summary} photos={photos} />
+      )}
     </main>
   );
 }
 
 function PhotoSections({
+  eventId,
   summary,
   photos,
 }: {
+  eventId: string;
   summary: PhotoSummary;
   photos: ReturnType<typeof usePhotoModeration>;
 }) {
@@ -66,6 +71,7 @@ function PhotoSections({
         />
         <PhotoUsage summary={summary} />
       </div>
+      <PhotoDownload eventId={eventId} summary={summary} onStale={photos.reload} />
       <PhotoQueue
         photos={photos.photos}
         filter={photos.filter}

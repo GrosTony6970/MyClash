@@ -2741,6 +2741,22 @@ export const organizer = {
       stored: '{used} Go / {cap} Go stockés',
       deletesOn: 'Toutes les photos sont supprimées le {date}.',
     },
+    download: {
+      title: 'Télécharger les photos',
+      filterLabel: 'Photos à télécharger',
+      allPhotos: 'Toutes les photos',
+      tournaments: 'Tournois',
+      workshops: 'Ateliers',
+      listFailed:
+        'Les listes des tournois et des ateliers n’ont pas pu être chargées : seul le téléchargement de toutes les photos est possible.',
+      button: 'Télécharger le zip',
+      copiesNote:
+        'Un zip des photos choisies encore stockées, avec photos.csv. Les copies que vous téléchargez sont à garder en lieu sûr et à supprimer par vos soins : les photos d’ici sont supprimées le {date}.',
+      copiesNoteUndated:
+        'Un zip des photos choisies encore stockées, avec photos.csv. Les copies que vous téléchargez sont à garder en lieu sûr et à supprimer par vos soins.',
+      deleted: 'Les photos de cet événement sont supprimées : il n’y a plus rien à télécharger.',
+      failed: 'Le téléchargement n’a pas pu démarrer.',
+    },
     queue: {
       tabsLabel: 'File des photos',
       waiting: 'En attente ({count})',

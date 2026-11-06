@@ -7,6 +7,8 @@ export const LINK_READ = '/api/v1/events/ev1/photos/link';
 export const waitingRead = '/api/v1/events/ev1/photos?filter=waiting';
 export const allRead = '/api/v1/events/ev1/photos?filter=all';
 export const reportedRead = '/api/v1/events/ev1/photos?filter=reported';
+export const TOURNAMENTS_READ = '/api/v1/events/ev1/tournaments';
+export const WORKSHOPS_READ = '/api/v1/events/ev1/workshops';
 
 /** The newest report of the reported photo p3, as the database wrote it. */
 export const LAST_REPORT = '2026-11-07T16:30:00.654321+00:00';
@@ -77,5 +79,8 @@ export function photoReads(
     [waitingRead]: waiting,
     [reportedRead]: over.reported ?? page([reportedPhoto()]),
     [allRead]: over.all ?? waiting,
+    // The download's choice of photos (slice 7b).
+    [TOURNAMENTS_READ]: [{ id: 't1', name: 'Longsword Open' }],
+    [WORKSHOPS_READ]: [{ id: 'w1', title: 'Rapier basics' }],
   };
 }

@@ -217,3 +217,16 @@ Tasks 1-4 and Task 6's Traefik part, as planned, with these changes:
 Proof: 60 seeded breaks, all red (`falsify-7a.mjs`); real files through `zipStream` (4,529,897,010 bytes, 361 entries, and 50 MB) read by Python `zipfile.testzip`, 7-Zip, Windows `tar` and Windows Explorer (every extracted CRC equal); live PostgREST v14.16 over the replayed PG17: the built `rows()` read 1,001 photos over two pages, none twice, a tie across the boundary kept; Traefik v3.7.10 loads both forms of the compress middleware, enabled, with no error; gates 33/33; the api image boots and the route answers 401 signed out and 400 to a bad query.
 
 Deferred minors (cold code review): a throw inside `push` would be unhandled (cannot happen: every chunk is a Buffer); the read under way when the organiser leaves runs to its end (up to 30 s, 12 MiB); an emptied bucket with rows left makes the first byte wait for every missing photo's read; Zip64 by entry count is proven by the test reader only (~29,000 photos is the cap's maximum).
+
+## As built — 7b, the page (2026-11-06, session f81e81f1)
+
+Task 5 as planned, with these changes:
+
+- **The button is `CsvExportMenu`**: its two choices are the spreadsheet `photos.csv` is written for (470), so there is no second choice on the box. Its label is "Download zip" and the box's heading "Download the photos" (the button no longer says "all" when one Tournament is picked).
+- **A stale check reloads the page** (the existing reload) rather than writing a new summary into the hook, and moves the box's own clock to the check's time: a deletion instant that passed with the page open now hides the button and says the photos are deleted (cold code review).
+- **The button is busy during the check** (a second pick started a second zip), and no link is followed after the page is left (cold code review).
+- The tests pin the date (the fixture's deletion date would have turned them red on 8 December 2026).
+
+Proof: 14 page tests; the Photos page suite 39/39; 22 seeded breaks, all red (`falsify-7b.mjs`); gates 33/33.
+
+Deferred minors (cold code review): `failureMessage(...) ?? failed` cannot fire (null only on abort; the type asks for it); a browser clock behind the server's can follow the link just after the 410 begins (named in the hook); the two lists' shape is local to the page.
