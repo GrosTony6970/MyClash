@@ -1,21 +1,17 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { oauthClientOptions } from '@myclash/api-client';
+import { createClient } from '@supabase/supabase-js';
 
 /**
- * Browser Supabase client for the OAuth (PKCE) flow.
+ * Browser Supabase client for the Google sign-in (PKCE).
  *
- * Uses `@supabase/ssr`'s `createBrowserClient`, which (in a browser, with no
- * explicit `cookies` option) stores the PKCE code verifier and session in
- * cookies via the `document.cookie` API rather than localStorage. Cookies
- * survive the top-level redirect back from the OAuth provider, which the
- * previous `createClient` + localStorage setup did not reliably do — sign-in
- * failed with `AuthPKCECodeVerifierMissingError` when the verifier wasn't
- * found on return.
+ * The login itself goes to our server, which keeps it in httpOnly cookies. This client
+ * stores only the one-time check that must survive the trip to Google and back, in a
+ * one-hour cookie deleted once used (`oauthClientOptions`, `@myclash/api-client`). The
+ * `@supabase/ssr` client it replaces also wrote the whole login to a cookie every page script
+ * could read, for 400 days.
  *
- * `flowType: 'pkce'` is forced by `@supabase/ssr`. We keep the rest of the
- * original client's behaviour: `detectSessionInUrl: false` so the client does
- * NOT auto-exchange the `?code=` on the callback route (the callback page
- * exchanges it explicitly), and `autoRefreshToken: false` since this client is
- * used only for the one-shot code exchange and is never reused.
+ * The callback page exchanges the `?code=` itself (`detectSessionInUrl: false`), on a new
+ * client built by this function.
  */
 export function createOAuthSupabaseClient() {
   const url = process.env['NEXT_PUBLIC_SUPABASE_URL'];
@@ -27,11 +23,5 @@ export function createOAuthSupabaseClient() {
     );
   }
 
-  return createBrowserClient(url, key, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
+  return createClient(url, key, oauthClientOptions());
 }
