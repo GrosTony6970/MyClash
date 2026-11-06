@@ -41,32 +41,37 @@ const LIBRARY_COOKIES = [
   },
 ];
 
-function* sourceFiles(dir) {
+const isSource = (name) => EXTENSIONS.has(extname(name)) && !/\.(test|spec)\./.test(name);
+
+function* sourceFiles(dir, recurse = true) {
   if (!existsSync(dir)) return;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) yield* sourceFiles(join(dir, entry.name));
-    } else if (EXTENSIONS.has(extname(entry.name)) && !/\.(test|spec)\./.test(entry.name)) {
+      if (recurse && !SKIP_DIRS.has(entry.name)) yield* sourceFiles(join(dir, entry.name));
+    } else if (isSource(entry.name)) {
       yield join(dir, entry.name);
     }
   }
 }
 
-function sourceRoots() {
+/** Each app's `src` and `app`, each package's `src`, and each app's own top-level files
+ * (`proxy.ts`, `instrumentation.ts`, the Sentry configs), not their folders. */
+function* allSourceFiles() {
   const apps = readdirSync(join(ROOT, 'apps')).filter((app) => app !== 'web-marketing');
-  const packages = readdirSync(join(ROOT, 'packages'));
-  return [
-    ...apps.flatMap((app) => [join(ROOT, 'apps', app, 'src'), join(ROOT, 'apps', app, 'app')]),
-    ...packages.map((pkg) => join(ROOT, 'packages', pkg, 'src')),
-  ];
+  for (const app of apps) {
+    yield* sourceFiles(join(ROOT, 'apps', app), false);
+    yield* sourceFiles(join(ROOT, 'apps', app, 'src'));
+    yield* sourceFiles(join(ROOT, 'apps', app, 'app'));
+  }
+  for (const pkg of readdirSync(join(ROOT, 'packages'))) {
+    yield* sourceFiles(join(ROOT, 'packages', pkg, 'src'));
+  }
 }
 
 function codeCookieNames() {
   const names = new Set();
-  for (const root of sourceRoots()) {
-    for (const file of sourceFiles(root)) {
-      for (const match of readFileSync(file, 'utf8').matchAll(CODE_COOKIE)) names.add(match[1]);
-    }
+  for (const file of allSourceFiles()) {
+    for (const match of readFileSync(file, 'utf8').matchAll(CODE_COOKIE)) names.add(match[1]);
   }
   return [...names];
 }
