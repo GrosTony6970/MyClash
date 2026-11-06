@@ -79,6 +79,15 @@ test.describe('sending from her personal space', () => {
     await expectNoPageIssues(issues);
   });
 
+  test('the notice links to the photo section of the privacy policy, in a new tab', async ({
+    page,
+  }) => {
+    await openTab(page, { list: json(minePage([])) });
+    const link = page.getByRole('link', { name: 'How MyClash handles photos' });
+    await expect(link).toHaveAttribute('href', /\/en\/privacypolicy#photos$/);
+    await expect(link).toHaveAttribute('target', '_blank');
+  });
+
   test('with no name yet, says how to add one instead of the form', async ({ page }) => {
     await openTab(page, { list: json(minePage([], { posterName: null })) });
     await expect(

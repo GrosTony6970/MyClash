@@ -1430,6 +1430,7 @@ export const publicApp = {
     workshops: 'Workshops',
     notice:
       'Share only photos you took, of people who are fine with being shown publicly. Every photo is deleted 30 days after the Event.',
+    privacyLink: 'How MyClash handles photos',
     send: 'Send',
     sending: 'Sending… {percent}',
     busy: 'Many photos are arriving at once. Trying again…',

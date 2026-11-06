@@ -114,6 +114,16 @@ test('a photo goes with its name and Tournament, and waits for approval', async 
   await expectNoPageIssues(issues);
 });
 
+// A new tab, so the photos already picked stay on this one (ruling 475).
+test('the notice links to the photo section of the privacy policy, in a new tab', async ({
+  page,
+}) => {
+  await openPage(page, `${PAGE}#${TOKEN}`);
+  const link = page.getByRole('link', { name: 'How MyClash handles photos' });
+  await expect(link).toHaveAttribute('href', /\/en\/privacypolicy#photos$/);
+  await expect(link).toHaveAttribute('target', '_blank');
+});
+
 test('a busy answer is sent again on its own', async ({ page }) => {
   const { posts } = await openPage(page, `${PAGE}#${TOKEN}`, [
     answer(503, { code: 'photos_busy', detail: 'Many photos are arriving at once.' }),

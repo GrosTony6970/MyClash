@@ -5,6 +5,7 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PHOTO_CAPTION_MAX, PHOTO_NAME_MAX } from '@myclash/types';
+import { getLegalUrl } from '@/lib/legal-url';
 import { tagOf } from '@/lib/photos/photo-tag';
 import { PhotoQueue } from '../send/PhotoQueue';
 import type { usePhotoQueue } from '../send/use-photo-queue';
@@ -156,6 +157,27 @@ function NameField({
   );
 }
 
+/**
+ * What the sender agrees to, and the privacy policy's photo section. A new tab, so the photos
+ * already picked stay on this one (ruling 475).
+ */
+function PhotoNotice() {
+  const { t, locale } = useI18n();
+  return (
+    <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-foreground-secondary">
+      {t('publicApp.photoSend.notice')}{' '}
+      <a
+        href={`${getLegalUrl('privacy', locale)}#photos`}
+        target="_blank"
+        rel="noreferrer"
+        className="underline decoration-dotted underline-offset-2 hover:text-accent"
+      >
+        {t('publicApp.photoSend.privacyLink')}
+      </a>
+    </p>
+  );
+}
+
 /** The open form. With `poster`, the photo carries that name and the form asks for none. */
 export function PhotoForm({
   queue,
@@ -191,9 +213,7 @@ export function PhotoForm({
         onChange={setCaption}
       />
       <TagPicker tags={tags} value={tag} onChange={setTag} />
-      <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-foreground-secondary">
-        {t('publicApp.photoSend.notice')}
-      </p>
+      <PhotoNotice />
       <Button
         variant="primary"
         className="w-full"

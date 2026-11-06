@@ -1432,6 +1432,7 @@ export const publicApp = {
     workshops: 'Ateliers',
     notice:
       'Ne partagez que des photos que vous avez prises, de personnes d’accord pour être montrées publiquement. Toutes les photos sont supprimées 30 jours après l’événement.',
+    privacyLink: 'Comment MyClash traite les photos',
     send: 'Envoyer',
     sending: 'Envoi… {percent}',
     busy: 'Beaucoup de photos arrivent en même temps. Nouvel essai…',
