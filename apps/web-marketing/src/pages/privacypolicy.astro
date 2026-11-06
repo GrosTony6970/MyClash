@@ -8,7 +8,7 @@ import Legal from '../layouts/Legal.astro';
   title={"Politique de Confidentialité — MyClash"}
   description={"Politique de confidentialité de MyClash — comment nous collectons, utilisons et protégeons vos données personnelles conformément au RGPD."}
   heading={"Politique de Confidentialité"}
-  updated={"Dernière mise à jour : 29 octobre 2026"}
+  updated={"Dernière mise à jour : 6 novembre 2026"}
 >
 <!-- 1 -->
 <h2>1. Qui sommes-nous, et qui est responsable de vos données ?</h2>
@@ -35,6 +35,10 @@ import Legal from '../layouts/Legal.astro';
     <tr>
       <td><strong>Un organisateur vous a inscrit sur la liste d'un événement</strong> (compétiteur, arbitre, instructeur, bénévole), que vous ayez un compte ou non</td>
       <td><strong>L'organisateur de cet événement.</strong> MyClash agit comme son sous-traitant : nous hébergeons et traitons ces données sur ses instructions</td>
+    </tr>
+    <tr>
+      <td><strong>Vous avez envoyé une photo à un événement</strong>, par le QR code ou depuis votre espace personnel, <strong>ou vous figurez sur l'une d'elles</strong></td>
+      <td><strong>L'organisateur de cet événement.</strong> C'est lui qui ouvre l'événement aux photos, les valide et peut les télécharger. MyClash les héberge pour lui et les supprime 30 jours après l'événement (voir §3bis)</td>
     </tr>
   </tbody>
 </table>
@@ -67,7 +71,7 @@ import Legal from '../layouts/Legal.astro';
 <p>Qualifications d'arbitre et notes par rôle, disponibilités, affectations aux pistes et aux combats, indemnisations d'arbitrage et paiements, animation et inscription aux ateliers, retours donnés sur les ateliers.</p>
 
 <h3>2.4 Activité du compte</h3>
-<p>Appartenances et rôles dans des organisations, les personnes et organisateurs que vous suivez, vos groupes d'annuaire, vos préférences de notification, vos abonnements aux notifications push, les demandes que vous formulez (revendication de profil, changement d'email, correction d'un échange, adhésion à une ligue, vérification de club) et vos réglages de confidentialité.</p>
+<p>Appartenances et rôles dans des organisations, les personnes et organisateurs que vous suivez, vos groupes d'annuaire, vos préférences de notification, vos abonnements aux notifications push, les demandes que vous formulez (revendication de profil, changement d'email, correction d'un échange, adhésion à une ligue, vérification de club) et vos réglages de confidentialité, ainsi que les photos que vous avez envoyées depuis votre espace personnel (voir §3bis).</p>
 
 <h3>2.5 Trace de votre acceptation de nos documents</h3>
 <p>À la création d'un compte, ou lorsque vous continuez en tant qu'invité, nous enregistrons <strong>quelle version</strong> des Conditions d'utilisation et de la présente Politique vous a été présentée, <strong>quand</strong> vous l'avez acceptée, ainsi que <strong>l'adresse IP et le navigateur</strong> depuis lesquels l'acceptation a eu lieu. Nous devons pouvoir démontrer ce consentement, et un simple horodatage ne le permettrait pas. Ces enregistrements ne sont jamais modifiés : accepter une version révisée ajoute un nouvel enregistrement à côté de l'ancien.</p>
@@ -92,6 +96,40 @@ import Legal from '../layouts/Legal.astro';
   <li><strong>Vous pouvez vous y opposer.</strong> Écrivez à l'organisateur, ou à nous ; voir §11.</li>
 </ul>
 
+<!-- 3bis -->
+<h2 id="photos">3bis. Les photos d'un événement</h2>
+<p>Un organisateur peut ouvrir son événement aux photos : les personnes présentes en envoient depuis leur téléphone, et la page publique de l'événement les montre. La fonction est désactivée par défaut ; elle n'existe sur un événement que si son organisateur l'a activée.</p>
+
+<h3>Ce que nous enregistrons</h3>
+<table>
+  <thead><tr><th>Photo envoyée…</th><th>Ce que nous enregistrons</th></tr></thead>
+  <tbody>
+    <tr><td><strong>par le QR code</strong>, sans compte</td><td>La photo ; un nom et une légende, si vous en saisissez (facultatifs) ; le tournoi ou l'atelier choisi ; l'heure d'envoi ; un numéro aléatoire propre à votre téléphone, enregistré avec la photo et gardé dans le cookie <code>mc_photo_device</code> (voir §9). Rien ne relie cette photo à votre compte, même si vous êtes connecté.</td></tr>
+    <tr><td><strong>depuis votre espace personnel</strong>, connecté</td><td>La photo, votre légende, le tournoi ou l'atelier choisi, l'heure, et <strong>votre nom</strong> — celui de votre profil, à défaut celui saisi à votre inscription —, affiché sous la photo. L'espace personnel ne permet pas d'envoi anonyme : pour cela, utilisez le QR code.</td></tr>
+  </tbody>
+</table>
+<p>Avant d'enregistrer une photo, nous en retirons tout ce que le téléphone y cache : <strong>la position GPS</strong>, le modèle de l'appareil, la date de prise de vue, les miniatures. Seule l'orientation est gardée, pour que la photo reste droite. L'image elle-même n'est pas retouchée ; nous en gardons aussi une copie réduite pour l'affichage. Aucune reconnaissance faciale n'est appliquée. La photo ne porte pas votre adresse IP ; comme toute visite, l'envoi laisse une ligne dans les journaux de nos serveurs (voir §2.7).</p>
+
+<h3>Qui les voit</h3>
+<ul>
+  <li>Selon le choix de l'organisateur, une photo est <strong>publique</strong> sur la page de l'événement dès son envoi, ou seulement <strong>après sa validation</strong>. Une photo en attente n'est visible que des modérateurs, et de son auteur dans son espace personnel s'il l'a envoyée de là.</li>
+  <li>Les <strong>modérateurs</strong> sont les administrateurs du club organisateur et les bénévoles à qui il confie les photos. Ils voient toutes les photos de l'événement et leurs signalements, et peuvent supprimer n'importe laquelle.</li>
+  <li>L'organisateur peut <strong>télécharger les photos de son événement</strong> en une seule archive zip — les photos publiées comme celles en attente —, avec la liste des noms, légendes, tournois ou ateliers, heures et statuts, jusqu'à leur suppression. <strong>Les copies téléchargées sont alors sous sa seule responsabilité</strong> : la suppression automatique ci-dessous ne les atteint pas.</li>
+</ul>
+
+<h3>Signaler une photo</h3>
+<p>Sous chaque photo publique, « Signaler » la place dans la liste des photos signalées que voient les modérateurs. Nous enregistrons le commentaire que vous ajoutez (facultatif, 200 caractères au plus) et le numéro aléatoire de votre téléphone (le même cookie). La photo reste visible jusqu'à ce qu'un modérateur la supprime ou décide de la garder ; s'il la garde, les signalements qu'il a lus sont effacés.</p>
+
+<h3>Combien de temps</h3>
+<p><strong>Toutes les photos d'un événement sont supprimées 30 jours après son dernier jour</strong>, à minuit, heure de l'événement, avec leurs noms, légendes et signalements. Une photo part plus tôt si un modérateur la supprime ou si l'événement est supprimé ; et, pour une photo envoyée depuis votre espace personnel, si vous la supprimez, si vous supprimez votre compte ou si vous nous demandez d'anonymiser votre nom. Les images ne figurent jamais dans nos sauvegardes.</p>
+
+<h3>Ce que vous pouvez faire</h3>
+<ul>
+  <li><strong>Vous avez envoyé une photo depuis votre espace personnel</strong> : l'onglet Photos de l'événement, dans votre espace, la liste, et vous pouvez la supprimer à tout moment. Si l'événement n'apparaît plus dans votre espace, écrivez-nous.</li>
+  <li><strong>Vous avez envoyé une photo par le QR code</strong> : rien ne la relie à vous, vous ne pouvez donc pas la supprimer vous-même. Demandez-le à l'organisateur, ou écrivez-nous.</li>
+  <li><strong>Vous figurez sur une photo</strong> que vous ne voulez pas voir publiée : appuyez sur « Signaler » et dites-le, ou écrivez à l'organisateur. Si vous ne parvenez pas à le joindre, écrivez-nous (voir §11) : nous vous aiderons.</li>
+</ul>
+
 <!-- 4 -->
 <h2>4. Pourquoi détenons-nous ces données ?</h2>
 <table>
@@ -100,6 +138,8 @@ import Legal from '../layouts/Legal.astro';
     <tr><td>Faire tourner la compétition : inscriptions, tirages, arbitrage, classements, résultats</td><td>Exécution d'un contrat (celui de l'organisateur) et notre intérêt légitime à exploiter la plateforme</td></tr>
     <tr><td>Créer et gérer votre compte</td><td>Exécution d'un contrat (les Conditions d'utilisation)</td></tr>
     <tr><td>Publier les résultats (voir §5)</td><td>Intérêt légitime : une compétition est publique, et ses résultats en sont l'objet</td></tr>
+    <tr><td>Montrer les photos d'un événement envoyées par les personnes présentes, permettre à l'organisateur de les modérer et de les télécharger</td><td>Intérêt légitime de l'organisateur à partager son événement ; l'envoi est volontaire, et toute photo publique peut être signalée</td></tr>
+    <tr><td>Limiter les abus de l'envoi de photos et des signalements (cookie <code>mc_photo_device</code>)</td><td>Intérêt légitime</td></tr>
     <tr><td>Vous notifier vos combats et votre planning</td><td>Votre consentement, par type de notification, révocable dans vos réglages</td></tr>
     <tr><td>Sécurité de la plateforme, prévention des abus et des fraudes, journal d'audit</td><td>Intérêt légitime</td></tr>
     <tr><td>Démontrer l'acceptation de nos documents</td><td>Obligation légale (art. 7(1) RGPD)</td></tr>
@@ -118,6 +158,8 @@ import Legal from '../layouts/Legal.astro';
     <tr><td>Scores, classements, position dans le tableau, pénalités reçues</td><td>Publics</td></tr>
     <tr><td>Détail échange par échange</td><td>Public au niveau de l'événement ; agrégé dans les statistiques</td></tr>
     <tr><td>Photo de profil</td><td>Visible par les utilisateurs connectés ; un organisateur peut rendre un événement entièrement public</td></tr>
+    <tr><td>Photos d'un événement, avec le nom et la légende saisis</td><td>Publiques sur la page de l'événement quand l'organisateur a ouvert les photos ; une photo en attente de validation n'est visible que des modérateurs et de son auteur (voir §3bis)</td></tr>
+    <tr><td>Signalements d'une photo et leurs commentaires</td><td>Visibles uniquement des modérateurs</td></tr>
     <tr><td>Votre planning personnel, votre présence aux ateliers</td><td>Visibles uniquement par vous et par l'organisateur</td></tr>
     <tr><td><strong>Adresse email</strong></td><td><strong>Jamais publique.</strong> Aucune interface publique ne la renvoie ; la base de données elle-même l'interdit</td></tr>
     <tr><td>Date de naissance, notes, données techniques</td><td>Jamais publiques</td></tr>
@@ -132,6 +174,7 @@ import Legal from '../layouts/Legal.astro';
   <tbody>
     <tr><td>Compte et profil</td><td>Tant que le compte existe</td></tr>
     <tr><td>Sessions invité</td><td><strong>90 jours</strong>, puis suppression automatique</td></tr>
+    <tr><td>Photos d'un événement, leurs noms, légendes et signalements</td><td><strong>30 jours</strong> après le dernier jour de l'événement, puis suppression automatique</td></tr>
     <tr><td>Traces d'envoi des notifications</td><td><strong>365 jours</strong></td></tr>
     <tr><td>Traces d'utilisation de l'IA</td><td><strong>365 jours</strong></td></tr>
     <tr><td>Journal d'audit administratif</td><td>Conservé — c'est notre trace de qui a fait quoi ; les données personnelles qu'il contient sont expurgées lors d'une suppression de compte</td></tr>
@@ -147,9 +190,10 @@ import Legal from '../layouts/Legal.astro';
   <li>vos identifiants de connexion sont détruits et vous ne pouvez plus vous connecter ;</li>
   <li>les éléments de votre profil — email, date de naissance, photo, liens, notes — sont effacés ;</li>
   <li>vos sessions invité, abonnements push, abonnements et préférences sont supprimés ;</li>
+  <li>les photos que vous avez envoyées depuis votre espace personnel sont supprimées ;</li>
   <li>les données personnelles présentes dans le journal d'audit sont expurgées sur place.</li>
 </ul>
-<p><strong>Vos résultats de compétition conservent votre nom.</strong> Un résultat est l'archive d'une compétition publique à laquelle vous avez pris part, aux côtés des adversaires que vous avez affrontés ; l'effacer réécrirait aussi l'histoire d'autres personnes. Si vous souhaitez que votre nom soit également retiré des résultats publiés, demandez-le-nous : nous l'anonymisons, et le résultat subsiste sous une entrée anonyme.</p>
+<p><strong>Vos résultats de compétition conservent votre nom.</strong> Un résultat est l'archive d'une compétition publique à laquelle vous avez pris part, aux côtés des adversaires que vous avez affrontés ; l'effacer réécrirait aussi l'histoire d'autres personnes. Si vous souhaitez que votre nom soit également retiré des résultats publiés, demandez-le-nous : nous l'anonymisons, le résultat subsiste sous une entrée anonyme, et les photos que vous avez envoyées depuis votre espace personnel sont supprimées.</p>
 <p>Nous conservons la trace qu'une suppression a eu lieu et quand — jamais qui elle concernait. Cette trace est une empreinte cryptographique à sens unique, qui ne permet pas de remonter jusqu'à vous.</p>
 
 <!-- 7 -->
@@ -159,7 +203,7 @@ import Legal from '../layouts/Legal.astro';
   <thead><tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr></thead>
   <tbody>
     <tr><td><strong>OVHcloud</strong> (France)</td><td>Hébergement des serveurs : l'application, la base de données, les fichiers téléversés</td><td>🇪🇺 France</td></tr>
-    <tr><td><strong>Scaleway</strong> (France)</td><td>Stockage hors-site des sauvegardes chiffrées</td><td>🇪🇺 France</td></tr>
+    <tr><td><strong>Scaleway</strong> (France)</td><td>Stockage hors-site des sauvegardes chiffrées. Stockage des photos d'événement, dans un espace séparé tenu hors des sauvegardes ; votre navigateur charge les images directement depuis cet espace, Scaleway reçoit donc votre adresse IP quand vous les regardez</td><td>🇪🇺 France</td></tr>
     <tr><td><strong>Resend</strong> (Pays-Bas)</td><td>Envoi de nos emails : liens de connexion, emails de compte, notifications d'événement. Reçoit votre adresse email et le contenu du message</td><td>🇪🇺 Union européenne</td></tr>
     <tr><td><strong>Sentry</strong> — Functional Software, Inc. (États-Unis)</td><td>Remontée des erreurs. Reçoit <strong>des rapports d'erreur et des mesures de performance</strong>, avec l'adresse IP du navigateur qui les envoie — voir §7.1</td><td>🇪🇺 Allemagne — région européenne de Sentry</td></tr>
     <tr><td><strong>Services de push</strong> — Google, Mozilla, Apple, Microsoft selon votre navigateur</td><td>Acheminement des notifications push, <strong>uniquement si vous les activez</strong>. Reçoit le contenu de la notification et l'adresse d'abonnement de votre navigateur</td><td>🌍 Variable selon le navigateur</td></tr>
@@ -230,7 +274,7 @@ import Legal from '../layouts/Legal.astro';
 <table>
   <thead><tr><th>Droit</th><th>Comment l'exercer</th></tr></thead>
   <tbody>
-    <tr><td><strong>Accès et portabilité</strong> (art. 15 et 20)</td><td><strong>Immédiat.</strong> Réglages → télécharger vos données. Vous recevez une archive complète de tout ce que nous détenons, dans un format lisible par machine</td></tr>
+    <tr><td><strong>Accès et portabilité</strong> (art. 15 et 20)</td><td><strong>Immédiat.</strong> Réglages → télécharger vos données. Vous recevez une archive complète de tout ce que nous détenons, dans un format lisible par machine. Les photos que vous avez envoyées depuis votre espace personnel y figurent sous forme de liste (<code>photos.csv</code>) ; les images elles-mêmes se voient dans l'onglet Photos de l'événement. Une photo envoyée par le QR code n'y est pas : rien ne la relie à vous</td></tr>
     <tr><td><strong>Effacement</strong> (art. 17)</td><td><strong>Immédiat.</strong> Réglages → supprimer mon compte. Voir §6.1</td></tr>
     <tr><td><strong>Rectification</strong> (art. 16)</td><td>Modifiable dans votre profil. Pour une liste d'événement, demandez à l'organisateur ou écrivez-nous</td></tr>
     <tr><td><strong>Opposition</strong> (art. 21)</td><td>Certaines options dans vos réglages. Pour faire retirer votre nom des résultats publiés, écrivez-nous et nous l'anonymiserons</td></tr>

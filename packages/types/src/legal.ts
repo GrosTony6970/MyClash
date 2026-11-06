@@ -49,6 +49,11 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
   },
   privacy: {
     kind: 'privacy',
+    // 2026-11-06: §3bis on Event photos (new processing: images of people, the
+    // sender's name, the phone's cookie, the 30-day deletion, the organiser's
+    // zip); §1.1, §2.4, §4, §5, §6, §6.1, §7 and §11 point at it. Bumped: this
+    // EXPANDS processing (rulings 472-473).
+    //
     // 2026-10-29: rewrote what §7, §7.1 and §8 say Sentry receives. The policy
     // said no IP address and no personal data reach it; Sentry 10 did not honour
     // its own "no personal data" switch and sent cookies, tokens, bodies and
@@ -77,7 +82,7 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // this one — Sentry self-hosted, no transfers outside the EU, analytics
     // cookies behind a consent panel that did not exist, and a 30-day
     // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
-    version: '2026-10-29',
+    version: '2026-11-06',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };

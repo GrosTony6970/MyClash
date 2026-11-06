@@ -8,7 +8,7 @@ import Legal from '../../layouts/Legal.astro';
   title={"Privacy Policy — MyClash"}
   description={"MyClash privacy policy — how we collect, use and protect your personal data in accordance with the GDPR."}
   heading={"Privacy Policy"}
-  updated={"Last updated: 29 October 2026"}
+  updated={"Last updated: 6 November 2026"}
 >
 <!-- 1 -->
 <h2>1. Who we are, and who is responsible for your data</h2>
@@ -35,6 +35,10 @@ import Legal from '../../layouts/Legal.astro';
     <tr>
       <td><strong>An event organiser entered you on their roster</strong> (competitor, referee, instructor, volunteer), whether or not you have an account</td>
       <td><strong>The organiser of that event.</strong> MyClash acts as their processor: we hold and process that data on their instructions</td>
+    </tr>
+    <tr>
+      <td><strong>You sent a photo to an event</strong>, from the QR code or from your personal space, <strong>or you appear in one</strong></td>
+      <td><strong>The organiser of that event.</strong> They open the event to photos, approve them and may download them. MyClash hosts them on their behalf and deletes them 30 days after the event (see §3bis)</td>
     </tr>
   </tbody>
 </table>
@@ -67,7 +71,7 @@ import Legal from '../../layouts/Legal.astro';
 <p>Referee qualifications and per-role ratings, availability, assignments to pistes and bouts, referee compensation and payment records, workshop instruction and enrolment, feedback given on workshops.</p>
 
 <h3>2.4 Account activity</h3>
-<p>Organisation memberships and roles, the people and organisers you follow, your directory groups, notification preferences, browser push subscriptions, requests you make (profile claim, email change, correction of an exchange, league membership, club review), and your privacy settings.</p>
+<p>Organisation memberships and roles, the people and organisers you follow, your directory groups, notification preferences, browser push subscriptions, requests you make (profile claim, email change, correction of an exchange, league membership, club review), and your privacy settings, and the photos you sent from your personal space (see §3bis).</p>
 
 <h3>2.5 Record of your agreement to our documents</h3>
 <p>When you create an account, or continue as a guest, we record <strong>which version</strong> of the Terms of Service and of this Privacy Policy was displayed to you, <strong>when</strong> you accepted it, and the <strong>IP address and browser</strong> the acceptance came from. We are required to be able to demonstrate consent, and a timestamp alone would not do that. These records are never modified — accepting a revised version adds a new record beside the old one.</p>
@@ -92,6 +96,40 @@ import Legal from '../../layouts/Legal.astro';
   <li><strong>You may object.</strong> Write to the organiser, or to us; see §11.</li>
 </ul>
 
+<!-- 3bis -->
+<h2 id="photos">3bis. An event's photos</h2>
+<p>An organiser may open their event to photos: people at the venue send them from their phone, and the event's public page shows them. The feature is off by default; it exists on an event only if its organiser turned it on.</p>
+
+<h3>What we record</h3>
+<table>
+  <thead><tr><th>Photo sent…</th><th>What we record</th></tr></thead>
+  <tbody>
+    <tr><td><strong>from the QR code</strong>, with no account</td><td>The photo; a name and a caption, if you type them (optional); the tournament or workshop you chose; the time it was sent; a random number for your phone, stored with the photo and kept in the <code>mc_photo_device</code> cookie (see §9). Nothing links this photo to your account, even if you are signed in.</td></tr>
+    <tr><td><strong>from your personal space</strong>, signed in</td><td>The photo, your caption, the tournament or workshop you chose, the time, and <strong>your name</strong> — your profile's, or else the one you typed when you signed up —, shown under the photo. The personal space has no anonymous sending: use the QR code for that.</td></tr>
+  </tbody>
+</table>
+<p>Before we store a photo, we remove everything the phone hides in it: <strong>the GPS position</strong>, the device model, the date it was taken, thumbnails. Only the orientation is kept, so the photo stays upright. The picture itself is not retouched; we also keep a smaller copy for display. No face recognition is applied. The photo does not carry your IP address; like every visit, sending it leaves a line in our server logs (see §2.7).</p>
+
+<h3>Who sees them</h3>
+<ul>
+  <li>Depending on the organiser's choice, a photo is <strong>public</strong> on the event's page as soon as it is sent, or only <strong>once it is approved</strong>. A photo waiting for approval is visible to the moderators only, and to its sender in their personal space if they sent it from there.</li>
+  <li>The <strong>moderators</strong> are the organising club's administrators and the volunteers it gives the photos to. They see every photo of the event and its reports, and may delete any of them.</li>
+  <li>The organiser may <strong>download the event's photos</strong> as one zip archive — published ones and those still waiting —, with the list of names, captions, tournaments or workshops, times and statuses, until they are deleted. <strong>The downloaded copies are then the organiser's sole responsibility</strong>: the automatic deletion below does not reach them.</li>
+</ul>
+
+<h3>Reporting a photo</h3>
+<p>Under every public photo, "Report" puts it in the list of reported photos the moderators see. We record the comment you add (optional, at most 200 characters) and your phone's random number (the same cookie). The photo stays visible until a moderator deletes it or decides to keep it; if they keep it, the reports they read are erased.</p>
+
+<h3>How long</h3>
+<p><strong>Every photo of an event is deleted 30 days after the event's last day</strong>, at midnight, event time, with its name, caption and reports. A photo goes earlier if a moderator deletes it or the event is deleted; and, for a photo sent from your personal space, if you delete it, delete your account, or ask us to anonymise your name. The images are never in our backups.</p>
+
+<h3>What you can do</h3>
+<ul>
+  <li><strong>You sent a photo from your personal space</strong>: the event's Photos tab, in your personal space, lists it, and you can delete it at any time. If the event no longer shows in your personal space, write to us.</li>
+  <li><strong>You sent a photo from the QR code</strong>: nothing links it to you, so you cannot delete it yourself. Ask the organiser, or write to us.</li>
+  <li><strong>You appear in a photo</strong> you do not want shown: press "Report" and say so, or write to the organiser. If you cannot reach them, write to us (see §11): we will help.</li>
+</ul>
+
 <!-- 4 -->
 <h2>4. Why we hold this data</h2>
 <table>
@@ -100,6 +138,8 @@ import Legal from '../../layouts/Legal.astro';
     <tr><td>Running the competition: registrations, draws, scoring, rankings, results</td><td>Performance of a contract (the organiser's), and our legitimate interest in operating the platform</td></tr>
     <tr><td>Creating and managing your account</td><td>Performance of a contract (the Terms of Service)</td></tr>
     <tr><td>Publishing results (see §5)</td><td>Legitimate interest: a competition is public, and its results are its purpose</td></tr>
+    <tr><td>Showing an event's photos sent by people at the venue, letting the organiser moderate and download them</td><td>The organiser's legitimate interest in sharing their event; sending is voluntary, and every public photo can be reported</td></tr>
+    <tr><td>Limiting abuse of photo sending and reports (the <code>mc_photo_device</code> cookie)</td><td>Legitimate interest</td></tr>
     <tr><td>Notifications about your bouts and your schedule</td><td>Your consent, per notification type, revocable in your settings</td></tr>
     <tr><td>Platform security, abuse and fraud prevention, audit trail</td><td>Legitimate interest</td></tr>
     <tr><td>Demonstrating acceptance of our documents</td><td>Legal obligation (Art. 7(1) GDPR)</td></tr>
@@ -118,6 +158,8 @@ import Legal from '../../layouts/Legal.astro';
     <tr><td>Scores, rankings, bracket position, penalties received</td><td>Public</td></tr>
     <tr><td>Exchange-by-exchange detail</td><td>Public at event level; aggregated in statistics</td></tr>
     <tr><td>Profile photo</td><td>Visible to signed-in users; an organiser may make an event fully public</td></tr>
+    <tr><td>Event photos, with the name and caption typed</td><td>Public on the event's page when the organiser has opened it to photos; a photo waiting for approval is visible to the moderators and its sender only (see §3bis)</td></tr>
+    <tr><td>Reports of a photo and their comments</td><td>Visible to the moderators only</td></tr>
     <tr><td>Your personal schedule, your workshop attendance</td><td>Visible only to you and to the organiser</td></tr>
     <tr><td><strong>Email address</strong></td><td><strong>Never public.</strong> No public interface returns it; the database itself enforces this</td></tr>
     <tr><td>Date of birth, notes, technical data</td><td>Never public</td></tr>
@@ -132,6 +174,7 @@ import Legal from '../../layouts/Legal.astro';
   <tbody>
     <tr><td>Account and profile</td><td>For as long as the account exists</td></tr>
     <tr><td>Guest sessions</td><td><strong>90 days</strong>, then automatic deletion</td></tr>
+    <tr><td>Event photos, their names, captions and reports</td><td><strong>30 days</strong> after the event's last day, then automatic deletion</td></tr>
     <tr><td>Notification delivery records</td><td><strong>365 days</strong></td></tr>
     <tr><td>AI usage records</td><td><strong>365 days</strong></td></tr>
     <tr><td>Administrative audit trail</td><td>Kept — it is our record of who did what; personal data inside it is redacted when an account is erased</td></tr>
@@ -147,9 +190,10 @@ import Legal from '../../layouts/Legal.astro';
   <li>your login credentials are destroyed and you can no longer sign in;</li>
   <li>your profile details — email, date of birth, photo, links, notes — are erased;</li>
   <li>your guest sessions, push subscriptions, follows and preferences are deleted;</li>
+  <li>the photos you sent from your personal space are deleted;</li>
   <li>personal data inside the audit trail is redacted in place.</li>
 </ul>
-<p><strong>Your competition results keep your name.</strong> A result is the record of a public competition in which you took part, alongside the opponents you faced; erasing it would rewrite other people's history too. If you want your name removed from published results as well, ask us: we anonymise it, and the result survives under an anonymous entry.</p>
+<p><strong>Your competition results keep your name.</strong> A result is the record of a public competition in which you took part, alongside the opponents you faced; erasing it would rewrite other people's history too. If you want your name removed from published results as well, ask us: we anonymise it, the result survives under an anonymous entry, and the photos you sent from your personal space are deleted.</p>
 <p>We retain a record that an erasure took place and when — never who it concerned. That record is a one-way cryptographic fingerprint, which cannot be traced back to you.</p>
 
 <!-- 7 -->
@@ -159,7 +203,7 @@ import Legal from '../../layouts/Legal.astro';
   <thead><tr><th>Provider</th><th>Role</th><th>Location</th></tr></thead>
   <tbody>
     <tr><td><strong>OVHcloud</strong> (France)</td><td>Server hosting: the application, the database, uploaded files</td><td>🇪🇺 France</td></tr>
-    <tr><td><strong>Scaleway</strong> (France)</td><td>Off-site storage of encrypted backups</td><td>🇪🇺 France</td></tr>
+    <tr><td><strong>Scaleway</strong> (France)</td><td>Off-site storage of encrypted backups. Storage of event photos, in a separate space kept out of the backups; your browser loads the images straight from that space, so Scaleway receives your IP address when you view them</td><td>🇪🇺 France</td></tr>
     <tr><td><strong>Resend</strong> (Netherlands)</td><td>Sending our emails: sign-in links, account emails, event notifications. Receives your email address and the content of the message</td><td>🇪🇺 European Union</td></tr>
     <tr><td><strong>Sentry</strong> — Functional Software, Inc. (United States)</td><td>Error reporting. Receives <strong>error reports and performance traces</strong>, with the IP address of the browser that sends them — see §7.1</td><td>🇪🇺 Germany — Sentry's European region</td></tr>
     <tr><td><strong>Push services</strong> — Google, Mozilla, Apple, Microsoft depending on your browser</td><td>Delivering push notifications, <strong>only if you enable them</strong>. Receives the notification content and your browser's subscription address</td><td>🌍 Varies by browser</td></tr>
@@ -230,7 +274,7 @@ import Legal from '../../layouts/Legal.astro';
 <table>
   <thead><tr><th>Right</th><th>How to exercise it</th></tr></thead>
   <tbody>
-    <tr><td><strong>Access and portability</strong> (Art. 15 and 20)</td><td><strong>Immediate.</strong> Settings → download your data. You receive a complete archive of everything we hold, in a machine-readable format</td></tr>
+    <tr><td><strong>Access and portability</strong> (Art. 15 and 20)</td><td><strong>Immediate.</strong> Settings → download your data. You receive a complete archive of everything we hold, in a machine-readable format. The photos you sent from your personal space appear in it as a list (<code>photos.csv</code>); the images themselves are in the event's Photos tab. A photo sent from the QR code is not in it: nothing links it to you</td></tr>
     <tr><td><strong>Erasure</strong> (Art. 17)</td><td><strong>Immediate.</strong> Settings → delete my account. See §6.1</td></tr>
     <tr><td><strong>Rectification</strong> (Art. 16)</td><td>Editable in your profile. For an event roster, ask the organiser or write to us</td></tr>
     <tr><td><strong>Objection</strong> (Art. 21)</td><td>Some options in your settings. To have your name withdrawn from published results, write to us and we will anonymise it</td></tr>

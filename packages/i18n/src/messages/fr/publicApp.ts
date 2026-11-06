@@ -994,13 +994,13 @@ export const publicApp = {
     googleOnlyBody: 'Aucun mot de passe nécessaire — continuez avec Google.',
     dataTitle: 'Vos données',
     dataSubtitle:
-      'Téléchargez tout ce que MyClash conserve à votre sujet — profil, événements, matchs, arbitrage, stages et préférences — sous forme d’une archive de fichiers lisibles.',
+      'Téléchargez tout ce que MyClash conserve à votre sujet — profil, événements, matchs, arbitrage, stages, la liste des photos envoyées depuis votre espace personnel et préférences — sous forme d’une archive de fichiers lisibles.',
     dataDownload: 'Télécharger mes données',
     dataDownloading: 'Préparation du téléchargement…',
     dataError: 'Impossible de générer votre export. Réessayez.',
     dataRetentionTitle: 'Ce que la suppression de votre compte efface',
     dataRetentionBody:
-      'Votre connexion et vos informations personnelles — photo, biographie, date de naissance, email de contact et liens sociaux — sont supprimées, ainsi que vos abonnements et vos préférences de notification. Votre nom reste sur les résultats de compétition publiés : ils constituent un registre public d’événements qui ont eu lieu. Si vous avez besoin que votre nom soit également retiré, contactez-nous.',
+      'Votre connexion et vos informations personnelles — photo, biographie, date de naissance, email de contact et liens sociaux — sont supprimées, ainsi que les photos que vous avez envoyées depuis votre espace personnel, vos abonnements et vos préférences de notification. Votre nom reste sur les résultats de compétition publiés : ils constituent un registre public d’événements qui ont eu lieu. Si vous avez besoin que votre nom soit également retiré, contactez-nous.',
     deleteTitle: 'Supprimer mon compte',
     deleteSubtitle:
       'Cette action est définitive. Votre connexion et vos informations personnelles sont supprimées, et vos profils déliés. Votre nom reste sur les résultats de compétition publiés, qui constituent un registre public.',

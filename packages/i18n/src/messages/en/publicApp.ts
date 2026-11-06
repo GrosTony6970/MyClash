@@ -989,13 +989,13 @@ export const publicApp = {
     googleOnlyBody: 'No password is needed — keep signing in with Google.',
     dataTitle: 'Your data',
     dataSubtitle:
-      'Download everything MyClash holds about you — your profile, events, matches, refereeing, workshops and preferences — as a zip of readable files.',
+      'Download everything MyClash holds about you — your profile, events, matches, refereeing, workshops, the list of photos you sent from your personal space and your preferences — as a zip of readable files.',
     dataDownload: 'Download my data',
     dataDownloading: 'Preparing your download…',
     dataError: 'Could not build your export. Try again.',
     dataRetentionTitle: 'What deleting your account removes',
     dataRetentionBody:
-      'Your sign-in and personal details — photo, biography, date of birth, contact email and social links — are deleted, along with your follows and notification settings. Your name stays on published competition results: those are a public record of events that took place. If you need your name removed too, contact us.',
+      'Your sign-in and personal details — photo, biography, date of birth, contact email and social links — are deleted, along with the photos you sent from your personal space, your follows and notification settings. Your name stays on published competition results: those are a public record of events that took place. If you need your name removed too, contact us.',
     deleteTitle: 'Delete my account',
     deleteSubtitle:
       'This is permanent. Your sign-in and personal details are removed, and your profiles are unlinked. Your name stays on published competition results, which are a public record.',
