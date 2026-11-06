@@ -132,7 +132,8 @@ export class PhotoPublicService {
     if (await this.photoIsFull(photoId, deviceId)) return { reported: true };
     const reports = this.supabase.service.from('event_photo_reports');
     // With a comment, the key's row takes it, replacing the phone's last one (453); without, a
-    // repeat is ignored, so an empty Report never erases a comment. `created_at` is never sent.
+    // repeat is ignored, so an empty Report never erases a comment. Neither time is sent: the
+    // database stamps `updated_at` when the comment's words change (0255, ruling 466).
     const { error: written } = comment
       ? await reports.upsert(
           { photo_id: photoId, device_id: deviceId, comment },

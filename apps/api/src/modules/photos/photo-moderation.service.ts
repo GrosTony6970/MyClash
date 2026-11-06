@@ -39,8 +39,11 @@ interface QueueRow {
   original_key: string;
   tournament: { name: string } | null;
   workshop: { title: string } | null;
-  /** A to-many embed: always an array, `[]` with no report (0252's key is composite). */
-  reports: { comment: string | null; created_at: string }[];
+  /**
+   * A to-many embed: always an array, `[]` with no report (0252's key is composite). `updated_at`
+   * is the report's last change: its time, or when its comment changed (0255).
+   */
+  reports: { comment: string | null; updated_at: string }[];
 }
 
 /** The photo is not, or no longer, in this Event: the moderators' and the Report's 404. */
@@ -160,9 +163,10 @@ export class PhotoModerationService {
 
   /**
    * Keep: the photo stays, the reports the moderator saw go. `reportsUpTo` is the newest report
-   * the screen showed, as the database wrote it; a report made after it stays, unread, and keeps
-   * the photo in Reported (ruling 457). A later report counts again (448), as the table's key is
-   * free once more. A photo with no report changes nothing.
+   * change the screen showed, as the database wrote it; a report made or whose comment changed
+   * after it stays, unread, and keeps the photo in Reported (rulings 457, 466). A later report
+   * counts again (448), as the table's key is free once more. A photo with no report changes
+   * nothing.
    */
   async keep(
     event: PhotoEventRow,
@@ -181,7 +185,7 @@ export class PhotoModerationService {
       .from('event_photo_reports')
       .delete()
       .eq('photo_id', photoId)
-      .lte('created_at', reportsUpTo);
+      .lte('updated_at', reportsUpTo);
     if (cleared) throw new Error(cleared.message);
     return { id: photoId, kept: true };
   }
@@ -209,10 +213,10 @@ export class PhotoModerationService {
     const read =
       filter === 'reported'
         ? photos.select(
-            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports!inner(comment, created_at)',
+            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports!inner(comment, updated_at)',
           )
         : photos.select(
-            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, created_at)',
+            'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, updated_at)',
           );
     return read.eq('event_id', eventId);
   }
@@ -223,10 +227,11 @@ export class PhotoModerationService {
   }
 
   private async photoOf(row: QueueRow, now: Date): Promise<ModerationPhoto> {
-    // Newest first, compared as written (all UTC, as PostgREST answers), by code unit: a
-    // locale-aware compare may weigh the `+` and `.` of a time differently.
+    // Newest change first (an edited comment rises, 466), compared as written (all UTC, as
+    // PostgREST answers), by code unit: a locale-aware compare may weigh the `+` and `.` of a time
+    // differently.
     const reports = [...row.reports].sort((a, b) =>
-      a.created_at === b.created_at ? 0 : a.created_at < b.created_at ? 1 : -1,
+      a.updated_at === b.updated_at ? 0 : a.updated_at < b.updated_at ? 1 : -1,
     );
     return {
       id: row.id,
@@ -238,7 +243,7 @@ export class PhotoModerationService {
       ...(await photoLinks(this.store, row, now, this.logger)),
       reportCount: reports.length,
       reportComments: reports.flatMap((report) => (report.comment ? [report.comment] : [])),
-      lastReportAt: reports[0]?.created_at ?? null,
+      lastReportAt: reports[0]?.updated_at ?? null,
     };
   }
 

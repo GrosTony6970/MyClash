@@ -126,9 +126,12 @@ export interface ModerationPhoto {
   originalUrl: string | null;
   /** The phones that reported it (at most `PHOTO_REPORTS_PER_PHOTO`). */
   reportCount: number;
-  /** What they wrote, newest report first; a report with no comment adds none. */
+  /** What they wrote, newest change first (466); a report with no comment adds none. */
   reportComments: string[];
-  /** The newest report's time as the database wrote it, or null with none: Keep's bound (457). */
+  /**
+   * The newest report change (a report's time, or when its comment changed) as the database wrote
+   * it, or null with none: Keep's bound (457, 466).
+   */
   lastReportAt: string | null;
 }
 

@@ -133,14 +133,14 @@ describe('keep', () => {
     expect(writesTo(supabase, 'event_photos')).toEqual([]);
   });
 
-  it('clears the reports up to the newest one shown, and no later one (ruling 457)', async () => {
+  it('clears the reports up to the newest change shown, and no later one (rulings 457, 466)', async () => {
     const { organiser, supabase } = moderation({ photos: [mine] });
 
     await organiser.keep(EVENT, MINE, USER, SHOWN);
 
     const [write] = writesTo(supabase, 'event_photo_reports');
     const bound = write?.filters.filter((filter) => filter.method === 'lte');
-    expect(bound?.map((filter) => filter.args)).toEqual([['created_at', SHOWN]]);
+    expect(bound?.map((filter) => filter.args)).toEqual([['updated_at', SHOWN]]);
   });
 
   it('answers 200 for a photo with no report', async () => {

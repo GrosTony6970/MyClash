@@ -293,10 +293,13 @@ short-lived: they tell the story of the Event and are not an archive. Cost must 
   comments, newest first, on every tab it appears in (456). The Reported tab lists by when the
   photo was sent, as Waiting and All (455). Keep acts without asking (454) and clears only the
   reports up to the newest the screen showed; a later one stays, and so does the photo in
-  Reported (457). Known gap, accepted with the plan (its assumption 9): "later" is the report's
-  first time. A phone that already reported and only changes its comment after the screen was
-  read keeps that time, so Keep clears the changed comment unseen. Closing it needs a "comment
-  changed at" column (a migration).
+  Reported (457).
+- **[rev 466, the 4c comment-gap slice]** A report keeps its first time and the time it last
+  changed (migration 0255, stamped by the database when its comment's words change). Keep clears
+  only the reports not changed since the screen showed them, so a comment changed after the
+  screen was read stays, and so does the photo in Reported; the comments are ordered by their last
+  change. The same words again, or a repeat with no comment, change nothing. The phone's hourly
+  report limit counts first times.
 - **Mode changes** (my calls):
   - **Off** hides every photo from the public and stops uploads. It is the organiser's kill switch.
     Turning photos back on shows the approved ones again. **[rev]** Links already handed out stay valid

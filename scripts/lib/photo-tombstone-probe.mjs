@@ -86,7 +86,73 @@ export async function photoTombstoneCases({ tryAndRollBack, check }) {
   await tournamentDeleteUntags({ tryAndRollBack, check });
   await secondReportAddsNothing({ tryAndRollBack, check });
   await reportComments({ tryAndRollBack, check });
+  await reportChangedAt({ tryAndRollBack, check });
   await webRoleReadsNone({ tryAndRollBack, check });
+}
+
+/** A second phone's report of the photo: written and rolled back by `reportChangedAt` only. */
+const OTHER_REPORTER = 'ca5c0000-0000-4000-8000-000000000b04';
+
+/**
+ * The report's two times, compared in SQL: postgres.js reads a timestamptz as a millisecond Date,
+ * which hides a microsecond difference. `first` is text for the same reason.
+ */
+async function timesOf(tx, device) {
+  return (
+    await tx`
+      SELECT updated_at > created_at AS moved, updated_at = created_at AS same,
+             created_at::text AS first
+        FROM event_photo_reports WHERE photo_id = ${PHOTO} AND device_id = ${device}`
+  )[0];
+}
+
+/** The API's write of a Report with a comment (0253, ruling 453). */
+const reportWith = (tx, device, comment) => tx`
+  INSERT INTO event_photo_reports (photo_id, device_id, comment) VALUES (${PHOTO}, ${device}, ${comment})
+  ON CONFLICT (photo_id, device_id) DO UPDATE SET comment = EXCLUDED.comment`;
+
+/**
+ * A report's last change (0255, ruling 466): a changed comment moves `updated_at` and leaves the
+ * first time; the same words again move nothing; a new report starts with both times equal. The
+ * seed's report was committed earlier, so its times are older than any case's now().
+ */
+async function reportChangedAt({ tryAndRollBack, check }) {
+  let before;
+  const changed = await tryAndRollBack(
+    async (tx) => {
+      before = (await timesOf(tx, REPORTER)).first;
+      await reportWith(tx, REPORTER, 'this is my child');
+    },
+    (tx) => timesOf(tx, REPORTER),
+  );
+  check(
+    "a changed comment moves the report's time past its first time, and keeps the first",
+    changed.error === null && changed.observed.moved && changed.observed.first === before,
+    changed.error?.message ?? JSON.stringify({ before, ...changed.observed }),
+  );
+  // One transaction shares one now(): the time is set back by hand, which the WHEN lets stick.
+  const same = await tryAndRollBack(
+    async (tx) => {
+      await reportWith(tx, REPORTER, 'a');
+      await tx`UPDATE event_photo_reports SET updated_at = created_at WHERE device_id = ${REPORTER}`;
+      await reportWith(tx, REPORTER, 'a');
+    },
+    (tx) => timesOf(tx, REPORTER),
+  );
+  check(
+    'the same comment again leaves the time',
+    same.error === null && same.observed.same,
+    same.error?.message ?? JSON.stringify(same.observed),
+  );
+  const fresh = await tryAndRollBack(
+    (tx) => reportWith(tx, OTHER_REPORTER, 'this is me'),
+    (tx) => timesOf(tx, OTHER_REPORTER),
+  );
+  check(
+    "a new report's two times are equal",
+    fresh.error === null && fresh.observed.same,
+    fresh.error?.message ?? JSON.stringify(fresh.observed),
+  );
 }
 
 async function commentOf(tx) {

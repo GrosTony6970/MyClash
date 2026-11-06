@@ -72,7 +72,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 74;
+const EXPECTED_CHECKS = 77;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';

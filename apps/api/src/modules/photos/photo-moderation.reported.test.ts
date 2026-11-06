@@ -24,7 +24,7 @@ describe('the queue reads the reports', () => {
     await organiser.list(EVENT, USER, 'reported');
 
     expect(selectsFor(supabase.from, 'event_photos')).toEqual([
-      `${COLUMNS}, reports:event_photo_reports!inner(comment, created_at)`,
+      `${COLUMNS}, reports:event_photo_reports!inner(comment, updated_at)`,
     ]);
     const columns = filtersFor(supabase.from, 'event_photos', 'eq').map(([column]) => column);
     expect(columns).toEqual(['event_id']);
@@ -38,16 +38,18 @@ describe('the queue reads the reports', () => {
       await organiser.list(EVENT, USER, filter);
 
       expect(selectsFor(supabase.from, 'event_photos')).toEqual([
-        `${COLUMNS}, reports:event_photo_reports(comment, created_at)`,
+        `${COLUMNS}, reports:event_photo_reports(comment, updated_at)`,
       ]);
     },
   );
 
-  it('gives the count, the comments newest first without empty ones, and the newest report time', async () => {
+  it('gives the count, the comments by their last change newest first without empty ones, and the newest change (ruling 466)', async () => {
+    // Each row's two times in a different order (a real `updated_at` is never before its
+    // `created_at`): a sort or a time read on `created_at` gives another answer.
     const reports = [
-      { comment: 'old', created_at: T1 },
-      { comment: null, created_at: T3 },
-      { comment: 'new', created_at: T2 },
+      { comment: 'old', created_at: T3, updated_at: T1 },
+      { comment: null, created_at: T1, updated_at: T3 },
+      { comment: 'edited', created_at: T2, updated_at: T2 },
     ];
     const { organiser } = moderation({ photos: [photoRow(0, { status: 'approved', reports })] });
 
@@ -55,7 +57,7 @@ describe('the queue reads the reports', () => {
 
     expect(photo).toMatchObject({
       reportCount: 3,
-      reportComments: ['new', 'old'],
+      reportComments: ['edited', 'old'],
       lastReportAt: T3,
     });
   });

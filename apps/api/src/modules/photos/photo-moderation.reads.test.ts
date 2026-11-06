@@ -18,7 +18,7 @@ import {
 
 const NOW = new Date('2026-11-07T15:02:00Z');
 const QUEUE_SELECT =
-  'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, created_at)';
+  'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, updated_at)';
 
 afterEach(() => vi.restoreAllMocks());
 

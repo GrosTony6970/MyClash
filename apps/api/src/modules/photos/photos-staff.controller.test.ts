@@ -123,7 +123,7 @@ describe('the staff writes, on the login’s Event only', () => {
     expect(write?.op).toBe('delete');
     expect(scopedTo(write, 'photo_id')).toBe(MINE);
     const bound = write?.filters.filter((filter) => filter.method === 'lte');
-    expect(bound?.map((filter) => filter.args)).toEqual([['created_at', SHOWN]]);
+    expect(bound?.map((filter) => filter.args)).toEqual([['updated_at', SHOWN]]);
     await notFound(ctl.keep(THEIRS, body, STAFF_REQ));
   });
 

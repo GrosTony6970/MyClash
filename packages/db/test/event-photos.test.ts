@@ -122,6 +122,15 @@ describe('Event photo tombstones', () => {
     );
   });
 
+  it('gives a report the time its comment last changed, stamped by the database (ruling 466)', () => {
+    expect(sql).toContain(
+      'alter table public.event_photo_reports add column if not exists updated_at timestamptz not null default now()',
+    );
+    expect(triggerStatement(allSql(), 'event_photo_reports_touch_updated_at')).toBe(
+      'create trigger event_photo_reports_touch_updated_at before update on public.event_photo_reports for each row when (new.comment is distinct from old.comment) execute function public.touch_updated_at();',
+    );
+  });
+
   it('lists only the Events that still hold a photo, for the service role alone', () => {
     const fn = functionStatement(allSql(), 'event_photo_events');
     expect(fn).toContain('returns table (event_id uuid, end_date date, timezone text)');
