@@ -1,9 +1,9 @@
-import type { ApiResult } from '@myclash/api-client';
+import { renewLogin, type ApiResult } from '@myclash/api-client';
 import { sendRetryingBusy } from './busy-retry';
 import { localRefusal, PHOTO_HEAD_BYTES } from './photo-checks';
 import { keepsSending, nextWaiting, withState, type QueueItem } from './photo-queue';
 import { localRefusalView, refusalView, type RefusalEnd } from './photo-refusal';
-import { sendPhoto, type PhotoFields, type PhotoSent } from './send-photo';
+import { sendPhoto, type PhotoFields, type PhotoSent, type PhotoTarget } from './send-photo';
 
 /**
  * The send loop of the phone page, outside React so its rules are tested without a browser. The
@@ -25,6 +25,8 @@ export interface SendQueueDeps {
   ) => Promise<ApiResult<PhotoSent>>;
   t: Translate;
   onClosed: (message: string) => void;
+  /** Said once for each photo the API took: a personal space then reads her photos again. */
+  onSent?: () => void;
 }
 
 type SendEnd = RefusalEnd | 'sent' | 'aborted';
@@ -38,6 +40,7 @@ async function sendOne(item: QueueItem, deps: SendQueueDeps): Promise<SendEnd> {
   });
   if (result.ok) {
     at({ state: 'sent', progress: 1, sent: result.data.status });
+    deps.onSent?.();
     return 'sent';
   }
   // The page is leaving: nothing is left to show it to.
@@ -70,19 +73,31 @@ export function pause(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** The real send of one photo: the XHR, retried on its own while the API is busy. */
-export function photoSender(to: {
-  apiUrl: string;
-  eventId: string;
-  token: string;
-  signal: AbortSignal;
-}): SendQueueDeps['send'] {
-  return (item, fields, on) =>
-    sendRetryingBusy(() => sendPhoto({ ...to, file: item.file, fields, onProgress: on.progress }), {
-      wait: (ms) => pause(ms, to.signal),
-      random: Math.random,
-      onBusy: on.busy,
-    });
+/** Her login has run out (it lasts an hour): `/me` can renew it. A 403 is an answer. */
+const loginLapsed = (result: ApiResult<PhotoSent>) =>
+  !result.ok && result.kind === 'unauthenticated' && result.status === 401;
+
+/**
+ * The real send of one photo: the XHR, retried on its own while the API is busy. From a personal
+ * space, a login over an hour old is renewed once and the photo sent once more, as `apiRequest`
+ * does for every other request (`renew-login.ts`); the QR link needs no login.
+ */
+export function photoSender(
+  to: { apiUrl: string; target: PhotoTarget; signal: AbortSignal },
+  renew: (apiUrl: string) => Promise<boolean> = renewLogin,
+): SendQueueDeps['send'] {
+  return async (item, fields, on) => {
+    const { apiUrl, target, signal } = to;
+    const once = () =>
+      sendRetryingBusy(
+        () =>
+          sendPhoto({ apiUrl, target, file: item.file, fields, onProgress: on.progress, signal }),
+        { wait: (ms) => pause(ms, signal), random: Math.random, onBusy: on.busy },
+      );
+    const result = await once();
+    if (target.kind === 'qr' || !loginLapsed(result)) return result;
+    return (await renew(apiUrl)) ? once() : result;
+  };
 }
 
 export async function headOf(file: File): Promise<Uint8Array> {

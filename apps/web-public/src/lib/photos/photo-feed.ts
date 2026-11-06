@@ -14,9 +14,20 @@ import { tagOf } from './photo-tag';
 /** While the page is in view it reads the newest photos again this often (design: about 30 s). */
 export const PHOTO_REREAD_MS = 30_000;
 
+/** What the list rules read of a photo: the public list's, and her own in her personal space. */
+export interface FeedPhoto {
+  id: string;
+  createdAt: string;
+}
+/** A page as the server answers it, newest first; `next` the following page's cursor. */
+interface FeedPage<P extends FeedPhoto> {
+  photos: P[];
+  next: string | null;
+}
+
 /** The photos on screen, newest first, and whether the server holds older ones. */
-export interface PhotoFeed {
-  photos: PublicPhoto[];
+export interface PhotoFeed<P extends FeedPhoto = PublicPhoto> {
+  photos: P[];
   more: boolean;
 }
 
@@ -63,7 +74,10 @@ function isPage(body: unknown): body is PublicPhotoPage {
  *   Load more reads on from it, so there is never a gap between the two;
  * - an Event of exactly 30 photos, after a Load more found none: Load more stays closed.
  */
-export function feedAfterFirstPage(shown: PhotoFeed | null, page: PublicPhotoPage): PhotoFeed {
+export function feedAfterFirstPage<P extends FeedPhoto>(
+  shown: PhotoFeed<P> | null,
+  page: FeedPage<P>,
+): PhotoFeed<P> {
   const { next } = page;
   const newestShown = shown?.photos[0];
   if (!shown || next === null || !newestShown || next > newestShown.createdAt) {
@@ -82,13 +96,17 @@ export function feedAfterFirstPage(shown: PhotoFeed | null, page: PublicPhotoPag
  * end: this page then belongs under photos no longer on screen, and would hide everything between,
  * so it is dropped and Load more reads on from the new end.
  */
-export function feedAfterMore(shown: PhotoFeed, page: PublicPhotoPage, before: string): PhotoFeed {
+export function feedAfterMore<P extends FeedPhoto>(
+  shown: PhotoFeed<P>,
+  page: FeedPage<P>,
+  before: string,
+): PhotoFeed<P> {
   if (feedCursor(shown) !== before) return shown;
   return { photos: [...shown.photos, ...page.photos], more: page.next !== null };
 }
 
 /** Where Load more reads from: the last photo's time, while the server holds older ones. */
-export function feedCursor(feed: PhotoFeed): string | null {
+export function feedCursor<P extends FeedPhoto>(feed: PhotoFeed<P>): string | null {
   const last = feed.photos[feed.photos.length - 1];
   return feed.more && last ? last.createdAt : null;
 }

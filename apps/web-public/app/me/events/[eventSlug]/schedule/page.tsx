@@ -5,7 +5,12 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { addDays, zonedToUtcIso } from '@myclash/time';
 import type { ProgrammeBlock } from '@myclash/types';
 import { Skeleton } from '@myclash/ui';
-import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
+import {
+  EventHubChrome,
+  HubLoading,
+  HubNotFound,
+  HubReadFailed,
+} from '@/components/me/EventHubChrome';
 import { ReadFailed } from '@/components/me/ReadFailed';
 import { ScheduleView } from '@/components/me/ScheduleView';
 import { useMyEvents, useProgramme } from '@/components/me/hooks';
@@ -77,14 +82,15 @@ function toContextRows(
 /** Per-event hub — Schedule tab (the in-venue "where am I due next"). */
 export default function HubSchedulePage() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
-  const { events, loading } = useMyEvents();
+  const { events, loading, error, retry } = useMyEvents();
   const myEvent = events?.find((e) => e.event.slug === eventSlug) ?? null;
 
   if (loading) return <HubLoading />;
+  if (error) return <HubReadFailed onRetry={retry} />;
   if (!myEvent) return <HubNotFound />;
 
   return (
-    <EventHubChrome event={myEvent.event} active="schedule">
+    <EventHubChrome myEvent={myEvent} active="schedule">
       <ScheduleTab
         eventId={myEvent.event.id}
         timezone={myEvent.event.timezone}

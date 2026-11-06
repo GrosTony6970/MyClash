@@ -31,7 +31,7 @@ import { PHOTO_STORE, photoObjectKeys, type PhotoStore } from './photo-bucket';
 import { makePreview } from './photo-preview';
 import { photosUnavailable } from './photo-refusals';
 import { photoTokenMatches } from './photo-token';
-import { photoUploadWindow } from './photo-window';
+import { photoSendOpen } from './photo-window';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -145,9 +145,7 @@ export class PhotoUploadService {
     if (event.photo_mode === 'off') {
       throw refuse(ForbiddenException, 'photos_off', 'This Event does not take photos.');
     }
-    const window = photoUploadWindow(event);
-    const now = Date.now();
-    if (!window || now < window.opensAt.getTime() || now >= window.closesAt.getTime()) {
+    if (!photoSendOpen(event, new Date())) {
       throw refuse(
         ForbiddenException,
         'photos_window_closed',

@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { SegmentedTabs } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import type { MyEventInfo } from './types';
-
-export type HubTab = 'schedule' | 'overview' | 'workshops';
+import { HUB_TAB_LABEL, hubTabPath, hubTabs, type HubTab } from './hub-tabs';
+import { ReadFailed } from './ReadFailed';
+import type { MyEvent } from './types';
 
 function fmtDate(d: string | null, tag: string): string {
   if (!d) return '';
@@ -18,20 +18,18 @@ function fmtDate(d: string | null, tag: string): string {
 }
 
 export function EventHubChrome({
-  event,
+  myEvent,
   active,
   children,
 }: {
-  event: MyEventInfo;
+  myEvent: MyEvent;
   active: HubTab;
   children: ReactNode;
 }): ReactNode {
   const { t, locale } = useI18n();
   const router = useRouter();
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
-  const base = `/me/events/${event.slug}`;
-  // Overview is the default landing (index route); schedule + workshops are nested.
-  const routeFor = (tab: HubTab) => (tab === 'overview' ? base : `${base}/${tab}`);
+  const { event } = myEvent;
 
   const dates = [fmtDate(event.startDate, tag), fmtDate(event.endDate, tag)]
     .filter(Boolean)
@@ -66,12 +64,8 @@ export function EventHubChrome({
           className="mt-3"
           aria-label={event.name}
           value={active}
-          onChange={(tab) => router.push(routeFor(tab as HubTab))}
-          tabs={[
-            { value: 'overview', label: t('publicApp.me.hub.tabOverview') },
-            { value: 'schedule', label: t('publicApp.me.hub.tabSchedule') },
-            { value: 'workshops', label: t('publicApp.me.hub.tabWorkshops') },
-          ]}
+          onChange={(tab) => router.push(hubTabPath(event.slug, tab as HubTab))}
+          tabs={hubTabs(myEvent).map((tab) => ({ value: tab, label: t(HUB_TAB_LABEL[tab]) }))}
         />
       </div>
       <div className="px-4 py-4">{children}</div>
@@ -79,7 +73,20 @@ export function EventHubChrome({
   );
 }
 
-/** Shared loading + not-found chrome used by the three hub tab pages. */
+/**
+ * "My events" could not be read (ruling 461): said, with Try again, never read as "no such
+ * Event" or "no Events". The My events list and every hub tab show it.
+ */
+export function HubReadFailed({ onRetry }: { onRetry: () => void }): ReactNode {
+  const { t } = useI18n();
+  return (
+    <main id="main-content" className="mx-auto min-h-screen max-w-2xl px-4 py-6">
+      <ReadFailed title={t('publicApp.me.events.loadFailed')} onRetry={onRetry} />
+    </main>
+  );
+}
+
+/** Shared loading + not-found chrome used by the hub tab pages. */
 export function HubLoading(): ReactNode {
   return (
     <main id="main-content" className="mx-auto min-h-screen max-w-2xl px-4 py-6">

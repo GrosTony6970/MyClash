@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from './hooks';
+import { HUB_TAB_LABEL, hubTabPath, hubTabs } from './hub-tabs';
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -72,7 +73,6 @@ export function MyEventsNav({ onNavigate }: { onNavigate?: () => void }) {
       {open && (
         <div className="mt-1 space-y-2.5">
           {events.map((e, i) => {
-            const base = `/me/events/${e.event.slug}`;
             return (
               <div key={e.event.id} className={i > 0 ? 'border-t border-border pt-2.5' : ''}>
                 <div className="flex items-center gap-2 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-foreground/80">
@@ -85,23 +85,19 @@ export function MyEventsNav({ onNavigate }: { onNavigate?: () => void }) {
                   <span className="truncate">{e.event.name}</span>
                 </div>
                 <div className="ml-4 border-l border-border pl-2">
-                  <SubLink href={base} active={pathname === base} onNavigate={onNavigate}>
-                    {t('publicApp.me.hub.tabOverview')}
-                  </SubLink>
-                  <SubLink
-                    href={`${base}/schedule`}
-                    active={pathname === `${base}/schedule`}
-                    onNavigate={onNavigate}
-                  >
-                    {t('publicApp.me.hub.tabSchedule')}
-                  </SubLink>
-                  <SubLink
-                    href={`${base}/workshops`}
-                    active={pathname === `${base}/workshops`}
-                    onNavigate={onNavigate}
-                  >
-                    {t('publicApp.me.hub.tabWorkshops')}
-                  </SubLink>
+                  {hubTabs(e).map((tab) => {
+                    const href = hubTabPath(e.event.slug, tab);
+                    return (
+                      <SubLink
+                        key={tab}
+                        href={href}
+                        active={pathname === href}
+                        onNavigate={onNavigate}
+                      >
+                        {t(HUB_TAB_LABEL[tab])}
+                      </SubLink>
+                    );
+                  })}
                 </div>
               </div>
             );

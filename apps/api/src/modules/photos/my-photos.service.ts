@@ -11,6 +11,7 @@ import { photoLinks } from './photo-links';
 import { photoNotFound } from './photo-moderation.service';
 import { PUBLIC_PHOTO_PAGE } from './photo-public.service';
 import { photoTag, type PhotoTagEmbeds } from './photo-tag';
+import { photoSendOpen } from './photo-window';
 
 interface MyPhotoRow extends PhotoTagEmbeds {
   id: string;
@@ -50,9 +51,10 @@ export class MyPhotosService {
       .eq('event_id', eventId)
       .eq('uploader_user_id', userId);
     if (before) read = read.lt('created_at', before);
-    const { data, error } = await read
-      .order('created_at', { ascending: false })
-      .limit(PUBLIC_PHOTO_PAGE);
+    const [{ data, error }, sendOpen] = await Promise.all([
+      read.order('created_at', { ascending: false }).limit(PUBLIC_PHOTO_PAGE),
+      this.sendOpen(eventId),
+    ]);
     if (error) throw new Error(`Her photos not read: ${error.message}`);
     const rows = (data ?? []) as unknown as MyPhotoRow[];
     const now = new Date();
@@ -60,6 +62,7 @@ export class MyPhotosService {
     const last = rows.length === PUBLIC_PHOTO_PAGE ? rows[rows.length - 1] : undefined;
     return {
       posterName: await accountPhotoName(this.supabase, userId),
+      sendOpen,
       photos,
       next: last ? last.created_at : null,
     };
@@ -77,6 +80,21 @@ export class MyPhotosService {
     if (error) throw new Error(error.message);
     if (!data?.length) throw photoNotFound();
     requestDrain(this.queue, this.logger, photoId);
+  }
+
+  /**
+   * Whether her form can send now (ruling 463): the upload door's rule, and not archived (the
+   * Event lock refuses an archived Event's uploads before the door). No Event: not open.
+   */
+  private async sendOpen(eventId: string): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('status, start_date, end_date, timezone, photo_mode')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw new Error(`Her Event not read: ${error.message}`);
+    const event = data as (Parameters<typeof photoSendOpen>[0] & { status: string }) | null;
+    return event !== null && event.status !== 'archived' && photoSendOpen(event, new Date());
   }
 
   private async photoOf(row: MyPhotoRow, now: Date): Promise<MyPhoto> {

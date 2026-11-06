@@ -112,6 +112,17 @@ describe('the send loop', () => {
     ]);
   });
 
+  it('says each photo sent, once, and never a refused or failed one', async () => {
+    const q = queue(
+      [waiting(1), waiting(2), waiting(3)],
+      [sent, http(422, 'photo_corrupt'), { ok: false, kind: 'network' }],
+    );
+    const onSent = vi.fn();
+    await sendQueued({ ...q.deps, onSent });
+    expect(states(q.items())).toEqual(['sent', 'refused', 'failed']);
+    expect(onSent).toHaveBeenCalledOnce();
+  });
+
   it('the page leaving ends the run, and nothing more is sent', async () => {
     const q = queue([waiting(1), waiting(2)], [{ ok: false, kind: 'aborted' }]);
     await sendQueued(q.deps);

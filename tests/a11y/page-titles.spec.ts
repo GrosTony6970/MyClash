@@ -70,6 +70,7 @@ const OUTSIDE_AN_EVENT: Array<[path: string, title: string]> = [
   // One Event of the personal space names the Event (ruling 2026-10-16): two Events, two tabs.
   ['/me/events/test-event', 'My event · Open de Lyon'],
   ['/me/events/test-event/schedule', 'My schedule · Open de Lyon'],
+  ['/me/events/test-event/photos', 'My photos · Open de Lyon'],
   ['/me/settings', 'Settings · MyClash'],
   ['/me/security', 'Security · MyClash'],
   ['/reset-password', 'New password · MyClash'],

@@ -1,7 +1,8 @@
 import { responseFailure, type ApiResult } from '@myclash/api-client';
 
 /**
- * One photo sent to `POST events/:eventId/photos`, from the Event's QR link.
+ * One photo sent to `POST events/:eventId/photos`, from the Event's QR link, or to
+ * `POST me/events/:eventId/photos`, from her personal space under her login (slice 6b).
  *
  * Through `XMLHttpRequest`, not `apiRequest`: `fetch` reports no upload progress, and the page
  * shows each photo's. The answer is still read the way `apiRequest` reads one, through
@@ -13,6 +14,9 @@ import { responseFailure, type ApiResult } from '@myclash/api-client';
  */
 
 export type PhotoTag = { kind: 'tournament' | 'workshop'; id: string };
+/** Where a photo goes: the QR link's route with its token, or her own Event's, with her login. */
+export type PhotoTarget =
+  { kind: 'qr'; eventId: string; token: string } | { kind: 'account'; eventId: string };
 export interface PhotoFields {
   name: string;
   caption: string;
@@ -59,11 +63,24 @@ function resultOf(xhr: XMLHttpRequest): ApiResult<PhotoSent> {
   return { ok: false, ...responseFailure(xhr.status, body) };
 }
 
+/** Opens the request to the target's route; the QR token rides in its header. */
+function openFor(xhr: XMLHttpRequest, apiUrl: string, target: PhotoTarget): void {
+  const event = encodeURIComponent(target.eventId);
+  switch (target.kind) {
+    case 'qr':
+      xhr.open('POST', `${apiUrl}/api/v1/events/${event}/photos`);
+      xhr.setRequestHeader('x-photo-token', target.token);
+      return;
+    case 'account':
+      xhr.open('POST', `${apiUrl}/api/v1/me/events/${event}/photos`);
+      return;
+  }
+}
+
 /** Never rejects: every way a send ends is a value. */
 export function sendPhoto(input: {
   apiUrl: string;
-  eventId: string;
-  token: string;
+  target: PhotoTarget;
   file: File;
   fields: PhotoFields;
   onProgress: (fraction: number) => void;
@@ -87,8 +104,7 @@ export function sendPhoto(input: {
     // `open`, a header and `send` can each throw at once (a bad URL, a value no header may hold):
     // that photo did not leave, which is what a lost connection says.
     try {
-      xhr.open('POST', `${input.apiUrl}/api/v1/events/${encodeURIComponent(input.eventId)}/photos`);
-      xhr.setRequestHeader('x-photo-token', input.token);
+      openFor(xhr, input.apiUrl, input.target);
       xhr.withCredentials = true;
       xhr.timeout = SEND_TIMEOUT_MS;
       input.signal.addEventListener('abort', abort);

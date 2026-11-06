@@ -172,6 +172,11 @@ export type MyPhoto = Pick<
  */
 export interface MyPhotos {
   posterName: string | null;
+  /**
+   * Whether a photo can be sent to the Event now (ruling 463): photos not Off, the upload days
+   * open, the Event not archived. Her personal space shows its form only then.
+   */
+  sendOpen: boolean;
   photos: MyPhoto[];
   next: string | null;
 }

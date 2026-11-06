@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { photoArchiveHold, photoDeletionInstant, photoUploadWindow } from './photo-window';
+import {
+  photoArchiveHold,
+  photoDeletionInstant,
+  photoSendOpen,
+  photoUploadWindow,
+} from './photo-window';
 
 /** 00:00 of `day` on `zone`'s clock, as an instant: what an organiser in that zone calls midnight. */
 function midnight(day: string, zone: string): number {
@@ -127,5 +132,39 @@ describe('photoArchiveHold — an Event on 16 and 17 May 2026 (ruling 441)', () 
   it('never holds when the window cannot be read: the door then refuses every photo', () => {
     const event = { ...cup('approve'), start_date: null };
     expect(photoArchiveHold(event, at(midnight('2026-05-18', 'Europe/Paris')))).toBeNull();
+  });
+});
+
+describe('photoSendOpen — an Event on 16 and 17 May 2026, Paris (ruling 463)', () => {
+  const cup = (photo_mode: unknown, end_date: string | null = '2026-05-17') => ({
+    start_date: '2026-05-16',
+    end_date,
+    timezone: 'Europe/Paris',
+    photo_mode,
+  });
+  const opens = midnight('2026-05-15', 'Europe/Paris');
+  const closes = midnight('2026-05-19', 'Europe/Paris');
+  const at = (instant: number) => new Date(instant);
+
+  it.each(['live', 'approve'])('is open in %s mode from the open instant on', (mode) => {
+    expect(photoSendOpen(cup(mode), at(opens))).toBe(true);
+    expect(photoSendOpen(cup(mode), at(closes - 1))).toBe(true);
+  });
+
+  it('is shut before the window opens and at its close itself (half-open, as the door)', () => {
+    expect(photoSendOpen(cup('live'), at(opens - 1))).toBe(false);
+    expect(photoSendOpen(cup('live'), at(closes))).toBe(false);
+  });
+
+  it('is shut when photos are Off, inside the window', () => {
+    expect(photoSendOpen(cup('off'), at(opens))).toBe(false);
+  });
+
+  it('is shut when the window cannot be read', () => {
+    expect(photoSendOpen(cup('live', null), at(opens))).toBe(false);
+  });
+
+  it('is open for a mode this build does not know: the door refuses only Off', () => {
+    expect(photoSendOpen(cup('later'), at(opens))).toBe(true);
   });
 });

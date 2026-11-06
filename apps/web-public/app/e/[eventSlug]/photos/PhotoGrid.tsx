@@ -170,9 +170,14 @@ function PhotoTile(props: {
 /**
  * The preview, opening the original in a new tab, or a plain tile when there is none to show:
  * the bucket was down when the links were signed, or the picture failed to load (its link is
- * over 10 minutes old: ruling 450, until the page is reloaded).
+ * over 10 minutes old: ruling 450, until the page is reloaded). Her own photos in her personal
+ * space show the same way (slice 6b).
  */
-function TileImage({ photo }: { photo: PublicPhoto }) {
+export function TileImage({
+  photo,
+}: {
+  photo: Pick<PublicPhoto, 'previewUrl' | 'originalUrl' | 'caption'>;
+}) {
   const { t } = useI18n();
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
   const { previewUrl, originalUrl } = photo;

@@ -42,6 +42,26 @@ export function photoUploadWindow(event: {
 }
 
 /**
+ * Can a photo be sent to the Event now: photos not Off, and inside its upload window (ruling
+ * 463). The upload door refuses by this rule (after its own Off refusal, which names the reason),
+ * and a personal space reads it to show its form. A mode this build does not know is not Off.
+ */
+export function photoSendOpen(
+  event: {
+    start_date: string | null;
+    end_date: string | null;
+    timezone: unknown;
+    photo_mode: unknown;
+  },
+  now: Date,
+): boolean {
+  if (event.photo_mode === 'off') return false;
+  const window = photoUploadWindow(event);
+  const at = now.getTime();
+  return window !== null && at >= window.opensAt.getTime() && at < window.closesAt.getTime();
+}
+
+/**
  * Until when the auto-archive leaves an Event alone so its phones can still send photos (ruling
  * 441): the window's close until it has passed, else null. Photos Off, or no readable window, hold
  * nothing: the upload door (`photo-upload.service.ts`) takes no photo then either.

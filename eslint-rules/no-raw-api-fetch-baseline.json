@@ -75,7 +75,7 @@
     "apps/web-public/app/reset-password/page.tsx": 1,
     "apps/web-public/app/sitemap.ts": 1,
     "apps/web-public/src/components/account/EmailChangeSection.tsx": 3,
-    "apps/web-public/src/components/me/hooks.ts": 4,
+    "apps/web-public/src/components/me/hooks.ts": 3,
     "apps/web-public/src/components/me/useUnreadBroadcasts.ts": 1,
     "apps/web-public/src/hooks/useWeaponOptions.ts": 1,
     "apps/web-staff/app/matches/[matchId]/page.tsx": 2,

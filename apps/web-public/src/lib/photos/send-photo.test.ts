@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SEND_TIMEOUT_MS, sendPhoto, type PhotoFields } from './send-photo';
+import type { QueueItem } from './photo-queue';
+import { SEND_TIMEOUT_MS, sendPhoto, type PhotoFields, type PhotoTarget } from './send-photo';
+import { photoSender } from './send-queue';
 
 /** A stand-in for the browser's XMLHttpRequest: records what the page set, fires what a test says. */
 class FakeXhr {
   static last: FakeXhr;
+  /** Every request made, in order. */
+  static all: FakeXhr[] = [];
+  /** Answers given on their own, one per `send`, while any are left; none: the test answers. */
+  static script: Array<[number, string]> = [];
   method = '';
   url = '';
   headers: Record<string, string> = {};
@@ -26,6 +32,7 @@ class FakeXhr {
 
   constructor() {
     FakeXhr.last = this;
+    FakeXhr.all.push(this);
   }
   open(method: string, url: string) {
     this.method = method;
@@ -38,6 +45,8 @@ class FakeXhr {
   }
   send(body: FormData) {
     this.body = body;
+    const next = FakeXhr.script.shift();
+    if (next) queueMicrotask(() => this.answer(...next));
   }
   abort() {
     this.aborted = true;
@@ -53,12 +62,17 @@ class FakeXhr {
 const NO_FIELDS: PhotoFields = { name: '', caption: '', tag: null };
 const file = () => new File([new Uint8Array([0xff, 0xd8, 0xff])], 'a.jpg', { type: 'image/jpeg' });
 
-function send(fields: PhotoFields = NO_FIELDS, signal = new AbortController().signal) {
+const QR: PhotoTarget = { kind: 'qr', eventId: 'ev-1', token: 'tok-123' };
+
+function send(
+  fields: PhotoFields = NO_FIELDS,
+  signal = new AbortController().signal,
+  target: PhotoTarget = QR,
+) {
   const onProgress = vi.fn();
   const result = sendPhoto({
     apiUrl: 'http://api',
-    eventId: 'ev-1',
-    token: 'tok-123',
+    target,
     file: file(),
     fields,
     onProgress,
@@ -68,6 +82,8 @@ function send(fields: PhotoFields = NO_FIELDS, signal = new AbortController().si
 }
 
 beforeEach(() => {
+  FakeXhr.all = [];
+  FakeXhr.script = [];
   vi.stubGlobal('XMLHttpRequest', FakeXhr);
 });
 afterEach(() => {
@@ -84,6 +100,14 @@ describe('the request', () => {
     expect(xhr.withCredentials).toBe(true);
     expect(xhr.timeout).toBe(SEND_TIMEOUT_MS);
     expect(SEND_TIMEOUT_MS).toBe(120_000);
+  });
+
+  it('from a personal space, posts to her own Event route with her login and no token header', () => {
+    const { xhr } = send(NO_FIELDS, undefined, { kind: 'account', eventId: 'ev-1' });
+    expect(xhr.method).toBe('POST');
+    expect(xhr.url).toBe('http://api/api/v1/me/events/ev-1/photos');
+    expect(xhr.headers).toEqual({});
+    expect(xhr.withCredentials).toBe(true);
   });
 
   it('sends only the fields given, the tag by its kind, and the file last', () => {
@@ -165,8 +189,7 @@ describe('the answer', () => {
   it('a throw while the request is opened is a lost connection, never a rejection', async () => {
     const result = sendPhoto({
       apiUrl: 'http://api',
-      eventId: 'ev-1',
-      token: 'tök☃',
+      target: { kind: 'qr', eventId: 'ev-1', token: 'tök☃' },
       file: file(),
       fields: NO_FIELDS,
       onProgress: vi.fn(),
@@ -181,5 +204,57 @@ describe('the answer', () => {
     controller.abort();
     await expect(result).resolves.toEqual({ ok: false, kind: 'aborted' });
     expect(xhr.aborted).toBe(true);
+  });
+});
+
+describe('a login over an hour old (photoSender)', () => {
+  const ACCOUNT: PhotoTarget = { kind: 'account', eventId: 'ev-1' };
+  const SENT = JSON.stringify({ id: 'p1', status: 'waiting' });
+  const LAPSED: [number, string] = [401, JSON.stringify({ code: 'unauthorized' })];
+  const item: QueueItem = {
+    key: 1,
+    file: file(),
+    state: 'waiting',
+    progress: 0,
+    message: null,
+    sent: null,
+  };
+
+  async function sendWith(target: PhotoTarget, renewed: boolean, script: Array<[number, string]>) {
+    FakeXhr.script = script;
+    const renew = vi.fn(async () => renewed);
+    const signal = new AbortController().signal;
+    const send = photoSender({ apiUrl: 'http://api', target, signal }, renew);
+    const result = await send(item, NO_FIELDS, { progress: vi.fn(), busy: vi.fn() });
+    return { result, renew };
+  }
+
+  it('from a personal space, renews the login once and sends the photo once more', async () => {
+    const { result, renew } = await sendWith(ACCOUNT, true, [LAPSED, [201, SENT]]);
+    expect(result).toEqual({ ok: true, data: { id: 'p1', status: 'waiting' } });
+    expect(renew.mock.calls).toEqual([['http://api']]);
+    expect(FakeXhr.all).toHaveLength(2);
+  });
+
+  it('a login that does not come back answers the 401, sent once', async () => {
+    const { result, renew } = await sendWith(ACCOUNT, false, [LAPSED]);
+    expect(result).toMatchObject({ ok: false, kind: 'unauthenticated', status: 401 });
+    expect(renew).toHaveBeenCalledOnce();
+    expect(FakeXhr.all).toHaveLength(1);
+  });
+
+  it('a 403 is an answer, not a lapsed login: nothing is renewed', async () => {
+    const noName: [number, string] = [403, JSON.stringify({ code: 'photo_no_name' })];
+    const { result, renew } = await sendWith(ACCOUNT, true, [noName]);
+    expect(result).toMatchObject({ ok: false, status: 403, code: 'photo_no_name' });
+    expect(renew).not.toHaveBeenCalled();
+    expect(FakeXhr.all).toHaveLength(1);
+  });
+
+  it('the QR link needs no login: its 401 is answered as it is', async () => {
+    const qr: PhotoTarget = { kind: 'qr', eventId: 'ev-1', token: 'tok-123' };
+    const { renew } = await sendWith(qr, true, [LAPSED]);
+    expect(renew).not.toHaveBeenCalled();
+    expect(FakeXhr.all).toHaveLength(1);
   });
 });

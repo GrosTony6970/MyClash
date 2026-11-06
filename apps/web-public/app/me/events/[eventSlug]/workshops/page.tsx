@@ -5,7 +5,12 @@ import { useParams } from 'next/navigation';
 import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
+import {
+  EventHubChrome,
+  HubLoading,
+  HubNotFound,
+  HubReadFailed,
+} from '@/components/me/EventHubChrome';
 import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
 import {
   bookingsOf,
@@ -33,14 +38,15 @@ type WorkshopSession = WorkshopListItem['sessions'][number];
 
 export default function HubWorkshopsPage() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
-  const { events, loading } = useMyEvents();
+  const { events, loading, error, retry } = useMyEvents();
   const myEvent = events?.find((e) => e.event.slug === eventSlug) ?? null;
 
   if (loading) return <HubLoading />;
+  if (error) return <HubReadFailed onRetry={retry} />;
   if (!myEvent) return <HubNotFound />;
 
   return (
-    <EventHubChrome event={myEvent.event} active="workshops">
+    <EventHubChrome myEvent={myEvent} active="workshops">
       <WorkshopsContent event={myEvent.event} teaching={myEvent.workshopsTeaching} />
     </EventHubChrome>
   );

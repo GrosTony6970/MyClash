@@ -1,38 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import type { ProgrammeBlock } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { MyEvent, UpcomingItem } from './types';
 
-/** All events the signed-in user is involved in (competitor / referee / workshops). */
-export function useMyEvents(): { events: MyEvent[] | null; loading: boolean; error: boolean } {
+/**
+ * All events the signed-in user is involved in (competitor / referee / workshops). A failed read,
+ * or a body that is not a list, is `error` (ruling 461): the page says so and offers `retry`,
+ * never "no Events". Read through `apiRequest`, so a login over an hour old is renewed.
+ */
+export function useMyEvents(): {
+  events: MyEvent[] | null;
+  loading: boolean;
+  error: boolean;
+  retry: () => void;
+} {
   const [events, setEvents] = useState<MyEvent[] | null>(null);
   const [error, setError] = useState(false);
+  const [asked, setAsked] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${getPublicApiUrl()}/api/v1/me/events`, {
-      credentials: 'include',
+    void apiRequest<unknown>(getPublicApiUrl(), '/api/v1/me/events', {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setEvents((await res.json()) as MyEvent[]);
-        else {
-          setError(true);
-          setEvents([]);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(true);
-          setEvents([]);
-        }
-      });
+    }).then((res) => {
+      if (!res.ok && res.kind === 'aborted') return;
+      const list = res.ok && Array.isArray(res.data) ? (res.data as MyEvent[]) : null;
+      setError(list === null);
+      setEvents(list ?? []);
+    });
     return () => controller.abort();
+  }, [asked]);
+
+  const retry = useCallback(() => {
+    setError(false);
+    setEvents(null);
+    setAsked((n) => n + 1);
   }, []);
 
-  return { events, loading: events === null, error };
+  return { events, loading: events === null, error, retry };
 }
 
 /** The event's programme blocks (lunch, ceremonies, competition windows…),

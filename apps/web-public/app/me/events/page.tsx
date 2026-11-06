@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { Button, EventKindBadge } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from '@/components/me/hooks';
-import { HubLoading } from '@/components/me/EventHubChrome';
+import { HubLoading, HubReadFailed } from '@/components/me/EventHubChrome';
 import type { MyEvent } from '@/components/me/types';
 
 function CalendarIcon({ className }: { className?: string }) {
@@ -25,9 +25,10 @@ function CalendarIcon({ className }: { className?: string }) {
 
 export default function MyEventsPage() {
   const { t } = useI18n();
-  const { events, loading } = useMyEvents();
+  const { events, loading, error, retry } = useMyEvents();
 
   if (loading) return <HubLoading />;
+  if (error) return <HubReadFailed onRetry={retry} />;
   if (!events || events.length === 0) return <ZeroState />;
 
   return (

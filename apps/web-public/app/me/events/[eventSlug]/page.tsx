@@ -5,7 +5,12 @@ import { useParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { SkillBadge } from '@myclash/ui';
 import { formatInZone } from '@myclash/time';
-import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
+import {
+  EventHubChrome,
+  HubLoading,
+  HubNotFound,
+  HubReadFailed,
+} from '@/components/me/EventHubChrome';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from '@/components/me/hooks';
 import { useMySchedule } from '@/components/me/use-my-schedule';
@@ -24,14 +29,15 @@ type TFn = ReturnType<typeof useI18n>['t'];
 /** Per-event hub — Overview is the default landing tab. */
 export default function HubOverviewPage() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
-  const { events, loading } = useMyEvents();
+  const { events, loading, error, retry } = useMyEvents();
   const myEvent = events?.find((e) => e.event.slug === eventSlug) ?? null;
 
   if (loading) return <HubLoading />;
+  if (error) return <HubReadFailed onRetry={retry} />;
   if (!myEvent) return <HubNotFound />;
 
   return (
-    <EventHubChrome event={myEvent.event} active="overview">
+    <EventHubChrome myEvent={myEvent} active="overview">
       <OverviewContent myEvent={myEvent} />
     </EventHubChrome>
   );

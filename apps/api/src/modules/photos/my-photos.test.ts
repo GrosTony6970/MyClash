@@ -1,11 +1,12 @@
 import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ALLOW_ON_ARCHIVED_EVENT_KEY } from '../../common/event-readonly/allow-on-archived.decorator';
 import {
   filtersFor,
   mockSupabase,
   selectsFor,
+  type TableSeed,
   writesTo,
 } from '../../common/testing/supabase-chain';
 import { MyPhotosController } from './my-photos.controller';
@@ -36,8 +37,23 @@ const photoRow = (over: Record<string, unknown>) => ({
   ...over,
 });
 
-function setup(photos: Record<string, unknown>[] = [photoRow({})]) {
+/** The Event as its row reads: 16 and 17 May 2026 in Paris, its upload days 15 to 18 May. */
+const eventRow = (over: Record<string, unknown> = {}) => ({
+  id: EVENT,
+  status: 'running',
+  start_date: '2026-05-16',
+  end_date: '2026-05-17',
+  timezone: 'Europe/Paris',
+  photo_mode: 'live',
+  ...over,
+});
+
+function setup(
+  photos: Record<string, unknown>[] = [photoRow({})],
+  events: TableSeed = { rows: [eventRow()] },
+) {
   const db = mockSupabase({
+    events,
     event_photos: { rows: photos },
     global_persons: { data: { display_name: 'Léa Martin' }, error: null },
   });
@@ -107,6 +123,45 @@ describe('GET me/events/:eventId/photos', () => {
     expect(filtersFor(db.from, 'event_photos', 'lt')).toEqual([
       ['created_at', '2026-11-07T10:01:00+00:00'],
     ]);
+  });
+
+  describe('says whether she can send now (ruling 463)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-05-16T10:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('open for a Live Event inside its upload days, read from the Event row', async () => {
+      const { db, controller } = setup();
+      const page = await controller.list(EVENT, {}, signedIn);
+      expect(page.sendOpen).toBe(true);
+      expect(selectsFor(db.from, 'events')).toEqual([
+        'status, start_date, end_date, timezone, photo_mode',
+      ]);
+      expect(filtersFor(db.from, 'events', 'eq')).toEqual([['id', EVENT]]);
+    });
+
+    it.each([
+      ['photos Off', eventRow({ photo_mode: 'off' })],
+      ['an archived Event', eventRow({ status: 'archived' })],
+      ['after its upload days', eventRow({ start_date: '2026-05-01', end_date: '2026-05-02' })],
+    ])('shut for %s, and her photos still listed', async (_what, row) => {
+      const { controller } = setup([photoRow({})], { rows: [row] });
+      const page = await controller.list(EVENT, {}, signedIn);
+      expect(page.sendOpen).toBe(false);
+      expect(page.photos).toHaveLength(1);
+    });
+
+    it('shut for an Event that is not there', async () => {
+      const { controller } = setup([photoRow({})], { rows: [] });
+      expect((await controller.list(EVENT, {}, signedIn)).sendOpen).toBe(false);
+    });
+
+    it('fails when the Event cannot be read (461)', async () => {
+      const { controller } = setup([photoRow({})], { data: null, error: { message: 'boom' } });
+      await expect(controller.list(EVENT, {}, signedIn)).rejects.toThrow('boom');
+    });
   });
 
   it('refuses a cursor that is not a time', () => {

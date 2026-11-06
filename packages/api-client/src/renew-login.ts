@@ -51,8 +51,11 @@ let renewing: Promise<boolean> | null = null;
  * error (ruling 302): it renews the login first and reads the role and the clubs after it, so a
  * fault of those reads (a server error since ruling 295) still carries the renewed cookies. Read
  * as "login not back", it showed a false refusal. A login that did not come back answers 401 again.
+ *
+ * Exported for a request `fetch` cannot make: web-public's photo upload goes through
+ * `XMLHttpRequest` for its progress, and renews through here (`send-queue.ts` `photoSender`).
  */
-function renewLogin(baseUrl: string): Promise<boolean> {
+export function renewLogin(baseUrl: string): Promise<boolean> {
   renewing ??= fetch(`${baseUrl}${ME_PATH}`, { credentials: 'include', cache: 'no-store' })
     .then(
       async (res) =>

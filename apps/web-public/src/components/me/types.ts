@@ -1,7 +1,7 @@
 // Shared client types for the redesigned /me personal space. Mirror the API
 // shapes returned by the `me` module + the per-event my-schedule endpoint.
 
-import type { EventKind } from '@myclash/types';
+import type { EventKind, PhotoMode } from '@myclash/types';
 
 export interface ScheduleMatch {
   id: string;
@@ -141,6 +141,8 @@ export interface MyEventInfo {
   timezone: string | null;
   /** 'standard' | 'club' — the API drops test events from /me entirely. */
   kind: EventKind;
+  /** The Event's photo mode, or null when this build does not know it (slice 6a). */
+  photoMode: PhotoMode | null;
 }
 
 export interface MyEventTournament {
@@ -211,6 +213,8 @@ export interface MyEvent {
   /** Workshops the user teaches at this event (empty for roster-only instructors). */
   workshopsTeaching: MyEventWorkshopTeaching[];
   counts: { matches: number; refereeSlots: number; workshops: number };
+  /** She sent photos to this Event from her personal space: its Photos tab shows (slice 6b). */
+  hasMyPhotos: boolean;
 }
 
 export interface UpcomingItem {
