@@ -77,3 +77,52 @@ describe('RequestLoggingMiddleware', () => {
     expect(events[0]).not.toHaveProperty('body');
   });
 });
+
+describe('a photo sent from the QR code (ruling 476)', () => {
+  const EVENT = '11111111-1111-4111-8111-111111111111';
+  const PHOTO = '22222222-2222-4222-8222-222222222222';
+
+  /** One request by a signed-in phone, with the address a proxy adds. */
+  function logOf(method: string, url: string): RequestLogEvent | undefined {
+    const events: RequestLogEvent[] = [];
+    const response = new FakeResponse();
+    new RequestLoggingMiddleware((event) => events.push(event)).use(
+      {
+        method,
+        url,
+        headers: { 'x-forwarded-for': '203.0.113.7', 'user-agent': 'phone' },
+        identity: { kind: 'claimed', userId: 'user-1', email: null },
+      },
+      response,
+      vi.fn(),
+    );
+    response.emit('finish');
+    return events[0];
+  }
+
+  it.each([
+    `/api/v1/events/${EVENT}/photos`,
+    `/api/v1/events/${EVENT}/photos?x=1`,
+    `/api/v1/events/${EVENT}/photos/${PHOTO}/report`,
+    `/api/v1/events/${EVENT}/photos/${PHOTO}/report?x=1`,
+  ])('POST %s logs no account and no headers', (url) => {
+    const event = logOf('POST', url);
+    expect(event).toMatchObject({ method: 'POST', path: url, statusCode: 200 });
+    expect(event).not.toHaveProperty('actorId');
+    expect(event).not.toHaveProperty('headers');
+  });
+
+  it.each([
+    ['POST', `/api/v1/me/events/${EVENT}/photos`],
+    ['GET', `/api/v1/events/${EVENT}/photos/public`],
+    ['GET', `/api/v1/events/${EVENT}/photos`],
+    ['DELETE', `/api/v1/events/${EVENT}/photos/${PHOTO}`],
+    ['POST', `/api/v1/events/${EVENT}/photos/${PHOTO}/approve`],
+  ])('%s %s still logs who and the headers', (method, url) => {
+    const event = logOf(method, url);
+    expect(event).toMatchObject({
+      actorId: 'claimed:user-1',
+      headers: { 'x-forwarded-for': '203.0.113.7' },
+    });
+  });
+});

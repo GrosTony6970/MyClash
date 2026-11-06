@@ -2,7 +2,7 @@ import { Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import type { MiddlewareConsumer } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Identity } from '../auth/identity';
-import { isSensitiveRoute, redactHeaders } from './redaction';
+import { isAnonymousPhotoRoute, isSensitiveRoute, redactHeaders } from './redaction';
 
 interface RequestLike {
   method?: string;
@@ -76,7 +76,8 @@ export class RequestLoggingMiddleware implements NestMiddleware {
       logged = true;
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       const sensitiveRoute = isSensitiveRoute(path);
-      const actorId = actorOf(request.identity);
+      const anonymous = isAnonymousPhotoRoute(request.method ?? '', path);
+      const actorId = anonymous ? null : actorOf(request.identity);
       this.sink({
         level: 'info',
         service: 'myclash-api',
@@ -87,7 +88,9 @@ export class RequestLoggingMiddleware implements NestMiddleware {
         statusCode: response.statusCode ?? 0,
         durationMs: Math.round(durationMs),
         ...(actorId ? { actorId } : {}),
-        ...(sensitiveRoute || !request.headers ? {} : { headers: redactHeaders(request.headers) }),
+        ...(sensitiveRoute || anonymous || !request.headers
+          ? {}
+          : { headers: redactHeaders(request.headers) }),
         sensitiveRoute,
       });
     };
