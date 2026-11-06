@@ -48,9 +48,10 @@ export function isSensitiveRoute(path: string): boolean {
 const ANONYMOUS_PHOTO_PATH = /^\/api\/v1\/events\/[^/]+\/photos(?:\/[^/]+\/report)?$/;
 
 /**
- * A photo sent, or reported, from the Event's QR code. The privacy policy promises nothing
- * links it to the sender's account, so its log line names no actor and carries no headers
- * (the proxy's address among them), even when the phone is signed in. The signed-in send
+ * A photo sent, or reported, from the Event's QR code. The privacy policy says such a photo is
+ * not stored with the sender's account, so its log line names no actor and carries no headers
+ * (the proxy's address among them), even when the phone is signed in. Other log lines still
+ * hold the phone's address (Fastify's own request line, Traefik's access log): §2.7 says so. The signed-in send
  * (`/me/events/…/photos`) and the organiser's routes keep their log (ruling 476).
  */
 export function isAnonymousPhotoRoute(method: string, path: string): boolean {
