@@ -43,6 +43,9 @@ export function memoryStore(
   const lists: Array<[string, string | undefined]> = [];
   const store: PhotoStore = {
     put: async () => {},
+    get: async () => {
+      throw new Error('the clean-up never reads an image');
+    },
     remove: async (k) => {
       opts.onRemove?.(k);
       if (k === opts.failOn)

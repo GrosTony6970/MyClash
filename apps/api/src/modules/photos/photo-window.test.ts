@@ -3,8 +3,23 @@ import {
   photoArchiveHold,
   photoDeletionInstant,
   photoSendOpen,
+  photosExpired,
   photoUploadWindow,
 } from './photo-window';
+
+describe('photosExpired — the queue and the download read one rule', () => {
+  const event = { end_date: '2026-05-18', timezone: 'UTC' };
+  const instant = Date.parse('2026-06-18T00:00:00.000Z');
+
+  it('is false until the deletion instant and true from it on', () => {
+    expect(photosExpired(event, new Date(instant - 1))).toBe(false);
+    expect(photosExpired(event, new Date(instant))).toBe(true);
+  });
+
+  it('is false when the end date cannot be read: nothing says the photos are gone', () => {
+    expect(photosExpired({ end_date: null, timezone: 'UTC' }, new Date(instant))).toBe(false);
+  });
+});
 
 /** 00:00 of `day` on `zone`'s clock, as an instant: what an organiser in that zone calls midnight. */
 function midnight(day: string, zone: string): number {

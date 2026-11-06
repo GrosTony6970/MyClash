@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  type GetObjectCommandOutput,
   HeadBucketCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
@@ -56,6 +57,8 @@ export const PHOTO_BUCKET_PROBE_TIMEOUT_MS = 10_000;
 /** One object written: 30 s. One object deleted: 10 s. */
 export const PHOTO_BUCKET_WRITE_TIMEOUT_MS = 30_000;
 export const PHOTO_BUCKET_DELETE_TIMEOUT_MS = 10_000;
+/** One original read, its body included: 30 s (design: a download that stalls 30 s is cut). */
+export const PHOTO_BUCKET_READ_TIMEOUT_MS = 30_000;
 
 /** The DI token of the photo store; null when the bucket is not configured. */
 export const PHOTO_STORE = Symbol('PHOTO_STORE');
@@ -76,6 +79,8 @@ export interface PhotoPage {
 /** Where photo images are written, listed and removed. Every call has its own bounded wait. */
 export interface PhotoStore {
   put(key: string, bytes: Buffer): Promise<void>;
+  /** The bytes stored under `key`, read whole within one bound; null when the key is gone. */
+  get(key: string): Promise<Buffer | null>;
   remove(key: string): Promise<void>;
   /** One page of keys under `prefix`, at most 1,000. `next` is set while more remain. */
   list(prefix: string, next?: string): Promise<PhotoPage>;
@@ -140,12 +145,14 @@ export interface PhotoStoreTimeouts {
   writeMs: number;
   deleteMs: number;
   listMs: number;
+  readMs: number;
 }
 
 const STORE_TIMEOUTS: PhotoStoreTimeouts = {
   writeMs: PHOTO_BUCKET_WRITE_TIMEOUT_MS,
   deleteMs: PHOTO_BUCKET_DELETE_TIMEOUT_MS,
   listMs: PHOTO_BUCKET_PROBE_TIMEOUT_MS,
+  readMs: PHOTO_BUCKET_READ_TIMEOUT_MS,
 };
 
 /**
@@ -244,10 +251,12 @@ export function photoStoreOf(
 ): PhotoStore | null {
   if (setting.kind !== 'on') return null;
   const { bucket } = setting.config;
-  const send = sender(client ?? createPhotoBucketClient(setting.config), bucket);
+  const s3 = client ?? createPhotoBucketClient(setting.config);
+  const send = sender(s3, bucket);
   const sign = presign ?? photoLinkSigner(setting.config);
   return {
     link: (key, now) => sign(key, photoLinkSigningDate(now), PHOTO_LINK_TTL_S),
+    get: originalReader(s3, bucket, timeouts.readMs),
     put: async (key, bytes) => {
       const body = { Bucket: bucket, Key: key, Body: bytes, ContentType: 'image/jpeg' };
       await send(new PutObjectCommand(body), timeouts.writeMs, 'write');
@@ -297,6 +306,38 @@ function sender(s3: Pick<S3Client, 'send'>, bucket: string) {
       );
     } catch (err) {
       throw refusalOf(err, bucket);
+    }
+  };
+}
+
+/**
+ * Reads one object whole: the answer AND its body inside one bound, because `sender` bounds only
+ * the answer and a body can stall after it. When the bound gives up, the body is closed so its
+ * socket does not stay open.
+ */
+function originalReader(s3: Pick<S3Client, 'send'>, bucket: string, ms: number) {
+  return async (key: string): Promise<Buffer | null> => {
+    let body: { destroy?: () => void } | undefined;
+    try {
+      return await boundedCall(
+        async (signal) => {
+          const answer = (await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }), {
+            abortSignal: signal,
+          })) as GetObjectCommandOutput;
+          if (!answer.Body) throw new Error('Photo bucket sent no body (read)');
+          body = answer.Body as { destroy?: () => void };
+          const bytes = await answer.Body.transformToByteArray();
+          // A view, not a copy: an original is up to 12 MiB.
+          return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        },
+        ms,
+        'read',
+      );
+    } catch (err) {
+      body?.destroy?.();
+      const refusal = refusalOf(err, bucket);
+      if (refusal instanceof MissingKey) return null;
+      throw refusal;
     }
   };
 }

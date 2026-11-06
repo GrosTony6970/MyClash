@@ -21,7 +21,7 @@ import { photoLinks } from './photo-links';
 import { StaffService } from '../staff/staff.service';
 import { organisersEvent, photoEvent, type PhotoEventRow } from './photo-organiser';
 import { EVENT_PHOTO_BYTES, EVENT_PHOTOS_PER_HOUR } from './photo-upload.service';
-import { photoDeletionInstant } from './photo-window';
+import { photoDeletionInstant, photosExpired } from './photo-window';
 
 /** Photos per page of the queue. */
 export const PHOTO_QUEUE_PAGE = 60;
@@ -94,7 +94,7 @@ export class PhotoModerationService {
 
   async summary(event: PhotoEventRow): Promise<PhotoSummary> {
     // From the deletion instant on the queue is empty, so its count says so too.
-    const expired = this.expired(event, this.now());
+    const expired = photosExpired(event, this.now());
     const [usage, waiting, reported] = await Promise.all([
       this.usage(event.id),
       expired ? 0 : this.waiting(event.id),
@@ -129,7 +129,7 @@ export class PhotoModerationService {
     before?: string,
   ): Promise<PhotoQueuePage> {
     const now = this.now();
-    if (this.expired(event, now)) return { photos: [], next: null };
+    if (photosExpired(event, now)) return { photos: [], next: null };
 
     let query = this.queueRead(event.id, filter);
     if (filter === 'waiting') query = query.eq('status', 'waiting');
@@ -219,11 +219,6 @@ export class PhotoModerationService {
             'id, status, uploader_name, caption, created_at, preview_key, original_key, tournament:tournaments(name), workshop:workshops(title), reports:event_photo_reports(comment, updated_at)',
           );
     return read.eq('event_id', eventId);
-  }
-
-  private expired(event: PhotoEventRow, now: Date): boolean {
-    const instant = photoDeletionInstant(event);
-    return instant !== null && now.getTime() >= instant.getTime();
   }
 
   private async photoOf(row: QueueRow, now: Date): Promise<ModerationPhoto> {

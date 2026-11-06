@@ -81,6 +81,9 @@ function setup(options: Setup = {}) {
   const store: PhotoStore = {
     put: vi.fn(async (key: string, bytes: Buffer) => void stored.set(key, bytes)),
     remove: vi.fn(async (key: string) => void stored.delete(key)),
+    get: vi.fn(async () => {
+      throw new Error('the upload never reads an image back');
+    }),
     list: vi.fn(async () => {
       throw new Error('the upload never lists the bucket');
     }),

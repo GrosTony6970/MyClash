@@ -20,6 +20,18 @@ export function photoDeletionInstant(event: {
 }
 
 /**
+ * Whether the Event's photos are past their deletion instant: the moderation queue is then empty
+ * and the download answers Gone. An unreadable end date is not past (nothing says so).
+ */
+export function photosExpired(
+  event: { end_date: string | null; timezone: unknown },
+  now: Date,
+): boolean {
+  const instant = photoDeletionInstant(event);
+  return instant !== null && now.getTime() >= instant.getTime();
+}
+
+/**
  * When a phone may send photos to an Event, on the Event's own clock (design, goal 7): from the
  * start of the day before its first day, so the organiser can test a printed QR code on set-up
  * day, to the end of the day after its last day. Half-open: `closesAt` itself is closed.

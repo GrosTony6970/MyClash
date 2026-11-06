@@ -12,7 +12,13 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import type { PhotoLink, PhotoQueuePage, PhotoSummary, PublicPhotoPage } from '@myclash/types';
+import {
+  csvFormatFromParam,
+  type PhotoLink,
+  type PhotoQueuePage,
+  type PhotoSummary,
+  type PublicPhotoPage,
+} from '@myclash/types';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -22,6 +28,7 @@ import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -39,7 +46,8 @@ import { PhotoModerationService } from './photo-moderation.service';
 import type { PhotoEventRow } from './photo-organiser';
 import { PhotoReportBodyDto, PublicPhotoQueryDto } from './photo-public.dto';
 import { PhotoPublicService } from './photo-public.service';
-import { PhotoKeepBodyDto, PhotoQueueQueryDto } from './photo-queue.dto';
+import { PhotoDownloadService } from './photo-download.service';
+import { PhotoDownloadQueryDto, PhotoKeepBodyDto, PhotoQueueQueryDto } from './photo-queue.dto';
 import { PhotoUploadService } from './photo-upload.service';
 
 type CookieReply = FastifyReply & {
@@ -57,6 +65,7 @@ export class PhotosController {
     private readonly supabase: SupabaseService,
     private readonly moderation: PhotoModerationService,
     private readonly publicPhotos: PhotoPublicService,
+    private readonly downloads: PhotoDownloadService,
   ) {}
 
   /**
@@ -184,6 +193,39 @@ export class PhotosController {
   ): Promise<PhotoQueuePage> {
     const event = await this.organisersEvent(eventId, req);
     return this.moderation.list(event, query.filter, query.before);
+  }
+
+  /**
+   * Every stored original of the Event (or of one Tournament or Workshop) as one zip, with
+   * `photos.csv`, streamed (design Goal 10). Organisers only; a GET, so open on an archived
+   * Event until the deletion instant.
+   *
+   * Fastify answers HEAD through this handler too, and throws a streamed body away by reading it
+   * to the end, nothing able to stop it: a HEAD (a download manager's, a scanner's) would read
+   * every photo from the bucket. It gets the headers alone, and no zip is made.
+   */
+  @Get('events/:eventId/photos/download')
+  @ApiCookieAuth('sb-access-token')
+  @ApiOperation({ summary: "All of an Event's photos as one zip, with photos.csv (organisers)" })
+  @ApiParam({ name: 'eventId', format: 'uuid' })
+  @ApiProduces('application/zip')
+  async download(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: PhotoDownloadQueryDto,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const event = await this.organisersEvent(eventId, req);
+    reply.header('Content-Type', 'application/zip').header('Cache-Control', 'no-store');
+    if (req.method === 'HEAD') {
+      await reply.send();
+      return;
+    }
+    const filter = { tournamentId: query.tournamentId, workshopId: query.workshopId };
+    const zip = await this.downloads.zip(event, filter, csvFormatFromParam(query.csv));
+    await reply
+      .header('Content-Disposition', `attachment; filename="${zip.filename}"`)
+      .send(zip.body);
   }
 
   /** Open on an archived Event (ruling 443): a photo still waiting at archive can still be shown. */

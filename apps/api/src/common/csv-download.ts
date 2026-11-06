@@ -12,7 +12,7 @@ import {
  * French Excel's (`;`, `12,50`), `?csv=standard` the others' (`,`, `12.50`). A link made before the
  * choice names none, and keeps the standard file. Any other value is a 400.
  */
-const csvDownloadQuerySchema = z
+export const csvDownloadQuerySchema = z
   .object({
     csv: z.enum(CSV_FORMAT_PARAMS).default('standard'),
   })

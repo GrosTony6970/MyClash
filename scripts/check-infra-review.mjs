@@ -2907,6 +2907,32 @@ for (const middleware of ['myclash-geoblock-admin:', 'myclash-geoblock-public:']
   }
 }
 
+// The organiser's photo download streams one zip of up to 15 GB (photos design, Goal 10). The
+// photos are JPEG, already compressed, so gzipping them only loads a 0.5-CPU Traefik for nothing.
+// Prod's file-defined compress middleware and dev's label-defined one both leave zip and JPEG
+// alone (dev/prod parity).
+const prodCompress =
+  traefikMiddlewareText.split(/^ {4}myclash-compress:$/mu)[1]?.split(/^ {4}\S/mu)[0] ?? '';
+if (
+  !/^\s+excludedContentTypes:$/mu.test(prodCompress) ||
+  !/^\s+- application\/zip$/mu.test(prodCompress)
+) {
+  errors.push(
+    'infra/config/traefik/middlewares.yml: myclash-compress must list application/zip under ' +
+      'excludedContentTypes, so the photo download (up to 15 GB) is not gzipped by Traefik.',
+  );
+}
+if (
+  !/^\s+- traefik\.http\.middlewares\.myclash-compress\.compress\.excludedcontenttypes=[^\n]*\bapplication\/zip\b/mu.test(
+    devComposeText,
+  )
+) {
+  errors.push(
+    'infra/docker-compose.dev.yml: myclash-compress must exclude application/zip ' +
+      '(compress.excludedcontenttypes), as prod does (dev/prod parity).',
+  );
+}
+
 // GeoBlock's validateConfig requires `api` to be present AND to contain {ip};
 // there is no code default. Omitting it fails the middleware build with
 // "no api uri given", which disables every router referencing it — the whole

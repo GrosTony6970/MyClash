@@ -54,6 +54,8 @@ services:
       - traefik.enable=true
       # Shared compress middleware (referenced by all routers)
       - traefik.http.middlewares.myclash-compress.compress=true
+      # Zip and JPEG are already compressed (the photo download), as prod's middlewares.yml.
+      - traefik.http.middlewares.myclash-compress.compress.excludedcontenttypes=application/zip,image/jpeg
       # Fail2Ban — defined as labels here for the same reason as prod, so the
       # @docker vs @file provider split is exercised locally too. Thresholds
       # match prod; the allowlist is just the local ranges (no operator IP in

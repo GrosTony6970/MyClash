@@ -9849,6 +9849,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/photos/download': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** All of an Event's photos as one zip, with photos.csv (organisers) */
+    get: operations['PhotosController_download'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/photos/{photoId}/approve': {
     parameters: {
       query?: never;
@@ -26848,6 +26865,29 @@ export interface operations {
   PhotosController_summary: {
     parameters: {
       query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotosController_download: {
+    parameters: {
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+        tournamentId?: string;
+        workshopId?: string;
+      };
       header?: never;
       path: {
         eventId: string;

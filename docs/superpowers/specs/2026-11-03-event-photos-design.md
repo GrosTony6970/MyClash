@@ -396,6 +396,21 @@ list or delete 10 s, and abort a download stream that stalls for 30 s.
 - CSV cells go through `escapeCsvCell` (`packages/types/src/csv.ts:97-103`), so names typed by anonymous
   users cannot inject formulas.
 - Traefik `compress` excludes `application/zip`.
+- **[rev slice 7a, rulings 467-471]** As built:
+  - The writer is our own, `zipStream` in `common/stored-zip.ts`, sharing its records with the
+    in-memory writer (467). Zip64 records appear only past 4 GiB of offsets or 65,534 entries, so a
+    smaller zip is a plain one every reader opens (469: one zip; a Mac user past 4 GiB may need The
+    Unarchiver or Keka).
+  - Each original is read whole (at most 12 MiB, one read ahead) and checked against the stored
+    size and CRC before its entry is written. The stored CRC is the integrity check, not a way to
+    skip a read. A photo deleted or changed during the download is left out and logged, and
+    `photos.csv` lists only the photos in the zip (468), so the zip's size is not known in advance.
+  - `photos.csv` goes through `csvFile` (byte-order mark, CRLF, `escapeCsvCell`'s rules) in the
+    format the organiser picks, as every CSV download (470).
+  - Every row is read before the first byte, paged by id. The first photo is read inside the
+    request, so a bucket fault there is a scrubbed 503; after that a fault cuts the connection.
+  - From the deletion instant the download answers 410 Gone (`photosExpired`, the queue's rule).
+  - The page's button is slice 7b (471).
 
 ## Where it shows up (sketches the operator accepted; final look per DESIGN.md)
 

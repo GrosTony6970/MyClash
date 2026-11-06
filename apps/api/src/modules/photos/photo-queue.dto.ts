@@ -1,6 +1,19 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { PHOTO_QUEUE_FILTERS } from '@myclash/types';
+import { csvDownloadQuerySchema } from '../../common/csv-download';
+
+/**
+ * `GET events/:eventId/photos/download`: at most one of a Tournament or a Workshop, and the
+ * spreadsheet `photos.csv` is written for (`?csv=`, the one choice every CSV download offers).
+ * Strict as the schema it extends: an unknown key is a 400.
+ */
+export const photoDownloadQuerySchema = csvDownloadQuerySchema
+  .extend({ tournamentId: z.uuid().optional(), workshopId: z.uuid().optional() })
+  .refine((query) => !(query.tournamentId && query.workshopId), {
+    message: 'Download a Tournament or a Workshop, not both',
+  });
+export class PhotoDownloadQueryDto extends createZodDto(photoDownloadQuerySchema) {}
 
 /**
  * `GET events/:eventId/photos`: which tab, and the previous page's cursor. The cursor is a row's

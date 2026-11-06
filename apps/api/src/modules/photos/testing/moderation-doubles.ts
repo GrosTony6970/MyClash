@@ -45,6 +45,9 @@ export const recordingStore = (failOn?: string): PhotoStore => ({
   remove: async () => {
     throw new Error('moderation never deletes an image itself');
   },
+  get: async () => {
+    throw new Error('moderation never reads an image');
+  },
   list: async () => {
     throw new Error('moderation never lists the bucket');
   },

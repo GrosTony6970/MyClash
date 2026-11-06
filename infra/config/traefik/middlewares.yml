@@ -1,7 +1,12 @@
 http:
   middlewares:
+    # Zip and JPEG are already compressed: the photo download streams up to 15 GB of them, so
+    # gzipping would only load Traefik (scripts/check-infra-review.mjs holds this).
     myclash-compress:
-      compress: {}
+      compress:
+        excludedContentTypes:
+          - application/zip
+          - image/jpeg
     myclash-security-headers:
       headers:
         stsSeconds: 31536000

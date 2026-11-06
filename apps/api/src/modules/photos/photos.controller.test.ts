@@ -47,6 +47,7 @@ function controller() {
     supabase as never,
     moderation as never,
     publicPhotos as never,
+    {} as never,
   );
   return { ctl, upload, moderation, publicPhotos };
 }

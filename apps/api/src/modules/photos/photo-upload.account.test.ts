@@ -87,6 +87,9 @@ function writeOnlyStore(): PhotoStore {
   return {
     put: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
+    get: vi.fn(async () => {
+      throw new Error('the upload never reads an image back');
+    }),
     list: vi.fn(async () => {
       throw new Error('the upload never lists the bucket');
     }),

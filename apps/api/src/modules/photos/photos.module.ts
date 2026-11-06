@@ -6,6 +6,7 @@ import { MyPhotosController } from './my-photos.controller';
 import { MyPhotosService } from './my-photos.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PhotoDeviceService } from './photo-device';
+import { PhotoDownloadService } from './photo-download.service';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
 import { PhotoPublicService } from './photo-public.service';
@@ -34,6 +35,7 @@ import { PhotosStaffController } from './photos-staff.controller';
     PhotoLinkService,
     PhotoModerationService,
     PhotoPublicService,
+    PhotoDownloadService,
     photoStoreProvider,
   ],
 })

@@ -319,29 +319,33 @@ describe('the store over a bucket that never answers', () => {
     server.close();
   });
 
-  it.each(['remove', 'put', 'list'] as const)('%s gives up within its bound', async (call) => {
-    const { port } = server.address() as AddressInfo;
-    const config = { ...FR_PAR, endpoint: `http://127.0.0.1:${port}` };
-    const client = new S3Client({ ...photoBucketClientConfig(config), forcePathStyle: true });
-    const store = photoStoreOf({ kind: 'on', config }, client, {
-      writeMs: 300,
-      deleteMs: 300,
-      listMs: 300,
-    })!;
-    const started = Date.now();
-    try {
-      const pending =
-        call === 'remove'
-          ? store.remove('events/e/p/original.jpg')
-          : call === 'put'
-            ? store.put('events/e/p/original.jpg', Buffer.from('x'))
-            : store.list('events/');
-      await expect(pending).rejects.toThrow('Photo bucket did not answer within 300 ms');
-      expect(Date.now() - started).toBeLessThan(2_000);
-    } finally {
-      client.destroy();
-    }
-  });
+  it.each(['remove', 'put', 'list', 'get'] as const)(
+    '%s gives up within its bound',
+    async (call) => {
+      const { port } = server.address() as AddressInfo;
+      const config = { ...FR_PAR, endpoint: `http://127.0.0.1:${port}` };
+      const client = new S3Client({ ...photoBucketClientConfig(config), forcePathStyle: true });
+      const store = photoStoreOf({ kind: 'on', config }, client, {
+        writeMs: 300,
+        deleteMs: 300,
+        listMs: 300,
+        readMs: 300,
+      })!;
+      const started = Date.now();
+      try {
+        const pending = {
+          remove: () => store.remove('events/e/p/original.jpg'),
+          put: () => store.put('events/e/p/original.jpg', Buffer.from('x')),
+          list: () => store.list('events/'),
+          get: () => store.get('events/e/p/original.jpg'),
+        }[call]();
+        await expect(pending).rejects.toThrow('Photo bucket did not answer within 300 ms');
+        expect(Date.now() - started).toBeLessThan(2_000);
+      } finally {
+        client.destroy();
+      }
+    },
+  );
 });
 
 describe('headPhotoBucket', () => {
