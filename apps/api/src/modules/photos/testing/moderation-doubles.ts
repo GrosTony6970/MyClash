@@ -79,38 +79,7 @@ export interface ModerationSetup {
 }
 
 export function moderation(options: ModerationSetup = {}) {
-  const event =
-    options.event === null
-      ? null
-      : {
-          id: EVENT,
-          organization_id: ORG,
-          slug: 'open-2026',
-          name: 'Open 2026',
-          start_date: '2026-11-07',
-          end_date: '2026-11-08',
-          timezone: 'Europe/Paris',
-          photo_mode: 'approve',
-          photo_token_version: 1,
-          ...options.event,
-        };
-  const supabase = mockSupabase(
-    {
-      events: { data: event, error: null },
-      event_photos: { rows: options.photos ?? [] },
-      event_photo_reports: { rows: options.reports ?? [] },
-      platform_roles: platformRoleSeed(options.platformRole ?? null),
-      audit_log: { data: null, error: options.auditFails ? { message: 'audit down' } : null },
-    },
-    {
-      event_photo_usage: () => ({
-        data: [
-          { sender_last_hour: 0, ...(options.usage ?? { event_last_hour: 0, event_bytes: 0 }) },
-        ],
-        error: null,
-      }),
-    },
-  );
+  const supabase = seededDatabase(options);
   const orgs = {
     assertOrgRole: vi.fn(async () => {
       if (options.allowed === false) {
@@ -129,6 +98,42 @@ export function moderation(options: ModerationSetup = {}) {
     queue as never,
   );
   return { service, organiser: asOrganiser(service), supabase, orgs, staff, store, queue };
+}
+
+/** The Event (or none), its photos and reports, the caller's platform role and the audit log. */
+function seededDatabase(options: ModerationSetup) {
+  const event =
+    options.event === null
+      ? null
+      : {
+          id: EVENT,
+          organization_id: ORG,
+          slug: 'open-2026',
+          name: 'Open 2026',
+          start_date: '2026-11-07',
+          end_date: '2026-11-08',
+          timezone: 'Europe/Paris',
+          photo_mode: 'approve',
+          photo_token_version: 1,
+          ...options.event,
+        };
+  return mockSupabase(
+    {
+      events: { data: event, error: null },
+      event_photos: { rows: options.photos ?? [] },
+      event_photo_reports: { rows: options.reports ?? [] },
+      platform_roles: platformRoleSeed(options.platformRole ?? null),
+      audit_log: { data: null, error: options.auditFails ? { message: 'audit down' } : null },
+    },
+    {
+      event_photo_usage: () => ({
+        data: [
+          { sender_last_hour: 0, ...(options.usage ?? { event_last_hour: 0, event_bytes: 0 }) },
+        ],
+        error: null,
+      }),
+    },
+  );
 }
 
 /** The caller's `platform_roles` read, as `readPlatformRole` makes it (`maybeSingle`). */
