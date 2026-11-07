@@ -43,7 +43,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { PHOTO_DEVICE_COOKIE, PhotoDeviceService } from './photo-device';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
-import type { PhotoEventRow } from './photo-organiser';
+import type { GatedPhotoEvent } from './photo-organiser';
 import { PhotoReportBodyDto, PublicPhotoQueryDto } from './photo-public.dto';
 import { PhotoPublicService } from './photo-public.service';
 import { PhotoDownloadService } from './photo-download.service';
@@ -173,25 +173,29 @@ export class PhotosController {
 
   @Get('events/:eventId/photos/summary')
   @ApiCookieAuth('sb-access-token')
-  @ApiOperation({ summary: "The Event's photo mode, caps and deletion date (organisers)" })
+  @ApiOperation({
+    summary: "The Event's photo mode, caps and deletion date (organisers, super admins)",
+  })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   async summary(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ): Promise<PhotoSummary> {
-    return this.moderation.summary(await this.organisersEvent(eventId, req));
+    return this.moderation.summary(await this.moderatorsEvent(eventId, req));
   }
 
   @Get('events/:eventId/photos')
   @ApiCookieAuth('sb-access-token')
-  @ApiOperation({ summary: 'One page of the photo moderation queue, newest first (organisers)' })
+  @ApiOperation({
+    summary: 'One page of the photo moderation queue, newest first (organisers, super admins)',
+  })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   async queue(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() query: PhotoQueueQueryDto,
     @Req() req: FastifyRequest,
   ): Promise<PhotoQueuePage> {
-    const event = await this.organisersEvent(eventId, req);
+    const event = await this.moderatorsEvent(eventId, req);
     return this.moderation.list(event, query.filter, query.before);
   }
 
@@ -233,7 +237,7 @@ export class PhotosController {
   @AllowOnArchivedEvent()
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth('sb-access-token')
-  @ApiOperation({ summary: 'Approve a photo: the public sees it (organisers)' })
+  @ApiOperation({ summary: 'Approve a photo: the public sees it (organisers, super admins)' })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   @ApiParam({ name: 'photoId', format: 'uuid' })
   async approve(
@@ -241,7 +245,7 @@ export class PhotosController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; status: 'approved' }> {
-    return this.moderation.approve(await this.organisersEvent(eventId, req), photoId);
+    return this.moderation.approve(await this.moderatorsEvent(eventId, req), photoId);
   }
 
   /** Open on an archived Event: a person in a photo may ask for it to go (design, privacy). */
@@ -249,7 +253,7 @@ export class PhotosController {
   @AllowOnArchivedEvent()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiCookieAuth('sb-access-token')
-  @ApiOperation({ summary: 'Delete a photo and its images (organisers)' })
+  @ApiOperation({ summary: 'Delete a photo and its images (organisers, super admins)' })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   @ApiParam({ name: 'photoId', format: 'uuid' })
   async remove(
@@ -257,7 +261,7 @@ export class PhotosController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Req() req: FastifyRequest,
   ): Promise<void> {
-    await this.moderation.remove(await this.organisersEvent(eventId, req), photoId);
+    await this.moderation.remove(await this.moderatorsEvent(eventId, req), photoId);
   }
 
   /**
@@ -269,7 +273,8 @@ export class PhotosController {
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth('sb-access-token')
   @ApiOperation({
-    summary: 'Keep a reported photo: clear its reports up to the newest shown (organisers)',
+    summary:
+      'Keep a reported photo: clear its reports up to the newest shown (organisers, super admins)',
   })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   @ApiParam({ name: 'photoId', format: 'uuid' })
@@ -279,14 +284,20 @@ export class PhotosController {
     @Body() body: PhotoKeepBodyDto,
     @Req() req: FastifyRequest,
   ): Promise<{ id: string; kept: true }> {
-    const event = await this.organisersEvent(eventId, req);
+    const event = await this.moderatorsEvent(eventId, req);
     return this.moderation.keep(event, photoId, body.reportsUpTo);
   }
 
-  /** The signed-in caller, as an admin of the Event's club: the gate of the organiser's calls above. */
-  private async organisersEvent(eventId: string, req: FastifyRequest): Promise<PhotoEventRow> {
+  /** The signed-in caller, as an admin of the Event's club: the zip's gate (ruling 492). */
+  private async organisersEvent(eventId: string, req: FastifyRequest): Promise<GatedPhotoEvent> {
     const userId = await requireRequestUserId(req, this.supabase);
     return this.moderation.eventForOrganiser(eventId, userId);
+  }
+
+  /** The signed-in caller, as a club admin or a platform super admin: the queue's gate (491). */
+  private async moderatorsEvent(eventId: string, req: FastifyRequest): Promise<GatedPhotoEvent> {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.moderation.eventForModerator(eventId, userId);
   }
 
   /**

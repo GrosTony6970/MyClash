@@ -33,7 +33,8 @@ describe('the organiser gate', () => {
       await expect(read).rejects.toThrow('Not an admin of this club');
 
       expect(orgs.assertOrgRole).toHaveBeenCalledWith(ORG, USER, 'admin');
-      expect(queriedTables(supabase.from)).toEqual(['events']);
+      // The club refused; the platform role is asked next (no row here, ruling 491). No photo.
+      expect(queriedTables(supabase.from)).toEqual(['events', 'platform_roles']);
       expect(supabase.rpc).not.toHaveBeenCalled();
     },
   );

@@ -10,6 +10,7 @@ import {
   type PhotoQueuePage,
   type PhotoSummary,
 } from '@myclash/types';
+import { insertAuditLog } from '../../common/audit-log';
 import { eventZone } from '../../common/event-clock';
 import { PHOTO_CLEANUP_QUEUE } from '../../workers/photo-cleanup.worker';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -19,7 +20,13 @@ import { requestDrain } from './photo-drain';
 import { photoTag } from './photo-tag';
 import { photoLinks } from './photo-links';
 import { StaffService } from '../staff/staff.service';
-import { organisersEvent, photoEvent, type PhotoEventRow } from './photo-organiser';
+import {
+  moderatorsEvent,
+  organisersEvent,
+  photoEvent,
+  type GatedPhotoEvent,
+  type PhotoEventRow,
+} from './photo-organiser';
 import { EVENT_PHOTO_BYTES, EVENT_PHOTOS_PER_HOUR } from './photo-upload.service';
 import { photoDeletionInstant, photosExpired } from './photo-window';
 
@@ -55,10 +62,12 @@ const PHOTO_STAFF_ROLES = ['photos'] as const;
 
 /**
  * The moderation queue (design, "Moderation"): what the Event has received and what the public
- * reported (each photo with its reports' count and comments), approve, keep, delete. Two
- * gates hand the calls their Event: `eventForOrganiser` (org admin, the admin page) and
+ * reported (each photo with its reports' count and comments), approve, keep, delete. Three
+ * gates hand the calls their Event: `eventForOrganiser` (org admin: the QR link and the zip),
+ * `eventForModerator` (org admin, or a platform super admin: the queue, rulings 491-492) and
  * `eventForStaff` (a staff login with the `photos` job, the staff app, on the login's own Event).
- * A call never takes an Event that did not come through one of them.
+ * A write never takes an Event that did not come through one of them: each answers whom the
+ * audit log must name, and a super admin's approve, keep or delete writes that row first (494).
  *
  * A delete removes the row; the 0250 trigger queues both images, and a drain job queued here
  * takes them out of the bucket now rather than at the next 5-minute tick.
@@ -78,8 +87,13 @@ export class PhotoModerationService {
   ) {}
 
   /** The organiser's gate: an admin of the Event's club. */
-  eventForOrganiser(eventId: string, userId: string): Promise<PhotoEventRow> {
+  eventForOrganiser(eventId: string, userId: string): Promise<GatedPhotoEvent> {
     return organisersEvent(this.supabase, this.orgs, eventId, userId);
+  }
+
+  /** The queue's gate: an admin of the Event's club, or a platform super admin (recorded). */
+  eventForModerator(eventId: string, userId: string): Promise<GatedPhotoEvent> {
+    return moderatorsEvent(this.supabase, this.orgs, eventId, userId);
   }
 
   /**
@@ -87,9 +101,9 @@ export class PhotoModerationService {
    * archived (completed is open to this job, ruling 437). The Event is the session's own: a staff
    * route names none.
    */
-  async eventForStaff(req: FastifyRequest): Promise<PhotoEventRow> {
+  async eventForStaff(req: FastifyRequest): Promise<GatedPhotoEvent> {
     const staff = await this.staff.requireStaffWithRole(req, PHOTO_STAFF_ROLES);
-    return photoEvent(this.supabase, staff.event_id);
+    return { ...(await photoEvent(this.supabase, staff.event_id)), auditActor: null };
   }
 
   async summary(event: PhotoEventRow): Promise<PhotoSummary> {
@@ -147,9 +161,10 @@ export class PhotoModerationService {
 
   /** Shown to the public from now on. Approving an approved photo changes nothing. */
   async approve(
-    event: PhotoEventRow,
+    event: GatedPhotoEvent,
     photoId: string,
   ): Promise<{ id: string; status: 'approved' }> {
+    await this.recordPlatformWrite(event, photoId, 'event_photo.approve');
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .update({ status: 'approved' })
@@ -169,10 +184,11 @@ export class PhotoModerationService {
    * nothing.
    */
   async keep(
-    event: PhotoEventRow,
+    event: GatedPhotoEvent,
     photoId: string,
     reportsUpTo: string,
   ): Promise<{ id: string; kept: true }> {
+    await this.recordPlatformWrite(event, photoId, 'event_photo.keep');
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .select('id')
@@ -191,7 +207,8 @@ export class PhotoModerationService {
   }
 
   /** Deletes the photo. Its images are queued by the row trigger; the drain is asked for now. */
-  async remove(event: PhotoEventRow, photoId: string): Promise<void> {
+  async remove(event: GatedPhotoEvent, photoId: string): Promise<void> {
+    await this.recordPlatformWrite(event, photoId, 'event_photo.delete');
     const { data, error } = await this.supabase.service
       .from('event_photos')
       .delete()
@@ -201,6 +218,36 @@ export class PhotoModerationService {
     if (error) throw new Error(error.message);
     if (!data?.length) throw photoNotFound();
     requestDrain(this.queue, this.logger, photoId);
+  }
+
+  /**
+   * A platform super admin's write is recorded BEFORE it is made (ruling 494): the photo is read
+   * (absent: the 404, and no row), then the audit row; a failed audit write refuses the change
+   * with a 5xx, so nothing a super admin does to a club's photos goes unrecorded. The club's own
+   * moderators (`auditActor` null) write no row, as before.
+   */
+  private async recordPlatformWrite(
+    event: GatedPhotoEvent,
+    photoId: string,
+    action: 'event_photo.approve' | 'event_photo.keep' | 'event_photo.delete',
+  ): Promise<void> {
+    if (event.auditActor === null) return;
+    const { data, error } = await this.supabase.service
+      .from('event_photos')
+      .select('id, created_at')
+      .eq('id', photoId)
+      .eq('event_id', event.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw photoNotFound();
+    const { error: unrecorded } = await insertAuditLog(this.supabase.service, {
+      actorUserId: event.auditActor,
+      action,
+      entityType: 'event',
+      entityId: event.id,
+      payload: { photoId, sentAt: (data as { created_at: string }).created_at },
+    });
+    if (unrecorded) throw new Error(`audit write failed, ${action} refused: ${unrecorded.message}`);
   }
 
   /**

@@ -27,6 +27,7 @@ function controller() {
   const links = { read: vi.fn(), rotate: vi.fn() };
   const moderation = {
     eventForOrganiser: vi.fn(async (eventId: string) => ({ id: eventId, gate: 'organiser' })),
+    eventForModerator: vi.fn(async (eventId: string) => ({ id: eventId, gate: 'moderator' })),
     summary: vi.fn(async () => ({})),
     list: vi.fn(async () => ({ photos: [], next: null })),
     approve: vi.fn(async () => ({ id: PHOTO, status: 'approved' })),
@@ -148,18 +149,19 @@ describe('PhotoLinkService', () => {
 describe('the moderation routes', () => {
   const signedIn = () => req({ 'sb-access-token': 'session' });
 
-  it('pass the Event of the organiser gate to each call', async () => {
+  it("pass the Event of the moderators' gate (club admin or super admin, 491) to each call", async () => {
     const { ctl, moderation } = controller();
     await ctl.summary(EVENT, signedIn());
     await ctl.queue(EVENT, { filter: 'all', before: undefined }, signedIn());
     await ctl.approve(EVENT, PHOTO, signedIn());
     await ctl.remove(EVENT, PHOTO, signedIn());
 
-    expect(moderation.eventForOrganiser).toHaveBeenCalledTimes(4);
-    for (const call of moderation.eventForOrganiser.mock.calls) {
+    expect(moderation.eventForModerator).toHaveBeenCalledTimes(4);
+    for (const call of moderation.eventForModerator.mock.calls) {
       expect(call).toEqual([EVENT, 'user-7']);
     }
-    const gated = { id: EVENT, gate: 'organiser' };
+    expect(moderation.eventForOrganiser).not.toHaveBeenCalled();
+    const gated = { id: EVENT, gate: 'moderator' };
     expect(moderation.summary).toHaveBeenCalledWith(gated);
     expect(moderation.list).toHaveBeenCalledWith(gated, 'all', undefined);
     expect(moderation.approve).toHaveBeenCalledWith(gated, PHOTO);
@@ -186,15 +188,15 @@ describe('the moderation routes', () => {
     expect(open('rotateLink')).toBe(false);
   });
 
-  it("Keep clears a photo's reports up to the newest shown, behind the organiser gate, open on an archived Event (447, 457)", async () => {
+  it("Keep clears a photo's reports up to the newest shown, behind the moderators' gate, open on an archived Event (447, 457)", async () => {
     const { ctl, moderation } = controller();
     const body = { reportsUpTo: SHOWN };
     await expect(ctl.keep(EVENT, PHOTO, body, signedIn())).resolves.toEqual({
       id: PHOTO,
       kept: true,
     });
-    expect(moderation.eventForOrganiser).toHaveBeenCalledWith(EVENT, 'user-7');
-    expect(moderation.keep).toHaveBeenCalledWith({ id: EVENT, gate: 'organiser' }, PHOTO, SHOWN);
+    expect(moderation.eventForModerator).toHaveBeenCalledWith(EVENT, 'user-7');
+    expect(moderation.keep).toHaveBeenCalledWith({ id: EVENT, gate: 'moderator' }, PHOTO, SHOWN);
 
     await expect(ctl.keep(EVENT, PHOTO, body, req())).rejects.toThrow('Authentication required');
     expect(marked(ALLOW_ON_ARCHIVED_EVENT_KEY, 'keep')).toBe(true);

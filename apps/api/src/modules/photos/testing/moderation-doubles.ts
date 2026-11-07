@@ -70,6 +70,12 @@ export interface ModerationSetup {
   store?: PhotoStore | null;
   usage?: { event_last_hour: number; event_bytes: number | string };
   add?: () => Promise<unknown>;
+  /** The caller's `platform_roles` row: a role, none (the default), or a failed read. */
+  platformRole?: string | null | 'read-fails';
+  /** The club gate's refusal when `allowed` is false: a 403 by default. */
+  refusal?: Error;
+  /** The audit write fails. */
+  auditFails?: boolean;
 }
 
 export function moderation(options: ModerationSetup = {}) {
@@ -93,6 +99,8 @@ export function moderation(options: ModerationSetup = {}) {
       events: { data: event, error: null },
       event_photos: { rows: options.photos ?? [] },
       event_photo_reports: { rows: options.reports ?? [] },
+      platform_roles: platformRoleSeed(options.platformRole ?? null),
+      audit_log: { data: null, error: options.auditFails ? { message: 'audit down' } : null },
     },
     {
       event_photo_usage: () => ({
@@ -105,7 +113,9 @@ export function moderation(options: ModerationSetup = {}) {
   );
   const orgs = {
     assertOrgRole: vi.fn(async () => {
-      if (options.allowed === false) throw new ForbiddenException('Not an admin of this club');
+      if (options.allowed === false) {
+        throw options.refusal ?? new ForbiddenException('Not an admin of this club');
+      }
     }),
   };
   const staff = staffGate(options.staff ?? { eventId: EVENT });
@@ -121,6 +131,12 @@ export function moderation(options: ModerationSetup = {}) {
   return { service, organiser: asOrganiser(service), supabase, orgs, staff, store, queue };
 }
 
+/** The caller's `platform_roles` read, as `readPlatformRole` makes it (`maybeSingle`). */
+function platformRoleSeed(role: string | null | 'read-fails') {
+  if (role === 'read-fails') return { data: null, error: { message: 'platform_roles down' } };
+  return { data: role === null ? null : { role }, error: null };
+}
+
 /** `StaffService.requireStaffWithRole`: the login's Event, or the refusal it was given. */
 function staffGate(answer: { eventId: string } | Error) {
   return {
@@ -131,9 +147,9 @@ function staffGate(answer: { eventId: string } | Error) {
   };
 }
 
-/** The calls behind the organiser's gate, as `PhotosController` makes them. */
+/** The queue's calls behind their gate (club admin, or super admin), as `PhotosController` makes them. */
 function asOrganiser(service: PhotoModerationService) {
-  const gate = (eventId: string, userId: string) => service.eventForOrganiser(eventId, userId);
+  const gate = (eventId: string, userId: string) => service.eventForModerator(eventId, userId);
   return {
     summary: async (eventId: string, userId: string) =>
       service.summary(await gate(eventId, userId)),
