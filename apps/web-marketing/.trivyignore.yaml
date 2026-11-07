@@ -1,41 +1,25 @@
 # Findings the Trivy scan of the web-marketing image accepts. Read by the
 # `trivy-images` job of .github/workflows/ci.yml, for this image only.
 #
-# Accepted by the operator on 2026-10-10 (the first three rows), 2026-10-22
-# (CVE-2026-111943) and 2026-10-28 (the last two). The first four are in the Go
-# runtime that the Caddy binary was built with (Go 1.26.8; the first three fixed
-# in 1.26.9, CVE-2026-111943 in 1.26.10). CVE-2026-56857 is in that runtime too
-# (fixed in 1.26.9). CVE-2026-116587 is in the go-jose module Caddy bundles
-# (v4.1.5, fixed in 4.1.6). Caddy 2.11.7 is the newest release and it has no fix.
-# The image serves static pages only, over plain HTTP on :80 (Caddyfile), so
-# Caddy does no TLS or certificate work here.
+# Accepted by the operator on 2026-11-07. CVE-2026-78661 is in the
+# golang.org/x/net module that the Caddy binary bundles (v0.60.0, fixed in
+# 0.62.0, a denial of service through crafted HTML given to its parser).
+# Caddy 2.11.9 is the newest release and still bundles v0.60.0; only Caddy's
+# unreleased master has v0.62.0. This Caddy parses no HTML: the Caddyfile has
+# no `templates` or `markdown`, it serves our own static files over plain HTTP
+# on :80.
 #
-# REMOVE each entry when a Caddy release built with the fixed Go (and go-jose
-# 4.1.6) is out: `caddy:2-alpine` follows the newest release, so the scan is
-# then green without it. Each entry names the Caddy binary, so it accepts
-# nothing in another file of the image.
+# The six entries accepted from 2026-10-10 to 2026-10-28 (the Go 1.26.8 runtime
+# and go-jose v4.1.5 in Caddy 2.11.7) were removed on 2026-11-07: Caddy 2.11.9
+# is built with Go 1.27.3 and go-jose v4.1.6, and a scan of `caddy:2-alpine`
+# with no ignore file finds only CVE-2026-78661.
+#
+# REMOVE the entry when a Caddy release bundles golang.org/x/net 0.62.0 or
+# later: `caddy:2-alpine` follows the newest release, so the scan is then green
+# without it. The entry names the Caddy binary, so it accepts nothing in another
+# file of the image.
 vulnerabilities:
-  - id: CVE-2026-78667
+  - id: CVE-2026-78661
     paths:
       - usr/bin/caddy
-    statement: Go stdlib net/http in the Caddy 2.11.7 binary. No Caddy release has the fix.
-  - id: CVE-2026-78669
-    paths:
-      - usr/bin/caddy
-    statement: Go net/http HTTP/2 (stdlib and golang.org/x/net) in the Caddy 2.11.7 binary. No Caddy release has the fix.
-  - id: CVE-2026-97031
-    paths:
-      - usr/bin/caddy
-    statement: Go stdlib crypto/tls in the Caddy 2.11.7 binary. No Caddy release has the fix.
-  - id: CVE-2026-111943
-    paths:
-      - usr/bin/caddy
-    statement: Go stdlib crypto/x509 in the Caddy 2.11.7 binary. No Caddy release has the fix.
-  - id: CVE-2026-56857
-    paths:
-      - usr/bin/caddy
-    statement: Go stdlib os.Root.Mkdir following junctions, Windows only, in the Caddy 2.11.7 binary. The image runs Linux. No Caddy release has the fix.
-  - id: CVE-2026-116587
-    paths:
-      - usr/bin/caddy
-    statement: go-jose v4.1.5 JWK parsing in the Caddy 2.11.7 binary. This Caddy serves plain HTTP and does no certificate work. No Caddy release has the fix.
+    statement: golang.org/x/net/html v0.60.0 in the Caddy 2.11.9 binary. This Caddy parses no HTML (no templates or markdown in the Caddyfile). No Caddy release has the fix.
