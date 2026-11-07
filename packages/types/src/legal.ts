@@ -40,11 +40,16 @@ export interface LegalPolicy {
 export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = {
   terms: {
     kind: 'terms',
+    // 2026-11-07: §4bis says the organiser and LYON AMHE are jointly
+    // responsible for an Event's photos, and who does what (ruling 485); §6.2
+    // limits the licence over an Event's photos to operating the platform,
+    // never its promotion (482).
+    //
     // 2026-08-04: rewrote §2 (three sign-in paths, guest participation, the
     // acceptance record), marked Google OAuth as not yet enabled, added §4bis
     // on organiser obligations, and replaced §12's "continued use is
     // acceptance" with what the product actually does — it asks.
-    version: '2026-08-04',
+    version: '2026-11-07',
     path: { en: '/en/terms', fr: '/terms' },
   },
   privacy: {
