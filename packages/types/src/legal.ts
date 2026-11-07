@@ -59,7 +59,9 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // database backups keep deleted data about 60 days (481); §2.7 says what the
     // server logs record and how long they last, and no longer claims we record
     // no page visits (484, 486); §3bis tells a parent how to have a photo of
-    // their child removed (483). Bumped: the text a person accepts changed.
+    // their child removed (483); §3bis's moderators include MyClash's platform
+    // administrators (494), added before any deploy of this version, so under
+    // the same date. Bumped: the text a person accepts changed.
     //
     // 2026-11-06: §3bis on Event photos (new processing: images of people, the
     // sender's name, the phone's cookie, the 30-day deletion, the organiser's
