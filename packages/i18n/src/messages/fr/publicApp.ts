@@ -1003,7 +1003,7 @@ export const publicApp = {
       'Votre connexion et vos informations personnelles — photo, biographie, date de naissance, email de contact et liens sociaux — sont supprimées, ainsi que les photos que vous avez envoyées depuis votre espace personnel, vos abonnements et vos préférences de notification. Votre nom reste sur les résultats de compétition publiés : ils constituent un registre public d’événements qui ont eu lieu. Si vous avez besoin que votre nom soit également retiré, contactez-nous.',
     deleteTitle: 'Supprimer mon compte',
     deleteSubtitle:
-      'Cette action est définitive. Votre connexion et vos informations personnelles sont supprimées, et vos profils déliés. Votre nom reste sur les résultats de compétition publiés, qui constituent un registre public.',
+      'Cette action est définitive. Votre connexion et vos informations personnelles sont supprimées, ainsi que les photos envoyées depuis votre espace personnel, et vos profils déliés. Votre nom reste sur les résultats de compétition publiés, qui constituent un registre public.',
     deleteAction: 'Supprimer mon compte',
     // Le mot tapé pour confirmer une suppression, dans la langue du lecteur (opérateur, 2026-10-14).
     deleteWord: 'SUPPRIMER',

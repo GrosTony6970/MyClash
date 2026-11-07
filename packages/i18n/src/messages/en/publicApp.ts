@@ -998,7 +998,7 @@ export const publicApp = {
       'Your sign-in and personal details — photo, biography, date of birth, contact email and social links — are deleted, along with the photos you sent from your personal space, your follows and notification settings. Your name stays on published competition results: those are a public record of events that took place. If you need your name removed too, contact us.',
     deleteTitle: 'Delete my account',
     deleteSubtitle:
-      'This is permanent. Your sign-in and personal details are removed, and your profiles are unlinked. Your name stays on published competition results, which are a public record.',
+      'This is permanent. Your sign-in and personal details are removed, the photos you sent from your personal space are deleted, and your profiles are unlinked. Your name stays on published competition results, which are a public record.',
     deleteAction: 'Delete my account',
     // The word typed to confirm a deletion, in the reader's language (operator, 2026-10-14).
     deleteWord: 'DELETE',
