@@ -8,7 +8,7 @@ import Legal from '../../layouts/Legal.astro';
   title={"Privacy Policy — MyClash"}
   description={"MyClash privacy policy — how we collect, use and protect your personal data in accordance with the GDPR."}
   heading={"Privacy Policy"}
-  updated={"Last updated: 6 November 2026"}
+  updated={"Last updated: 7 November 2026"}
 >
 <!-- 1 -->
 <h2>1. Who we are, and who is responsible for your data</h2>
@@ -38,7 +38,7 @@ import Legal from '../../layouts/Legal.astro';
     </tr>
     <tr>
       <td><strong>You sent a photo to an event</strong>, from the QR code or from your personal space, <strong>or you appear in one</strong></td>
-      <td><strong>The organiser of that event.</strong> They open the event to photos, approve them and may download them. MyClash hosts them on their behalf and deletes them 30 days after the event (see §3bis)</td>
+      <td><strong>The organiser of that event and LYON AMHE, jointly.</strong> The organiser opens the event to photos, chooses whether they need approval, moderates them and may download them. MyClash stores them, removes their hidden data, gives each phone its random number, deletes them 30 days after the event and answers the requests sent to us (see §3bis). You may write to either one.</td>
     </tr>
   </tbody>
 </table>
@@ -80,7 +80,7 @@ import Legal from '../../layouts/Legal.astro';
 <p>If an organiser has enabled the AI features (see §7), the questions asked and the content generated are recorded, together with the volume consumed. See §8 for what leaves our infrastructure.</p>
 
 <h3>2.7 Technical data</h3>
-<p>The IP address and browser of a guest session and of an acceptance record, server logs, and error reports. <strong>We do not perform audience measurement</strong>: MyClash contains no analytics tool, no advertising tag, and no third-party tracker. We do not record which pages you visit or how long you spend on them.</p>
+<p>The IP address and browser of a guest session and of an acceptance record, server logs, and error reports. Server logs record each request: the address it came from, what was asked for, and when. Each service keeps them in a limited space where newer lines replace the oldest, so the busier the platform, the sooner a line goes: at an event, usually within a few days. They are not in our backups, and we use them only to keep the platform working and secure. <strong>We do not perform audience measurement</strong>: MyClash contains no analytics tool, no advertising tag, and no third-party tracker. Apart from these logs, we keep no record of the pages you visit, and nothing measures how long you stay on them.</p>
 
 <h3>2.8 What we never collect</h3>
 <p>No special-category data within the meaning of Article 9 GDPR (health, ethnic origin, political or religious opinions, biometric data), no bank or payment details, and no precise geolocation.</p>
@@ -99,6 +99,7 @@ import Legal from '../../layouts/Legal.astro';
 <!-- 3bis -->
 <h2 id="photos">3bis. An event's photos</h2>
 <p>An organiser may open their event to photos: people at the venue send them from their phone, and the event's public page shows them. The feature is off by default; it exists on an event only if its organiser turned it on.</p>
+<p>The organiser and LYON AMHE are jointly responsible for these photos; §1.1 says who does what.</p>
 
 <h3>What we record</h3>
 <table>
@@ -121,13 +122,14 @@ import Legal from '../../layouts/Legal.astro';
 <p>Under every public photo, "Report" puts it in the list of reported photos the moderators see. We record the comment you add (optional, at most 200 characters) and your phone's random number (the same cookie). The photo stays visible until a moderator deletes it or decides to keep it; if they keep it, the reports they read are erased.</p>
 
 <h3>How long</h3>
-<p><strong>Every photo of an event is deleted 30 days after the event's last day</strong>, at midnight, event time, with its name, caption and reports. A photo goes earlier if a moderator deletes it or the event is deleted; and, for a photo sent from your personal space, if you delete it, delete your account, or ask us to anonymise your name. The images are never in our backups.</p>
+<p><strong>Every photo of an event is deleted 30 days after the event's last day</strong>, at midnight, event time, with its name, caption and reports. A photo goes earlier if a moderator deletes it or the event is deleted; and, for a photo sent from your personal space, if you delete it, delete your account, or ask us to anonymise your name. The images are never in our backups; the names, captions and reports stay in our encrypted database backups for about 60 more days (see §6.1).</p>
 
 <h3>What you can do</h3>
 <ul>
   <li><strong>You sent a photo from your personal space</strong>: the event's Photos tab, in your personal space, lists it, and you can delete it at any time. If the event no longer shows in your personal space, write to us.</li>
   <li><strong>You sent a photo from the QR code</strong>: it is not stored with your account, so you cannot delete it yourself. Ask the organiser, or write to us.</li>
   <li><strong>You appear in a photo</strong> you do not want shown: press "Report" and say so, or write to the organiser. If you cannot reach them, write to us (see §11): we will help.</li>
+  <li><strong>A photo shows your child</strong>: as their parent or guardian, ask for it to be removed in the same way (Report, the organiser, or us). We remove it without asking you for a reason.</li>
 </ul>
 
 <!-- 4 -->
@@ -193,6 +195,7 @@ import Legal from '../../layouts/Legal.astro';
   <li>the photos you sent from your personal space are deleted;</li>
   <li>personal data inside the audit trail is redacted in place.</li>
 </ul>
+<p><strong>One copy outlasts that moment: our backups.</strong> Every night an encrypted copy of the database goes to off-site storage, and we keep the most recent ones, about 60 days. Your deleted data stays in them until the copy that holds it is replaced. We use these copies only to repair the platform after an incident.</p>
 <p><strong>Your competition results keep your name.</strong> A result is the record of a public competition in which you took part, alongside the opponents you faced; erasing it would rewrite other people's history too. If you want your name removed from published results as well, ask us: we anonymise it, the result survives under an anonymous entry, and the photos you sent from your personal space are deleted.</p>
 <p>We retain a record that an erasure took place and when — never who it concerned. That record is a one-way cryptographic fingerprint, which cannot be traced back to you.</p>
 

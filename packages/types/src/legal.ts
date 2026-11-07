@@ -49,6 +49,13 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
   },
   privacy: {
     kind: 'privacy',
+    // 2026-11-07: the organiser and LYON AMHE are jointly responsible for an
+    // Event's photos (§1.1, §3bis; ruling 485); §6.1 and §3bis say the encrypted
+    // database backups keep deleted data about 60 days (481); §2.7 says what the
+    // server logs record and how long they last, and no longer claims we record
+    // no page visits (484, 486); §3bis tells a parent how to have a photo of
+    // their child removed (483). Bumped: the text a person accepts changed.
+    //
     // 2026-11-06: §3bis on Event photos (new processing: images of people, the
     // sender's name, the phone's cookie, the 30-day deletion, the organiser's
     // zip); §1.1, §2.4, §4, §5, §6, §6.1, §7 and §11 point at it. Bumped: this
@@ -84,7 +91,7 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // this one — Sentry self-hosted, no transfers outside the EU, analytics
     // cookies behind a consent panel that did not exist, and a 30-day
     // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
-    version: '2026-11-06',
+    version: '2026-11-07',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };

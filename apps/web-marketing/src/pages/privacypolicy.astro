@@ -8,7 +8,7 @@ import Legal from '../layouts/Legal.astro';
   title={"Politique de Confidentialité — MyClash"}
   description={"Politique de confidentialité de MyClash — comment nous collectons, utilisons et protégeons vos données personnelles conformément au RGPD."}
   heading={"Politique de Confidentialité"}
-  updated={"Dernière mise à jour : 6 novembre 2026"}
+  updated={"Dernière mise à jour : 7 novembre 2026"}
 >
 <!-- 1 -->
 <h2>1. Qui sommes-nous, et qui est responsable de vos données ?</h2>
@@ -38,7 +38,7 @@ import Legal from '../layouts/Legal.astro';
     </tr>
     <tr>
       <td><strong>Vous avez envoyé une photo à un événement</strong>, par le QR code ou depuis votre espace personnel, <strong>ou vous figurez sur l'une d'elles</strong></td>
-      <td><strong>L'organisateur de cet événement.</strong> C'est lui qui ouvre l'événement aux photos, les valide et peut les télécharger. MyClash les héberge pour lui et les supprime 30 jours après l'événement (voir §3bis)</td>
+      <td><strong>L'organisateur de cet événement et LYON AMHE, conjointement.</strong> L'organisateur ouvre l'événement aux photos, choisit si elles doivent être validées, les modère et peut les télécharger. MyClash les stocke, en retire les données cachées, attribue à chaque téléphone son numéro aléatoire, les supprime 30 jours après l'événement et répond aux demandes qui nous sont adressées (voir §3bis). Vous pouvez écrire à l'un comme à l'autre.</td>
     </tr>
   </tbody>
 </table>
@@ -80,7 +80,7 @@ import Legal from '../layouts/Legal.astro';
 <p>Si un organisateur a activé les fonctions d'IA (voir §7), les questions posées et les contenus générés sont conservés, ainsi que le volume consommé. Voir §8 pour ce qui sort de notre infrastructure.</p>
 
 <h3>2.7 Données techniques</h3>
-<p>L'adresse IP et le navigateur d'une session invité et d'une trace d'acceptation, les journaux serveur, et les rapports d'erreur. <strong>Nous ne faisons pas de mesure d'audience</strong> : MyClash ne contient aucun outil d'analyse, aucune balise publicitaire, aucun traceur tiers. Nous n'enregistrons ni les pages que vous consultez, ni le temps que vous y passez.</p>
+<p>L'adresse IP et le navigateur d'une session invité et d'une trace d'acceptation, les journaux serveur, et les rapports d'erreur. Les journaux serveur enregistrent chaque requête : l'adresse d'où elle vient, ce qui est demandé, et quand. Chaque service les garde dans un espace limité où les lignes récentes remplacent les plus anciennes ; plus la plateforme est active, plus une ligne part vite : lors d'un événement, en général en quelques jours. Ils ne figurent pas dans nos sauvegardes, et nous ne nous en servons que pour faire fonctionner la plateforme et la protéger. <strong>Nous ne faisons pas de mesure d'audience</strong> : MyClash ne contient aucun outil d'analyse, aucune balise publicitaire, aucun traceur tiers. En dehors de ces journaux, nous ne gardons aucune trace des pages que vous consultez, et rien ne mesure le temps que vous y passez.</p>
 
 <h3>2.8 Ce que nous ne collectons jamais</h3>
 <p>Aucune donnée sensible au sens de l'article 9 du RGPD (santé, origine ethnique, opinions politiques ou religieuses, données biométriques), aucune coordonnée bancaire, aucune géolocalisation précise.</p>
@@ -99,6 +99,7 @@ import Legal from '../layouts/Legal.astro';
 <!-- 3bis -->
 <h2 id="photos">3bis. Les photos d'un événement</h2>
 <p>Un organisateur peut ouvrir son événement aux photos : les personnes présentes en envoient depuis leur téléphone, et la page publique de l'événement les montre. La fonction est désactivée par défaut ; elle n'existe sur un événement que si son organisateur l'a activée.</p>
+<p>L'organisateur et LYON AMHE en sont responsables conjointement ; le §1.1 dit qui fait quoi.</p>
 
 <h3>Ce que nous enregistrons</h3>
 <table>
@@ -121,13 +122,14 @@ import Legal from '../layouts/Legal.astro';
 <p>Sous chaque photo publique, « Signaler » la place dans la liste des photos signalées que voient les modérateurs. Nous enregistrons le commentaire que vous ajoutez (facultatif, 200 caractères au plus) et le numéro aléatoire de votre téléphone (le même cookie). La photo reste visible jusqu'à ce qu'un modérateur la supprime ou décide de la garder ; s'il la garde, les signalements qu'il a lus sont effacés.</p>
 
 <h3>Combien de temps</h3>
-<p><strong>Toutes les photos d'un événement sont supprimées 30 jours après son dernier jour</strong>, à minuit, heure de l'événement, avec leurs noms, légendes et signalements. Une photo part plus tôt si un modérateur la supprime ou si l'événement est supprimé ; et, pour une photo envoyée depuis votre espace personnel, si vous la supprimez, si vous supprimez votre compte ou si vous nous demandez d'anonymiser votre nom. Les images ne figurent jamais dans nos sauvegardes.</p>
+<p><strong>Toutes les photos d'un événement sont supprimées 30 jours après son dernier jour</strong>, à minuit, heure de l'événement, avec leurs noms, légendes et signalements. Une photo part plus tôt si un modérateur la supprime ou si l'événement est supprimé ; et, pour une photo envoyée depuis votre espace personnel, si vous la supprimez, si vous supprimez votre compte ou si vous nous demandez d'anonymiser votre nom. Les images ne figurent jamais dans nos sauvegardes ; les noms, légendes et signalements restent environ 60 jours de plus dans nos sauvegardes chiffrées de la base de données (voir §6.1).</p>
 
 <h3>Ce que vous pouvez faire</h3>
 <ul>
   <li><strong>Vous avez envoyé une photo depuis votre espace personnel</strong> : l'onglet Photos de l'événement, dans votre espace, la liste, et vous pouvez la supprimer à tout moment. Si l'événement n'apparaît plus dans votre espace, écrivez-nous.</li>
   <li><strong>Vous avez envoyé une photo par le QR code</strong> : elle n'est pas enregistrée avec votre compte, vous ne pouvez donc pas la supprimer vous-même. Demandez-le à l'organisateur, ou écrivez-nous.</li>
   <li><strong>Vous figurez sur une photo</strong> que vous ne voulez pas voir publiée : appuyez sur « Signaler » et dites-le, ou écrivez à l'organisateur. Si vous ne parvenez pas à le joindre, écrivez-nous (voir §11) : nous vous aiderons.</li>
+  <li><strong>Une photo montre votre enfant</strong> : en tant que parent ou représentant légal, demandez son retrait de la même façon (« Signaler », l'organisateur, ou nous). Nous la retirons sans vous demander de raison.</li>
 </ul>
 
 <!-- 4 -->
@@ -193,6 +195,7 @@ import Legal from '../layouts/Legal.astro';
   <li>les photos que vous avez envoyées depuis votre espace personnel sont supprimées ;</li>
   <li>les données personnelles présentes dans le journal d'audit sont expurgées sur place.</li>
 </ul>
+<p><strong>Une copie survit à ce moment : nos sauvegardes.</strong> Chaque nuit, une copie chiffrée de la base de données part vers un stockage hors-site, et nous gardons les plus récentes, soit environ 60 jours. Vos données supprimées y restent jusqu'à ce que la copie qui les contient soit remplacée. Nous ne nous servons de ces copies que pour réparer la plateforme après un incident.</p>
 <p><strong>Vos résultats de compétition conservent votre nom.</strong> Un résultat est l'archive d'une compétition publique à laquelle vous avez pris part, aux côtés des adversaires que vous avez affrontés ; l'effacer réécrirait aussi l'histoire d'autres personnes. Si vous souhaitez que votre nom soit également retiré des résultats publiés, demandez-le-nous : nous l'anonymisons, le résultat subsiste sous une entrée anonyme, et les photos que vous avez envoyées depuis votre espace personnel sont supprimées.</p>
 <p>Nous conservons la trace qu'une suppression a eu lieu et quand — jamais qui elle concernait. Cette trace est une empreinte cryptographique à sens unique, qui ne permet pas de remonter jusqu'à vous.</p>
 
