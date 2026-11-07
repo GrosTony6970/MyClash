@@ -693,6 +693,7 @@ export const admin = {
       aiModels: 'Model Catalog',
       dataQuality: 'Data Quality',
       hemaRatings: 'HEMA Ratings',
+      photos: 'Photos',
     },
   },
   // The gold line under the sidebar logo in BOTH admin shells, so it lives
@@ -1776,6 +1777,26 @@ export const admin = {
     created: 'Weapon added.',
     updated: 'Weapon updated.',
     deleted: 'Weapon deleted.',
+  },
+  // The platform's Photos page (ruling 493): the list, then one Event's queue.
+  photos: {
+    title: 'Photos',
+    description:
+      'Every Event that takes photos, or still holds some. Open one to moderate its photos as its club does.',
+    eventDescription:
+      "You moderate this Event as a platform super admin: each approve, delete or Keep is written to the audit log. The QR code, the photo mode and the download stay the club's.",
+    loadFailed: 'The Events could not be loaded.',
+    empty: 'No Event takes photos.',
+    backToList: 'All photo Events',
+    modeLine: 'Photos: {mode}',
+    columns: {
+      event: 'Event',
+      club: 'Club',
+      dates: 'Dates',
+      mode: 'Photos',
+      waiting: 'Waiting',
+      reported: 'Reported',
+    },
   },
   dataRetention: {
     title: 'Data retention',

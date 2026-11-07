@@ -699,6 +699,7 @@ export const admin = {
       aiModels: 'Catalogue de modèles',
       dataQuality: 'Qualité des données',
       hemaRatings: 'HEMA Ratings',
+      photos: 'Photos',
     },
   },
   workspaceSwitcher: {
@@ -1781,6 +1782,26 @@ export const admin = {
     created: 'Arme ajoutée.',
     updated: 'Arme mise à jour.',
     deleted: 'Arme supprimée.',
+  },
+  // La page Photos de la plateforme (décision 493) : la liste, puis la file d'un événement.
+  photos: {
+    title: 'Photos',
+    description:
+      'Chaque événement qui reçoit des photos, ou en garde encore. Ouvrez-en un pour modérer ses photos comme le fait son club.',
+    eventDescription:
+      "Vous modérez cet événement en tant que super administrateur de la plateforme : chaque validation, suppression ou « Conserver » est inscrite au journal d'audit. Le QR code, le mode des photos et le téléchargement restent au club.",
+    loadFailed: "Les événements n'ont pas pu être chargés.",
+    empty: 'Aucun événement ne reçoit de photos.',
+    backToList: 'Tous les événements à photos',
+    modeLine: 'Photos : {mode}',
+    columns: {
+      event: 'Événement',
+      club: 'Club',
+      dates: 'Dates',
+      mode: 'Photos',
+      waiting: 'En attente',
+      reported: 'Signalées',
+    },
   },
   dataRetention: {
     title: 'Conservation des données',

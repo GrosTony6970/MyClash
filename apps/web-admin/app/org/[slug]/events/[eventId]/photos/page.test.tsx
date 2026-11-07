@@ -4,7 +4,7 @@ import { PHOTO_MODES, type PhotoQueuePage } from '@myclash/types';
 import * as ApiClient from '@myclash/api-client';
 import { FAILED_READ, openEventPage, type OpenedPage } from '../archived-page.fixtures';
 import EventPhotosPage from './page';
-import { STALE_LINKS_MS } from './usePhotoModeration';
+import { STALE_LINKS_MS } from '@/components/photos/usePhotoQueue';
 import {
   allRead,
   LINK_READ,

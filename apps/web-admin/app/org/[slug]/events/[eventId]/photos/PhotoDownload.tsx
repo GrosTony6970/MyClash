@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { PhotoSummary } from '@myclash/types';
 import { CsvExportMenu } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { deletesOnLabel } from './PhotoUsage';
+import { deletesOnLabel } from '@/components/photos/PhotoUsage';
 import {
   downloadable,
   usePhotoDownload,

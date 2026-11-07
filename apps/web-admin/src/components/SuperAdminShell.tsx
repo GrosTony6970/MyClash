@@ -105,6 +105,13 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.pendingClaims',
         icon: 'pendingClaims',
       },
+      // Every Event's photos, to answer a removal request (rulings 491-493).
+      {
+        href: '/admin/photos',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.photos',
+        icon: 'photos',
+      },
       // Ratings sits with Operations, not Platform health: syncing HEMA
       // Ratings is a recurring operator chore, not a signal about whether
       // the platform itself is healthy.

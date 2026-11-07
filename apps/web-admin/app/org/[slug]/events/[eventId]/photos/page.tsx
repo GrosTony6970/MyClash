@@ -9,8 +9,8 @@ import { PageAlert } from '@/components/PageAlert';
 import { PhotoDownload } from './PhotoDownload';
 import { PhotoLinkPanel } from './PhotoLinkPanel';
 import { PhotoModePanel } from './PhotoModePanel';
-import { PhotoQueue } from './PhotoQueue';
-import { PhotoUsage } from './PhotoUsage';
+import { PhotoQueue } from '@/components/photos/PhotoQueue';
+import { PhotoUsage } from '@/components/photos/PhotoUsage';
 import { usePhotoModeration } from './usePhotoModeration';
 
 /**
