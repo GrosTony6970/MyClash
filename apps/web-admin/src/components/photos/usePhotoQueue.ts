@@ -20,6 +20,9 @@ interface Snapshot {
   page: PhotoQueuePage;
 }
 
+/** The server refused this caller the queue (a 403): the page says why, if it was told how. */
+class RefusedRead extends Error {}
+
 /** A signed link lives 10 to 15 minutes from the read: older than this, a broken image may be one. */
 export const STALE_LINKS_MS = 10 * 60_000;
 
@@ -48,6 +51,8 @@ async function fetchSnapshot(
     withLink ? request<PhotoLink>(`${base}/photos/link`) : Promise.resolve(null),
     request<PhotoQueuePage>(pagePath(base, filter)),
   ]);
+  // `apiRequest` reports a 403 as `unauthenticated`: the caller may not moderate this Event.
+  if (!summary.ok && summary.kind === 'unauthenticated') throw new RefusedRead();
   if (!summary.ok || !page.ok) throw new Error('photos read failed');
   return { summary: summary.data, link: link?.ok ? link.data : null, page: page.data };
 }
@@ -59,9 +64,12 @@ async function fetchSnapshot(
  * moderators on one queue: the second delete of a photo answers `photo_not_found`, said in the
  * reader's language, then the reload shows the photo gone.
  */
-export function usePhotoQueue(eventId: string, { withLink }: { withLink: boolean }) {
+export function usePhotoQueue(
+  eventId: string,
+  { withLink, refusedKey }: { withLink: boolean; refusedKey?: string },
+) {
   const base = `/api/v1/events/${eventId}`;
-  const data = usePhotoData(base, withLink);
+  const data = usePhotoData(base, withLink, refusedKey);
   const writes = usePhotoWrites(base, data.reload);
   // A write's refusal outlives the reload that follows it; a read's error goes with the next read.
   return { ...data, ...writes, base, outcome: writes.outcome ?? data.loadOutcome };
@@ -73,7 +81,7 @@ export function usePhotoQueue(eventId: string, { withLink }: { withLink: boolean
  * older generation is dropped, so it never adds the Waiting page 2 under All, nor a page read
  * before a reload under the fresh page 1. A second Load more waits for the first.
  */
-function usePhotoData(base: string, withLink: boolean) {
+function usePhotoData(base: string, withLink: boolean, refusedKey: string | undefined) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [photos, setPhotos] = useState<ModerationPhoto[]>([]);
   const [next, setNext] = useState<string | null>(null);
@@ -83,7 +91,7 @@ function usePhotoData(base: string, withLink: boolean) {
     setPhotos(read.page.photos);
     setNext(read.page.next);
   }, []);
-  const first = useFirstPage(base, filter, withLink, onRead);
+  const first = useFirstPage({ base, filter, withLink, refusedKey }, onRead);
   const appendPage = useCallback((more: PhotoQueuePage) => {
     setPhotos((shown) => [...shown, ...more.photos]);
     setNext(more.next);
@@ -112,14 +120,15 @@ function usePhotoData(base: string, withLink: boolean) {
 
 /**
  * The head and page 1, read again on a tab change and on every reload. Each read starts a new
- * generation and notes its time (the age of its signed links); a stale answer is dropped.
+ * generation and notes its time (the age of its signed links); a stale answer is dropped. A
+ * refusal (403) reads as `refusedKey` when the page gave one (the platform's page: "super admin
+ * required"); otherwise, and for any other failure, as the load error.
  */
 function useFirstPage(
-  base: string,
-  filter: PhotoQueueFilter,
-  withLink: boolean,
+  read: { base: string; filter: PhotoQueueFilter; withLink: boolean; refusedKey?: string },
   onRead: (read: Snapshot) => void,
 ) {
+  const { base, filter, withLink, refusedKey } = read;
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
   const [loadOutcome, setLoadOutcome] = useState<Outcome | null>(null);
@@ -146,13 +155,15 @@ function useFirstPage(
         setLoadOutcome(null);
         onRead(read);
       })
-      .catch(() => {
-        if (!cancelled) setLoadOutcome(errorOutcome(t('organizer.photos.loadError')));
+      .catch((failure: unknown) => {
+        if (cancelled) return;
+        const refused = failure instanceof RefusedRead && refusedKey;
+        setLoadOutcome(errorOutcome(t(refused ? refusedKey : 'organizer.photos.loadError')));
       });
     return () => {
       cancelled = true;
     };
-  }, [base, filter, withLink, reloadKey, onRead, t]);
+  }, [base, filter, withLink, refusedKey, reloadKey, onRead, t]);
 
   return { reload, onImageError, generation, loadOutcome, setLoadOutcome };
 }

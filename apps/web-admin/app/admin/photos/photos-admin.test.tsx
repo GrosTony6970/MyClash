@@ -118,6 +118,19 @@ describe('the list of photo Events', () => {
     expect(link?.textContent).toBe('Open 2025');
   });
 
+  it("names each mode in the club page's words", async () => {
+    const modes = (['off', 'live', 'approve'] as const).map((mode, n) => ({
+      ...LYON,
+      id: `ev${n}`,
+      mode,
+    }));
+    await open(<PlatformPhotosPage />, { [LIST]: modes });
+    const cells = [...document.body.querySelectorAll('tbody tr')].map(
+      (row) => row.querySelectorAll('td')[3]?.textContent,
+    );
+    expect(cells).toEqual(['Off', 'Live', 'Approve first']);
+  });
+
   it('says so when no Event takes photos', async () => {
     await open(<PlatformPhotosPage />, { [LIST]: [] });
     expect(text()).toContain('No Event takes photos.');
@@ -130,6 +143,12 @@ describe('the list of photo Events', () => {
 });
 
 describe("one Event's queue, for a super admin", () => {
+  it('tells a platform admin or viewer who typed the address why it is refused (a 403)', async () => {
+    await open(<PlatformEventPhotosPage />, { ...photoReads(), [SUMMARY_READ]: FORBIDDEN });
+    expect(text()).toContain('Access denied. Super admin required.');
+    expect(text()).not.toContain('The photos could not be loaded.');
+  });
+
   it('reads the queue and the head, never the QR link, and offers no mode, link or download', async () => {
     await open(<PlatformEventPhotosPage />, photoReads());
     expect(calls()).toEqual(expect.arrayContaining([`GET ${SUMMARY_READ}`, `GET ${waitingRead}`]));

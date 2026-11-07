@@ -2,6 +2,7 @@
 
 import type { PhotoMode } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { PHOTO_MODE_LABEL_KEYS as LABEL_KEYS } from '@/components/photos/photo-mode-label';
 
 /**
  * Strictest to loosest. In a radio group an arrow key selects as it moves, and each selection is
@@ -9,12 +10,6 @@ import { useI18n } from '@myclash/next-i18n/client';
  * moment is stored approved for good.
  */
 export const MODE_ORDER = ['off', 'approve', 'live'] as const satisfies readonly PhotoMode[];
-
-const LABEL_KEYS = {
-  off: 'organizer.photos.mode.off',
-  live: 'organizer.photos.mode.live',
-  approve: 'organizer.photos.mode.approve',
-} as const satisfies Record<PhotoMode, string>;
 
 const HINT_KEYS = {
   off: 'organizer.photos.mode.offHint',

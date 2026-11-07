@@ -116,6 +116,24 @@ describe('the platform Photos list', () => {
     expect(most()).toBe(8);
   });
 
+  it('a read cut at its cap keeps the newest Events and is logged, from either source', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    // 1001 Events taking photos, the oldest seeded first: the cut must drop the oldest.
+    const events = Array.from({ length: 1001 }, (_, n) =>
+      eventRow(n, { start_date: `2026-01-01`, id: `ev-${String(n).padStart(4, '0')}` }),
+    );
+    events[0] = { ...events[0]!, start_date: '2020-01-01' };
+    events[1000] = { ...events[1000]!, start_date: '2030-01-01' };
+    const { service } = platform({ events });
+    const ids = (await service.events()).map((row) => row.id);
+    expect(ids[0]).toBe('ev-1000');
+    expect(warn).toHaveBeenCalledWith('999 Events take photos: the list is cut');
+
+    const holding = Array.from({ length: 1000 }, (_, n) => `held-${n}`);
+    await platform({ events: [], holding }).service.events();
+    expect(warn).toHaveBeenCalledWith('1000 Events hold photos: the list may be cut');
+  });
+
   it('reads nothing more when no Event takes or holds photos', async () => {
     const { service, supabase } = platform({ events: [eventRow(1, { photo_mode: 'off' })] });
     expect(await service.events()).toEqual([]);

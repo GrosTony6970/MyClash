@@ -18,7 +18,11 @@ import { usePhotoQueue } from '@/components/photos/usePhotoQueue';
 export default function PlatformEventPhotosPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { t } = useI18n();
-  const photos = usePhotoQueue(eventId, { withLink: false });
+  const photos = usePhotoQueue(eventId, {
+    withLink: false,
+    // A platform admin or viewer who types the address: the club's routes refuse them (403).
+    refusedKey: 'admin.common.accessDeniedSuperAdmin',
+  });
   const summary = photos.summary;
 
   return (

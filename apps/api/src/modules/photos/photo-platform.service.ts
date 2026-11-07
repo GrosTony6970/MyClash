@@ -7,8 +7,11 @@ import type { PhotoEventRow } from './photo-organiser';
 /** Events counted at once: each is two small counts. */
 const COUNTS_AT_ONCE = 8;
 
-/** Below PostgREST's own cut (`PGRST_DB_MAX_ROWS` 1000): a read that reaches it is logged. */
-const READ_CAP = 999;
+/** PostgREST's own cut of any answer (`PGRST_DB_MAX_ROWS`, production). */
+const POSTGREST_MAX_ROWS = 1000;
+
+/** Below PostgREST's cut, so our own limit is the one that bites; a read that reaches it is logged. */
+const READ_CAP = POSTGREST_MAX_ROWS - 1;
 
 /**
  * The platform's Photos page (ruling 493): the Events whose photos are not Off, and those that
@@ -63,6 +66,8 @@ export class PhotoPlatformService {
       .from('events')
       .select('id')
       .neq('photo_mode', 'off')
+      // Newest first, so a cut drops the oldest Events, never the ones a request is about.
+      .order('start_date', { ascending: false, nullsFirst: false })
       .limit(READ_CAP);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as { id: string }[];
@@ -75,7 +80,11 @@ export class PhotoPlatformService {
   private async holdingPhotos(): Promise<string[]> {
     const { data, error } = await this.supabase.service.rpc('event_photo_events');
     if (error) throw new Error(error.message);
-    return ((data ?? []) as { event_id: string }[]).map((row) => row.event_id);
+    const rows = (data ?? []) as { event_id: string }[];
+    // PostgREST cuts any answer at its row cap (`PGRST_DB_MAX_ROWS`), the cleanup job's too.
+    if (rows.length >= POSTGREST_MAX_ROWS)
+      this.logger.warn(`${rows.length} Events hold photos: the list may be cut`);
+    return rows.map((row) => row.event_id);
   }
 
   /** The Events, newest first (an Event with no date last), with the columns the gates read. */

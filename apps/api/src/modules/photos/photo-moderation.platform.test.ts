@@ -39,6 +39,7 @@ describe('a club admin moderates as before', () => {
     await service.remove(await service.eventForStaff(STAFF_REQ), PHOTO);
     expect(writesTo(supabase, 'audit_log')).toEqual([]);
     expect(writesTo(supabase, 'event_photos')).toHaveLength(2);
+    expect(queriedTables(supabase.from)).not.toContain('platform_roles');
   });
 });
 

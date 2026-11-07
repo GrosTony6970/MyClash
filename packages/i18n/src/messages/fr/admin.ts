@@ -1789,7 +1789,7 @@ export const admin = {
     description:
       'Chaque événement qui reçoit des photos, ou en garde encore. Ouvrez-en un pour modérer ses photos comme le fait son club.',
     eventDescription:
-      "Vous modérez cet événement en tant que super administrateur de la plateforme : chaque validation, suppression ou « Conserver » est inscrite au journal d'audit. Le QR code, le mode des photos et le téléchargement restent au club.",
+      "Vous modérez cet événement en tant que super administrateur de la plateforme : chaque « Approuver », suppression ou « Conserver » est inscrit au journal d'audit. Le QR code, le mode des photos et le téléchargement restent au club.",
     loadFailed: "Les événements n'ont pas pu être chargés.",
     empty: 'Aucun événement ne reçoit de photos.',
     backToList: 'Tous les événements à photos',

@@ -1,13 +1,13 @@
 import type { PhotoMode } from '@myclash/types';
 
-/** A photo mode as the moderator reads it: the same words as the club page's mode panel. */
+/** The words for each photo mode: the club's mode panel and the platform's pages read them here. */
+export const PHOTO_MODE_LABEL_KEYS = {
+  off: 'organizer.photos.mode.off',
+  live: 'organizer.photos.mode.live',
+  approve: 'organizer.photos.mode.approve',
+} as const satisfies Record<PhotoMode, string>;
+
+/** A photo mode as the moderator reads it. */
 export function photoModeLabel(mode: PhotoMode, t: (key: string) => string): string {
-  switch (mode) {
-    case 'off':
-      return t('organizer.photos.mode.off');
-    case 'live':
-      return t('organizer.photos.mode.live');
-    case 'approve':
-      return t('organizer.photos.mode.approve');
-  }
+  return t(PHOTO_MODE_LABEL_KEYS[mode]);
 }
