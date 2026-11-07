@@ -9753,7 +9753,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** One page of the photo moderation queue, newest first (organisers) */
+    /** One page of the photo moderation queue, newest first (organisers, super admins) */
     get: operations['PhotosController_queue'];
     put?: never;
     /** Send a photo to an Event from its QR link (anonymous) */
@@ -9839,7 +9839,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The Event's photo mode, caps and deletion date (organisers) */
+    /** The Event's photo mode, caps and deletion date (organisers, super admins) */
     get: operations['PhotosController_summary'];
     put?: never;
     post?: never;
@@ -9875,7 +9875,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Approve a photo: the public sees it (organisers) */
+    /** Approve a photo: the public sees it (organisers, super admins) */
     post: operations['PhotosController_approve'];
     delete?: never;
     options?: never;
@@ -9893,7 +9893,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete a photo and its images (organisers) */
+    /** Delete a photo and its images (organisers, super admins) */
     delete: operations['PhotosController_remove'];
     options?: never;
     head?: never;
@@ -9909,7 +9909,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Keep a reported photo: clear its reports up to the newest shown (organisers) */
+    /** Keep a reported photo: clear its reports up to the newest shown (organisers, super admins) */
     post: operations['PhotosController_keep'];
     delete?: never;
     options?: never;
@@ -10032,6 +10032,23 @@ export interface paths {
     post?: never;
     /** Delete a photo she sent from her personal space */
     delete: operations['MyPhotosController_remove'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/photos/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The Events that take or still hold photos, newest first (super admin) */
+    get: operations['PhotoPlatformController_events'];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -27132,6 +27149,23 @@ export interface operations {
     requestBody?: never;
     responses: {
       204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhotoPlatformController_events: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

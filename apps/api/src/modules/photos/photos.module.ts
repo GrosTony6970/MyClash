@@ -9,6 +9,8 @@ import { PhotoDeviceService } from './photo-device';
 import { PhotoDownloadService } from './photo-download.service';
 import { PhotoLinkService } from './photo-link.service';
 import { PhotoModerationService } from './photo-moderation.service';
+import { PhotoPlatformController } from './photo-platform.controller';
+import { PhotoPlatformService } from './photo-platform.service';
 import { PhotoPublicService } from './photo-public.service';
 import { photoStoreProvider } from './photo-store.provider';
 import { PhotoUploadService } from './photo-upload.service';
@@ -27,9 +29,17 @@ import { PhotosStaffController } from './photos-staff.controller';
     MeModule,
     BullModule.registerQueue({ name: PHOTO_CLEANUP_QUEUE }),
   ],
-  controllers: [PhotosController, PhotosStaffController, MyPhotosController],
+  // PhotoPlatformController: the platform's Photos page (ruling 493), behind `PlatformRoleGuard`,
+  // which resolves here as in PrivacyModule (`SupabaseService` is global).
+  controllers: [
+    PhotosController,
+    PhotosStaffController,
+    MyPhotosController,
+    PhotoPlatformController,
+  ],
   providers: [
     MyPhotosService,
+    PhotoPlatformService,
     PhotoUploadService,
     PhotoDeviceService,
     PhotoLinkService,

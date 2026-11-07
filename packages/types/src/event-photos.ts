@@ -220,3 +220,21 @@ export interface PhotoSummary {
   /** The Event's clock, to show `deletesAt` in it. */
   timezone: string;
 }
+
+/**
+ * One row of the platform's Photos page (`GET admin/photos/events`, ruling 493): an Event whose
+ * photos are not Off, or that still holds photos, with its club and what waits on a moderator.
+ */
+export interface PlatformPhotoEvent {
+  id: string;
+  name: string;
+  clubName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  mode: PhotoMode;
+  waiting: number;
+  reported: number;
+}
+
+/** The most Events the platform's Photos page lists, newest first. */
+export const PLATFORM_PHOTO_EVENTS_MAX = 200;

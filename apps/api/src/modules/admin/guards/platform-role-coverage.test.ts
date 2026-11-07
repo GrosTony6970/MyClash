@@ -57,6 +57,7 @@ import { WeaponsAdminController } from '../weapons/weapons-admin.controller';
 import { ClubsController } from '../../clubs/clubs.controller';
 import { FightersController, GlobalPersonsController } from '../../fighters/fighters.controller';
 import { OrganizationsController } from '../../organizations/organizations.controller';
+import { PhotoPlatformController } from '../../photos/photo-platform.controller';
 import { PrivacyAdminController } from '../../privacy/privacy-admin.controller';
 import { PLATFORM_ROLE_KEY } from './platform-role.decorator';
 import { PlatformRoleGuard } from './platform-role.guard';
@@ -94,6 +95,7 @@ const CONTROLLERS: Ctor[] = [
   FightersController,
   GlobalPersonsController,
   OrganizationsController,
+  PhotoPlatformController,
   PrivacyAdminController,
 ];
 
@@ -148,6 +150,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['GET /admin/notifications/summary', 'platform_viewer'],
   ['GET /admin/organizations', 'platform_viewer'],
   ['GET /admin/organizations/:id', 'platform_viewer'],
+  ['GET /admin/photos/events', 'super_admin'],
   ['GET /admin/platform-log', 'platform_viewer'],
   ['GET /admin/review-queue', 'platform_viewer'],
   ['GET /admin/system-versions', 'platform_viewer'],
@@ -340,6 +343,7 @@ describe('platform tier coverage', () => {
       'GET /admin/feature-flags', // the lockdown + read-only kill switches
       'GET /admin/backups/:backupId/download', // streams the database
       'GET /admin/data-retention', // GDPR configuration
+      'GET /admin/photos/events', // every club's photo Events (ruling 492-493)
       'POST /admin/users', // mints an account
       'DELETE /admin/users/:id', // destroys one
       'PUT /admin/users/:id/platform-role', // hands out the reserve itself

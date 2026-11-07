@@ -107,12 +107,9 @@ export class PhotoModerationService {
   }
 
   async summary(event: PhotoEventRow): Promise<PhotoSummary> {
-    // From the deletion instant on the queue is empty, so its count says so too.
-    const expired = photosExpired(event, this.now());
-    const [usage, waiting, reported] = await Promise.all([
+    const [usage, { waiting, reported }] = await Promise.all([
       this.usage(event.id),
-      expired ? 0 : this.waiting(event.id),
-      expired ? 0 : this.reported(event.id),
+      this.counts(event),
     ]);
     const mode = asPhotoMode(event.photo_mode);
     if (!mode) throw new Error(`Event ${event.id}: unknown photo mode ${event.photo_mode}`);
@@ -130,6 +127,20 @@ export class PhotoModerationService {
       deletesAt: photoDeletionInstant(event)?.toISOString() ?? null,
       timezone: eventZone(event.timezone).zone,
     };
+  }
+
+  /**
+   * What waits on a moderator: the photos waiting for approval, and those reported. The one owner
+   * of both numbers, for the summary and the platform's list (493). From the deletion instant on
+   * the queue is empty, so its counts say so too.
+   */
+  async counts(event: PhotoEventRow): Promise<{ waiting: number; reported: number }> {
+    if (photosExpired(event, this.now())) return { waiting: 0, reported: 0 };
+    const [waiting, reported] = await Promise.all([
+      this.waiting(event.id),
+      this.reported(event.id),
+    ]);
+    return { waiting, reported };
   }
 
   /**
