@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import type { PhotoSummary } from '@myclash/types';
 import { AdminPageHeader, Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { BackLink } from '@/components/BackLink';
@@ -40,30 +41,41 @@ export default function PlatformEventPhotosPage() {
         />
       </div>
       <PageAlert outcome={photos.outcome} className="mb-6" />
-      {summary && (
-        <div className="space-y-6">
-          <p className="text-sm font-medium text-foreground">
-            {t('admin.photos.modeLine', { mode: photoModeLabel(summary.mode, t) })}
-          </p>
-          <PhotoUsage summary={summary} />
-          <PhotoQueue
-            photos={photos.photos}
-            filter={photos.filter}
-            waiting={summary.waiting}
-            reported={summary.reported}
-            timezone={summary.timezone}
-            hasMore={photos.next !== null}
-            loadingMore={photos.loadingMore}
-            busy={photos.busy}
-            onFilter={photos.setFilter}
-            onApprove={photos.approve}
-            onKeep={photos.keep}
-            onDelete={photos.remove}
-            onLoadMore={photos.loadMore}
-            onImageError={photos.onImageError}
-          />
-        </div>
-      )}
+      {summary && <QueueSections summary={summary} photos={photos} />}
     </main>
+  );
+}
+
+function QueueSections({
+  summary,
+  photos,
+}: {
+  summary: PhotoSummary;
+  photos: ReturnType<typeof usePhotoQueue>;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-6">
+      <p className="text-sm font-medium text-foreground">
+        {t('admin.photos.modeLine', { mode: photoModeLabel(summary.mode, t) })}
+      </p>
+      <PhotoUsage summary={summary} />
+      <PhotoQueue
+        photos={photos.photos}
+        filter={photos.filter}
+        waiting={summary.waiting}
+        reported={summary.reported}
+        timezone={summary.timezone}
+        hasMore={photos.next !== null}
+        loadingMore={photos.loadingMore}
+        busy={photos.busy}
+        onFilter={photos.setFilter}
+        onApprove={photos.approve}
+        onKeep={photos.keep}
+        onDelete={photos.remove}
+        onLoadMore={photos.loadMore}
+        onImageError={photos.onImageError}
+      />
+    </div>
   );
 }
