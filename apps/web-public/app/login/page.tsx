@@ -12,6 +12,7 @@ import {
   AuthPanel,
   Button,
   GoogleIcon,
+  useGoogleSignInOn,
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
 import { BackLink } from '../../src/components/BackLink';
@@ -51,6 +52,8 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   const [error, setError] = useState<string | null>(opensOn.error);
   // Where signing in lands: the page the door was on, or the personal space.
   const landing = afterSignIn(query['next']);
+  // Hidden while Google is off: a click would land on the sign-in server's error page (495).
+  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
 
   const apiUrl = getPublicApiUrl();
   // The organizer workspace is a different host, so the cross-link needs the
@@ -344,15 +347,17 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
             {t('publicApp.login.sendMagicLink')}
           </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full py-3"
-            leftIcon={<GoogleIcon />}
-            onClick={() => void continueWithGoogle()}
-          >
-            {t('auth.oauth.continueWithGoogle')}
-          </Button>
+          {googleOn && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full py-3"
+              leftIcon={<GoogleIcon />}
+              onClick={() => void continueWithGoogle()}
+            >
+              {t('auth.oauth.continueWithGoogle')}
+            </Button>
+          )}
         </>
       )}
 

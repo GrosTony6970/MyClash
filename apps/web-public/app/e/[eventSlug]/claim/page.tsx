@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Suspense, useState, useSyncExternalStore } from 'react';
 import { apiRequest, failureMessage } from '@myclash/api-client';
-import { GoogleIcon } from '@myclash/ui';
+import { GoogleIcon, useGoogleSignInOn } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ClaimRefusedNotice } from '@/components/ClaimRefusedNotice';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
@@ -52,6 +52,8 @@ function ClaimForm() {
 
   // Both controls wait for this. See the note above the three callbacks.
   const ready = useSyncExternalStore(subscribeToNothing, onTheClient, onTheServer);
+  // Hidden while Google is off: a click would land on the sign-in server's error page (495).
+  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
 
   const apiUrl = getPublicApiUrl();
 
@@ -158,17 +160,19 @@ function ClaimForm() {
         </button>
       </form>
 
-      <button
-        type="button"
-        onClick={() => {
-          void handleGoogleClaim();
-        }}
-        disabled={loading || !personId || !ready}
-        className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-accent disabled:opacity-50 text-foreground font-semibold py-2 px-4 rounded-md transition-colors"
-      >
-        <GoogleIcon />
-        {t('auth.oauth.continueWithGoogle')}
-      </button>
+      {googleOn && (
+        <button
+          type="button"
+          onClick={() => {
+            void handleGoogleClaim();
+          }}
+          disabled={loading || !personId || !ready}
+          className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-accent disabled:opacity-50 text-foreground font-semibold py-2 px-4 rounded-md transition-colors"
+        >
+          <GoogleIcon />
+          {t('auth.oauth.continueWithGoogle')}
+        </button>
+      )}
 
       <p className="mt-6 text-sm text-muted">
         {t('publicApp.claim.emailMismatch')}{' '}

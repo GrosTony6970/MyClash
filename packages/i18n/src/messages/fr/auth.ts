@@ -10,8 +10,7 @@ export const auth = {
     subtitle:
       'Inscriptions, poules, tableaux, arbitres et scores en direct — pour une soirée de club comme pour un open de trois jours.',
     formTitle: 'Connexion organisateur',
-    formDescription:
-      'Connectez-vous avec vos identifiants administrateur, un lien magique ou Google.',
+    formDescription: 'Connectez-vous avec vos identifiants administrateur ou un lien magique.',
     participantPrompt: 'Vous cherchez la connexion participant ?',
     participantLink: "Accéder à l'espace personnel",
     tabsLabel: 'Se connecter ou créer un compte organisateur',

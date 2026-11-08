@@ -10,6 +10,7 @@ export type { PillProps, PillVariant } from './components/Pill';
 
 export { GoogleIcon } from './components/GoogleIcon';
 export type { GoogleIconProps } from './components/GoogleIcon';
+export { useGoogleSignInOn } from './hooks/useGoogleSignInOn';
 
 export {
   AuthPanel,

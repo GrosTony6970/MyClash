@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthDivider, AuthField, Button, GoogleIcon } from '@myclash/ui';
+import { AuthDivider, AuthField, Button, GoogleIcon, useGoogleSignInOn } from '@myclash/ui';
 
 /** Panels take the translator as a prop, so none of them needs the context. */
 export type Translate = (key: string) => string;
@@ -128,6 +128,10 @@ export function AlternativeMethods({
   onGoogle: () => void;
 }) {
   const busy = loadingAction !== null;
+  // Hidden while Google is off: a click would land on the sign-in server's error page (495).
+  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
+  // The sign-up's only alternative is Google: without it, no lone "or".
+  if (mode === 'signup' && !googleOn) return null;
 
   return (
     <>
@@ -145,17 +149,31 @@ export function AlternativeMethods({
           {loadingAction === 'magic_link' ? t('auth.login.sending') : t('auth.login.sendLoginLink')}
         </Button>
       )}
-      <Button
-        type="button"
-        variant="ghost"
-        className="w-full py-3"
-        disabled={busy}
-        loading={loadingAction === 'google'}
-        leftIcon={<GoogleIcon />}
-        onClick={onGoogle}
-      >
-        {t('auth.oauth.continueWithGoogle')}
-      </Button>
+      {googleOn && <GoogleMethod t={t} loadingAction={loadingAction} onGoogle={onGoogle} />}
     </>
+  );
+}
+
+function GoogleMethod({
+  t,
+  loadingAction,
+  onGoogle,
+}: {
+  t: Translate;
+  loadingAction: LoadingAction;
+  onGoogle: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="w-full py-3"
+      disabled={loadingAction !== null}
+      loading={loadingAction === 'google'}
+      leftIcon={<GoogleIcon />}
+      onClick={onGoogle}
+    >
+      {t('auth.oauth.continueWithGoogle')}
+    </Button>
   );
 }

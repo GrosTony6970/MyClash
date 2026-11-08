@@ -175,7 +175,7 @@ export const publicApp = {
     subtitle:
       'Sign in to review your fighter profile, referee history, workshop enrollments, and notifications even when no event is currently public.',
     formTitle: 'Participant login',
-    formDescription: 'Use your MyClash account, or continue with Google.',
+    formDescription: 'Use your MyClash account.',
     organizerPrompt: 'Looking for the organizer login?',
     organizerLink: 'Sign in as an organizer',
     organizerSignupPrompt: 'Organizing an event?',

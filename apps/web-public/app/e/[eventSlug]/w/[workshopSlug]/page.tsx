@@ -42,7 +42,13 @@ import {
 import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
 import { useParams, useSearchParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
+import {
+  Button,
+  GoogleIcon,
+  TournamentColorDot,
+  accentClassFor,
+  useGoogleSignInOn,
+} from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
@@ -95,6 +101,8 @@ export default function WorkshopDetailPage() {
   const load = useCallback(() => setLoadKey((key) => key + 1), []);
   const [toast, setToast] = useState<string | null>(null);
   const personId = searchParams.get('personId');
+  // Hidden while Google is off: a click would land on the sign-in server's error page (495).
+  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
 
   // Event identity for the shared header band — mirrors the event home page.
   useEffect(() => {
@@ -312,7 +320,7 @@ export default function WorkshopDetailPage() {
           </div>
         )}
 
-        {personId && (
+        {personId && googleOn && (
           <Button
             type="button"
             variant="back"

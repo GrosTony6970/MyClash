@@ -7,7 +7,7 @@ export const auth = {
     subtitle:
       'Entries, pools, brackets, referees and live scoring — for a club evening or a three-day open.',
     formTitle: 'Organizer login',
-    formDescription: 'Sign in with your administrator credentials, magic link, or Google.',
+    formDescription: 'Sign in with your administrator credentials or a magic link.',
     participantPrompt: 'Looking for the participant login?',
     participantLink: 'Go to the participant space',
     tabsLabel: 'Sign in or create an organizer account',

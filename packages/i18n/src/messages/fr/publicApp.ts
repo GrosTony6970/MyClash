@@ -174,7 +174,7 @@ export const publicApp = {
     subtitle:
       "Connectez-vous pour consulter votre profil combattant, votre historique arbitre, vos ateliers et vos notifications même si aucun événement public n'est ouvert.",
     formTitle: 'Connexion participant',
-    formDescription: 'Utilisez votre compte MyClash, ou continuez avec Google.',
+    formDescription: 'Utilisez votre compte MyClash.',
     organizerPrompt: 'Vous cherchez la connexion organisateur ?',
     organizerLink: 'Se connecter en organisateur',
     organizerSignupPrompt: 'Vous organisez un événement ?',
