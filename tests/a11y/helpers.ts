@@ -64,6 +64,15 @@ export async function stubPublicApi(page: Page) {
   );
   // Signed out is a 200 with this body, never a 401 (packages/api-client/src/me.ts).
   await page.route('**/api/v1/me', (route) => route.fulfill({ json: { type: 'anonymous' } }));
+  // A Google button asks the sign-in server whether Google is on (ruling 495). Its address is
+  // the placeholder above, a port Chrome refuses (ERR_UNSAFE_PORT, logged as an error); a route
+  // still answers it. Google off, as in production.
+  await page.route('**/auth/v1/settings', (route) =>
+    route.fulfill({
+      json: { external: { email: true, google: false } },
+      headers: { 'access-control-allow-origin': '*' },
+    }),
+  );
 }
 
 /** Shorter than playwright.config.ts's 30 s test timeout ON PURPOSE. A wait that
