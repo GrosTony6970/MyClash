@@ -115,15 +115,13 @@ describe('the Google button on the claim page', () => {
   });
 });
 
-describe("the Google button on a Workshop's page", () => {
+describe("a Workshop's page", () => {
   // The page reads the Event, the Workshop and the caller's bookings: it is read as text.
   const page = readFileSync(join(__dirname, '../e/[eventSlug]/w/[workshopSlug]/page.tsx'), 'utf8');
 
-  it('asks the sign-in server, and shows on a yes only', () => {
-    expect(page).toContain(
-      "const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);",
-    );
-    expect(page).toContain('{personId && googleOn && (');
-    expect(page.match(/continueWithGoogle/g)).toHaveLength(1);
+  // Its button showed only on a `?personId=` address no link builds (ruling 502). A claim goes
+  // through the claim page, which the guest's line links to.
+  it('has no Google button, and asks the sign-in server nothing', () => {
+    expect(page).not.toMatch(/continueWithGoogle|useGoogleSignInOn|signInWithOAuth/);
   });
 });

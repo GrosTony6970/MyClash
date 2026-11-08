@@ -724,7 +724,7 @@
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/TournamentTabs.tsx:69",
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/page.tsx:113",
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/stats/page.tsx:80",
-    "apps/web-public/app/e/[eventSlug]/w/[workshopSlug]/page.tsx:79",
+    "apps/web-public/app/e/[eventSlug]/w/[workshopSlug]/page.tsx:72",
     "apps/web-public/app/e/[eventSlug]/workshops/WorkshopsBrowser.tsx:29",
     "apps/web-public/app/fighters/FighterDirectoryFilters.tsx:159",
     "apps/web-public/app/fighters/FighterDirectoryFilters.tsx:66",

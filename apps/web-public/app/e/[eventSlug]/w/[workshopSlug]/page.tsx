@@ -40,18 +40,11 @@ import {
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
 import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import {
-  Button,
-  GoogleIcon,
-  TournamentColorDot,
-  accentClassFor,
-  useGoogleSignInOn,
-} from '@myclash/ui';
+import { Button, TournamentColorDot, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '@myclash/next-i18n/client';
-import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 import { workshopPath, type Session, type Workshop } from './workshop-view';
 import {
   BookingsUnread,
@@ -79,7 +72,6 @@ function changeNotice(change: BookingChange, t: (key: string) => string): string
 export default function WorkshopDetailPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
-  const searchParams = useSearchParams();
   const { eventSlug, workshopSlug } = params;
   const apiUrl = getPublicApiUrl();
 
@@ -100,9 +92,6 @@ export default function WorkshopDetailPage() {
   const [loadKey, setLoadKey] = useState(0);
   const load = useCallback(() => setLoadKey((key) => key + 1), []);
   const [toast, setToast] = useState<string | null>(null);
-  const personId = searchParams.get('personId');
-  // Hidden while Google is off: a click would land on the sign-in server's error page (495).
-  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
 
   // Event identity for the shared header band — mirrors the event home page.
   useEffect(() => {
@@ -176,17 +165,6 @@ export default function WorkshopDetailPage() {
     const stranger = !change.ok && change.why === 'nobody';
     const who = stranger ? await unknownCaller(apiUrl) : null;
     if (taps.current === tap) setUnknown(who);
-  }
-
-  async function handleGoogleClaim() {
-    if (!personId) return say(t('auth.oauth.errors.personMissing'));
-    const next = `/e/${eventSlug}/w/${workshopSlug}`;
-    const redirectTo = `${window.location.origin}/auth/oauth/callback?mode=person_claim&personId=${encodeURIComponent(personId)}&next=${encodeURIComponent(next)}`;
-    const { error } = await createOAuthSupabaseClient().auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    });
-    if (error) say(t('auth.oauth.errors.startFailed'));
   }
 
   if (loading) {
@@ -318,21 +296,6 @@ export default function WorkshopDetailPage() {
           <div className="prose prose-sm mb-6 max-w-none whitespace-pre-line text-sm leading-relaxed text-foreground-secondary">
             {description}
           </div>
-        )}
-
-        {personId && googleOn && (
-          <Button
-            type="button"
-            variant="back"
-            size="md"
-            onClick={() => {
-              void handleGoogleClaim();
-            }}
-            leftIcon={<GoogleIcon />}
-            className="mb-6 w-full"
-          >
-            {t('auth.oauth.continueWithGoogle')}
-          </Button>
         )}
 
         {/* Sessions */}
