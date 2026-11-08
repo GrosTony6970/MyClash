@@ -61,7 +61,7 @@ describe('PhotoDownloadService.zip — the slots (ruling 497)', () => {
     const warned = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
     await expect(zip(downloads)).rejects.toMatchObject({
       status: 503,
-      response: { code: 'photos_busy' },
+      response: { code: 'photo_downloads_busy' },
     });
     expect(from).not.toHaveBeenCalled();
     expect(warned).toHaveBeenCalledWith(
