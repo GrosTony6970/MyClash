@@ -237,6 +237,13 @@ else
 fi
 
 # ── 5/6. Retention ──────────────────────────────────────────────
+# The copies deploy.sh takes before each update are pruned here too, every night: deploy.sh
+# prunes them only when a deploy runs, and the privacy policy (§6.1) says they last about
+# 30 days (ruling 499).
+if [[ -d "$ROOT_DIR/backups/pre-deploy" ]] &&
+  ! find "$ROOT_DIR/backups/pre-deploy" -name '*.sql.gz' -mtime +30 -delete; then
+  log_warn "Could not delete the pre-deploy copies older than 30 days in backups/pre-deploy"
+fi
 # Retention is enforced by the ops runner after each backup completes
 # (count-based, configurable from /admin/backups). BACKUP_RETENTION_DAYS
 # stays in .env for backwards compatibility but is no longer used here.
