@@ -8,7 +8,7 @@ import Legal from '../layouts/Legal.astro';
   title={"Politique de Confidentialité — MyClash"}
   description={"Politique de confidentialité de MyClash — comment nous collectons, utilisons et protégeons vos données personnelles conformément au RGPD."}
   heading={"Politique de Confidentialité"}
-  updated={"Dernière mise à jour : 7 novembre 2026"}
+  updated={"Dernière mise à jour : 8 novembre 2026"}
 >
 <!-- 1 -->
 <h2>1. Qui sommes-nous, et qui est responsable de vos données ?</h2>
@@ -196,6 +196,8 @@ import Legal from '../layouts/Legal.astro';
   <li>les données personnelles présentes dans le journal d'audit sont expurgées sur place.</li>
 </ul>
 <p><strong>Une copie survit à ce moment : nos sauvegardes.</strong> Chaque nuit, une copie chiffrée de la base de données part vers un stockage hors-site, et nous gardons les plus récentes, soit environ 60 jours. Vos données supprimées y restent jusqu'à ce que la copie qui les contient soit remplacée. Nous ne nous servons de ces copies que pour réparer la plateforme après un incident.</p>
+<p>Avant chaque mise à jour de la plateforme, nous gardons aussi une copie de la base de données sur notre serveur, pendant environ 30 jours, pour pouvoir annuler une mise à jour qui tourne mal. Vos données supprimées y restent jusqu'à ce que cette copie soit supprimée.</p>
+<p>Si nous devons un jour restaurer l'une de ces copies après un incident, des données supprimées après la création de la copie peuvent revenir avec elle. Nous supprimons à nouveau ce que nous savons avoir été supprimé, et les photos dont la date de suppression est passée repartent d'elles-mêmes.</p>
 <p><strong>Vos résultats de compétition conservent votre nom.</strong> Un résultat est l'archive d'une compétition publique à laquelle vous avez pris part, aux côtés des adversaires que vous avez affrontés ; l'effacer réécrirait aussi l'histoire d'autres personnes. Si vous souhaitez que votre nom soit également retiré des résultats publiés, demandez-le-nous : nous l'anonymisons, le résultat subsiste sous une entrée anonyme, et les photos que vous avez envoyées depuis votre espace personnel sont supprimées.</p>
 <p>Nous conservons la trace qu'une suppression a eu lieu et quand — jamais qui elle concernait. Cette trace est une empreinte cryptographique à sens unique, qui ne permet pas de remonter jusqu'à vous.</p>
 
@@ -270,7 +272,7 @@ import Legal from '../layouts/Legal.astro';
   <li>Les mots de passe ne sont jamais stockés en clair.</li>
   <li>L'accès à vos données est contrôlé par la base de données elle-même, et pas seulement par l'application.</li>
   <li>Les cookies de session sont inaccessibles au JavaScript, ce qui neutralise toute une classe d'attaques.</li>
-  <li>Les sauvegardes sont chiffrées et stockées hors-site.</li>
+  <li>Les sauvegardes de chaque nuit sont chiffrées et stockées hors-site ; la copie gardée avant chaque mise à jour reste sur notre serveur (§6.1).</li>
   <li>Les tentatives de connexion sont limitées en fréquence, et les actions d'administration sont consignées dans un journal d'audit.</li>
   <li>MyClash est un logiciel open source : sa sécurité peut être inspectée par quiconque, plutôt que d'être crue sur parole.</li>
 </ul>

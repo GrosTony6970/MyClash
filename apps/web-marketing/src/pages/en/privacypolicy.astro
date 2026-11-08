@@ -8,7 +8,7 @@ import Legal from '../../layouts/Legal.astro';
   title={"Privacy Policy — MyClash"}
   description={"MyClash privacy policy — how we collect, use and protect your personal data in accordance with the GDPR."}
   heading={"Privacy Policy"}
-  updated={"Last updated: 7 November 2026"}
+  updated={"Last updated: 8 November 2026"}
 >
 <!-- 1 -->
 <h2>1. Who we are, and who is responsible for your data</h2>
@@ -196,6 +196,8 @@ import Legal from '../../layouts/Legal.astro';
   <li>personal data inside the audit trail is redacted in place.</li>
 </ul>
 <p><strong>One copy outlasts that moment: our backups.</strong> Every night an encrypted copy of the database goes to off-site storage, and we keep the most recent ones, about 60 days. Your deleted data stays in them until the copy that holds it is replaced. We use these copies only to repair the platform after an incident.</p>
+<p>Before each update of the platform, we also keep a copy of the database on our server, for about 30 days, so that we can undo an update that goes wrong. Your deleted data stays in it until that copy is deleted.</p>
+<p>If we ever have to restore one of these copies after an incident, data deleted after the copy was made may come back with it. We delete again what we know was deleted, and photos past their deletion date go again on their own.</p>
 <p><strong>Your competition results keep your name.</strong> A result is the record of a public competition in which you took part, alongside the opponents you faced; erasing it would rewrite other people's history too. If you want your name removed from published results as well, ask us: we anonymise it, the result survives under an anonymous entry, and the photos you sent from your personal space are deleted.</p>
 <p>We retain a record that an erasure took place and when — never who it concerned. That record is a one-way cryptographic fingerprint, which cannot be traced back to you.</p>
 
@@ -270,7 +272,7 @@ import Legal from '../../layouts/Legal.astro';
   <li>Passwords are never stored in clear text.</li>
   <li>Access to your data is enforced by the database itself, not merely by the application.</li>
   <li>Session cookies are inaccessible to JavaScript, which neutralises an entire class of attack.</li>
-  <li>Backups are encrypted and stored off-site.</li>
+  <li>Nightly backups are encrypted and stored off-site; the copy kept before each update stays on our server (§6.1).</li>
   <li>Sign-in attempts are rate-limited, and administrative actions are recorded in an audit trail.</li>
   <li>MyClash is open-source software: its security can be inspected by anyone rather than taken on trust.</li>
 </ul>

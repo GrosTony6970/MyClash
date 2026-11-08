@@ -54,6 +54,12 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
   },
   privacy: {
     kind: 'privacy',
+    // 2026-11-08: §6.1 says a copy of the database is kept on our server for
+    // about 30 days before each update (499), and that a restore can bring back
+    // data deleted after the copy, which we delete again (500); §10's backup line
+    // no longer calls every copy encrypted and off-site. Bumped: the text a
+    // person accepts changed, and 2026-11-07 may already be deployed.
+    //
     // 2026-11-07: the organiser and LYON AMHE are jointly responsible for an
     // Event's photos (§1.1, §3bis; ruling 485); §6.1 and §3bis say the encrypted
     // database backups keep deleted data about 60 days (481); §2.7 says what the
@@ -98,7 +104,7 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // this one — Sentry self-hosted, no transfers outside the EU, analytics
     // cookies behind a consent panel that did not exist, and a 30-day
     // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
-    version: '2026-11-07',
+    version: '2026-11-08',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };
