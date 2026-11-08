@@ -10,6 +10,7 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 import { LogoCropperModal } from './_components/LogoCropperModal';
+import { MenuProfileCard } from './_components/MenuProfileCard';
 import { OwnedClubNotice } from './_components/OwnedClubNotice';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -408,6 +409,8 @@ export default function OrgDashboardPage() {
           </form>
         </div>
       </section>
+
+      <MenuProfileCard orgId={org?.id ?? null} />
 
       {pendingLogoFile && (
         <LogoCropperModal

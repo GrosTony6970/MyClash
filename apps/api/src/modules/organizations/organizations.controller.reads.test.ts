@@ -186,7 +186,7 @@ describe('OrganizationsController.getBySlug', () => {
   it('reads each deciding column', async () => {
     await controller.getBySlug('club-a', req('u-member-a'));
     expect(selectsFor(db.from, 'organizations')).toEqual([
-      'id, name, slug, status, logo_url, brand_color, contact_email',
+      'id, name, slug, status, logo_url, brand_color, contact_email, menu_profile',
     ]);
     expect(selectsFor(db.from, 'platform_roles')).toEqual(['role']);
     expect(selectsFor(db.from, 'organization_members')).toEqual(['role']);

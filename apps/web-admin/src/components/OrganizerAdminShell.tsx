@@ -9,7 +9,14 @@ import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
 import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
-import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
+import {
+  applyMenuProfile,
+  EVENT_NAV_GROUPS,
+  EVENT_NAV_OVERVIEW,
+  shownIn,
+  useEventNavGroups,
+} from './event-nav-groups';
+import { ORG_NAV_ITEMS } from './org-nav-items';
 import { getPublicApiUrl } from '../lib/api-url';
 import { apiRequest, type MeSession } from '@myclash/api-client';
 
@@ -18,43 +25,10 @@ import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { resolveWorkspaceOptions } from './workspace-options';
 
-const orgNavItems = [
-  // `exact` so the org Overview (root) doesn't prefix-match and stay
-  // highlighted on every `/org/{slug}/...` sub-route (incl. event pages).
-  { href: '', labelKey: 'organizer.shell.nav.overview', icon: 'overview', exact: true },
-  // `exact` prevents the events list from staying highlighted once
-  // the operator drills into an event — sub-routes
-  // `/org/{slug}/events/{eventId}/...` belong to the Event section.
-  { href: 'events', labelKey: 'organizer.shell.nav.events', icon: 'events', exact: true },
-  // Single "Rulesets" entry — the page redirects to /scoring and the
-  // RulesetsTopNav pill at the top of each tab handles Scoring | Penalty
-  // switching. pickActiveHref() uses startsWith() so the link stays
-  // highlighted whether the operator is on /scoring or /penalty.
-  { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', icon: 'rulesets' },
-  // Org-level league management (approve requests, groups, ruleset, roles) for
-  // leagues this org administers. `exact: false` so per-league sub-routes
-  // (`/org/{slug}/leagues/{leagueId}`) keep the entry highlighted.
-  { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', icon: 'leagues' },
-  // Org profile + members self-service (name/logo/contact, add/remove
-  // members) — before this entry only super-admins could edit an org.
-  // pickActiveHref longest-match keeps it distinct from settings/ai.
-  // `members`, not a settings cog: the route is /settings but the entry the
-  // operator reads is "Org Members" — the org profile + member list. The
-  // "Org" prefix keeps it distinct from the event-scoped people under PEOPLE.
-  { href: 'settings', labelKey: 'organizer.shell.nav.orgSettings', icon: 'members' },
-  { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', icon: 'ai' },
-  // Compensation is unified under each event (Compensation plan + Referee
-  // compensation tabs); no standalone org-settings entry.
-  // Venues are org-level — operators manage the catalogue from this
-  // entry. The event sidebar no longer surfaces venues; the
-  // workshop + session venue pickers consume the org catalogue
-  // directly.
-  { href: 'venues', labelKey: 'organizer.shell.nav.venues', icon: 'venues' },
-] as const;
-
-// Flat list of every event-scoped nav item (overview + all themed groups).
-// The themed grouping itself lives in ./event-nav-groups; this derived list
-// drives active-link detection (pickActiveHref, longest-match across groups).
+// Flat list of every event-scoped nav item (overview + all themed groups), shown or not. It
+// drives active-link detection (pickActiveHref, longest-match across groups). It is the whole list
+// on purpose: on a page Workshops only hides, the hidden entry wins the match and nothing lights,
+// where the shown list alone would light Event overview by prefix.
 const eventNavItems = [EVENT_NAV_OVERVIEW, ...EVENT_NAV_GROUPS.flatMap((g) => g.items)] as const;
 
 function asString(value: string | string[] | undefined): string {
@@ -82,8 +56,16 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
   // Event context — provides selectedEventId (URL > localStorage > auto-pick),
   // the full event list for the switcher, and orgName for the brand block.
-  const { orgName, orgLogoUrl, events, eventsError, selectedEventId, currentEvent, selectEvent } =
-    useOrganizerSelectedEvent();
+  const {
+    orgName,
+    orgLogoUrl,
+    menuProfile,
+    events,
+    eventsError,
+    selectedEventId,
+    currentEvent,
+    selectEvent,
+  } = useOrganizerSelectedEvent();
 
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -199,12 +181,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // to org-scoped routes that have no eventId in the URL.
   const eventBase = selectedEventId ? `/org/${slug}/events/${selectedEventId}` : '';
   const eventGroups = useEventNavGroups();
-  const navSections = useMemo(
-    () => [
+  const navSections = useMemo(() => {
+    // The organisation's profile decides which entries the menu shows (Workshops only hides the
+    // tournament pages). The pages themselves stay reachable by link.
+    const shown = applyMenuProfile(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, menuProfile);
+    return [
       {
         key: 'org' as const,
         title: t('organizer.shell.organizationSection'),
-        items: orgNavItems.map((item) => ({
+        items: shown.orgItems.map((item) => ({
           ...item,
           href: joinPath(orgBase, item.href),
         })),
@@ -220,7 +205,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 href: joinPath(eventBase, EVENT_NAV_OVERVIEW.href),
               },
               // Themed collapsible groups.
-              groups: EVENT_NAV_GROUPS.map((group) => ({
+              groups: shown.groups.map((group) => ({
                 key: group.key,
                 headingKey: group.headingKey,
                 items: group.items.map((item) => ({
@@ -236,9 +221,8 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             },
           ]
         : []),
-    ],
-    [eventBase, selectedEventId, orgBase, t],
-  );
+    ];
+  }, [eventBase, selectedEventId, orgBase, menuProfile, t]);
 
   const workspaces = resolveWorkspaceOptions(me, { kind: 'org', slug });
 
@@ -261,10 +245,12 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     router.push(`/org/${slug}/events/${id}`);
   }
 
+  // `inWorkshops` is required here too, so an entry built inline below must decide as well.
   const renderNavItem = (
-    item: { href: string; labelKey: string; icon: NavIconName },
+    item: { href: string; labelKey: string; icon: NavIconName; inWorkshops: boolean },
     activeHref: string | null,
   ) => {
+    if (!shownIn(item, menuProfile)) return null;
     const active = item.href === activeHref;
     return (
       <Link
@@ -426,7 +412,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       })}
 
       {/*
-        Rendered OUTSIDE orgNavItems on purpose. That array is mapped through
+        Rendered OUTSIDE ORG_NAV_ITEMS on purpose. That array is mapped through
         joinPath(orgBase, href), which strips a leading slash — so '/leagues'
         would silently become '/org/{slug}/leagues', an existing valid route
         that is the very surface this entry exists to bypass. It would not 404
@@ -436,7 +422,13 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         <div className="border-t border-border pt-5">
           <div className="flex flex-col gap-1">
             {renderNavItem(
-              { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', icon: 'leagues' },
+              // The person's own leagues, not the club's: Workshops only keeps it.
+              {
+                href: '/leagues',
+                labelKey: 'organizer.shell.nav.myLeagues',
+                icon: 'leagues',
+                inWorkshops: true,
+              },
               pickActiveHref(pathname, [{ href: '/leagues' }]),
             )}
           </div>

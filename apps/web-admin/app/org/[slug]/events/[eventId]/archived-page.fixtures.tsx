@@ -31,7 +31,7 @@ export const ARCHIVED_EVENT = { id: EVENT_ID, name: 'Open 2025', status: 'archiv
 
 const SLUG = 'club';
 const ORG_ID = 'org-1';
-const ORG_READ = `/api/v1/organizations/slug/${SLUG}`;
+export const ORG_READ = `/api/v1/organizations/slug/${SLUG}`;
 /** The club's own Event list: where a page takes its Event's status from (ruling 380). */
 export const EVENTS_READ = `/api/v1/organizations/${ORG_ID}/events`;
 const EVENT_READ = `/api/v1/events/${EVENT_ID}`;

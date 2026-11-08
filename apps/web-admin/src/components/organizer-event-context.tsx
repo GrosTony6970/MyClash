@@ -29,11 +29,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchRenewingLogin } from '@myclash/api-client';
+import { asOrgMenuProfile, type OrgMenuProfile } from '@myclash/types';
 import { getPublicApiUrl } from '../lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -54,6 +56,8 @@ interface OrganizerEventContextValue {
   orgSlug: string;
   orgName: string | null;
   orgLogoUrl: string | null;
+  /** The organisation's sidebar profile; `everything` until the organisation loads. */
+  menuProfile: OrgMenuProfile;
   events: OrgEventSummary[];
   /**
    * Non-null when the most recent events-list fetch failed. The shell
@@ -108,6 +112,7 @@ export function OrganizerEventContextProvider({
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
+  const [menuProfile, setMenuProfile] = useState<OrgMenuProfile>('everything');
   const [events, setEvents] = useState<OrgEventSummary[]>([]);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventIdState] = useState<string | null>(null);
@@ -120,9 +125,15 @@ export function OrganizerEventContextProvider({
   // invalidate this snapshot without remounting the provider — the alternative
   // was relying on logout/login to re-fetch, which is what the user actually
   // observed in the wild before this helper existed.
+  //
+  // THE RACE. The mount's read and a page's re-read after its save can be in flight together, and
+  // the older one can land last: a mount read sent before the save would put the old menu profile
+  // (or name, or logo) back. Only the newest read's answer is kept.
+  const latestOrgRead = useRef(0);
   const refetchOrg = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!slug) return;
+      const read = ++latestOrgRead.current;
       try {
         // Renewed on a 401, as the pages' own reads are: the list this leads to is what
         // closes an archived Event's pages (ruling 380), and a login lasts an hour.
@@ -131,16 +142,19 @@ export function OrganizerEventContextProvider({
           `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
           { credentials: 'include', ...(signal ? { signal } : {}) },
         );
+        if (read !== latestOrgRead.current) return;
         if (!res.ok) {
           setEventsError(`${res.status} ${res.statusText || t('admin.common.requestFailed')}`);
           return;
         }
         const raw = (await res.json()) as Record<string, unknown>;
+        if (read !== latestOrgRead.current) return;
         if (typeof raw['id'] === 'string') setOrgId(raw['id']);
         if (typeof raw['name'] === 'string') setOrgName(raw['name']);
         const logo = raw['logo_url'] ?? raw['logoUrl'];
         if (typeof logo === 'string') setOrgLogoUrl(logo);
         else setOrgLogoUrl(null);
+        setMenuProfile(asOrgMenuProfile(raw['menu_profile']));
       } catch {
         // Swallow — caller is a fire-and-forget invalidation; the next render
         // already shows whatever stale value we have, which is no worse than
@@ -269,6 +283,7 @@ export function OrganizerEventContextProvider({
       orgSlug: slug,
       orgName,
       orgLogoUrl,
+      menuProfile,
       events,
       eventsError,
       selectedEventId,
@@ -282,6 +297,7 @@ export function OrganizerEventContextProvider({
       slug,
       orgName,
       orgLogoUrl,
+      menuProfile,
       events,
       eventsError,
       selectedEventId,

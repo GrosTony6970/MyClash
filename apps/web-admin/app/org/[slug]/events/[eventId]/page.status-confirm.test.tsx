@@ -3,7 +3,7 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
-import { EVENT_ID, openEventPage, type, type OpenedPage } from './archived-page.fixtures';
+import { EVENT_ID, ORG_READ, openEventPage, type, type OpenedPage } from './archived-page.fixtures';
 import EventDetailPage from './page';
 
 /**
@@ -152,6 +152,30 @@ describe("the Event's zone on the Event dashboard", () => {
     await page.settle();
     expect(page.writes()).toEqual([`PATCH /api/v1/events/${EVENT_ID}`]);
     expect(saved()).toEqual({ timezone: 'America/New_York' });
+  });
+});
+
+describe("the club's sidebar profile on the Event dashboard", () => {
+  const cardLabels = () =>
+    [...document.body.querySelectorAll('p.uppercase')].map((p) => p.textContent);
+  const openFor = async (menuProfile: string) => {
+    page = await openEventPage(<EventDetailPage />, {
+      ...READS,
+      [ORG_READ]: { id: 'org-1', name: 'Club', menu_profile: menuProfile },
+    });
+  };
+
+  it('shows the Tournaments card and table to a club that shows everything', async () => {
+    await openFor('everything');
+    expect(cardLabels()).toContain('Tournaments');
+    expect(document.body.querySelector('table')).not.toBeNull();
+  });
+
+  it('shows neither to a Workshops-only club', async () => {
+    await openFor('workshops');
+    expect(cardLabels()).not.toContain('Tournaments');
+    expect(cardLabels()).toContain('Participants');
+    expect(document.body.querySelector('table')).toBeNull();
   });
 });
 

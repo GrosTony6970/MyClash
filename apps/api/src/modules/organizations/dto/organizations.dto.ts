@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { ORG_MENU_PROFILES } from '@myclash/types';
 
 const createOrganizationSchema = z
   .object({
@@ -25,6 +26,8 @@ const updateOrganizationSchema = z
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/u, 'brandColor must be a 6-digit hex color like #b91c1c')
       .nullish(),
+    // The admin sidebar: every page, or Workshops only (tournament pages hidden from the menu).
+    menuProfile: z.enum(ORG_MENU_PROFILES).optional(),
   })
   .strict();
 export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}

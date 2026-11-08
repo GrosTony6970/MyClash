@@ -261,6 +261,16 @@ const superAdminShellPath = path.join(
 );
 // The super-admin sidebar's entries: moved out of the shell so a test reads them (admin-nav.test.ts).
 const adminNavPath = path.join(rootDir, 'apps', 'web-admin', 'src', 'components', 'admin-nav.ts');
+// The organiser sidebar's organisation entries: moved out of the shell so a test reads them
+// (event-nav-groups.test.ts).
+const organizerNavPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'components',
+  'org-nav-items.ts',
+);
 const organizerLayoutPath = path.join(
   rootDir,
   'apps',
@@ -643,6 +653,7 @@ const superAdminShellText = await pinned.readPinnedFile(superAdminShellPath);
 const adminNavText = await pinned.readPinnedFile(adminNavPath);
 const organizerLayoutText = await pinned.readPinnedFile(organizerLayoutPath);
 const organizerShellText = await pinned.readPinnedFile(organizerShellPath);
+const organizerNavText = await pinned.readPinnedFile(organizerNavPath);
 const identityGateText = await pinned.readPinnedFile(identityGatePath);
 const organizerDashboardPageText = await pinned.readPinnedFile(organizerDashboardPagePath);
 const organizerEventsPageText = await pinned.readPinnedFile(organizerEventsPagePath);
@@ -1973,11 +1984,16 @@ requireContains(
 requireContains(
   organizerShellText,
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'ORG_NAV_ITEMS',
+);
+requireContains(
+  organizerNavText,
+  'apps/web-admin/src/components/org-nav-items.ts',
   "href: 'events'",
 );
 requireContains(
-  organizerShellText,
-  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  organizerNavText,
+  'apps/web-admin/src/components/org-nav-items.ts',
   'organizer.shell.nav.events',
 );
 requireContains(
