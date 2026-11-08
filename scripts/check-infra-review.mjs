@@ -259,6 +259,8 @@ const superAdminShellPath = path.join(
   'components',
   'SuperAdminShell.tsx',
 );
+// The super-admin sidebar's entries: moved out of the shell so a test reads them (admin-nav.test.ts).
+const adminNavPath = path.join(rootDir, 'apps', 'web-admin', 'src', 'components', 'admin-nav.ts');
 const organizerLayoutPath = path.join(
   rootDir,
   'apps',
@@ -638,6 +640,7 @@ const superAdminSystemVersionsPageText = await pinned.readPinnedFile(
 const adminSystemVersionsServiceText = await pinned.readPinnedFile(adminSystemVersionsServicePath);
 const superAdminLayoutText = await pinned.readPinnedFile(superAdminLayoutPath);
 const superAdminShellText = await pinned.readPinnedFile(superAdminShellPath);
+const adminNavText = await pinned.readPinnedFile(adminNavPath);
 const organizerLayoutText = await pinned.readPinnedFile(organizerLayoutPath);
 const organizerShellText = await pinned.readPinnedFile(organizerShellPath);
 const identityGateText = await pinned.readPinnedFile(identityGatePath);
@@ -2354,18 +2357,11 @@ for (const expected of [
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
 for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
-  requireContains(
-    superAdminShellText,
-    'apps/web-admin/src/components/SuperAdminShell.tsx',
-    expected,
-  );
+  requireContains(adminNavText, 'apps/web-admin/src/components/admin-nav.ts', expected);
 }
-if (
-  superAdminShellText.indexOf("href: '/admin/clubs'") >
-  superAdminShellText.indexOf("href: '/admin/leagues'")
-) {
+if (adminNavText.indexOf("href: '/admin/clubs'") > adminNavText.indexOf("href: '/admin/leagues'")) {
   errors.push(
-    'apps/web-admin/src/components/SuperAdminShell.tsx must keep Leagues immediately after Clubs in the super-admin sidebar.',
+    'apps/web-admin/src/components/admin-nav.ts must keep Leagues immediately after Clubs in the super-admin sidebar.',
   );
 }
 if (
