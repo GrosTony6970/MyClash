@@ -487,7 +487,7 @@ fi
 hdr "Preparing data and log directories"
 
 mkdir -p \
-  logs/api logs/db logs/worker logs/web-public logs/web-staff logs/web-admin logs/traefik \
+  logs/api logs/worker logs/web-public logs/web-staff logs/web-admin logs/traefik \
   data/postgres data/redis data/storage data/traefik \
   backups/pre-deploy backups/nightly
 
