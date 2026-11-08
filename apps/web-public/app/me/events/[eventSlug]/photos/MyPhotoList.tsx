@@ -95,10 +95,11 @@ function MyPhotoTile(props: {
 }) {
   const { t, locale } = useI18n();
   const { photo } = props;
+  // "Approved", not "Shown": an approved photo is hidden while the Event's photos are Off (498).
   const status =
     photo.status === 'waiting'
       ? t('publicApp.myPhotos.statusWaiting')
-      : t('publicApp.myPhotos.statusShown');
+      : t('publicApp.myPhotos.statusApproved');
   return (
     <li
       data-testid="my-photo"

@@ -1499,7 +1499,7 @@ export const publicApp = {
     title: 'My photos',
     empty: 'You have not sent photos to this Event from here.',
     statusWaiting: 'Waiting for approval',
-    statusShown: 'Shown',
+    statusApproved: 'Approved',
     delete: 'Delete',
     deleteTitle: 'Delete this photo?',
     deleteText: 'It is removed from the Event’s photos.',

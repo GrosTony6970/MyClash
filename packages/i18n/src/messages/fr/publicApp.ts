@@ -1505,7 +1505,7 @@ export const publicApp = {
     title: 'Mes photos',
     empty: 'Vous n’avez pas envoyé de photos à cet événement depuis cet espace.',
     statusWaiting: 'En attente de validation',
-    statusShown: 'Affichée',
+    statusApproved: 'Approuvée',
     delete: 'Supprimer',
     deleteTitle: 'Supprimer cette photo ?',
     deleteText: 'Elle est retirée des photos de l’événement.',
