@@ -163,6 +163,11 @@ test('a restore that worked exits 0: the database and the night’s images', { s
   assert.ok(run.calls.includes(`gunzip -c ${NIGHTLY_STORAGE}`), show(run));
   assert.ok(run.calls.some(volumeRun), show(run));
   assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
+  // Ruling 500: the restored database forgot what was deleted after the backup; say so.
+  assert.ok(
+    run.output.includes(`Data deleted after ${NIGHTLY_DB} was made is back in the database.`),
+    show(run),
+  );
 });
 
 test('a restore that worked exits 0: --db-only leaves the images', { skip }, () => {
@@ -219,6 +224,7 @@ test('--storage-only replaces the images and never touches the database', { skip
   assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
   assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
   assert.match(run.output, /database is not touched/iu);
+  assert.doesNotMatch(run.output, /deleted after/u, show(run));
 });
 
 test('a failed --storage-only on a .gpg leaves no decrypted file behind', { skip }, () => {

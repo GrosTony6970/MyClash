@@ -447,5 +447,9 @@ ok "Restarted"
 
 echo
 ok "Restore complete"
-[[ "$STORAGE_ONLY" -eq 1 ]] && warn "The database was not touched."
+if [[ "$STORAGE_ONLY" -eq 1 ]]; then
+  warn "The database was not touched."
+else
+  warn_deletions_returned "$BACKUP_FILE"
+fi
 warn "Run 'infra/scripts/status.sh' to verify all services are healthy."

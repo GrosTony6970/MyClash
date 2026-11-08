@@ -213,4 +213,7 @@ mc_write_system_versions_manifest \
 hdr "Rollback complete"
 echo
 ok "Rolled back to ${PREV_COMMIT:0:8}"
+if [[ "$BACKUP_FILE" != "none" && -f "$BACKUP_FILE" ]]; then
+  warn_deletions_returned "$BACKUP_FILE"
+fi
 echo "  Status: infra/scripts/status.sh"

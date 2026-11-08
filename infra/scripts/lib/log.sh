@@ -26,6 +26,15 @@ warn() { echo "${YELLOW}!${RESET} $*"; }
 hdr()  { echo; echo "${CYAN}${BOLD}── $* ──${RESET}"; }
 info() { echo "  $*"; }
 
+# After a database restore: data deleted after the backup was made is back (privacy policy §6.1,
+# ruling 500). Nothing in the restored database remembers those deletions, so the operator
+# deletes them again. Usage: warn_deletions_returned "<backup file>"
+warn_deletions_returned() {
+  warn "Data deleted after $1 was made is back in the database."
+  warn "Delete it again: accounts, anonymised names and photos you know were deleted since then."
+  warn "Photos past their deletion date go again on their own at the next nightly expiry."
+}
+
 # Format a duration in seconds as a human string, with no trailing newline so
 # callers can embed it: "47s", "6m 41s", "1h 06m 41s".
 # Usage: echo "Total time: $(fmt_duration 401)"

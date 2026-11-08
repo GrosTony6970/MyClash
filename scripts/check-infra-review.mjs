@@ -1650,6 +1650,12 @@ requireContains(startText, 'infra/scripts/start.sh', 'mc_ensure_system_versions_
 // Rolled-back images used to bake GIT_COMMIT=unknown: deploy.sh and redeploy.sh
 // both export it for Compose to interpolate, rollback.sh did not.
 requireContains(rollbackText, 'infra/scripts/rollback.sh', 'export GIT_COMMIT="$PREV_COMMIT"');
+// Ruling 500: a rollback restores the pre-deploy copy, so data deleted since then is back.
+requireContains(
+  rollbackText,
+  'infra/scripts/rollback.sh',
+  'warn_deletions_returned "$BACKUP_FILE"',
+);
 for (const expected of ['stat.isFile()', 'Source: ${source}', 'Manifest path type: ${type}']) {
   if (!statusText.includes(expected)) {
     errors.push(`status.sh API version diagnostics must tolerate bad manifests with ${expected}.`);
