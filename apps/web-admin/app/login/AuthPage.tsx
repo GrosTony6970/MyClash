@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
-import { AuthAltLink, AuthNotice, AuthPanel } from '@myclash/ui';
+import { AuthAltLink, AuthNotice, AuthPanel, useGoogleSignInOn } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -71,6 +71,9 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
   const publicAppUrl = readPublicAppUrl();
 
   const [tab, setTab] = useState<AuthTab>(initialTab);
+  // Asked here, once: the alternative methods are drawn again on every tab and step change, and
+  // asking there hid the Google button and asked again each time (495).
+  const googleOn = useGoogleSignInOn(process.env['NEXT_PUBLIC_SUPABASE_URL']);
   // One draft across the tabs on purpose: someone who tried to sign in and
   // switches to creating an account has already typed their address.
   const [draft, setDraft] = useState<AccountDraft>(EMPTY_DRAFT);
@@ -438,6 +441,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
               t={t}
               mode={tab}
               email={email}
+              googleOn={googleOn}
               loadingAction={loadingAction}
               onMagicLink={() => void handleMagicLink()}
               onGoogle={() => {
