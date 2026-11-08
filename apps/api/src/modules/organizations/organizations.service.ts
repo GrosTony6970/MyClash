@@ -565,13 +565,16 @@ export class OrganizationsService {
    * Throws if `userId` holds the platform-level super-admin role.
    *
    * `super_admin`-EXACT, and deliberately NOT widened to the other tiers.
-   * A super-admin bypasses every org check, so an org membership on top of it
-   * means nothing and only muddies who actually has authority over an org.
-   * A platform_admin or platform_viewer gets no such bypass from
-   * `assertOrgRole`, so they can legitimately also be an organiser of their own
-   * club — which is the normal case for a HEMA practitioner who also moderates
-   * the platform, and is exactly the overlap the accounts console is built to
-   * show on both its Platform and Organiser tabs.
+   * A super admin is platform-scoped: a club membership on top of it muddies who
+   * actually has authority over that club, and makes the login a dual-role
+   * account that lands on the workspace chooser. It is not a shortcut either:
+   * `assertOrgRole` gives NO platform tier a bypass, and a super admin reaches a
+   * club's data only on the routes that let super admins in by name (photo
+   * moderation, ruling 491, for one).
+   * A platform_admin or platform_viewer can legitimately also be an organiser of
+   * their own club — which is the normal case for a HEMA practitioner who also
+   * moderates the platform, and is exactly the overlap the accounts console is
+   * built to show on both its Platform and Organiser tabs.
    *
    * Forward-only, as before: it blocks ADDING a membership, and says nothing
    * about accounts that already hold one.
