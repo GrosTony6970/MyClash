@@ -221,6 +221,11 @@ export interface PhotoSummary {
   timezone: string;
 }
 
+/** The organisers' summary: it also says whether every zip slot is taken (ruling 497). */
+export interface OrganiserPhotoSummary extends PhotoSummary {
+  downloadsBusy: boolean;
+}
+
 /**
  * One row of the platform's Photos page (`GET admin/photos/events`, ruling 493): an Event whose
  * photos are not Off, or that still holds photos, with its club and what waits on a moderator.

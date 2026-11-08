@@ -14,9 +14,9 @@ import {
 } from '@nestjs/common';
 import {
   csvFormatFromParam,
+  type OrganiserPhotoSummary,
   type PhotoLink,
   type PhotoQueuePage,
-  type PhotoSummary,
   type PublicPhotoPage,
 } from '@myclash/types';
 import { ConfigService } from '@nestjs/config';
@@ -174,14 +174,16 @@ export class PhotosController {
   @Get('events/:eventId/photos/summary')
   @ApiCookieAuth('sb-access-token')
   @ApiOperation({
-    summary: "The Event's photo mode, caps and deletion date (organisers, super admins)",
+    summary:
+      "The Event's photo mode, caps, deletion date and whether a zip can start (organisers, super admins)",
   })
   @ApiParam({ name: 'eventId', format: 'uuid' })
   async summary(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
-  ): Promise<PhotoSummary> {
-    return this.moderation.summary(await this.moderatorsEvent(eventId, req));
+  ): Promise<OrganiserPhotoSummary> {
+    const summary = await this.moderation.summary(await this.moderatorsEvent(eventId, req));
+    return { ...summary, downloadsBusy: this.downloads.busy() };
   }
 
   @Get('events/:eventId/photos')

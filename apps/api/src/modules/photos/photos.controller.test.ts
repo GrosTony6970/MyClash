@@ -38,6 +38,7 @@ function controller() {
     feed: vi.fn(async () => ({ photos: [], next: null })),
     report: vi.fn(async () => ({ reported: true })),
   };
+  const downloads = { busy: vi.fn(() => false) };
   // A signed-in organiser: `requireRequestUserId` turns the session cookie into this user.
   const supabase = { getAuthUser: vi.fn(async () => ({ id: 'user-7' })) };
   const ctl = new PhotosController(
@@ -48,9 +49,9 @@ function controller() {
     supabase as never,
     moderation as never,
     publicPhotos as never,
-    {} as never,
+    downloads as never,
   );
-  return { ctl, upload, moderation, publicPhotos };
+  return { ctl, upload, moderation, publicPhotos, downloads };
 }
 
 /** `@Throttle({ global: … })`'s limit, as `@nestjs/throttler` stores it (as auth.controller.test.ts). */
@@ -166,6 +167,20 @@ describe('the moderation routes', () => {
     expect(moderation.list).toHaveBeenCalledWith(gated, 'all', undefined);
     expect(moderation.approve).toHaveBeenCalledWith(gated, PHOTO);
     expect(moderation.remove).toHaveBeenCalledWith(gated, PHOTO);
+  });
+
+  it('the summary says whether every zip slot is taken, as the download service counts (497)', async () => {
+    const { ctl, moderation, downloads } = controller();
+    moderation.summary.mockResolvedValue({ waiting: 3 } as never);
+    await expect(ctl.summary(EVENT, signedIn())).resolves.toEqual({
+      waiting: 3,
+      downloadsBusy: false,
+    });
+    downloads.busy.mockReturnValue(true);
+    await expect(ctl.summary(EVENT, signedIn())).resolves.toEqual({
+      waiting: 3,
+      downloadsBusy: true,
+    });
   });
 
   it('refuse a caller with no session before asking the service', async () => {

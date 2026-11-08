@@ -11,3 +11,10 @@ export const photosUnavailable = () =>
     code: 'photos_unavailable',
     message: 'Photos are unavailable right now, try again.',
   } satisfies { code: PhotoUploadRefusal; message: string });
+
+/** Every zip slot is taken (ruling 497). A 503 through the operational marker, as above. */
+export const downloadsBusy = () =>
+  new OperationalUnavailableException({
+    code: 'photos_busy',
+    message: 'Too many photo downloads are running; try again in a minute.',
+  } satisfies { code: PhotoUploadRefusal; message: string });

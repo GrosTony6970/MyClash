@@ -2794,6 +2794,7 @@ export const organizer = {
         'One zip of the chosen photos still stored, with photos.csv. Copies you download are yours to keep safe and delete.',
       deleted: 'The photos of this Event are deleted: there is nothing left to download.',
       failed: 'The download could not start.',
+      busy: 'Too many downloads are running right now. Try again in a minute.',
     },
     queue: {
       tabsLabel: 'Photo queue',

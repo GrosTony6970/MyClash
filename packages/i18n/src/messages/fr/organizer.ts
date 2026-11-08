@@ -2756,6 +2756,7 @@ export const organizer = {
         'Un zip des photos choisies encore stockées, avec photos.csv. Les copies que vous téléchargez sont à garder en lieu sûr et à supprimer par vos soins.',
       deleted: 'Les photos de cet événement sont supprimées : il n’y a plus rien à télécharger.',
       failed: 'Le téléchargement n’a pas pu démarrer.',
+      busy: 'Trop de téléchargements sont en cours. Réessayez dans une minute.',
     },
     queue: {
       tabsLabel: 'File des photos',

@@ -9839,7 +9839,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The Event's photo mode, caps and deletion date (organisers, super admins) */
+    /** The Event's photo mode, caps, deletion date and whether a zip can start (organisers, super admins) */
     get: operations['PhotosController_summary'];
     put?: never;
     post?: never;

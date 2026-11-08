@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { csvFormatParam, type CsvFormat, type PhotoSummary } from '@myclash/types';
+import {
+  csvFormatParam,
+  type CsvFormat,
+  type OrganiserPhotoSummary,
+  type PhotoSummary,
+} from '@myclash/types';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -71,12 +76,14 @@ function useTagLists(eventId: string): PhotoTagLists | null | 'loading' {
  * download outlives the one-hour login; the click first re-reads the summary through `apiRequest`,
  * which renews a lapsed login, and follows the link only while a zip can still be asked for. A
  * re-read that says otherwise moves `now` to the check's time and reloads the page, so the page
- * shows why (`onStale`): storage off, or the deletion instant passed with the page open.
+ * shows why (`onStale`): storage off, or the deletion instant passed with the page open. A re-read
+ * that says every zip slot is taken (ruling 497) shows "try again in a minute" and follows nothing.
  *
  * The races: a second pick while the check runs (the button is `busy` until it ends, so one zip
  * starts), and the organiser leaving during the check (no link is followed after unmount). Named,
  * not handled: a browser clock behind the server's can follow the link just after the server
- * started answering 410; that download then fails in the browser.
+ * started answering 410, and another zip can take the last slot between the check and the link;
+ * that download then fails in the browser (the API logs the refusal).
  */
 export function usePhotoDownload(eventId: string, onStale: () => void) {
   const { t } = useI18n();
@@ -96,7 +103,7 @@ export function usePhotoDownload(eventId: string, onStale: () => void) {
     async (choice: DownloadChoice, format: CsvFormat) => {
       setBusy(true);
       const apiUrl = getPublicApiUrl();
-      const check = await apiRequest<PhotoSummary>(
+      const check = await apiRequest<OrganiserPhotoSummary>(
         apiUrl,
         `/api/v1/events/${eventId}/photos/summary`,
       );
@@ -112,6 +119,10 @@ export function usePhotoDownload(eventId: string, onStale: () => void) {
       if (!downloadable(check.data, checkedAt)) {
         setNow(checkedAt);
         onStale();
+        return;
+      }
+      if (check.data.downloadsBusy) {
+        setFailure(t('organizer.photos.download.busy'));
         return;
       }
       follow(`${apiUrl}${downloadPath(eventId, choice, format)}`);

@@ -1,4 +1,4 @@
-import type { ModerationPhoto, PhotoQueuePage, PhotoSummary } from '@myclash/types';
+import type { ModerationPhoto, OrganiserPhotoSummary, PhotoQueuePage } from '@myclash/types';
 
 /** The Photos page's reads, as a stand-in server answers them. */
 
@@ -13,7 +13,7 @@ export const WORKSHOPS_READ = '/api/v1/events/ev1/workshops';
 /** The newest report of the reported photo p3, as the database wrote it. */
 export const LAST_REPORT = '2026-11-07T16:30:00.654321+00:00';
 
-export const SUMMARY: PhotoSummary = {
+export const SUMMARY: OrganiserPhotoSummary = {
   mode: 'approve',
   eventSlug: 'open-2025',
   eventName: 'Open 2025',
@@ -26,6 +26,7 @@ export const SUMMARY: PhotoSummary = {
   reported: 1,
   deletesAt: '2026-12-08T23:00:00.000Z',
   timezone: 'Europe/Paris',
+  downloadsBusy: false,
 };
 
 export function photo(id: string, over: Partial<ModerationPhoto> = {}): ModerationPhoto {
@@ -65,7 +66,7 @@ export const page = (photos: ModerationPhoto[], next: string | null = null): Pho
  */
 export function photoReads(
   over: {
-    summary?: Partial<PhotoSummary>;
+    summary?: Partial<OrganiserPhotoSummary>;
     waiting?: PhotoQueuePage;
     reported?: PhotoQueuePage;
     all?: PhotoQueuePage;

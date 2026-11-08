@@ -183,6 +183,26 @@ describe('Download all', () => {
     );
   });
 
+  it('follows nothing and says try again when every zip slot is taken, then follows once one frees (497)', async () => {
+    await open();
+    const server = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
+    let busy = true;
+    vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
+      path === SUMMARY_READ
+        ? { ok: true as const, data: { ...SUMMARY, downloadsBusy: busy } }
+        : server(base, path, init),
+    );
+    await download('Excel (English), other apps');
+    expect(followed).toEqual([]);
+    expect(section()!.querySelector('[role="alert"]')?.textContent).toBe(
+      'Too many downloads are running right now. Try again in a minute.',
+    );
+    busy = false;
+    await download('Excel (English), other apps');
+    expect(followed).toEqual([{ href: `${DOWNLOAD}?csv=standard`, download: '' }]);
+    expect(section()!.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('follows nothing, and the page shows why, when the photos went in the meantime', async () => {
     await open();
     const server = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
