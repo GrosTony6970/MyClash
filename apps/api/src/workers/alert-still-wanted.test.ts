@@ -218,6 +218,24 @@ describe('the alert of a booked Workshop rings only for a confirmed seat the acc
   });
 });
 
+describe('a moved session tells a confirmed seat and a place on the waitlist', () => {
+  it.each([
+    ["Léa's confirmed seat", 'u-lea'],
+    ["Tom's place on the waitlist", 'u-tom'],
+  ])('rings for %s', async (_, user) => {
+    await expect(wanted('workshop_moved', 'session-1', user).answer).resolves.toBe(true);
+  });
+
+  it.each<[string, string, Record<string, TableSeed>]>([
+    ['the booking was cancelled', 'u-lea', { workshop_enrollments: { rows: [] } }],
+    ['the seat was refused', 'u-lea', { workshop_enrollments: { rows: [seat('lea', 'refused')] } }],
+    ['the account holds no roster row', 'u-nobody', {}],
+  ])('stays silent when %s', async (_, user, overrides) => {
+    const { answer } = wanted('workshop_moved', 'session-1', user, overrides);
+    await expect(answer).resolves.toBe(false);
+  });
+});
+
 describe("a Fighter's own bout alert rings only for the account that holds her roster row", () => {
   it('rings for Léa, and for Tom, who meet in the bout', async () => {
     await expect(wanted('match_starting', 'bout-1', 'u-lea').answer).resolves.toBe(true);

@@ -19,7 +19,15 @@ type NoticeKey = KeysOf<'notices'>;
 interface Word {
   word: NoticeKey;
 }
-type Values = Record<string, string | number | Word>;
+
+const LANGUAGES = [
+  ['fr', createTranslator(messages.fr)],
+  ['en', createTranslator(messages.en)],
+] as const;
+
+/** A value each language writes its own way: a date. */
+export type PerLanguage = Record<(typeof LANGUAGES)[number][0], string>;
+type Values = Record<string, string | number | Word | PerLanguage>;
 
 export interface NoticeText {
   title: string;
@@ -29,17 +37,15 @@ export interface NoticeEmailText extends NoticeText {
   emailSubject: string;
 }
 
-const LANGUAGES = [createTranslator(messages.fr), createTranslator(messages.en)];
-
 /** The name, or its stand-in when the read brought none. */
 const or = (name: string | null | undefined, standIn: NoticeKey): string | Word =>
   name || { word: standIn };
 
 function bilingual(key: NoticeKey, values: Values = {}): string {
-  return LANGUAGES.map((say) => {
+  return LANGUAGES.map(([language, say]) => {
     const said = Object.entries(values).map(([name, value]) => [
       name,
-      typeof value === 'object' ? say(value.word) : value,
+      typeof value !== 'object' ? value : 'word' in value ? say(value.word) : value[language],
     ]);
     return say(key, Object.fromEntries(said) as Record<string, string | number>);
   }).join(' / ');
@@ -65,6 +71,24 @@ export function workshopCancelled(workshop: string | null): NoticeEmailText {
       workshop: or(workshop, 'notices.workshopCancelled.yourWorkshop'),
     }),
   });
+}
+
+/**
+ * A session moved (to another time or room). `when` is its new start, each language its own way;
+ * null when it has none any more. `where` is its room, or null when it names none.
+ */
+export function workshopMoved(
+  workshop: string | null | undefined,
+  when: PerLanguage | null,
+  where: string | null,
+): NoticeEmailText {
+  const values = { workshop: or(workshop, 'notices.workshopMoved.yourWorkshop') };
+  const body = (): string => {
+    if (!when) return bilingual('notices.workshopMoved.bodyNoTime', values);
+    if (!where) return bilingual('notices.workshopMoved.bodyNoPlace', { ...values, when });
+    return bilingual('notices.workshopMoved.body', { ...values, when, where });
+  };
+  return withSubject({ title: bilingual('notices.workshopMoved.title'), body: body() });
 }
 
 export function waitlistPromoted(workshop: string | null): NoticeEmailText {

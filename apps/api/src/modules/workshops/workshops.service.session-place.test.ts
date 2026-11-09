@@ -10,7 +10,7 @@
  *
  * Driven through the real service over seeded tables.
  */
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -24,6 +24,10 @@ const LEAD = 'u-lead-a';
 
 let db: ReturnType<typeof mockSupabase>;
 let service: WorkshopsService;
+let scheduler: {
+  scheduleWorkshopSessionStarting: ReturnType<typeof vi.fn>;
+  scheduleWorkshopMoved: ReturnType<typeof vi.fn>;
+};
 
 const SESSIONS = [
   { id: SESSION, workshop_id: WORKSHOP_A, venue_id: 'venue-a1', area_id: 'area-a1' },
@@ -55,7 +59,10 @@ function build(sessions: Record<string, unknown>[] = SESSIONS) {
     },
   });
   const supabase = { service: db.service };
-  const scheduler = { scheduleWorkshopSessionStarting: vi.fn(async () => undefined) };
+  scheduler = {
+    scheduleWorkshopSessionStarting: vi.fn(async () => undefined),
+    scheduleWorkshopMoved: vi.fn(async () => undefined),
+  };
   const follows = { scheduleWorkshopStarting: vi.fn(async () => undefined) };
   service = new WorkshopsService(
     supabase as never,
@@ -156,5 +163,61 @@ describe('creating a session (ruling 80)', () => {
       LEAD,
     );
     expect(sessionWrites()).toHaveLength(1);
+  });
+});
+
+/**
+ * A move tells the people booked, once the moves stop (operator ruling, 2026-11-09): the service
+ * hands the scheduler where the session was; `workshop-move-notice.test.ts` holds the rest.
+ */
+describe('a moved session queues its notice', () => {
+  const WHERE_IT_WAS = { startsAt: null, endsAt: null, venueId: 'venue-a1', areaId: 'area-a1' };
+  const PLACE = { startTime: '2026-10-01T10:00:00Z', endTime: '2026-10-01T11:00:00Z' };
+
+  it('an edit hands over where the session was', async () => {
+    await service.updateSession(SESSION, { venueId: 'venue-a2', areaId: 'area-a2' }, LEAD);
+    expect(scheduler.scheduleWorkshopMoved.mock.calls).toEqual([[SESSION, WHERE_IT_WAS]]);
+    // The double ignores the projection: only this holds the columns `before` is read from.
+    expect(selectsFor(db.from, 'workshop_sessions')).toContain(
+      'starts_at, ends_at, venue_id, area_id',
+    );
+  });
+
+  it('a placement on the board of a session that exists hands it over too', async () => {
+    build([SESSIONS[0]!]);
+    await service.createSession(WORKSHOP_A, { ...PLACE, venueId: 'venue-a1' }, LEAD);
+    expect(scheduler.scheduleWorkshopMoved.mock.calls).toEqual([[SESSION, WHERE_IT_WAS]]);
+  });
+
+  it('a first placement is no move', async () => {
+    // No session of this Workshop. The one seeded row is the double's answer to the upsert.
+    build([{ id: 'new-session', workshop_id: 'another-workshop', venue_id: null, area_id: null }]);
+    await service.createSession(WORKSHOP_A, { ...PLACE, venueId: 'venue-a1' }, LEAD);
+    expect(scheduler.scheduleWorkshopMoved).not.toHaveBeenCalled();
+  });
+
+  it('a cancel sends the cancel notice, not a move', async () => {
+    const cancelled = vi.fn(async () => undefined);
+    service = new WorkshopsService(
+      { service: db.service } as never,
+      scheduler as never,
+      { workshopCancelled: cancelled } as never,
+      new OrganizationsService({ service: db.service } as never),
+      {} as never,
+      { scheduleWorkshopStarting: vi.fn(async () => undefined) } as never,
+    );
+    await service.updateSession(SESSION, { status: 'cancelled' }, LEAD);
+    expect(cancelled).toHaveBeenCalledWith(SESSION);
+    expect(scheduler.scheduleWorkshopMoved).not.toHaveBeenCalled();
+  });
+
+  it('keeps the move when the notice cannot be queued, and says so in the log', async () => {
+    scheduler.scheduleWorkshopMoved.mockRejectedValueOnce(new Error('queue down'));
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await expect(
+      service.updateSession(SESSION, { venueId: 'venue-a2', areaId: 'area-a2' }, LEAD),
+    ).resolves.toBeDefined();
+    expect(warn).toHaveBeenCalledWith(`Moved notice of session ${SESSION} not queued: queue down`);
   });
 });

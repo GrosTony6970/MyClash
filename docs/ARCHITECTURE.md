@@ -2029,6 +2029,7 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | Your referee assignment changed     | immediate         | yes        |
 | Your exchange correction refused    | immediate         | yes        |
 | Workshop you enrolled in cancelled  | immediate         | main only  |
+| Workshop you enrolled in moved      | 10 min after      | yes        |
 | Promoted from waitlist to confirmed | immediate         | main only  |
 | Final results published             | immediate         | yes        |
 | Next Swiss round paired             | immediate         | yes        |
@@ -2058,6 +2059,11 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   booking changes: a confirmed seat, a promotion from the waitlist, a cancellation, a refusal. A
   session that is cancelled or has started sets none, and an alert about a draft Workshop is
   dropped when it fires.
+- A moved Workshop session tells its people once, after the moves stop (operator ruling,
+  2026-11-09; `apps/api/src/workers/workshop-move-notice.ts`). Each move replaces one pending job per
+  account (a confirmed seat or a place on the waitlist), ten minutes out, keeping where the session
+  was before the first move; when it fires, it says where the session is then, or sends nothing if
+  it is back where it was. It follows the "Schedule changes" switch.
 - A timed alert is checked when it FIRES, because what was true when it was queued may not be any
   more. Its bout, duty or Workshop must be public (`apps/api/src/workers/alert-visibility.ts`: a
   draft's alert is dropped, and so is a cancelled Workshop session's). And it must still be

@@ -24,11 +24,23 @@ import {
   type AlertOutcome,
 } from './duty-alert-rings';
 import { ringPhones } from './push-delivery';
+import {
+  asItStands,
+  readMovedSession,
+  samePlace,
+  WORKSHOP_MOVE_SETTLE_MS,
+  type SessionPlace,
+} from './workshop-move-notice';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
 export const NOTIFICATION_SEND_JOB = 'send';
 
-export type ScheduledNotificationKind = 'match_starting' | 'workshop_starting' | 'referee_starting';
+export type ScheduledNotificationKind =
+  | 'match_starting'
+  | 'workshop_starting'
+  | 'referee_starting'
+  // Sent once the moves stop, not at a start: `workshop-move-notice.ts`.
+  | 'workshop_moved';
 
 export type ImmediateNotificationKind =
   | 'assignment_changed'
@@ -88,6 +100,8 @@ export interface ScheduledNotificationJob {
   severity?: 'info' | 'warning' | 'alert' | null;
   /** The start an alert was set for, where its builder says it: a duty alert rang for it (ruling 221). */
   startsAt?: string | null;
+  /** A moved session's notice: where it ran before the first move (`workshop-move-notice.ts`). */
+  movedFrom?: SessionPlace | null;
 }
 
 export interface ReminderInput extends ScheduledNotificationJob {
@@ -473,6 +487,58 @@ export class NotificationSchedulerService {
     if (holders) await this.setBookingAlerts(session, statusByRow, holders, now);
   }
 
+  /**
+   * The "session moved" notice of each account booked on a session, confirmed or waitlisted,
+   * `WORKSHOP_MOVE_SETTLE_MS` after this move. A pending one is replaced, so the moves of a few
+   * minutes send one notice; it keeps the place of the FIRST move (`movedFrom`), so a session
+   * moved back sends none. `before` is where this move took it from. A guest booking has no
+   * account to tell. A read that fails throws: the caller logs it, the move stands.
+   *
+   * The race: two moves at the same moment both find no pending job, and the later `movedFrom`
+   * is the middle place. At worst one notice too many; the board sends its moves one by one.
+   */
+  async scheduleWorkshopMoved(sessionId: string, before: SessionPlace): Promise<void> {
+    const moved = await readMovedSession(this.supabase.service, sessionId);
+    if (!moved || samePlace(moved.place, before)) return;
+    const { data, error } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('persons ( claimed_by_user_id, email )')
+      .eq('workshop_session_id', sessionId)
+      .in('status', ['confirmed', 'waitlisted']);
+    if (error) throw new Error(`Bookings of moved session ${sessionId}: ${error.message}`);
+    type Holder = { claimed_by_user_id: string | null; email: string | null };
+    const holders = ((data ?? []) as Array<{ persons: Holder | Holder[] | null }>)
+      .map((row) => (Array.isArray(row.persons) ? row.persons[0] : row.persons))
+      .filter((holder): holder is Holder & { claimed_by_user_id: string } =>
+        Boolean(holder?.claimed_by_user_id),
+      );
+    await Promise.all(
+      holders.map(async (holder) => {
+        const userId = holder.claimed_by_user_id;
+        const jobId = buildNotificationJobId('workshop_moved', sessionId, userId);
+        const pending = await this.queue.getJob(jobId);
+        const movedFrom = (pending?.data as ScheduledNotificationJob | undefined)?.movedFrom;
+        await pending?.remove();
+        const job: ScheduledNotificationJob = {
+          kind: 'workshop_moved',
+          entityId: sessionId,
+          userId,
+          ...moved.text,
+          url: '/notifications',
+          email: holder.email,
+          preference: 'schedule_changes',
+          movedFrom: movedFrom ?? before,
+        };
+        await this.queue.add(NOTIFICATION_SEND_JOB, job, {
+          jobId,
+          delay: WORKSHOP_MOVE_SETTLE_MS,
+          removeOnComplete: true,
+          removeOnFail: 100,
+        });
+      }),
+    );
+  }
+
   /** Each account's alert for its booking of a session, at the lead its switches say. */
   private async setBookingAlerts(
     session: WorkshopSessionRow,
@@ -707,8 +773,23 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: ${dropped}`);
       return ALERT_DROPPED;
     }
-    await this.deliver(job);
+    const sent = await this.asSentNow(job.data);
+    if (!sent) {
+      this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: not moved`);
+      return ALERT_DROPPED;
+    }
+    await this.deliver(sent);
     return ALERT_SENT;
+  }
+
+  /**
+   * The job as it is sent. A moved session's notice says where the session is NOW, or is not sent
+   * when it is back where it was (`workshop-move-notice.ts`); every other job goes as queued.
+   */
+  private async asSentNow(job: ScheduledNotificationJob): Promise<ScheduledNotificationJob | null> {
+    if (job.kind !== 'workshop_moved') return job;
+    const text = await asItStands(this.supabase.service, job.entityId, job.movedFrom);
+    return text ? { ...job, ...text } : null;
   }
 
   /**
@@ -724,16 +805,16 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     return null;
   }
 
-  private async deliver(job: Job<ScheduledNotificationJob>): Promise<void> {
-    const deliveryUserId = job.data.forceEmail ? null : job.data.userId;
+  private async deliver(job: ScheduledNotificationJob): Promise<void> {
+    const deliveryUserId = job.forceEmail ? null : job.userId;
     const preference = deliveryUserId ? await this.getPreference(deliveryUserId) : null;
-    if (this.isSwitchedOff(job.data, preference)) {
-      return this.logger.log(`Skipped ${job.data.kind} for ${job.data.entityId}: switched off`);
+    if (this.isSwitchedOff(job, preference)) {
+      return this.logger.log(`Skipped ${job.kind} for ${job.entityId}: switched off`);
     }
     // An address with no account, or an announcement to a reader whose main switch is off.
     if (!deliveryUserId || preference?.enabled === false) {
-      await this.sendEmailFallback(job.data);
-      await this.markRecipient(job.data, 'delivered');
+      await this.sendEmailFallback(job);
+      await this.markRecipient(job, 'delivered');
       return;
     }
 
@@ -741,18 +822,16 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       { db: this.supabase.service, sender: this.sender, logger: this.logger },
       deliveryUserId,
       {
-        title: job.data.title,
-        body: job.data.body,
-        url: job.data.url,
-        severity: job.data.severity ?? undefined,
+        title: job.title,
+        body: job.body,
+        url: job.url,
+        severity: job.severity ?? undefined,
       },
     );
     // No phone alert set up, or every address was dead: the email is the fallback.
-    if (rang === 0) await this.sendEmailFallback(job.data);
-    await this.markRecipient(job.data, 'delivered');
-    this.logger.log(
-      `Sent ${job.data.kind} notification for ${job.data.entityId} to ${rang} subscriptions`,
-    );
+    if (rang === 0) await this.sendEmailFallback(job);
+    await this.markRecipient(job, 'delivered');
+    this.logger.log(`Sent ${job.kind} notification for ${job.entityId} to ${rang} subscriptions`);
   }
 
   /** The reader's switches. Unreadable ones count as never saved: the notice goes, with a warning. */

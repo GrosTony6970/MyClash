@@ -180,22 +180,25 @@ async function heldRows(db: Db, userId: string, personIds?: string[]): Promise<s
   return (rows ?? []).map((row) => row.id);
 }
 
-const holdsAConfirmedSeat: Wanted = async (db, sessionId, userId) => {
-  // A booking names a roster row, not an account (`workshop_enrollments.user_id`).
-  const rows = await heldRows(db, userId);
-  if (rows.length === 0) return false;
-  const seats = read<unknown[] | null>(
-    'alert booking',
-    await db
-      .from('workshop_enrollments')
-      .select('id')
-      .eq('workshop_session_id', sessionId)
-      .eq('status', 'confirmed')
-      .in('user_id', rows)
-      .limit(1),
-  );
-  return (seats ?? []).length > 0;
-};
+/** The account holds a booking of the session in one of `statuses`. */
+const holdsABooking =
+  (statuses: string[]): Wanted =>
+  async (db, sessionId, userId) => {
+    // A booking names a roster row, not an account (`workshop_enrollments.user_id`).
+    const rows = await heldRows(db, userId);
+    if (rows.length === 0) return false;
+    const seats = read<unknown[] | null>(
+      'alert booking',
+      await db
+        .from('workshop_enrollments')
+        .select('id')
+        .eq('workshop_session_id', sessionId)
+        .in('status', statuses)
+        .in('user_id', rows)
+        .limit(1),
+    );
+    return (seats ?? []).length > 0;
+  };
 
 const holdsAFightersRow: Wanted = async (db, boutId, userId) => {
   const fighters = await fightersOf(db, boutId);
@@ -211,7 +214,9 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   follow_match_starting: followsAFighter,
   follow_referee_starting: followsTheReferee,
   follow_workshop_starting: followsAnInstructor,
-  workshop_starting: holdsAConfirmedSeat,
+  workshop_starting: holdsABooking(['confirmed']),
+  // A place on the waitlist moves with the session too.
+  workshop_moved: holdsABooking(['confirmed', 'waitlisted']),
   match_starting: holdsAFightersRow,
   // The referee's own alert: set for the account that holds his profile. The holder is not asked
   // again here, so not closed: a profile that changes holder leaves the old account's alert.

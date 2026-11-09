@@ -14,6 +14,13 @@ export const notices = {
     body: 'Annulé : {workshop}.',
     yourWorkshop: 'votre atelier',
   },
+  workshopMoved: {
+    title: 'Atelier déplacé',
+    body: 'Nouvel horaire : {workshop}, {when}, {where}.',
+    bodyNoPlace: 'Nouvel horaire : {workshop}, {when}.',
+    bodyNoTime: "Déplacé : {workshop}. Le nouvel horaire n'est pas encore fixé.",
+    yourWorkshop: 'votre atelier',
+  },
   waitlistPromoted: {
     title: 'Place en atelier confirmée',
     body: "Vous quittez la liste d'attente : votre place est confirmée pour {workshop}.",

@@ -17,6 +17,13 @@ export const notices = {
     body: '{workshop} was cancelled.',
     yourWorkshop: 'Your workshop',
   },
+  workshopMoved: {
+    title: 'Workshop moved',
+    body: '{workshop} now starts {when}, {where}.',
+    bodyNoPlace: '{workshop} now starts {when}.',
+    bodyNoTime: '{workshop} was moved. Its new time is not set yet.',
+    yourWorkshop: 'Your workshop',
+  },
   waitlistPromoted: {
     title: 'Workshop place confirmed',
     body: 'You have been promoted from the waitlist for {workshop}.',

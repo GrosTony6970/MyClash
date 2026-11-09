@@ -21,6 +21,11 @@ import {
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import {
+  placeOf,
+  SESSION_PLACE_COLUMNS,
+  type SessionPlace,
+} from '../../workers/workshop-move-notice';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -794,6 +799,9 @@ export class WorkshopsService {
       await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null, eventId);
     }
 
+    // Where the session ran, if it exists: a placement that changes it is a move.
+    const before = await this.sessionPlace('workshop_id', workshopId);
+
     // A workshop has at most one session (UNIQUE(workshop_id), migration
     // 0098) — upsert keeps the scheduling form idempotent: re-scheduling
     // updates the existing block instead of stacking duplicates.
@@ -818,7 +826,37 @@ export class WorkshopsService {
     const createdSessionId = (data as { id: string }).id;
     await this.notifications.scheduleWorkshopSessionStarting(createdSessionId);
     await this.followNotifications.scheduleWorkshopStarting(createdSessionId);
+    // A first placement is no move: nobody was told another time.
+    if (before) await this.tellMoved(createdSessionId, before);
     return data;
+  }
+
+  /** Where a session runs now, found by `column`; null when there is none. */
+  private async sessionPlace(column: 'id' | 'workshop_id', value: string) {
+    const { data, error } = await this.supabase.service
+      .from('workshop_sessions')
+      .select(SESSION_PLACE_COLUMNS)
+      .eq(column, value)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    return data ? placeOf(data as Parameters<typeof placeOf>[0]) : null;
+  }
+
+  /**
+   * Queue the "session moved" notice (operator ruling, 2026-11-09). Best effort: the move is
+   * saved, and a queue that fails must not answer it as refused. The failure is logged, and the
+   * next move queues the notice again.
+   */
+  private async tellMoved(sessionId: string, before: SessionPlace): Promise<void> {
+    try {
+      await this.notifications.scheduleWorkshopMoved(sessionId, before);
+    } catch (err) {
+      this.logger.warn(
+        `Moved notice of session ${sessionId} not queued: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   // ── Update session ────────────────────────────────────────────────────────────
@@ -826,6 +864,7 @@ export class WorkshopsService {
   async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
     const eventId = await this.assertCanManageSession(sessionId, userId);
     await this.assertSessionPlace(sessionId, eventId, dto);
+    const before = await this.sessionPlace('id', sessionId);
 
     const updates: Record<string, unknown> = {};
     if (dto.startTime !== undefined) updates['starts_at'] = dto.startTime;
@@ -847,6 +886,8 @@ export class WorkshopsService {
     await this.followNotifications.scheduleWorkshopStarting(sessionId);
     if (dto.status === 'cancelled') {
       await this.notificationEvents.workshopCancelled(sessionId);
+    } else if (before) {
+      await this.tellMoved(sessionId, before);
     }
     return data;
   }

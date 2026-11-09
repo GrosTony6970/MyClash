@@ -99,6 +99,9 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   assignment_changed: dutyIsPublic,
   // The booking's own alert (ruling 210): the same bar as a follower's.
   workshop_starting: workshopIsPublic,
+  // A moved session (operator ruling, 2026-11-09): a published Workshop of a public Event; a
+  // cancelled or deleted session tells nobody it moved.
+  workshop_moved: workshopIsPublic,
   workshop_cancelled: null,
   waitlist_promoted: null,
   exchange_edit_rejected: null,
