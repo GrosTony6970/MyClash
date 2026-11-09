@@ -111,11 +111,13 @@ export class FeedbackService {
     const startedSessionIds = (
       (sessions ?? []) as Array<{ id: string; starts_at: string | null; status: string | null }>
     )
+      // A cancelled session never ran, whatever its start: a seat in it rates nothing (529).
       .filter(
         (s) =>
-          s.status === 'running' ||
-          s.status === 'completed' ||
-          (s.starts_at != null && new Date(s.starts_at).getTime() <= now),
+          s.status !== 'cancelled' &&
+          (s.status === 'running' ||
+            s.status === 'completed' ||
+            (s.starts_at != null && new Date(s.starts_at).getTime() <= now)),
       )
       .map((s) => s.id);
 

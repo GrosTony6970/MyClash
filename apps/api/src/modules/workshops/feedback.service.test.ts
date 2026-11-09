@@ -20,14 +20,18 @@ interface FakeOpts {
 }
 
 function buildFake(opts: FakeOpts) {
-  const captures: { upsert: Record<string, unknown> | null } = { upsert: null };
+  const captures: { upsert: Record<string, unknown> | null; sessionsSelect: string | null } = {
+    upsert: null,
+    sessionsSelect: null,
+  };
 
   function table(name: string): Record<string, unknown> {
     if (name === 'workshop_sessions') {
       return {
-        select: () => ({
-          eq: () => Promise.resolve({ data: opts.sessions ?? [], error: null }),
-        }),
+        select: (columns: string) => {
+          captures.sessionsSelect = columns;
+          return { eq: () => Promise.resolve({ data: opts.sessions ?? [], error: null }) };
+        },
       };
     }
     if (name === 'workshop_enrollments') {
@@ -96,6 +100,16 @@ describe('FeedbackService.submitFeedback', () => {
     const svc = new FeedbackService(fake.supabase as never);
     await expect(svc.submitFeedback('w-1', 'p-1', 4, null)).rejects.toThrow(/attendee/i);
     expect(fake.captures.upsert).toBeNull();
+  });
+
+  it('rejects a seat in a cancelled session, however long ago it was to start (529)', async () => {
+    const cancelled: Session = { ...startedSession, status: 'cancelled' };
+    const fake = buildFake({ sessions: [cancelled], enrollments: [{ status: 'confirmed' }] });
+    const svc = new FeedbackService(fake.supabase as never);
+    await expect(svc.submitFeedback('w-1', 'p-1', 4, null)).rejects.toThrow(/started/i);
+    expect(fake.captures.upsert).toBeNull();
+    // The fake ignores the projection: only this holds the column the rule reads.
+    expect(fake.captures.sessionsSelect).toBe('id, starts_at, status');
   });
 
   it('upserts the rating when enrolled in a started session', async () => {

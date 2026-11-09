@@ -117,6 +117,8 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
                 starts_at: '2026-06-02T09:00:00Z',
                 ends_at: '2026-06-02T10:30:00Z',
                 location_label: 'Lice 1',
+                // Struck through on the overview, not dropped (526).
+                status: 'cancelled',
               },
               {
                 id: 's-sat',
@@ -143,6 +145,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
         sessionStart: '2026-06-01T09:00:00Z',
         sessionEnd: '2026-06-01T10:30:00Z',
         location: 'Lice 3',
+        sessionCancelled: false,
       },
       {
         ...workshop,
@@ -150,6 +153,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
         sessionStart: '2026-06-02T09:00:00Z',
         sessionEnd: '2026-06-02T10:30:00Z',
         location: 'Lice 1',
+        sessionCancelled: true,
       },
     ]);
   });
@@ -164,7 +168,9 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
       from.mock.calls.findIndex(([table]) => table === 'workshop_instructors')
     ]!.value as Chain;
     const select = String(chain['select']!.mock.calls[0]![0]).replace(/\s+/g, ' ');
-    expect(select).toContain('workshop_sessions ( id, starts_at, ends_at, location_label )');
+    expect(select).toContain(
+      'workshop_sessions ( id, starts_at, ends_at, location_label, status )',
+    );
   });
 
   it('keeps a taught Workshop with no session yet as one row with no time', async () => {
@@ -193,6 +199,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
         sessionStart: null,
         sessionEnd: null,
         location: null,
+        sessionCancelled: false,
       },
     ]);
   });

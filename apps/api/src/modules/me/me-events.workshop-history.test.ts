@@ -40,6 +40,7 @@ const enrollment = (over: {
   title?: string;
   weapon?: string | null;
   startsAt?: string | null;
+  sessionStatus?: string;
   event?: Record<string, unknown>;
   instructors?: Array<{ global_person_id: string | null; display_name: string }>;
 }) => ({
@@ -48,7 +49,7 @@ const enrollment = (over: {
     starts_at: over.startsAt ?? '2026-06-01T10:00:00Z',
     ends_at: '2026-06-01T12:00:00Z',
     location_label: 'Salle A',
-    status: 'scheduled',
+    status: over.sessionStatus ?? 'scheduled',
     venues: { name: 'Gymnase' },
     venue_areas: null,
     workshops: {
@@ -143,6 +144,25 @@ describe('MeEventsService.getMyWorkshopHistory', () => {
     const groups = await service.getMyWorkshopHistory('user-1');
     expect(groups).toHaveLength(1);
     expect(groups[0]!.workshops).toHaveLength(1);
+  });
+
+  it('does not count a seat in a cancelled session as attended (529)', async () => {
+    const { service, enrollmentsChain } = buildService(
+      [{ id: 'p-1' }],
+      [
+        // Read first on purpose: the dedup keeps the first booking of a Workshop.
+        enrollment({ workshopId: 'w-1', sessionId: 's-sat', sessionStatus: 'cancelled' }),
+        enrollment({ workshopId: 'w-1', sessionId: 's-sun', startsAt: '2026-06-02T10:00:00Z' }),
+        enrollment({ workshopId: 'w-gone', sessionId: 's-gone', sessionStatus: 'cancelled' }),
+      ],
+    );
+    const groups = await service.getMyWorkshopHistory('user-1');
+    expect(groups[0]!.workshops.map((w) => [w.id, w.sessions[0]!.startsAt])).toEqual([
+      ['w-1', '2026-06-02T10:00:00Z'],
+    ]);
+    // The double ignores the projection: only this holds the column the rule reads.
+    const select = String(enrollmentsChain.select.mock.calls[0]![0]).replace(/\s+/g, ' ');
+    expect(select).toContain('workshop_sessions ( id, starts_at, ends_at, location_label, status,');
   });
 
   it('drops workshops belonging to test events', async () => {

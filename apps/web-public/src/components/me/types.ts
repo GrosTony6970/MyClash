@@ -85,6 +85,9 @@ export interface WorkshopEnrollment {
   /** A seat, or a place on the waitlist (the viewer's own schedule only). Absent in a
    *  copy cached before the API sent it: read as a seat. */
   status?: 'confirmed' | 'waitlisted';
+  /** The session was cancelled: struck through, no clash, holds nothing (rulings 526, 529).
+   *  Absent in a copy cached before the API sent it: read as not cancelled. */
+  sessionCancelled?: boolean;
 }
 
 /** One of the fighter's Pools, from its earliest placed bout to the planned end of
@@ -200,6 +203,8 @@ export interface MyEventWorkshopTeaching {
   sessionStart: string | null;
   sessionEnd: string | null;
   location: string | null;
+  /** The session was cancelled: struck through (ruling 526). Absent in an older copy. */
+  sessionCancelled?: boolean;
 }
 
 export interface MyEvent {

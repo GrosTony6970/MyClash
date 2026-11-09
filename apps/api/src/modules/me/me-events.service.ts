@@ -123,6 +123,8 @@ export interface MyEventWorkshopTeaching {
   sessionStart: string | null;
   sessionEnd: string | null;
   location: string | null;
+  /** The session was cancelled: shown struck through (ruling 526). */
+  sessionCancelled: boolean;
 }
 
 export interface MyEvent {
@@ -905,7 +907,7 @@ export class MeEventsService {
           `workshops (
             id, slug, title, event_id,
             events ( id, slug, name, start_date, end_date, status, timezone, event_kind, photo_mode ),
-            workshop_sessions ( id, starts_at, ends_at, location_label )
+            workshop_sessions ( id, starts_at, ends_at, location_label, status )
           )`,
         )
         .eq('global_person_id', globalPersonId),
@@ -941,6 +943,7 @@ export class MeEventsService {
           sessionStart: (session?.['starts_at'] as string | null) ?? null,
           sessionEnd: (session?.['ends_at'] as string | null) ?? null,
           location: (session?.['location_label'] as string | null) ?? null,
+          sessionCancelled: session?.['status'] === 'cancelled',
         });
       }
       workshopsByEvent.set(event.id, rows);
@@ -1143,7 +1146,9 @@ export class MeEventsService {
     >();
     for (const r of rows) {
       const session = one<Row>(r['workshop_sessions']);
-      if (!session) continue;
+      // A seat in a cancelled session was not attended (ruling 529). Dropped per booking, before
+      // the per-Workshop dedup: a cancelled Saturday read first must not hide a Sunday attended.
+      if (!session || session['status'] === 'cancelled') continue;
       const workshop = one<Row>(session['workshops']);
       if (!workshop) continue;
       const event = this.mapEvent(one(workshop['events']));

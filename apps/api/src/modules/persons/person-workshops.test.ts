@@ -7,7 +7,7 @@ import { readPersonWorkshops } from './person-workshops';
 const TOM = 'p-tom';
 
 /** One booking of a session, as the read embeds it. */
-const booking = (person: string, session: string, status: string) => ({
+const booking = (person: string, session: string, status: string, sessionStatus = 'scheduled') => ({
   user_id: person,
   status,
   workshop_sessions: {
@@ -15,6 +15,7 @@ const booking = (person: string, session: string, status: string) => ({
     starts_at: '2027-05-22T12:00:00+00:00',
     ends_at: '2027-05-22T13:00:00+00:00',
     location_label: 'Hall B',
+    status: sessionStatus,
     workshops: { title: `Workshop ${session}`, slug: `workshop-${session}` },
   },
 });
@@ -72,7 +73,21 @@ describe('readPersonWorkshops', () => {
       sessionEnd: '2027-05-22T13:00:00+00:00',
       location: 'Hall B',
       status: 'confirmed',
+      sessionCancelled: false,
     });
+  });
+
+  it('says which seat is in a cancelled session: the schedule strikes it through (526, 529)', async () => {
+    const db = mockSupabase({
+      workshop_enrollments: {
+        rows: [booking(TOM, 's-sat', 'confirmed', 'cancelled'), booking(TOM, 's-sun', 'confirmed')],
+      },
+    });
+    const { workshops } = await read(db, true);
+    expect(workshops.map((w) => [w.workshopId, w.sessionCancelled])).toEqual([
+      ['s-sat', true],
+      ['s-sun', false],
+    ]);
   });
 
   it('asks the database for the status, for this person, and only for the states the reader may know', async () => {
@@ -80,7 +95,7 @@ describe('readPersonWorkshops', () => {
     await read(own, true);
     const [select] = selectsFor(own.from, 'workshop_enrollments');
     expect(select?.replace(/\s+/g, ' ').trim()).toBe(
-      'status, workshop_sessions ( id, starts_at, ends_at, location_label, workshops ( title, slug ) )',
+      'status, workshop_sessions ( id, starts_at, ends_at, location_label, status, workshops ( title, slug ) )',
     );
     expect(filtersFor(own.from, 'workshop_enrollments', 'eq')).toEqual([['user_id', TOM]]);
     expect(filtersFor(own.from, 'workshop_enrollments', 'in')).toEqual([

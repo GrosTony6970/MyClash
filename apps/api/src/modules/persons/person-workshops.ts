@@ -33,6 +33,8 @@ export interface WorkshopEnrollment {
   location: string | null;
   /** A seat, or a place on the waitlist (the person's own read only). */
   status: 'confirmed' | 'waitlisted';
+  /** The session was cancelled: shown struck through, no clash, holds nothing (rulings 526, 529). */
+  sessionCancelled: boolean;
 }
 
 export interface PersonWorkshops {
@@ -62,7 +64,7 @@ export async function readPersonWorkshops(
       `
       status,
       workshop_sessions (
-        id, starts_at, ends_at, location_label,
+        id, starts_at, ends_at, location_label, status,
         workshops ( title, slug )
       )
     `,
@@ -91,6 +93,7 @@ export async function readPersonWorkshops(
       sessionEnd: (session?.['ends_at'] as string | null) ?? null,
       location: (session?.['location_label'] as string | null) ?? null,
       status: booking['status'] === 'waitlisted' ? 'waitlisted' : 'confirmed',
+      sessionCancelled: session?.['status'] === 'cancelled',
     });
   }
   return { workshops, refusedWorkshopIds };
