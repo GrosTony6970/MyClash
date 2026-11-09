@@ -143,6 +143,13 @@ describe('workshopSessionTimes', () => {
     ).toEqual({ startTime: '2027-06-01T21:00:00.000Z', endTime: '2027-06-01T22:30:00.000Z' });
   });
 
+  it('keeps a typo on its day rather than make a session of 23 hours', () => {
+    // 14:00 to 13:00 meant 15:00: the next day would block its instructor for a day.
+    expect(
+      workshopSessionTimes({ day: '2027-06-01', start: '14:00', end: '13:00', tz: TZ }),
+    ).toEqual({ startTime: '2027-06-01T12:00:00.000Z', endTime: '2027-06-01T11:00:00.000Z' });
+  });
+
   it('returns null without a day, start, or tz', () => {
     expect(workshopSessionTimes({ day: null, start: '09:00', tz: TZ })).toBeNull();
     expect(workshopSessionTimes({ day: '2027-06-01', start: '', tz: TZ })).toBeNull();

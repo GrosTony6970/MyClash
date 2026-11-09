@@ -126,6 +126,9 @@ export function sessionWrite(
   };
 }
 
+/** 06:00: an end before it, and before the start, is the next morning. */
+const SMALL_HOURS_END = 6 * 60;
+
 export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | null {
   const { day, start, tz } = input;
   if (!day || !start || !tz) return null;
@@ -137,9 +140,13 @@ export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | n
     endFromStartDuration(start, 60);
   if (!endHhmm) return null;
 
-  // An end before the start is past midnight: a session from 23:00 to 00:30 ends the next day.
-  // Read on the start's day, a re-save moved its end before its start and told its people.
-  const endDay = (parseHhmm(endHhmm) ?? 0) < (parseHhmm(start) ?? 0) ? addDays(day, 1) : day;
+  // An end before the start, in the small hours, is past midnight: 23:00 to 00:30 ends the next
+  // day. Read on the start's day, a re-save moved its end before its start and told its people.
+  // Only before 06:00: 14:00 to 13:00 is a typo, not a session of 23 hours that blocks its
+  // instructor for a day (ADR-016).
+  const endMinutes = parseHhmm(endHhmm) ?? 0;
+  const pastMidnight = endMinutes < (parseHhmm(start) ?? 0) && endMinutes < SMALL_HOURS_END;
+  const endDay = pastMidnight ? addDays(day, 1) : day;
   const startTime = zonedToUtcIso(day, start, tz);
   const endTime = endDay ? zonedToUtcIso(endDay, endHhmm, tz) : null;
   if (!startTime || !endTime) return null;
