@@ -4095,6 +4095,17 @@ is a socket that joins and receives a database change, not only a 101.
 | Tier (509)      | The new healthcheck asks the way a socket does, so it is honest now.                                                                                                                       | **Realtime stays ADVISORY in deploy.**                                                                                                     | `infra/scripts/deploy.sh`                                               |
 | Restore (510)   | Compose enforces a missing `${X:?}` key only on `config` and `up`: on a stale `.env`, a restore replaced the database, then failed at its final `up -d` and left the site down (measured). | **`restore.sh` resolves the compose file after its refusals, before its first stop.** Done `c935a247`.                                     | `infra/scripts/restore.sh`                                              |
 
+### Rulings — operator, 2026-11-09: the Realtime slice's loose ends
+
+Asked in session ea8a23bf (511). The same session fixed the edge review: both Realtime probes now
+run without the anon key, which they never needed (`618c2d93`). It also measured one named item
+false: on compose v2.40.3, `backup.sh` with a stale `.env` and a running db still dumps the
+database (`ps` and `exec` do not check `${X:?}`), so it never says "DB container not running".
+
+| Row           | Story                                                                                                                                                                                                                                                                   | Ruling                                                                                                                                                                                                                                | Files                                        |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Secrets (511) | The gate that keeps server secrets out of the web apps missed 16 that `.env.example` declares, `SMTP_PASS` (the Resend key) among them: the list held `SMTP_PASSWORD`, a name nothing declares. Next year a page could name `BACKUP_SCW_SECRET_KEY` and CI stays green. | **All of them, plus a guard**: every secret-shaped name in `.env.example` must be forbidden, public by design, or build-time only (the Sentry token, which `next.config.ts` reads). An unsorted name fails the gate. Done `fae9eac0`. | `scripts/check-client-secret-boundaries.mjs` |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
