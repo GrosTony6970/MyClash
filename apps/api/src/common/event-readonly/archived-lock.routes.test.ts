@@ -152,7 +152,9 @@ describe('the archived-Event lock, API-wide', () => {
     // out and placed alike. The public list is a GET: not a write, not counted.
     // 192: a personal space's `POST me/events/:eventId/photos` (locked on archive, as the QR
     // route) and `DELETE me/events/:eventId/photos/:photoId` (opted out), placed by their Event.
-    expect(placed).toHaveLength(192);
+    // 193: the organiser's `DELETE workshops/:id`, placed by its Workshop: an archived Event's
+    // Workshop is not deleted.
+    expect(placed).toHaveLength(193);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });
