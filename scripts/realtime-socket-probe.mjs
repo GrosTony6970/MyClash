@@ -4,7 +4,7 @@
  * `node:` imports only. Realtime answers as `app.ci` (a host entry the shell half adds), so the
  * Host is the tenant's, as the edge forwards it in prod. Prints one line per check; exit 1 when any check fails.
  */
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { request } from 'node:http';
 
 const SECRET = process.env['SUPABASE_JWT_SECRET'];
@@ -39,7 +39,8 @@ function upgradeStatus(jwt) {
         Connection: 'Upgrade',
         Upgrade: 'websocket',
         'Sec-WebSocket-Version': '13',
-        'Sec-WebSocket-Key': 'x3JJHMbDL1EzLkh9GBhXDw==',
+        // A fresh 16-byte nonce, as RFC 6455 asks (a fixed sample reads as a secret to Gitleaks).
+        'Sec-WebSocket-Key': randomBytes(16).toString('base64'),
       },
       timeout: 5000,
     });
