@@ -8862,7 +8862,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete a workshop session — unschedules the workshop (workshop_lead+) */
+    /** Delete one session of a workshop; its people are told first (workshop_lead+) */
     delete: operations['WorkshopsController_deleteSession'];
     options?: never;
     head?: never;
@@ -12263,6 +12263,19 @@ export interface components {
       startTime: string;
       /** Format: date-time */
       endTime: string;
+      location?: string;
+      /** @enum {string} */
+      status?: 'scheduled' | 'running' | 'completed' | 'cancelled';
+      /** Format: uuid */
+      venueId?: string | null;
+      /** Format: uuid */
+      areaId?: string | null;
+    };
+    UpdateSessionBody: {
+      /** Format: date-time */
+      startTime?: string;
+      /** Format: date-time */
+      endTime?: string;
       location?: string;
       /** @enum {string} */
       status?: 'scheduled' | 'running' | 'completed' | 'cancelled';
@@ -25675,7 +25688,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateSessionBody'];
+      };
+    };
     responses: {
       200: {
         headers: {

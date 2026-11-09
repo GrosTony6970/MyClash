@@ -124,31 +124,35 @@ describe('WorkshopsService — public gate', () => {
   });
 });
 
-describe('WorkshopsService — PostgREST embed shape', () => {
-  // Migration 0098's UNIQUE(workshop_id) makes PostgREST embed workshop_sessions
-  // as a single object, not an array. The service must not `.map` it blindly.
-  it('maps a single-object workshop_sessions embed without throwing', async () => {
+describe('WorkshopsService — sessions in start order', () => {
+  // A Workshop runs several sessions (0257); PostgREST promises no order for an embed, and the
+  // pages show "the first session". The service sorts them, one with no start last.
+  const session = (id: string, startsAt: string | null) => ({
+    id,
+    starts_at: startsAt,
+    ends_at: null,
+    location_label: null,
+    venue_id: null,
+    area_id: null,
+    status: 'scheduled',
+    venues: null,
+    venue_areas: null,
+  });
+
+  it('lists the sessions by start, a session with no start last', async () => {
     const row = {
       ...workshopRow([]),
-      workshop_sessions: {
-        id: 's-1',
-        starts_at: '2027-06-01T07:00:00.000Z',
-        ends_at: '2027-06-01T08:00:00.000Z',
-        location_label: null,
-        venue_id: null,
-        area_id: null,
-        status: 'scheduled',
-        venues: null,
-        venue_areas: null,
-      },
+      workshop_sessions: [
+        session('s-sunday', '2027-06-02T12:00:00.000Z'),
+        session('s-unset', null),
+        session('s-saturday', '2027-06-01T08:00:00.000Z'),
+      ],
     };
-    const fake = buildSupabase([row]);
-    const svc = makeSvc(fake);
+    const svc = makeSvc(buildSupabase([row]));
 
     const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
-    expect(workshop?.sessions).toHaveLength(1);
-    expect(workshop?.sessions[0]?.id).toBe('s-1');
+    expect(workshop?.sessions.map((s) => s.id)).toEqual(['s-saturday', 's-sunday', 's-unset']);
   });
 });
 

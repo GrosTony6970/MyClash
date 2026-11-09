@@ -227,17 +227,18 @@ interface RawWorkshop {
   cover_image_url: string | null;
   venue_id: string | null;
   venues: NamedRef | null;
-  // PostgREST embeds a to-one relationship as a single object. Migration 0098's
-  // UNIQUE(workshop_id) on workshop_sessions flips this embed from array → object,
-  // so it can arrive either way — always read it through `toArray`.
-  workshop_sessions: RawSession | RawSession[] | null;
+  // A Workshop has several sessions (0257), so PostgREST embeds them as an array.
+  workshop_sessions: RawSession[] | null;
   workshop_instructors: RawInstructor[] | null;
 }
 
-/** Normalize a PostgREST embed (object | array | null) to an array. */
-function toArray<T>(value: T | T[] | null | undefined): T[] {
-  if (Array.isArray(value)) return value;
-  return value == null ? [] : [value];
+/**
+ * A Workshop's sessions in start order, a session with no start last. The ONE order every reader
+ * shows: the embed comes back in no order PostgREST promises, and pages show "the first session".
+ */
+function sessionsInOrder(row: RawWorkshop): RawSession[] {
+  const at = (s: RawSession) => (s.starts_at ? Date.parse(s.starts_at) : Number.POSITIVE_INFINITY);
+  return [...(row.workshop_sessions ?? [])].sort((a, b) => at(a) - at(b));
 }
 
 const WORKSHOP_SELECT = `
@@ -838,26 +839,19 @@ export class WorkshopsService {
       await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null, eventId);
     }
 
-    // Where the session ran, if it exists: a placement that changes it is a move.
-    const before = await this.sessionPlace('workshop_id', workshopId);
-
-    // A workshop has at most one session (UNIQUE(workshop_id), migration
-    // 0098) — upsert keeps the scheduling form idempotent: re-scheduling
-    // updates the existing block instead of stacking duplicates.
+    // A Workshop runs several sessions (0257, ruling 515): each call adds one. A session is moved
+    // by its id (`updateSession`), so a new one is never a move and nobody is told one.
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
-      .upsert(
-        {
-          workshop_id: workshopId,
-          starts_at: dto.startTime,
-          ends_at: dto.endTime,
-          location_label: dto.location ?? null,
-          venue_id: dto.venueId ?? null,
-          area_id: dto.areaId ?? null,
-          status: dto.status ?? 'scheduled',
-        },
-        { onConflict: 'workshop_id' },
-      )
+      .insert({
+        workshop_id: workshopId,
+        starts_at: dto.startTime,
+        ends_at: dto.endTime,
+        location_label: dto.location ?? null,
+        venue_id: dto.venueId ?? null,
+        area_id: dto.areaId ?? null,
+        status: dto.status ?? 'scheduled',
+      })
       .select('*')
       .single();
 
@@ -865,17 +859,15 @@ export class WorkshopsService {
     const createdSessionId = (data as { id: string }).id;
     await this.notifications.scheduleWorkshopSessionStarting(createdSessionId);
     await this.followNotifications.scheduleWorkshopStarting(createdSessionId);
-    // A first placement is no move: nobody was told another time.
-    if (before) await this.tellMoved(createdSessionId, before);
     return data;
   }
 
-  /** Where a session runs now, found by `column`; null when there is none. */
-  private async sessionPlace(column: 'id' | 'workshop_id', value: string) {
+  /** Where a session runs now; null when there is none. */
+  private async sessionPlace(sessionId: string) {
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
       .select(SESSION_PLACE_COLUMNS)
-      .eq(column, value)
+      .eq('id', sessionId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     return data ? placeOf(data as Parameters<typeof placeOf>[0]) : null;
@@ -903,7 +895,7 @@ export class WorkshopsService {
   async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
     const eventId = await this.assertCanManageSession(sessionId, userId);
     await this.assertSessionPlace(sessionId, eventId, dto);
-    const before = await this.sessionPlace('id', sessionId);
+    const before = await this.sessionPlace(sessionId);
 
     const updates: Record<string, unknown> = {};
     if (dto.startTime !== undefined) updates['starts_at'] = dto.startTime;
@@ -931,10 +923,10 @@ export class WorkshopsService {
     return data;
   }
 
-  // ── Delete session (unschedule) ─────────────────────────────────────────────────
+  // ── Delete session ────────────────────────────────────────────────────────────
 
   /**
-   * Delete a workshop's session, returning the workshop to the unscheduled drawer. Its bookings go
+   * Delete one session of a Workshop; its other sessions stay. Its bookings go
    * with it (ON DELETE CASCADE), so the people booked are told first, as a cancelled session
    * tells them.
    *
@@ -1128,7 +1120,7 @@ export class WorkshopsService {
         displayName: i.display_name,
       })),
       viewerIsInstructor: false,
-      sessions: toArray(row.workshop_sessions).map((s) => ({
+      sessions: sessionsInOrder(row).map((s) => ({
         id: s.id,
         startsAt: s.starts_at,
         endsAt: s.ends_at,
@@ -1149,7 +1141,7 @@ export class WorkshopsService {
    * an error: read as 0, every session showed all its seats free.
    */
   private async confirmedCountsForWorkshops(rows: RawWorkshop[]): Promise<Map<string, number>> {
-    const sessionIds = rows.flatMap((r) => toArray(r.workshop_sessions).map((s) => s.id));
+    const sessionIds = rows.flatMap((r) => (r.workshop_sessions ?? []).map((s) => s.id));
     const counts = new Map<string, number>();
     if (sessionIds.length === 0) return counts;
     const { data, error } = await this.supabase.service

@@ -35,8 +35,22 @@ describe('sessionWrite', () => {
     });
   });
 
+  // An update keeps every field it is not sent: the room is named as null, or the session keeps
+  // a room of the old venue.
   it('takes the session to another venue the organiser picked, out of the old room', () => {
-    expect(sessionWrite(same, placed, 'v-annex', true)).toEqual({ ...same, venueId: 'v-annex' });
+    expect(sessionWrite(same, placed, 'v-annex', true)).toStrictEqual({
+      ...same,
+      venueId: 'v-annex',
+      areaId: null,
+    });
+  });
+
+  it('clears the venue and the room when the organiser cleared the venue', () => {
+    expect(sessionWrite(same, placed, null, true)).toStrictEqual({
+      ...same,
+      venueId: null,
+      areaId: null,
+    });
   });
 
   it("gives a new session the form's venue", () => {

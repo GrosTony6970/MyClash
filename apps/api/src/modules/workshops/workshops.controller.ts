@@ -144,6 +144,9 @@ const createSessionSchema = z
   })
   .strict();
 class CreateSessionBody extends createZodDto(createSessionSchema) {}
+// A move names only what it changes; a null venue or room clears it. A class of its own: a
+// `Partial<CreateSessionBody>` parameter erases to `Object`, and nothing validated it.
+class UpdateSessionBody extends createZodDto(createSessionSchema.partial()) {}
 
 const addInstructorSchema = z.object({ globalPersonId: z.uuid() }).strict();
 class AddInstructorBody extends createZodDto(addInstructorSchema) {}
@@ -501,7 +504,7 @@ export class WorkshopsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async updateSession(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreateSessionBody>,
+    @Body() dto: UpdateSessionBody,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
@@ -511,7 +514,7 @@ export class WorkshopsController {
   @Delete('workshop-sessions/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Delete a workshop session — unschedules the workshop (workshop_lead+)',
+    summary: 'Delete one session of a workshop; its people are told first (workshop_lead+)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async deleteSession(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {

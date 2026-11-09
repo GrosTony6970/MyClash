@@ -20,6 +20,7 @@ const EVENT_A = '11111111-1111-4111-8111-111111111111';
 const WORKSHOP_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SESSION = '33333333-3333-4333-8333-333333333333';
 const BARE_SESSION = '44444444-4444-4444-8444-444444444444';
+const NEW_SESSION = '55555555-5555-4555-8555-555555555555';
 const LEAD = 'u-lead-a';
 
 let db: ReturnType<typeof mockSupabase>;
@@ -34,12 +35,12 @@ const SESSIONS = [
   { id: BARE_SESSION, workshop_id: WORKSHOP_A, venue_id: null, area_id: null },
 ];
 
-/** `sessions` are the seeded rows; the double answers an upsert's read-back with all of them. */
+/** `sessions` are the seeded rows; an insert reads back its own row, stamped with a new id. */
 function build(sessions: Record<string, unknown>[] = SESSIONS) {
   db = mockSupabase({
     events: { rows: [{ id: EVENT_A, organization_id: 'org-a', status: 'published' }] },
     workshops: { rows: [{ id: WORKSHOP_A, event_id: EVENT_A }] },
-    workshop_sessions: { rows: sessions },
+    workshop_sessions: { rows: sessions, returning: { id: NEW_SESSION } },
     venues: {
       rows: [
         { id: 'venue-a1', organization_id: 'org-a' },
@@ -167,6 +168,34 @@ describe('creating a session (ruling 80)', () => {
 });
 
 /**
+ * A Workshop runs several sessions (0257, ruling 515). The create used to upsert on the
+ * Workshop, so a second session replaced the first.
+ */
+describe('creating a session adds one (ruling 515)', () => {
+  const PLACE = { startTime: '2026-10-02T14:00:00Z', endTime: '2026-10-02T15:00:00Z' };
+
+  it('inserts a new session beside the one the Workshop has, and reads back its id', async () => {
+    const created = await service.createSession(
+      WORKSHOP_A,
+      { ...PLACE, venueId: 'venue-a1' },
+      LEAD,
+    );
+    expect(sessionWrites().map((write) => write.op)).toEqual(['insert']);
+    expect(sessionWrites()[0]!.row).toMatchObject({
+      workshop_id: WORKSHOP_A,
+      starts_at: PLACE.startTime,
+    });
+    expect((created as { id: string }).id).toBe(NEW_SESSION);
+    expect(scheduler.scheduleWorkshopSessionStarting).toHaveBeenCalledWith(NEW_SESSION);
+  });
+
+  it('reads no place of a session before it adds one: only the insert reads back', async () => {
+    await service.createSession(WORKSHOP_A, { ...PLACE, venueId: 'venue-a1' }, LEAD);
+    expect(selectsFor(db.from, 'workshop_sessions')).toEqual(['*']);
+  });
+});
+
+/**
  * A move tells the people booked, once the moves stop (operator ruling, 2026-11-09): the service
  * hands the scheduler where the session was; `workshop-move-notice.test.ts` holds the rest.
  */
@@ -183,15 +212,7 @@ describe('a moved session queues its notice', () => {
     );
   });
 
-  it('a placement on the board of a session that exists hands it over too', async () => {
-    build([SESSIONS[0]!]);
-    await service.createSession(WORKSHOP_A, { ...PLACE, venueId: 'venue-a1' }, LEAD);
-    expect(scheduler.scheduleWorkshopMoved.mock.calls).toEqual([[SESSION, WHERE_IT_WAS]]);
-  });
-
-  it('a first placement is no move', async () => {
-    // No session of this Workshop. The one seeded row is the double's answer to the upsert.
-    build([{ id: 'new-session', workshop_id: 'another-workshop', venue_id: null, area_id: null }]);
+  it('a new session is no move', async () => {
     await service.createSession(WORKSHOP_A, { ...PLACE, venueId: 'venue-a1' }, LEAD);
     expect(scheduler.scheduleWorkshopMoved).not.toHaveBeenCalled();
   });

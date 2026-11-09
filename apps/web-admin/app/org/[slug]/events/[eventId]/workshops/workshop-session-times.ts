@@ -86,9 +86,10 @@ export interface PlacedSession {
   areaId: string | null;
 }
 
+/** A null venue or room clears it: a session is updated with only the fields it is sent. */
 export interface SessionWrite extends SessionTimes {
-  venueId?: string;
-  areaId?: string;
+  venueId?: string | null;
+  areaId?: string | null;
 }
 
 const sameInstant = (a: string, b: string | null): boolean =>
@@ -101,7 +102,8 @@ const sameInstant = (a: string, b: string | null): boolean =>
  * typo fixed in the title wiped the room the board had given the session, and since 2026-11-09
  * told its people the session had moved. It is now sent when its day or times changed, keeping its
  * own venue and room; or when the organiser picked another venue (`venueChanged`), which takes the
- * session there, and out of a room of the old venue. A new session takes the form's venue.
+ * session there, and out of a room of the old venue: the room is sent as null, because an update
+ * keeps every field it is not sent. A new session takes the form's venue.
  */
 export function sessionWrite(
   times: SessionTimes,
@@ -109,7 +111,8 @@ export function sessionWrite(
   formVenueId: string | null,
   venueChanged: boolean,
 ): SessionWrite | null {
-  if (!existing || venueChanged) return { ...times, venueId: formVenueId ?? undefined };
+  if (!existing) return { ...times, venueId: formVenueId ?? undefined };
+  if (venueChanged) return { ...times, venueId: formVenueId, areaId: null };
   if (
     sameInstant(times.startTime, existing.startsAt) &&
     sameInstant(times.endTime, existing.endsAt)

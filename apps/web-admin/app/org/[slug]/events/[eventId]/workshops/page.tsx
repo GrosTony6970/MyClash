@@ -530,11 +530,15 @@ export default function WorkshopsAdminPage() {
         const existing = current?.sessions[0] ?? null;
         const venueChanged = (form.venueId || null) !== (current?.venueId ?? null);
         const write = times && sessionWrite(times, existing, form.venueId || null, venueChanged);
+        // An existing session is updated by its id; a POST adds another session (0257).
         const sessionRes = write
-          ? await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/sessions`, {
-              method: 'POST',
-              body: write,
-            })
+          ? await apiRequest(
+              apiUrl,
+              existing
+                ? `/api/v1/workshop-sessions/${existing.id}`
+                : `/api/v1/workshops/${editingId}/sessions`,
+              { method: existing ? 'PATCH' : 'POST', body: write },
+            )
           : !times && existing
             ? await apiRequest(apiUrl, `/api/v1/workshop-sessions/${existing.id}`, {
                 method: 'DELETE',
@@ -858,24 +862,32 @@ export default function WorkshopsAdminPage() {
     setRefreshKey((k) => k + 1);
   }
 
-  // Drag/resize on the board → upsert the workshop's single session.
+  // Drag/resize on the board → move the session it names, or add a session when it names none.
   async function handlePlaceSession(
     workshopId: string,
-    _sessionId: string | null,
+    sessionId: string | null,
     placement: { venueId: string; areaId: string | null; startTime: string; endTime: string },
   ) {
     // The race this touches: the board is optimistic, and the refresh below is
     // what reconciles it. A refused placement used to leave the card where the
     // operator dropped it until that refresh silently moved it back.
-    const r = await apiRequest(apiUrl, `/api/v1/workshops/${workshopId}/sessions`, {
-      method: 'POST',
-      body: {
-        startTime: placement.startTime,
-        endTime: placement.endTime,
-        venueId: placement.venueId,
-        areaId: placement.areaId ?? undefined,
-      },
-    });
+    // The whole place is sent: an update keeps a field it is not sent, so a card dropped on a
+    // venue with no rooms sends its room as null.
+    const body = {
+      startTime: placement.startTime,
+      endTime: placement.endTime,
+      venueId: placement.venueId,
+      areaId: placement.areaId,
+    };
+    const r = sessionId
+      ? await apiRequest(apiUrl, `/api/v1/workshop-sessions/${sessionId}`, {
+          method: 'PATCH',
+          body,
+        })
+      : await apiRequest(apiUrl, `/api/v1/workshops/${workshopId}/sessions`, {
+          method: 'POST',
+          body,
+        });
     if (!r.ok) {
       const message = failureMessage(r, t, t('admin.common.saveFailed'));
       if (message) toast.error(message);
