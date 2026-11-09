@@ -1977,7 +1977,9 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   the person gives the first place up. A refusal is a removal from one session only. A place in a
   cancelled session holds nothing: the pages hide that session, so it could not be given up. The
   race is accepted: two bookings of one person landing at the same instant on two sessions can both
-  pass the check, and either place can then be removed from its roster.
+  pass the check, and either place can then be removed from its roster. So is a cancelled session
+  set back to `scheduled` (the API allows it; no screen does): a person who moved to another
+  session then holds both places, and either can be removed.
 - New enrollment when seats remain → `status='confirmed'`.
 - New enrollment when full → `status='waitlisted'` with `position=N`.
 - When a confirmed enrollment cancels → top of waitlist auto-promotes (BullMQ job, sends notification).
