@@ -11,7 +11,7 @@
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mockSupabase, type TableSeed } from '../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, type TableSeed } from '../common/testing/supabase-chain';
 import {
   NotificationSchedulerService,
   NotificationSchedulerWorker,
@@ -54,10 +54,16 @@ const sessionRow = (place: SessionPlace, opts: { status?: string; workshop?: str
   venues: { name: 'Main hall' },
   venue_areas: { name: place.areaId === 'a-room-b' ? 'Room B' : 'Room A' },
 });
-const booking = (status: string, account: string | null, email: string | null) => ({
+// A booking names a roster row (`user_id` holds a persons.id); the row holds the account.
+const booking = (row: string, status: string) => ({
   workshop_session_id: 's-1',
+  user_id: row,
   status,
-  persons: { claimed_by_user_id: account, email },
+});
+const rosterRow = (id: string, account: string | null, email: string | null) => ({
+  id,
+  claimed_by_user_id: account,
+  email,
 });
 
 function tables(now: SessionPlace, opts: { status?: string; workshop?: string } = {}) {
@@ -65,10 +71,18 @@ function tables(now: SessionPlace, opts: { status?: string; workshop?: string } 
     workshop_sessions: { rows: [sessionRow(now, opts)] },
     workshop_enrollments: {
       rows: [
-        booking('confirmed', 'u-lea', 'lea@example.test'),
-        booking('waitlisted', 'u-zoe', 'zoe@example.test'),
-        booking('confirmed', null, null),
-        booking('refused', 'u-ana', 'ana@example.test'),
+        booking('lea-row', 'confirmed'),
+        booking('zoe-row', 'waitlisted'),
+        booking('tom-row', 'confirmed'),
+        booking('ana-row', 'refused'),
+      ],
+    },
+    persons: {
+      rows: [
+        rosterRow('lea-row', 'u-lea', 'lea@example.test'),
+        rosterRow('zoe-row', 'u-zoe', 'zoe@example.test'),
+        rosterRow('tom-row', null, null),
+        rosterRow('ana-row', 'u-ana', 'ana@example.test'),
       ],
     },
     notification_preferences: { rows: [{ user_id: 'u-lea', enabled: true }] },
@@ -88,11 +102,9 @@ function scheduler(now: SessionPlace, pending: Partial<ScheduledNotificationJob>
       pending ? { data: pending, remove: async () => void removed.push(id) } : undefined,
     ),
   };
-  const service = new NotificationSchedulerService(
-    queue as never,
-    mockSupabase(tables(now)) as never,
-  );
-  return { service, queue, removed };
+  const db = mockSupabase(tables(now));
+  const service = new NotificationSchedulerService(queue as never, db as never);
+  return { service, queue, removed, db };
 }
 
 const queued = (queue: { add: ReturnType<typeof vi.fn> }) =>
@@ -108,7 +120,7 @@ afterEach(() => {
 
 describe('a move queues the notice of each account booked', () => {
   it('Léa and Zoé, ten minutes out, with where the session was', async () => {
-    const { service, queue } = scheduler(TWO_PM_ROOM_B);
+    const { service, queue, db } = scheduler(TWO_PM_ROOM_B);
 
     await service.scheduleWorkshopMoved('s-1', TEN);
 
@@ -128,6 +140,10 @@ describe('a move queues the notice of each account booked', () => {
       });
     }
     expect(jobs.find((job) => job.data.userId === 'u-lea')?.data.email).toBe('lea@example.test');
+    // The double ignores the projection: only this holds what is read. A booking has no foreign
+    // key to its roster row, so an embed of `persons` would be refused by PostgREST.
+    expect(selectsFor(db.from, 'workshop_enrollments')).toEqual(['user_id']);
+    expect(selectsFor(db.from, 'persons')).toEqual(['claimed_by_user_id, email']);
   });
 
   it('replaces a pending notice, keeping where the session was before the FIRST move', async () => {

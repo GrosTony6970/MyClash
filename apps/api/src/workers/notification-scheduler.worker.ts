@@ -500,18 +500,7 @@ export class NotificationSchedulerService {
   async scheduleWorkshopMoved(sessionId: string, before: SessionPlace): Promise<void> {
     const moved = await readMovedSession(this.supabase.service, sessionId);
     if (!moved || samePlace(moved.place, before)) return;
-    const { data, error } = await this.supabase.service
-      .from('workshop_enrollments')
-      .select('persons ( claimed_by_user_id, email )')
-      .eq('workshop_session_id', sessionId)
-      .in('status', ['confirmed', 'waitlisted']);
-    if (error) throw new Error(`Bookings of moved session ${sessionId}: ${error.message}`);
-    type Holder = { claimed_by_user_id: string | null; email: string | null };
-    const holders = ((data ?? []) as Array<{ persons: Holder | Holder[] | null }>)
-      .map((row) => (Array.isArray(row.persons) ? row.persons[0] : row.persons))
-      .filter((holder): holder is Holder & { claimed_by_user_id: string } =>
-        Boolean(holder?.claimed_by_user_id),
-      );
+    const holders = await this.movedSessionHolders(sessionId);
     await Promise.all(
       holders.map(async (holder) => {
         const userId = holder.claimed_by_user_id;
@@ -536,6 +525,36 @@ export class NotificationSchedulerService {
           removeOnFail: 100,
         });
       }),
+    );
+  }
+
+  /**
+   * The accounts behind a session's confirmed and waitlisted bookings, with their roster address.
+   * Two reads: a booking names a roster row (`workshop_enrollments.user_id`) with no foreign key to
+   * embed through.
+   */
+  private async movedSessionHolders(
+    sessionId: string,
+  ): Promise<Array<{ claimed_by_user_id: string; email: string | null }>> {
+    const db = this.supabase.service;
+    const bookings = await db
+      .from('workshop_enrollments')
+      .select('user_id')
+      .eq('workshop_session_id', sessionId)
+      .in('status', ['confirmed', 'waitlisted']);
+    if (bookings.error)
+      throw new Error(`Bookings of moved session ${sessionId}: ${bookings.error.message}`);
+    const rows = ((bookings.data ?? []) as Array<{ user_id: string | null }>)
+      .map((row) => row.user_id)
+      .filter((id): id is string => Boolean(id));
+    if (rows.length === 0) return [];
+    const people = await db.from('persons').select('claimed_by_user_id, email').in('id', rows);
+    if (people.error)
+      throw new Error(`Roster rows of moved session ${sessionId}: ${people.error.message}`);
+    return (
+      (people.data ?? []) as Array<{ claimed_by_user_id: string | null; email: string | null }>
+    ).filter((p): p is { claimed_by_user_id: string; email: string | null } =>
+      Boolean(p.claimed_by_user_id),
     );
   }
 
