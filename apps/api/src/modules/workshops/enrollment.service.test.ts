@@ -54,6 +54,8 @@ function buildFake(opts: {
                 data: { workshop_id: 'w-1', workshops: { capacity: opts.capacity } },
                 error: null,
               }),
+            // The one-session rule's read of the Workshop's other live sessions: it has none.
+            neq: () => Promise.resolve({ data: [], error: null }),
           }),
         }),
       };

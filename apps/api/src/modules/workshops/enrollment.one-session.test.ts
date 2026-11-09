@@ -21,9 +21,9 @@ const OTHER_WORKSHOP_SESSION = 's-sabre';
 const ALICE = 'alice-row';
 const BOB = 'bob-row';
 
-const session = (id: string, workshopId = 'w-longsword') => ({
+const session = (id: string, workshopId = 'w-longsword', status = 'scheduled') => ({
   id,
-  status: 'scheduled',
+  status,
   workshop_id: workshopId,
   workshops: { capacity: 12, status: 'published' },
 });
@@ -35,10 +35,14 @@ const booking = (sessionId: string, personId: string, status: string) => ({
   position: status === 'waitlisted' ? 1 : null,
 });
 
-function build(bookings: Record<string, unknown>[]) {
+function build(bookings: Record<string, unknown>[], saturdayStatus = 'scheduled') {
   const supabase = mockSupabase({
     workshop_sessions: {
-      rows: [session(SATURDAY), session(SUNDAY), session(OTHER_WORKSHOP_SESSION, 'w-sabre')],
+      rows: [
+        session(SATURDAY, 'w-longsword', saturdayStatus),
+        session(SUNDAY),
+        session(OTHER_WORKSHOP_SESSION, 'w-sabre'),
+      ],
     },
     // Nobody here teaches, and no profile flag is written.
     persons: {
@@ -87,6 +91,12 @@ describe('one session per Workshop (rulings 520-523)', () => {
       status: 'confirmed',
     });
     expect(writes().map((write) => write.op)).toEqual(['insert']);
+  });
+
+  it('books Sunday when Saturday, where she holds a seat, was cancelled', async () => {
+    // Her Saturday seat stays, but the pages hide a cancelled session: she could not give it up.
+    const { service } = build([booking(SATURDAY, ALICE, 'confirmed')], 'cancelled');
+    await expect(service.enrollOwn(SUNDAY, ALICE)).resolves.toMatchObject({ status: 'confirmed' });
   });
 
   it('books Sunday whatever somebody else holds on Saturday', async () => {

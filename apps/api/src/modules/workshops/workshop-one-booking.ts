@@ -28,7 +28,13 @@ export async function assertNoOtherBooking(
   sessionId: string,
   personId: string,
 ): Promise<void> {
-  const sessions = await db.from('workshop_sessions').select('id').eq('workshop_id', workshopId);
+  // A cancelled session holds no place: its bookings stay, but the pages hide it, so a place in it
+  // could neither be seen nor given up (the referee checker reads it the same way, ADR-016).
+  const sessions = await db
+    .from('workshop_sessions')
+    .select('id')
+    .eq('workshop_id', workshopId)
+    .neq('status', 'cancelled');
   if (sessions.error) {
     throw new Error(
       `The sessions of workshop ${workshopId} were not read: ${sessions.error.message}`,
