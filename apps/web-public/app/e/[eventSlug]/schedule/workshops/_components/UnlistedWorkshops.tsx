@@ -25,7 +25,7 @@ export function UnlistedWorkshops({
           const subtitle =
             w.instructorNames.join(', ') || [w.category, w.level].filter(Boolean).join(' · ');
           return (
-            <li key={w.id}>
+            <li key={w.key}>
               <Link
                 href={w.href}
                 className="group relative flex items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface p-3 pl-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"

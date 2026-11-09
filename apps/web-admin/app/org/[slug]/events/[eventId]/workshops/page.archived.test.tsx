@@ -215,14 +215,18 @@ describe('the Workshops page of an archived Event', () => {
     page = await openArchivedPage(<WorkshopsAdminPage />, READS);
     await press('Workshop schedule');
     const board = document.querySelector('main')!;
-    const card = (title: string) =>
-      [...board.querySelectorAll('[draggable]')].find((el) => el.textContent?.includes(title))!;
+    const find = (selector: string, title: string) =>
+      [...board.querySelectorAll(selector)].find((el) => el.textContent?.includes(title))!;
+    // A card on the grid is a button; the drawer lists every Workshop (ruling 524).
+    const card = (title: string) => find('[draggable][role="button"]', title);
+    const listed = (title: string) => find('aside [draggable]', title);
     const column = card('Saturday longsword').parentElement!;
 
-    expect(board.querySelectorAll('[draggable]')).toHaveLength(2);
+    // Both Workshops in the drawer, the dagger's session to place under it, and the one card drawn.
+    expect(board.querySelectorAll('[draggable]')).toHaveLength(4);
     expect(board.querySelectorAll('[draggable="true"]')).toHaveLength(0);
     // From the drawer onto the board, along the board, and back to the drawer.
-    drag(card('Sunday dagger'), column);
+    drag(listed('Sunday dagger'), column);
     drag(card('Saturday longsword'), column);
     drag(card('Saturday longsword'), board.querySelector('aside')!);
     await page.settle();

@@ -96,6 +96,26 @@ describe('workshopScheduleToCsv', () => {
     );
   });
 
+  // A Workshop runs several sessions (ruling 515): the CSV read only the first.
+  it('writes one row per placed session of a Workshop', () => {
+    const sunday = {
+      ...workshops[0]!.sessions[0]!,
+      startsAt: '2027-06-02T12:00:00.000Z', // 14:00 Paris
+      endsAt: '2027-06-02T13:30:00.000Z',
+      confirmedCount: 5,
+    };
+    const twice = [{ ...workshops[0]!, sessions: [...workshops[0]!.sessions, sunday] }];
+    const rows = workshopScheduleToCsv(twice, venues, TZ, HEADERS, REMOVED, CSV_STANDARD)
+      .slice(1)
+      .replace(/\r\n$/, '')
+      .split('\r\n')
+      .slice(1);
+    expect(rows).toEqual([
+      '2027-06-01,Main Hall,Mat B,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8,20',
+      '2027-06-02,Main Hall,Mat B,14:00,15:30,Longsword Basics,Rémi Arbache,Longsword,beginner,5,20',
+    ]);
+  });
+
   // A deleted venue was written as its database id (ruled 2026-10-15: "Venue removed").
   it('writes a venue or an area deleted since in words, never its id', () => {
     const session = { ...workshops[0]!.sessions[0]!, venueId: 'v-gone', areaId: 'a-gone' };

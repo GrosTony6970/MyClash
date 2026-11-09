@@ -28,7 +28,6 @@ import {
   slotToHHMM,
   slotToTime,
   snapSlot,
-  unscheduledWorkshops,
   zoomToSlotHeight,
   formatDayLabel,
   initialDay,
@@ -36,7 +35,7 @@ import {
   type BoardVenue,
   type BoardWorkshop,
 } from '@myclash/schedule-core';
-import { localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
+import { localeToBcp47 } from '@myclash/time';
 import {
   CsvExportMenu,
   tintBgClassFor,
@@ -55,6 +54,8 @@ import {
   placeWorkshopBlock,
   type Interval,
 } from './workshop-placement';
+import { drawerEntries, sessionRemovedByDrawerDrop, writeDrag } from './workshop-drawer';
+import { WorkshopDrawerList } from './WorkshopDrawerList';
 
 export interface WorkshopBreak {
   id: string;
@@ -82,7 +83,8 @@ interface Props {
   /** The Event is archived: no card is dragged or resized, so `onPlace` is never called. */
   readOnly: boolean;
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
-  onBlockClick?: (workshopId: string) => void;
+  /** A card was clicked: the page opens that session's roster. */
+  onBlockClick?: (workshopId: string, sessionId: string) => void;
   onUnschedule?: (sessionId: string) => void;
   onAddBreak?: (dayIndex: number) => void;
   onEditBreak?: (b: WorkshopBreak) => void;
@@ -213,7 +215,7 @@ export function WorkshopScheduleBoard({
       : COL_WIDTH_PX;
   const dayIndex = Math.max(0, days.indexOf(activeDay));
   const blocks = buildWorkshopSessionBlocks(workshops, columns, activeDay, timezone, startHour);
-  const drawer = unscheduledWorkshops(workshops, columns);
+  const drawer = drawerEntries(workshops, columns);
   const dayBreaks = breaks.filter((b) => b.dayIndex === dayIndex);
   const conflictIds = findWorkshopOverlaps(
     blocks.map((b) => ({
@@ -224,17 +226,10 @@ export function WorkshopScheduleBoard({
     })),
   );
 
-  // Grid runs to the window end, floored by the latest session/break.
+  // Grid runs to the window end, floored by the latest session/break of the day shown.
   const windowSlots = (endHour - startHour) * SLOTS_PER_HOUR;
   let totalSlots = windowSlots;
-  for (const w of workshops) {
-    const end = w.sessions[0]?.endsAt;
-    if (!end) continue;
-    const min = minutesIntoDayInZone(end, timezone);
-    if (min === null) continue;
-    const slot = (min - startHour * 60) / SLOT_MINUTES;
-    if (slot > totalSlots) totalSlots = Math.ceil(slot);
-  }
+  for (const bl of blocks) totalSlots = Math.max(totalSlots, bl.endSlot);
   for (const b of dayBreaks) totalSlots = Math.max(totalSlots, hhmmToSlot(b.endTime, startHour));
   const gridHeight = totalSlots * slotHeightPx;
 
@@ -581,55 +576,31 @@ export function WorkshopScheduleBoard({
       </div>
 
       <div className="flex gap-4">
-        {/* Unscheduled drawer + add-block + grid window (LEFT) */}
+        {/* Workshop drawer + add-block + grid window (LEFT) */}
         <aside
           className="w-60 shrink-0"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
-            const sessionId = e.dataTransfer.getData('sessionId');
+            // Only a card dragged off the grid is removed: a drag released inside the drawer
+            // began there.
+            const sessionId = sessionRemovedByDrawerDrop(e.dataTransfer);
             if (sessionId && onUnschedule) onUnschedule(sessionId);
             setGhost(null);
           }}
         >
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            {t('organizer.workshopsPage.board.unscheduled')}
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('organizer.workshopsPage.board.drawerTitle')}
           </h3>
-          <div className="flex flex-col gap-2">
-            {drawer.length === 0 ? (
-              <p className="text-xs text-muted">
-                {t('organizer.workshopsPage.board.allScheduled')}
-              </p>
-            ) : (
-              drawer.map((w) => (
-                <div
-                  key={w.id}
-                  draggable={!readOnly}
-                  onDragStart={(e) => {
-                    const span = w.durationMinutes
-                      ? Math.round(w.durationMinutes / SLOT_MINUTES)
-                      : 12;
-                    dragSpanRef.current = span;
-                    e.dataTransfer.setData('workshopId', w.id);
-                    e.dataTransfer.setData('sessionId', w.sessions[0]?.id ?? '');
-                    e.dataTransfer.setData('span', String(span));
-                  }}
-                  onDragEnd={() => setGhost(null)}
-                  className="cursor-grab rounded-lg border border-border bg-surface px-3 py-2 text-sm shadow-sm hover:border-accent"
-                  title={w.title}
-                >
-                  <span className="block truncate font-medium text-foreground">{w.title}</span>
-                  <span className="text-xs text-muted">
-                    {[w.category, w.level].filter(Boolean).join(' · ') ||
-                      (w.durationMinutes != null
-                        ? t('organizer.workshopsPage.board.minutesShort', {
-                            min: w.durationMinutes,
-                          })
-                        : '—')}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+          <p className="mb-2 text-xs text-muted">{t('organizer.workshopsPage.board.drawerHint')}</p>
+          <WorkshopDrawerList
+            entries={drawer}
+            timezone={timezone}
+            readOnly={readOnly}
+            onDragStart={(span) => {
+              dragSpanRef.current = span;
+            }}
+            onDragEnd={() => setGhost(null)}
+          />
           {onAddBreak && (
             <button
               type="button"
@@ -778,18 +749,21 @@ export function WorkshopScheduleBoard({
                               draggable={!readOnly}
                               onDragStart={(e) => {
                                 dragSpanRef.current = bl.span;
-                                e.dataTransfer.setData('workshopId', bl.workshopId);
-                                e.dataTransfer.setData('sessionId', bl.sessionId);
-                                e.dataTransfer.setData('span', String(bl.span));
+                                writeDrag(e.dataTransfer, {
+                                  workshopId: bl.workshopId,
+                                  sessionId: bl.sessionId,
+                                  span: bl.span,
+                                  from: 'grid',
+                                });
                               }}
                               onDragEnd={() => setGhost(null)}
                               role="button"
                               tabIndex={0}
-                              onClick={() => onBlockClick?.(bl.workshopId)}
+                              onClick={() => onBlockClick?.(bl.workshopId, bl.sessionId)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();
-                                  onBlockClick?.(bl.workshopId);
+                                  onBlockClick?.(bl.workshopId, bl.sessionId);
                                 }
                               }}
                               title={

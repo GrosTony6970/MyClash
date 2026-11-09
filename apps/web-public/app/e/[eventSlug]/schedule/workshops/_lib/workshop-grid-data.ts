@@ -22,7 +22,7 @@ import {
   buildWorkshopSessionBlocks,
   eachDay,
   hhmmToSlot,
-  unscheduledWorkshops,
+  unplacedSessions,
   type AreaColumn,
   type BoardWorkshop,
   type ColumnBand,
@@ -53,6 +53,8 @@ export interface WorkshopGridBlock extends WorkshopBlock {
 
 /** A workshop the grid can't place — rendered as a list beside it. */
 export interface UnlistedWorkshop {
+  /** The session's id, or the Workshop's when it has no session: a Workshop may list twice. */
+  key: string;
   id: string;
   title: string;
   color: string | null;
@@ -137,15 +139,17 @@ export async function loadWorkshopSchedule(
   // tabs don't list — and it would then render on no tab at all. Append the
   // strays at the END, leaving indices 0..n-1 (and therefore break dayIndex)
   // untouched.
-  for (const w of workshops) {
-    const startsAt = w.sessions[0]?.startsAt;
-    if (!startsAt) continue;
+  // Every session counts: a Workshop may run several (ruling 515).
+  const starts = workshops.flatMap((w) =>
+    w.sessions.flatMap((s) => (s.startsAt ? [s.startsAt] : [])),
+  );
+  for (const startsAt of starts) {
     const key = zonedDay(startsAt, tz);
     if (key && !dayKeys.includes(key)) dayKeys.push(key);
   }
 
   const startHour = deriveStartHour(
-    workshops.flatMap((w) => (w.sessions[0]?.startsAt ? [w.sessions[0].startsAt] : [])),
+    starts,
     breaks.map((b) => b.startTime),
     tz,
   );
@@ -174,14 +178,24 @@ export async function loadWorkshopSchedule(
     ]),
   }));
 
-  const unlisted = unscheduledWorkshops(boardWorkshops, columns);
+  // A Workshop with no session, and each session the grid cannot place.
+  const unlisted = [
+    ...boardWorkshops
+      .filter((w) => w.sessions.length === 0)
+      .map((w) => ({ w, key: w.id, startsAt: null })),
+    ...unplacedSessions(boardWorkshops, columns).map(({ workshop, session }) => ({
+      w: workshop,
+      key: session.id,
+      startsAt: session.startsAt,
+    })),
+  ];
   const undated: UnlistedWorkshop[] = [];
   const unplaced: UnlistedWorkshop[] = [];
-  for (const w of unlisted) {
+  for (const { w, key, startsAt } of unlisted) {
     const slug = slugById.get(w.id);
     if (!slug) continue;
-    const startsAt = w.sessions[0]?.startsAt ?? null;
     const row: UnlistedWorkshop = {
+      key,
       id: w.id,
       title: w.title,
       color: w.color ?? null,

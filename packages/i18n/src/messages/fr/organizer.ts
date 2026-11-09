@@ -2223,8 +2223,12 @@ export const organizer = {
       remove: 'Retirer',
     },
     board: {
-      unscheduled: 'Non programmés',
-      allScheduled: 'Tous les ateliers sont programmés.',
+      drawerTitle: 'Ateliers',
+      drawerHint: 'Glissez un atelier sur la grille pour ajouter une séance.',
+      noWorkshops: "Aucun atelier pour l'instant.",
+      sessionsCount: 'Séances : {count}',
+      unplacedSession: 'Séance à placer : {when}',
+      unplacedSessionNoTime: 'Séance à placer : sans horaire',
       minutesShort: '{min} min',
       gridWindow: 'Fenêtre de la grille',
       noVenues:

@@ -4,7 +4,7 @@ import {
   buildColumnBands,
   buildWorkshopSessionBlocks,
   columnKey,
-  unscheduledWorkshops,
+  unplacedSessions,
   type BoardVenue,
   type BoardWorkshop,
 } from './workshop-board-geometry';
@@ -176,31 +176,87 @@ describe('buildWorkshopSessionBlocks', () => {
   });
 });
 
-describe('unscheduledWorkshops', () => {
-  it('collects workshops with no session, no time, or no venue', () => {
+/**
+ * A Workshop runs several sessions (operator ruling 515): "Longsword basics" on Saturday in Mat A
+ * and on Sunday in the Annex. The board read only the first session, so the second was never
+ * drawn.
+ */
+describe('several sessions of one Workshop', () => {
+  const longsword = workshop({
+    id: 'w-longsword',
+    sessions: [
+      {
+        id: 's-saturday',
+        startsAt: '2027-06-01T07:00:00.000Z',
+        endsAt: '2027-06-01T08:00:00.000Z',
+        venueId: 'v1',
+        areaId: 'a1',
+      },
+      {
+        id: 's-saturday-pm',
+        startsAt: '2027-06-01T12:00:00.000Z',
+        endsAt: '2027-06-01T13:00:00.000Z',
+        venueId: 'v2',
+        areaId: null,
+      },
+      {
+        id: 's-sunday',
+        startsAt: '2027-06-02T07:00:00.000Z',
+        endsAt: '2027-06-02T08:00:00.000Z',
+        venueId: 'v1',
+        areaId: 'a1',
+      },
+    ],
+  });
+
+  it('draws each session of the day as its own block', () => {
+    const blocks = buildWorkshopSessionBlocks([longsword], columns, '2027-06-01', TZ);
+    expect(blocks.map((b) => [b.workshopId, b.sessionId, b.columnKey])).toEqual([
+      ['w-longsword', 's-saturday', columnKey('v1', 'a1')],
+      ['w-longsword', 's-saturday-pm', columnKey('v2', null)],
+    ]);
+    expect(
+      buildWorkshopSessionBlocks([longsword], columns, '2027-06-02', TZ).map((b) => b.sessionId),
+    ).toEqual(['s-sunday']);
+  });
+});
+
+describe('unplacedSessions', () => {
+  it('lists each session with no time or no column, beside its Workshop', () => {
     const ws: BoardWorkshop[] = [
       workshop({ id: 'none' }),
       workshop({
-        id: 'timeless',
-        sessions: [{ id: 's', startsAt: null, endsAt: null, venueId: 'v1', areaId: 'a1' }],
-      }),
-      workshop({
-        id: 'no-venue',
+        id: 'mixed',
         sessions: [
-          { id: 's', startsAt: '2027-06-01T09:00:00', endsAt: null, venueId: null, areaId: null },
-        ],
-      }),
-      workshop({
-        id: 'placed',
-        sessions: [
-          { id: 's', startsAt: '2027-06-01T09:00:00', endsAt: null, venueId: 'v1', areaId: 'a1' },
+          {
+            id: 's-placed',
+            startsAt: '2027-06-01T09:00:00',
+            endsAt: null,
+            venueId: 'v1',
+            areaId: 'a1',
+          },
+          { id: 's-timeless', startsAt: null, endsAt: null, venueId: 'v1', areaId: 'a1' },
+          {
+            id: 's-no-venue',
+            startsAt: '2027-06-01T09:00:00',
+            endsAt: null,
+            venueId: null,
+            areaId: null,
+          },
+          {
+            id: 's-gone-venue',
+            startsAt: '2027-06-01T09:00:00',
+            endsAt: null,
+            venueId: 'v9',
+            areaId: null,
+          },
         ],
       }),
     ];
-    expect(unscheduledWorkshops(ws, columns).map((w) => w.id)).toEqual([
-      'none',
-      'timeless',
-      'no-venue',
+    expect(unplacedSessions(ws, columns).map((u) => [u.workshop.id, u.session.id])).toEqual([
+      ['mixed', 's-timeless'],
+      ['mixed', 's-no-venue'],
+      ['mixed', 's-gone-venue'],
     ]);
   });
 });

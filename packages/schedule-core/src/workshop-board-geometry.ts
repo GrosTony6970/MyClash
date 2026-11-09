@@ -3,8 +3,9 @@
  *
  * Columns are venue_areas grouped under venue bands: one column per area,
  * and a venue with no areas collapses to a single venue-level column
- * (areaId null). Workshop blocks place each workshop's single session onto
- * the matching column at its time slot. Everything is pure — no React/IO —
+ * (areaId null). Workshop blocks place every session of a Workshop (a Workshop
+ * may run several, operator ruling 515) onto the matching column at its time
+ * slot. Everything is pure — no React/IO —
  * so the board can be reasoned about and tested in isolation.
  */
 
@@ -139,7 +140,7 @@ function matchColumn(
 
 const DEFAULT_BLOCK_MINUTES = 60;
 
-/** Blocks for the workshops whose session falls on `day` (in `tz`) and maps to a column. */
+/** Blocks for every session that falls on `day` (in `tz`) and maps to a column. */
 export function buildWorkshopSessionBlocks(
   workshops: ReadonlyArray<BoardWorkshop>,
   columns: ReadonlyArray<AreaColumn>,
@@ -149,53 +150,78 @@ export function buildWorkshopSessionBlocks(
 ): WorkshopBlock[] {
   const blocks: WorkshopBlock[] = [];
   for (const w of workshops) {
-    const session = w.sessions[0];
-    if (!session?.startsAt) continue;
-    if (zonedDay(session.startsAt, tz) !== day) continue;
-    const col = matchColumn(columns, session.venueId, session.areaId);
-    if (!col) continue;
-
-    const startSlot = isoToSlot(session.startsAt, day, tz, startHour);
-    const durationMin = session.endsAt
-      ? Math.max(
-          SLOT_MINUTES,
-          (new Date(session.endsAt).getTime() - new Date(session.startsAt).getTime()) / 60_000,
-        )
-      : (w.durationMinutes ?? DEFAULT_BLOCK_MINUTES);
-    const span = Math.max(1, Math.round(durationMin / SLOT_MINUTES));
-
-    blocks.push({
-      workshopId: w.id,
-      sessionId: session.id,
-      title: w.title,
-      columnKey: col.key,
-      startSlot,
-      endSlot: startSlot + span,
-      span,
-      startsAt: session.startsAt,
-      endsAt: session.endsAt,
-      category: w.category ?? null,
-      level: w.level ?? null,
-      capacity: w.capacity ?? null,
-      color: w.color ?? null,
-      instructorNames: w.instructorNames ?? [],
-      confirmedCount: session.confirmedCount ?? 0,
-    });
+    for (const session of w.sessions) {
+      const block = sessionBlock(w, session, columns, day, tz, startHour);
+      if (block) blocks.push(block);
+    }
   }
   return blocks;
 }
 
+type BoardSession = BoardWorkshop['sessions'][number];
+
+function sessionBlock(
+  w: BoardWorkshop,
+  session: BoardSession,
+  columns: ReadonlyArray<AreaColumn>,
+  day: string,
+  tz: string,
+  startHour: number,
+): WorkshopBlock | null {
+  if (!session.startsAt || zonedDay(session.startsAt, tz) !== day) return null;
+  const col = matchColumn(columns, session.venueId, session.areaId);
+  if (!col) return null;
+
+  const startSlot = isoToSlot(session.startsAt, day, tz, startHour);
+  const durationMin = session.endsAt
+    ? Math.max(
+        SLOT_MINUTES,
+        (new Date(session.endsAt).getTime() - new Date(session.startsAt).getTime()) / 60_000,
+      )
+    : (w.durationMinutes ?? DEFAULT_BLOCK_MINUTES);
+  const span = Math.max(1, Math.round(durationMin / SLOT_MINUTES));
+
+  return {
+    workshopId: w.id,
+    sessionId: session.id,
+    title: w.title,
+    columnKey: col.key,
+    startSlot,
+    endSlot: startSlot + span,
+    span,
+    startsAt: session.startsAt,
+    endsAt: session.endsAt,
+    category: w.category ?? null,
+    level: w.level ?? null,
+    capacity: w.capacity ?? null,
+    color: w.color ?? null,
+    instructorNames: w.instructorNames ?? [],
+    confirmedCount: session.confirmedCount ?? 0,
+  };
+}
+
+/** A session the board cannot draw, with its Workshop. */
+export interface UnplacedSession<T extends BoardWorkshop> {
+  workshop: T;
+  session: T['sessions'][number];
+}
+
 /**
- * Workshops that can't be placed on any board day: no session, no start
- * time, or no/unknown venue. These live in the right-hand drawer.
+ * Sessions that exist but cannot be drawn on any board day: no start time (a legacy row; both
+ * session routes require one), or no column for their venue (none set, or not on this board).
+ * Each is placed by dragging it. A Workshop with NO session is not here: it is in the drawer as
+ * every Workshop is, and a drag of it adds a session.
  */
-export function unscheduledWorkshops<T extends BoardWorkshop>(
+export function unplacedSessions<T extends BoardWorkshop>(
   workshops: ReadonlyArray<T>,
   columns: ReadonlyArray<AreaColumn>,
-): T[] {
-  return workshops.filter((w) => {
-    const session = w.sessions[0];
-    if (!session?.startsAt) return true;
-    return matchColumn(columns, session.venueId, session.areaId) === null;
-  });
+): Array<UnplacedSession<T>> {
+  return workshops.flatMap((workshop) =>
+    workshop.sessions
+      .filter(
+        (session) =>
+          !session.startsAt || matchColumn(columns, session.venueId, session.areaId) === null,
+      )
+      .map((session) => ({ workshop, session })),
+  );
 }

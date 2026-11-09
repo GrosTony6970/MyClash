@@ -1003,10 +1003,7 @@ export default function WorkshopsAdminPage() {
           breaks={breaks}
           readOnly={isReadOnly}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
-          onBlockClick={(wid) => {
-            const s = workshops.find((w) => w.id === wid)?.sessions[0];
-            if (s) void openRoster(s.id);
-          }}
+          onBlockClick={(_wid, sessionId) => void openRoster(sessionId)}
           onUnschedule={isReadOnly ? undefined : (sessionId) => void handleUnschedule(sessionId)}
           onAddBreak={isReadOnly ? undefined : openBreakCreate}
           onEditBreak={isReadOnly ? undefined : openBreakEdit}

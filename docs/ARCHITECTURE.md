@@ -2014,7 +2014,11 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 ### 11bis.6 Organizer admin
 
 - Admin UI for creating workshops, adding instructors, scheduling sessions.
-- Drag-drop session scheduler showing Lices + venue rooms in a single timeline.
+- Drag-drop session scheduler showing Lices + venue rooms in a single timeline. A Workshop may
+  run several sessions (operator rulings 515, 524): the drawer lists every Workshop, and a drag
+  of one adds a session; a card on the grid is one session, moved by its id; a session the board
+  cannot draw (its venue is not on the board) is listed under its Workshop and placed by a drag
+  (`workshop-drawer.ts`).
 - Roster view per session (confirmed, waitlisted), with check-in.
 - Cancel session → all enrollees notified (push + email).
 

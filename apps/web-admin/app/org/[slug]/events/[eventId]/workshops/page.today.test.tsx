@@ -110,7 +110,8 @@ async function boardShows(): Promise<string> {
   )!;
   await act(async () => tab.click());
   await page.settle();
-  return [...document.body.querySelectorAll('main [draggable]')]
+  // The grid's cards are buttons; the drawer lists every Workshop, drawn or not (ruling 524).
+  return [...document.body.querySelectorAll('main [draggable][role="button"]')]
     .map((card) => card.textContent ?? '')
     .join(' | ');
 }

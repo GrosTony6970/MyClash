@@ -98,9 +98,10 @@ export function workshopScheduleToCsv(
   const areaName = new Map<string, string>();
   for (const v of venues) for (const a of v.venue_areas ?? []) areaName.set(a.id, a.name);
 
+  // One row per placed session: a Workshop may run several (ruling 515).
   const rows = workshops
-    .map((w) => ({ w, s: w.sessions[0] }))
-    .filter((r) => r.s?.startsAt && r.s.venueId)
+    .flatMap((w) => w.sessions.map((s) => ({ w, s })))
+    .filter((r) => r.s.startsAt && r.s.venueId)
     .map(({ w, s }) => {
       // A venue or an area deleted since is said in words, never by its id (ruled 2026-10-15).
       const venue = venueName.get(s!.venueId!) ?? removed.venue;
