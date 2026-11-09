@@ -34,7 +34,7 @@
   flex-shrink: 0;
 }
 .nav__logo img {
-  height: 44px;
+  height: 48px;
   width: auto;
 }
 /*
@@ -207,7 +207,12 @@
 }
 
 /* ── RESPONSIVE (chrome) ──────────────────────── */
-@media (max-width: 900px) {
+/*
+ * The nav collapses to the burger at its own breakpoint. The French row (logo,
+ * four links, language switch, CTA) needs about 1160px on one line; below that
+ * the links used to wrap onto two or three lines.
+ */
+@media (max-width: 1180px) {
   .nav__burger {
     display: flex;
   }
@@ -243,6 +248,8 @@
     margin-left: 0;
     text-align: center;
   }
+}
+@media (max-width: 900px) {
   .footer__inner {
     grid-template-columns: 1fr;
     gap: 1.5rem;
