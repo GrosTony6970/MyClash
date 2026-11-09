@@ -12,6 +12,7 @@ import { createTranslator, getMessages } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
+import { isCancelledSession } from '@/components/workshops/session-cancelled';
 import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader } from '../_components/EventHeader';
@@ -63,13 +64,13 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
 
   // Schedule summary times: tournament side = first pool (earliest scheduled
   // match across tournaments); workshop side = the session window (earliest
-  // start → latest end).
+  // start → latest end) of the sessions that run: a cancelled one sets no time (ruling 526).
   const firstPoolStart =
     tournaments
       .map((t) => t.scheduledStart)
       .filter((s): s is string => Boolean(s))
       .sort()[0] ?? null;
-  const wsSessions = workshops.flatMap((w) => w.sessions);
+  const wsSessions = workshops.flatMap((w) => w.sessions.filter((s) => !isCancelledSession(s)));
   const wsStarts = wsSessions
     .map((s) => s.startsAt)
     .filter((s): s is string => Boolean(s))
