@@ -32,11 +32,32 @@ export const forbiddenEnvKeys = [
   'AI_KEY_SECRET',
   'OPS_RUNNER_SECRET',
   'RESEND_API_KEY',
-  'SMTP_PASSWORD',
+  // The Resend API key, as GoTrue's SMTP password. It replaces SMTP_PASSWORD, a name nothing
+  // declares, which therefore never matched anything (ruling 511).
+  'SMTP_PASS',
   'PHOTO_BUCKET_ACCESS_KEY',
   'PHOTO_BUCKET_SECRET_KEY',
   'PHOTO_TOKEN_SECRET',
   'PHOTO_DEVICE_JWT_SECRET',
+  // Fifteen server secrets .env.example declared and this list missed (ruling 511; SMTP_PASS
+  // above is the sixteenth), the two
+  // *_AUTH ones being bcrypt basic-auth credentials. The guard below now fails the gate on the
+  // next one.
+  'POSTGRES_PASSWORD',
+  'AUTHENTICATOR_PASSWORD',
+  'SUPABASE_AUTH_ADMIN_PASSWORD',
+  'SUPABASE_STORAGE_ADMIN_PASSWORD',
+  'SUPABASE_REALTIME_DB_ENC_KEY',
+  'STUDIO_PASSWORD',
+  'TRAEFIK_DASHBOARD_PASSWORD',
+  'TRAEFIK_DASHBOARD_AUTH',
+  'STUDIO_BASIC_AUTH',
+  'REDIS_PASSWORD',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'VAPID_PRIVATE_KEY',
+  'BACKUP_SCW_ACCESS_KEY',
+  'BACKUP_SCW_SECRET_KEY',
+  'GITHUB_TOKEN',
   // Taken over from check-infra-review.mjs, which held them as per-file checks
   // against nine hand-named files. These four belong to whoever scans the whole
   // frontend, because a leak in the tenth file was never the less dangerous one.
@@ -52,6 +73,39 @@ export const forbiddenEnvKeys = [
   'SEED_ADMIN_PASSWORD',
 ];
 const scannedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'];
+
+/** Secret-shaped names that are public by construction: they ship in every browser bundle. */
+export const publicEnvKeys = [
+  'SUPABASE_ANON_KEY',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'VAPID_PUBLIC_KEY',
+];
+
+/**
+ * Secrets each app's next.config.ts reads at BUILD time, in Node, and hands to a build plugin:
+ * the Sentry token uploads source maps. They never reach a bundle, and they cannot be forbidden
+ * without failing on the build config that needs them.
+ */
+export const buildTimeEnvKeys = ['SENTRY_AUTH_TOKEN'];
+
+/**
+ * Every name .env.example declares (commented-out ones too) that reads as a secret and is on
+ * none of the three lists.
+ *
+ * The forbidden list is kept by hand, so it drifted: sixteen server secrets were missing from
+ * it, SMTP_PASS among them (ruling 511). `_AUTH` is matched at the end of a name only: the
+ * basic-auth credentials end that way, AUTH_GUARD_MODE and GOOGLE_OAUTH_ENABLED do not. `.env.example` is the canonical key list, so a new secret lands there first;
+ * this makes it a finding until someone decides which list it belongs to.
+ */
+export function unclassifiedEnvKeys(
+  envExample,
+  classified = [...forbiddenEnvKeys, ...publicEnvKeys, ...buildTimeEnvKeys],
+) {
+  const declared = [...envExample.matchAll(/^#?[ \t]*([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]);
+  return [...new Set(declared)].filter(
+    (name) => /SECRET|PASS|KEY|TOKEN|_AUTH$/.test(name) && !classified.includes(name),
+  );
+}
 
 /**
  * The most specific keys that matched, so one occurrence is one finding.
@@ -106,13 +160,21 @@ export const gate = defineGate({
   entry: import.meta.url,
   run: () => {
     const { leaks, scanned } = scanFrontendRoots();
+    const unclassified = unclassifiedEnvKeys(readFileSync(join(root, '.env.example'), 'utf8'));
     return {
-      findings: leaks,
+      findings: [
+        ...leaks,
+        ...unclassified.map(
+          (name) => `.env.example: ${name} is on no list (forbidden, public, build-time)`,
+        ),
+      ],
       scanned,
       summary: `No server-only secret environment keys across ${scanned} frontend source file(s).`,
       remedy:
         'A key reachable from client source is a key in the browser bundle. Read it on the\n' +
-        'server and pass the answer, or expose a NEXT_PUBLIC_ value that is safe to publish.',
+        'server and pass the answer, or expose a NEXT_PUBLIC_ value that is safe to publish.\n' +
+        'A secret-shaped name in .env.example goes in forbiddenEnvKeys; in publicEnvKeys only\n' +
+        'when it ships to browsers by design; in buildTimeEnvKeys only when next.config reads it.',
     };
   },
 });

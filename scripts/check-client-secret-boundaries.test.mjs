@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  buildTimeEnvKeys,
   forbiddenEnvKeys,
+  gate,
   mostSpecificMatches,
+  publicEnvKeys,
   scanFrontendRoots,
+  unclassifiedEnvKeys,
 } from './check-client-secret-boundaries.mjs';
+
+const repoRoot = join(import.meta.dirname, '..');
 
 // The fixtures below are hand-written and use invented keys. None is derived
 // from forbiddenEnvKeys: a fixture built from the thing under test cannot
@@ -107,6 +115,92 @@ test('the photo bucket key pair is forbidden, and a component naming it reports'
     assert.ok(forbiddenEnvKeys.includes(key), `${key} is not guarded`);
     assert.deepEqual(mostSpecificMatches(`const k = process.env.${key};`, forbiddenEnvKeys), [key]);
   }
+});
+
+// ── .env.example: every secret-shaped name is classified (ruling 511) ───────
+
+test('an unclassified secret-shaped name is reported, a classified or plain one is not', () => {
+  const env = [
+    'ALPHA_SECRET=x',
+    'BETA_PASSWORD=x',
+    'GAMMA_KEY=x',
+    'DELTA_TOKEN=x',
+    'OPEN_KEY=x',
+    'PLAIN_URL=https://example.test',
+    'BETA_PASSWORD=again',
+  ].join('\n');
+  assert.deepEqual(unclassifiedEnvKeys(env, ['ALPHA_SECRET', 'OPEN_KEY']), [
+    'BETA_PASSWORD',
+    'GAMMA_KEY',
+    'DELTA_TOKEN',
+  ]);
+});
+
+test('a bare PASS and a trailing _AUTH are secret-shaped; an AUTH elsewhere is not', () => {
+  const env = ['MAIL_PASS=', 'PANEL_BASIC_AUTH=x', 'AUTH_GUARD_MODE=x', 'GOOGLE_OAUTH_ENABLED=x'];
+  assert.deepEqual(unclassifiedEnvKeys(env.join('\n'), []), ['MAIL_PASS', 'PANEL_BASIC_AUTH']);
+});
+
+test('a commented-out declaration counts, CRLF too; a prose comment does not', () => {
+  const env =
+    '# EPSILON_PASSWORD=  # uncomment if needed\r\n#ZETA_SECRET=\r\n# the KEY rotates\r\n';
+  assert.deepEqual(unclassifiedEnvKeys(env, []), ['EPSILON_PASSWORD', 'ZETA_SECRET']);
+});
+
+test('every secret-shaped name in .env.example is on a list', () => {
+  const env = readFileSync(join(repoRoot, '.env.example'), 'utf8');
+  assert.deepEqual(unclassifiedEnvKeys(env), []);
+  // Not vacuous: the file declares dozens of secret-shaped names.
+  assert.ok(unclassifiedEnvKeys(env, []).length > 20);
+});
+
+test('the public and build-time lists hold only the keys ruled onto them', () => {
+  // Moving a secret onto either would silence both checks for it; that takes an edit here.
+  assert.deepEqual(publicEnvKeys, [
+    'SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'VAPID_PUBLIC_KEY',
+  ]);
+  assert.deepEqual(buildTimeEnvKeys, ['SENTRY_AUTH_TOKEN']);
+});
+
+test('the server secrets ruling 511 added are forbidden', () => {
+  for (const key of [
+    'POSTGRES_PASSWORD',
+    'AUTHENTICATOR_PASSWORD',
+    'SUPABASE_AUTH_ADMIN_PASSWORD',
+    'SUPABASE_STORAGE_ADMIN_PASSWORD',
+    'SUPABASE_REALTIME_DB_ENC_KEY',
+    'STUDIO_PASSWORD',
+    'TRAEFIK_DASHBOARD_PASSWORD',
+    'TRAEFIK_DASHBOARD_AUTH',
+    'STUDIO_BASIC_AUTH',
+    'SMTP_PASS',
+    'REDIS_PASSWORD',
+    'GOOGLE_OAUTH_CLIENT_SECRET',
+    'VAPID_PRIVATE_KEY',
+    'BACKUP_SCW_ACCESS_KEY',
+    'BACKUP_SCW_SECRET_KEY',
+    'GITHUB_TOKEN',
+  ]) {
+    assert.deepEqual(mostSpecificMatches(`const k = process.env.${key};`), [key], key);
+  }
+});
+
+test('the gate runs the .env.example check and keeps its findings', () => {
+  // The tests above prove the function; this one proves the gate still calls it.
+  // Whitespace is dropped on both sides so a Prettier re-wrap cannot break the match.
+  const squash = (text) => text.replace(/\s+/g, '');
+  const source = squash(
+    readFileSync(join(repoRoot, 'scripts/check-client-secret-boundaries.mjs'), 'utf8'),
+  );
+  for (const call of [
+    "const unclassified = unclassifiedEnvKeys(readFileSync(join(root, '.env.example'), 'utf8'));",
+    'findings: [...leaks, ...unclassified.map((name) => `.env.example: ${name} is on no list',
+  ]) {
+    assert.ok(source.includes(squash(call)), call);
+  }
+  assert.deepEqual(gate.run({ argv: [] }).findings, []);
 });
 
 test('the scan reports how many files it read, not how many leaked', () => {
