@@ -289,12 +289,19 @@ describe('the public Workshop page', () => {
     );
   });
 
-  it('lists no cancelled session: there is nothing to book', () => {
-    expect(page).toContain(
-      "const sessions = workshop.sessions.filter((session) => session.status !== 'cancelled');",
+  it('lists a cancelled session struck through, with no control (ruling 526)', () => {
+    expect(page).toContain('const sessions = workshop.sessions;');
+    expect(page).toMatch(
+      /\{sessions\.map\(\(session\) => \{\s+if \(isCancelledSession\(session\)\) \{\s+return \(/,
     );
-    expect(page).toContain('{sessions.map((session) => {');
-    expect(page).not.toContain('workshop.sessions.map(');
+    // The cancelled row: its time struck through and the badge, before any booking control.
+    const cancelledRow = page.slice(
+      page.indexOf('if (isCancelledSession(session))'),
+      page.indexOf('const cap = session.capacity'),
+    );
+    expect(cancelledRow).toMatch(/<SessionWhen[^>]*cancelled\s*\/>/);
+    expect(cancelledRow).toContain('<CancelledBadge t={t} />');
+    expect(cancelledRow).not.toContain('WorkshopRegisterControls');
   });
 });
 

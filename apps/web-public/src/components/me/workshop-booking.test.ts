@@ -73,11 +73,12 @@ describe('the screens that show a booking', () => {
     expect(page).toContain("const booking = bookings.get(session.id) ?? 'none';");
     expect(page).toContain("onRegister={() => void act(session.id, 'book', booking)}");
     expect(page).toContain("onCancel={() => void act(session.id, 'cancel')}");
-    // Only a seat is highlighted and rated; a Workshop runs several sessions (ruling 515).
-    expect(page).toContain(
-      "highlighted={daySessions.some((s) => bookings.get(s.id) === 'confirmed')}",
+    // Only a seat is highlighted and rated; a Workshop runs several sessions (ruling 515). A
+    // seat in a cancelled session is neither (ruling 529).
+    expect(page).toMatch(
+      /highlighted=\{daySessions\.some\(\s+\(s\) => isLive\(s\) && bookings\.get\(s\.id\) === 'confirmed',\s+\)\}/,
     );
-    expect(page).toContain("bookings.get(s.id) === 'confirmed' &&");
+    expect(page).toMatch(/isLive\(s\) &&\s+bookings\.get\(s\.id\) === 'confirmed' &&/);
     expect(page).not.toContain('enrolledIds');
   });
 
@@ -156,6 +157,19 @@ describe('placeElsewhereWords', () => {
     expect(words([['s-saturday', 'confirmed']], 's-saturday')).toBeNull();
     expect(words([['s-saturday', 'refused']], 's-sunday')).toBeNull();
     expect(words([], 's-sunday')).toBeNull();
+  });
+
+  it('says nothing for a seat in a cancelled session: it holds nothing (ruling 526)', () => {
+    const cancelledSaturday = [{ ...sessions[0]!, status: 'cancelled' }, sessions[1]!];
+    expect(
+      placeElsewhereWords(
+        cancelledSaturday,
+        's-sunday',
+        new Map([['s-saturday', 'confirmed']]),
+        t,
+        when,
+      ),
+    ).toBeNull();
   });
 
   it('is what both booking pages give the register controls', () => {

@@ -7,6 +7,7 @@ import { formatInZone } from '@myclash/time';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UnknownCaller } from '@/components/me/workshop-booking';
+import { CANCELLED_TEXT } from '@/components/workshops/session-cancelled';
 import { loginHref } from '@/lib/sign-in-return';
 
 const NOTICE = 'rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-sm';
@@ -102,19 +103,22 @@ export function SessionWhen({
   timezone,
   bcp47,
   enrolled,
+  cancelled = false,
 }: {
   session: { startsAt: string | null; endsAt: string | null; locationLabel: string | null };
   timezone: string;
   bcp47: string;
   /** "12/20 enrolled", or null when the Workshop has no limit. */
   enrolled: string | null;
+  /** A cancelled session: its time and place struck through (ruling 526). */
+  cancelled?: boolean;
 }): ReactNode {
   const hour = (iso: string) =>
     formatInZone(iso, timezone, { hour: '2-digit', minute: '2-digit' }, bcp47);
   return (
-    <div>
+    <div className={cancelled ? CANCELLED_TEXT : undefined}>
       {session.startsAt && (
-        <p className="font-medium text-foreground">
+        <p className={cancelled ? undefined : 'font-medium text-foreground'}>
           {formatInZone(
             session.startsAt,
             timezone,

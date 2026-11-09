@@ -24,6 +24,11 @@ import {
 } from '@/components/me/workshop-booking';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
+  CANCELLED_TEXT,
+  CancelledBadge,
+  isCancelledSession,
+} from '@/components/workshops/session-cancelled';
+import {
   groupWorkshopsByDay,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
@@ -167,12 +172,12 @@ function WorkshopsContent({
     <ReadFailed title={t('publicApp.me.workshops.bookingsFailed')} onRetry={retrySchedule} />
   );
 
-  // One card per Workshop and day that still has a live (non-cancelled) session; a Workshop runs
-  // several sessions (ruling 515), each with its own button.
-  const isLive = (s: WorkshopSession) => s.status !== 'cancelled';
-  const visible = workshops.filter((w) => w.sessions.some(isLive));
-  // The refused tap's line. A session the organiser cancelled leaves the list at
-  // the read that follows the tap: its line is then said above the list.
+  // One card per Workshop and day; a Workshop runs several sessions (ruling 515), each with its own
+  // button. A cancelled session stays, struck through and with no button (ruling 526).
+  const isLive = (s: WorkshopSession) => !isCancelledSession(s);
+  const visible = workshops.filter((w) => w.sessions.length > 0);
+  // The refused tap's line, under its session's button. A session the organiser cancelled loses
+  // its button at the read that follows the tap: its line is then said above the list.
   const refusedLine = refused && (
     <p role="alert" className="text-xs font-semibold text-danger">
       {refused.words}
@@ -211,14 +216,16 @@ function WorkshopsContent({
           </h2>
           <div className="flex flex-col gap-4">
             {group.items.map((w) => {
-              const daySessions = w.sessions.filter(isLive);
+              const daySessions = w.sessions;
               const siblings = allSessions.get(w.id) ?? w.sessions;
               const teaches = teachingIds.has(w.id);
               const first = !firstCard.has(w.id);
               firstCard.add(w.id);
-              // Rating unlocks for attendees once a session they had a seat in has started.
+              // Rating unlocks for attendees once a session they had a seat in has started. A
+              // cancelled one never ran (ruling 529).
               const rates = siblings.some(
                 (s) =>
+                  isLive(s) &&
                   bookings.get(s.id) === 'confirmed' &&
                   s.startsAt != null &&
                   new Date(s.startsAt).getTime() <= Date.now(),
@@ -232,11 +239,25 @@ function WorkshopsContent({
                   <WorkshopCard
                     workshop={w}
                     timezone={tz}
-                    highlighted={daySessions.some((s) => bookings.get(s.id) === 'confirmed')}
+                    highlighted={daySessions.some(
+                      (s) => isLive(s) && bookings.get(s.id) === 'confirmed',
+                    )}
                     showLocation
                     footer={
                       <div className="flex flex-col gap-3">
                         {daySessions.map((session) => {
+                          if (!isLive(session)) {
+                            return (
+                              <div key={session.id} className="flex items-center gap-2">
+                                {session.startsAt && (
+                                  <p className={`text-xs ${CANCELLED_TEXT}`}>
+                                    {fmtDayTime(session.startsAt)}
+                                  </p>
+                                )}
+                                <CancelledBadge t={t} />
+                              </div>
+                            );
+                          }
                           const booking = bookings.get(session.id) ?? 'none';
                           const full =
                             session.capacity != null && session.confirmedCount >= session.capacity;
@@ -254,7 +275,7 @@ function WorkshopsContent({
                                 busy={busy.has(session.id)}
                                 isInstructor={teaches}
                                 placeElsewhere={placeElsewhereWords(
-                                  siblings.filter(isLive),
+                                  siblings,
                                   session.id,
                                   bookings,
                                   t,

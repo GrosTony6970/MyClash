@@ -12,6 +12,7 @@ import {
   type ApiFailure,
   type MeSession,
 } from '@myclash/api-client';
+import { isCancelledSession } from '../workshops/session-cancelled';
 import type { PersonSchedule } from './types';
 
 export type WorkshopBooking = 'none' | 'confirmed' | 'waitlisted' | 'refused';
@@ -46,17 +47,18 @@ export function placeElsewhere(
 /**
  * The words of the greyed button of a session refused because the viewer holds another one of
  * the same Workshop ("You have a place on Sat 10:00"), or null. One owner for both booking pages.
- * `when` writes an instant in the reader's language and the Event's zone.
+ * `when` writes an instant in the reader's language and the Event's zone. A place in a cancelled
+ * session holds nothing (ruling 526, as the server's rule): it is never the other place.
  */
 export function placeElsewhereWords(
-  sessions: ReadonlyArray<{ id: string; startsAt: string | null }>,
+  sessions: ReadonlyArray<{ id: string; startsAt: string | null; status?: string | null }>,
   sessionId: string,
   bookings: ReadonlyMap<string, WorkshopBooking>,
   t: (key: string, values?: Record<string, string>) => string,
   when: (iso: string) => string,
 ): string | null {
   const otherId = placeElsewhere(
-    sessions.map((s) => s.id),
+    sessions.filter((s) => !isCancelledSession(s)).map((s) => s.id),
     sessionId,
     bookings,
   );

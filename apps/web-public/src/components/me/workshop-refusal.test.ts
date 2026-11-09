@@ -194,10 +194,12 @@ describe('the personal Workshops page', () => {
     );
   });
 
-  // The cancelled-session refusal: the read after the tap drops that session, and its card
-  // goes or shows another session. The line must not go with it.
-  it('says it above the list when the tapped session has left the list', () => {
-    // Every live session on the page: a Workshop runs several (ruling 515).
+  // The cancelled-session refusal: the read after the tap shows that session struck through, with
+  // no button to say the line under (ruling 526). The line must not go with the button.
+  it('says it above the list when the tapped session has lost its button', () => {
+    // Every live session on the page: a Workshop runs several (ruling 515); a cancelled one has
+    // no button.
+    expect(page).toContain('const isLive = (s: WorkshopSession) => !isCancelledSession(s);');
     expect(page).toContain(
       'const shown = visible.flatMap((w) => w.sessions.filter(isLive).map((s) => s.id));',
     );

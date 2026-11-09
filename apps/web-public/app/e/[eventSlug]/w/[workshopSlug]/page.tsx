@@ -41,6 +41,7 @@ import {
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
 import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
+import { CancelledBadge, isCancelledSession } from '@/components/workshops/session-cancelled';
 import { useParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { Button, TournamentColorDot, accentClassFor } from '@myclash/ui';
@@ -207,9 +208,9 @@ export default function WorkshopDetailPage() {
   const description = workshop.descriptionMd ?? workshop.shortDescription;
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
   const labels = registerLabels(t);
-  // A cancelled session is not listed, as on the personal Workshops page: it has
-  // nothing to book, and the API refuses a booking of one.
-  const sessions = workshop.sessions.filter((session) => session.status !== 'cancelled');
+  // A cancelled session stays listed, struck through and with no control (ruling 526): people who
+  // saw it know it is off. The API refuses a booking of one.
+  const sessions = workshop.sessions;
   const bcp47 = localeToBcp47(locale);
   const fmtTime = (iso: string) =>
     formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, bcp47);
@@ -313,6 +314,23 @@ export default function WorkshopDetailPage() {
             {readFailed && <BookingsUnread onRetry={load} />}
             <ClashCheckNotice count={unchecked} />
             {sessions.map((session) => {
+              if (isCancelledSession(session)) {
+                return (
+                  <div
+                    key={session.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-4"
+                  >
+                    <SessionWhen
+                      session={session}
+                      timezone={tz}
+                      bcp47={bcp47}
+                      enrolled={null}
+                      cancelled
+                    />
+                    <CancelledBadge t={t} />
+                  </div>
+                );
+              }
               const cap = session.capacity ?? 0;
               const isFull = cap > 0 && session.confirmedCount >= cap;
               const booking = caller.bookings.get(session.id) ?? 'none';
