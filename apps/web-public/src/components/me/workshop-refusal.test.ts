@@ -135,6 +135,14 @@ describe("the sentence of an instructor's refused accept", () => {
     expect(moderationRefusalWords(failure, t)).toBe('publicApp.me.instructor.alreadyBooked');
   });
 
+  it('names a session cancelled since the roster opened (ruling 526)', async () => {
+    const failure = await refusedAccept(409, {
+      code: 'WORKSHOP_SESSION_CANCELLED',
+      detail: 'This workshop session was cancelled.',
+    });
+    expect(moderationRefusalWords(failure, t)).toBe('publicApp.workshopDetail.sessionCancelled');
+  });
+
   it('says "try again" for any other failure', async () => {
     const failure = await refusedAccept(500, { code: 'INTERNAL', detail: 'boom' });
     expect(moderationRefusalWords(failure, t)).toBe('publicApp.me.instructor.actionError');

@@ -216,11 +216,13 @@ export function refusalWords(
 
 /**
  * An instructor's accept or refuse that the server refused, in the reader's language. A refusal
- * taken back while the person holds another session of the Workshop is named (rulings 520-523);
- * any other is the dashboard's plain "try again".
+ * taken back while the person holds another session of the Workshop is named (rulings 520-523),
+ * and so is an accept in a session cancelled since the roster opened (ruling 526); any other is
+ * the dashboard's plain "try again".
  */
 export function moderationRefusalWords(failure: ApiFailure, t: (key: string) => string): string {
-  return failureCode(failure) === 'WORKSHOP_ALREADY_BOOKED'
-    ? t('publicApp.me.instructor.alreadyBooked')
-    : t('publicApp.me.instructor.actionError');
+  const code = failureCode(failure);
+  if (code === 'WORKSHOP_ALREADY_BOOKED') return t('publicApp.me.instructor.alreadyBooked');
+  if (code === 'WORKSHOP_SESSION_CANCELLED') return t('publicApp.workshopDetail.sessionCancelled');
+  return t('publicApp.me.instructor.actionError');
 }
