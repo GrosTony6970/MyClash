@@ -657,7 +657,8 @@ jobs:
           SHELLCHECK="/tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
           "$SHELLCHECK" --version
           "$SHELLCHECK" -x infra/scripts/*.sh infra/scripts/lib/*.sh \
-            infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh
+            infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh \
+            infra/realtime/start.sh
 
   secret-scan:
     name: Secret scan

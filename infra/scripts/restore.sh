@@ -338,6 +338,15 @@ if [[ "$INCLUDE_STORAGE" -eq 1 && -n "$STORAGE_FILE" && -f "$STORAGE_FILE" ]]; t
   ok "Storage backup gzip integrity OK"
 fi
 
+# Before anything is stopped or dropped, after every refusal above: compose checks a required
+# `${X:?}` key only when it builds the whole project (`config`, `up`), never on `stop` or `exec`.
+# Without this, an .env missing a key the compose file requires let the restore stop the stack
+# and replace the database, then fail at the final `up -d` and leave the site down (ruling 510).
+"${COMPOSE[@]}" config --quiet || {
+  err "The compose file does not resolve with this .env (above). Run: node scripts/ensure-prod-env.mjs .env"
+  exit 1
+}
+
 if [[ "$STORAGE_ONLY" -eq 0 ]]; then
   # ── Stop every service holding a DB connection ─────────────────
   # DROP DATABASE fails while ANY session is connected. The Supabase

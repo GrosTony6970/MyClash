@@ -237,12 +237,16 @@ services:
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
       DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-devrealtimedbkey}
       PORT: 4000
-      API_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
-      JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      # Its own secret, as in prod (rulings 420, 424): the anon key must not
+      # manage tenants. infra/realtime/start.sh mints its token from it.
+      API_JWT_SECRET: ${SUPABASE_REALTIME_API_SECRET:-dev-realtime-api-secret-not-the-jwt-secret}
+      # The tenant's socket secret: the same expression as GOTRUE_JWT_SECRET above.
+      MYCLASH_REALTIME_SOCKET_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       METRICS_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here}
       APP_NAME: realtime
-      SEED_SELF_HOST: 'true'
+      # Off, as in prod: infra/realtime/start.sh writes the tenant (ruling 505).
+      SEED_SELF_HOST: 'false'
       # MUST equal the first label of the Host header Traefik forwards — the
       # dev realtime routers below are on api.myclash.localhost, so `api`.
       # Realtime resolves the tenant for the websocket connect (and every
@@ -257,8 +261,31 @@ services:
       ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"
       TZ: ${TZ:-Europe/Paris}
+    # As in prod: our script wraps the image's own start and writes the tenant.
+    entrypoint: ['/usr/bin/tini', '-s', '-g', '--', '/bin/bash', '/myclash/realtime-start.sh']
+    command: ['/app/bin/server']
+    volumes:
+      - type: bind
+        source: ./realtime/start.sh
+        target: /myclash/realtime-start.sh
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       db: { condition: service_healthy }
+    # As in prod (ruling 504). Here the routers below are labels on this
+    # container, and Traefik skips a container that is not healthy: dev sockets
+    # 404 until the first check passes (~30 s after a start).
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sSf -o /dev/null --max-time 4 -H "Host: api" http://localhost:4000/api/ping',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     networks: [myclash-dev]
     labels:
       - traefik.enable=true

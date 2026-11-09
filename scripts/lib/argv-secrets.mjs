@@ -32,7 +32,7 @@
  * Comment lines are skipped: they may quote the pattern they forbid.
  */
 
-const SECRET_NAME = /KEY|PASSWORD|PASSWD|SECRET|TOKEN|DATABASE_URL|DB_URI/i;
+export const SECRET_NAME = /KEY|PASSWORD|PASSWD|SECRET|TOKEN|DATABASE_URL|DB_URI/i;
 
 /** Variables whose value is a JSON document holding generated plaintext secrets. */
 export const SECRET_RESULT_VARS = ['ENV_RESULT'];

@@ -47,6 +47,11 @@ const SAMPLE_VALUES = new Map([
     new Set(['a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here']),
   ],
   ['SUPABASE_REALTIME_DB_ENC_KEY', new Set(['change-me-realtime-db-enc-key'])],
+  // The .env.example sample and the dev compose fallback.
+  [
+    'SUPABASE_REALTIME_API_SECRET',
+    new Set(['change-me-realtime-api-secret', 'dev-realtime-api-secret-not-the-jwt-secret']),
+  ],
   ['SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['SUPABASE_SERVICE_ROLE_KEY', new Set(['change-me-service-role-jwt'])],
   ['MYCLASH_GUEST_JWT_SECRET', new Set(['change-me-guest-jwt-secret'])],
@@ -96,6 +101,7 @@ export const SECRET_GENERATORS = {
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
   SUPABASE_REALTIME_DB_ENC_KEY: () => randomBytes(12).toString('base64url'),
+  SUPABASE_REALTIME_API_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   PHOTO_TOKEN_SECRET: () => randomBytes(48).toString('base64url'),
@@ -301,6 +307,21 @@ function applyBasicAuthPair(state, pair) {
   state.generatedCredentials.push(generated.credential);
 }
 
+/**
+ * Realtime's management API takes any token signed with its secret, so that secret is never the
+ * one that signs the public anon key (rulings 420, 424).
+ */
+function replaceRealtimeApiSecretEqualToJwtSecret(state) {
+  const realtimeApiSecret = stripQuotes(state.values.get('SUPABASE_REALTIME_API_SECRET') ?? '');
+  if (realtimeApiSecret !== stripQuotes(state.values.get('SUPABASE_JWT_SECRET') ?? '')) return;
+  applyValue(
+    state,
+    'SUPABASE_REALTIME_API_SECRET',
+    SECRET_GENERATORS.SUPABASE_REALTIME_API_SECRET(),
+    'generated',
+  );
+}
+
 export async function ensureProdEnv(envPath = '.env', options = {}) {
   const examplePath = options.examplePath ?? '.env.example';
   const created = await ensureEnvFile(envPath, examplePath);
@@ -322,6 +343,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
       applyValue(state, key, generate(), 'generated');
     }
   }
+  replaceRealtimeApiSecretEqualToJwtSecret(state);
 
   if (isSampleOrMissing('SUPABASE_ANON_KEY', state.values.get('SUPABASE_ANON_KEY'))) {
     applyValue(

@@ -64,6 +64,11 @@ import {
   unshippedRuntimeFiles,
 } from './lib/dockerfile-workspaces.mjs';
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
+import {
+  realtimeServiceFindings,
+  restoreGuardFindings,
+  startScriptFindings,
+} from './lib/realtime-tenant-review.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -809,9 +814,10 @@ for (const serviceName of requiredServices) {
 /**
  * supabase/realtime is multi-tenant and resolves the tenant from the FIRST
  * LABEL of the Host header. Traefik forwards the client's Host untouched, so
- * SELF_HOST_TENANT_NAME must equal that label or the websocket handshake 403s —
- * silently, since the container healthcheck addresses the tenant by path and
- * keeps answering 200. This gate used to pin the literal name `realtime`, which
+ * SELF_HOST_TENANT_NAME must equal that label or the websocket handshake 403s.
+ * It was silent for months because the old healthcheck addressed the tenant by
+ * path and kept answering 200 (the healthcheck now asks /api/ping by Host, as a
+ * socket does, ruling 504). This gate used to pin the literal name `realtime`, which
  * is what the value WAS while every public socket was dead; assert the
  * relationship instead, because that is the thing that has to hold.
  */
@@ -822,7 +828,6 @@ function realtimeTenantHost(composeText, wsRouterName) {
   return match?.[1] ?? null;
 }
 
-const realtimeTenants = new Map();
 for (const [label, service, routerCompose, wsRouterName] of [
   ['prod supabase-realtime', services.get('supabase-realtime'), composeText, 'myclash-realtime'],
   ['dev supabase-realtime', devServices.get('supabase-realtime'), devComposeText, 'dev-realtime'],
@@ -834,14 +839,12 @@ for (const [label, service, routerCompose, wsRouterName] of [
   requireContains(service, label, "DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'");
   requireContains(service, label, 'DB_ENC_KEY:');
   requireContains(service, label, 'API_JWT_SECRET:');
-  requireContains(service, label, "SEED_SELF_HOST: 'true'");
 
   const tenant = /SELF_HOST_TENANT_NAME:\s*(\S+)/.exec(service)?.[1] ?? null;
   if (!tenant) {
     errors.push(`${label} is missing SELF_HOST_TENANT_NAME.`);
     continue;
   }
-  realtimeTenants.set(label, tenant);
 
   const host = realtimeTenantHost(routerCompose, wsRouterName);
   if (!host) {
@@ -857,16 +860,31 @@ for (const [label, service, routerCompose, wsRouterName] of [
     );
   }
 }
-const prodRealtime = services.get('supabase-realtime') ?? '';
-requireContains(prodRealtime, 'prod supabase-realtime', 'Authorization: Bearer');
-requireContains(
-  prodRealtime,
-  'prod supabase-realtime',
-  `/api/tenants/${realtimeTenants.get('prod supabase-realtime') ?? 'app'}/health`,
-);
+// Rulings 424, 504-508: Realtime owns its tenant. Its management secret is its alone, the image's
+// seed is off, our start script writes the tenant with the socket secret, the healthcheck holds no
+// token. The properties and their reasons live in scripts/lib/realtime-tenant-review.mjs. The
+// script is read through the pinned reader, so a deleted script is a finding, never a skip.
+{
+  const startScriptText = await pinned.readPinnedFile(
+    path.join(rootDir, 'infra', 'realtime', 'start.sh'),
+  );
+  const findings = [
+    ...realtimeServiceFindings({ label: 'infra/docker-compose.prod.yml', services }),
+    ...realtimeServiceFindings({ label: 'infra/docker-compose.dev.yml', services: devServices }),
+    ...(isMissingPinnedFile(startScriptText) ? [] : startScriptFindings(startScriptText)),
+    ...(isMissingPinnedFile(restoreText) ? [] : restoreGuardFindings(restoreText)),
+  ];
+  assertionsRun += 4;
+  errors.push(...findings);
+  if (
+    !deployText.includes(': "${SUPABASE_REALTIME_API_SECRET:?Missing SUPABASE_REALTIME_API_SECRET')
+  ) {
+    errors.push('deploy.sh must require SUPABASE_REALTIME_API_SECRET (ruling 424).');
+  }
+}
 
 // Ruling 420: Realtime's other /api routes are its tenant management, which takes any token
-// signed with API_JWT_SECRET, the public anon key included. No edge path may reach them: exactly
+// signed with API_JWT_SECRET (the anon key's secret until ruling 424). No edge path may reach them: exactly
 // two routers reach Realtime, the REST one matches only ping and rewrites to the fixed /api/ping,
 // the socket one rewrites under /socket/, and the Realtime container itself carries no router
 // (one there would bind to its service without naming it).
@@ -900,7 +918,7 @@ for (const edge of [
   const { label, text, service, host, rest, socket, chainHead } = edge;
   const fail = (what) =>
     errors.push(
-      `${label} Realtime edge (ruling 420): ${what}. Realtime's tenant management would be open to the anon key.`,
+      `${label} Realtime edge (ruling 420): ${what}. Realtime's tenant management would be open to the internet, to any token signed with its API secret.`,
     );
   const bound = [...text.matchAll(/traefik\.http\.routers\.([\w-]+)\.service=(\S+)/gu)]
     .filter((m) => m[2].replace(/@docker$/u, '') === service)

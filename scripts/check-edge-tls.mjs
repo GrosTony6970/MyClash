@@ -149,12 +149,14 @@ if (checkedKeys.has('api')) {
 // this only works while SELF_HOST_TENANT_NAME matches that label. When it did
 // not, every websocket handshake 403'd and every live public surface silently
 // fell back to polling — for months. Nothing caught it: the container's own
-// healthcheck addresses the tenant by PATH (/api/tenants/:id/health) and
-// answered 200 throughout.
+// healthcheck then addressed the tenant by PATH (/api/tenants/:id/health) and
+// answered 200 throughout. It now asks /api/ping by Host too (ruling 504), but
+// from inside the container, so it cannot see the edge's Host.
 //
 // /api/ping is the cheapest route that resolves the tenant the way the socket
 // does. A misconfigured tenant answers 401 {"message":"Tenant not found in
-// database"}; a wrong/missing key answers 403.
+// database"}. It reads no token (measured 2026-11-09: a garbage one gets 200),
+// so the key sent below proves nothing about the socket's secret.
 const realtimeKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!checkedKeys.has('app')) {
   // --hosts excluded it; saying nothing here would be indistinguishable from a pass.
@@ -176,8 +178,9 @@ if (!checkedKeys.has('app')) {
         `SELF_HOST_TENANT_NAME against the Host Traefik forwards; websockets are dead.`,
     );
   }
-  // Realtime's other /api routes are its tenant management, which takes the anon key: the
-  // edge must not forward them (ruling 420), whatever label form a change gives the route.
+  // Realtime's other /api routes are its tenant management, which took the anon key until
+  // ruling 424 gave it its own secret: the edge must not forward them either way (ruling 420),
+  // whatever label form a change gives the route.
   const tenants = await request({
     protocol: 'https:',
     host: `app.${domain}`,
@@ -190,7 +193,8 @@ if (!checkedKeys.has('app')) {
   if (tenants.statusCode !== 404) {
     errors.push(
       `https://app.${domain}/realtime/v1/api/tenants returned ${tenants.statusCode ?? 'no response'} ` +
-        '(expected 404): the edge forwards Realtime tenant management, open to the anon key.',
+        '(expected 404): the edge forwards Realtime tenant management, which takes any token ' +
+        'signed with its API secret (rulings 420, 424).',
     );
   }
 } else {

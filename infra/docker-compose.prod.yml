@@ -306,12 +306,22 @@ services:
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
       DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY}
       PORT: 4000
-      API_JWT_SECRET: ${SUPABASE_JWT_SECRET}
-      JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      # The management API (/api/tenants: list, create, update, delete) takes ANY
+      # token signed with this secret and never reads its role. It is Realtime's
+      # own: on the shared JWT secret the public anon key was a management token
+      # (rulings 420, 424). No token signed with it is stored anywhere: the start
+      # script below mints one in memory (ruling 506).
+      API_JWT_SECRET: ${SUPABASE_REALTIME_API_SECRET:?SUPABASE_REALTIME_API_SECRET is missing from .env, run node scripts/ensure-prod-env.mjs .env}
+      # The tenant's socket secret: browsers connect with the anon key or a
+      # signed-in user's token, both signed with the shared JWT secret.
+      MYCLASH_REALTIME_SOCKET_SECRET: ${SUPABASE_JWT_SECRET}
       METRICS_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
       APP_NAME: realtime
-      SEED_SELF_HOST: 'true'
+      # Off: the image's seed would re-create the tenant on every boot with
+      # API_JWT_SECRET as its socket secret. infra/realtime/start.sh writes it
+      # instead, on every start of this container (ruling 505).
+      SEED_SELF_HOST: 'false'
       # MUST equal the first label of the Host header Traefik forwards, i.e.
       # `app` for app.${DOMAIN}. Realtime is multi-tenant: the websocket
       # connect and every /api/* route except the path-addressed
@@ -334,23 +344,38 @@ services:
       ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"
       TZ: ${TZ}
+    # The image's own start (tini, then /app/run.sh, then the server), wrapped by
+    # our script, which writes the tenant once the server answers. Setting the
+    # entrypoint clears the image's command, so the command is written out.
+    entrypoint: ['/usr/bin/tini', '-s', '-g', '--', '/bin/bash', '/myclash/realtime-start.sh']
+    command: ['/app/bin/server']
+    volumes:
+      # create_host_path false: a missing script fails the `up` instead of
+      # mounting an empty directory (and a Realtime that restarts forever).
+      - type: bind
+        source: ./realtime/start.sh
+        target: /myclash/realtime-start.sh
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       db: { condition: service_healthy }
-    # The tenant is addressed by PATH here, so this probe passes even when
-    # host-based tenant resolution is broken: it proves realtime is UP, never
-    # that it can serve app.${DOMAIN}. That gap is covered by
-    # scripts/check-edge-tls.mjs. Keep the id in step with
-    # SELF_HOST_TENANT_NAME above.
+    # /api/ping resolves the tenant from the Host's first label, exactly as a
+    # socket does, and checks no token: 200 only when the tenant exists, 401
+    # when it does not (ruling 504). Keep the Host in step with
+    # SELF_HOST_TENANT_NAME above. The edge reaches this service by URL, so
+    # this result never removes its route; scripts/check-edge-tls.mjs probes
+    # the same ping through the edge after a deploy.
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'curl -sSfL --head -o /dev/null -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" http://localhost:4000/api/tenants/app/health',
+          'curl -sSf -o /dev/null --max-time 4 -H "Host: app" http://localhost:4000/api/ping',
         ]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
     networks: [myclash]
     mem_limit: 512m
     cpus: 1
@@ -845,8 +870,8 @@ services:
       # socket does); our apps call no other /api route (the API's RealtimeService
       # would broadcast over REST, but nothing injects it). Every other one is
       # Realtime's tenant management, which takes ANY token signed with
-      # API_JWT_SECRET, the public anon key included (ruling 420): it used to be
-      # open to the internet. The rest of /realtime/v1/api now falls to the
+      # API_JWT_SECRET. That secret was the anon key's until ruling 424 gave it
+      # its own, and this desk used to be open to the internet (ruling 420). The rest of /realtime/v1/api now falls to the
       # websocket router below, whose /socket/api/* answers 404. Higher priority
       # than the websocket router so ping still wins.
       - traefik.http.routers.myclash-realtime-api.rule=Host(`app.${DOMAIN}`) && Path(`/realtime/v1/api/ping`)

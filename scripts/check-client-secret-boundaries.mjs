@@ -24,6 +24,8 @@ export const forbiddenEnvKeys = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_JWT_SECRET',
   'SUPABASE_REALTIME_SECRET',
+  // Signs a Realtime tenant-management token (ruling 424).
+  'SUPABASE_REALTIME_API_SECRET',
   'COOKIE_SECRET',
   'MYCLASH_GUEST_JWT_SECRET',
   'MYCLASH_STAFF_JWT_SECRET',

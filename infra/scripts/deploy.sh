@@ -300,6 +300,7 @@ print_deployment_secrets() {
     SUPABASE_JWT_SECRET
     SUPABASE_REALTIME_SECRET
     SUPABASE_REALTIME_DB_ENC_KEY
+    SUPABASE_REALTIME_API_SECRET
     SUPABASE_ANON_KEY
     SUPABASE_SERVICE_ROLE_KEY
     MYCLASH_GUEST_JWT_SECRET
@@ -427,6 +428,7 @@ set +a
 : "${SUPABASE_JWT_SECRET:?Missing SUPABASE_JWT_SECRET in .env}"
 : "${SUPABASE_REALTIME_SECRET:?Missing SUPABASE_REALTIME_SECRET in .env}"
 : "${SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIME_DB_ENC_KEY in .env}"
+: "${SUPABASE_REALTIME_API_SECRET:?Missing SUPABASE_REALTIME_API_SECRET in .env}"
 : "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY in .env}"
 : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY in .env}"
 : "${MYCLASH_GUEST_JWT_SECRET:?Missing MYCLASH_GUEST_JWT_SECRET in .env}"
@@ -643,9 +645,12 @@ hdr "Waiting for services to become healthy"
 CRITICAL_SERVICES=(traefik db redis supabase-auth supabase-storage api
   web-public web-staff web-admin web-marketing)
 # ADVISORY — degraded, not down. Reported by name at the end of the run.
-# supabase-realtime sits here deliberately: live surfaces need it, but its
-# healthcheck answered 200 for weeks while every public websocket was 403'd,
-# so failing a deploy on it would buy confidence it cannot actually give.
+# supabase-realtime sits here deliberately: live surfaces need it, and fall back
+# to polling without it. Its healthcheck once answered 200 for weeks while every
+# public websocket was 403'd; since ruling 504 it asks /api/ping as the tenant,
+# the way a socket does, and it stays ADVISORY by choice (ruling 509). When it is
+# listed below, `docker logs myclash-supabase-realtime 2>&1 | grep myclash-realtime-start`
+# says whether the tenant was written.
 ADVISORY_SERVICES=(supabase-realtime supabase-meta supabase-studio ops-runner worker)
 
 RETRIES=20
