@@ -34,21 +34,9 @@ export function WorkshopSessionsField({
   workshopVenueId,
   durationMinutes,
 }: Props) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const set = (index: number, patch: Partial<SessionLine>) =>
     onChange(lines.map((line, i) => (i === index ? { ...line, ...patch } : line)));
-  // A start fills the end from the Workshop's length, as the single field did.
-  const setStart = (index: number, start: string) => {
-    const end = endFromStartDuration(start, durationMinutes);
-    set(index, end ? { start, end } : { start });
-  };
-  const dayLabel = (d: string) =>
-    new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      timeZone: 'UTC',
-    });
 
   return (
     <fieldset className="flex flex-col gap-2">
@@ -56,65 +44,15 @@ export function WorkshopSessionsField({
         {t('organizer.workshopsPage.sessionsLabel')}
       </legend>
       {lines.map((line, index) => (
-        <div
+        <SessionLineRow
           key={line.id ?? `new-${index}`}
-          className="grid grid-cols-[1fr_5rem_5rem_1fr_auto] items-end gap-2"
-        >
-          {days.length > 0 ? (
-            <select
-              aria-label={t('organizer.workshopsPage.dayOptionalLabel')}
-              value={line.day}
-              onChange={(e) => set(index, { day: e.target.value })}
-              className={FIELD}
-            >
-              <option value="">—</option>
-              {days.map((d) => (
-                <option key={d} value={d}>
-                  {dayLabel(d)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="date"
-              aria-label={t('organizer.workshopsPage.dayOptionalLabel')}
-              value={line.day}
-              onChange={(e) => set(index, { day: e.target.value })}
-              className={FIELD}
-            />
-          )}
-          <Time24Input
-            value={line.start}
-            onChange={(v) => setStart(index, v)}
-            aria-label={t('organizer.workshopsPage.startTimeAria')}
-          />
-          <Time24Input
-            value={line.end}
-            onChange={(v) => set(index, { end: v })}
-            aria-label={t('organizer.workshopsPage.endTimeAria')}
-          />
-          <select
-            aria-label={t('organizer.workshopsPage.sessionVenueLabel')}
-            value={line.venueId}
-            onChange={(e) => set(index, { venueId: e.target.value })}
-            className={FIELD}
-          >
-            <option value="">{t('organizer.workshopsPage.sessionNoVenue')}</option>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            aria-label={t('organizer.workshopsPage.removeSessionAria')}
-            onClick={() => onChange(lines.filter((_, i) => i !== index))}
-            className="rounded-lg border border-border px-2 py-1.5 text-sm text-muted hover:text-danger"
-          >
-            ✕
-          </button>
-        </div>
+          line={line}
+          onPatch={(patch) => set(index, patch)}
+          onRemove={() => onChange(lines.filter((_, i) => i !== index))}
+          days={days}
+          venues={venues}
+          durationMinutes={durationMinutes}
+        />
       ))}
       <button
         type="button"
@@ -124,5 +62,129 @@ export function WorkshopSessionsField({
         {t('organizer.workshopsPage.addSession')}
       </button>
     </fieldset>
+  );
+}
+
+/** One session: its day, start, end and venue, and a remove button. */
+function SessionLineRow({
+  line,
+  onPatch,
+  onRemove,
+  days,
+  venues,
+  durationMinutes,
+}: Pick<Props, 'days' | 'venues' | 'durationMinutes'> & {
+  line: SessionLine;
+  onPatch: (patch: Partial<SessionLine>) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  // A start fills the end from the Workshop's length, as the single field did.
+  const setStart = (start: string) => {
+    const end = endFromStartDuration(start, durationMinutes);
+    onPatch(end ? { start, end } : { start });
+  };
+  return (
+    <div className="grid grid-cols-[1fr_5rem_5rem_1fr_auto] items-end gap-2">
+      <SessionDayField value={line.day} days={days} onChange={(day) => onPatch({ day })} />
+      <Time24Input
+        value={line.start}
+        onChange={setStart}
+        aria-label={t('organizer.workshopsPage.startTimeAria')}
+      />
+      <Time24Input
+        value={line.end}
+        onChange={(v) => onPatch({ end: v })}
+        aria-label={t('organizer.workshopsPage.endTimeAria')}
+      />
+      <SessionVenueField
+        value={line.venueId}
+        venues={venues}
+        onChange={(venueId) => onPatch({ venueId })}
+      />
+      <button
+        type="button"
+        aria-label={t('organizer.workshopsPage.removeSessionAria')}
+        onClick={onRemove}
+        className="rounded-lg border border-border px-2 py-1.5 text-sm text-muted hover:text-danger"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** A session's venue, or none. */
+function SessionVenueField({
+  value,
+  venues,
+  onChange,
+}: {
+  value: string;
+  venues: Props['venues'];
+  onChange: (venueId: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <select
+      aria-label={t('organizer.workshopsPage.sessionVenueLabel')}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={FIELD}
+    >
+      <option value="">{t('organizer.workshopsPage.sessionNoVenue')}</option>
+      {venues.map((v) => (
+        <option key={v.id} value={v.id}>
+          {v.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** A session's day: one of the Event's days, or a free date when the Event has none. */
+function SessionDayField({
+  value,
+  days,
+  onChange,
+}: {
+  value: string;
+  days: string[];
+  onChange: (day: string) => void;
+}) {
+  const { t, locale } = useI18n();
+  const label = t('organizer.workshopsPage.dayOptionalLabel');
+  if (days.length === 0) {
+    return (
+      <input
+        type="date"
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={FIELD}
+      />
+    );
+  }
+  const dayLabel = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      timeZone: 'UTC',
+    });
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={FIELD}
+    >
+      <option value="">—</option>
+      {days.map((d) => (
+        <option key={d} value={d}>
+          {dayLabel(d)}
+        </option>
+      ))}
+    </select>
   );
 }

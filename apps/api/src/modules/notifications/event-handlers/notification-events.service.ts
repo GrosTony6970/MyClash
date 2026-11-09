@@ -9,10 +9,9 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { isWorkshopNews, WORKSHOP_NEWS_EMBED } from '../../workshops/workshop-visibility';
 import { accountEmails } from '../account-emails';
 import * as texts from '../notice-texts/notice-texts';
-import type { PerLanguage } from '../notice-texts/notice-texts';
-import { sessionWhen } from '../notice-texts/session-when';
 import { lockedDutyIds } from './locked-duties';
 import { loadSwissRoundContext } from './swiss-round-context';
+import { workshopSessionWords } from './workshop-session-words';
 
 interface ContactRow {
   id: string;
@@ -99,7 +98,7 @@ export class NotificationEventsService {
     if (!isWorkshopNews((workshop.data as { workshops?: never } | null)?.workshops)) {
       return this.logger.log(`Dropped workshop_cancelled for ${sessionId}: not announced`);
     }
-    const { title, when } = await this.sessionWords(sessionId);
+    const { title, when } = await workshopSessionWords(this.supabase, sessionId);
     const { data: enrollments, error } = await this.supabase.service
       .from('workshop_enrollments')
       .select('user_id')
@@ -129,7 +128,7 @@ export class NotificationEventsService {
 
   async waitlistPromoted(sessionId: string, personId: string): Promise<void> {
     const [{ title, when }, contact] = await Promise.all([
-      this.sessionWords(sessionId),
+      workshopSessionWords(this.supabase, sessionId),
       this.getContact(personId),
     ]);
     if (!contact?.claimed_by_user_id) return;
@@ -340,25 +339,6 @@ export class NotificationEventsService {
         preference: 'organizer_updates' as const,
       })),
     );
-  }
-
-  /** The Workshop's title and the session's start: a Workshop may run more than once. */
-  private async sessionWords(
-    sessionId: string,
-  ): Promise<{ title: string | null; when: PerLanguage | null }> {
-    const { data } = await this.supabase.service
-      .from('workshop_sessions')
-      .select('id, starts_at, workshops ( title, events ( timezone ) )')
-      .eq('id', sessionId)
-      .maybeSingle();
-    const session = data as {
-      starts_at?: string | null;
-      workshops?: { title?: string | null; events?: { timezone?: string | null } | null } | null;
-    } | null;
-    return {
-      title: session?.workshops?.title ?? null,
-      when: sessionWhen(session?.starts_at, session?.workshops?.events?.timezone),
-    };
   }
 
   private async getContact(personId: string): Promise<ContactRow | null> {
