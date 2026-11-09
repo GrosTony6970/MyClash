@@ -37,7 +37,7 @@
     "@nestjs/throttler": "^6.7.1",
     "@sentry/nestjs": "^11.10.0",
     "@sentry/node": "^11.10.0",
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/web-push": "^3.6.4",
     "bullmq": "^6.5.3",
