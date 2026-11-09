@@ -1,9 +1,9 @@
 /**
  * A cancelled session takes no booking.
  *
- * The public pages do not list a cancelled session, but a page opened before the
- * organiser cancelled it still shows "Register", and the organiser's own "add an
- * attendee" route books through the same door. The door refused nothing: the tap
+ * The public pages show a cancelled session struck through with no control (ruling
+ * 526), but a page opened before the organiser cancelled it still shows "Register",
+ * and the organiser's own "add an attendee" route books through the same door. The door refused nothing: the tap
  * gave a seat in a session that will not run.
  *
  * Asked before any write, "Register again" included: a refusal is not removed

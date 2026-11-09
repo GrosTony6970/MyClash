@@ -28,8 +28,8 @@ export async function assertNoOtherBooking(
   sessionId: string,
   personId: string,
 ): Promise<void> {
-  // A cancelled session holds no place: its bookings stay, but the pages hide it, so a place in it
-  // could neither be seen nor given up (the referee checker reads it the same way, ADR-016).
+  // A cancelled session holds no place: its bookings stay, but it runs nothing and its pages offer
+  // no control to give the place up (ruling 526; the referee checker reads it so too, ADR-016).
   const sessions = await db
     .from('workshop_sessions')
     .select('id')

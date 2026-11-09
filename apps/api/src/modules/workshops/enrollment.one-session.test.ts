@@ -94,7 +94,7 @@ describe('one session per Workshop (rulings 520-523)', () => {
   });
 
   it('books Sunday when Saturday, where she holds a seat, was cancelled', async () => {
-    // Her Saturday seat stays, but the pages hide a cancelled session: she could not give it up.
+    // Her Saturday seat stays, but a cancelled session runs nothing and offers no control.
     const { service } = build([booking(SATURDAY, ALICE, 'confirmed')], 'cancelled');
     await expect(service.enrollOwn(SUNDAY, ALICE)).resolves.toMatchObject({ status: 'confirmed' });
   });

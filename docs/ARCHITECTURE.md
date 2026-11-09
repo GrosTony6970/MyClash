@@ -1975,7 +1975,7 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   one session refuses every other session of that Workshop (`WORKSHOP_ALREADY_BOOKED`, a 409),
   whoever books: the person, the organiser's add, an instructor taking a refusal back. To switch,
   the person gives the first place up. A refusal is a removal from one session only. A place in a
-  cancelled session holds nothing: the pages hide that session, so it could not be given up. The
+  cancelled session holds nothing: the session runs nothing, and its pages offer no control. The
   race is accepted: two bookings of one person landing at the same instant on two sessions can both
   pass the check, and either place can then be removed from its roster. So is a cancelled session
   set back to `scheduled` (the API allows it; no screen does): a person who moved to another
@@ -1992,9 +1992,17 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   `/e/[eventSlug]/w/[workshopSlug]` (an account or a guest session, ruling 261). Both read the
   caller's bookings from `GET /events/:event/my-schedule` and draw them with one set of controls
   (`WorkshopRegisterControls`). The public page does not decide who the caller is: the login cookies
-  are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session, and the
-  booking door refuses one before any write (`WORKSHOP_SESSION_CANCELLED`, a 409). The refusal of a
-  removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
+  are httpOnly, so the booking call's own 401 says "nobody". The booking door refuses a cancelled
+  session before any write (`WORKSHOP_SESSION_CANCELLED`, a 409). The refusal of a removed person
+  carries the code `WORKSHOP_BOOKING_REFUSED`.
+- A cancelled session stays on every page, struck through and marked with the `workshopSession`
+  status word (rulings 526-529), and does nothing. The pages give it no booking control; it is
+  never "live" nor "next", no time clash, not attended and not rated; on the board it cannot be
+  moved and holds no room; in the Workshop form its line is locked and only its ✕ (a delete) acts.
+  The server holds the same: it is not moved (`WORKSHOP_SESSION_CANCELLED` on a time or room
+  change; its status may still change), nobody is promoted into it, and deleting it sends no second
+  cancel notice (`apps/api/src/modules/workshops/session-cancelled.ts`). One test of "cancelled"
+  for both apps: `isCancelledSession` (schedule-core).
 - One tap is one call on both pages (`changeBooking`), and each page holds the set of sessions with
   a tap in flight, so a tap on a second session leaves the first button busy. A refused tap is said
   in the reader's language by one owner (`refusalWords`): the public page in its short message, the
