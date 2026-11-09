@@ -3,6 +3,7 @@
  * run several sessions: the form holds one line per session (day, start, end, venue), and a save
  * turns the lines into calls. Pure, so what a save sends is tested without the page.
  */
+import { isCancelledSession } from '@myclash/schedule-core';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import {
   formatHhmm,
@@ -20,10 +21,13 @@ export interface SessionLine {
   end: string;
   /** The session's venue; '' for none. A new line takes the Workshop's venue (ruling 525). */
   venueId: string;
+  /** A cancelled session: locked, struck through; only its ✕ acts, and deletes it (ruling 527). */
+  cancelled?: boolean;
 }
 
 export interface ExistingSession extends PlacedSession {
   id: string;
+  status?: string | null;
 }
 
 export type SessionCall =
@@ -50,6 +54,7 @@ export function linesOf(
     start: s.startsAt ? hhmm(s.startsAt, tz) : '',
     end: s.endsAt ? hhmm(s.endsAt, tz) : '',
     venueId: s.venueId ?? '',
+    ...(isCancelledSession(s) ? { cancelled: true } : {}),
   }));
 }
 
@@ -63,7 +68,8 @@ export const blankLine = (venueId: string): SessionLine => ({
 
 /**
  * The sessions a save removes: an existing session whose line was removed, or whose day or start
- * was cleared. Each is asked about before anything is sent: its bookings go with it.
+ * was cleared. Each is asked about before anything is sent: its bookings go with it. A cancelled
+ * line is locked, so only its ✕ removes it: one with no time is not read as cleared (ruling 527).
  */
 export function removedSessions(
   lines: readonly SessionLine[],
@@ -72,7 +78,7 @@ export function removedSessions(
   durationMinutes: number | null,
 ): ExistingSession[] {
   const kept = new Set(
-    lines.filter((l) => l.id && timesOf(l, tz, durationMinutes)).map((l) => l.id),
+    lines.filter((l) => l.id && (l.cancelled || timesOf(l, tz, durationMinutes))).map((l) => l.id),
   );
   return existing.filter((s) => !kept.has(s.id));
 }
@@ -102,6 +108,8 @@ export function sessionEdits(
   const byId = new Map(existing.map((s) => [s.id, s]));
   const calls: SessionCall[] = [];
   lines.forEach((line, index) => {
+    // A cancelled line is locked: a save never sends it (ruling 527; the server refuses a move).
+    if (line.cancelled) return;
     const times = timesOf(line, tz, durationMinutes);
     if (!times) return;
     const venueId = line.venueId || null;

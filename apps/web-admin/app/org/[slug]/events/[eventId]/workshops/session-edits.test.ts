@@ -45,6 +45,27 @@ describe('sessionEdits', () => {
     expect(sessionEdits([saturdayLine], [SATURDAY], TZ, 90, 'v-default')).toEqual([]);
   });
 
+  // Saturday was cancelled (ruling 527): its line is locked, and only its ✕ removes it.
+  describe('a cancelled session', () => {
+    const cancelled = { ...SATURDAY, status: 'cancelled' };
+
+    it('gives a locked line, and a save sends nothing for it, whatever the line says', () => {
+      const [line] = linesOf([cancelled], TZ, 'v-default');
+      expect(line).toEqual({ ...saturdayLine, cancelled: true });
+      const edited = { ...line!, start: '14:00', venueId: 'v-other' };
+      expect(sessionEdits([edited], [cancelled], TZ, 90, 'v-default')).toEqual([]);
+    });
+
+    it('is not removed for having no time, only by its ✕', () => {
+      const untimed = { ...cancelled, startsAt: null, endsAt: null };
+      const lines = linesOf([untimed], TZ, 'v-default');
+      expect(sessionEdits(lines, [untimed], TZ, 90, 'v-default')).toEqual([]);
+      expect(sessionEdits([], [untimed], TZ, 90, 'v-default')).toEqual([
+        { method: 'DELETE', sessionId: 's-saturday' },
+      ]);
+    });
+  });
+
   it('leaves alone a session that runs past midnight when the form is saved again', () => {
     // 23:00 to 00:30 the next day, Paris time: a title fixed must not move its end before its start.
     const late = {

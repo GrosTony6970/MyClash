@@ -148,3 +148,43 @@ describe('the Workshop form, its sessions', () => {
     ]);
   });
 });
+
+// Saturday was cancelled (ruling 527): its line is struck through and locked; only ✕ acts.
+describe('the Workshop form, a cancelled session', () => {
+  const withCancelled = () => {
+    const [workshop] = READS[`/api/v1/events/${EVENT_ID}/workshops`] as Array<{
+      sessions: Array<Record<string, unknown>>;
+    }>;
+    workshop!.sessions[0]!.status = 'cancelled';
+  };
+  afterEach(() => {
+    const [workshop] = READS[`/api/v1/events/${EVENT_ID}/workshops`] as Array<{
+      sessions: Array<Record<string, unknown>>;
+    }>;
+    workshop!.sessions[0]!.status = 'scheduled';
+  });
+
+  it('shows it struck through with no field to edit, and a save sends nothing for it', async () => {
+    withCancelled();
+    await open();
+    await press('Edit');
+    expect(fields('Start time')).toHaveLength(0);
+    const line = document.body.querySelector('[role="dialog"] .line-through');
+    expect(line?.textContent).toBe('2026-05-02 10:00–11:00');
+    expect(line?.parentElement?.textContent).toContain('Cancelled');
+    await press('Save');
+    expect(page.writes()).toEqual(['PATCH /api/v1/workshops/w-1']);
+  });
+
+  it('deletes it by its ✕', async () => {
+    withCancelled();
+    await open();
+    await press('Edit');
+    await press('Remove this session');
+    await press('Save');
+    expect(page.writes()).toEqual([
+      'PATCH /api/v1/workshops/w-1',
+      'DELETE /api/v1/workshop-sessions/s-saturday',
+    ]);
+  });
+});

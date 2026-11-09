@@ -1,6 +1,7 @@
 'use client';
 
 import { localeToBcp47 } from '@myclash/time';
+import { statusLabel } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Time24Input } from '@/components/Time24Input';
 import { blankLine, type SessionLine } from './session-edits';
@@ -43,17 +44,23 @@ export function WorkshopSessionsField({
       <legend className="mb-1 block text-xs font-medium text-foreground-secondary">
         {t('organizer.workshopsPage.sessionsLabel')}
       </legend>
-      {lines.map((line, index) => (
-        <SessionLineRow
-          key={line.id ?? `new-${index}`}
-          line={line}
-          onPatch={(patch) => set(index, patch)}
-          onRemove={() => onChange(lines.filter((_, i) => i !== index))}
-          days={days}
-          venues={venues}
-          durationMinutes={durationMinutes}
-        />
-      ))}
+      {lines.map((line, index) => {
+        const remove = () => onChange(lines.filter((_, i) => i !== index));
+        // A cancelled session is locked: only its ✕ acts (ruling 527).
+        return line.cancelled ? (
+          <CancelledLineRow key={line.id ?? `new-${index}`} line={line} onRemove={remove} />
+        ) : (
+          <SessionLineRow
+            key={line.id ?? `new-${index}`}
+            line={line}
+            onPatch={(patch) => set(index, patch)}
+            onRemove={remove}
+            days={days}
+            venues={venues}
+            durationMinutes={durationMinutes}
+          />
+        );
+      })}
       <button
         type="button"
         onClick={() => onChange([...lines, blankLine(workshopVenueId)])}
@@ -62,6 +69,36 @@ export function WorkshopSessionsField({
         {t('organizer.workshopsPage.addSession')}
       </button>
     </fieldset>
+  );
+}
+
+/** The ✕ that removes a session line: the same on a live line and a cancelled one. */
+function RemoveButton({ onRemove }: { onRemove: () => void }) {
+  const { t } = useI18n();
+  return (
+    <button
+      type="button"
+      aria-label={t('organizer.workshopsPage.removeSessionAria')}
+      onClick={onRemove}
+      className="rounded-lg border border-border px-2 py-1.5 text-sm text-muted hover:text-danger"
+    >
+      ✕
+    </button>
+  );
+}
+
+/** A cancelled session: its day and times struck through, marked; it cannot be edited. */
+function CancelledLineRow({ line, onRemove }: { line: SessionLine; onRemove: () => void }) {
+  const { t } = useI18n();
+  const when = [line.day, [line.start, line.end].filter(Boolean).join('–')].filter(Boolean);
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted">
+      <span>
+        <span className="line-through">{when.join(' ') || '—'}</span>
+        <span className="ml-2 font-semibold">{statusLabel('workshopSession', 'cancelled', t)}</span>
+      </span>
+      <RemoveButton onRemove={onRemove} />
+    </div>
   );
 }
 
@@ -102,14 +139,7 @@ function SessionLineRow({
         venues={venues}
         onChange={(venueId) => onPatch({ venueId })}
       />
-      <button
-        type="button"
-        aria-label={t('organizer.workshopsPage.removeSessionAria')}
-        onClick={onRemove}
-        className="rounded-lg border border-border px-2 py-1.5 text-sm text-muted hover:text-danger"
-      >
-        ✕
-      </button>
+      <RemoveButton onRemove={onRemove} />
     </div>
   );
 }
