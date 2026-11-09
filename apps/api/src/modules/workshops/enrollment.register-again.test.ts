@@ -127,10 +127,11 @@ describe('POST workshop-sessions/:id/enroll', () => {
     [undefined, false],
     ['1', false],
   ])('reads again=%s as %s, for the caller only', async (again, expected) => {
-    const enroll = vi.fn(async () => ({}));
+    // The caller's own booking: the door that asks the Workshop to be open (`enrollOwn`).
+    const enrollOwn = vi.fn(async () => ({}));
     const controller = new WorkshopsController(
       {} as never,
-      { enroll } as never,
+      { enrollOwn } as never,
       {} as never,
       {} as never,
       {} as never,
@@ -143,6 +144,6 @@ describe('POST workshop-sessions/:id/enroll', () => {
 
     await controller.enroll(SESSION, {} as never, again);
 
-    expect(enroll.mock.calls).toEqual([[SESSION, 'tom-row', expected]]);
+    expect(enrollOwn.mock.calls).toEqual([[SESSION, 'tom-row', expected]]);
   });
 });

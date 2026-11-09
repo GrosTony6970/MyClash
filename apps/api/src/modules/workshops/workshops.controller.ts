@@ -531,7 +531,7 @@ export class WorkshopsController {
     @Query('again') again?: string,
   ) {
     const personId = await this.resolvePersonId(req, id);
-    return this.enrollment.enroll(id, personId, again === 'true');
+    return this.enrollment.enrollOwn(id, personId, again === 'true');
   }
 
   @Delete('workshop-sessions/:id/enroll')

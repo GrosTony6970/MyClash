@@ -62,6 +62,12 @@ describe('the sentence of a refused tap', () => {
       'publicApp.workshopDetail.sessionCancelled',
     ],
     [
+      'the Workshop is not open (a draft, or over)',
+      409,
+      { code: 'WORKSHOP_NOT_BOOKABLE', detail: 'This workshop is not open for booking.' },
+      'publicApp.workshopDetail.notBookable',
+    ],
+    [
       'the Event is archived',
       403,
       { code: 'event_archived', detail: 'This event is archived' },

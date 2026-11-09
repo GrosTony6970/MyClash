@@ -57,7 +57,32 @@ export class EnrollmentService {
    * `again` is the person's own "Register again" on a refusal (ruling 236).
    */
   async enroll(sessionId: string, personId: string, again = false): Promise<EnrollmentResult> {
+    return this.enrollIn(await this.bookableSession(sessionId), sessionId, personId, again);
+  }
+
+  /**
+   * The person's own booking. On top of `enroll`'s bar, the Workshop must be open: published or
+   * running. A draft is the organiser's alone and a completed one is over, so a page or a direct
+   * call cannot take a seat in either. The organiser's "add an attendee" goes through `enroll`,
+   * so a list can be prepared before the Workshop is published.
+   */
+  async enrollOwn(sessionId: string, personId: string, again = false): Promise<EnrollmentResult> {
     const session = await this.bookableSession(sessionId);
+    if (!OPEN_TO_OWN_BOOKINGS.includes(workshopOf(session)?.status ?? '')) {
+      throw new ConflictException({
+        error: 'WorkshopNotBookable',
+        message: 'This workshop is not open for booking.',
+      });
+    }
+    return this.enrollIn(session, sessionId, personId, again);
+  }
+
+  private async enrollIn(
+    session: unknown,
+    sessionId: string,
+    personId: string,
+    again: boolean,
+  ): Promise<EnrollmentResult> {
     if (again) await this.removeRefusal(sessionId, personId);
     const booking = await this.book(session, sessionId, personId);
     await this.bookingAlert(sessionId, personId);
@@ -68,13 +93,13 @@ export class EnrollmentService {
    * The session a booking is for: it exists, and it was not cancelled. Asked before any write,
    * so "Register again" removes no refusal for a booking that is then refused.
    *
-   * The row carries both the parent workshop (for the instructor guard) and the effective
-   * capacity (sessions have no own column).
+   * The row carries both the parent workshop (for the instructor guard and its status) and the
+   * effective capacity (sessions have no own column).
    */
   private async bookableSession(sessionId: string): Promise<unknown> {
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
-      .select('status, workshop_id, workshops ( capacity )')
+      .select('status, workshop_id, workshops ( capacity, status )')
       .eq('id', sessionId)
       .maybeSingle();
 
@@ -519,10 +544,19 @@ export class EnrollmentService {
   }
 }
 
-/** Read `workshops.capacity` off a nested session row (Supabase joins as object or array). */
-function workshopCapacity(session: unknown): number | null {
+/** The Workshop statuses a person may book on their own (`enrollOwn`). */
+const OPEN_TO_OWN_BOOKINGS = ['published', 'running'];
+
+/** The Workshop embed of a session row (Supabase joins as object or array). */
+function workshopOf(session: unknown): { capacity?: number | null; status?: string | null } | null {
   const w = (session as { workshops?: unknown }).workshops;
-  const row = Array.isArray(w) ? w[0] : w;
-  const cap = (row as { capacity?: number | null } | null)?.capacity;
-  return cap ?? null;
+  return ((Array.isArray(w) ? w[0] : w) ?? null) as {
+    capacity?: number | null;
+    status?: string | null;
+  } | null;
+}
+
+/** Read `workshops.capacity` off a nested session row. */
+function workshopCapacity(session: unknown): number | null {
+  return workshopOf(session)?.capacity ?? null;
 }

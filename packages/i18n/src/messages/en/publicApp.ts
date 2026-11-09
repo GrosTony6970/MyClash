@@ -1383,6 +1383,7 @@ export const publicApp = {
     enrolledCount: '{confirmed}/{capacity} enrolled',
     instructorCannotEnroll: 'You cannot register for a workshop you teach.',
     sessionCancelled: 'This session was cancelled.',
+    notBookable: 'This workshop is not open for booking.',
   },
   live: {
     badge: 'LIVE',

@@ -49,7 +49,7 @@ function controller(tables: Parameters<typeof mockSupabase>[0] = TABLES) {
   const identity = new ParticipantIdentityService(supabase as never, guestJwt);
   // Each takes (target, personId, …): the person is what these tests are about.
   const enrollment = {
-    enroll: vi.fn(async (_session: string, _person: string, _again?: boolean) => ({})),
+    enrollOwn: vi.fn(async (_session: string, _person: string, _again?: boolean) => ({})),
     cancel: vi.fn(async (_session: string, _person: string) => undefined),
   };
   const feedback = {
@@ -90,7 +90,7 @@ const ROUTES = [
 ] as const;
 
 const acted = (t: ReturnType<typeof controller>) => [
-  ...t.enrollment.enroll.mock.calls,
+  ...t.enrollment.enrollOwn.mock.calls,
   ...t.enrollment.cancel.mock.calls,
   ...t.feedback.submitFeedback.mock.calls,
   ...t.feedback.getMyFeedback.mock.calls,

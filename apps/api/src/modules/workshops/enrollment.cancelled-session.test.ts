@@ -60,7 +60,7 @@ describe('a cancelled session takes no booking', () => {
     });
     // The double ignores the projection: only this holds the column the check reads.
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
-      'status, workshop_id, workshops ( capacity )',
+      'status, workshop_id, workshops ( capacity, status )',
     ]);
   });
 });

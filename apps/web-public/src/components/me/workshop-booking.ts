@@ -113,7 +113,7 @@ export function guestPersonAt(me: MeSession | null, eventId: string | null): str
 }
 
 /** Why the server refused a tap, as far as a page has its own words for it. */
-export type BookingRefusal = 'nobody' | 'teaches' | 'removed' | 'cancelled' | 'other';
+export type BookingRefusal = 'nobody' | 'teaches' | 'removed' | 'cancelled' | 'closed' | 'other';
 
 export type BookingChange =
   | { ok: true; status: 'confirmed' | 'waitlisted' | 'cancelled' }
@@ -123,6 +123,7 @@ const REFUSAL_CODES = new Map<string, BookingRefusal>([
   ['INSTRUCTOR_SELF_ENROLLMENT', 'teaches'],
   ['WORKSHOP_BOOKING_REFUSED', 'removed'],
   ['WORKSHOP_SESSION_CANCELLED', 'cancelled'],
+  ['WORKSHOP_NOT_BOOKABLE', 'closed'],
 ]);
 
 /** One tap on a session, as one call: book (or book again), or give the booking up. */
@@ -151,7 +152,7 @@ export async function changeBooking(
 
 /**
  * A refused tap, in the reader's language: the ONE owner for both booking pages
- * (operator ruling 294). The booking door's own three refusals have a sentence
+ * (operator ruling 294). The booking door's own four refusals have a sentence
  * here. Any other failure is worded by `failureMessage`, a lost login included;
  * the public Workshop page says its own notice for that one (ruling 266).
  */
@@ -162,5 +163,6 @@ export function refusalWords(
   if (change.why === 'teaches') return t('publicApp.workshopDetail.instructorCannotEnroll');
   if (change.why === 'removed') return t('publicApp.me.workshops.refused');
   if (change.why === 'cancelled') return t('publicApp.workshopDetail.sessionCancelled');
+  if (change.why === 'closed') return t('publicApp.workshopDetail.notBookable');
   return failureMessage(change.failure, t);
 }
