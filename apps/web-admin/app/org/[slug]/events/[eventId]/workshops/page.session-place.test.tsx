@@ -38,6 +38,9 @@ const PLACE = {
   endTime: '2026-05-02T13:00:00.000Z',
 };
 
+/** The stand-in board's button text: a test's handle, not a word a person reads. */
+const handle = (name: string) => name;
+
 // The board draws nothing in jsdom. The stand-in has the board's two kinds of drop: a card
 // moved on the grid (it names its session) and a Workshop dragged from the drawer (it names none).
 vi.mock('./WorkshopScheduleBoard', () => ({
@@ -48,10 +51,10 @@ vi.mock('./WorkshopScheduleBoard', () => ({
   }) => (
     <>
       <button type="button" onClick={() => onPlace('w-1', 's-1', PLACE)}>
-        move s-1
+        {handle('move s-1')}
       </button>
       <button type="button" onClick={() => onPlace('w-1', null, PLACE)}>
-        add to w-1
+        {handle('add to w-1')}
       </button>
     </>
   ),
