@@ -31,6 +31,7 @@ import {
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { assertNoOtherBooking, assertNoOtherBookingFor } from './workshop-one-booking';
 
 export interface EnrollmentResult {
@@ -114,12 +115,7 @@ export class EnrollmentService {
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
     // A page opened before the organiser cancelled the session still offers it. Named, so
     // the page says it in the reader's language.
-    if ((session as { status?: string }).status === 'cancelled') {
-      throw new ConflictException({
-        error: 'WorkshopSessionCancelled',
-        message: 'This workshop session was cancelled.',
-      });
-    }
+    if ((session as { status?: string }).status === 'cancelled') throw sessionCancelledRefusal();
     return session;
   }
 
@@ -392,6 +388,9 @@ export class EnrollmentService {
   // ── Promote specific person (organizer action) ────────────────────────────────
 
   async promote(sessionId: string, personId: string): Promise<void> {
+    if (await isSessionCancelled(this.supabase.service, sessionId)) {
+      throw sessionCancelledRefusal();
+    }
     const { data: enrollment } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id, status')
@@ -510,6 +509,8 @@ export class EnrollmentService {
   // ── Private: promote top waitlisted ──────────────────────────────────────────
 
   private async promoteNextWaitlisted(sessionId: string): Promise<void> {
+    // A seat freed in a cancelled session goes to nobody: the session does not run (526).
+    if (await isSessionCancelled(this.supabase.service, sessionId)) return;
     const { data: top } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id, user_id')

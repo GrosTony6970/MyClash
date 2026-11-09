@@ -33,6 +33,7 @@ import { WORKSHOP_MANAGE_ROLE } from '../../common/auth/workshop-authz';
 import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { inStartOrder } from './session-order';
 import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 import {
@@ -890,6 +891,15 @@ export class WorkshopsService {
 
   async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
     const eventId = await this.assertCanManageSession(sessionId, userId);
+    // A cancelled session is not moved (526-528): its people would be told it moved. Its status
+    // alone may change.
+    const moves = [dto.startTime, dto.endTime, dto.location, dto.venueId, dto.areaId];
+    if (
+      moves.some((value) => value !== undefined) &&
+      (await isSessionCancelled(this.supabase.service, sessionId))
+    ) {
+      throw sessionCancelledRefusal();
+    }
     await this.assertSessionPlace(sessionId, eventId, dto);
     const before = await this.sessionPlace(sessionId);
 
@@ -942,6 +952,12 @@ export class WorkshopsService {
     const read = await sessions().select('status').eq('id', sessionId).maybeSingle();
     if (read.error) throw new BadRequestException(read.error.message);
     const status = (read.data as { status?: string | null } | null)?.status ?? 'scheduled';
+    // Already cancelled: its people were told then (527: the form's ✕ deletes such a session).
+    if (status === 'cancelled') {
+      const { error } = await sessions().delete().eq('id', sessionId);
+      if (error) throw new BadRequestException(error.message);
+      return;
+    }
     const cancelled = await sessions().update({ status: 'cancelled' }).eq('id', sessionId);
     if (cancelled.error) throw new BadRequestException(cancelled.error.message);
     try {
