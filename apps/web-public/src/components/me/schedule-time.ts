@@ -13,6 +13,8 @@ export interface TimeInput {
   endMs?: number | null;
   /** Server match status — fights only ('scheduled' | 'running' | 'completed' | …). */
   status?: string;
+  /** A cancelled Workshop session: it will not run, so it is never LIVE or NEXT (ruling 529). */
+  cancelled?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export interface TimeInput {
  * simulating. `completed` and `running` remain hard facts and still win.
  */
 export function classifyTime(input: TimeInput, now: number, simulated = false): TemporalState {
+  if (input.cancelled) return 'past';
   if (input.kind === 'fight') {
     if (input.status === 'completed') return 'past';
     if (input.status === 'running') return 'live';

@@ -15,6 +15,8 @@ export interface WorkshopRow {
   end: string | null;
   location: string | null;
   href: string;
+  /** A cancelled session: struck through and marked (rulings 526, 529). */
+  cancelled: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export function buildWorkshopRows(
     end: w.sessionEnd,
     location: w.location,
     href: '/me/instructor',
+    cancelled: w.sessionCancelled === true,
   }));
 
   const teachingSlugs = new Set(
@@ -52,6 +55,7 @@ export function buildWorkshopRows(
       end: w.sessionEnd,
       location: w.location,
       href: `/me/events/${eventSlug}/workshops`,
+      cancelled: w.sessionCancelled === true,
     }));
 
   return [...teachingRows, ...attendingRows].sort((a, b) => {

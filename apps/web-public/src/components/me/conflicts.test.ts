@@ -7,6 +7,7 @@ import {
   spreadPoolConflicts,
   toTimed,
   uncheckedCount,
+  workshopTimed,
   type TimedItem,
 } from './conflicts';
 import type { PoolSpan } from './types';
@@ -114,6 +115,23 @@ describe('toTimed', () => {
       startMs: Date.parse(at('10:00')),
       endMs: Date.parse(at('11:00')),
     });
+  });
+});
+
+describe('workshopTimed', () => {
+  const session = { sessionStart: at('10:00'), sessionEnd: at('11:00') };
+
+  it('is a booked session’s window', () => {
+    expect(workshopTimed('ws', 'Workshop', session)?.startMs).toBe(Date.parse(at('10:00')));
+    // A copy cached before the API sent the flag reads as a session that runs.
+    expect(workshopTimed('ws', 'Workshop', { ...session, sessionCancelled: false })).not.toBeNull();
+  });
+
+  it('is no window for a cancelled session: it will not run, so it clashes with nothing (529)', () => {
+    expect(workshopTimed('ws', 'Workshop', { ...session, sessionCancelled: true })).toBeNull();
+    const fight = bout('fight', '10:30', 30);
+    const cancelled = workshopTimed('ws', 'Workshop', { ...session, sessionCancelled: true });
+    expect(detectConflicts([fight, ...(cancelled ? [cancelled] : [])]).size).toBe(0);
   });
 });
 

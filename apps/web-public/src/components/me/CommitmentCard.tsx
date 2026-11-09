@@ -4,6 +4,7 @@ import { SkillBadge, sideColorsForTokens } from '@myclash/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type * as React from 'react';
+import { CANCELLED_TEXT } from '../workshops/session-cancelled';
 
 type StatusTone = 'done' | 'live' | 'pending' | 'lost' | 'draw';
 
@@ -15,6 +16,8 @@ export interface CommitmentCardProps {
   title: string;
   meta?: string | null;
   status?: { label: string; tone: StatusTone };
+  /** A cancelled Workshop session: its time and title struck through (ruling 529). */
+  struck?: boolean;
   conflict?: string | null;
   isNext?: boolean;
   nextLabel?: string;
@@ -82,6 +85,7 @@ export function CommitmentCard({
   title,
   meta,
   status,
+  struck = false,
   conflict,
   isNext,
   nextLabel = 'Next',
@@ -123,7 +127,11 @@ export function CommitmentCard({
         aria-hidden
       />
       <div className="flex min-w-[60px] flex-col items-start">
-        <span className="text-xl font-extrabold leading-none tabular-nums">{timeLabel}</span>
+        <span
+          className={`text-xl font-extrabold leading-none tabular-nums ${struck ? CANCELLED_TEXT : ''}`}
+        >
+          {timeLabel}
+        </span>
         {place && (
           <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-foreground">
             <span className="text-accent">
@@ -134,7 +142,11 @@ export function CommitmentCard({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-bold leading-tight">{title}</p>
+        <p
+          className={`truncate text-[15px] font-bold leading-tight ${struck ? CANCELLED_TEXT : ''}`}
+        >
+          {title}
+        </p>
         {meta && <p className="mt-0.5 truncate text-xs text-muted">{meta}</p>}
         {conflict && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-danger/10 px-2 py-1 text-xs font-semibold text-danger">

@@ -12,7 +12,7 @@
 // whoever fights them — is a commitment too, and clashes like any other.
 
 import { matchWindowMs, overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
-import type { PoolSpan, RefereeSlot, ScheduleMatch } from './types';
+import type { PoolSpan, RefereeSlot, ScheduleMatch, WorkshopEnrollment } from './types';
 
 export interface TimedItem extends TimeWindowMs {
   key: string;
@@ -60,6 +60,19 @@ export function toTimed(
   const endMs = new Date(endIso).getTime();
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
   return { key, label, startMs, endMs };
+}
+
+/**
+ * A booked Workshop session's window, or null: no readable start and end, or a cancelled session.
+ * A cancelled one will not run, so it is no clash (ruling 529). One owner for both schedule pages.
+ */
+export function workshopTimed(
+  key: string,
+  label: string,
+  workshop: Pick<WorkshopEnrollment, 'sessionStart' | 'sessionEnd' | 'sessionCancelled'>,
+): TimedItem | null {
+  if (workshop.sessionCancelled) return null;
+  return toTimed(key, label, workshop.sessionStart, workshop.sessionEnd);
 }
 
 /**

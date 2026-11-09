@@ -2,7 +2,7 @@
 
 import { formatInZone } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
-import { CollapsibleSection, EmptyState, useClock } from '@myclash/ui';
+import { CollapsibleSection, EmptyState, statusLabel, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../lib/api-url';
@@ -13,8 +13,8 @@ import {
   fightItems,
   fightWindow,
   spreadPoolConflicts,
-  toTimed,
   uncheckedCount,
+  workshopTimed,
   type TimedItem,
 } from './conflicts';
 import { kindAccentClass } from './kind-accent';
@@ -149,7 +149,7 @@ export function ScheduleView({
         : [],
     ),
     ...(schedule.workshops ?? []).flatMap((w) => {
-      const ti = toTimed(`ws-${w.workshopId}`, w.workshopName, w.sessionStart, w.sessionEnd);
+      const ti = workshopTimed(`ws-${w.workshopId}`, w.workshopName, w);
       return ti ? [ti] : [];
     }),
   ];
@@ -199,6 +199,7 @@ export function ScheduleView({
                 ? i.data.endMs
                 : (fightWindow(i.data)?.endMs ?? null),
           status: i.kind === 'fight' ? i.data.status : undefined,
+          cancelled: i.kind === 'workshop' && i.data.sessionCancelled === true,
         },
         now,
         simulated,
@@ -434,10 +435,13 @@ export function ScheduleView({
         place={w.location}
         title={w.workshopName}
         meta={null}
+        struck={w.sessionCancelled === true}
         status={
-          w.status === 'waitlisted'
-            ? { label: t('publicApp.me.workshops.onWaitlist'), tone: 'pending' }
-            : undefined
+          w.sessionCancelled
+            ? { label: statusLabel('workshopSession', 'cancelled', t), tone: 'lost' }
+            : w.status === 'waitlisted'
+              ? { label: t('publicApp.me.workshops.onWaitlist'), tone: 'pending' }
+              : undefined
         }
         conflict={conflictLabel}
         isNext={item.key === nextKey}
@@ -524,7 +528,16 @@ export function ScheduleView({
 
   return (
     <div>
-      <ClashCheckNotice count={uncheckedCount(items, timed)} />
+      <ClashCheckNotice
+        count={uncheckedCount(
+          // A cancelled session will not run: nothing for the check to miss (ruling 529).
+          items.map((i) => ({
+            key: i.key,
+            time: i.kind === 'workshop' && i.data.sessionCancelled ? null : i.time,
+          })),
+          timed,
+        )}
+      />
       {updatedAt != null && (
         <ScheduleUpdatedBadge updatedAt={updatedAt} offline={offline} tz={tz} />
       )}

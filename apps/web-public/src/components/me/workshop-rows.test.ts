@@ -5,6 +5,7 @@ import type { MyEventWorkshopTeaching, WorkshopEnrollment } from './types';
 const teach = (over: Partial<MyEventWorkshopTeaching> = {}): MyEventWorkshopTeaching => ({
   workshopId: over.workshopId ?? 'w-t',
   sessionId: over.sessionId ?? null,
+  ...(over.sessionCancelled !== undefined ? { sessionCancelled: over.sessionCancelled } : {}),
   workshopSlug: over.workshopSlug ?? 'taught',
   workshopName: over.workshopName ?? 'Taught workshop',
   sessionStart: over.sessionStart ?? null,
@@ -82,6 +83,19 @@ describe('buildWorkshopRows', () => {
     );
     expect(rows.map((r) => r.key)).toEqual(['teach-s-sat', 'teach-s-sun']);
     expect(rows.map((r) => r.start)).toEqual(['2026-06-01T09:00:00Z', '2026-06-02T09:00:00Z']);
+  });
+
+  it('marks a row whose session was cancelled, teaching or attending (rulings 526, 529)', () => {
+    const rows = buildWorkshopRows(
+      [teach({ workshopSlug: 'taught', sessionId: 's-t', sessionCancelled: true })],
+      [{ ...attend({ workshopId: 's-a', workshopSlug: 'other' }), sessionCancelled: true }],
+      'e',
+    );
+    expect(rows.map((r) => [r.key, r.cancelled])).toEqual([
+      ['teach-s-t', true],
+      ['att-s-a', true],
+    ]);
+    expect(buildWorkshopRows([teach()], [], 'e')[0]!.cancelled).toBe(false);
   });
 
   it('dedupes a workshop the user both leads and attends, keeping the teaching row', () => {

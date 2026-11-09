@@ -23,10 +23,11 @@ import {
   dutyTimed,
   fightItems,
   spreadPoolConflicts,
-  toTimed,
   uncheckedCount,
+  workshopTimed,
   type TimedItem,
 } from '@/components/me/conflicts';
+import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import type {
   PersonSchedule,
   PoolSpan,
@@ -106,7 +107,7 @@ function timedItems(
       const timed =
         item.kind === 'referee'
           ? dutyTimed(key, label, item.data)
-          : toTimed(key, label, item.data.sessionStart, item.data.sessionEnd);
+          : workshopTimed(key, label, item.data);
       return timed ? [timed] : [];
     }),
   ].sort((a, b) => a.startMs - b.startMs);
@@ -123,9 +124,13 @@ function itemKey(item: ScheduleItem): string {
   return `ws-${item.data.workshopId}`;
 }
 
-/** The page's cards, as the clash check counts the ones it cannot see. */
+/** The page's cards, as the clash check counts the ones it cannot see. A cancelled session will
+ *  not run: nothing for the check to miss (ruling 529). */
 const cardsOf = (items: ScheduleItem[]) =>
-  items.map((item) => ({ key: itemKey(item), time: item.time }));
+  items.map((item) => ({
+    key: itemKey(item),
+    time: item.kind === 'workshop' && item.data.sessionCancelled ? null : item.time,
+  }));
 
 function itemLabel(item: OtherItem, t: TranslateFn): string {
   if (item.kind === 'referee')
@@ -513,6 +518,15 @@ function ScheduleCard({
 /** A Workshop of the schedule: its name, its waitlist mark (ruling 235), its place. */
 function WorkshopLines({ workshop }: { workshop: WorkshopEnrollment }) {
   const { t } = useI18n();
+  if (workshop.sessionCancelled) {
+    // Struck through and marked, never dropped (ruling 529).
+    return (
+      <p className="flex items-center gap-2">
+        <span className={`font-semibold ${CANCELLED_TEXT}`}>{workshop.workshopName}</span>
+        <CancelledBadge t={t} />
+      </p>
+    );
+  }
   return (
     <>
       <p className="font-semibold text-warning">{workshop.workshopName}</p>

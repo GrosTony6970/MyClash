@@ -116,6 +116,16 @@ describe('classifyTime — workshops (window-driven)', () => {
       'upcoming',
     );
   });
+
+  it('is never live nor next once cancelled: it will not run (ruling 529)', () => {
+    const window = { kind: 'workshop' as const, cancelled: true };
+    expect(classifyTime({ ...window, startMs: NOW - 10 * MIN, endMs: NOW + 10 * MIN }, NOW)).toBe(
+      'past',
+    );
+    expect(classifyTime({ ...window, startMs: NOW + 10 * MIN, endMs: NOW + 40 * MIN }, NOW)).toBe(
+      'past',
+    );
+  });
 });
 
 describe('classifyTime — referee slots (the window the API works out)', () => {

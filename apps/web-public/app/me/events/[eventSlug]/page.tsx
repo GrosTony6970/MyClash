@@ -17,6 +17,7 @@ import { useMySchedule } from '@/components/me/use-my-schedule';
 import { ReadFailed } from '@/components/me/ReadFailed';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';
+import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import {
   buildCompetingRows,
   buildRefereeRows,
@@ -259,11 +260,14 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                 className="mb-2.5 block rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  {/* A cancelled session: struck through and marked (rulings 526, 529). */}
+                  <div className={`min-w-0 ${w.cancelled ? CANCELLED_TEXT : ''}`}>
                     <p className="font-bold leading-tight">{w.name}</p>
                     {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
                   </div>
-                  {w.involvement === 'teaching' ? (
+                  {w.cancelled ? (
+                    <CancelledBadge t={t} />
+                  ) : w.involvement === 'teaching' ? (
                     <span className="shrink-0 rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
                       {t('publicApp.me.events.roleInstructor')}
                     </span>

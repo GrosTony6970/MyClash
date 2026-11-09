@@ -10,6 +10,11 @@ import { moderationRefusalWords } from '@/components/me/workshop-booking';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
+import {
+  CANCELLED_TEXT,
+  CancelledBadge,
+  isCancelledSession,
+} from '@/components/workshops/session-cancelled';
 
 // ── Wire shapes (mirror MeEventsService.getInstructorWorkshops) ─────────────────
 
@@ -622,15 +627,22 @@ function SessionRow({
     : null;
   const capLabel =
     capacity == null ? t('publicApp.me.instructor.capacityUnlimited') : String(capacity);
+  // A cancelled session: struck through, marked, its roster read only (ruling 526).
+  const cancelled = isCancelledSession(session);
 
   return (
     <div className="py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm">
-          <span className="font-medium text-foreground">{dateLabel}</span>
-          {timeLabel && <span className="text-muted"> · {timeLabel}</span>}
-          {session.venue && <span className="text-muted"> · {session.venue.name}</span>}
+        <div className={`flex items-center gap-2 text-sm ${cancelled ? CANCELLED_TEXT : ''}`}>
+          <span>
+            <span className={cancelled ? undefined : 'font-medium text-foreground'}>
+              {dateLabel}
+            </span>
+            {timeLabel && <span className="text-muted"> · {timeLabel}</span>}
+            {session.venue && <span className="text-muted"> · {session.venue.name}</span>}
+          </span>
         </div>
+        {cancelled && <CancelledBadge t={t} />}
         <div className="flex items-center gap-3 text-sm">
           <span className="text-foreground">
             {t('publicApp.me.instructor.attendees')}:{' '}
@@ -673,7 +685,9 @@ function SessionRow({
               <RosterLists
                 roster={roster}
                 busyId={busyId}
-                onModerate={(personId, action) => void moderate(personId, action)}
+                onModerate={
+                  cancelled ? undefined : (personId, action) => void moderate(personId, action)
+                }
               />
             </>
           )}
@@ -690,7 +704,8 @@ function RosterLists({
 }: {
   roster: RosterEntry[];
   busyId: string | null;
-  onModerate: (personId: string, action: 'accept' | 'refuse') => void;
+  /** Absent for a cancelled session: its roster is read only (ruling 526). */
+  onModerate?: (personId: string, action: 'accept' | 'refuse') => void;
 }) {
   const { t } = useI18n();
   const confirmed = roster.filter((r) => r.status === 'confirmed');
@@ -711,7 +726,7 @@ function RosterLists({
     r.persons?.clubs ? (r.persons.clubs.abbreviation ?? r.persons.clubs.name) : null;
 
   const actionButton = (r: RosterEntry, action: 'accept' | 'refuse') => {
-    if (!r.personId) return null;
+    if (!r.personId || !onModerate) return null;
     const personId = r.personId;
     const label =
       action === 'accept'
