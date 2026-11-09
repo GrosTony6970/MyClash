@@ -91,6 +91,13 @@ describe('FeedbackService.submitFeedback', () => {
     await expect(svc.submitFeedback('w-1', 'p-1', 4, null)).rejects.toThrow(/attendee/i);
   });
 
+  it('rejects a person who stayed on the waitlist', async () => {
+    const fake = buildFake({ sessions: [startedSession], enrollments: [{ status: 'waitlisted' }] });
+    const svc = new FeedbackService(fake.supabase as never);
+    await expect(svc.submitFeedback('w-1', 'p-1', 4, null)).rejects.toThrow(/attendee/i);
+    expect(fake.captures.upsert).toBeNull();
+  });
+
   it('upserts the rating when enrolled in a started session', async () => {
     const fake = buildFake({ sessions: [startedSession], enrollments: [{ status: 'confirmed' }] });
     const svc = new FeedbackService(fake.supabase as never);

@@ -129,8 +129,10 @@ export class FeedbackService {
       .eq('user_id', personId)
       .in('workshop_session_id', startedSessionIds);
 
+    // A confirmed seat only, as the rating form's own bar (me/events/…/workshops): a person still on
+    // the waitlist did not take part.
     const eligible = ((enr ?? []) as Array<{ status: string }>).some(
-      (e) => e.status !== 'refused' && e.status !== 'cancelled',
+      (e) => e.status === 'confirmed',
     );
     if (!eligible) {
       throw new ForbiddenException('Only attendees can rate this workshop.');
