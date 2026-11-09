@@ -83,8 +83,10 @@ container, then `pnpm db:migrations:replay`, `pnpm db:rls-probe`, `pnpm db:merge
 database. CI's `Deploy migration run` job (ruling 386) also migrates: it runs deploy.sh's own
 `migrate.mjs` command twice through the production compose file, then proves GoTrue, PostgREST
 and Storage each log in as their own database user and cannot reach the database console
-(`scripts/check-service-db-users.sh`, rulings 390-399; locally: the dind box, never a host that
-runs the stack). It is CI only, because it starts
+(`scripts/check-service-db-users.sh`, rulings 390-399), then starts Realtime and proves an anon
+socket receives a database change while its management API refuses the anon key
+(`scripts/check-realtime-socket.sh`, rulings 424, 504-507; locally: the dind box, never a host
+that runs the stack). It is CI only, because it starts
 containers with production's fixed names (`myclash-db`, volume `myclash-postgres-data`); never run
 it on a host that runs the stack.
 

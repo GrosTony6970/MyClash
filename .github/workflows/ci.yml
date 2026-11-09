@@ -633,6 +633,14 @@ jobs:
       - name: Prove each service logs in as its own database user
         run: bash scripts/check-service-db-users.sh
 
+      # Rulings 424, 504-507: Realtime writes its own tenant (infra/realtime/start.sh), its
+      # management API refuses the anon key, and a browser socket receives a database change.
+      # Its own verdict: it starts Realtime and PostgREST itself, so it runs after a red step
+      # above too (it needs the migrated database's supabase_realtime publication).
+      - name: Prove a Realtime socket receives a database change
+        if: '!cancelled()'
+        run: bash scripts/check-realtime-socket.sh
+
   shellcheck:
     name: Shellcheck infra scripts
     runs-on: ubuntu-latest
@@ -658,7 +666,7 @@ jobs:
           "$SHELLCHECK" --version
           "$SHELLCHECK" -x infra/scripts/*.sh infra/scripts/lib/*.sh \
             infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh \
-            infra/realtime/start.sh
+            infra/realtime/start.sh scripts/check-realtime-socket.sh
 
   secret-scan:
     name: Secret scan
