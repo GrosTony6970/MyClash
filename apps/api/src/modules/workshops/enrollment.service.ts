@@ -423,6 +423,11 @@ export class EnrollmentService {
    * Notifies + recompacts only when promoting from the waitlist.
    */
   async accept(sessionId: string, personId: string): Promise<void> {
+    // A roster opened before the cancel still offers Accept: nobody takes a seat in a session
+    // that will not run, from the waitlist or from a refusal (ruling 526).
+    if (await isSessionCancelled(this.supabase.service, sessionId)) {
+      throw sessionCancelledRefusal();
+    }
     const { data: enrollment } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id, status')

@@ -892,12 +892,12 @@ export class WorkshopsService {
   async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
     const eventId = await this.assertCanManageSession(sessionId, userId);
     // A cancelled session is not moved (526-528): its people would be told it moved. Its status
-    // alone may change.
+    // alone may change, and cancelling it again tells nobody twice. The race, accepted: a cancel
+    // landing between this read and the write below lets one move through, and its people hear
+    // "moved" after "cancelled" (a window of one request; the board offers no such move).
+    const wasCancelled = await isSessionCancelled(this.supabase.service, sessionId);
     const moves = [dto.startTime, dto.endTime, dto.location, dto.venueId, dto.areaId];
-    if (
-      moves.some((value) => value !== undefined) &&
-      (await isSessionCancelled(this.supabase.service, sessionId))
-    ) {
+    if (wasCancelled && moves.some((value) => value !== undefined)) {
       throw sessionCancelledRefusal();
     }
     await this.assertSessionPlace(sessionId, eventId, dto);
@@ -922,7 +922,7 @@ export class WorkshopsService {
     await this.notifications.scheduleWorkshopSessionStarting(sessionId);
     await this.followNotifications.scheduleWorkshopStarting(sessionId);
     if (dto.status === 'cancelled') {
-      await this.notificationEvents.workshopCancelled(sessionId);
+      if (!wasCancelled) await this.notificationEvents.workshopCancelled(sessionId);
     } else if (before) {
       await this.tellMoved(sessionId, before);
     }

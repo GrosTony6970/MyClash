@@ -115,6 +115,12 @@ describe('a cancelled session is not moved', () => {
     );
   });
 
+  it('tells its people nothing when it is cancelled again', async () => {
+    const { notices, service } = workshops('cancelled');
+    await service.updateSession(SATURDAY, { status: 'cancelled' }, LEAD);
+    expect(notices.workshopCancelled).not.toHaveBeenCalled();
+  });
+
   it('still lets its status change through the API', async () => {
     const { db, service } = workshops('cancelled');
     await service.updateSession(SATURDAY, { status: 'scheduled' }, LEAD);
@@ -155,6 +161,13 @@ describe('nobody is promoted into a cancelled session', () => {
     const { promoted, service } = enrollments('scheduled');
     await service.cancel(SATURDAY, 'alice');
     expect(promoted).toHaveBeenCalledWith(SATURDAY, 'bob');
+  });
+
+  it("refuses an instructor's accept from a roster opened before the cancel", async () => {
+    const { db, promoted, service } = enrollments('cancelled');
+    await refusedAsCancelled(service.accept(SATURDAY, 'bob'));
+    expect(writesTo(db, 'workshop_enrollments')).toEqual([]);
+    expect(promoted).not.toHaveBeenCalled();
   });
 
   it("refuses the organiser's promotion, writing nothing", async () => {
