@@ -38,6 +38,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import {
   CsvExportMenu,
+  statusLabel,
   tintBgClassFor,
   tintBorderClassFor,
   tintTextClassFor,
@@ -223,6 +224,7 @@ export function WorkshopScheduleBoard({
       columnKey: b.columnKey,
       startSlot: b.startSlot,
       endSlot: b.endSlot,
+      cancelled: b.cancelled,
     })),
   );
 
@@ -259,7 +261,12 @@ export function WorkshopScheduleBoard({
   ) {
     const occupants = blocks
       .filter((bl) => bl.columnKey === column.key && bl.sessionId !== sessionId)
-      .map((bl) => ({ id: bl.sessionId, slot: bl.startSlot, span: bl.span }));
+      .map((bl) => ({
+        id: bl.sessionId,
+        slot: bl.startSlot,
+        span: bl.span,
+        cancelled: bl.cancelled,
+      }));
     const result = placeWorkshopBlock({
       occupants,
       obstacles: obstaclesExcept(),
@@ -458,6 +465,7 @@ export function WorkshopScheduleBoard({
       {
         venue: t('organizer.csvColumns.venueRemoved'),
         area: t('organizer.csvColumns.areaRemoved'),
+        cancelled: statusLabel('workshopSession', 'cancelled', t),
       },
       format,
     );
@@ -743,10 +751,13 @@ export function WorkshopScheduleBoard({
                           const span = endSlot - startSlot;
                           const conflict = conflictIds.has(bl.sessionId);
                           const color = bl.color;
+                          // A cancelled card is struck through and stays put (rulings 526, 528).
+                          const fixed = readOnly || bl.cancelled;
+                          const struck = bl.cancelled ? 'line-through' : '';
                           return (
                             <div
                               key={bl.sessionId}
-                              draggable={!readOnly}
+                              draggable={!fixed}
                               onDragStart={(e) => {
                                 dragSpanRef.current = bl.span;
                                 writeDrag(e.dataTransfer, {
@@ -767,14 +778,18 @@ export function WorkshopScheduleBoard({
                                 }
                               }}
                               title={
-                                conflict
-                                  ? t('organizer.workshopsPage.board.overlapsTitle', {
-                                      title: bl.title,
-                                    })
-                                  : bl.title
+                                bl.cancelled
+                                  ? `${statusLabel('workshopSession', 'cancelled', t)} · ${bl.title}`
+                                  : conflict
+                                    ? t('organizer.workshopsPage.board.overlapsTitle', {
+                                        title: bl.title,
+                                      })
+                                    : bl.title
                               }
                               className={[
-                                'group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
+                                'group absolute left-0.5 right-0.5 overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
+                                fixed ? '' : 'cursor-grab',
+                                bl.cancelled ? 'opacity-60' : '',
                                 conflict
                                   ? 'border-danger bg-danger/10 text-danger ring-2 ring-danger'
                                   : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`,
@@ -795,7 +810,7 @@ export function WorkshopScheduleBoard({
                                 </button>
                               )}
                               {/* Top resize grip */}
-                              {!readOnly && (
+                              {!fixed && (
                                 <span
                                   onPointerDown={(e) => {
                                     e.stopPropagation();
@@ -813,10 +828,15 @@ export function WorkshopScheduleBoard({
                                   className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-black/15"
                                 />
                               )}
-                              <span className="block truncate pr-3 text-base font-bold">
+                              {bl.cancelled && (
+                                <span className="block text-xs font-semibold uppercase">
+                                  {statusLabel('workshopSession', 'cancelled', t)}
+                                </span>
+                              )}
+                              <span className={`block truncate pr-3 text-base font-bold ${struck}`}>
                                 {bl.title}
                               </span>
-                              <span className="block font-mono text-sm opacity-80">
+                              <span className={`block font-mono text-sm opacity-80 ${struck}`}>
                                 {slotToHHMM(startSlot, startHour)}–{slotToHHMM(endSlot, startHour)}
                               </span>
                               {bl.instructorNames.length > 0 && (
@@ -833,7 +853,7 @@ export function WorkshopScheduleBoard({
                                 {bl.confirmedCount}/{bl.capacity ?? '∞'}
                               </span>
                               {/* Bottom resize grip */}
-                              {!readOnly && (
+                              {!fixed && (
                                 <span
                                   onPointerDown={(e) => {
                                     e.stopPropagation();

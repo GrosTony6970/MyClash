@@ -18,14 +18,19 @@ export type DrawerEntry<W extends BoardWorkshop> =
   | { kind: 'workshop'; workshop: W; sessions: number }
   | { kind: 'session'; workshop: W; session: W['sessions'][number] };
 
-/** Every Workshop, each followed by its sessions the board cannot draw. */
+/** Every Workshop, each followed by its sessions the board cannot draw. Its count names the
+ *  sessions that run; a cancelled one is listed struck through and is not dragged (ruling 526). */
 export function drawerEntries<W extends BoardWorkshop>(
   workshops: readonly W[],
   columns: readonly AreaColumn[],
 ): Array<DrawerEntry<W>> {
   const unplaced = unplacedSessions(workshops, columns);
   return workshops.flatMap((workshop) => [
-    { kind: 'workshop' as const, workshop, sessions: workshop.sessions.length },
+    {
+      kind: 'workshop' as const,
+      workshop,
+      sessions: workshop.sessions.filter((s) => !s.cancelled).length,
+    },
     ...unplaced
       .filter((u) => u.workshop.id === workshop.id)
       .map((u) => ({ kind: 'session' as const, workshop, session: u.session })),

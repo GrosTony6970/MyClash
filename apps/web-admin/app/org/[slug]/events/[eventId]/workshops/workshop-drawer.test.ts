@@ -52,6 +52,17 @@ describe('drawerEntries', () => {
       entries.map((e) => (e.kind === 'workshop' ? [e.workshop.id, e.sessions] : e.session.id)),
     ).toEqual([['w-longsword', 2], 's-elsewhere', ['w-dagger', 0]]);
   });
+
+  it('counts the sessions that run, and still lists a cancelled one to place (ruling 526)', () => {
+    const cancelled = {
+      ...longsword,
+      sessions: longsword.sessions.map((s) => ({ ...s, cancelled: s.id === 's-elsewhere' })),
+    };
+    const entries = drawerEntries([cancelled], columns);
+    expect(
+      entries.map((e) => (e.kind === 'workshop' ? [e.workshop.id, e.sessions] : e.session.id)),
+    ).toEqual([['w-longsword', 1], 's-elsewhere']);
+  });
 });
 
 describe('drawerDragPayload', () => {

@@ -78,6 +78,22 @@ describe('placeWorkshopBlock', () => {
     expect(r.slot).toBe(12);
     expect(r.shifted).toEqual([{ id: 'a', slot: 18 }]); // 24 would overflow → clamp to 30−12
   });
+
+  // Saturday 10:00 in Room A was cancelled; another Workshop is dropped there (ruling 528).
+  it('neither pushes a cancelled card nor lets it push: its room is free', () => {
+    const r = placeWorkshopBlock({
+      occupants: [
+        { id: 'cancelled', slot: 12, span: 12, cancelled: true },
+        { id: 'after', slot: 24, span: 12 },
+      ],
+      obstacles: [],
+      dropped: { span: 12 },
+      dropSlot: 12,
+      gridEndSlot: GRID_END,
+    });
+    // Dropped where it was asked, nobody moved: a pushed cancelled card would be PATCHed.
+    expect(r).toEqual({ slot: 12, shifted: [] });
+  });
 });
 
 describe('findWorkshopOverlaps', () => {
@@ -101,6 +117,14 @@ describe('findWorkshopOverlaps', () => {
 
   it('ignores same-time blocks in different columns', () => {
     const set = findWorkshopOverlaps([block('a', 'c1', 0, 12), block('b', 'c2', 0, 12)]);
+    expect(set.size).toBe(0);
+  });
+
+  it('flags nothing against a cancelled block: it holds no room (ruling 528)', () => {
+    const set = findWorkshopOverlaps([
+      { ...block('cancelled', 'c1', 0, 12), cancelled: true },
+      block('b', 'c1', 0, 12),
+    ]);
     expect(set.size).toBe(0);
   });
 });

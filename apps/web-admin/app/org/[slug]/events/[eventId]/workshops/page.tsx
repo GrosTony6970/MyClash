@@ -26,7 +26,7 @@ import {
 } from './session-edits';
 import { WorkshopSessionsField } from './WorkshopSessionsField';
 import { sessionPlaceLabel, sessionTimeRange } from './workshop-row-sessions';
-import { eachDay } from '@myclash/schedule-core';
+import { eachDay, isCancelledSession } from '@myclash/schedule-core';
 import { localeToBcp47 } from '@myclash/time';
 import {
   DataTable,
@@ -966,6 +966,8 @@ export default function WorkshopsAdminPage() {
           workshops={workshops.map((w) => ({
             ...w,
             instructorNames: w.instructors.map((i) => i.displayName),
+            // Drawn struck through, its room free (rulings 526, 528).
+            sessions: w.sessions.map((s) => ({ ...s, cancelled: isCancelledSession(s) })),
           }))}
           venues={venues}
           days={eventDays}
@@ -1065,7 +1067,17 @@ export default function WorkshopsAdminPage() {
                     </DataTableCell>
                     <DataTableCell className="whitespace-nowrap text-foreground-secondary">
                       {sessions.map((s, i) => (
-                        <p key={s?.id ?? i}>{s ? sessionTimeRange(s, eventTz, bcp47) : '—'}</p>
+                        <p key={s?.id ?? i}>
+                          {/* A cancelled session: struck through and named (ruling 526). */}
+                          <span className={s && isCancelledSession(s) ? 'line-through' : undefined}>
+                            {s ? sessionTimeRange(s, eventTz, bcp47) : '—'}
+                          </span>
+                          {s && isCancelledSession(s) && (
+                            <span className="ml-1 font-semibold">
+                              · {statusLabel('workshopSession', 'cancelled', t)}
+                            </span>
+                          )}
+                        </p>
                       ))}
                     </DataTableCell>
                     <DataTableCell className="text-foreground-secondary">

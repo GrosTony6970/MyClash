@@ -24,6 +24,8 @@ export interface CsvWorkshop {
     venueId: string | null;
     areaId: string | null;
     confirmedCount?: number;
+    /** Its title is marked with the word handed in (ruling 526). */
+    cancelled?: boolean;
   }>;
 }
 
@@ -42,10 +44,12 @@ export type WorkshopCsvHeaders = readonly [
   string,
 ];
 
-/** The words for a venue or an area deleted since the session was placed in it. */
+/** The words for a venue or an area deleted since the session was placed in it, and the word that
+ *  marks a cancelled session ("Cancelled"). */
 export interface WorkshopCsvRemoved {
   venue: string;
   area: string;
+  cancelled: string;
 }
 
 function hhmm(iso: string, tz: string): string {
@@ -61,6 +65,7 @@ function rowOf(
   tz: string,
   venue: string,
   area: string,
+  cancelledWord: string,
 ) {
   const day = zonedDay(s.startsAt!, tz) ?? '';
   const start = hhmm(s.startsAt!, tz);
@@ -75,7 +80,7 @@ function rowOf(
       area,
       start,
       end,
-      w.title,
+      s.cancelled ? `${w.title} (${cancelledWord})` : w.title,
       w.instructorNames.join('; '),
       w.category ?? '',
       w.level ?? '',
@@ -106,7 +111,7 @@ export function workshopScheduleToCsv(
       // A venue or an area deleted since is said in words, never by its id (ruled 2026-10-15).
       const venue = venueName.get(s!.venueId!) ?? removed.venue;
       const area = s!.areaId ? (areaName.get(s!.areaId) ?? removed.area) : '';
-      return rowOf(w, s!, tz, venue, area);
+      return rowOf(w, s!, tz, venue, area, removed.cancelled);
     })
     .sort(
       (a, b) =>

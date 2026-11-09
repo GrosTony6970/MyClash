@@ -12,6 +12,8 @@ export interface SlottedItem {
   id: string;
   slot: number;
   span: number;
+  /** A cancelled session holds no room: it is never pushed, nor pushes (ruling 528). */
+  cancelled?: boolean;
 }
 
 export interface Interval {
@@ -74,7 +76,9 @@ export function placeWorkshopBlock(input: PlaceInput): PlaceResult {
   const blockers: Interval[] = [...obstacles, { slot: placedSlot, span: dropped.span }];
   const shifted: Array<{ id: string; slot: number }> = [];
 
-  for (const occ of [...occupants].sort((a, b) => a.slot - b.slot)) {
+  // A cancelled card stays where it is, and the dropped block may sit on it (ruling 528).
+  const holdingRoom = occupants.filter((occ) => !occ.cancelled);
+  for (const occ of [...holdingRoom].sort((a, b) => a.slot - b.slot)) {
     let slot = occ.slot;
     const collides = blockers.some((b) => overlaps(slot, occ.span, b.slot, b.span));
     if (collides) slot = firstFree(occ.slot, occ.span, blockers, gridEndSlot);
@@ -90,15 +94,18 @@ export interface OverlapBlock {
   columnKey: string;
   startSlot: number;
   endSlot: number;
+  /** A cancelled session holds no room: it overlaps nothing (ruling 528). */
+  cancelled?: boolean;
 }
 
 /** Session ids that overlap another block in the SAME column (drives the red highlight). */
 export function findWorkshopOverlaps(blocks: ReadonlyArray<OverlapBlock>): Set<string> {
   const conflicting = new Set<string>();
-  for (let i = 0; i < blocks.length; i++) {
-    for (let j = i + 1; j < blocks.length; j++) {
-      const a = blocks[i]!;
-      const b = blocks[j]!;
+  const holdingRoom = blocks.filter((block) => !block.cancelled);
+  for (let i = 0; i < holdingRoom.length; i++) {
+    for (let j = i + 1; j < holdingRoom.length; j++) {
+      const a = holdingRoom[i]!;
+      const b = holdingRoom[j]!;
       if (a.columnKey !== b.columnKey) continue;
       if (a.startSlot < b.endSlot && b.startSlot < a.endSlot) {
         conflicting.add(a.sessionId);

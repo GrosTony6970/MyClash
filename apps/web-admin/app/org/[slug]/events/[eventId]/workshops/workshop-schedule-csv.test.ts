@@ -65,7 +65,7 @@ describe('workshopScheduleToCsv', () => {
     'Inscrits',
     'Capacité',
   ] as const;
-  const REMOVED = { venue: 'Lieu supprimé', area: 'Espace supprimé' };
+  const REMOVED = { venue: 'Lieu supprimé', area: 'Espace supprimé', cancelled: 'Annulée' };
   const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS, REMOVED, CSV_STANDARD);
   const lines = csv.slice(1).replace(/\r\n$/, '').split('\r\n');
 
@@ -125,6 +125,17 @@ describe('workshopScheduleToCsv', () => {
       .split('\r\n')[1];
     expect(line).toBe(
       '2027-06-01,Lieu supprimé,Espace supprimé,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8,20',
+    );
+  });
+
+  it('marks a cancelled session in the reader’s word, its row kept (ruling 526)', () => {
+    const session = { ...workshops[0]!.sessions[0]!, cancelled: true };
+    const cancelled = [{ ...workshops[0]!, sessions: [session] }];
+    const line = workshopScheduleToCsv(cancelled, venues, TZ, HEADERS, REMOVED, CSV_STANDARD)
+      .slice(1)
+      .split('\r\n')[1];
+    expect(line).toBe(
+      '2027-06-01,Main Hall,Mat B,09:00,10:30,Longsword Basics (Annulée),Rémi Arbache,Longsword,beginner,8,20',
     );
   });
 });

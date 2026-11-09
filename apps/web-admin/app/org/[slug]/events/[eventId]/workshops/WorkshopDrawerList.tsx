@@ -2,6 +2,7 @@
 
 import type { BoardWorkshop } from '@myclash/schedule-core';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
+import { statusLabel } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { drawerDragPayload, writeDrag, type DrawerEntry } from './workshop-drawer';
 
@@ -51,10 +52,12 @@ export function WorkshopDrawerList<W extends BoardWorkshop>({
         return entry.kind === 'session' ? (
           <UnplacedSessionItem
             key={entry.session.id}
-            drag={drag}
+            // A cancelled session is not placed: it stays put, struck through (ruling 526).
+            drag={entry.session.cancelled ? { ...drag, draggable: false } : drag}
             title={entry.workshop.title}
             startsAt={entry.session.startsAt}
             timezone={timezone}
+            cancelled={entry.session.cancelled === true}
           />
         ) : (
           <WorkshopItem
@@ -75,11 +78,13 @@ function UnplacedSessionItem({
   title,
   startsAt,
   timezone,
+  cancelled,
 }: {
   drag: Drag;
   title: string;
   startsAt: string | null;
   timezone: string;
+  cancelled: boolean;
 }) {
   const { t, locale } = useI18n();
   const when = (iso: string) =>
@@ -92,12 +97,19 @@ function UnplacedSessionItem({
   return (
     <div
       {...drag}
-      className="ml-3 cursor-grab rounded-lg border border-dashed border-warning bg-surface px-3 py-1.5 text-xs text-foreground-secondary shadow-sm hover:border-accent"
+      className={`ml-3 rounded-lg border border-dashed border-warning bg-surface px-3 py-1.5 text-xs text-foreground-secondary shadow-sm ${cancelled ? 'opacity-60' : 'cursor-grab hover:border-accent'}`}
       title={title}
     >
-      {startsAt
-        ? t('organizer.workshopsPage.board.unplacedSession', { when: when(startsAt) })
-        : t('organizer.workshopsPage.board.unplacedSessionNoTime')}
+      <span className={cancelled ? 'line-through' : undefined}>
+        {startsAt
+          ? t('organizer.workshopsPage.board.unplacedSession', { when: when(startsAt) })
+          : t('organizer.workshopsPage.board.unplacedSessionNoTime')}
+      </span>
+      {cancelled && (
+        <span className="ml-1 font-semibold">
+          · {statusLabel('workshopSession', 'cancelled', t)}
+        </span>
+      )}
     </div>
   );
 }

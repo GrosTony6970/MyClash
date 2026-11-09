@@ -71,6 +71,15 @@ export interface WorkshopBlock {
   cancelled: boolean;
 }
 
+/**
+ * A Workshop session the organiser cancelled (rulings 526-529): shown struck through on every
+ * page, never booked, never "live", no clash, and its room is free. A status that is absent (an
+ * older copy) is not cancelled. The ONE test of it, in both apps.
+ */
+export function isCancelledSession(session: { status?: string | null }): boolean {
+  return session.status === 'cancelled';
+}
+
 export function columnKey(venueId: string, areaId: string | null): string {
   return `${venueId}:${areaId ?? '_'}`;
 }
