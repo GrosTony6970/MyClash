@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { type Locale } from '@myclash/i18n';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
+import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import { groupByDay, type ScheduleEntry } from '../_lib/schedule-entries';
 
 /**
@@ -20,6 +21,7 @@ export function ScheduleAgenda({
   emptyLabel: string;
 }) {
   const tag = localeToBcp47(locale);
+  const t = createTranslator(getMessages(locale));
   const days = groupByDay(entries, tz);
   if (days.length === 0) {
     return <p className="text-sm text-muted">{emptyLabel}</p>;
@@ -47,19 +49,24 @@ export function ScheduleAgenda({
                   aria-hidden="true"
                   className={`absolute left-0 top-0 h-full w-1 ${accentClassFor(entry.color)}`}
                 />
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-xs font-semibold text-foreground-secondary">
+                <div className={`min-w-0 flex-1 ${entry.cancelled ? CANCELLED_TEXT : ''}`}>
+                  <p
+                    className={`font-mono text-xs font-semibold ${entry.cancelled ? '' : 'text-foreground-secondary'}`}
+                  >
                     {formatInZone(entry.startsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}
                     {entry.endsAt &&
                       `–${formatInZone(entry.endsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}`}
                   </p>
-                  <p className="truncate font-display text-sm font-semibold text-foreground">
+                  <p
+                    className={`truncate font-display text-sm font-semibold ${entry.cancelled ? '' : 'text-foreground'}`}
+                  >
                     {entry.title}
                   </p>
                   {entry.subtitle && (
                     <p className="truncate text-xs text-muted">{entry.subtitle}</p>
                   )}
                 </div>
+                {entry.cancelled && <CancelledBadge t={t} />}
                 <span className="shrink-0 font-semibold text-accent group-hover:text-accent-hover">
                   →
                 </span>

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { cardSessions } from './card-sessions';
+import { CANCELLED_TEXT, CancelledBadge } from './session-cancelled';
 import { WORKSHOP_UNSCHEDULED, type WorkshopListItem } from './workshop-grouping';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -78,18 +80,24 @@ export function WorkshopCard({
 }: WorkshopCardProps): ReactNode {
   const { t, locale } = useI18n();
   const instructorNames = w.instructors.map((i) => i.displayName);
-  // Seats of the sessions that run: each session has its own (ruling 515), a cancelled one none.
-  const live = w.sessions.filter((sess) => sess.status !== 'cancelled');
+  // Seats, the time line, "+N more" and "N sessions" speak of the sessions that run (ruling 515);
+  // a cancelled one has its own struck-through line (ruling 526), unless a footer lists them all.
+  const {
+    live,
+    first: firstSession,
+    more: moreCount,
+    cancelled: cancelledLines,
+  } = cardSessions(w.sessions, Boolean(footer));
   const totalConfirmed = live.reduce((s, sess) => s + sess.confirmedCount, 0);
   const totalCapacity = live.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
   const description = w.descriptionMd ?? w.shortDescription;
-  // Earliest scheduled session drives the date/time line; extra sessions are
-  // flagged with "+N more".
-  const datedSessions = w.sessions
-    .filter((s) => s.startsAt)
-    .sort((a, b) => (a.startsAt! < b.startsAt! ? -1 : 1));
-  const firstSession = datedSessions[0] ?? null;
-  const moreCount = datedSessions.length - 1;
+  const when = (iso: string) =>
+    formatInZone(
+      iso,
+      timezone,
+      { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' },
+      localeToBcp47(locale),
+    );
   // An explicit locationLabel wins; otherwise show venue and area together
   // ("Salle Principale — Area 1"), degrading gracefully when a part is missing.
   const location = (() => {
@@ -188,18 +196,7 @@ export function WorkshopCard({
           </div>
           {firstSession?.startsAt && (
             <p className="mt-3 text-xs font-medium text-muted">
-              {formatInZone(
-                firstSession.startsAt,
-                timezone,
-                {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                },
-                localeToBcp47(locale),
-              )}
+              {when(firstSession.startsAt)}
               {firstSession.endsAt &&
                 `–${formatInZone(
                   firstSession.endsAt,
@@ -219,14 +216,22 @@ export function WorkshopCard({
               )}
             </p>
           )}
+          {cancelledLines.map((s) => (
+            <p key={s.id} className="mt-1 flex items-center gap-2 text-xs">
+              <span className={CANCELLED_TEXT}>{when(s.startsAt!)}</span>
+              <CancelledBadge t={t} />
+            </p>
+          ))}
         </div>
         <div className="flex-shrink-0 text-right">
           {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity, t)}
-          <p className="mt-1 text-xs text-muted">
-            {w.sessions.length === 1
-              ? t('publicApp.workshops.sessionCountSingular', { count: w.sessions.length })
-              : t('publicApp.workshops.sessionCountPlural', { count: w.sessions.length })}
-          </p>
+          {live.length > 0 && (
+            <p className="mt-1 text-xs text-muted">
+              {live.length === 1
+                ? t('publicApp.workshops.sessionCountSingular', { count: live.length })
+                : t('publicApp.workshops.sessionCountPlural', { count: live.length })}
+            </p>
+          )}
         </div>
       </div>
       {footer && <div className="mt-4">{footer}</div>}

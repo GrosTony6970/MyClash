@@ -5,6 +5,7 @@
  */
 
 import { zonedDay } from '@myclash/time';
+import { isCancelledSession } from '@/components/workshops/session-cancelled';
 import type { PublicWorkshop, Tournament } from './public-event-data';
 
 export interface ScheduleEntry {
@@ -15,6 +16,8 @@ export interface ScheduleEntry {
   subtitle: string | null;
   color: string | null;
   href: string;
+  /** A cancelled Workshop session: struck through and marked (ruling 526). */
+  cancelled: boolean;
 }
 
 export interface ScheduleDay {
@@ -39,10 +42,12 @@ export function buildTournamentEntries(
       subtitle: tournament.ruleset_code,
       color: tournament.color,
       href: `/e/${eventSlug}/t/${encodeURIComponent(tournament.slug)}`,
+      cancelled: false,
     }));
 }
 
-/** One entry per dated session: a Workshop may run several (ruling 515). */
+/** One entry per dated session: a Workshop may run several (ruling 515). A cancelled one stays,
+ *  marked (ruling 526). */
 export function buildWorkshopEntries(
   workshops: PublicWorkshop[],
   eventSlug: string,
@@ -57,6 +62,7 @@ export function buildWorkshopEntries(
       subtitle: w.instructors.map((i) => i.displayName).join(', ') || null,
       color: w.color,
       href: `/e/${eventSlug}/w/${encodeURIComponent(w.slug)}`,
+      cancelled: isCancelledSession(session),
     }));
 }
 

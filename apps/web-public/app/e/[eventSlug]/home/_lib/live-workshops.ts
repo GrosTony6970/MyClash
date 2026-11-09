@@ -7,12 +7,15 @@
  * timestamptz), so they are DST-safe; the event timezone only affects display
  * (handled by WorkshopCard), never these booleans.
  */
+import { isCancelledSession } from '@/components/workshops/session-cancelled';
 import type { PublicWorkshop } from './public-event-data';
 
 type Session = PublicWorkshop['sessions'][number];
 
-/** A session is live when `startsAt <= now < endsAt`. Null/invalid bounds → not live. */
+/** A session is live when `startsAt <= now < endsAt`. Null/invalid bounds → not live; a cancelled
+ *  session never is (ruling 526). */
 export function isSessionLive(session: Session, nowMs: number): boolean {
+  if (isCancelledSession(session)) return false;
   if (!session.startsAt || !session.endsAt) return false;
   const start = Date.parse(session.startsAt);
   const end = Date.parse(session.endsAt);
@@ -20,11 +23,11 @@ export function isSessionLive(session: Session, nowMs: number): boolean {
   return start <= nowMs && nowMs < end;
 }
 
-/** Earliest session start strictly after `now` (ms); `null` when the workshop has none. */
+/** Earliest start strictly after `now` (ms) of a session that runs; `null` when there is none. */
 export function nextSessionStart(workshop: PublicWorkshop, nowMs: number): number | null {
   let soonest: number | null = null;
   for (const s of workshop.sessions) {
-    if (!s.startsAt) continue;
+    if (!s.startsAt || isCancelledSession(s)) continue;
     const start = Date.parse(s.startsAt);
     if (Number.isNaN(start) || start <= nowMs) continue;
     if (soonest === null || start < soonest) soonest = start;

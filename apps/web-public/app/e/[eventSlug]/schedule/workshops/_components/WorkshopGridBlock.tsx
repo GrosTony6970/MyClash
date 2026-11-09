@@ -13,7 +13,8 @@
 
 import Link from 'next/link';
 import { SLOT_HEIGHT_MIN, slotToHHMM } from '@myclash/schedule-core';
-import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { statusLabel, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { WorkshopGridBlock as BlockModel } from '../_lib/workshop-grid-data';
 
 // Height (px) at which each successive line becomes readable rather than noise.
@@ -31,21 +32,28 @@ interface Props {
 }
 
 export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Props) {
+  const { t } = useI18n();
   const heightPx = block.span * SLOT_HEIGHT_MIN;
   const timeRange = `${slotToHHMM(block.startSlot, startHour)}–${slotToHHMM(block.endSlot, startHour)}`;
   const taxonomy = [block.category, block.level].filter(Boolean).join(' · ');
   const instructors = block.instructorNames.join(', ');
+  // A cancelled session stays, struck through; its word rides in the title at every size (526).
+  const cancelledWord = block.cancelled ? statusLabel('workshopSession', 'cancelled', t) : null;
+  const struck = block.cancelled ? 'line-through' : '';
 
   return (
     <Link
       href={block.href}
-      title={[block.title, timeRange, instructors, taxonomy].filter(Boolean).join(' · ')}
+      title={[cancelledWord, block.title, timeRange, instructors, taxonomy]
+        .filter(Boolean)
+        .join(' · ')}
       className={[
         'm-px flex flex-col overflow-hidden rounded-md border px-1.5 py-1 transition-opacity',
         'hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-accent/40',
         tintBgClassFor(block.color),
         tintBorderClassFor(block.color),
         tintTextClassFor(block.color),
+        block.cancelled ? 'opacity-60' : '',
       ].join(' ')}
       style={{
         gridColumn,
@@ -53,9 +61,12 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
         zIndex: 10,
       }}
     >
-      <span className="truncate text-sm font-bold leading-tight">{block.title}</span>
+      {cancelledWord && heightPx >= SHOW_INSTRUCTORS_PX ? (
+        <span className="truncate text-[11px] font-semibold uppercase">{cancelledWord}</span>
+      ) : null}
+      <span className={`truncate text-sm font-bold leading-tight ${struck}`}>{block.title}</span>
       {heightPx >= SHOW_TIME_PX ? (
-        <span className="truncate font-mono text-xs opacity-80">{timeRange}</span>
+        <span className={`truncate font-mono text-xs opacity-80 ${struck}`}>{timeRange}</span>
       ) : null}
       {instructors && heightPx >= SHOW_INSTRUCTORS_PX ? (
         <span className="truncate text-xs opacity-90">{instructors}</span>

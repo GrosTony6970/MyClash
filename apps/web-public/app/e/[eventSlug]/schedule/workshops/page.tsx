@@ -65,6 +65,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
           <UnlistedWorkshops
             heading={tr('publicApp.eventHome.schedule.venueTbc')}
             workshops={schedule.unplaced}
+            t={tr}
           />
         </div>
 
@@ -73,7 +74,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
         </div>
 
         {/* Untimed workshops appear nowhere else on the site — both branches. */}
-        <UnlistedWorkshops heading={emptyLabel} workshops={schedule.undated} />
+        <UnlistedWorkshops heading={emptyLabel} workshops={schedule.undated} t={tr} />
       </section>
     </main>
   );

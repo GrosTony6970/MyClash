@@ -23,13 +23,18 @@ vi.mock('../../../home/_lib/public-event-data', () => ({
 
 const { loadWorkshopSchedule } = await import('./workshop-grid-data');
 
-const session = (id: string, startsAt: string | null, venueId: string | null) => ({
+const session = (
+  id: string,
+  startsAt: string | null,
+  venueId: string | null,
+  status = 'scheduled',
+) => ({
   id,
   startsAt,
   endsAt: null,
   venueId,
   areaId: null,
-  status: 'scheduled',
+  status,
   capacity: 12,
   confirmedCount: 0,
 });
@@ -71,5 +76,23 @@ describe('the public Workshop grid, a Workshop with several sessions', () => {
     ]);
     expect(data.unplaced.map((u) => u.key)).toEqual(['s-elsewhere']);
     expect(data.undated.map((u) => u.key)).toEqual(['dagger', 's-untimed']);
+  });
+
+  it('keeps a cancelled session on the grid and in its lists, marked (ruling 526)', async () => {
+    workshops.mockResolvedValue([
+      workshop('longsword', [
+        session('s-saturday', '2027-06-05T08:00:00.000Z', 'v-hall', 'cancelled'),
+        session('s-elsewhere', '2027-06-05T12:00:00.000Z', 'v-gone', 'cancelled'),
+        session('s-sunday', '2027-06-05T14:00:00.000Z', 'v-hall'),
+      ]),
+    ]);
+
+    const data = await loadWorkshopSchedule('fal', 'https://api.test');
+
+    expect(data.blocks.map((b) => [b.sessionId, b.cancelled])).toEqual([
+      ['s-saturday', true],
+      ['s-sunday', false],
+    ]);
+    expect(data.unplaced.map((u) => [u.key, u.cancelled])).toEqual([['s-elsewhere', true]]);
   });
 });

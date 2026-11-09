@@ -46,13 +46,11 @@ export const WORKSHOP_UNSCHEDULED = '__unscheduled__';
 type Session = WorkshopListItem['sessions'][number];
 
 /**
- * The dated sessions that place a Workshop on a day: those not cancelled. A Workshop whose dated
- * sessions are all cancelled keeps them, so it stays on the day it was announced for.
+ * The dated sessions that place a Workshop on a day: every one, a cancelled one included. A
+ * cancelled session stays on the day it was announced for, struck through (ruling 526).
  */
 function placingSessions(w: WorkshopListItem): Session[] {
-  const dated = w.sessions.filter((s) => s.startsAt);
-  const live = dated.filter((s) => s.status !== 'cancelled');
-  return live.length > 0 ? live : dated;
+  return w.sessions.filter((s) => s.startsAt);
 }
 
 /** The days a Workshop runs on (event tz), or the unscheduled key alone. */

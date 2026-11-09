@@ -104,10 +104,16 @@ describe('groupWorkshopsByDay', () => {
     ]);
   });
 
-  it('places a Workshop by its sessions that are not cancelled', () => {
+  // Saturday was cancelled: it stays on Saturday, struck through, so people who saw it know it is
+  // off (ruling 526).
+  it('keeps a cancelled session on its day, carried by its card', () => {
     const w = ws('w', ['2027-05-22T08:00:00Z', '2027-05-23T08:00:00Z']);
     w.sessions[0]!.status = 'cancelled';
-    expect(groupWorkshopsByDay([w], TZ).map((g) => g.key)).toEqual(['2027-05-23']);
-    expect(workshopDayKeys(w, TZ)).toEqual(['2027-05-23']);
+    const groups = groupWorkshopsByDay([w], TZ);
+    expect(groups.map((g) => [g.key, g.items[0]!.sessions.map((s) => [s.id, s.status])])).toEqual([
+      ['2027-05-22', [['w-s0', 'cancelled']]],
+      ['2027-05-23', [['w-s1', undefined]]],
+    ]);
+    expect(workshopDayKeys(w, TZ)).toEqual(['2027-05-22', '2027-05-23']);
   });
 });

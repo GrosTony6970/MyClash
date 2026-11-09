@@ -42,6 +42,17 @@ describe('isSessionLive', () => {
     ).toBe(true);
   });
 
+  it('is never true for a cancelled session, nor is it the next to start (ruling 526)', () => {
+    const [now, later] = ws('w', [
+      { startsAt: '2027-05-22T10:00:00Z', endsAt: '2027-05-22T12:00:00Z' },
+      { startsAt: '2027-05-22T14:00:00Z', endsAt: '2027-05-22T15:00:00Z' },
+    ]).sessions.map((s) => ({ ...s, status: 'cancelled' }));
+    expect(isSessionLive(now!, NOW)).toBe(false);
+    const cancelled = { ...ws('w', []), sessions: [now!, later!] };
+    expect(nextSessionStart(cancelled, NOW)).toBeNull();
+    expect(liveWorkshops([cancelled], NOW)).toEqual([]);
+  });
+
   it('is false before the window and at/after the end (half-open)', () => {
     expect(
       isSessionLive({ startsAt: '2027-05-22T11:00:00Z', endsAt: '2027-05-22T12:00:00Z' }, NOW),

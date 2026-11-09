@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
+import { cardSessions } from '@/components/workshops/card-sessions';
+import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import type { PublicWorkshop } from '../_lib/public-event-data';
 
 /**
@@ -23,13 +25,18 @@ export function WorkshopCard({
 }) {
   const t = createTranslator(getMessages(locale));
   const tag = localeToBcp47(locale);
-  // The earliest dated session drives the time line; a Workshop that runs several (ruling 515)
-  // says how many more.
-  const dated = [...w.sessions]
-    .filter((s) => s.startsAt)
-    .sort((a, b) => ((a.startsAt as string) < (b.startsAt as string) ? -1 : 1));
-  const session = dated[0] ?? w.sessions[0] ?? null;
-  const moreCount = dated.length - 1;
+  // The earliest dated session that runs drives the time line; a Workshop that runs several
+  // (ruling 515) says how many more. A cancelled one has its own struck-through line (526).
+  const card = cardSessions(w.sessions, false);
+  const session = card.first ?? card.live[0] ?? null;
+  const moreCount = card.more;
+  const when = (iso: string) =>
+    formatInZone(
+      iso,
+      tz,
+      { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' },
+      tag,
+    );
   const instructorNames = w.instructors.map((i) => i.displayName);
   return (
     <Link
@@ -75,21 +82,15 @@ export function WorkshopCard({
           </div>
         </div>
       </div>
+      {card.cancelled.map((s) => (
+        <p key={s.id} className="mt-2 flex items-center gap-2 text-xs">
+          <span className={CANCELLED_TEXT}>{when(s.startsAt!)}</span>
+          <CancelledBadge t={t} />
+        </p>
+      ))}
       <div className="mt-3 flex items-center justify-between text-xs">
         <span className="text-muted">
-          {session?.startsAt &&
-            formatInZone(
-              session.startsAt,
-              tz,
-              {
-                weekday: 'short',
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              },
-              tag,
-            )}
+          {session?.startsAt && when(session.startsAt)}
           {session?.startsAt &&
             session.endsAt &&
             ` – ${formatInZone(session.endsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}`}

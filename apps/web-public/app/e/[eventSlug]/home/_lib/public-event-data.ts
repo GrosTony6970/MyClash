@@ -43,6 +43,9 @@ export interface PublicWorkshopSession {
   areaId: string | null;
   capacity: number | null;
   confirmedCount: number;
+  /** `cancelled`: struck through, never live (ruling 526). The API sends it; absent in an older
+   *  payload, read as not cancelled. */
+  status?: string | null;
 }
 
 export interface PublicWorkshop {

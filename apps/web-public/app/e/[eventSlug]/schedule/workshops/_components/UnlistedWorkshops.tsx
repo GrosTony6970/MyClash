@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
+import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import type { UnlistedWorkshop } from '../_lib/workshop-grid-data';
 
 /**
@@ -12,9 +13,12 @@ import type { UnlistedWorkshop } from '../_lib/workshop-grid-data';
 export function UnlistedWorkshops({
   heading,
   workshops,
+  t,
 }: {
   heading: string;
   workshops: UnlistedWorkshop[];
+  /** The page's translator: a cancelled session is marked (ruling 526). */
+  t: (key: string) => string;
 }) {
   if (workshops.length === 0) return null;
   return (
@@ -34,12 +38,15 @@ export function UnlistedWorkshops({
                   aria-hidden="true"
                   className={`absolute left-0 top-0 h-full w-1 ${accentClassFor(w.color)}`}
                 />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-sm font-semibold text-foreground">
+                <div className={`min-w-0 flex-1 ${w.cancelled ? CANCELLED_TEXT : ''}`}>
+                  <p
+                    className={`truncate font-display text-sm font-semibold ${w.cancelled ? '' : 'text-foreground'}`}
+                  >
                     {w.title}
                   </p>
                   {subtitle ? <p className="truncate text-xs text-muted">{subtitle}</p> : null}
                 </div>
+                {w.cancelled && <CancelledBadge t={t} />}
                 <span className="shrink-0 font-semibold text-accent group-hover:text-accent-hover">
                   →
                 </span>

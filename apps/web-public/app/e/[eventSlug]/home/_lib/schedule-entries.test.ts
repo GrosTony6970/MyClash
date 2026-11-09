@@ -41,4 +41,17 @@ describe('buildWorkshopEntries', () => {
       ['w-s-saturday', '2027-06-05T08:00:00.000Z'],
     ]);
   });
+
+  it('keeps a cancelled session on the agenda, marked so it is struck through (ruling 526)', () => {
+    const cancelled = {
+      ...longsword,
+      sessions: longsword.sessions.map((s) =>
+        s.id === 's-saturday' ? { ...s, status: 'cancelled' } : s,
+      ),
+    };
+    expect(buildWorkshopEntries([cancelled], 'fal').map((e) => [e.id, e.cancelled])).toEqual([
+      ['w-s-sunday', false],
+      ['w-s-saturday', true],
+    ]);
+  });
 });

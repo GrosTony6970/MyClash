@@ -28,6 +28,7 @@ import {
   type ColumnBand,
   type WorkshopBlock,
 } from '@myclash/schedule-core';
+import { isCancelledSession } from '@/components/workshops/session-cancelled';
 import { dayEndSlot, deriveStartHour } from './workshop-grid-window';
 import { eventOrNotFound } from '../../../_lib/event-or-not-found';
 import {
@@ -64,6 +65,8 @@ export interface UnlistedWorkshop {
   /** Set for `unplaced` (it has a time, just nowhere to put it); null for `undated`. */
   startsAt: string | null;
   href: string;
+  /** The session was cancelled: struck through (ruling 526). */
+  cancelled: boolean;
 }
 
 export interface WorkshopScheduleData {
@@ -93,7 +96,8 @@ function toBoardWorkshop(w: PublicWorkshop): BoardWorkshop {
     capacity: w.capacity,
     color: w.color,
     instructorNames: w.instructors.map((i) => i.displayName),
-    sessions: w.sessions,
+    // A cancelled session stays on the grid, struck through (ruling 526).
+    sessions: w.sessions.map((s) => ({ ...s, cancelled: isCancelledSession(s) })),
   };
 }
 
@@ -182,16 +186,17 @@ export async function loadWorkshopSchedule(
   const unlisted = [
     ...boardWorkshops
       .filter((w) => w.sessions.length === 0)
-      .map((w) => ({ w, key: w.id, startsAt: null })),
+      .map((w) => ({ w, key: w.id, startsAt: null, cancelled: false })),
     ...unplacedSessions(boardWorkshops, columns).map(({ workshop, session }) => ({
       w: workshop,
       key: session.id,
       startsAt: session.startsAt,
+      cancelled: session.cancelled === true,
     })),
   ];
   const undated: UnlistedWorkshop[] = [];
   const unplaced: UnlistedWorkshop[] = [];
-  for (const { w, key, startsAt } of unlisted) {
+  for (const { w, key, startsAt, cancelled } of unlisted) {
     const slug = slugById.get(w.id);
     if (!slug) continue;
     const row: UnlistedWorkshop = {
@@ -204,6 +209,7 @@ export async function loadWorkshopSchedule(
       instructorNames: w.instructorNames ?? [],
       startsAt,
       href: href(slug),
+      cancelled,
     };
     // No time at all vs. timed-but-homeless: two different things to tell a
     // spectator, so they get two different headings.
