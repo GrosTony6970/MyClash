@@ -45,6 +45,16 @@ describe('sessionEdits', () => {
     expect(sessionEdits([saturdayLine], [SATURDAY], TZ, 90, 'v-default')).toEqual([]);
   });
 
+  it('leaves alone a session that runs past midnight when the form is saved again', () => {
+    // 23:00 to 00:30 the next day, Paris time: a title fixed must not move its end before its start.
+    const late = {
+      ...SATURDAY,
+      startsAt: '2027-06-05T21:00:00.000Z',
+      endsAt: '2027-06-05T22:30:00.000Z',
+    };
+    expect(sessionEdits(linesOf([late], TZ, 'v-default'), [late], TZ, 90, 'v-default')).toEqual([]);
+  });
+
   it('adds a new line, moves a changed one by its id keeping its room, in line order', () => {
     const lines: SessionLine[] = [
       { ...saturdayLine, start: '11:00', end: '12:30' },

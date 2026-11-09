@@ -137,6 +137,12 @@ describe('workshopSessionTimes', () => {
     });
   });
 
+  it('ends the next day when the end is before the start (past midnight)', () => {
+    expect(
+      workshopSessionTimes({ day: '2027-06-01', start: '23:00', end: '00:30', tz: TZ }),
+    ).toEqual({ startTime: '2027-06-01T21:00:00.000Z', endTime: '2027-06-01T22:30:00.000Z' });
+  });
+
   it('returns null without a day, start, or tz', () => {
     expect(workshopSessionTimes({ day: null, start: '09:00', tz: TZ })).toBeNull();
     expect(workshopSessionTimes({ day: '2027-06-01', start: '', tz: TZ })).toBeNull();

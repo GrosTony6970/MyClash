@@ -12,7 +12,7 @@
  * rather than throwing, so the reducer can call them on every keystroke.
  */
 
-import { zonedToUtcIso } from '@myclash/time';
+import { addDays, zonedToUtcIso } from '@myclash/time';
 
 const HHMM = /^(\d{1,2}):(\d{2})$/;
 
@@ -137,8 +137,11 @@ export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | n
     endFromStartDuration(start, 60);
   if (!endHhmm) return null;
 
+  // An end before the start is past midnight: a session from 23:00 to 00:30 ends the next day.
+  // Read on the start's day, a re-save moved its end before its start and told its people.
+  const endDay = (parseHhmm(endHhmm) ?? 0) < (parseHhmm(start) ?? 0) ? addDays(day, 1) : day;
   const startTime = zonedToUtcIso(day, start, tz);
-  const endTime = zonedToUtcIso(day, endHhmm, tz);
+  const endTime = endDay ? zonedToUtcIso(endDay, endHhmm, tz) : null;
   if (!startTime || !endTime) return null;
   return { startTime, endTime };
 }
