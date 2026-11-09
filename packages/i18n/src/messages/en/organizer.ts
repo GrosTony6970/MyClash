@@ -2196,6 +2196,10 @@ export const organizer = {
       body: 'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. On a published workshop of a public event, those with an account are told the session is cancelled. This cannot be undone.',
       bodyUncounted:
         'Its sign-up list is deleted with it. The bookings could not be counted just now. On a published workshop of a public event, those with an account are told the session is cancelled. This cannot be undone.',
+      bodyCancelled:
+        'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. The session was already cancelled and its people were told then: nobody is told again. This cannot be undone.',
+      bodyCancelledUncounted:
+        'Its sign-up list is deleted with it. The bookings could not be counted just now. The session was already cancelled and its people were told then: nobody is told again. This cannot be undone.',
       yes: 'Remove and delete the bookings',
     },
     workshopDelete: {

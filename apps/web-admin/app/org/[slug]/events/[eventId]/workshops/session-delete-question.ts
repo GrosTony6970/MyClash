@@ -11,19 +11,30 @@ import type { Translator } from '@myclash/next-i18n/client';
  * Null is a roster that could not be read, which is not an empty one, so the
  * question is asked without a count. With nobody booked the delete only sends
  * the Workshop back to the drawer, and laying a programme out stays one click.
+ *
+ * A session already cancelled told its people then; its delete tells nobody again (ruling 527),
+ * so its question does not promise a notice.
  */
 export function sessionDeleteQuestion(
   title: string,
   booked: number | null,
   t: Translator,
+  cancelled = false,
 ): ConfirmOptions | null {
   if (booked === 0) return null;
+  const body = (): string => {
+    if (cancelled) {
+      return booked === null
+        ? t('organizer.workshopsPage.sessionDelete.bodyCancelledUncounted')
+        : t('organizer.workshopsPage.sessionDelete.bodyCancelled', { count: booked });
+    }
+    return booked === null
+      ? t('organizer.workshopsPage.sessionDelete.bodyUncounted')
+      : t('organizer.workshopsPage.sessionDelete.body', { count: booked });
+  };
   return {
     title: t('organizer.workshopsPage.sessionDelete.title', { title }),
-    description:
-      booked === null
-        ? t('organizer.workshopsPage.sessionDelete.bodyUncounted')
-        : t('organizer.workshopsPage.sessionDelete.body', { count: booked }),
+    description: body(),
     confirmLabel: t('organizer.workshopsPage.sessionDelete.yes'),
     cancelLabel: t('common.cancel'),
     danger: true,

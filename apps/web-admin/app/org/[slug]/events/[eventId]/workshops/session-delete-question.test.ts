@@ -19,6 +19,15 @@ describe('the question asked before a Workshop session is deleted', () => {
     });
   });
 
+  it('promises no notice for a session already cancelled: its people were told then (527)', () => {
+    expect(sessionDeleteQuestion('Saturday longsword', 3, t, true)?.description).toBe(
+      'organizer.workshopsPage.sessionDelete.bodyCancelled {"count":3}',
+    );
+    expect(sessionDeleteQuestion('Saturday longsword', null, t, true)?.description).toBe(
+      'organizer.workshopsPage.sessionDelete.bodyCancelledUncounted',
+    );
+  });
+
   it('asks for one booking', () => {
     expect(sessionDeleteQuestion('Saturday longsword', 1, t)).not.toBeNull();
   });

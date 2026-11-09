@@ -323,6 +323,10 @@ export default function WorkshopsAdminPage() {
 
   // Roster modal
   const [rosterSession, setRosterSession] = useState<string | null>(null);
+  // A cancelled session's roster promotes nobody (ruling 526; the server refuses it too).
+  const rosterCancelled = workshops.some((w) =>
+    w.sessions.some((s) => s.id === rosterSession && isCancelledSession(s)),
+  );
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [linkingEnrollmentId, setLinkingEnrollmentId] = useState<string | null>(null);
@@ -447,7 +451,8 @@ export default function WorkshopsAdminPage() {
     const booked = roster.ok
       ? roster.data.filter((e) => e.status === 'confirmed' || e.status === 'waitlisted').length
       : null;
-    const question = sessionDeleteQuestion(workshop?.title ?? '', booked, t);
+    const cancelled = workshop?.sessions.some((s) => s.id === sessionId && isCancelledSession(s));
+    const question = sessionDeleteQuestion(workshop?.title ?? '', booked, t, cancelled);
     return !question || confirm(question);
   }
 
@@ -1524,7 +1529,7 @@ export default function WorkshopsAdminPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {entry.status === 'waitlisted' && (
+                    {entry.status === 'waitlisted' && !rosterCancelled && (
                       <button
                         onClick={() => void handlePromote(rosterSession, entry)}
                         disabled={isReadOnly}

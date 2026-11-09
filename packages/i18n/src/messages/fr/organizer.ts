@@ -2155,6 +2155,10 @@ export const organizer = {
       body: "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. Pour un atelier publié d'un événement public, les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
       bodyUncounted:
         "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. Pour un atelier publié d'un événement public, les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
+      bodyCancelled:
+        "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. La séance était déjà annulée et ses inscrits en ont été prévenus : personne n'est prévenu de nouveau. Cette action est irréversible.",
+      bodyCancelledUncounted:
+        "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. La séance était déjà annulée et ses inscrits en ont été prévenus : personne n'est prévenu de nouveau. Cette action est irréversible.",
       yes: 'Retirer et supprimer les inscriptions',
     },
     workshopDelete: {

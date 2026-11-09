@@ -142,6 +142,11 @@ beforeEach(async () => {
   });
   container = document.createElement('div');
   document.body.appendChild(container);
+  await openRoster();
+});
+
+/** Render the page and open the session's roster. */
+async function openRoster() {
   root = createRoot(container);
   await act(async () => {
     root.render(
@@ -154,7 +159,7 @@ beforeEach(async () => {
   });
   await settle();
   await click(document.body, 'Roster');
-});
+}
 
 afterEach(() => {
   act(() => root.unmount());
@@ -208,6 +213,20 @@ describe('the roster of a Workshop session', () => {
 
     expect(writes()).toEqual(['POST /api/v1/workshop-sessions/s-1/promote/Zoe-row']);
     expect(rosterReads()).toBe(2);
+  });
+
+  it('offers no "Promote" on a cancelled session: nobody takes a seat there (ruling 526)', async () => {
+    const [session] = WORKSHOP.sessions;
+    session!.status = 'cancelled';
+    try {
+      act(() => root.unmount());
+      await openRoster();
+      expect([...lineOf('Zoe Roux').querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+        'Remove',
+      ]);
+    } finally {
+      session!.status = 'scheduled';
+    }
   });
 
   it('tags the person no account holds as a guest, beside the name, and nobody else', () => {
