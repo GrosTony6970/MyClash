@@ -33,6 +33,7 @@ import { WORKSHOP_MANAGE_ROLE } from '../../common/auth/workshop-authz';
 import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { inStartOrder } from './session-order';
 import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 import {
   ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
@@ -232,13 +233,8 @@ interface RawWorkshop {
   workshop_instructors: RawInstructor[] | null;
 }
 
-/**
- * A Workshop's sessions in start order, a session with no start last. The ONE order every reader
- * shows: the embed comes back in no order PostgREST promises, and pages show "the first session".
- */
 function sessionsInOrder(row: RawWorkshop): RawSession[] {
-  const at = (s: RawSession) => (s.starts_at ? Date.parse(s.starts_at) : Number.POSITIVE_INFINITY);
-  return [...(row.workshop_sessions ?? [])].sort((a, b) => at(a) - at(b));
+  return inStartOrder(row.workshop_sessions ?? [], (s) => s.starts_at);
 }
 
 const WORKSHOP_SELECT = `

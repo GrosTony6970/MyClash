@@ -193,6 +193,8 @@ export interface MyEventRefereeOf {
  *  Distinct from `WorkshopEnrollment` (a workshop the user attends). */
 export interface MyEventWorkshopTeaching {
   workshopId: string;
+  /** The session taught; one row per session. Null: the Workshop has no session yet. */
+  sessionId: string | null;
   workshopSlug: string | null;
   workshopName: string;
   sessionStart: string | null;

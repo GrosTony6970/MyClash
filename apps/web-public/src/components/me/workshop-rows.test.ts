@@ -4,6 +4,7 @@ import type { MyEventWorkshopTeaching, WorkshopEnrollment } from './types';
 
 const teach = (over: Partial<MyEventWorkshopTeaching> = {}): MyEventWorkshopTeaching => ({
   workshopId: over.workshopId ?? 'w-t',
+  sessionId: over.sessionId ?? null,
   workshopSlug: over.workshopSlug ?? 'taught',
   workshopName: over.workshopName ?? 'Taught workshop',
   sessionStart: over.sessionStart ?? null,
@@ -68,6 +69,19 @@ describe('buildWorkshopRows', () => {
       'e',
     );
     expect(rows.map((r) => r.key)).toEqual(['att-early', 'teach-late', 'teach-tbd']);
+  });
+
+  it('gives each session of a taught Workshop its own row and key', () => {
+    const rows = buildWorkshopRows(
+      [
+        teach({ workshopId: 'w1', sessionId: 's-sun', sessionStart: '2026-06-02T09:00:00Z' }),
+        teach({ workshopId: 'w1', sessionId: 's-sat', sessionStart: '2026-06-01T09:00:00Z' }),
+      ],
+      [],
+      'e',
+    );
+    expect(rows.map((r) => r.key)).toEqual(['teach-s-sat', 'teach-s-sun']);
+    expect(rows.map((r) => r.start)).toEqual(['2026-06-01T09:00:00Z', '2026-06-02T09:00:00Z']);
   });
 
   it('dedupes a workshop the user both leads and attends, keeping the teaching row', () => {

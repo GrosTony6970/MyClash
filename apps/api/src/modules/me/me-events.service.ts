@@ -39,6 +39,7 @@ import { type PersonSchedule, PublicScheduleService } from '../persons/public-sc
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from '../persons/match-kind.util';
 import { resolveDutyWindows } from '../schedule/duty-windows';
+import { inStartOrder } from '../workshops/session-order';
 
 type Row = Record<string, unknown>;
 
@@ -113,8 +114,10 @@ export interface MyEventRefereeOf {
  *  Compact, mirrors the attending `WorkshopEnrollment` shape so the /me overview
  *  can render teaching + attending workshops with the same card. */
 export interface MyEventWorkshopTeaching {
-  /** Parent workshop id (stable key). */
+  /** Parent workshop id. */
   workshopId: string;
+  /** The session taught; one row per session. Null: the Workshop has no session yet. */
+  sessionId: string | null;
   workshopSlug: string | null;
   workshopName: string;
   sessionStart: string | null;
@@ -246,6 +249,15 @@ export interface InstructorWorkshopGroup {
 function one<T = Row>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T) ?? null;
   return (value as T) ?? null;
+}
+
+/** A Workshop's sessions embed (one-to-many since 0257: always an array), in start order. */
+function workshopSessions(workshop: Row): Row[] {
+  const embed = workshop['workshop_sessions'];
+  return inStartOrder(
+    Array.isArray(embed) ? (embed as Row[]) : [],
+    (s) => s['starts_at'] as string | null,
+  );
 }
 
 export interface MyLeagueGroup {
@@ -917,17 +929,20 @@ export class MeEventsService {
       // when we actually have a workshop to point at.
       const workshopId = workshop['id'];
       if (!workshopId) continue;
-      // UNIQUE(workshop_id) (migration 0098) → the session embed is an object.
-      const session = one<Row>(workshop['workshop_sessions']);
       const rows = workshopsByEvent.get(event.id) ?? [];
-      rows.push({
-        workshopId: String(workshopId),
-        workshopSlug: (workshop['slug'] as string | null) ?? null,
-        workshopName: String(workshop['title'] ?? ''),
-        sessionStart: (session?.['starts_at'] as string | null) ?? null,
-        sessionEnd: (session?.['ends_at'] as string | null) ?? null,
-        location: (session?.['location_label'] as string | null) ?? null,
-      });
+      // One row per session taught; a Workshop with no session yet still shows, with no time.
+      const sessions = workshopSessions(workshop);
+      for (const session of sessions.length > 0 ? sessions : [null]) {
+        rows.push({
+          workshopId: String(workshopId),
+          sessionId: session ? String(session['id']) : null,
+          workshopSlug: (workshop['slug'] as string | null) ?? null,
+          workshopName: String(workshop['title'] ?? ''),
+          sessionStart: (session?.['starts_at'] as string | null) ?? null,
+          sessionEnd: (session?.['ends_at'] as string | null) ?? null,
+          location: (session?.['location_label'] as string | null) ?? null,
+        });
+      }
       workshopsByEvent.set(event.id, rows);
     }
 
@@ -1270,16 +1285,7 @@ export class MeEventsService {
       if (group.workshops.has(workshopId)) continue;
 
       const capacity = (workshop['capacity'] as number | null) ?? null;
-      // UNIQUE(workshop_id) (migration 0098) flipped this embed array → object;
-      // the old Array.isArray(...) : [] fallback dropped every session, so
-      // instructor workshops rendered with no schedule.
-      const sessionsEmbed = workshop['workshop_sessions'];
-      const sessions = Array.isArray(sessionsEmbed)
-        ? (sessionsEmbed as Row[])
-        : sessionsEmbed
-          ? [sessionsEmbed as Row]
-          : [];
-      const mappedSessions: InstructorWorkshopSession[] = sessions.map((s) => {
+      const mappedSessions: InstructorWorkshopSession[] = workshopSessions(workshop).map((s) => {
         const id = String(s['id']);
         sessionIds.push(id);
         const venue = one<Row>(s['venues']);

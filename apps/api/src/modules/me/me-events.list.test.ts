@@ -99,7 +99,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
     });
   });
 
-  it('exposes the taught workshop (with its session) in workshopsTeaching', async () => {
+  it('gives one teaching row per session taught, in start order', async () => {
     const service = buildService({
       persons: [],
       workshopInstructors: [
@@ -110,27 +110,89 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
             title: 'Intro to Longsword',
             event_id: 'e-1',
             events: EVENT(),
-            // UNIQUE(workshop_id) → PostgREST embeds the session as an object.
-            workshop_sessions: {
-              id: 's-1',
-              starts_at: '2026-06-01T09:00:00Z',
-              ends_at: '2026-06-01T10:30:00Z',
-              location_label: 'Lice 3',
-            },
+            // One-to-many since 0257: an array, in no order PostgREST promises.
+            workshop_sessions: [
+              {
+                id: 's-sun',
+                starts_at: '2026-06-02T09:00:00Z',
+                ends_at: '2026-06-02T10:30:00Z',
+                location_label: 'Lice 1',
+              },
+              {
+                id: 's-sat',
+                starts_at: '2026-06-01T09:00:00Z',
+                ends_at: '2026-06-01T10:30:00Z',
+                location_label: 'Lice 3',
+              },
+            ],
           },
         },
       ],
     });
     const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
+    const workshop = {
+      workshopId: 'w-1',
+      workshopSlug: 'intro-longsword',
+      workshopName: 'Intro to Longsword',
+    };
     expect(events[0]!.workshopsTeaching).toEqual([
       {
-        workshopId: 'w-1',
-        workshopSlug: 'intro-longsword',
-        workshopName: 'Intro to Longsword',
+        ...workshop,
+        sessionId: 's-sat',
         sessionStart: '2026-06-01T09:00:00Z',
         sessionEnd: '2026-06-01T10:30:00Z',
         location: 'Lice 3',
+      },
+      {
+        ...workshop,
+        sessionId: 's-sun',
+        sessionStart: '2026-06-02T09:00:00Z',
+        sessionEnd: '2026-06-02T10:30:00Z',
+        location: 'Lice 1',
+      },
+    ]);
+  });
+
+  it('reads every session of a taught Workshop with its time and place', async () => {
+    const service = buildService({ persons: [] });
+    await service.listMyEvents(READER);
+    const from = (
+      service as unknown as { supabase: { service: { from: ReturnType<typeof vi.fn> } } }
+    ).supabase.service.from;
+    const chain = from.mock.results[
+      from.mock.calls.findIndex(([table]) => table === 'workshop_instructors')
+    ]!.value as Chain;
+    const select = String(chain['select']!.mock.calls[0]![0]).replace(/\s+/g, ' ');
+    expect(select).toContain('workshop_sessions ( id, starts_at, ends_at, location_label )');
+  });
+
+  it('keeps a taught Workshop with no session yet as one row with no time', async () => {
+    const service = buildService({
+      persons: [],
+      workshopInstructors: [
+        {
+          workshops: {
+            id: 'w-2',
+            slug: 'tbd',
+            title: 'To be placed',
+            event_id: 'e-1',
+            events: EVENT(),
+            workshop_sessions: [],
+          },
+        },
+      ],
+    });
+    const events = await service.listMyEvents(READER);
+    expect(events[0]!.workshopsTeaching).toEqual([
+      {
+        workshopId: 'w-2',
+        sessionId: null,
+        workshopSlug: 'tbd',
+        workshopName: 'To be placed',
+        sessionStart: null,
+        sessionEnd: null,
+        location: null,
       },
     ]);
   });
@@ -191,5 +253,40 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
     const service = buildService({ persons: [CLAIMED_PERSON] });
     const events = await service.listMyEvents(READER);
     expect(events[0]!.event.kind).toBe('standard');
+  });
+});
+
+describe('MeEventsService.getInstructorWorkshops — sessions', () => {
+  it('lists every session of a taught Workshop in start order', async () => {
+    const session = (id: string, startsAt: string | null) => ({
+      id,
+      starts_at: startsAt,
+      ends_at: null,
+      status: 'scheduled',
+      location_label: null,
+    });
+    const service = buildService({
+      workshopInstructors: [
+        {
+          workshops: {
+            id: 'w-1',
+            slug: 'intro',
+            title: 'Intro',
+            events: EVENT(),
+            workshop_sessions: [
+              session('s-none', null),
+              session('s-sun', '2026-06-02T09:00:00Z'),
+              session('s-sat', '2026-06-01T09:00:00Z'),
+            ],
+          },
+        },
+      ],
+    });
+    const groups = await service.getInstructorWorkshops('user-1');
+    expect(groups[0]!.workshops[0]!.sessions.map((s) => s.id)).toEqual([
+      's-sat',
+      's-sun',
+      's-none',
+    ]);
   });
 });

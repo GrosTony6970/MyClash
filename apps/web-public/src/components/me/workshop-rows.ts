@@ -27,8 +27,9 @@ export function buildWorkshopRows(
   attending: WorkshopEnrollment[],
   eventSlug: string,
 ): WorkshopRow[] {
+  // One row per session taught: a Workshop run twice keys each run on its own.
   const teachingRows: WorkshopRow[] = teaching.map((w) => ({
-    key: `teach-${w.workshopId}`,
+    key: `teach-${w.sessionId ?? w.workshopId}`,
     involvement: 'teaching',
     name: w.workshopName,
     start: w.sessionStart,
