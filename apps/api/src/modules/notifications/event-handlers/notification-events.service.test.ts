@@ -28,6 +28,16 @@ function makeSupabase(resultsByTable: Record<string, unknown>) {
   };
 }
 
+/** A Workshop embed that is news: published, in a published standard Event. */
+const announced = (extra: Record<string, unknown>, workshop = 'published', event = {}) => ({
+  ...extra,
+  status: workshop,
+  events: { status: 'published', event_kind: 'standard', ...event },
+});
+const ANNOUNCED_SESSION = {
+  workshop_sessions: { data: { workshops: announced({ title: 'Messer' }) }, error: null },
+};
+
 describe('notification event handlers', () => {
   it('sends assignment changed notifications to the assigned referee', async () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
@@ -68,10 +78,7 @@ describe('notification event handlers', () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
     const supabase = makeSupabase({
       workshop_sessions: {
-        data: {
-          id: 'session-1',
-          workshops: { title: 'Messer fundamentals' },
-        },
+        data: { id: 'session-1', workshops: announced({ title: 'Messer fundamentals' }) },
         error: null,
       },
       workshop_enrollments: {
@@ -125,7 +132,7 @@ describe('notification event handlers', () => {
     // Read as "nobody booked", a removed session would take the bookings untold.
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
     const service = new NotificationEventsService(
-      makeSupabase(tables) as never,
+      makeSupabase({ ...ANNOUNCED_SESSION, ...tables }) as never,
       scheduler as never,
     );
 
@@ -133,10 +140,47 @@ describe('notification event handlers', () => {
     expect(scheduler.sendImmediate).not.toHaveBeenCalled();
   });
 
+  // Operator rulings 2026-11-09: a session never announced tells nobody it was cancelled.
+  it.each([
+    ['a draft Workshop', announced({}, 'draft')],
+    ['a Workshop of a draft Event', announced({}, 'published', { status: 'draft' })],
+    ['a Workshop of a test Event', announced({}, 'published', { event_kind: 'test' })],
+    ['a session read without its statuses', null],
+  ])('tells nobody for %s, reading no booking', async (_what, workshops) => {
+    const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const supabase = makeSupabase({
+      workshop_sessions: { data: { workshops }, error: null },
+      workshop_enrollments: { data: [{ user_id: 'person-1' }], error: null },
+    });
+    const service = new NotificationEventsService(supabase as never, scheduler as never);
+
+    await service.workshopCancelled('session-1');
+
+    expect(scheduler.sendImmediate).not.toHaveBeenCalled();
+    expect(supabase.service.from.mock.calls.map(([t]) => t)).toEqual(['workshop_sessions']);
+  });
+
+  it('reads the statuses it decides by', async () => {
+    const supabase = makeSupabase(ANNOUNCED_SESSION);
+    const service = new NotificationEventsService(
+      supabase as never,
+      { sendImmediate: vi.fn() } as never,
+    );
+    await service.workshopCancelled('session-1');
+    // The double ignores the projection: only this holds the columns `isWorkshopNews` reads.
+    const sessions = supabase.service.from.mock.results[0]?.value as {
+      select: ReturnType<typeof vi.fn>;
+    };
+    expect(sessions.select.mock.calls[0]).toEqual([
+      'workshops(status, events(status, event_kind))',
+    ]);
+  });
+
   it('calls a Workshop whose title cannot be read "your workshop", in each language', async () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
     const supabase = makeSupabase({
-      workshop_sessions: { data: null, error: null },
+      // The statuses read, the title not.
+      workshop_sessions: { data: { workshops: announced({}) }, error: null },
       workshop_enrollments: { data: [{ user_id: 'person-1' }], error: null },
       persons: {
         data: [{ id: 'person-1', claimed_by_user_id: 'user-1', email: 'one@example.com' }],

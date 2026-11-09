@@ -38,7 +38,10 @@ const TWO_PM_ROOM_B: SessionPlace = {
   ...ROOM_B,
 };
 
-const sessionRow = (place: SessionPlace, opts: { status?: string; workshop?: string } = {}) => ({
+/** The session's own status, its Workshop's, and its Event's fields over a public one. */
+type Opts = { status?: string; workshop?: string; event?: Record<string, string> };
+
+const sessionRow = (place: SessionPlace, opts: Opts = {}) => ({
   id: 's-1',
   status: opts.status ?? 'scheduled',
   starts_at: place.startsAt,
@@ -49,7 +52,7 @@ const sessionRow = (place: SessionPlace, opts: { status?: string; workshop?: str
   workshops: {
     title: 'Longsword basics',
     status: opts.workshop ?? 'published',
-    events: PUBLIC_EVENT,
+    events: { ...PUBLIC_EVENT, ...opts.event },
   },
   venues: { name: 'Main hall' },
   venue_areas: { name: place.areaId === 'a-room-b' ? 'Room B' : 'Room A' },
@@ -66,7 +69,7 @@ const rosterRow = (id: string, account: string | null, email: string | null) => 
   email,
 });
 
-function tables(now: SessionPlace, opts: { status?: string; workshop?: string } = {}) {
+function tables(now: SessionPlace, opts: Opts = {}) {
   return {
     workshop_sessions: { rows: [sessionRow(now, opts)] },
     workshop_enrollments: {
@@ -173,7 +176,7 @@ describe('a move queues the notice of each account booked', () => {
 
 describe('when the notice fires', () => {
   const sender = { send: vi.fn() };
-  async function fire(now: SessionPlace, opts: { status?: string; workshop?: string } = {}) {
+  async function fire(now: SessionPlace, opts: Opts = {}) {
     sender.send.mockReset();
     const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     const worker = new NotificationSchedulerWorker(
@@ -216,9 +219,12 @@ describe('when the notice fires', () => {
     expect(log).toHaveBeenCalledWith('Dropped workshop_moved for s-1: not moved');
   });
 
-  it.each([
+  it.each<[string, Opts]>([
     ['the Workshop went back to draft', { workshop: 'draft' }],
     ['the session was cancelled', { status: 'cancelled' }],
+    ['the Event is a draft', { event: { status: 'draft' } }],
+    // Operator ruling 2026-11-09: a rehearsal tells nobody a session moved.
+    ['the Event is a TEST Event', { event: { event_kind: 'test' } }],
   ])('sends nothing when %s', async (_, opts) => {
     const { sent, log } = await fire(TWO_PM_ROOM_B, opts);
 

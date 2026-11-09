@@ -13,7 +13,11 @@
  */
 import { PUBLIC_TOURNAMENT_STATUSES } from '../common/auth/competition-visibility';
 import { isPublicEvent } from '../common/auth/event-read-gate';
-import { PUBLIC_WORKSHOP_STATUSES } from '../modules/workshops/workshop-visibility';
+import {
+  isWorkshopNews,
+  PUBLIC_WORKSHOP_STATUSES,
+  WORKSHOP_NEWS_EMBED,
+} from '../modules/workshops/workshop-visibility';
 import type { SupabaseService } from '../modules/supabase/supabase.service';
 import type { NotificationKind, ScheduledNotificationJob } from './notification-scheduler.worker';
 
@@ -85,6 +89,17 @@ const workshopIsPublic: Check = async (supabase, id) => {
 };
 
 /**
+ * A moved session's notice: news only for a published Workshop of a public Event that is not a
+ * TEST Event (`isWorkshopNews`, operator rulings 2026-11-09). A cancelled or deleted session
+ * tells nobody it moved.
+ */
+const workshopMoveIsNews: Check = async (supabase, id) => {
+  const read = ['workshop_sessions', `status, ${WORKSHOP_NEWS_EMBED}`, 'moved session'] as const;
+  const session = await readRow(supabase, read, id);
+  return session?.['status'] !== 'cancelled' && isWorkshopNews(session?.['workshops'] as never);
+};
+
+/**
  * What each kind is about, so what must be public when it fires; null = not checked here. Every
  * kind is named: a new one fails the typecheck until it is placed here, so none rings by default.
  */
@@ -99,9 +114,7 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   assignment_changed: dutyIsPublic,
   // The booking's own alert (ruling 210): the same bar as a follower's.
   workshop_starting: workshopIsPublic,
-  // A moved session (operator ruling, 2026-11-09): a published Workshop of a public Event; a
-  // cancelled or deleted session tells nobody it moved.
-  workshop_moved: workshopIsPublic,
+  workshop_moved: workshopMoveIsNews,
   workshop_cancelled: null,
   waitlist_promoted: null,
   exchange_edit_rejected: null,

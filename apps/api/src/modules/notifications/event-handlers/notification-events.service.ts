@@ -6,6 +6,7 @@ import {
   type ScheduledNotificationJob,
 } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { isWorkshopNews, WORKSHOP_NEWS_EMBED } from '../../workshops/workshop-visibility';
 import { accountEmails } from '../account-emails';
 import * as texts from '../notice-texts/notice-texts';
 import { lockedDutyIds } from './locked-duties';
@@ -84,6 +85,18 @@ export class NotificationEventsService {
    * booked", a session removed after it (`deleteSession`) would take their bookings untold.
    */
   async workshopCancelled(sessionId: string): Promise<void> {
+    // Not for a draft Workshop, nor in a draft or test Event (operator rulings, 2026-11-09):
+    // a session of one was never announced. Asked before the people are read.
+    const workshop = await this.supabase.service
+      .from('workshop_sessions')
+      .select(WORKSHOP_NEWS_EMBED)
+      .eq('id', sessionId)
+      .maybeSingle();
+    if (workshop.error)
+      throw new Error(`Session ${sessionId} unreadable: ${workshop.error.message}`);
+    if (!isWorkshopNews((workshop.data as { workshops?: never } | null)?.workshops)) {
+      return this.logger.log(`Dropped workshop_cancelled for ${sessionId}: not announced`);
+    }
     const title = await this.getWorkshopTitle(sessionId);
     const { data: enrollments, error } = await this.supabase.service
       .from('workshop_enrollments')

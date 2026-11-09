@@ -2064,6 +2064,10 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   account (a confirmed seat or a place on the waitlist), ten minutes out, keeping where the session
   was before the first move; when it fires, it says where the session is then, or sends nothing if
   it is back where it was. It follows the "Schedule changes" switch.
+- A moved or cancelled Workshop session tells nobody when the Workshop is a draft, or its Event
+  is a draft or a TEST Event (operator rulings, 2026-11-09; `isWorkshopNews` in
+  `apps/api/src/modules/workshops/workshop-visibility.ts`). Unlike "starting soon" (ruling 185),
+  a rehearsal's changes are not news.
 - A timed alert is checked when it FIRES, because what was true when it was queued may not be any
   more. Its bout, duty or Workshop must be public (`apps/api/src/workers/alert-visibility.ts`: a
   draft's alert is dropped, and so is a cancelled Workshop session's). And it must still be

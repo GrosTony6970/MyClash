@@ -2151,9 +2151,9 @@ export const organizer = {
     roster: 'Inscrits',
     sessionDelete: {
       title: 'Retirer « {title} » du programme ?',
-      body: "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. Les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
+      body: "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. Pour un atelier publié d'un événement public, les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
       bodyUncounted:
-        "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. Les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
+        "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. Pour un atelier publié d'un événement public, les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
       yes: 'Retirer et supprimer les inscriptions',
     },
     workshopDelete: {
@@ -2161,7 +2161,7 @@ export const organizer = {
       body: 'Sa séance, ses instructeurs et ses avis sont supprimés avec lui. Ses photos restent. Cette action est irréversible.',
       yes: "Supprimer l'atelier",
       hasBookings:
-        "Des personnes sont inscrites à cet atelier. Retirez d'abord sa séance du programme : les inscrits qui ont un compte sont prévenus.",
+        "Des personnes sont inscrites à cet atelier. Retirez d'abord sa séance du programme.",
     },
     editWorkshop: "Modifier l'atelier",
     newWorkshopTitle: 'Nouvel atelier',

@@ -2192,9 +2192,9 @@ export const organizer = {
     roster: 'Roster',
     sessionDelete: {
       title: 'Remove "{title}" from the schedule?',
-      body: 'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. Those with an account are told the session is cancelled. This cannot be undone.',
+      body: 'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. On a published workshop of a public event, those with an account are told the session is cancelled. This cannot be undone.',
       bodyUncounted:
-        'Its sign-up list is deleted with it. The bookings could not be counted just now. Those with an account are told the session is cancelled. This cannot be undone.',
+        'Its sign-up list is deleted with it. The bookings could not be counted just now. On a published workshop of a public event, those with an account are told the session is cancelled. This cannot be undone.',
       yes: 'Remove and delete the bookings',
     },
     workshopDelete: {
@@ -2202,7 +2202,7 @@ export const organizer = {
       body: 'Its session, instructors and ratings are deleted with it. Its photos stay. This cannot be undone.',
       yes: 'Delete the workshop',
       hasBookings:
-        'People are booked on this workshop. Remove its session from the schedule first: those with an account are told.',
+        'People are booked on this workshop. Remove its session from the schedule first.',
     },
     editWorkshop: 'Edit workshop',
     newWorkshopTitle: 'New workshop',
