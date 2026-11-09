@@ -18,6 +18,7 @@ import { nextSlugFromName } from './slug-from-name';
 import {
   durationFromStartEnd,
   endFromStartDuration,
+  sessionWrite,
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '@myclash/schedule-core';
@@ -523,22 +524,27 @@ export default function WorkshopsAdminPage() {
           }
         }
 
-        // Session: upsert when a day+time is set, else delete an existing one.
+        // Session: sent when its times or venue changed (`sessionWrite`), deleted when the day
+        // was cleared. A refusal keeps the form open: the Workshop itself is saved.
         const times = sessionTimesFromForm();
         const existing = current?.sessions[0] ?? null;
-        if (times) {
-          await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/sessions`, {
-            method: 'POST',
-            body: {
-              startTime: times.startTime,
-              endTime: times.endTime,
-              venueId: form.venueId || undefined,
-            },
-          });
-        } else if (existing) {
-          await apiRequest(apiUrl, `/api/v1/workshop-sessions/${existing.id}`, {
-            method: 'DELETE',
-          });
+        const venueChanged = (form.venueId || null) !== (current?.venueId ?? null);
+        const write = times && sessionWrite(times, existing, form.venueId || null, venueChanged);
+        const sessionRes = write
+          ? await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/sessions`, {
+              method: 'POST',
+              body: write,
+            })
+          : !times && existing
+            ? await apiRequest(apiUrl, `/api/v1/workshop-sessions/${existing.id}`, {
+                method: 'DELETE',
+              })
+            : null;
+        if (sessionRes && !sessionRes.ok) {
+          const message = failureMessage(sessionRes, t, t('admin.common.saveFailed'));
+          if (message) setFormError(message);
+          setRefreshKey((k) => k + 1);
+          return;
         }
 
         await uploadStagedLogo(editingId);

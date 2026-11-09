@@ -3,8 +3,50 @@ import {
   durationFromStartEnd,
   endFromStartDuration,
   parseHhmm,
+  sessionWrite,
   workshopSessionTimes,
 } from './workshop-session-times';
+
+/**
+ * A save of the Workshop's form sends its session only when the session changes. The board placed
+ * "Longsword basics" Saturday 10:00 in the Main hall, Room A; the organiser opens the form to fix
+ * a typo in its title. The save re-sent the session with the Workshop's default venue and no room:
+ * the room was wiped, and its people were told it had moved.
+ */
+describe('sessionWrite', () => {
+  const placed = {
+    startsAt: '2027-06-05T08:00:00+00:00',
+    endsAt: '2027-06-05T09:00:00+00:00',
+    venueId: 'v-main',
+    areaId: 'a-room-a',
+  };
+  const same = { startTime: '2027-06-05T08:00:00.000Z', endTime: '2027-06-05T09:00:00.000Z' };
+  const later = { startTime: '2027-06-05T12:00:00.000Z', endTime: '2027-06-05T13:00:00.000Z' };
+
+  it('sends nothing when the day and times did not change', () => {
+    expect(sessionWrite(same, placed, 'v-default', false)).toBeNull();
+  });
+
+  it('keeps its own venue and room when the times change', () => {
+    expect(sessionWrite(later, placed, 'v-default', false)).toEqual({
+      ...later,
+      venueId: 'v-main',
+      areaId: 'a-room-a',
+    });
+  });
+
+  it('takes the session to another venue the organiser picked, out of the old room', () => {
+    expect(sessionWrite(same, placed, 'v-annex', true)).toEqual({ ...same, venueId: 'v-annex' });
+  });
+
+  it("gives a new session the form's venue", () => {
+    expect(sessionWrite(later, null, 'v-default', false)).toEqual({
+      ...later,
+      venueId: 'v-default',
+    });
+    expect(sessionWrite(later, null, null, false)).toEqual({ ...later, venueId: undefined });
+  });
+});
 
 describe('parseHhmm', () => {
   it('parses valid HH:MM to minutes', () => {

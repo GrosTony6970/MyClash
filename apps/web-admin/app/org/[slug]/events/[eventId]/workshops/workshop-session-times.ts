@@ -78,6 +78,51 @@ export interface SessionTimes {
  * taken from `end`, else derived from `durationMinutes`, else a 60-minute
  * default.
  */
+/** The session a Workshop's form edits, as the page holds it. */
+export interface PlacedSession {
+  startsAt: string | null;
+  endsAt: string | null;
+  venueId: string | null;
+  areaId: string | null;
+}
+
+export interface SessionWrite extends SessionTimes {
+  venueId?: string;
+  areaId?: string;
+}
+
+const sameInstant = (a: string, b: string | null): boolean =>
+  b !== null && new Date(a).getTime() === new Date(b).getTime();
+
+/**
+ * What the Workshop's form sends for its session, or null when the session is to stay as it is.
+ *
+ * The form re-sent the session at every save, with the Workshop's default venue and no room: a
+ * typo fixed in the title wiped the room the board had given the session, and since 2026-11-09
+ * told its people the session had moved. It is now sent when its day or times changed, keeping its
+ * own venue and room; or when the organiser picked another venue (`venueChanged`), which takes the
+ * session there, and out of a room of the old venue. A new session takes the form's venue.
+ */
+export function sessionWrite(
+  times: SessionTimes,
+  existing: PlacedSession | null,
+  formVenueId: string | null,
+  venueChanged: boolean,
+): SessionWrite | null {
+  if (!existing || venueChanged) return { ...times, venueId: formVenueId ?? undefined };
+  if (
+    sameInstant(times.startTime, existing.startsAt) &&
+    sameInstant(times.endTime, existing.endsAt)
+  ) {
+    return null;
+  }
+  return {
+    ...times,
+    venueId: existing.venueId ?? formVenueId ?? undefined,
+    areaId: existing.areaId ?? undefined,
+  };
+}
+
 export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | null {
   const { day, start, tz } = input;
   if (!day || !start || !tz) return null;
