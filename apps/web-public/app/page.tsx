@@ -58,7 +58,7 @@ export default async function HomePage({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
         <section className="border-y border-border py-5">
           {/* The page's only h1. The heading used to be a <p>, which left the
-              document with no h1 at all — the brand in SiteHeader is a <span>
+              document with no h1 at all — the brand in SiteHeader is an image
               and every section below is an h2. */}
           <h1 className="max-w-2xl font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.home.title')}

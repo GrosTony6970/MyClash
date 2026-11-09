@@ -96,21 +96,13 @@ export function SiteHeader() {
           aria-label={t('app.name')}
         >
           <Image
-            src="/brand/Logo_nobackground.png"
+            src="/brand/Banner_nobackground.png"
             alt=""
-            width={48}
+            width={139}
             height={48}
             priority
-            className="h-10 w-10 sm:h-12 sm:w-12"
+            className="h-9 w-auto sm:h-12"
           />
-          <div className="flex flex-col">
-            <span className="font-display text-lg font-semibold leading-tight text-foreground sm:text-xl">
-              {t('app.name')}
-            </span>
-            <span className="hidden text-xs text-muted sm:block">
-              {t('publicApp.home.description')}
-            </span>
-          </div>
         </Link>
 
         <div className="flex items-center gap-3">

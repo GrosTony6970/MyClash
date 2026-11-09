@@ -320,12 +320,11 @@ test('the landing page stays within its first-paint budget', () => {
   console.log(`    first paint (mobile): ${Math.round(total / 1024)} KB of ${budget / 1024} KB`);
 });
 
-test('the logo lockup is shown whole, not cropped to a strip', () => {
+test('the banner is shown whole, not cropped to a strip', () => {
   /*
-   * Banner.png is the full logo — wordmark, ribbon and crest, at 3:2. It was
-   * being poured into a 240px full-bleed strip with `object-fit: cover`, so at
-   * a 1920px viewport the browser scaled it to 1241px tall and kept the middle
-   * 240px: a slice through the letterforms with the ribbon and crest gone.
+   * Banner.png is the crest and wordmark at 2:1. An earlier version poured it
+   * into a 240px full-bleed strip with `object-fit: cover`, so the browser
+   * scaled it up and kept a middle slice through the letterforms.
    *
    * Asserted against the emitted CSS because the crop was invisible to every
    * markup-level check — the HTML was fine the whole time.

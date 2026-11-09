@@ -26,6 +26,8 @@
   --grey: #64748b;
   --dark: #0f172a;
   --dark-mid: #1e293b;
+  /* The background navy baked into Banner.png, so the band around it matches. */
+  --banner-navy: #010f33;
   --font-display: 'Cinzel', serif;
   --font-body: 'Cormorant Garamond', serif;
   --nav-h: 72px;

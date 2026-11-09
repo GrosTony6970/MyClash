@@ -29,13 +29,16 @@ const statsEndpoint = `${API_URL.replace(/\/+$/, '')}/api/v1/public/site-stats`;
     Was a CSS background-image on an empty div, invisible to the preload
     scanner. As a real element it can be eager + high priority, and Astro emits
     AVIF/WebP at several widths instead of one 2.37 MB PNG.
+
+    The photo is 3:1 and covers a full-height hero, so it is drawn about three
+    times as wide as the screen is tall: `sizes` says so.
   */}
   <Picture
     src={hero}
     formats={['avif', 'webp']}
     fallbackFormat="webp"
-    widths={[768, 1200, 1672]}
-    sizes="100vw"
+    widths={[768, 1200, 1672, 2172]}
+    sizes="max(100vw, 300vh)"
     alt={c.heroImageAlt}
     class="hero__bg"
     id="heroBg"
@@ -153,18 +156,17 @@ const statsEndpoint = `${API_URL.replace(/\/+$/, '')}/api/v1/public/site-stats`;
 
 <!-- BANNER -->
 {/*
-  The logo lockup, shown whole. `sizes` and `widths` describe the box it is
-  actually rendered in — it caps at 420 CSS px (see home.css), so the old
-  `sizes="100vw"` with a 1584px candidate had the browser fetch a file four
-  times wider than anything it would draw.
+  The banner, shown whole. `sizes` and `widths` describe the box it is
+  actually rendered in: 90% of the viewport, capped at 1100 CSS px (see
+  home.css).
 */}
 <div class="banner-section" aria-hidden="true">
   <Picture
     src={banner}
     formats={['avif', 'webp']}
     fallbackFormat="webp"
-    widths={[420, 840]}
-    sizes="(max-width: 480px) 90vw, 420px"
+    widths={[600, 1100, 1774]}
+    sizes="(max-width: 1222px) 90vw, 1100px"
     alt=""
     loading="lazy"
   />
