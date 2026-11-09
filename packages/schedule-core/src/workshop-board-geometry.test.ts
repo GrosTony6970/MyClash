@@ -219,6 +219,20 @@ describe('several sessions of one Workshop', () => {
       buildWorkshopSessionBlocks([longsword], columns, '2027-06-02', TZ).map((b) => b.sessionId),
     ).toEqual(['s-sunday']);
   });
+
+  it('still draws a cancelled session, marked so the board strikes it through (526)', () => {
+    const cancelled = {
+      ...longsword,
+      sessions: longsword.sessions.map((s) =>
+        s.id === 's-saturday' ? { ...s, cancelled: true } : s,
+      ),
+    };
+    const blocks = buildWorkshopSessionBlocks([cancelled], columns, '2027-06-01', TZ);
+    expect(blocks.map((b) => [b.sessionId, b.cancelled])).toEqual([
+      ['s-saturday', true],
+      ['s-saturday-pm', false],
+    ]);
+  });
 });
 
 describe('unplacedSessions', () => {

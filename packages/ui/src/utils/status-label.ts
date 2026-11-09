@@ -155,6 +155,17 @@ const REFEREE_ASSIGNMENT: Record<RefereeAssignmentStatus, string> = {
   confirmed: 'common.status.refereeAssignment.confirmed',
 };
 
+/** `workshop_sessions.status`: the four values of `workshop_session_status_check` (pinned by the
+ *  test). A cancelled one is shown struck through on every page (ruling 526). */
+export type WorkshopSessionStatus = 'scheduled' | 'running' | 'completed' | 'cancelled';
+
+const WORKSHOP_SESSION: Record<WorkshopSessionStatus, string> = {
+  scheduled: 'common.status.workshopSession.scheduled',
+  running: 'common.status.workshopSession.running',
+  completed: 'common.status.workshopSession.completed',
+  cancelled: 'common.status.workshopSession.cancelled',
+};
+
 // A colour's name: every ColorToken and every side colour a Tournament may pick.
 const COLOR: Record<ColorToken | TournamentSideColor, string> = {
   red: 'common.status.color.red',
@@ -194,6 +205,7 @@ const STATUS_LABEL_KEYS = {
   leagueOrgRole: LEAGUE_ORG_ROLE,
   leagueAttachment: LEAGUE_ATTACHMENT,
   refereeAssignment: REFEREE_ASSIGNMENT,
+  workshopSession: WORKSHOP_SESSION,
   color: COLOR,
 } as const;
 

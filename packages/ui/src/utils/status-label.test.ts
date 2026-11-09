@@ -56,6 +56,7 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   leagueOrgRole: ['owner', 'admin', 'member'],
   leagueAttachment: ['requested', 'approved', 'rejected', 'removed'],
   refereeAssignment: ['assigned', 'pending', 'confirmed'],
+  workshopSession: ['scheduled', 'running', 'completed', 'cancelled'],
   color: [
     'red',
     'blue',
@@ -111,6 +112,10 @@ describe('statusLabelKey', () => {
   it('knows exactly the states the database allows for a Registration and a claim', () => {
     expect([...STATES.registration].sort()).toEqual(checkList('registration_status_check'));
     expect([...STATES.claim].sort()).toEqual(checkList('persons_claim_status_check'));
+  });
+
+  it('knows exactly the states the database allows for a Workshop session', () => {
+    expect([...STATES.workshopSession].sort()).toEqual(checkList('workshop_session_status_check'));
   });
 
   it('knows exactly the club member roles the access ladder names', () => {

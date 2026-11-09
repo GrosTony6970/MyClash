@@ -45,6 +45,8 @@ export interface BoardWorkshop {
     venueId: string | null;
     areaId: string | null;
     confirmedCount?: number;
+    /** Drawn struck through; holds no room (rulings 526, 528). Absent: not cancelled. */
+    cancelled?: boolean;
   }>;
 }
 
@@ -65,6 +67,8 @@ export interface WorkshopBlock {
   color: string | null;
   instructorNames: string[];
   confirmedCount: number;
+  /** The session was cancelled: drawn struck through, its room free (rulings 526, 528). */
+  cancelled: boolean;
 }
 
 export function columnKey(venueId: string, areaId: string | null): string {
@@ -197,6 +201,7 @@ function sessionBlock(
     color: w.color ?? null,
     instructorNames: w.instructorNames ?? [],
     confirmedCount: session.confirmedCount ?? 0,
+    cancelled: session.cancelled === true,
   };
 }
 

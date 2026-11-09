@@ -226,6 +226,12 @@ export const common = {
       pending: 'Pending',
       confirmed: 'Confirmed',
     },
+    workshopSession: {
+      scheduled: 'Scheduled',
+      running: 'Running',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    },
     color: {
       red: 'Red',
       blue: 'Blue',

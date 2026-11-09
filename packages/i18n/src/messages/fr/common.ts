@@ -180,6 +180,13 @@ export const common = {
       pending: 'En attente',
       confirmed: 'Confirmé',
     },
+    // Une séance : au féminin.
+    workshopSession: {
+      scheduled: 'Prévue',
+      running: 'En cours',
+      completed: 'Terminée',
+      cancelled: 'Annulée',
+    },
     color: {
       red: 'Rouge',
       blue: 'Bleu',
