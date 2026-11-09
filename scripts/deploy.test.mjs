@@ -24,7 +24,6 @@ const ENV = {
   repoPath: '/srv/myclash',
   smokeUrl: 'https://api.myclash.fr/health',
   edgeDomain: 'myclash.fr',
-  supabaseAnonKey: null,
   allowStagingCert: false,
 };
 

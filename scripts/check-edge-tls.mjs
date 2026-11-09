@@ -1,6 +1,7 @@
 import tls from 'node:tls';
 
 import { parseArgs, request } from './edge-probe.mjs';
+import { realtimeEdgeErrors } from './lib/realtime-edge-probe.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const domain = args.domain ?? 'myclash.fr';
@@ -142,66 +143,11 @@ if (checkedKeys.has('api')) {
   }
 }
 
-// Realtime, reachable AS app.${domain} — not merely up.
-//
-// supabase/realtime is multi-tenant and resolves the tenant from the first
-// label of the Host header. Traefik forwards the client's Host untouched, so
-// this only works while SELF_HOST_TENANT_NAME matches that label. When it did
-// not, every websocket handshake 403'd and every live public surface silently
-// fell back to polling — for months. Nothing caught it: the container's own
-// healthcheck then addressed the tenant by PATH (/api/tenants/:id/health) and
-// answered 200 throughout. It now asks /api/ping by Host too (ruling 504), but
-// from inside the container, so it cannot see the edge's Host.
-//
-// /api/ping is the cheapest route that resolves the tenant the way the socket
-// does. A misconfigured tenant answers 401 {"message":"Tenant not found in
-// database"}. It reads no token (measured 2026-11-09: a garbage one gets 200),
-// so the key sent below proves nothing about the socket's secret.
-const realtimeKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!checkedKeys.has('app')) {
+if (checkedKeys.has('app')) {
+  errors.push(...(await realtimeEdgeErrors(domain, request)));
+} else {
   // --hosts excluded it; saying nothing here would be indistinguishable from a pass.
   console.warn(`app.${domain} not in --hosts — skipped the realtime tenant-resolution probe.`);
-} else if (realtimeKey) {
-  const ping = await request({
-    protocol: 'https:',
-    host: `app.${domain}`,
-    path: '/realtime/v1/api/ping',
-    method: 'GET',
-    headers: { Authorization: `Bearer ${realtimeKey}` },
-    timeoutMs: 10_000,
-    rejectUnauthorized: false, // see the health probe above
-  });
-  if (ping.statusCode !== 200) {
-    errors.push(
-      `https://app.${domain}/realtime/v1/api/ping returned ${ping.statusCode ?? 'no response'} ` +
-        `(expected 200). 401 = realtime cannot resolve a tenant named "app" — check ` +
-        `SELF_HOST_TENANT_NAME against the Host Traefik forwards; websockets are dead.`,
-    );
-  }
-  // Realtime's other /api routes are its tenant management, which took the anon key until
-  // ruling 424 gave it its own secret: the edge must not forward them either way (ruling 420),
-  // whatever label form a change gives the route.
-  const tenants = await request({
-    protocol: 'https:',
-    host: `app.${domain}`,
-    path: '/realtime/v1/api/tenants',
-    method: 'GET',
-    headers: { Authorization: `Bearer ${realtimeKey}` },
-    timeoutMs: 10_000,
-    rejectUnauthorized: false, // see the health probe above
-  });
-  if (tenants.statusCode !== 404) {
-    errors.push(
-      `https://app.${domain}/realtime/v1/api/tenants returned ${tenants.statusCode ?? 'no response'} ` +
-        '(expected 404): the edge forwards Realtime tenant management, which takes any token ' +
-        'signed with its API secret (rulings 420, 424).',
-    );
-  }
-} else {
-  console.warn(
-    'SUPABASE_ANON_KEY not set — skipped the realtime tenant-resolution probe on ' +
-      `app.${domain}. This is the check that catches a dead websocket.`,
-  );
 }
 
 for (const warning of warnings) console.warn(`  ! ${warning}`);

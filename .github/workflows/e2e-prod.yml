@@ -51,9 +51,6 @@ jobs:
           node scripts/check-edge-tls.mjs "${ARGS[@]}"
         env:
           EDGE_DOMAIN: ${{ vars.EDGE_DOMAIN || 'myclash.fr' }}
-          # Public by construction — it ships in every browser bundle. Without
-          # it the realtime probe is skipped and the job proves much less.
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           # Set repo variable EDGE_ALLOW_STAGING_CERT=1 while prod runs on
           # `deploy.sh --dev-certs`; the staging cert is reported either way.
           ALLOW_STAGING: ${{ vars.EDGE_ALLOW_STAGING_CERT }}
