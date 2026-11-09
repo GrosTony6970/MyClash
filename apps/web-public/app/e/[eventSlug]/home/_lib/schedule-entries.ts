@@ -42,23 +42,15 @@ export function buildTournamentEntries(
     }));
 }
 
-/** Workshops with a session → entries (using the earliest session). */
+/** One entry per dated session: a Workshop may run several (ruling 515). */
 export function buildWorkshopEntries(
   workshops: PublicWorkshop[],
   eventSlug: string,
 ): ScheduleEntry[] {
   return workshops
-    .map((w) => {
-      const session = w.sessions
-        .filter((s) => s.startsAt)
-        .sort((a, b) => ((a.startsAt as string) < (b.startsAt as string) ? -1 : 1))[0];
-      return session ? { w, session } : null;
-    })
-    .filter((x): x is { w: PublicWorkshop; session: PublicWorkshop['sessions'][number] } =>
-      Boolean(x),
-    )
+    .flatMap((w) => w.sessions.filter((s) => s.startsAt).map((session) => ({ w, session })))
     .map(({ w, session }) => ({
-      id: `w-${w.id}`,
+      id: `w-${session.id}`,
       startsAt: session.startsAt as string,
       endsAt: session.endsAt,
       title: w.title,

@@ -46,6 +46,11 @@ export interface WorkshopRegisterControlsProps {
   busy?: boolean;
   /** The viewer teaches this workshop — no participant seat, button disabled. */
   isInstructor?: boolean;
+  /**
+   * The viewer holds a place in another session of this Workshop, said in words ("You have a
+   * place on Sat 10:00"): this one is refused until that place is given up (rulings 520, 521).
+   */
+  placeElsewhere?: string | null;
   labels: WorkshopRegisterLabels;
   onRegister?: () => void;
   onCancel?: () => void;
@@ -123,16 +128,18 @@ export function WorkshopRegisterControls({
   conflict,
   busy,
   isInstructor = false,
+  placeElsewhere = null,
   labels,
   onRegister,
   onCancel,
 }: WorkshopRegisterControlsProps): ReactNode {
   const booked = booking === 'confirmed' || booking === 'waitlisted';
-  if (isInstructor && !booked) {
+  const closedBecause = isInstructor ? labels.instructorOwn : placeElsewhere;
+  if (closedBecause && !booked) {
     return (
       <div>
         <Button variant="secondary" size="sm" className="w-full" disabled>
-          {labels.instructorOwn}
+          {closedBecause}
         </Button>
       </div>
     );

@@ -3,6 +3,7 @@ import {
   firstSessionStart,
   groupWorkshopsByDay,
   WORKSHOP_UNSCHEDULED,
+  workshopDayKeys,
   type WorkshopListItem,
 } from './workshop-grouping';
 
@@ -91,5 +92,22 @@ describe('groupWorkshopsByDay', () => {
 
   it('returns no groups for an empty list', () => {
     expect(groupWorkshopsByDay([], TZ)).toEqual([]);
+  });
+
+  // "Longsword basics" runs Saturday and Sunday (ruling 515): it was listed under Saturday alone.
+  it('lists a Workshop under each day it runs, with that day’s sessions only', () => {
+    const longsword = ws('longsword', ['2027-05-23T12:00:00Z', '2027-05-22T08:00:00Z']);
+    const groups = groupWorkshopsByDay([longsword], TZ);
+    expect(groups.map((g) => [g.key, g.items.map((w) => w.sessions.map((s) => s.id))])).toEqual([
+      ['2027-05-22', [['longsword-s1']]],
+      ['2027-05-23', [['longsword-s0']]],
+    ]);
+  });
+
+  it('places a Workshop by its sessions that are not cancelled', () => {
+    const w = ws('w', ['2027-05-22T08:00:00Z', '2027-05-23T08:00:00Z']);
+    w.sessions[0]!.status = 'cancelled';
+    expect(groupWorkshopsByDay([w], TZ).map((g) => g.key)).toEqual(['2027-05-23']);
+    expect(workshopDayKeys(w, TZ)).toEqual(['2027-05-23']);
   });
 });

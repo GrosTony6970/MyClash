@@ -520,6 +520,8 @@ export const publicApp = {
       registerAgain: "S'inscrire à nouveau",
       full: "Complet · liste d'attente",
       instructorOwn: 'Vous animez cet atelier',
+      placeElsewhere: 'Vous avez une place le {when}',
+      placeElsewhereNoTime: 'Vous avez une place dans une autre séance',
       conflictsWith: 'En conflit avec {item} ({time})',
       empty: 'Aucun atelier pour cet événement.',
       loadFailed: 'Impossible de charger les ateliers',

@@ -226,7 +226,7 @@ describe('the public Workshop page', () => {
   it('draws each session from the caller’s booking, with the one set of controls', () => {
     expect(page).toContain("const booking = caller.bookings.get(session.id) ?? 'none';");
     expect(page).toMatch(
-      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+conflict=\{conflictFor\(session\)\}\s+busy=\{busy\.has\(session\.id\)\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
+      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+conflict=\{conflictFor\(session\)\}\s+busy=\{busy\.has\(session\.id\)\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+placeElsewhere=\{placeElsewhereWords\([^)]*\)\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
     );
   });
 

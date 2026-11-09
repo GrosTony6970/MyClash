@@ -43,28 +43,54 @@ export function firstSessionStart(w: WorkshopListItem): string | null {
 
 export const WORKSHOP_UNSCHEDULED = '__unscheduled__';
 
+type Session = WorkshopListItem['sessions'][number];
+
+/**
+ * The dated sessions that place a Workshop on a day: those not cancelled. A Workshop whose dated
+ * sessions are all cancelled keeps them, so it stays on the day it was announced for.
+ */
+function placingSessions(w: WorkshopListItem): Session[] {
+  const dated = w.sessions.filter((s) => s.startsAt);
+  const live = dated.filter((s) => s.status !== 'cancelled');
+  return live.length > 0 ? live : dated;
+}
+
+/** The days a Workshop runs on (event tz), or the unscheduled key alone. */
+export function workshopDayKeys(w: WorkshopListItem, tz: string): string[] {
+  const keys = placingSessions(w).map((s) => zonedDay(s.startsAt, tz) ?? WORKSHOP_UNSCHEDULED);
+  return keys.length > 0 ? [...new Set(keys)] : [WORKSHOP_UNSCHEDULED];
+}
+
 export interface WorkshopDayGroup {
   key: string;
   repIso: string | null;
   items: WorkshopListItem[];
 }
 
-/** Group workshops by their earliest session's day (event tz); scheduled days
- *  ascending, the unscheduled bucket last, and — within each day — workshops in
- *  session order rather than the admin `sort_order` the API returns them in.
- *  Shared by the public catalog and the personal-space workshops tab. */
+/** Group workshops by day (event tz); scheduled days ascending, the unscheduled
+ *  bucket last, and — within each day — workshops in session order rather than
+ *  the admin `sort_order` the API returns them in. A Workshop runs several
+ *  sessions (ruling 515): it is listed under EACH day it runs, carrying that
+ *  day's sessions only, so a card shows that day's times and buttons. Shared by
+ *  the public catalog and the personal-space workshops tab. */
 export function groupWorkshopsByDay(list: WorkshopListItem[], tz: string): WorkshopDayGroup[] {
   const byDay = new Map<string, WorkshopListItem[]>();
   const repByDay = new Map<string, string>();
+  const add = (key: string, item: WorkshopListItem) => {
+    byDay.set(key, [...(byDay.get(key) ?? []), item]);
+    const start = firstSessionStart(item);
+    const existing = repByDay.get(key);
+    if (start && (!existing || start < existing)) repByDay.set(key, start);
+  };
   for (const w of list) {
-    const start = firstSessionStart(w);
-    const key = zonedDay(start, tz) ?? WORKSHOP_UNSCHEDULED;
-    const arr = byDay.get(key) ?? [];
-    arr.push(w);
-    byDay.set(key, arr);
-    if (start) {
-      const existing = repByDay.get(key);
-      if (!existing || start < existing) repByDay.set(key, start);
+    const placing = placingSessions(w);
+    if (placing.length === 0) {
+      add(WORKSHOP_UNSCHEDULED, w);
+      continue;
+    }
+    for (const key of workshopDayKeys(w, tz)) {
+      const sessions = placing.filter((s) => zonedDay(s.startsAt, tz) === key);
+      add(key, { ...w, sessions });
     }
   }
   const keys = [...byDay.keys()].filter((k) => k !== WORKSHOP_UNSCHEDULED).sort();

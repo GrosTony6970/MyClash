@@ -15,6 +15,7 @@ import { WorkshopRegisterControls, registerLabels } from '@/components/me/Worksh
 import {
   bookingsOf,
   changeBooking,
+  placeElsewhereWords,
   refusalWords,
   tapEnded,
   tapStarted,
@@ -166,8 +167,10 @@ function WorkshopsContent({
     <ReadFailed title={t('publicApp.me.workshops.bookingsFailed')} onRetry={retrySchedule} />
   );
 
-  // One card per workshop that still has a live (non-cancelled) session.
-  const visible = workshops.filter((w) => w.sessions.some((s) => s.status !== 'cancelled'));
+  // One card per Workshop and day that still has a live (non-cancelled) session; a Workshop runs
+  // several sessions (ruling 515), each with its own button.
+  const isLive = (s: WorkshopSession) => s.status !== 'cancelled';
+  const visible = workshops.filter((w) => w.sessions.some(isLive));
   // The refused tap's line. A session the organiser cancelled leaves the list at
   // the read that follows the tap: its line is then said above the list.
   const refusedLine = refused && (
@@ -175,7 +178,7 @@ function WorkshopsContent({
       {refused.words}
     </p>
   );
-  const shown = visible.map((w) => w.sessions.find((s) => s.status !== 'cancelled')?.id);
+  const shown = visible.flatMap((w) => w.sessions.filter(isLive).map((s) => s.id));
   const cardGone = refused !== null && !shown.includes(refused.sessionId);
 
   if (visible.length === 0) {
@@ -189,6 +192,12 @@ function WorkshopsContent({
 
   const groups = groupWorkshopsByDay(visible, tz);
   const labels = registerLabels(t);
+  // A Workshop listed under two days: its whole session list, for "you have a place on…", and
+  // its anchor and rating on its first card only.
+  const allSessions = new Map(visible.map((w) => [w.id, w.sessions]));
+  const firstCard = new Set<string>();
+  const fmtDayTime = (iso: string) =>
+    formatInZone(iso, tz, { weekday: 'short', hour: '2-digit', minute: '2-digit' }, tag);
 
   return (
     <div className="flex flex-col gap-6">
@@ -202,40 +211,64 @@ function WorkshopsContent({
           </h2>
           <div className="flex flex-col gap-4">
             {group.items.map((w) => {
-              const session = w.sessions.find((s) => s.status !== 'cancelled')!;
+              const daySessions = w.sessions.filter(isLive);
+              const siblings = allSessions.get(w.id) ?? w.sessions;
               const teaches = teachingIds.has(w.id);
-              const booking = bookings.get(session.id) ?? 'none';
-              const remaining =
-                session.capacity != null
-                  ? Math.max(0, session.capacity - session.confirmedCount)
-                  : null;
-              const full = session.capacity != null && remaining === 0;
-              // Rating unlocks for attendees once the session has started.
-              const started =
-                session.startsAt != null && new Date(session.startsAt).getTime() <= Date.now();
+              const first = !firstCard.has(w.id);
+              firstCard.add(w.id);
+              // Rating unlocks for attendees once a session they had a seat in has started.
+              const rates = siblings.some(
+                (s) =>
+                  bookings.get(s.id) === 'confirmed' &&
+                  s.startsAt != null &&
+                  new Date(s.startsAt).getTime() <= Date.now(),
+              );
               return (
-                <div key={w.id} id={`workshop-${w.slug}`} className="scroll-mt-24">
+                <div
+                  key={w.id}
+                  id={first ? `workshop-${w.slug}` : undefined}
+                  className="scroll-mt-24"
+                >
                   <WorkshopCard
                     workshop={w}
                     timezone={tz}
-                    highlighted={booking === 'confirmed'}
+                    highlighted={daySessions.some((s) => bookings.get(s.id) === 'confirmed')}
                     showLocation
                     footer={
-                      <div className="flex flex-col gap-2">
-                        <WorkshopRegisterControls
-                          booking={booking}
-                          full={full}
-                          conflict={conflictFor(session)}
-                          busy={busy.has(session.id)}
-                          isInstructor={teaches}
-                          labels={labels}
-                          onRegister={() => void act(session.id, 'book', booking)}
-                          onCancel={() => void act(session.id, 'cancel')}
-                        />
-                        {refused?.sessionId === session.id && refusedLine}
-                        {booking === 'confirmed' && started && (
-                          <WorkshopRatingControl workshopId={w.id} api={api} />
-                        )}
+                      <div className="flex flex-col gap-3">
+                        {daySessions.map((session) => {
+                          const booking = bookings.get(session.id) ?? 'none';
+                          const full =
+                            session.capacity != null && session.confirmedCount >= session.capacity;
+                          return (
+                            <div key={session.id} className="flex flex-col gap-2">
+                              {daySessions.length > 1 && session.startsAt && (
+                                <p className="text-xs font-semibold text-foreground-secondary">
+                                  {fmtDayTime(session.startsAt)}
+                                </p>
+                              )}
+                              <WorkshopRegisterControls
+                                booking={booking}
+                                full={full}
+                                conflict={conflictFor(session)}
+                                busy={busy.has(session.id)}
+                                isInstructor={teaches}
+                                placeElsewhere={placeElsewhereWords(
+                                  siblings.filter(isLive),
+                                  session.id,
+                                  bookings,
+                                  t,
+                                  fmtDayTime,
+                                )}
+                                labels={labels}
+                                onRegister={() => void act(session.id, 'book', booking)}
+                                onCancel={() => void act(session.id, 'cancel')}
+                              />
+                              {refused?.sessionId === session.id && refusedLine}
+                            </div>
+                          );
+                        })}
+                        {first && rates && <WorkshopRatingControl workshopId={w.id} api={api} />}
                       </div>
                     }
                   />

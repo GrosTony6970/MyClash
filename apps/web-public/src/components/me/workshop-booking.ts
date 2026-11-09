@@ -27,6 +27,47 @@ export function bookingsOf(schedule: PersonSchedule | null): Map<string, Worksho
 }
 
 /**
+ * The other session of the same Workshop where the viewer holds a place, or null (rulings 520,
+ * 521). A seat or a place on the waitlist holds the Workshop: every other session of it is
+ * refused until that place is given up. A refusal holds nothing (ruling 522).
+ */
+export function placeElsewhere(
+  sessionIds: readonly string[],
+  sessionId: string,
+  bookings: ReadonlyMap<string, WorkshopBooking>,
+): string | null {
+  const holds = (id: string) => {
+    const booking = bookings.get(id);
+    return booking === 'confirmed' || booking === 'waitlisted';
+  };
+  return sessionIds.find((id) => id !== sessionId && holds(id)) ?? null;
+}
+
+/**
+ * The words of the greyed button of a session refused because the viewer holds another one of
+ * the same Workshop ("You have a place on Sat 10:00"), or null. One owner for both booking pages.
+ * `when` writes an instant in the reader's language and the Event's zone.
+ */
+export function placeElsewhereWords(
+  sessions: ReadonlyArray<{ id: string; startsAt: string | null }>,
+  sessionId: string,
+  bookings: ReadonlyMap<string, WorkshopBooking>,
+  t: (key: string, values?: Record<string, string>) => string,
+  when: (iso: string) => string,
+): string | null {
+  const otherId = placeElsewhere(
+    sessions.map((s) => s.id),
+    sessionId,
+    bookings,
+  );
+  if (!otherId) return null;
+  const startsAt = sessions.find((s) => s.id === otherId)?.startsAt;
+  return startsAt
+    ? t('publicApp.me.workshops.placeElsewhere', { when: when(startsAt) })
+    : t('publicApp.me.workshops.placeElsewhereNoTime');
+}
+
+/**
  * Where one tap on "Register" posts. A refusal is a removal, not a ban (ruling
  * 219), but a plain booking is refused while it is there: "Register again" asks
  * the API to remove the refusal first, in the same call (ruling 236). The page

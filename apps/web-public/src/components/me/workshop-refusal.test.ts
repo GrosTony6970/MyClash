@@ -197,8 +197,9 @@ describe('the personal Workshops page', () => {
   // The cancelled-session refusal: the read after the tap drops that session, and its card
   // goes or shows another session. The line must not go with it.
   it('says it above the list when the tapped session has left the list', () => {
+    // Every live session on the page: a Workshop runs several (ruling 515).
     expect(page).toContain(
-      "const shown = visible.map((w) => w.sessions.find((s) => s.status !== 'cancelled')?.id);",
+      'const shown = visible.flatMap((w) => w.sessions.filter(isLive).map((s) => s.id));',
     );
     expect(page).toContain(
       'const cardGone = refused !== null && !shown.includes(refused.sessionId);',

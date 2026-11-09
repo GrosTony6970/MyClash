@@ -522,6 +522,8 @@ export const publicApp = {
       registerAgain: 'Register again',
       full: 'Full · waitlist',
       instructorOwn: 'You teach this workshop',
+      placeElsewhere: 'You have a place on {when}',
+      placeElsewhereNoTime: 'You have a place in another session',
       conflictsWith: 'Conflicts with {item} ({time})',
       empty: 'No workshops for this event.',
       loadFailed: 'We could not load the workshops',

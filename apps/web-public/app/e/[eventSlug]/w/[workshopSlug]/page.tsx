@@ -28,6 +28,7 @@ import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
   changeBooking,
   guestPersonAt,
+  placeElsewhereWords,
   readBookings,
   refusalWords,
   tapEnded,
@@ -212,6 +213,8 @@ export default function WorkshopDetailPage() {
   const bcp47 = localeToBcp47(locale);
   const fmtTime = (iso: string) =>
     formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, bcp47);
+  const fmtDayTime = (iso: string) =>
+    formatInZone(iso, tz, { weekday: 'short', hour: '2-digit', minute: '2-digit' }, bcp47);
   // Warn, never block: the button then reads "Register anyway" (ruling 270).
   const { commitments, unchecked } = commitmentsOf(
     caller.schedule,
@@ -340,6 +343,13 @@ export default function WorkshopDetailPage() {
                       conflict={conflictFor(session)}
                       busy={busy.has(session.id)}
                       isInstructor={workshop.viewerIsInstructor}
+                      placeElsewhere={placeElsewhereWords(
+                        sessions,
+                        session.id,
+                        caller.bookings,
+                        t,
+                        fmtDayTime,
+                      )}
                       labels={labels}
                       onRegister={() => void act(session.id, 'book', booking)}
                       onCancel={() => void act(session.id, 'cancel', booking)}

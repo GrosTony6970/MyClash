@@ -78,8 +78,10 @@ export function WorkshopCard({
 }: WorkshopCardProps): ReactNode {
   const { t, locale } = useI18n();
   const instructorNames = w.instructors.map((i) => i.displayName);
-  const totalConfirmed = w.sessions.reduce((s, sess) => s + sess.confirmedCount, 0);
-  const totalCapacity = w.sessions.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
+  // Seats of the sessions that run: each session has its own (ruling 515), a cancelled one none.
+  const live = w.sessions.filter((sess) => sess.status !== 'cancelled');
+  const totalConfirmed = live.reduce((s, sess) => s + sess.confirmedCount, 0);
+  const totalCapacity = live.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
   const description = w.descriptionMd ?? w.shortDescription;
   // Earliest scheduled session drives the date/time line; extra sessions are
   // flagged with "+N more".

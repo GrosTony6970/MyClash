@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bookingsOf, enrollPath } from './workshop-booking';
+import { bookingsOf, enrollPath, placeElsewhereWords } from './workshop-booking';
 import type { PersonSchedule, WorkshopEnrollment } from './types';
 
 const workshop = (
@@ -73,9 +73,11 @@ describe('the screens that show a booking', () => {
     expect(page).toContain("const booking = bookings.get(session.id) ?? 'none';");
     expect(page).toContain("onRegister={() => void act(session.id, 'book', booking)}");
     expect(page).toContain("onCancel={() => void act(session.id, 'cancel')}");
-    // Only a seat is highlighted and rated.
-    expect(page).toContain("highlighted={booking === 'confirmed'}");
-    expect(page).toContain("{booking === 'confirmed' && started && (");
+    // Only a seat is highlighted and rated; a Workshop runs several sessions (ruling 515).
+    expect(page).toContain(
+      "highlighted={daySessions.some((s) => bookings.get(s.id) === 'confirmed')}",
+    );
+    expect(page).toContain("bookings.get(s.id) === 'confirmed' &&");
     expect(page).not.toContain('enrolledIds');
   });
 
@@ -125,5 +127,43 @@ describe('the screens that show a booking', () => {
       new RegExp(String.raw`\{workshop\.status === 'waitlisted' && \(\s+<p[^>]*>\{${mark}\}`),
     );
     expect(publicPage).toContain('<WorkshopLines workshop={item.data} />');
+  });
+});
+
+/**
+ * One session per Workshop (rulings 520-522). "Longsword basics" runs Saturday and Sunday; Alice
+ * holds Saturday. Sunday's button is greyed and says where her place is; it was a live "Register"
+ * that the server then refused.
+ */
+describe('placeElsewhereWords', () => {
+  const sessions = [
+    { id: 's-saturday', startsAt: '2027-06-05T08:00:00.000Z' },
+    { id: 's-sunday', startsAt: '2027-06-06T12:00:00.000Z' },
+  ];
+  const t = (key: string, values?: Record<string, string>) =>
+    values ? `${key} ${JSON.stringify(values)}` : key;
+  const when = (iso: string) => `at ${iso}`;
+  const words = (bookings: Array<[string, 'confirmed' | 'waitlisted' | 'refused']>, id: string) =>
+    placeElsewhereWords(sessions, id, new Map(bookings), t, when);
+
+  it('names the session where she has a seat, or a place on the waitlist', () => {
+    const said = 'publicApp.me.workshops.placeElsewhere {"when":"at 2027-06-05T08:00:00.000Z"}';
+    expect(words([['s-saturday', 'confirmed']], 's-sunday')).toBe(said);
+    expect(words([['s-saturday', 'waitlisted']], 's-sunday')).toBe(said);
+  });
+
+  it('says nothing on the session she holds, nor for a refusal elsewhere', () => {
+    expect(words([['s-saturday', 'confirmed']], 's-saturday')).toBeNull();
+    expect(words([['s-saturday', 'refused']], 's-sunday')).toBeNull();
+    expect(words([], 's-sunday')).toBeNull();
+  });
+
+  it('is what both booking pages give the register controls', () => {
+    for (const path of [
+      '../../../app/e/[eventSlug]/w/[workshopSlug]/page.tsx',
+      '../../../app/me/events/[eventSlug]/workshops/page.tsx',
+    ]) {
+      expect(readFileSync(resolve(__dirname, path), 'utf8')).toContain('placeElsewhere={');
+    }
   });
 });

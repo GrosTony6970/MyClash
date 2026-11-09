@@ -11,13 +11,13 @@
  */
 import { useMemo, useState } from 'react';
 import { fuzzyMatch } from '@myclash/ui';
-import { zonedDay, formatInZone, localeToBcp47 } from '@myclash/time';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
-  firstSessionStart,
   groupWorkshopsByDay,
   WORKSHOP_UNSCHEDULED,
+  workshopDayKeys,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
 
@@ -42,24 +42,15 @@ export function WorkshopsBrowser({
   const [level, setLevel] = useState('');
   const [language, setLanguage] = useState('');
 
-  // Day a workshop belongs to (its earliest session's day, in the event tz).
-  const dayKeyOf = useMemo(
-    () => (w: WorkshopListItem) => zonedDay(firstSessionStart(w), timezone),
-    [timezone],
+  // Distinct days (sorted) + a representative ISO per day for labelling: every day a Workshop
+  // runs, from the same grouping the cards are drawn with (ruling 515).
+  const dayOptions = useMemo(
+    () =>
+      groupWorkshopsByDay(workshops, timezone)
+        .filter((g) => g.key !== WORKSHOP_UNSCHEDULED && g.repIso)
+        .map((g) => [g.key, g.repIso!] as const),
+    [workshops, timezone],
   );
-
-  // Distinct days (sorted) + a representative ISO per day for labelling.
-  const dayOptions = useMemo(() => {
-    const repByDay = new Map<string, string>();
-    for (const w of workshops) {
-      const start = firstSessionStart(w);
-      const key = zonedDay(start, timezone);
-      if (!key || !start) continue;
-      const existing = repByDay.get(key);
-      if (!existing || start < existing) repByDay.set(key, start);
-    }
-    return [...repByDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
-  }, [workshops, timezone]);
 
   const categories = useMemo(
     () => [...new Set(workshops.map((w) => w.category).filter((v): v is string => Boolean(v)))],
@@ -75,7 +66,7 @@ export function WorkshopsBrowser({
   );
 
   const filtered = workshops.filter((w) => {
-    if (day && (dayKeyOf(w) ?? WORKSHOP_UNSCHEDULED) !== day) return false;
+    if (day && !workshopDayKeys(w, timezone).includes(day)) return false;
     if (category && w.category !== category) return false;
     if (level && w.level !== level) return false;
     if (language && w.language !== language) return false;
@@ -85,7 +76,11 @@ export function WorkshopsBrowser({
     return fuzzyMatch(query, haystack);
   });
 
-  const groups = useMemo(() => groupWorkshopsByDay(filtered, timezone), [filtered, timezone]);
+  // A Workshop that runs on the chosen day lists that day only.
+  const groups = useMemo(
+    () => groupWorkshopsByDay(filtered, timezone).filter((g) => !day || g.key === day),
+    [filtered, timezone, day],
+  );
 
   return (
     <>

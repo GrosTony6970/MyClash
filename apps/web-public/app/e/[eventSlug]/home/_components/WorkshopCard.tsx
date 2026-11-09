@@ -23,14 +23,13 @@ export function WorkshopCard({
 }) {
   const t = createTranslator(getMessages(locale));
   const tag = localeToBcp47(locale);
-  // The sessions embed is unordered — pick the earliest started one (mirrors
-  // buildWorkshopEntries) rather than relying on array position.
-  const session =
-    [...w.sessions]
-      .filter((s) => s.startsAt)
-      .sort((a, b) => ((a.startsAt as string) < (b.startsAt as string) ? -1 : 1))[0] ??
-    w.sessions[0] ??
-    null;
+  // The earliest dated session drives the time line; a Workshop that runs several (ruling 515)
+  // says how many more.
+  const dated = [...w.sessions]
+    .filter((s) => s.startsAt)
+    .sort((a, b) => ((a.startsAt as string) < (b.startsAt as string) ? -1 : 1));
+  const session = dated[0] ?? w.sessions[0] ?? null;
+  const moreCount = dated.length - 1;
   const instructorNames = w.instructors.map((i) => i.displayName);
   return (
     <Link
@@ -94,6 +93,7 @@ export function WorkshopCard({
           {session?.startsAt &&
             session.endsAt &&
             ` – ${formatInZone(session.endsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}`}
+          {moreCount > 0 && ` · ${t('publicApp.workshops.moreSessions', { count: moreCount })}`}
         </span>
         <span className="font-semibold text-accent group-hover:text-accent-hover">→</span>
       </div>
