@@ -853,13 +853,24 @@ export class WorkshopsService {
 
   // ── Delete session (unschedule) ─────────────────────────────────────────────────
 
-  /** Delete a workshop's session, returning the workshop to the unscheduled drawer. */
+  /**
+   * Delete a workshop's session, returning the workshop to the unscheduled drawer. Its bookings go
+   * with it (ON DELETE CASCADE), so the people booked are told first, as a cancelled session
+   * tells them.
+   *
+   * The order closes a race. 1. The session is marked cancelled: the booking door refuses a
+   * cancelled session, so no booking lands that the next step would not see. 2. The notice is
+   * queued, its text and its people read now: it does not read the session when it is sent, so
+   * the delete does not stop it. 3. The delete. A step that fails stops the ones after it: the
+   * session is then cancelled, and what people were told is true.
+   */
   async deleteSession(sessionId: string, userId: string) {
     await this.assertCanManageSession(sessionId, userId);
-    const { error } = await this.supabase.service
-      .from('workshop_sessions')
-      .delete()
-      .eq('id', sessionId);
+    const sessions = () => this.supabase.service.from('workshop_sessions');
+    const cancelled = await sessions().update({ status: 'cancelled' }).eq('id', sessionId);
+    if (cancelled.error) throw new BadRequestException(cancelled.error.message);
+    await this.notificationEvents.workshopCancelled(sessionId);
+    const { error } = await sessions().delete().eq('id', sessionId);
     if (error) throw new BadRequestException(error.message);
   }
 

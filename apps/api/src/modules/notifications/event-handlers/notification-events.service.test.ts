@@ -64,35 +64,39 @@ describe('notification event handlers', () => {
     );
   });
 
-  it('sends workshop cancellation notifications to confirmed enrollments', async () => {
+  it('sends workshop cancellation notifications to confirmed and waitlisted enrollments', async () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
-    const service = new NotificationEventsService(
-      makeSupabase({
-        workshop_sessions: {
-          data: {
-            id: 'session-1',
-            workshops: { title: 'Messer fundamentals' },
-          },
-          error: null,
+    const supabase = makeSupabase({
+      workshop_sessions: {
+        data: {
+          id: 'session-1',
+          workshops: { title: 'Messer fundamentals' },
         },
-        workshop_enrollments: {
-          // user_id holds the persons.id (the enrollee identity).
-          data: [{ user_id: 'person-1' }, { user_id: 'person-2' }],
-          error: null,
-        },
-        persons: {
-          data: [
-            { id: 'person-1', claimed_by_user_id: 'user-1', email: 'one@example.com' },
-            { id: 'person-2', claimed_by_user_id: 'user-2', email: 'two@example.com' },
-          ],
-          error: null,
-        },
-      }) as never,
-      scheduler as never,
-    );
+        error: null,
+      },
+      workshop_enrollments: {
+        // user_id holds the persons.id (the enrollee identity).
+        data: [{ user_id: 'person-1' }, { user_id: 'person-2' }],
+        error: null,
+      },
+      persons: {
+        data: [
+          { id: 'person-1', claimed_by_user_id: 'user-1', email: 'one@example.com' },
+          { id: 'person-2', claimed_by_user_id: 'user-2', email: 'two@example.com' },
+        ],
+        error: null,
+      },
+    });
+    const service = new NotificationEventsService(supabase as never, scheduler as never);
 
     await service.workshopCancelled('session-1');
 
+    // The double ignores the filter: only this holds who is told. A place on the waitlist is
+    // lost too, so its holder is told with the confirmed seats.
+    const bookings = supabase.service.from.mock.results.find(
+      (_r, i) => supabase.service.from.mock.calls[i]?.[0] === 'workshop_enrollments',
+    )?.value as { in: ReturnType<typeof vi.fn> };
+    expect(bookings.in.mock.calls).toEqual([['status', ['confirmed', 'waitlisted']]]);
     expect(scheduler.sendImmediate).toHaveBeenCalledTimes(2);
     expect(scheduler.sendImmediate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -106,6 +110,27 @@ describe('notification event handlers', () => {
     expect(scheduler.sendImmediate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workshop_cancelled', userId: 'user-2' }),
     );
+  });
+
+  it.each([
+    ['the bookings', { workshop_enrollments: { data: null, error: { message: 'reset' } } }],
+    [
+      'the contacts',
+      {
+        workshop_enrollments: { data: [{ user_id: 'person-1' }], error: null },
+        persons: { data: null, error: { message: 'reset' } },
+      },
+    ],
+  ])('throws when %s cannot be read, telling nobody', async (_what, tables) => {
+    // Read as "nobody booked", a removed session would take the bookings untold.
+    const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const service = new NotificationEventsService(
+      makeSupabase(tables) as never,
+      scheduler as never,
+    );
+
+    await expect(service.workshopCancelled('session-1')).rejects.toThrow(/unreadable: reset/);
+    expect(scheduler.sendImmediate).not.toHaveBeenCalled();
   });
 
   it('calls a Workshop whose title cannot be read "your workshop", in each language', async () => {

@@ -78,13 +78,19 @@ export class NotificationEventsService {
     await this.scheduler.sendImmediate(message, { replace: resend });
   }
 
+  /**
+   * Tell the people booked on a session that it will not run: a confirmed seat, and a place on the
+   * waitlist, which is lost too. A read of the bookings that fails throws: read as "nobody
+   * booked", a session removed after it (`deleteSession`) would take their bookings untold.
+   */
   async workshopCancelled(sessionId: string): Promise<void> {
     const title = await this.getWorkshopTitle(sessionId);
-    const { data: enrollments } = await this.supabase.service
+    const { data: enrollments, error } = await this.supabase.service
       .from('workshop_enrollments')
       .select('user_id')
       .eq('workshop_session_id', sessionId)
-      .eq('status', 'confirmed');
+      .in('status', ['confirmed', 'waitlisted']);
+    if (error) throw new Error(`Bookings of session ${sessionId} unreadable: ${error.message}`);
 
     const personIds = ((enrollments ?? []) as Array<{ user_id: string | null }>)
       .map((enrollment) => enrollment.user_id)
@@ -365,10 +371,14 @@ export class NotificationEventsService {
 
   private async getContacts(personIds: string[]): Promise<ContactRow[]> {
     if (personIds.length === 0) return [];
-    const { data } = await this.supabase.service
+    // A read that failed is no empty list: every caller must fail rather than tell nobody (the
+    // results notice by ruling 192, a removed session before its bookings go; Swiss catches it).
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, claimed_by_user_id, email')
       .in('id', personIds);
+    if (error)
+      throw new Error(`Contacts of ${personIds.length} people unreadable: ${error.message}`);
     return (data ?? []) as ContactRow[];
   }
 }

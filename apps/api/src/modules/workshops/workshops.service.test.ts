@@ -181,18 +181,30 @@ describe('WorkshopsService — create/update columns', () => {
   });
 });
 
+/**
+ * The ✕ on a board card removes a session, and its bookings go with it (ON DELETE CASCADE). The
+ * people booked are told first (operator ruling, 2026-11-09: warn them, then delete).
+ */
 describe('WorkshopsService — deleteSession (unschedule)', () => {
-  function build() {
-    const captures: { deletedId?: string } = {};
+  type Failure = { message: string } | null;
+  function build({ cancelFails = null as Failure, deleteFails = null as Failure } = {}) {
+    // What happened, in order: the session write, the notice, the delete.
+    const steps: string[] = [];
     const sessionsApi: Record<string, unknown> = {};
     Object.assign(sessionsApi, {
       select: vi.fn(() => sessionsApi),
       eq: vi.fn(() => sessionsApi),
       maybeSingle: vi.fn(() => Promise.resolve({ data: { workshop_id: 'w-1' }, error: null })),
+      update: vi.fn((payload: Record<string, unknown>) => ({
+        eq: vi.fn((_col: string, val: string) => {
+          steps.push(`update ${val} ${JSON.stringify(payload)}`);
+          return Promise.resolve({ error: cancelFails });
+        }),
+      })),
       delete: vi.fn(() => ({
         eq: vi.fn((_col: string, val: string) => {
-          captures.deletedId = val;
-          return Promise.resolve({ error: null });
+          steps.push(`delete ${val}`);
+          return Promise.resolve({ error: deleteFails });
         }),
       })),
     });
@@ -215,16 +227,59 @@ describe('WorkshopsService — deleteSession (unschedule)', () => {
         ),
       },
     };
-    return { supabase, captures };
+    const notices = {
+      workshopCancelled: vi.fn(async (id: string) => {
+        steps.push(`notice ${id}`);
+      }),
+    };
+    const svc = new WorkshopsService(
+      supabase as never,
+      makeNotifications() as never,
+      notices as never,
+      makeOrgs() as never,
+      makePrivacy() as never,
+      makeFollowNotifications() as never,
+    );
+    return { svc, steps, notices };
   }
 
-  it('deletes the session row after asserting management rights', async () => {
-    const { supabase, captures } = build();
-    const svc = makeService(supabase);
+  it('cancels the session, tells the people booked, then deletes it', async () => {
+    const { svc, steps } = build();
 
     await svc.deleteSession('sess-1', 'user-1');
 
-    expect(captures.deletedId).toBe('sess-1');
+    // Cancelled first: the booking door then refuses it, so no booking lands untold.
+    expect(steps).toEqual([
+      'update sess-1 {"status":"cancelled"}',
+      'notice sess-1',
+      'delete sess-1',
+    ]);
+  });
+
+  it('neither tells nor deletes when the session cannot be cancelled', async () => {
+    const { svc, steps } = build({ cancelFails: { message: 'reset' } });
+
+    await expect(svc.deleteSession('sess-1', 'user-1')).rejects.toThrow('reset');
+    expect(steps).toEqual(['update sess-1 {"status":"cancelled"}']);
+  });
+
+  it('keeps the session (cancelled) when the notice cannot be queued', async () => {
+    const { svc, steps, notices } = build();
+    notices.workshopCancelled.mockRejectedValueOnce(new Error('queue down'));
+
+    await expect(svc.deleteSession('sess-1', 'user-1')).rejects.toThrow('queue down');
+    expect(steps).toEqual(['update sess-1 {"status":"cancelled"}']);
+  });
+
+  it('answers a failed delete as a failure, the session left cancelled', async () => {
+    const { svc, steps } = build({ deleteFails: { message: 'reset' } });
+
+    await expect(svc.deleteSession('sess-1', 'user-1')).rejects.toThrow('reset');
+    expect(steps).toEqual([
+      'update sess-1 {"status":"cancelled"}',
+      'notice sess-1',
+      'delete sess-1',
+    ]);
   });
 });
 
