@@ -541,16 +541,12 @@ export class WorkshopsService {
   }
 
   /**
-   * Instructor-scoped workshop edit: only weapon / description / level / language,
-   * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
-   * is validated against the catalog exactly like the organizer update path.
-   */
-  /**
    * Delete a Workshop nobody is booked on (operator ruling, 2026-11-09). A confirmed seat, a place
    * on the waitlist or an intent refuses it, named so the page says it: the organiser removes the
    * session first, which tells those people (`deleteSession`). With it go its sessions and the
    * bookings left on them (refused or cancelled), its instructors and its ratings (ON DELETE
-   * CASCADE). Its photos stay, no longer tagged with it (SET NULL).
+   * CASCADE). Its photos stay, no longer tagged with it, and so does a legacy programme block that
+   * named it (both SET NULL).
    *
    * The race: a booking that lands between the count and the delete goes with it, untold. It needs
    * a first person to book an empty Workshop in the instant its organiser deletes it; accepted.
@@ -583,6 +579,11 @@ export class WorkshopsService {
     if (error) throw new BadRequestException(error.message);
   }
 
+  /**
+   * Instructor-scoped workshop edit: only weapon / description / level / language,
+   * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
+   * is validated against the catalog exactly like the organizer update path.
+   */
   async updateWorkshopByInstructor(
     workshopId: string,
     dto: {
@@ -937,18 +938,33 @@ export class WorkshopsService {
    * with it (ON DELETE CASCADE), so the people booked are told first, as a cancelled session
    * tells them.
    *
-   * The order closes a race. 1. The session is marked cancelled: the booking door refuses a
-   * cancelled session, so no booking lands that the next step would not see. 2. The notice is
-   * queued, its text and its people read now: it does not read the session when it is sent, so
-   * the delete does not stop it. 3. The delete. A step that fails stops the ones after it: the
-   * session is then cancelled, and what people were told is true.
+   * The order narrows a race. 1. The session is marked cancelled: the booking door refuses a
+   * cancelled session from then on. A booking already past that door when it was cancelled can
+   * still land after step 2 read the people, and goes untold: a window of one request. 2. The
+   * notice is queued, its text and its people read now: it does not read the session when it is
+   * sent, so the delete does not stop it. 3. The delete.
+   *
+   * A notice that cannot be queued puts the session's status back before the failure is
+   * answered: nobody was told, so it must not stay cancelled while the board shows it as running.
+   * A delete that fails after the notice leaves it cancelled, which is then what people were told.
    */
   async deleteSession(sessionId: string, userId: string) {
     await this.assertCanManageSession(sessionId, userId);
     const sessions = () => this.supabase.service.from('workshop_sessions');
+    const read = await sessions().select('status').eq('id', sessionId).maybeSingle();
+    if (read.error) throw new BadRequestException(read.error.message);
+    const status = (read.data as { status?: string | null } | null)?.status ?? 'scheduled';
     const cancelled = await sessions().update({ status: 'cancelled' }).eq('id', sessionId);
     if (cancelled.error) throw new BadRequestException(cancelled.error.message);
-    await this.notificationEvents.workshopCancelled(sessionId);
+    try {
+      await this.notificationEvents.workshopCancelled(sessionId);
+    } catch (err) {
+      const back = await sessions().update({ status }).eq('id', sessionId);
+      if (back.error) {
+        this.logger.error(`Session ${sessionId} left cancelled, untold: ${back.error.message}`);
+      }
+      throw err;
+    }
     const { error } = await sessions().delete().eq('id', sessionId);
     if (error) throw new BadRequestException(error.message);
   }

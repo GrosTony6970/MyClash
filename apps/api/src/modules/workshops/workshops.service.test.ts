@@ -187,46 +187,34 @@ describe('WorkshopsService — create/update columns', () => {
  */
 describe('WorkshopsService — deleteSession (unschedule)', () => {
   type Failure = { message: string } | null;
+  /** A table that answers one row to a read, and records each write in `steps`. */
+  function table(row: Record<string, unknown>, steps: string[], errors: Record<string, Failure>) {
+    const api: Record<string, unknown> = {};
+    const write = (what: string) => ({
+      eq: vi.fn((_col: string, id: string) => {
+        steps.push(`${what.replace('{id}', id)}`);
+        return Promise.resolve({ error: errors[what.split(' ')[0]!] ?? null });
+      }),
+    });
+    return Object.assign(api, {
+      select: vi.fn(() => api),
+      eq: vi.fn(() => api),
+      maybeSingle: vi.fn(() => Promise.resolve({ data: row, error: null })),
+      update: vi.fn((payload: unknown) => write(`update {id} ${JSON.stringify(payload)}`)),
+      delete: vi.fn(() => write('delete {id}')),
+    });
+  }
+
   function build({ cancelFails = null as Failure, deleteFails = null as Failure } = {}) {
     // What happened, in order: the session write, the notice, the delete.
     const steps: string[] = [];
-    const sessionsApi: Record<string, unknown> = {};
-    Object.assign(sessionsApi, {
-      select: vi.fn(() => sessionsApi),
-      eq: vi.fn(() => sessionsApi),
-      maybeSingle: vi.fn(() => Promise.resolve({ data: { workshop_id: 'w-1' }, error: null })),
-      update: vi.fn((payload: Record<string, unknown>) => ({
-        eq: vi.fn((_col: string, val: string) => {
-          steps.push(`update ${val} ${JSON.stringify(payload)}`);
-          return Promise.resolve({ error: cancelFails });
-        }),
-      })),
-      delete: vi.fn(() => ({
-        eq: vi.fn((_col: string, val: string) => {
-          steps.push(`delete ${val}`);
-          return Promise.resolve({ error: deleteFails });
-        }),
-      })),
-    });
-    const workshopsApi = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn(() => Promise.resolve({ data: { event_id: 'event-1' }, error: null })),
+    const errors = { update: cancelFails, delete: deleteFails };
+    const tables: Record<string, unknown> = {
+      workshop_sessions: table({ workshop_id: 'w-1', status: 'running' }, steps, errors),
+      workshops: table({ event_id: 'event-1' }, steps, errors),
+      events: table({ organization_id: 'org-1' }, steps, errors),
     };
-    const eventsApi = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn(() =>
-        Promise.resolve({ data: { organization_id: 'org-1' }, error: null }),
-      ),
-    };
-    const supabase = {
-      service: {
-        from: vi.fn((t: string) =>
-          t === 'workshop_sessions' ? sessionsApi : t === 'workshops' ? workshopsApi : eventsApi,
-        ),
-      },
-    };
+    const supabase = { service: { from: vi.fn((t: string) => tables[t]) } };
     const notices = {
       workshopCancelled: vi.fn(async (id: string) => {
         steps.push(`notice ${id}`);
@@ -263,12 +251,16 @@ describe('WorkshopsService — deleteSession (unschedule)', () => {
     expect(steps).toEqual(['update sess-1 {"status":"cancelled"}']);
   });
 
-  it('keeps the session (cancelled) when the notice cannot be queued', async () => {
+  it('puts the status back and keeps the session when the notice cannot be queued', async () => {
     const { svc, steps, notices } = build();
     notices.workshopCancelled.mockRejectedValueOnce(new Error('queue down'));
 
     await expect(svc.deleteSession('sess-1', 'user-1')).rejects.toThrow('queue down');
-    expect(steps).toEqual(['update sess-1 {"status":"cancelled"}']);
+    // Nobody was told: it must not stay cancelled while the board shows it as running.
+    expect(steps).toEqual([
+      'update sess-1 {"status":"cancelled"}',
+      'update sess-1 {"status":"running"}',
+    ]);
   });
 
   it('answers a failed delete as a failure, the session left cancelled', async () => {
