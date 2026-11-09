@@ -545,6 +545,44 @@ export class WorkshopsService {
    * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
    * is validated against the catalog exactly like the organizer update path.
    */
+  /**
+   * Delete a Workshop nobody is booked on (operator ruling, 2026-11-09). A confirmed seat, a place
+   * on the waitlist or an intent refuses it, named so the page says it: the organiser removes the
+   * session first, which tells those people (`deleteSession`). With it go its sessions and the
+   * bookings left on them (refused or cancelled), its instructors and its ratings (ON DELETE
+   * CASCADE). Its photos stay, no longer tagged with it (SET NULL).
+   *
+   * The race: a booking that lands between the count and the delete goes with it, untold. It needs
+   * a first person to book an empty Workshop in the instant its organiser deletes it; accepted.
+   */
+  async deleteWorkshop(workshopId: string, userId: string): Promise<void> {
+    const eventId = await this.resolveWorkshopEvent(workshopId);
+    await this.assertCanManageEvent(eventId, userId);
+
+    const db = this.supabase.service;
+    const sessions = await db.from('workshop_sessions').select('id').eq('workshop_id', workshopId);
+    if (sessions.error) throw new BadRequestException(sessions.error.message);
+    const sessionIds = ((sessions.data ?? []) as Array<{ id: string }>).map((s) => s.id);
+    if (sessionIds.length > 0) {
+      // A count that failed is no "nobody": read as 0, the delete would take the bookings untold.
+      const { count, error } = await db
+        .from('workshop_enrollments')
+        .select('id', { count: 'exact', head: true })
+        .in('workshop_session_id', sessionIds)
+        .in('status', ['confirmed', 'waitlisted', 'intent']);
+      if (error) throw new BadRequestException(error.message);
+      if ((count ?? 0) > 0) {
+        throw new ConflictException({
+          error: 'WorkshopHasBookings',
+          message: 'People are booked on this workshop. Remove its session first.',
+        });
+      }
+    }
+
+    const { error } = await db.from('workshops').delete().eq('id', workshopId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
   async updateWorkshopByInstructor(
     workshopId: string,
     dto: {

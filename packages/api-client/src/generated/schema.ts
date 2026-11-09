@@ -8585,7 +8585,8 @@ export interface paths {
     get: operations['WorkshopsController_getOne'];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Delete a workshop nobody is booked on (workshop_lead+). 409 WorkshopHasBookings while a seat, a waitlist place or an intent remains. */
+    delete: operations['WorkshopsController_remove'];
     options?: never;
     head?: never;
     /** Update workshop (workshop_lead+) */
@@ -25196,6 +25197,25 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopsController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
         headers: {
           [name: string]: unknown;
         };

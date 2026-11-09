@@ -41,6 +41,7 @@ import {
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { sessionDeleteQuestion } from './session-delete-question';
+import { workshopDeleteQuestion, workshopDeleteRefusal } from './workshop-delete';
 import { WorkshopLogoField } from './WorkshopLogoField';
 import { WorkshopsTableHeader } from './WorkshopsTableHeader';
 import {
@@ -649,6 +650,20 @@ export default function WorkshopsAdminPage() {
     await openRoster(sessionId);
   }
 
+  // Delete the Workshop being edited: one nobody is booked on (operator ruling, 2026-11-09).
+  async function handleDeleteWorkshop() {
+    const workshop = workshops.find((w) => w.id === editingId);
+    if (!workshop || !(await confirm(workshopDeleteQuestion(workshop.title, t)))) return;
+    const r = await apiRequest(apiUrl, `/api/v1/workshops/${workshop.id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const message = workshopDeleteRefusal(r, t);
+      if (message) toast.error(message);
+      return;
+    }
+    closeModal();
+    setRefreshKey((k) => k + 1);
+  }
+
   async function handleRemove(sessionId: string, entry: RosterEntry) {
     if (
       !(await confirm({
@@ -1160,6 +1175,15 @@ export default function WorkshopsAdminPage() {
         }
         footer={
           <>
+            {editingId && (
+              <button
+                onClick={() => void handleDeleteWorkshop()}
+                disabled={formSaving}
+                className="mr-auto text-sm text-danger hover:underline disabled:opacity-50"
+              >
+                {t('organizer.workshopsPage.delete')}
+              </button>
+            )}
             <button onClick={closeModal} className="text-sm text-muted px-4 py-2">
               {t('organizer.schedulePage.editPopover.cancel')}
             </button>

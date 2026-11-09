@@ -273,6 +273,18 @@ export class WorkshopsController {
     return this.workshops.updateWorkshop(id, dto, userId);
   }
 
+  @Delete('workshops/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete a workshop nobody is booked on (workshop_lead+). 409 WorkshopHasBookings while a seat, a waitlist place or an intent remains.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.deleteWorkshop(id, userId);
+  }
+
   @Patch('workshops/:id/instructor')
   @ApiOperation({
     summary: 'Edit weapon/description/level/language (workshop instructor or workshop_lead+)',

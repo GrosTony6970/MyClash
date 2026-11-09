@@ -2156,6 +2156,13 @@ export const organizer = {
         "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. Les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
       yes: 'Retirer et supprimer les inscriptions',
     },
+    workshopDelete: {
+      title: 'Supprimer « {title} » ?',
+      body: 'Sa séance, ses instructeurs et ses avis sont supprimés avec lui. Ses photos restent. Cette action est irréversible.',
+      yes: "Supprimer l'atelier",
+      hasBookings:
+        "Des personnes sont inscrites à cet atelier. Retirez d'abord sa séance du programme : les inscrits qui ont un compte sont prévenus.",
+    },
     editWorkshop: "Modifier l'atelier",
     newWorkshopTitle: 'Nouvel atelier',
     titleLabel: 'Titre *',
