@@ -38,28 +38,28 @@ describe('notification event handlers', () => {
     );
   });
 
-  it('sends waitlist promotion notification to the promoted person', async () => {
+  it("sends waitlist promotion notification to the promoted person, naming the session's time", async () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
-    const service = new NotificationEventsService(
-      makeSupabase({
-        workshop_sessions: {
-          data: {
-            id: 'session-1',
-            workshops: { title: 'Messer fundamentals' },
-          },
-          error: null,
+    const supabase = makeSupabase({
+      workshop_sessions: {
+        data: {
+          id: 'session-1',
+          // Saturday 14 November 2026, 10:00 in Paris.
+          starts_at: '2026-11-14T09:00:00+00:00',
+          workshops: { title: 'Messer fundamentals', events: { timezone: 'Europe/Paris' } },
         },
-        persons: {
-          data: {
-            id: 'person-1',
-            claimed_by_user_id: 'user-1',
-            email: 'promoted@example.com',
-          },
-          error: null,
+        error: null,
+      },
+      persons: {
+        data: {
+          id: 'person-1',
+          claimed_by_user_id: 'user-1',
+          email: 'promoted@example.com',
         },
-      }) as never,
-      scheduler as never,
-    );
+        error: null,
+      },
+    });
+    const service = new NotificationEventsService(supabase as never, scheduler as never);
 
     await service.waitlistPromoted('session-1', 'person-1');
 
@@ -70,10 +70,17 @@ describe('notification event handlers', () => {
         userId: 'user-1',
         email: 'promoted@example.com',
         title: 'Place en atelier confirmée / Workshop place confirmed',
-        body: "Vous quittez la liste d'attente : votre place est confirmée pour Messer fundamentals. / You have been promoted from the waitlist for Messer fundamentals.",
+        body: "Vous quittez la liste d'attente : votre place est confirmée pour Messer fundamentals, sam. 14 nov., 10:00. / You have been promoted from the waitlist for Messer fundamentals on Sat 14 Nov, 10:00.",
         emailSubject: 'Place en atelier confirmée / Workshop place confirmed',
       }),
     );
+    // The double ignores the projection: only this holds the columns the words come from.
+    const sessions = supabase.service.from.mock.results[0]?.value as {
+      select: ReturnType<typeof vi.fn>;
+    };
+    expect(sessions.select.mock.calls[0]).toEqual([
+      'id, starts_at, workshops ( title, events ( timezone ) )',
+    ]);
   });
 
   it('sends results published notifications to registered fighters', async () => {

@@ -24,7 +24,14 @@ describe('the cancel notice of a Workshop session', () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
     const supabase = makeSupabase({
       workshop_sessions: {
-        data: { id: 'session-1', workshops: announced({ title: 'Messer fundamentals' }) },
+        data: {
+          id: 'session-1',
+          // Saturday 14 November 2026, 10:00 in Paris.
+          starts_at: '2026-11-14T09:00:00+00:00',
+          workshops: announced({ title: 'Messer fundamentals' }, 'published', {
+            timezone: 'Europe/Paris',
+          }),
+        },
         error: null,
       },
       workshop_enrollments: {
@@ -56,13 +63,24 @@ describe('the cancel notice of a Workshop session', () => {
         kind: 'workshop_cancelled',
         userId: 'user-1',
         title: 'Atelier annulé / Workshop cancelled',
-        body: 'Annulé : Messer fundamentals. / Messer fundamentals was cancelled.',
+        // A Workshop may run more than once: the notice names which session.
+        body:
+          'Annulé : Messer fundamentals, sam. 14 nov., 10:00. / ' +
+          'Messer fundamentals on Sat 14 Nov, 10:00 was cancelled.',
         emailSubject: 'Atelier annulé / Workshop cancelled',
       }),
     );
     expect(scheduler.sendImmediate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workshop_cancelled', userId: 'user-2' }),
     );
+    // The double ignores the projection: only this holds the columns the words come from.
+    const reads = supabase.service.from.mock.results.filter(
+      (_r, i) => supabase.service.from.mock.calls[i]?.[0] === 'workshop_sessions',
+    );
+    const words = reads[1]?.value as { select: ReturnType<typeof vi.fn> };
+    expect(words.select.mock.calls[0]).toEqual([
+      'id, starts_at, workshops ( title, events ( timezone ) )',
+    ]);
   });
 
   it.each([

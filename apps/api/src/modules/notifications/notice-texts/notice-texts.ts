@@ -64,12 +64,17 @@ export function lockMessage(role: string | null, bout: string | null | undefined
   });
 }
 
-export function workshopCancelled(workshop: string | null): NoticeEmailText {
+/** `when` is the session's start (`sessionWhen`), null when it has none: a Workshop may run twice. */
+export function workshopCancelled(
+  workshop: string | null,
+  when: PerLanguage | null,
+): NoticeEmailText {
+  const values = { workshop: or(workshop, 'notices.workshopCancelled.yourWorkshop') };
   return withSubject({
     title: bilingual('notices.workshopCancelled.title'),
-    body: bilingual('notices.workshopCancelled.body', {
-      workshop: or(workshop, 'notices.workshopCancelled.yourWorkshop'),
-    }),
+    body: when
+      ? bilingual('notices.workshopCancelled.bodyAt', { ...values, when })
+      : bilingual('notices.workshopCancelled.body', values),
   });
 }
 
@@ -91,12 +96,17 @@ export function workshopMoved(
   return withSubject({ title: bilingual('notices.workshopMoved.title'), body: body() });
 }
 
-export function waitlistPromoted(workshop: string | null): NoticeEmailText {
+/** `when` as in `workshopCancelled`. */
+export function waitlistPromoted(
+  workshop: string | null,
+  when: PerLanguage | null,
+): NoticeEmailText {
+  const values = { workshop: or(workshop, 'notices.waitlistPromoted.yourWorkshop') };
   return withSubject({
     title: bilingual('notices.waitlistPromoted.title'),
-    body: bilingual('notices.waitlistPromoted.body', {
-      workshop: or(workshop, 'notices.waitlistPromoted.yourWorkshop'),
-    }),
+    body: when
+      ? bilingual('notices.waitlistPromoted.bodyAt', { ...values, when })
+      : bilingual('notices.waitlistPromoted.body', values),
   });
 }
 

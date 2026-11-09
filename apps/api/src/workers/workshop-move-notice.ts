@@ -12,12 +12,11 @@
  * and its scheduler both read it, and it reads neither.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { formatDateTime } from '@myclash/time';
-import { eventZone } from '../common/event-clock';
 import {
   workshopMoved,
   type NoticeEmailText,
 } from '../modules/notifications/notice-texts/notice-texts';
+import { sessionWhen } from '../modules/notifications/notice-texts/session-when';
 
 /** How long after the last move the notice goes. */
 export const WORKSHOP_MOVE_SETTLE_MS = 10 * 60_000;
@@ -60,14 +59,6 @@ export function samePlace(a: SessionPlace, b: SessionPlace): boolean {
   );
 }
 
-const WHEN: Intl.DateTimeFormatOptions = {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-};
-
 type One<T> = T | T[] | null | undefined;
 const one = <T>(value: One<T>): T | null =>
   (Array.isArray(value) ? (value[0] ?? null) : (value ?? null)) as T | null;
@@ -103,13 +94,7 @@ export async function readMovedSession(
   if (!data) return null;
   const row = data as MovedSessionRow;
   const workshop = one(row.workshops);
-  const { zone } = eventZone(one(workshop?.events)?.timezone);
-  const when = row.starts_at
-    ? {
-        fr: formatDateTime(row.starts_at, 'fr', WHEN, zone),
-        en: formatDateTime(row.starts_at, 'en', WHEN, zone),
-      }
-    : null;
+  const when = sessionWhen(row.starts_at, one(workshop?.events)?.timezone);
   const room = [one(row.venues)?.name, one(row.venue_areas)?.name].filter(Boolean).join(' · ');
   return {
     place: placeOf(row),

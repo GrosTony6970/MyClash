@@ -107,24 +107,34 @@ describe('the notices of the Tournament day', () => {
 describe('the notices of a Workshop', () => {
   it('a cancelled Workshop and a place off the waitlist', () => {
     const cancelled = 'Atelier annulé / Workshop cancelled';
-    expect(texts.workshopCancelled('Messer')).toEqual({
+    expect(texts.workshopCancelled('Messer', null)).toEqual({
       title: cancelled,
       body: 'Annulé : Messer. / Messer was cancelled.',
       emailSubject: cancelled,
     });
     const confirmed = 'Place en atelier confirmée / Workshop place confirmed';
-    expect(texts.waitlistPromoted('Messer')).toEqual({
+    expect(texts.waitlistPromoted('Messer', null)).toEqual({
       title: confirmed,
       body: "Vous quittez la liste d'attente : votre place est confirmée pour Messer. / You have been promoted from the waitlist for Messer.",
       emailSubject: confirmed,
     });
   });
 
+  it("names the session's time: a Workshop may run more than once", () => {
+    const when = { fr: 'sam. 14 nov., 10:00', en: 'Sat 14 Nov, 10:00' };
+    expect(texts.workshopCancelled('Messer', when).body).toBe(
+      'Annulé : Messer, sam. 14 nov., 10:00. / Messer on Sat 14 Nov, 10:00 was cancelled.',
+    );
+    expect(texts.waitlistPromoted('Messer', when).body).toBe(
+      "Vous quittez la liste d'attente : votre place est confirmée pour Messer, sam. 14 nov., 10:00. / You have been promoted from the waitlist for Messer on Sat 14 Nov, 10:00.",
+    );
+  });
+
   it('a Workshop whose title could not be read is "your workshop", in each language', () => {
-    expect(texts.workshopCancelled(null).body).toBe(
+    expect(texts.workshopCancelled(null, null).body).toBe(
       'Annulé : votre atelier. / Your workshop was cancelled.',
     );
-    expect(texts.waitlistPromoted(null).body).toBe(
+    expect(texts.waitlistPromoted(null, null).body).toBe(
       "Vous quittez la liste d'attente : votre place est confirmée pour votre atelier. / You have been promoted from the waitlist for Your workshop.",
     );
     expect(texts.workshopStarting(null).body).toBe(

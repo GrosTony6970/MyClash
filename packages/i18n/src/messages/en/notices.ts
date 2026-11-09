@@ -15,6 +15,7 @@ export const notices = {
   workshopCancelled: {
     title: 'Workshop cancelled',
     body: '{workshop} was cancelled.',
+    bodyAt: '{workshop} on {when} was cancelled.',
     yourWorkshop: 'Your workshop',
   },
   workshopMoved: {
@@ -27,6 +28,7 @@ export const notices = {
   waitlistPromoted: {
     title: 'Workshop place confirmed',
     body: 'You have been promoted from the waitlist for {workshop}.',
+    bodyAt: 'You have been promoted from the waitlist for {workshop} on {when}.',
     yourWorkshop: 'Your workshop',
   },
   resultsPublished: {
