@@ -19,21 +19,24 @@ interface FakeOpts {
   myFeedback?: { rating: number; comment: string | null } | null;
 }
 
+/** The sessions read; it keeps the columns asked for, which the fake otherwise ignores. */
+function sessionsTable(sessions: Session[], captures: { sessionsSelect: string | null }) {
+  return {
+    select: (columns: string) => {
+      captures.sessionsSelect = columns;
+      return { eq: () => Promise.resolve({ data: sessions, error: null }) };
+    },
+  };
+}
+
 function buildFake(opts: FakeOpts) {
-  const captures: { upsert: Record<string, unknown> | null; sessionsSelect: string | null } = {
-    upsert: null,
-    sessionsSelect: null,
+  const captures = {
+    upsert: null as Record<string, unknown> | null,
+    sessionsSelect: null as string | null,
   };
 
   function table(name: string): Record<string, unknown> {
-    if (name === 'workshop_sessions') {
-      return {
-        select: (columns: string) => {
-          captures.sessionsSelect = columns;
-          return { eq: () => Promise.resolve({ data: opts.sessions ?? [], error: null }) };
-        },
-      };
-    }
+    if (name === 'workshop_sessions') return sessionsTable(opts.sessions ?? [], captures);
     if (name === 'workshop_enrollments') {
       return {
         select: () => ({

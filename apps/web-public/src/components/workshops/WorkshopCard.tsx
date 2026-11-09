@@ -6,7 +6,7 @@ import { accentClassFor } from '@myclash/ui';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { cardSessions } from './card-sessions';
-import { CANCELLED_TEXT, CancelledBadge } from './session-cancelled';
+import { CancelledSessionLine } from './session-cancelled';
 import { WORKSHOP_UNSCHEDULED, type WorkshopListItem } from './workshop-grouping';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -217,10 +217,7 @@ export function WorkshopCard({
             </p>
           )}
           {cancelledLines.map((s) => (
-            <p key={s.id} className="mt-1 flex items-center gap-2 text-xs">
-              <span className={CANCELLED_TEXT}>{when(s.startsAt!)}</span>
-              <CancelledBadge t={t} />
-            </p>
+            <CancelledSessionLine key={s.id} when={when(s.startsAt!)} t={t} className="mt-1" />
           ))}
         </div>
         <div className="flex-shrink-0 text-right">

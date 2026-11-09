@@ -7,10 +7,8 @@
 
 import { StatusBadge, statusLabel, workshopStatusSemantic } from '@myclash/ui';
 
-/** True for a cancelled session. A status that is absent (an older copy) is not cancelled. */
-export function isCancelledSession(session: { status?: string | null }): boolean {
-  return session.status === 'cancelled';
-}
+/** True for a cancelled session: the one test, shared with the organiser's board. */
+export { isCancelledSession } from '@myclash/schedule-core';
 
 /** The look of a cancelled session's time and place. */
 export const CANCELLED_TEXT = 'line-through text-muted';
@@ -21,5 +19,23 @@ export function CancelledBadge({ t }: { t: (key: string) => string }) {
     <StatusBadge semantic={workshopStatusSemantic('cancelled')} surface="light">
       {statusLabel('workshopSession', 'cancelled', t)}
     </StatusBadge>
+  );
+}
+
+/** A cancelled session's line on a card: its time struck through, then the badge. */
+export function CancelledSessionLine({
+  when,
+  t,
+  className = '',
+}: {
+  when: string | null;
+  t: (key: string) => string;
+  className?: string;
+}) {
+  return (
+    <p className={`flex items-center gap-2 text-xs ${className}`}>
+      {when && <span className={CANCELLED_TEXT}>{when}</span>}
+      <CancelledBadge t={t} />
+    </p>
   );
 }

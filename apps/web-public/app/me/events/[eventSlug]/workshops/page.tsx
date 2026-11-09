@@ -23,11 +23,7 @@ import {
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
-import {
-  CANCELLED_TEXT,
-  CancelledBadge,
-  isCancelledSession,
-} from '@/components/workshops/session-cancelled';
+import { CancelledSessionLine, isCancelledSession } from '@/components/workshops/session-cancelled';
 import {
   groupWorkshopsByDay,
   type WorkshopListItem,
@@ -247,16 +243,8 @@ function WorkshopsContent({
                       <div className="flex flex-col gap-3">
                         {daySessions.map((session) => {
                           if (!isLive(session)) {
-                            return (
-                              <div key={session.id} className="flex items-center gap-2">
-                                {session.startsAt && (
-                                  <p className={`text-xs ${CANCELLED_TEXT}`}>
-                                    {fmtDayTime(session.startsAt)}
-                                  </p>
-                                )}
-                                <CancelledBadge t={t} />
-                              </div>
-                            );
+                            const when = session.startsAt && fmtDayTime(session.startsAt);
+                            return <CancelledSessionLine key={session.id} when={when} t={t} />;
                           }
                           const booking = bookings.get(session.id) ?? 'none';
                           const full =

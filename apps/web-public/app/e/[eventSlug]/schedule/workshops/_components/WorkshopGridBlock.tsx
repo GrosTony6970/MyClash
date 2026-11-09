@@ -40,13 +40,12 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
   // A cancelled session stays, struck through; its word rides in the title at every size (526).
   const cancelledWord = block.cancelled ? statusLabel('workshopSession', 'cancelled', t) : null;
   const struck = block.cancelled ? 'line-through' : '';
+  const hover = [cancelledWord, block.title, timeRange, instructors, taxonomy];
 
   return (
     <Link
       href={block.href}
-      title={[cancelledWord, block.title, timeRange, instructors, taxonomy]
-        .filter(Boolean)
-        .join(' · ')}
+      title={hover.filter(Boolean).join(' · ')}
       className={[
         'm-px flex flex-col overflow-hidden rounded-md border px-1.5 py-1 transition-opacity',
         'hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-accent/40',

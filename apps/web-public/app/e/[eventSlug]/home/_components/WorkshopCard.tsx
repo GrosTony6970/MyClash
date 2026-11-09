@@ -3,7 +3,7 @@ import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
 import { cardSessions } from '@/components/workshops/card-sessions';
-import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
+import { CancelledSessionLine } from '@/components/workshops/session-cancelled';
 import type { PublicWorkshop } from '../_lib/public-event-data';
 
 /**
@@ -83,10 +83,7 @@ export function WorkshopCard({
         </div>
       </div>
       {card.cancelled.map((s) => (
-        <p key={s.id} className="mt-2 flex items-center gap-2 text-xs">
-          <span className={CANCELLED_TEXT}>{when(s.startsAt!)}</span>
-          <CancelledBadge t={t} />
-        </p>
+        <CancelledSessionLine key={s.id} when={when(s.startsAt!)} t={t} className="mt-2" />
       ))}
       <div className="mt-3 flex items-center justify-between text-xs">
         <span className="text-muted">
