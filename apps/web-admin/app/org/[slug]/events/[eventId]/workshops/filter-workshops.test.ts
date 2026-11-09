@@ -4,7 +4,7 @@ import {
   EMPTY_WORKSHOP_FILTER,
   NO_VENUE,
   deriveWorkshopFilterOptions,
-  effectiveVenue,
+  effectiveVenues,
   isWorkshopFilterActive,
   workshopMatchesFilter,
   workshopSearchHaystack,
@@ -96,22 +96,50 @@ describe('workshopSearchHaystack + fuzzyMatch', () => {
   });
 });
 
-describe('effectiveVenue', () => {
+describe('effectiveVenues', () => {
   const hall = { id: 'v-1', name: 'Gymnase des Cerisiers' };
   const annex = { id: 'v-2', name: 'Annexe' };
 
   it('prefers the scheduled session venue over the workshop default', () => {
     const row = workshop({ venue: hall, venueId: hall.id, sessions: [session({ venue: annex })] });
-    expect(effectiveVenue(row)).toEqual(annex);
+    expect(effectiveVenues(row)).toEqual([annex]);
   });
 
   it('falls back to the workshop default when the session has none', () => {
     const row = workshop({ venue: hall, venueId: hall.id, sessions: [session()] });
-    expect(effectiveVenue(row)).toEqual(hall);
+    expect(effectiveVenues(row)).toEqual([hall]);
   });
 
   it('is null when nothing names a venue', () => {
-    expect(effectiveVenue(workshop())).toBeNull();
+    expect(effectiveVenues(workshop())).toEqual([null]);
+  });
+
+  // A Workshop runs several sessions (ruling 515): Saturday in the hall, Sunday in the annex.
+  it('names the venue of each session', () => {
+    const row = workshop({ sessions: [session({ venue: hall }), session({ venue: annex })] });
+    expect(effectiveVenues(row)).toEqual([hall, annex]);
+  });
+});
+
+describe('a Workshop with sessions in two venues', () => {
+  const hall = { id: 'v-1', name: 'Gymnase des Cerisiers' };
+  const annex = { id: 'v-2', name: 'Annexe' };
+  const row = workshop({
+    sessions: [
+      session({ venue: hall, startsAt: '2027-05-23T08:00:00.000Z' }),
+      session({ venue: annex, startsAt: '2027-05-22T08:00:00.000Z' }),
+    ],
+  });
+
+  it('matches the filter of either venue', () => {
+    expect(workshopMatchesFilter(row, { ...EMPTY_WORKSHOP_FILTER, venue: 'v-1' })).toBe(true);
+    expect(workshopMatchesFilter(row, { ...EMPTY_WORKSHOP_FILTER, venue: 'v-2' })).toBe(true);
+    expect(workshopMatchesFilter(row, { ...EMPTY_WORKSHOP_FILTER, venue: NO_VENUE })).toBe(false);
+  });
+
+  it('offers both venues, and sorts by its earliest start', () => {
+    expect(deriveWorkshopFilterOptions([row]).venues.map((v) => v.id)).toEqual(['v-2', 'v-1']);
+    expect(workshopSortValue(row, 'start')).toEqual(new Date('2027-05-22T08:00:00.000Z'));
   });
 });
 

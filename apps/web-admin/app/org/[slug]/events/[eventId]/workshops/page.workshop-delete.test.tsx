@@ -81,7 +81,7 @@ const open = async () => {
     ok: false,
     kind: 'http',
     status: 409,
-    detail: 'People are booked on this workshop. Remove its session first.',
+    detail: 'People are booked on this workshop. Remove its sessions first.',
     code: 'WORKSHOP_HAS_BOOKINGS',
     details: null,
     validationErrors: null,
@@ -141,7 +141,7 @@ describe('deleting a Workshop from its form', () => {
     await press('Delete', form());
     await press('Delete the workshop', question());
     expect(document.body.textContent).toContain(
-      'People are booked on this workshop. Remove its session from the schedule first',
+      'People are booked on this workshop. Remove its sessions from the schedule first',
     );
     expect(document.body.textContent).not.toContain('Remove its session first.');
     expect(form()).toBeDefined();

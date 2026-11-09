@@ -571,7 +571,7 @@ export class WorkshopsService {
       if ((count ?? 0) > 0) {
         throw new ConflictException({
           error: 'WorkshopHasBookings',
-          message: 'People are booked on this workshop. Remove its session first.',
+          message: 'People are booked on this workshop. Remove its sessions first.',
         });
       }
     }

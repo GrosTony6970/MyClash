@@ -16,13 +16,18 @@ import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { nextSlugFromName } from './slug-from-name';
 import {
-  durationFromStartEnd,
-  endFromStartDuration,
-  sessionWrite,
-  workshopSessionTimes,
-} from './workshop-session-times';
+  applySessionEdits,
+  blankLine,
+  linesOf,
+  removedSessions,
+  sessionEdits,
+  type ExistingSession,
+  type SessionLine,
+} from './session-edits';
+import { WorkshopSessionsField } from './WorkshopSessionsField';
+import { sessionPlaceLabel, sessionTimeRange } from './workshop-row-sessions';
 import { eachDay } from '@myclash/schedule-core';
-import { formatInZone, zonedDay, localeToBcp47 } from '@myclash/time';
+import { localeToBcp47 } from '@myclash/time';
 import {
   DataTable,
   DataTableCell,
@@ -148,9 +153,8 @@ const EMPTY_FORM = {
   venueId: '' as string,
   color: '' as string,
   status: 'draft',
-  day: '',
-  start: '',
-  end: '',
+  /** One line per session (rulings 515, 524). */
+  sessions: [blankLine('')] as SessionLine[],
   instructorIds: [] as string[],
 };
 
@@ -265,35 +269,6 @@ export default function WorkshopsAdminPage() {
     setExistingLogoUrl(null);
   }
 
-  // Reactive timing: Start+End → Duration; Start+Duration → End. Only
-  // fills the field the operator is NOT currently editing.
-  function onTimingChange(field: 'start' | 'end' | 'durationMinutes', value: string) {
-    setForm((f) => {
-      const next = { ...f, [field]: value };
-      if (field === 'start' || field === 'end') {
-        const d = durationFromStartEnd(next.start, next.end);
-        if (d !== null) next.durationMinutes = d;
-        else if (field === 'start' && next.durationMinutes) {
-          const e = endFromStartDuration(next.start, Number(next.durationMinutes));
-          if (e) next.end = e;
-        }
-      } else if (field === 'durationMinutes') {
-        const e = endFromStartDuration(next.start, value ? Number(value) : null);
-        if (e) next.end = e;
-      }
-      return next;
-    });
-  }
-
-  function hhmmInZone(iso: string): string {
-    return formatInZone(
-      iso,
-      eventTz,
-      { hour: '2-digit', minute: '2-digit', hour12: false },
-      localeToBcp47(locale),
-    );
-  }
-
   function openCreate() {
     setEditingId(null);
     setForm(EMPTY_FORM);
@@ -303,7 +278,6 @@ export default function WorkshopsAdminPage() {
   }
 
   function openEdit(w: Workshop) {
-    const s = w.sessions[0] ?? null;
     setEditingId(w.id);
     resetLogoState();
     setExistingLogoUrl(w.coverImageUrl ?? null);
@@ -320,9 +294,7 @@ export default function WorkshopsAdminPage() {
       venueId: w.venueId ?? '',
       color: w.color ?? '',
       status: w.status,
-      day: s?.startsAt ? (zonedDay(s.startsAt, eventTz) ?? '') : '',
-      start: s?.startsAt ? hhmmInZone(s.startsAt) : '',
-      end: s?.endsAt ? hhmmInZone(s.endsAt) : '',
+      sessions: linesOf(w.sessions, eventTz, w.venueId ?? ''),
       instructorIds: w.instructors
         .map((i) => i.globalPersonId)
         .filter((x): x is string => Boolean(x)),
@@ -407,14 +379,38 @@ export default function WorkshopsAdminPage() {
 
   // ── Create workshop ────────────────────────────────────────────────────────────
 
-  function sessionTimesFromForm() {
-    return workshopSessionTimes({
-      day: form.day,
-      start: form.start,
-      end: form.end || null,
-      durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
-      tz: eventTz,
+  const formDuration = form.durationMinutes ? Number(form.durationMinutes) : null;
+
+  /**
+   * Send the form's sessions of `workshopId` (rulings 515, 524, 525). A refused call keeps the
+   * form open with what was created so far: the ids are written into the lines, so a second save
+   * does not create them again. Answers whether every call landed.
+   */
+  async function saveSessions(workshopId: string, existing: ExistingSession[]): Promise<boolean> {
+    const calls = sessionEdits(form.sessions, existing, eventTz, formDuration, form.venueId);
+    const done = await applySessionEdits(calls, form.sessions, async (call) => {
+      const r =
+        call.method === 'POST'
+          ? await apiRequest<{ id: string }>(apiUrl, `/api/v1/workshops/${workshopId}/sessions`, {
+              method: 'POST',
+              body: call.body,
+            })
+          : await apiRequest<{ id: string }>(
+              apiUrl,
+              `/api/v1/workshop-sessions/${call.sessionId}`,
+              {
+                method: call.method,
+                ...(call.method === 'PATCH' ? { body: call.body } : {}),
+              },
+            );
+      return r.ok ? { ok: true, id: r.data?.id } : { ok: false, failure: r };
     });
+    if (!done.failure) return true;
+    setForm((f) => ({ ...f, sessions: done.lines }));
+    const message = failureMessage(done.failure, t, t('admin.common.saveFailed'));
+    if (message) setFormError(message);
+    setRefreshKey((k) => k + 1);
+    return false;
   }
 
   // POST the staged (cropped) logo blob after the workshop id exists.
@@ -464,14 +460,18 @@ export default function WorkshopsAdminPage() {
     setFormError(null);
 
     try {
-      // A save with no day deletes the Workshop's session: asked before anything
-      // is sent, and inside the saving state, so the Escape that answers the
-      // question does not close the form behind it too.
-      const dropped =
-        editingId && !sessionTimesFromForm()
-          ? workshops.find((w) => w.id === editingId)?.sessions[0]
-          : undefined;
-      if (dropped && !(await mayDeleteSession(dropped.id))) return;
+      // A session whose line was removed, or whose day was cleared, is deleted with its
+      // bookings: each is asked about before anything is sent, and inside the saving state, so
+      // the Escape that answers the question does not close the form behind it too.
+      const current = editingId ? workshops.find((w) => w.id === editingId) : undefined;
+      for (const dropped of removedSessions(
+        form.sessions,
+        current?.sessions ?? [],
+        eventTz,
+        formDuration,
+      )) {
+        if (!(await mayDeleteSession(dropped.id))) return;
+      }
       if (editingId) {
         const patchRes = await apiRequest(apiUrl, `/api/v1/workshops/${editingId}`, {
           method: 'PATCH',
@@ -501,7 +501,6 @@ export default function WorkshopsAdminPage() {
         }
 
         // Reconcile instructors against the chosen set.
-        const current = workshops.find((w) => w.id === editingId);
         const currentIds = new Set(
           (current?.instructors ?? [])
             .map((i) => i.globalPersonId)
@@ -524,32 +523,8 @@ export default function WorkshopsAdminPage() {
           }
         }
 
-        // Session: sent when its times or venue changed (`sessionWrite`), deleted when the day
-        // was cleared. A refusal keeps the form open: the Workshop itself is saved.
-        const times = sessionTimesFromForm();
-        const existing = current?.sessions[0] ?? null;
-        const venueChanged = (form.venueId || null) !== (current?.venueId ?? null);
-        const write = times && sessionWrite(times, existing, form.venueId || null, venueChanged);
-        // An existing session is updated by its id; a POST adds another session (0257).
-        const sessionRes = write
-          ? await apiRequest(
-              apiUrl,
-              existing
-                ? `/api/v1/workshop-sessions/${existing.id}`
-                : `/api/v1/workshops/${editingId}/sessions`,
-              { method: existing ? 'PATCH' : 'POST', body: write },
-            )
-          : !times && existing
-            ? await apiRequest(apiUrl, `/api/v1/workshop-sessions/${existing.id}`, {
-                method: 'DELETE',
-              })
-            : null;
-        if (sessionRes && !sessionRes.ok) {
-          const message = failureMessage(sessionRes, t, t('admin.common.saveFailed'));
-          if (message) setFormError(message);
-          setRefreshKey((k) => k + 1);
-          return;
-        }
+        // Sessions: a refusal keeps the form open, the Workshop itself is saved.
+        if (!(await saveSessions(editingId, current?.sessions ?? []))) return;
 
         await uploadStagedLogo(editingId);
 
@@ -585,23 +560,18 @@ export default function WorkshopsAdminPage() {
       }
       const created = r.data;
 
-      const times = sessionTimesFromForm();
-      if (times) {
-        await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/sessions`, {
-          method: 'POST',
-          body: {
-            startTime: times.startTime,
-            endTime: times.endTime,
-            venueId: form.venueId || undefined,
-          },
-        });
-      }
-
       for (const globalPersonId of form.instructorIds) {
         await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/instructors`, {
           method: 'POST',
           body: { globalPersonId },
         });
+      }
+
+      // A refused session leaves the Workshop created: the form turns to editing it, so a second
+      // save sends the sessions left, not a second Workshop (its slug would be refused).
+      if (!(await saveSessions(created.id, []))) {
+        setEditingId(created.id);
+        return;
       }
 
       await uploadStagedLogo(created.id);
@@ -1058,41 +1028,9 @@ export default function WorkshopsAdminPage() {
                 </DataTableRow>
               )}
               {visibleWorkshops.map((w) => {
-                const session = w.sessions[0] ?? null;
-                const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
-                const areaLabel = session?.area?.name ?? null;
-                const venueArea = venueLabel
-                  ? areaLabel
-                    ? `${venueLabel} · ${areaLabel}`
-                    : venueLabel
-                  : '—';
-                const timeRange =
-                  session && session.startsAt
-                    ? `${formatInZone(
-                        session.startsAt,
-                        eventTz,
-                        {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        },
-                        localeToBcp47(locale),
-                      )}${
-                        session.endsAt
-                          ? ` – ${formatInZone(
-                              session.endsAt,
-                              eventTz,
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                              localeToBcp47(locale),
-                            )}`
-                          : ''
-                      }`
-                    : '—';
+                // Every session on its own line (ruling 515); a Workshop with none says '—'.
+                const sessions = w.sessions.length > 0 ? w.sessions : [null];
+                const bcp47 = localeToBcp47(locale);
                 return (
                   <DataTableRow key={w.id}>
                     <DataTableCell className="relative">
@@ -1126,9 +1064,15 @@ export default function WorkshopsAdminPage() {
                         : '—'}
                     </DataTableCell>
                     <DataTableCell className="whitespace-nowrap text-foreground-secondary">
-                      {timeRange}
+                      {sessions.map((s, i) => (
+                        <p key={s?.id ?? i}>{s ? sessionTimeRange(s, eventTz, bcp47) : '—'}</p>
+                      ))}
                     </DataTableCell>
-                    <DataTableCell className="text-foreground-secondary">{venueArea}</DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">
+                      {sessions.map((s, i) => (
+                        <p key={s?.id ?? i}>{sessionPlaceLabel(s, w.venue?.name ?? null)}</p>
+                      ))}
+                    </DataTableCell>
                     <DataTableCell>
                       <select
                         value={w.status}
@@ -1159,14 +1103,20 @@ export default function WorkshopsAdminPage() {
                         >
                           {t('organizer.workshopsPage.edit')}
                         </button>
-                        {session && (
+                        {/* One roster per session; with several, each names its time. */}
+                        {w.sessions.map((s) => (
                           <button
-                            onClick={() => void openRoster(session.id)}
+                            key={s.id}
+                            onClick={() => void openRoster(s.id)}
                             className="text-xs text-info hover:underline"
                           >
-                            {t('organizer.workshopsPage.roster')}
+                            {w.sessions.length > 1
+                              ? t('organizer.workshopsPage.rosterOf', {
+                                  when: sessionTimeRange(s, eventTz, bcp47),
+                                })
+                              : t('organizer.workshopsPage.roster')}
                           </button>
-                        )}
+                        ))}
                       </div>
                     </DataTableCell>
                   </DataTableRow>
@@ -1342,66 +1292,21 @@ export default function WorkshopsAdminPage() {
                 value={form.durationMinutes}
                 min={1}
                 placeholder={t('organizer.workshopsPage.durationPlaceholder')}
-                onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
+                onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))}
                 className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
           </div>
 
-          {/* Optional scheduling — Day + Start + End auto-complete via Duration */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                {t('organizer.workshopsPage.dayOptionalLabel')}
-              </label>
-              {eventDays.length > 0 ? (
-                <select
-                  value={form.day}
-                  onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="">—</option>
-                  {eventDays.map((d) => (
-                    <option key={d} value={d}>
-                      {new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
-                        weekday: 'short',
-                        day: '2-digit',
-                        month: 'short',
-                        timeZone: 'UTC',
-                      })}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="date"
-                  value={form.day}
-                  onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                {t('organizer.schedulePage.editPopover.startLabel')}
-              </label>
-              <Time24Input
-                value={form.start}
-                onChange={(v) => onTimingChange('start', v)}
-                aria-label={t('organizer.workshopsPage.startTimeAria')}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                {t('organizer.schedulePage.editPopover.endLabel')}
-              </label>
-              <Time24Input
-                value={form.end}
-                onChange={(v) => onTimingChange('end', v)}
-                aria-label={t('organizer.workshopsPage.endTimeAria')}
-              />
-            </div>
-          </div>
+          {/* The sessions, one line each (rulings 515, 524, 525) */}
+          <WorkshopSessionsField
+            lines={form.sessions}
+            onChange={(sessions) => setForm((f) => ({ ...f, sessions }))}
+            days={eventDays}
+            venues={venues}
+            workshopVenueId={form.venueId}
+            durationMinutes={formDuration}
+          />
 
           <div>
             <label className="block text-xs font-medium text-foreground-secondary mb-1">

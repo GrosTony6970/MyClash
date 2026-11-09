@@ -2149,6 +2149,7 @@ export const organizer = {
     statusCompleted: 'Terminé',
     edit: 'Modifier',
     roster: 'Inscrits',
+    rosterOf: 'Inscrits · {when}',
     sessionDelete: {
       title: 'Retirer « {title} » du programme ?',
       body: "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. Pour un atelier publié d'un événement public, les inscrits qui ont un compte sont prévenus de l'annulation. Cette action est irréversible.",
@@ -2158,10 +2159,10 @@ export const organizer = {
     },
     workshopDelete: {
       title: 'Supprimer « {title} » ?',
-      body: 'Sa séance, ses instructeurs et ses avis sont supprimés avec lui. Ses photos restent. Cette action est irréversible.',
+      body: 'Ses séances, ses instructeurs et ses avis sont supprimés avec lui. Ses photos restent. Cette action est irréversible.',
       yes: "Supprimer l'atelier",
       hasBookings:
-        "Des personnes sont inscrites à cet atelier. Retirez d'abord sa séance du programme.",
+        "Des personnes sont inscrites à cet atelier. Retirez d'abord ses séances du programme.",
     },
     editWorkshop: "Modifier l'atelier",
     newWorkshopTitle: 'Nouvel atelier',
@@ -2177,6 +2178,11 @@ export const organizer = {
     durationLabel: 'Durée (min, optionnel)',
     durationPlaceholder: 'ex. 90',
     dayOptionalLabel: 'Jour (optionnel)',
+    sessionsLabel: 'Séances',
+    sessionVenueLabel: 'Site de la séance',
+    sessionNoVenue: 'Aucun site',
+    addSession: 'Ajouter une séance',
+    removeSessionAria: 'Retirer cette séance',
     startTimeAria: 'Heure de début',
     endTimeAria: 'Heure de fin',
     statusLabel: 'Statut',

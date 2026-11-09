@@ -2190,6 +2190,7 @@ export const organizer = {
     statusCompleted: 'Completed',
     edit: 'Edit',
     roster: 'Roster',
+    rosterOf: 'Roster · {when}',
     sessionDelete: {
       title: 'Remove "{title}" from the schedule?',
       body: 'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. On a published workshop of a public event, those with an account are told the session is cancelled. This cannot be undone.',
@@ -2199,10 +2200,10 @@ export const organizer = {
     },
     workshopDelete: {
       title: 'Delete "{title}"?',
-      body: 'Its session, instructors and ratings are deleted with it. Its photos stay. This cannot be undone.',
+      body: 'Its sessions, instructors and ratings are deleted with it. Its photos stay. This cannot be undone.',
       yes: 'Delete the workshop',
       hasBookings:
-        'People are booked on this workshop. Remove its session from the schedule first.',
+        'People are booked on this workshop. Remove its sessions from the schedule first.',
     },
     editWorkshop: 'Edit workshop',
     newWorkshopTitle: 'New workshop',
@@ -2218,6 +2219,11 @@ export const organizer = {
     durationLabel: 'Duration (min, optional)',
     durationPlaceholder: 'e.g. 90',
     dayOptionalLabel: 'Day (optional)',
+    sessionsLabel: 'Sessions',
+    sessionVenueLabel: 'Session venue',
+    sessionNoVenue: 'No venue',
+    addSession: 'Add a session',
+    removeSessionAria: 'Remove this session',
     startTimeAria: 'Start time',
     endTimeAria: 'End time',
     statusLabel: 'Status',

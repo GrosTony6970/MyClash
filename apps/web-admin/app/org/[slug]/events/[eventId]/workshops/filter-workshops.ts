@@ -59,18 +59,19 @@ export function workshopSearchHaystack(row: {
   return [row.title, ...row.instructors.map((i) => i.displayName)].join(' ');
 }
 
+type Venue = { id: string; name: string };
+
 /**
- * The venue the row actually displays: a scheduled session overrides the
- * workshop-level default (sessions inherit it, but the operator can repoint
- * a session at another venue).
+ * The venues the row displays, one per session (a Workshop may run several, ruling 515): a
+ * session's own venue overrides the workshop-level default (sessions inherit it, but the operator
+ * can repoint a session at another venue). A Workshop with no session shows its default.
  */
-export function effectiveVenue(row: WorkshopVenueSource): { id: string; name: string } | null {
-  const session = row.sessions[0] ?? null;
-  if (session?.venue) return session.venue;
-  if (session?.venueId) return { id: session.venueId, name: session.venueId };
-  if (row.venue) return row.venue;
-  if (row.venueId) return { id: row.venueId, name: row.venueId };
-  return null;
+export function effectiveVenues(row: WorkshopVenueSource): Array<Venue | null> {
+  const fallback = row.venue ?? (row.venueId ? { id: row.venueId, name: row.venueId } : null);
+  if (row.sessions.length === 0) return [fallback];
+  return row.sessions.map(
+    (s) => s.venue ?? (s.venueId ? { id: s.venueId, name: s.venueId } : fallback),
+  );
 }
 
 /** Dropdown predicates only — the fuzzy query is applied by the caller. */
@@ -81,8 +82,13 @@ export function workshopMatchesFilter(
   if (filter.category !== '' && (row.category ?? '') !== filter.category) return false;
   if (filter.level !== '' && (row.level ?? '') !== filter.level) return false;
   if (filter.venue !== '') {
-    const venue = effectiveVenue(row);
-    if (filter.venue === NO_VENUE ? venue !== null : venue?.id !== filter.venue) return false;
+    // A Workshop matches when any of its sessions is there.
+    const venues = effectiveVenues(row);
+    const wanted =
+      filter.venue === NO_VENUE
+        ? venues.some((v) => v === null)
+        : venues.some((v) => v?.id === filter.venue);
+    if (!wanted) return false;
   }
   return true;
 }
@@ -108,9 +114,10 @@ export function deriveWorkshopFilterOptions(
   const venues = new Map<string, string>();
   let hasUnvenued = false;
   for (const row of rows) {
-    const venue = effectiveVenue(row);
-    if (venue) venues.set(venue.id, venue.name);
-    else hasUnvenued = true;
+    for (const venue of effectiveVenues(row)) {
+      if (venue) venues.set(venue.id, venue.name);
+      else hasUnvenued = true;
+    }
   }
   return {
     categories: distinctSorted(rows.map((r) => r.category)),
@@ -154,11 +161,12 @@ export function workshopSortValue(row: WorkshopSortRow, key: string): unknown {
     case 'duration':
       return row.durationMinutes;
     case 'start': {
-      const startsAt = row.sessions[0]?.startsAt ?? null;
-      return startsAt ? new Date(startsAt) : null;
+      // The earliest session's start.
+      const starts = row.sessions.flatMap((s) => (s.startsAt ? [Date.parse(s.startsAt)] : []));
+      return starts.length > 0 ? new Date(Math.min(...starts)) : null;
     }
     case 'venue':
-      return effectiveVenue(row)?.name ?? null;
+      return effectiveVenues(row)[0]?.name ?? null;
     case 'status':
       return row.status;
     default:
