@@ -315,6 +315,8 @@ export const publicApp = {
       accept: 'Accept',
       refuse: 'Refuse',
       actionError: 'Action failed. Try again.',
+      alreadyBooked:
+        'This person already has a place in another session of this workshop. They give it up first.',
       edit: 'Edit details',
       weaponLabel: 'Weapon',
       levelLabel: 'Level',
@@ -1384,6 +1386,8 @@ export const publicApp = {
     instructorCannotEnroll: 'You cannot register for a workshop you teach.',
     sessionCancelled: 'This session was cancelled.',
     notBookable: 'This workshop is not open for booking.',
+    alreadyBooked:
+      'You already have a place in another session of this workshop. Give it up first to take this one.',
   },
   live: {
     badge: 'LIVE',

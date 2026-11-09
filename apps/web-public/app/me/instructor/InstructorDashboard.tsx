@@ -6,6 +6,7 @@ import { formatInZone } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { signInAgainHere } from '@/lib/sign-in-return';
 import { rosterReadOnOpen } from '@/components/me/roster-read';
+import { moderationRefusalWords } from '@/components/me/workshop-booking';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -557,7 +558,7 @@ function SessionRow({
   const [open, setOpen] = useState(false);
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [rosterError, setRosterError] = useState(false);
-  const [actionError, setActionError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   // Each read takes a number; only the answer of the latest one is kept (an older read can answer
   // after an accept's newer one). An open sends no read while the latest is out.
@@ -590,16 +591,16 @@ function SessionRow({
 
   async function moderate(personId: string, action: 'accept' | 'refuse') {
     setBusyId(personId);
-    setActionError(false);
+    setActionError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/workshop-sessions/${session.id}/enrollments/${personId}/${action}`,
-        { method: 'POST', credentials: 'include' },
+      const result = await apiRequest(
+        apiUrl,
+        `/api/v1/workshop-sessions/${session.id}/enrollments/${personId}/${action}`,
+        { method: 'POST' },
       );
-      if (!res.ok) throw new Error('moderate');
-      await loadRoster();
-    } catch {
-      setActionError(true);
+      // A refusal the server names is said in the reader's language (rulings 520-523).
+      if (result.ok) await loadRoster();
+      else setActionError(moderationRefusalWords(result, t));
     } finally {
       setBusyId(null);
     }
@@ -668,11 +669,7 @@ function SessionRow({
           )}
           {roster && roster.length > 0 && (
             <>
-              {actionError && (
-                <p className="mb-2 text-sm text-danger">
-                  {t('publicApp.me.instructor.actionError')}
-                </p>
-              )}
+              {actionError && <p className="mb-2 text-sm text-danger">{actionError}</p>}
               <RosterLists
                 roster={roster}
                 busyId={busyId}

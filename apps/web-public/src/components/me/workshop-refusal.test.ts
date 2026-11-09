@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { changeBooking, refusalWords, type BookingChange } from './workshop-booking';
+import {
+  changeBooking,
+  moderationRefusalWords,
+  refusalWords,
+  type BookingChange,
+} from './workshop-booking';
 
 /**
  * The personal Workshops page says a refused tap (operator ruling 294).
@@ -68,6 +73,12 @@ describe('the sentence of a refused tap', () => {
       'publicApp.workshopDetail.notBookable',
     ],
     [
+      'she has a place in another session of this Workshop (rulings 520, 521)',
+      409,
+      { code: 'WORKSHOP_ALREADY_BOOKED', detail: 'This person already has a place' },
+      'publicApp.workshopDetail.alreadyBooked',
+    ],
+    [
       'the Event is archived',
       403,
       { code: 'event_archived', detail: 'This event is archived' },
@@ -97,6 +108,44 @@ describe('the sentence of a refused tap', () => {
     >;
 
     expect(refusalWords(change, t)).toBe('common.apiFailure.network');
+  });
+});
+
+/**
+ * The instructor's accept of a refused person who holds another session of the Workshop is
+ * refused by the server (rulings 520-523). The dashboard said "Action failed. Try again.", and a
+ * retry fails the same way.
+ */
+describe("the sentence of an instructor's refused accept", () => {
+  const refusedAccept = async (status: number, body: unknown) => {
+    fetchMock.mockResolvedValue(answer(status, body));
+    const { apiRequest } = await import('@myclash/api-client');
+    const result = await apiRequest(API, '/api/v1/workshop-sessions/s-1/enrollments/p-1/accept', {
+      method: 'POST',
+    });
+    if (result.ok) throw new Error('the accept was taken');
+    return result;
+  };
+
+  it('names a place held in another session', async () => {
+    const failure = await refusedAccept(409, {
+      code: 'WORKSHOP_ALREADY_BOOKED',
+      detail: 'This person already has a place',
+    });
+    expect(moderationRefusalWords(failure, t)).toBe('publicApp.me.instructor.alreadyBooked');
+  });
+
+  it('says "try again" for any other failure', async () => {
+    const failure = await refusedAccept(500, { code: 'INTERNAL', detail: 'boom' });
+    expect(moderationRefusalWords(failure, t)).toBe('publicApp.me.instructor.actionError');
+  });
+
+  it('is what the dashboard shows', () => {
+    const page = readFileSync(
+      resolve(__dirname, '../../../app/me/instructor/InstructorDashboard.tsx'),
+      'utf8',
+    );
+    expect(page).toContain('else setActionError(moderationRefusalWords(result, t));');
   });
 });
 

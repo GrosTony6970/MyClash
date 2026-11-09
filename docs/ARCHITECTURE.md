@@ -1970,6 +1970,13 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 ### 11bis.4 Capacity management
 
 - `workshops.capacity` = max attendees per session (NULL = unlimited).
+- One person, one session per Workshop (operator rulings 515, 520-523;
+  `apps/api/src/modules/workshops/workshop-one-booking.ts`). A seat or a place on the waitlist in
+  one session refuses every other session of that Workshop (`WORKSHOP_ALREADY_BOOKED`, a 409),
+  whoever books: the person, the organiser's add, an instructor taking a refusal back. To switch,
+  the person gives the first place up. A refusal is a removal from one session only. The race is
+  accepted: two bookings of one person landing at the same instant on two sessions can both pass
+  the check, and either place can then be removed from its roster.
 - New enrollment when seats remain → `status='confirmed'`.
 - New enrollment when full → `status='waitlisted'` with `position=N`.
 - When a confirmed enrollment cancels → top of waitlist auto-promotes (BullMQ job, sends notification).

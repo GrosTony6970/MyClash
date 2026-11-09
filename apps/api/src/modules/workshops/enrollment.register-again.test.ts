@@ -25,7 +25,11 @@ const REFUSAL = row({ id: 'e-1', status: 'refused', position: null });
 /** `bookings` is a canned queue: what each read or write of the bookings answers, in call order. */
 function build(bookings: TableSeed, capacity: number | null = null) {
   const supabase = mockSupabase({
-    workshop_sessions: row({ workshop_id: 'w-1', workshops: { capacity } }),
+    // The session booked, then the Workshop's sessions: this one alone (rulings 520-523).
+    workshop_sessions: [
+      row({ workshop_id: 'w-1', workshops: { capacity } }),
+      row([{ id: SESSION }]),
+    ],
     // Nobody here teaches the Workshop, and no profile flag is written.
     persons: row({ global_person_id: null }),
     workshop_enrollments: bookings,

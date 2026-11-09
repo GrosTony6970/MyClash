@@ -14,6 +14,7 @@
  *   - Confirmed cancellation triggers promotion; waitlist top moves to confirmed
  *   - Race-condition safe: relies on the confirmed-count check
  *   - An instructor cannot take a participant seat in a workshop they teach
+ *   - One person, one session per Workshop (rulings 520-523, `workshop-one-booking.ts`)
  *   - Each change of a booking brings its own "starting soon" alert in line (ruling 210):
  *     the alert follows the booking as saved, so it is asked for AFTER the write. It is best
  *     effort (`bookingAlert`): the booking is saved, and the steps after it must still run.
@@ -30,6 +31,7 @@ import {
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { assertNoOtherBooking, assertNoOtherBookingFor } from './workshop-one-booking';
 
 export interface EnrollmentResult {
   id: string;
@@ -83,6 +85,12 @@ export class EnrollmentService {
     personId: string,
     again: boolean,
   ): Promise<EnrollmentResult> {
+    // One session per Workshop, whoever books (rulings 520-523). Before any write: a refused
+    // "Register again" keeps its refusal.
+    const workshopId = (session as { workshop_id?: string | null }).workshop_id;
+    if (workshopId) {
+      await assertNoOtherBooking(this.supabase.service, workshopId, sessionId, personId);
+    }
     if (again) await this.removeRefusal(sessionId, personId);
     const booking = await this.book(session, sessionId, personId);
     await this.bookingAlert(sessionId, personId);
@@ -427,11 +435,15 @@ export class EnrollmentService {
     const e = enrollment as { id: string; status: string };
     if (e.status === 'confirmed') return;
     const wasWaitlisted = e.status === 'waitlisted';
+    // A place on the waitlist already holds the Workshop; a refusal taken back gives a new one
+    // (rulings 520-523).
+    if (!wasWaitlisted) await assertNoOtherBookingFor(this.supabase.service, sessionId, personId);
 
-    await this.supabase.service
+    const { error } = await this.supabase.service
       .from('workshop_enrollments')
       .update({ status: 'confirmed', position: null })
       .eq('id', e.id);
+    if (error) throw new Error(`Booking ${e.id} not accepted: ${error.message}`);
     await this.bookingAlert(sessionId, personId);
 
     if (wasWaitlisted) {

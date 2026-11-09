@@ -310,6 +310,8 @@ export const publicApp = {
       accept: 'Accepter',
       refuse: 'Refuser',
       actionError: 'Action échouée. Réessayez.',
+      alreadyBooked:
+        "Cette personne a déjà une place dans une autre séance de cet atelier. Elle doit d'abord la libérer.",
       edit: 'Modifier',
       weaponLabel: 'Arme',
       levelLabel: 'Niveau',
@@ -1386,6 +1388,8 @@ export const publicApp = {
     instructorCannotEnroll: 'Vous ne pouvez pas vous inscrire à un atelier que vous animez.',
     sessionCancelled: 'Cette séance a été annulée.',
     notBookable: "Cet atelier n'est pas ouvert aux inscriptions.",
+    alreadyBooked:
+      "Vous avez déjà une place dans une autre séance de cet atelier. Libérez-la d'abord pour prendre celle-ci.",
   },
   live: {
     badge: 'EN DIRECT',

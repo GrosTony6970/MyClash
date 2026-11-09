@@ -113,7 +113,8 @@ export function guestPersonAt(me: MeSession | null, eventId: string | null): str
 }
 
 /** Why the server refused a tap, as far as a page has its own words for it. */
-export type BookingRefusal = 'nobody' | 'teaches' | 'removed' | 'cancelled' | 'closed' | 'other';
+export type BookingRefusal =
+  'nobody' | 'teaches' | 'removed' | 'cancelled' | 'closed' | 'booked' | 'other';
 
 export type BookingChange =
   | { ok: true; status: 'confirmed' | 'waitlisted' | 'cancelled' }
@@ -124,6 +125,8 @@ const REFUSAL_CODES = new Map<string, BookingRefusal>([
   ['WORKSHOP_BOOKING_REFUSED', 'removed'],
   ['WORKSHOP_SESSION_CANCELLED', 'cancelled'],
   ['WORKSHOP_NOT_BOOKABLE', 'closed'],
+  // A place in another session of the same Workshop (rulings 520, 521).
+  ['WORKSHOP_ALREADY_BOOKED', 'booked'],
 ]);
 
 /** One tap on a session, as one call: book (or book again), or give the booking up. */
@@ -164,5 +167,17 @@ export function refusalWords(
   if (change.why === 'removed') return t('publicApp.me.workshops.refused');
   if (change.why === 'cancelled') return t('publicApp.workshopDetail.sessionCancelled');
   if (change.why === 'closed') return t('publicApp.workshopDetail.notBookable');
+  if (change.why === 'booked') return t('publicApp.workshopDetail.alreadyBooked');
   return failureMessage(change.failure, t);
+}
+
+/**
+ * An instructor's accept or refuse that the server refused, in the reader's language. A refusal
+ * taken back while the person holds another session of the Workshop is named (rulings 520-523);
+ * any other is the dashboard's plain "try again".
+ */
+export function moderationRefusalWords(failure: ApiFailure, t: (key: string) => string): string {
+  return failureCode(failure) === 'WORKSHOP_ALREADY_BOOKED'
+    ? t('publicApp.me.instructor.alreadyBooked')
+    : t('publicApp.me.instructor.actionError');
 }

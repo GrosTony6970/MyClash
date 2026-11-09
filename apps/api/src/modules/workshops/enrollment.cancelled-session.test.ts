@@ -19,7 +19,11 @@ const row = (data: unknown) => ({ data, error: null });
 
 function build(status: string) {
   const supabase = mockSupabase({
-    workshop_sessions: row({ status, workshop_id: 'w-1', workshops: { capacity: null } }),
+    // The session booked, then the Workshop's sessions: this one alone (rulings 520-523).
+    workshop_sessions: [
+      row({ status, workshop_id: 'w-1', workshops: { capacity: null } }),
+      row([{ id: SESSION }]),
+    ],
     // Nobody here teaches the Workshop, and no profile flag is written.
     persons: row({ global_person_id: null }),
     // No booking yet, then the insert's read-back.
@@ -59,8 +63,10 @@ describe('a cancelled session takes no booking', () => {
       status: 'confirmed',
     });
     // The double ignores the projection: only this holds the column the check reads.
+    // Then the Workshop's sessions, for the one-session rule (rulings 520-523).
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
       'status, workshop_id, workshops ( capacity, status )',
+      'id',
     ]);
   });
 });
