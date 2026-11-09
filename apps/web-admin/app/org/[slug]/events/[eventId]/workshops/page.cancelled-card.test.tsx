@@ -75,9 +75,10 @@ const READS: Record<string, unknown> = {
     { id: 'v-1', name: 'Hall', hosts_workshop: true, venue_areas: null },
   ],
   // Both at 10:00 in the Hall: Longsword was cancelled, so Dagger has the room.
+  // Dagger is listed first: drawn in list order, the cancelled card used to cover it.
   '/api/v1/events/ev1/workshops': [
-    workshop('w-1', 'Longsword basics', 'cancelled'),
     workshop('w-2', 'Dagger', 'scheduled'),
+    workshop('w-1', 'Longsword basics', 'cancelled'),
   ],
   '/api/v1/workshops/w-1': { descriptionMd: null },
   '/api/v1/workshops/w-2': { descriptionMd: null },
@@ -121,6 +122,8 @@ describe('a cancelled session on the board', () => {
     expect(longsword.querySelector('.line-through')?.textContent).toBe('Longsword basics');
     expect(longsword.querySelectorAll('.cursor-ns-resize')).toHaveLength(0);
     expect(dagger.getAttribute('draggable')).toBe('true');
+    // Drawn first, the cancelled card lies under the live one that took its room.
+    expect(cards.indexOf(longsword)).toBeLessThan(cards.indexOf(dagger));
     // Same room, same hour: no red overlap on either, the cancelled one holds no room.
     expect(document.body.querySelectorAll('main [role="button"].ring-danger')).toHaveLength(0);
   });

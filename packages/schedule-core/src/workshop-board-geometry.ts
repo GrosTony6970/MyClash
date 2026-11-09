@@ -153,7 +153,11 @@ function matchColumn(
 
 const DEFAULT_BLOCK_MINUTES = 60;
 
-/** Blocks for every session that falls on `day` (in `tz`) and maps to a column. */
+/**
+ * Blocks for every session that falls on `day` (in `tz`) and maps to a column. A cancelled block
+ * comes first: drawn first, it lies UNDER a live one in the same room and hour, which took its
+ * room (ruling 528); drawn last, it covered that card and caught its clicks.
+ */
 export function buildWorkshopSessionBlocks(
   workshops: ReadonlyArray<BoardWorkshop>,
   columns: ReadonlyArray<AreaColumn>,
@@ -168,7 +172,7 @@ export function buildWorkshopSessionBlocks(
       if (block) blocks.push(block);
     }
   }
-  return blocks;
+  return [...blocks.filter((b) => b.cancelled), ...blocks.filter((b) => !b.cancelled)];
 }
 
 type BoardSession = BoardWorkshop['sessions'][number];

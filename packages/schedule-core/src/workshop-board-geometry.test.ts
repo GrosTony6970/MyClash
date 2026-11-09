@@ -233,6 +233,17 @@ describe('several sessions of one Workshop', () => {
       ['s-saturday-pm', false],
     ]);
   });
+
+  it('puts a cancelled block first, so the live one that took its room is drawn over it (528)', () => {
+    const dagger = workshop({
+      id: 'w-dagger',
+      sessions: [{ ...longsword.sessions[0]!, id: 's-dagger' }],
+    });
+    const cancelled = { ...longsword, sessions: [{ ...longsword.sessions[0]!, cancelled: true }] };
+    // The live Workshop is listed first: the order the board used to keep.
+    const blocks = buildWorkshopSessionBlocks([dagger, cancelled], columns, '2027-06-01', TZ);
+    expect(blocks.map((b) => b.sessionId)).toEqual(['s-saturday', 's-dagger']);
+  });
 });
 
 describe('unplacedSessions', () => {
