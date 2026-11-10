@@ -1980,6 +1980,19 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   pass the check, and either place can then be removed from its roster. So is a cancelled session
   set back to `scheduled` (the API allows it; no screen does): a person who moved to another
   session then holds both places, and either can be removed.
+- Who may book: a person on the Event's list (`persons`), through her account or a guest session.
+  Joining the list by oneself (rulings 516, 567, 568, 572, 573; migration 0261): when the
+  organiser turns on `events.workshop_self_join` (a card on the Event's Workshops page), a
+  signed-in ACCOUNT that is not on the list joins from a Workshop page, then books the session it
+  tapped. There is no name-and-email walk-in: a visitor is sent to create an account or sign in.
+  `POST me/events/:eventId/join` (`apps/api/src/modules/persons/event-join.service.ts`): the
+  account's own row if it holds one; else an unclaimed row carrying its address, claimed; else a
+  new row made by the organiser's add (`PersonsService.createPerson`) with the account's address
+  and its live profile's names (typed names only without a profile), then claimed through
+  `AuthService.claimOwnRow` (the claim's one owner, which links the profile). It refuses (409
+  `AskOrganiser`, with a `reason`) a row with the address held by another account, a row linked
+  to the account's profile under another address, and a row with no email and the same name
+  (572). Closed on a completed or archived Event (573). The privacy policy says so (§3, 571).
 - New enrollment when seats remain → `status='confirmed'`.
 - New enrollment when full → `status='waitlisted'` with `position=N`.
 - When a confirmed enrollment cancels → top of waitlist auto-promotes (BullMQ job, sends notification).
