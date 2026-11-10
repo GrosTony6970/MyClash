@@ -243,6 +243,27 @@ interface RawWorkshop {
   workshop_instructors: RawInstructor[] | null;
 }
 
+/** A new Workshop's row, with the defaults of a form that left a field out. */
+function newWorkshopRow(eventId: string, dto: CreateWorkshopDto, weapon: string | null) {
+  return {
+    event_id: eventId,
+    slug: dto.slug,
+    title: dto.title.trim(),
+    short_description: dto.shortDescription ?? null,
+    description_md: dto.descriptionMd ?? null,
+    category: dto.category ?? null,
+    level: dto.level ?? 'all',
+    weapon,
+    language: dto.language ?? 'fr',
+    capacity: dto.capacity ?? null,
+    duration_minutes: dto.durationMinutes ?? null,
+    status: dto.status ?? 'draft',
+    color: dto.color ?? null,
+    venue_id: dto.venueId ?? null,
+    auto_check_in: dto.autoCheckIn ?? false,
+  };
+}
+
 function sessionsInOrder(row: RawWorkshop): RawSession[] {
   return inStartOrder(row.workshop_sessions ?? [], (s) => s.starts_at);
 }
@@ -474,23 +495,7 @@ export class WorkshopsService {
 
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .insert({
-        event_id: eventId,
-        slug: dto.slug,
-        title: dto.title.trim(),
-        short_description: dto.shortDescription ?? null,
-        description_md: dto.descriptionMd ?? null,
-        category: dto.category ?? null,
-        level: dto.level ?? 'all',
-        weapon,
-        language: dto.language ?? 'fr',
-        capacity: dto.capacity ?? null,
-        duration_minutes: dto.durationMinutes ?? null,
-        status: dto.status ?? 'draft',
-        color: dto.color ?? null,
-        venue_id: dto.venueId ?? null,
-        auto_check_in: dto.autoCheckIn ?? false,
-      })
+      .insert(newWorkshopRow(eventId, dto, weapon))
       .select('*')
       .single();
 

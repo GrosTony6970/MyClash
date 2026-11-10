@@ -16,27 +16,43 @@ import { rosterRequests } from './roster-requests';
  * No box for a refused person (541). A cancelled session's box shows its state and takes no tap
  * (526); an archived Event takes none either.
  */
-export function RosterCheckIn({
-  apiUrl,
-  sessionId,
-  booking,
-  name,
-  readOnly,
-  cancelled,
-  onSaved,
-}: {
+interface CheckInTarget {
   apiUrl: string;
   sessionId: string;
   booking: { id: string; personId: string; status: string; checkedInAt?: string | null };
-  name: string;
-  readOnly: boolean;
-  cancelled: boolean;
   onSaved: (bookingId: string, checkedInAt: string | null) => void;
-}) {
+}
+
+export function RosterCheckIn({
+  name,
+  readOnly,
+  cancelled,
+  ...target
+}: CheckInTarget & { name: string; readOnly: boolean; cancelled: boolean }) {
+  const { t } = useI18n();
+  const { busy, tick } = useTick(target);
+  if (!canTick(target.booking.status)) return null;
+
+  return (
+    <label className="flex shrink-0 items-center gap-1.5 text-xs text-foreground-secondary">
+      <input
+        type="checkbox"
+        aria-label={t('organizer.workshopsPage.presentFor', { name })}
+        checked={Boolean(target.booking.checkedInAt)}
+        disabled={readOnly || cancelled || busy}
+        onChange={(e) => void tick(e.target.checked)}
+        className="h-4 w-4 rounded accent-success disabled:opacity-50"
+      />
+      {t('organizer.workshopsPage.present')}
+    </label>
+  );
+}
+
+/** The tap's request: the row patched from the answer, a refusal said in the reader's words. */
+function useTick({ apiUrl, sessionId, booking, onSaved }: CheckInTarget) {
   const { t } = useI18n();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  if (!canTick(booking.status)) return null;
 
   async function tick(present: boolean) {
     setBusy(true);
@@ -56,17 +72,5 @@ export function RosterCheckIn({
     }
   }
 
-  return (
-    <label className="flex shrink-0 items-center gap-1.5 text-xs text-foreground-secondary">
-      <input
-        type="checkbox"
-        aria-label={t('organizer.workshopsPage.presentFor', { name })}
-        checked={Boolean(booking.checkedInAt)}
-        disabled={readOnly || cancelled || busy}
-        onChange={(e) => void tick(e.target.checked)}
-        className="h-4 w-4 rounded accent-success disabled:opacity-50"
-      />
-      {t('organizer.workshopsPage.present')}
-    </label>
-  );
+  return { busy, tick };
 }
