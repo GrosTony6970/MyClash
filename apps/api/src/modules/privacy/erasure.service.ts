@@ -320,8 +320,9 @@ export class ErasureService {
    */
   private async redactWorkshopLines(globalPersonIds: string[]): Promise<number> {
     if (globalPersonIds.length === 0) return 0;
-    // The columns first, then the files: a photo uploaded between the two is no longer shown and
-    // is deleted with its folder. A storage failure throws; the lines stay, found again by a retry.
+    // The columns first, then the files: a photo uploaded between the two may set its link again,
+    // but its file goes with the folder, so no photo of the person survives. A storage failure
+    // throws; the lines stay, found again by a retry.
     const { data, error } = await this.supabase.service
       .from('workshop_instructors')
       .update(nulls(WORKSHOP_INSTRUCTOR_NULLED))
