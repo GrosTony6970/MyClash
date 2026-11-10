@@ -25,18 +25,12 @@ const boxesOf = (details: InstructorDetails): DetailBoxes => ({
   club: details.club ?? '',
 });
 
-/**
- * Reads and writes one instructor line's details (2.6b). Two people write them (558): the
- * organiser here, the instructor from their own page. A Save sends only the boxes changed since
- * the panel opened, and the baseline moves after each landed save. A photo is stored at once.
- */
-export function useInstructorDetails(apiUrl: string, path: string) {
+/** The line as the panel opened it: the view, the boxes typed in, and what they held then. */
+function useDetailsRead(apiUrl: string, path: string) {
   const [view, setView] = useState<InstructorDetailsView | null>(null);
   const [loadFailure, setLoadFailure] = useState<ApiFailure | null>(null);
   const [boxes, setBoxes] = useState<DetailBoxes>({ bio: '', club: '' });
   const [asLoaded, setAsLoaded] = useState<DetailBoxes>({ bio: '', club: '' });
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<ApiFailure | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -56,11 +50,15 @@ export function useInstructorDetails(apiUrl: string, path: string) {
     };
   }, [apiUrl, path]);
 
-  function stored(override: InstructorDetails) {
-    setView((current) => current && { ...current, override });
-  }
+  return { view, setView, loadFailure, boxes, setBoxes, asLoaded, setAsLoaded };
+}
 
-  /** Runs one write; its refusal is kept for the panel to say. True when it landed. */
+/** One write at a time: busy while it runs, its refusal kept for the panel to say. */
+function useWrite() {
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<ApiFailure | null>(null);
+
+  /** What the server answered, or null when it refused. */
   async function write<T>(send: () => Promise<ApiResult<T>>): Promise<T | null> {
     setBusy(true);
     setFailure(null);
@@ -70,6 +68,23 @@ export function useInstructorDetails(apiUrl: string, path: string) {
     setFailure(answer);
     return null;
   }
+
+  return { busy, failure, write };
+}
+
+/**
+ * Reads and writes one instructor line's details (2.6b). Two people write them (558): the
+ * organiser here, the instructor from their own page. A Save sends only the boxes changed since
+ * the panel opened, and the baseline moves after each landed save. A photo is stored at once.
+ */
+export function useInstructorDetails(apiUrl: string, path: string) {
+  const { view, setView, loadFailure, boxes, setBoxes, asLoaded, setAsLoaded } = useDetailsRead(
+    apiUrl,
+    path,
+  );
+  const { busy, failure, write } = useWrite();
+  const stored = (override: InstructorDetails) =>
+    setView((current) => current && { ...current, override });
 
   async function save(): Promise<boolean> {
     if (!view) return false;

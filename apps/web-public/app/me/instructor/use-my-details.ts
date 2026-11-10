@@ -27,17 +27,11 @@ const boxesOf = (details: Details): Boxes => ({
 /** What failed last, as the name of the line the panel says. */
 export type DetailsError = 'myDetailsLoadError' | 'saveError' | 'myPhotoError' | 'myPhotoInvalid';
 
-/**
- * Reads and writes the instructor's own line on a Workshop (2.6b, ruling 558). The organiser
- * writes it too: a Save sends only the boxes changed since the panel opened, and the baseline
- * moves after each landed save. A photo is stored at once.
- */
-export function useMyDetails(apiUrl: string, path: string) {
+/** The line as the panel opened it: the view, the boxes typed in, and what they held then. */
+function useMyRead(apiUrl: string, path: string, setError: (error: DetailsError | null) => void) {
   const [view, setView] = useState<DetailsView | null>(null);
   const [draft, setDraft] = useState<Boxes>({ bio: '', club: '' });
   const [loaded, setLoaded] = useState<Boxes>({ bio: '', club: '' });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<DetailsError | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -55,9 +49,17 @@ export function useMyDetails(apiUrl: string, path: string) {
     return () => {
       live = false;
     };
-  }, [apiUrl, path]);
+  }, [apiUrl, path, setError]);
 
-  /** Runs one write; what it answered, or null after saying it failed. */
+  return { view, setView, draft, setDraft, loaded, setLoaded };
+}
+
+/** One write at a time: busy while it runs, what failed last kept for the panel to say. */
+function useMyWrite() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<DetailsError | null>(null);
+
+  /** What the server answered, or null after saying it failed. */
   async function write<T>(send: () => Promise<ApiResult<T>>, failure: DetailsError) {
     setBusy(true);
     setError(null);
@@ -67,6 +69,18 @@ export function useMyDetails(apiUrl: string, path: string) {
     setError(failure);
     return null;
   }
+
+  return { busy, error, setError, write };
+}
+
+/**
+ * Reads and writes the instructor's own line on a Workshop (2.6b, ruling 558). The organiser
+ * writes it too: a Save sends only the boxes changed since the panel opened, and the baseline
+ * moves after each landed save. A photo is stored at once.
+ */
+export function useMyDetails(apiUrl: string, path: string) {
+  const { busy, error, setError, write } = useMyWrite();
+  const { view, setView, draft, setDraft, loaded, setLoaded } = useMyRead(apiUrl, path, setError);
 
   async function save() {
     if (!view) return;

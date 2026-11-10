@@ -267,10 +267,8 @@ function jsonColumnsWithDeclaredPaths(table: string): Set<string> {
 }
 
 /** Link columns of archived tables the archive carries as links only (rulings 403, 406). */
-const URL_COLUMNS_NOT_CARRIED = new Set<string>([
-  // Empty since slice 2.6b: `workshop_instructors.photo_url` was here ("no route writes it")
-  // until its upload route made that false; it is carried now.
-]);
+// Empty since 2.6b: `workshop_instructors.photo_url` was here until its upload route; now carried.
+const URL_COLUMNS_NOT_CARRIED = new Set<string>([]);
 
 describe('archive column coverage', () => {
   const { columns, jsonColumns } = buildMigrationSchema();

@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WORKSHOP_INSTRUCTOR_BIO_MAX, WORKSHOP_INSTRUCTOR_CLUB_MAX } from '@myclash/types';
 import { AvatarCropper } from '../../profile/fighter/AvatarCropper';
-import { useMyDetails, type DetailsView } from './use-my-details';
+import { useMyDetails, type DetailsError, type DetailsView } from './use-my-details';
 
 /** The photo's cap and types, the server's (`WORKSHOP_INSTRUCTOR_PHOTO_UPLOAD`). */
 const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
@@ -19,6 +19,9 @@ const INPUT =
   'w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 const SMALL_BUTTON =
   'rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background disabled:opacity-50';
+const LABEL = 'mt-3 flex flex-col gap-1 text-xs font-semibold text-muted';
+
+type MyDetails = ReturnType<typeof useMyDetails>;
 
 export function MyDetailsPanel({
   workshopId,
@@ -39,44 +42,9 @@ export function MyDetailsPanel({
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <p className="text-xs text-muted">{t('publicApp.me.instructor.myDetailsHint')}</p>
-      {view && (
-        <>
-          <MyPhoto details={details} view={view} />
-          <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
-            {t('publicApp.me.instructor.myBioLabel')}
-            <textarea
-              rows={4}
-              maxLength={WORKSHOP_INSTRUCTOR_BIO_MAX}
-              className={`${INPUT} resize-none`}
-              value={details.draft.bio}
-              placeholder={view.profile.bio ?? ''}
-              onChange={(e) => details.setBox('bio', e.target.value)}
-            />
-          </label>
-          <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
-            {t('publicApp.me.instructor.myClubLabel')}
-            <input
-              maxLength={WORKSHOP_INSTRUCTOR_CLUB_MAX}
-              className={INPUT}
-              value={details.draft.club}
-              placeholder={view.profile.club ?? ''}
-              onChange={(e) => details.setBox('club', e.target.value)}
-            />
-          </label>
-        </>
-      )}
-      {details.error && (
-        <p role="alert" className="mt-2 text-sm text-danger">
-          {
-            {
-              myDetailsLoadError: t('publicApp.me.instructor.myDetailsLoadError'),
-              saveError: t('publicApp.me.instructor.saveError'),
-              myPhotoError: t('publicApp.me.instructor.myPhotoError'),
-              myPhotoInvalid: t('publicApp.me.instructor.myPhotoInvalid'),
-            }[details.error]
-          }
-        </p>
-      )}
+      {view && <MyPhoto details={details} view={view} />}
+      {view && <MyBoxes details={details} view={view} />}
+      {details.error && <ErrorLine error={details.error} />}
       {view && (
         <div className="mt-3 flex justify-end">
           <button
@@ -93,13 +61,51 @@ export function MyDetailsPanel({
   );
 }
 
-function MyPhoto({
-  details,
-  view,
-}: {
-  details: ReturnType<typeof useMyDetails>;
-  view: DetailsView;
-}) {
+function MyBoxes({ details, view }: { details: MyDetails; view: DetailsView }) {
+  const { t } = useI18n();
+  return (
+    <>
+      <label className={LABEL}>
+        {t('publicApp.me.instructor.myBioLabel')}
+        <textarea
+          rows={4}
+          maxLength={WORKSHOP_INSTRUCTOR_BIO_MAX}
+          className={`${INPUT} resize-none`}
+          value={details.draft.bio}
+          placeholder={view.profile.bio ?? ''}
+          onChange={(e) => details.setBox('bio', e.target.value)}
+        />
+      </label>
+      <label className={LABEL}>
+        {t('publicApp.me.instructor.myClubLabel')}
+        <input
+          maxLength={WORKSHOP_INSTRUCTOR_CLUB_MAX}
+          className={INPUT}
+          value={details.draft.club}
+          placeholder={view.profile.club ?? ''}
+          onChange={(e) => details.setBox('club', e.target.value)}
+        />
+      </label>
+    </>
+  );
+}
+
+function ErrorLine({ error }: { error: DetailsError }) {
+  const { t } = useI18n();
+  const words: Record<DetailsError, string> = {
+    myDetailsLoadError: t('publicApp.me.instructor.myDetailsLoadError'),
+    saveError: t('publicApp.me.instructor.saveError'),
+    myPhotoError: t('publicApp.me.instructor.myPhotoError'),
+    myPhotoInvalid: t('publicApp.me.instructor.myPhotoInvalid'),
+  };
+  return (
+    <p role="alert" className="mt-2 text-sm text-danger">
+      {words[error]}
+    </p>
+  );
+}
+
+function MyPhoto({ details, view }: { details: MyDetails; view: DetailsView }) {
   const { t } = useI18n();
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const own = view.override.photoUrl;
@@ -131,41 +137,7 @@ function MyPhoto({
           />
         )}
       </div>
-      <div className="flex flex-col items-start gap-1">
-        <p className="text-xs text-muted">
-          {own
-            ? t('publicApp.me.instructor.myPhotoOwn')
-            : t('publicApp.me.instructor.myPhotoFromProfile')}
-        </p>
-        <div className="flex gap-2">
-          <label className={`${SMALL_BUTTON} cursor-pointer`}>
-            {own
-              ? t('publicApp.me.instructor.myPhotoReplace')
-              : t('publicApp.me.instructor.myPhotoUpload')}
-            <input
-              type="file"
-              accept={PHOTO_TYPES.join(',')}
-              className="hidden"
-              disabled={details.busy}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) pick(file);
-              }}
-            />
-          </label>
-          {own && (
-            <button
-              type="button"
-              disabled={details.busy}
-              onClick={() => void details.removePhoto()}
-              className={SMALL_BUTTON}
-            >
-              {t('publicApp.me.instructor.myPhotoRemove')}
-            </button>
-          )}
-        </div>
-      </div>
+      <MyPhotoButtons own={Boolean(own)} details={details} onPick={pick} />
       {cropSrc && (
         <AvatarCropper
           imageSrc={cropSrc}
@@ -178,6 +150,56 @@ function MyPhoto({
           t={t}
         />
       )}
+    </div>
+  );
+}
+
+/** Upload (or Replace) picks a file; Remove shows only for this Workshop's own photo. */
+function MyPhotoButtons({
+  own,
+  details,
+  onPick,
+}: {
+  own: boolean;
+  details: MyDetails;
+  onPick: (file: File) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <p className="text-xs text-muted">
+        {own
+          ? t('publicApp.me.instructor.myPhotoOwn')
+          : t('publicApp.me.instructor.myPhotoFromProfile')}
+      </p>
+      <div className="flex gap-2">
+        <label className={`${SMALL_BUTTON} cursor-pointer`}>
+          {own
+            ? t('publicApp.me.instructor.myPhotoReplace')
+            : t('publicApp.me.instructor.myPhotoUpload')}
+          <input
+            type="file"
+            accept={PHOTO_TYPES.join(',')}
+            className="hidden"
+            disabled={details.busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) onPick(file);
+            }}
+          />
+        </label>
+        {own && (
+          <button
+            type="button"
+            disabled={details.busy}
+            onClick={() => void details.removePhoto()}
+            className={SMALL_BUTTON}
+          >
+            {t('publicApp.me.instructor.myPhotoRemove')}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
