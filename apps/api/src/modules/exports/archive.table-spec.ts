@@ -196,6 +196,14 @@ export interface ArchiveTableSpec {
    */
   readonly skillIdColumns?: readonly string[];
 
+  /**
+   * Columns left out of the archive file: personal data about a person's day, not the Event's
+   * record. An archive is a file that gets copied and mailed; the reasoning is the one that keeps
+   * `event_arrivals` out whole (`ARCHIVE_EXCLUDED_TABLES`). Taken off at collection, so the file
+   * never holds them; a restore inserts the row without them (the column default). Ruling 549.
+   */
+  readonly personal?: readonly string[];
+
   /** Columns overwritten with a literal on restore, whatever the source held. */
   readonly set?: Readonly<Record<string, unknown>>;
 

@@ -466,6 +466,8 @@ const TABLES = {
       event: { from: 'workshop_sessions', local: 'workshop_session_id' },
       tournament: 'omit',
     },
+    // Who was in the room, and when (0259): personal, like the desk's arrivals (549).
+    personal: ['checked_in_at', 'check_in_source'],
   },
   workshop_breaks: { key: 'workshopBreaks', collect: { event: EVENT_SCOPED, tournament: 'omit' } },
   event_programme_blocks: {

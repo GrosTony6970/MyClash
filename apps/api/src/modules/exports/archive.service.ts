@@ -701,8 +701,9 @@ export class ArchiveService {
       });
 
       resolving.delete(table);
-      resolved.set(table, rows);
-      return rows;
+      const kept = withoutPersonal(rows, ARCHIVE_TABLES[table]!.personal);
+      resolved.set(table, kept);
+      return kept;
     };
 
     const tables = emptyArchiveTables();
@@ -948,6 +949,17 @@ function idsByColumn(rows: ArchiveRow[], column: string): string[] {
   return rows
     .map((row) => row[column])
     .filter((value): value is string => typeof value === 'string');
+}
+
+/** The rows without the table's personal columns (`TableSpec.personal`, ruling 549). */
+function withoutPersonal(
+  rows: ArchiveRow[],
+  personal: readonly string[] | undefined,
+): ArchiveRow[] {
+  if (!personal?.length) return rows;
+  return rows.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([column]) => !personal.includes(column))),
+  );
 }
 
 function isArchive(value: unknown): value is MyClashArchive {
