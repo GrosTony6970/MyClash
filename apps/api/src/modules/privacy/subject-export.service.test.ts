@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { SubjectExportService, rowsToCsv, scrubRows } from './subject-export.service';
 import { HEADER_ROW } from '../exports/hema-ratings-format';
 import { SUBJECT_EXPORT_TABLES, SUBJECT_EXPORT_EXCLUDED_TABLES } from './subject-export.tables';
@@ -135,6 +135,53 @@ describe('subject table census', () => {
       service as unknown as { resolveAnchors: (uid: string) => Promise<{ matchIds: string[] }> }
     ).resolveAnchors('u-1');
     expect([...anchors.matchIds].sort()).toEqual(['m-bout', 'm-p1', 'm-p2']);
+  });
+
+  it('exports when the subject was ticked present in a Workshop session (rulings 548, 549)', async () => {
+    // Who was in the room is hidden from the web and left out of the Event archive, and it is
+    // the subject's own: their export carries it, read whole.
+    const supabase = mockSupabase({
+      workshop_enrollments: {
+        rows: [
+          {
+            id: 'b-mine',
+            user_id: 'p-1',
+            status: 'confirmed',
+            checked_in_at: '2026-11-14T08:12:00Z',
+            check_in_source: 'desk',
+          },
+          { id: 'b-theirs', user_id: 'p-other', status: 'confirmed', checked_in_at: null },
+        ],
+      },
+    });
+    const service = new SubjectExportService(supabase as never);
+    const fetchDirect = (
+      service as unknown as {
+        fetchDirect: (table: string, spec: unknown, anchors: unknown) => Promise<unknown[]>;
+      }
+    ).fetchDirect.bind(service);
+
+    const rows = await fetchDirect(
+      'workshop_enrollments',
+      SUBJECT_EXPORT_TABLES['workshop_enrollments'],
+      {
+        uid: 'u-1',
+        globalPersonIds: [],
+        personIds: ['p-1'],
+        registrationIds: [],
+        matchIds: [],
+      },
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: 'b-mine',
+        checked_in_at: '2026-11-14T08:12:00Z',
+        check_in_source: 'desk',
+      }),
+    ]);
+    // The double ignores projections: only this holds that the read takes every column.
+    expect(selectsFor(supabase.from, 'workshop_enrollments')).toContain('*');
   });
 
   it.each([
