@@ -3,12 +3,23 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-import { refereeRecipients, type BroadcastRecipient } from './broadcast-referee-recipients';
+import {
+  profileRecipients,
+  type BroadcastRecipient,
+  type ProfileRecipientsDeps,
+} from './broadcast-profile-recipients';
+import { instructorRecipients, workshopAttendeeIds } from './broadcast-workshop-recipients';
 import type { SendBroadcastNotificationDto } from './dto/notifications.dto';
 
 export type BroadcastSeverity = 'info' | 'warning' | 'alert';
 export type BroadcastTargetType =
-  'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
+  | 'all'
+  | 'fighters'
+  | 'referees'
+  | 'fighters_and_referees'
+  | 'specific_persons'
+  | 'workshop_attendees'
+  | 'instructors';
 
 interface EventRow {
   id: string;
@@ -30,6 +41,8 @@ const TARGET_TYPES: BroadcastTargetType[] = [
   'referees',
   'fighters_and_referees',
   'specific_persons',
+  'workshop_attendees',
+  'instructors',
 ];
 const SEVERITIES: BroadcastSeverity[] = ['info', 'warning', 'alert'];
 
@@ -298,6 +311,15 @@ export class BroadcastNotificationsService {
     }
     if (dto.targetType === 'fighters') return this.getFighterRecipients(eventId, dto.tournamentId);
     if (dto.targetType === 'referees') return this.getRefereeRecipients(eventId, dto.tournamentId);
+    // The two Workshop audiences (rulings 533, 534) ignore a Tournament, as "all" does.
+    if (dto.targetType === 'workshop_attendees') {
+      return this.getPersonsByIds(
+        eventId,
+        await workshopAttendeeIds(this.recipientDeps(), eventId),
+      );
+    }
+    if (dto.targetType === 'instructors')
+      return instructorRecipients(this.recipientDeps(), eventId);
     const [fighters, referees] = await Promise.all([
       this.getFighterRecipients(eventId, dto.tournamentId),
       this.getRefereeRecipients(eventId, dto.tournamentId),
@@ -382,7 +404,7 @@ export class BroadcastNotificationsService {
     // Post-0063: referee_* tables key on person_id (= global_persons.id).
     // A referee's recipient is his roster row in the Event when he has one
     // (it carries the email + userId), and his account when he has none:
-    // `broadcast-referee-recipients.ts`.
+    // `broadcast-profile-recipients.ts`.
     if (tournamentId) {
       await this.getTournamentIds(eventId, tournamentId);
       const { data: phases, error: phasesError } = await this.supabase.service
@@ -459,12 +481,16 @@ export class BroadcastNotificationsService {
     return this.resolveRefereeRecipients(eventId, personIds);
   }
 
-  /** The referees behind a list of profile ids: see `broadcast-referee-recipients.ts`. */
+  /** The referees behind a list of profile ids: see `broadcast-profile-recipients.ts`. */
   private resolveRefereeRecipients(
     eventId: string,
     profileIds: string[],
   ): Promise<BroadcastRecipient[]> {
-    return refereeRecipients({ supabase: this.supabase, logger: this.logger }, eventId, profileIds);
+    return profileRecipients(this.recipientDeps(), eventId, profileIds, 'referee');
+  }
+
+  private recipientDeps(): ProfileRecipientsDeps {
+    return { supabase: this.supabase, logger: this.logger };
   }
 
   private mapPersons(rows: unknown[]): BroadcastRecipient[] {

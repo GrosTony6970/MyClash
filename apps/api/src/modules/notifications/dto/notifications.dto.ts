@@ -48,6 +48,8 @@ const sendBroadcastNotificationSchema = z
       'referees',
       'fighters_and_referees',
       'specific_persons',
+      'workshop_attendees',
+      'instructors',
     ]),
     personIds: z.array(z.uuid()).max(500).optional(),
     tournamentId: z.uuid().optional(),

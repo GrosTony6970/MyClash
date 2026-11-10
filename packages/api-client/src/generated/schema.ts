@@ -12011,7 +12011,14 @@ export interface components {
     };
     SendBroadcastNotificationDto: {
       /** @enum {string} */
-      targetType: 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
+      targetType:
+        | 'all'
+        | 'fighters'
+        | 'referees'
+        | 'fighters_and_referees'
+        | 'specific_persons'
+        | 'workshop_attendees'
+        | 'instructors';
       personIds?: string[];
       /** Format: uuid */
       tournamentId?: string;
