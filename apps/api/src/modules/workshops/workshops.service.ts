@@ -43,6 +43,7 @@ import {
   WORKSHOP_LOGO_BUCKET,
   WORKSHOP_LOGO_MAX_BYTES,
 } from './workshop-assets';
+import { deleteInstructorPhotoFolder } from './workshop-instructor-photo';
 
 /** Multipart file payload for the workshop logo upload endpoint. */
 export interface WorkshopLogoUpload {
@@ -754,8 +755,23 @@ export class WorkshopsService {
     return data;
   }
 
+  /**
+   * Unticks an instructor: their line goes, and with it what this Workshop said about them (561),
+   * its photo files first. A storage failure refuses the untick before the line goes, so nothing
+   * is left that no line names, and the organiser can try again.
+   */
   async removeInstructor(workshopId: string, globalPersonId: string, userId: string) {
     await this.assertCanManageEvent(await this.resolveWorkshopEvent(workshopId), userId);
+    const { data: line, error: readError } = await this.supabase.service
+      .from('workshop_instructors')
+      .select('id')
+      .eq('workshop_id', workshopId)
+      .eq('global_person_id', globalPersonId)
+      .maybeSingle();
+    if (readError) throw new BadRequestException(readError.message);
+    if (line) {
+      await deleteInstructorPhotoFolder(this.supabase.service.storage, (line as { id: string }).id);
+    }
     const { error } = await this.supabase.service
       .from('workshop_instructors')
       .delete()

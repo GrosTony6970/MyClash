@@ -268,8 +268,8 @@ function jsonColumnsWithDeclaredPaths(table: string): Set<string> {
 
 /** Link columns of archived tables the archive carries as links only (rulings 403, 406). */
 const URL_COLUMNS_NOT_CARRIED = new Set<string>([
-  // 0001. No route writes it: `WorkshopsService.addInstructor` stores a name only.
-  'workshop_instructors.photo_url',
+  // Empty since slice 2.6b: `workshop_instructors.photo_url` was here ("no route writes it")
+  // until its upload route made that false; it is carried now.
 ]);
 
 describe('archive column coverage', () => {
@@ -368,7 +368,11 @@ describe('archive column coverage', () => {
         if (!carried.has(name) && !URL_COLUMNS_NOT_CARRIED.has(name)) unbucketed.push(name);
       }
     }
-    expect(carried.size, 'sanity: the carried list reaches this test').toBe(4);
+    expect(carried.size, 'sanity: the carried list reaches this test').toBe(5);
+    expect(
+      [...URL_COLUMNS_NOT_CARRIED].filter((name) => carried.has(name)),
+      'a link column is carried AND listed as not carried: one of the two lists is wrong',
+    ).toEqual([]);
     expect(
       unbucketed,
       `These link columns are on archived tables and nobody has said whether they hold an ` +

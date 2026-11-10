@@ -22,6 +22,7 @@ import {
 import { LeaguesController } from '../modules/leagues/leagues.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
 import { PersonsController } from '../modules/persons/persons.controller';
+import { WorkshopInstructorDetailsController } from '../modules/workshops/workshop-instructor-details.controller';
 import { WorkshopsController } from '../modules/workshops/workshops.controller';
 import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
 import { FILE_TOO_LARGE_CODE } from './read-upload';
@@ -130,6 +131,13 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
       new WorkshopsController(any(), any(), authAs(), any(), any(), any()).uploadLogo(ORG, req),
   ],
   [
+    'POST workshops/:id/instructors/:globalPersonId/details/photo',
+    15 * MIB,
+    'Photo upload exceeds the 15 MB size limit.',
+    'file',
+    (req) => new WorkshopInstructorDetailsController(any(), authAs()).uploadPhoto(ORG, EVENT, req),
+  ],
+  [
     'POST archive/restore-preview',
     50 * MIB,
     'Archive upload exceeds the 50 MB size limit.',
@@ -174,8 +182,8 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
 ];
 
 describe('each upload route reads under its own limit', () => {
-  it('names all sixteen routes', () => {
-    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(16);
+  it('names all seventeen routes', () => {
+    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(17);
   });
 
   it.each(ROUTES)(

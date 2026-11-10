@@ -22,6 +22,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { SupabaseService } from '../supabase/supabase.service';
+import { deleteInstructorPhotoFolder } from '../workshops/workshop-instructor-photo';
 import {
   GLOBAL_PERSON_NULLED,
   PERSON_NULLED,
@@ -312,12 +313,22 @@ export class ErasureService {
 
   /**
    * What a Workshop says about the person, over their profile (rulings 556, 560): a bio, a club
-   * line and a photo written for one Workshop. Found by the profile ids, so `redactSubject` runs
+   * line and a photo written for one Workshop, the photo's files included. Found by the profile
+   * ids, so `redactSubject` runs
    * it before the profile update clears the column those ids come from: a failure stays
    * retryable.
    */
   private async redactWorkshopLines(globalPersonIds: string[]): Promise<number> {
     if (globalPersonIds.length === 0) return 0;
+    // The photo files first: a storage failure stops here, and the lines are found again.
+    const lines = await this.supabase.service
+      .from('workshop_instructors')
+      .select('id')
+      .in('global_person_id', globalPersonIds);
+    if (lines.error) throw new Error(`workshop_instructors: ${lines.error.message}`);
+    for (const { id } of (lines.data ?? []) as { id: string }[]) {
+      await deleteInstructorPhotoFolder(this.supabase.service.storage, id);
+    }
     const { data, error } = await this.supabase.service
       .from('workshop_instructors')
       .update(nulls(WORKSHOP_INSTRUCTOR_NULLED))

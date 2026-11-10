@@ -9026,6 +9026,24 @@ export interface paths {
     patch: operations['WorkshopInstructorDetailsController_update'];
     trace?: never;
   };
+  '/api/v1/workshops/{id}/instructors/{globalPersonId}/details/photo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload this Workshop's photo of one instructor (the instructor, own line; workshop_lead+, any line). The photo it replaces is deleted. */
+    post: operations['WorkshopInstructorDetailsController_uploadPhoto'];
+    /** Remove this Workshop's photo of one instructor, so the profile's shows again (the instructor, own line; workshop_lead+, any line). Its file is deleted. */
+    delete: operations['WorkshopInstructorDetailsController_removePhoto'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/my-schedule': {
     parameters: {
       query?: never;
@@ -26013,6 +26031,53 @@ export interface operations {
         'application/json': components['schemas']['InstructorDetailsBody'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopInstructorDetailsController_uploadPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopInstructorDetailsController_removePhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

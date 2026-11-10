@@ -158,7 +158,8 @@ describe('the archived-Event lock, API-wide', () => {
     // archived Event's roster takes no tick.
     // 195: `PATCH workshops/:id/instructors/:globalPersonId/details` (2.6b), placed by its
     // Workshop: an archived Event's Workshop says nothing new about its instructors.
-    expect(placed).toHaveLength(195);
+    // 197: its `POST …/details/photo` and `DELETE …/details/photo`, placed alike.
+    expect(placed).toHaveLength(197);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

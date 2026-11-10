@@ -196,6 +196,57 @@ describe('an Event archive carries its images and its copy owns them', () => {
   });
 });
 
+/**
+ * A Workshop's photo of one of its instructors (2.6b): stored by its upload route with a SAME-ORIGIN
+ * link, and on a table whose archive key is not its name (`workshopInstructors`).
+ */
+describe("an Event archive carries a Workshop's photo of its instructor", () => {
+  const LINE_PHOTO =
+    '/storage/v1/object/public/workshop-assets/workshop_instructors/wi-src/photo-1.png';
+  const withLine = () => ({
+    ...rows(),
+    workshop_instructors: [
+      {
+        id: 'wi-src',
+        workshop_id: 'ws-src',
+        global_person_id: null,
+        display_name: 'Paul',
+        photo_url: LINE_PHOTO,
+      },
+    ],
+  });
+  const objects = {
+    ...OBJECTS,
+    'workshop-assets/workshop_instructors/wi-src/photo-1.png': {
+      bytes: imageBytes(500, 5),
+      type: 'image/png',
+    },
+  };
+
+  it("restores it as a file of the copy's own line", async () => {
+    const source = makeService(withLine(), undefined, makeStorage(objects).storage).service;
+    const archive = await source.generateEventArchive('ev-src', 'user-1', {
+      include: 'structure',
+    });
+    const zip = await source.archiveToZipBuffer(archive);
+    const target = makeStorage();
+    const { service, inserted } = makeService(withLine(), undefined, target.storage);
+    await service.restoreArchiveCopy(zip, 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: CONFIRM,
+    });
+
+    const line = inserted.workshop_instructors![0]!;
+    expect(pathOf(line['photo_url'])).toMatch(
+      new RegExp(
+        `^workshop-assets/workshop_instructors/${String(line['id'])}/photo-\\d+-\\d\\.png$`,
+        'u',
+      ),
+    );
+    expect(target.store.get(pathOf(line['photo_url']))!.bytes).toEqual(imageBytes(500, 5));
+  });
+});
+
 describe('a Tournament archive carries its logo only (ruling 407)', () => {
   it('restores into its own Event with a logo of its own, and no Event image', async () => {
     const objects = makeStorage(OBJECTS);

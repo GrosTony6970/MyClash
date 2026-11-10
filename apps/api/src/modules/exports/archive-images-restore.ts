@@ -9,6 +9,7 @@ import {
   type ImageColumn,
   type ImageTable,
   IMAGE_TABLES,
+  imageRowsOf,
 } from './archive-images';
 import type { ArchiveRow } from './archive.table-spec';
 import type { ArchiveScope, ArchiveTables } from './archive.types';
@@ -113,7 +114,7 @@ function rowsById(data: Partial<ArchiveTables>): RowsById {
   const index: RowsById = new Map();
   for (const table of IMAGE_TABLES) {
     const byId = new Map<string, ArchiveRow>();
-    for (const row of (data[table] ?? []) as ArchiveRow[]) {
+    for (const row of imageRowsOf(data, table)) {
       if (typeof row['id'] === 'string') byId.set(row['id'], row);
     }
     index.set(table, byId);

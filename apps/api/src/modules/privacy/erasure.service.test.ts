@@ -18,6 +18,7 @@ interface TableLog {
 function makeSupabase(
   seed: Record<string, Record<string, unknown>[]> = {},
   failing: readonly string[] = [],
+  storage: unknown = undefined,
 ) {
   const log: Record<string, TableLog> = {};
   const tableLog = (table: string): TableLog =>
@@ -52,8 +53,22 @@ function makeSupabase(
       };
       return chain;
     },
+    storage,
   };
   return { supabase: { service } as never, log };
+}
+
+/** The Workshop photo bucket: each line's folder holds one file; `remove` may fail. */
+function photoBucket(removeError: string | null = null) {
+  const removed: string[][] = [];
+  const bucket = {
+    list: async (folder: string) => ({ data: [{ name: 'photo-1.png' }], error: null, folder }),
+    remove: async (keys: string[]) => {
+      removed.push(keys);
+      return { data: [], error: removeError ? { message: removeError } : null };
+    },
+  };
+  return { storage: { from: () => bucket }, removed };
 }
 
 describe('scrubPii', () => {
@@ -200,6 +215,36 @@ describe('ErasureService.redactSubject', () => {
     await expect(new ErasureService(supabase).redactSubject('u1')).rejects.toThrow(
       /workshop_instructors/,
     );
+    expect(log['global_persons']!.updates).toEqual([]);
+  });
+
+  it("deletes each Workshop line's photo files before the lines are wiped", async () => {
+    const bucket = photoBucket();
+    const { supabase, log } = makeSupabase(
+      { global_persons: [{ id: 'g1' }], workshop_instructors: [{ id: 'wi-1' }, { id: 'wi-2' }] },
+      [],
+      bucket.storage,
+    );
+    await new ErasureService(supabase).redactSubject('u1');
+
+    expect(bucket.removed).toEqual([
+      ['workshop_instructors/wi-1/photo-1.png'],
+      ['workshop_instructors/wi-2/photo-1.png'],
+    ]);
+    expect(log['workshop_instructors']!.updates).toHaveLength(1);
+  });
+
+  it('a photo the bucket will not delete stops the erasure before any line or profile changes', async () => {
+    const bucket = photoBucket('timeout');
+    const { supabase, log } = makeSupabase(
+      { global_persons: [{ id: 'g1' }], workshop_instructors: [{ id: 'wi-1' }] },
+      [],
+      bucket.storage,
+    );
+    await expect(new ErasureService(supabase).redactSubject('u1')).rejects.toThrow(
+      /could not be deleted/,
+    );
+    expect(log['workshop_instructors']!.updates).toEqual([]);
     expect(log['global_persons']!.updates).toEqual([]);
   });
 });

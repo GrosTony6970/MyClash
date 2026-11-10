@@ -14,6 +14,7 @@ import {
   WORKSHOP_LOGO_MAX_BYTES,
 } from '../workshops/workshop-assets';
 import type { ArchiveRow } from './archive.table-spec';
+import { TABLE_TO_ARCHIVE_KEY } from './archive.tables';
 import type { ArchiveScope, ArchiveTables } from './archive.types';
 
 /**
@@ -26,8 +27,22 @@ import type { ArchiveScope, ArchiveTables } from './archive.types';
 type Storage = SupabaseService['service']['storage'];
 
 /** The tables whose rows hold an image, in the order an export spends its room on them. */
-export const IMAGE_TABLES = ['events', 'themes', 'tournaments', 'workshops'] as const;
+export const IMAGE_TABLES = [
+  'events',
+  'themes',
+  'tournaments',
+  'workshops',
+  'workshop_instructors',
+] as const;
 export type ImageTable = (typeof IMAGE_TABLES)[number];
+
+/**
+ * An image table's rows in an archive. The data is keyed by the ARCHIVE key, not the table name:
+ * the two differ for `workshop_instructors` (`workshopInstructors`).
+ */
+export function imageRowsOf(data: Partial<ArchiveTables>, table: ImageTable): ArchiveRow[] {
+  return (data[TABLE_TO_ARCHIVE_KEY[table]] ?? []) as ArchiveRow[];
+}
 
 export interface ImageColumn {
   table: ImageTable;
@@ -39,7 +54,7 @@ export interface ImageColumn {
   maxBytes: number;
   mimeTypes: ReadonlySet<string>;
   /** The first word of the stored name, as the upload routes write it. */
-  kind: 'logo' | 'hero';
+  kind: 'logo' | 'hero' | 'photo';
 }
 
 /** The one list of carried images. A Tournament archive carries its logo only (ruling 407). */
@@ -83,6 +98,17 @@ export const ARCHIVE_IMAGE_COLUMNS: readonly ImageColumn[] = [
     maxBytes: WORKSHOP_LOGO_MAX_BYTES,
     mimeTypes: ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
     kind: 'logo',
+  },
+  {
+    // What a Workshop shows of one instructor over their profile's photo (rulings 556, 560).
+    table: 'workshop_instructors',
+    column: 'photo_url',
+    scopes: ['event'],
+    bucket: WORKSHOP_LOGO_BUCKET,
+    bucketMaxBytes: WORKSHOP_LOGO_MAX_BYTES,
+    maxBytes: WORKSHOP_LOGO_MAX_BYTES,
+    mimeTypes: ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
+    kind: 'photo',
   },
 ];
 
@@ -170,7 +196,7 @@ interface Candidate {
 function candidatesOf(scope: ArchiveScope, data: Partial<ArchiveTables>): Candidate[] {
   const byObject = new Map<string, Candidate>();
   for (const spec of columnsFor(scope)) {
-    for (const row of (data[spec.table] ?? []) as ArchiveRow[]) {
+    for (const row of imageRowsOf(data, spec.table)) {
       const object = storedObjectOf(row[spec.column]);
       if (!object || typeof row['id'] !== 'string') continue;
       const key = `${object.bucket}/${object.path}`;

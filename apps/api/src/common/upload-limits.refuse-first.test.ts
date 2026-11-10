@@ -1,5 +1,5 @@
 /**
- * Five upload routes refuse a caller who is not signed in before they read the file. They took
+ * Six upload routes refuse a caller who is not signed in before they read the file. They took
  * such a caller's id as "anonymous" and read the whole file under the route's limit; only the
  * service said no, after the read. Each now answers 401 and never asks the request for its file.
  *
@@ -12,6 +12,7 @@ import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
 import { describe, expect, it } from 'vitest';
 import { EventsController } from '../modules/events/events.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
+import { WorkshopInstructorDetailsController } from '../modules/workshops/workshop-instructor-details.controller';
 import { WorkshopsController } from '../modules/workshops/workshops.controller';
 import { anyService, authAs, EVENT, ORG, tooLargeUpload } from './testing/upload-request';
 
@@ -33,12 +34,39 @@ const ROUTES: Array<[string, Door]> = [
     (req) =>
       new WorkshopsController(any(), any(), authAs(), any(), any(), any()).uploadLogo(ORG, req),
   ],
+  [
+    'POST workshops/:id/instructors/:globalPersonId/details/photo',
+    (req) => new WorkshopInstructorDetailsController(any(), authAs()).uploadPhoto(ORG, EVENT, req),
+  ],
 ];
 
 describe('an upload route refuses a signed-out caller before it reads', () => {
   it.each(ROUTES)('%s: 401, and the file is never asked for', async (_route, door) => {
     const upload = tooLargeUpload(null);
     await expect(door(upload.req)).rejects.toThrow(UnauthorizedException);
+    expect(upload.file).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A Workshop's photo of one instructor (2.6b) is written by that instructor or an organiser
+ * (ruling 558): anyone else signed in, a co-instructor included, is refused before the read.
+ */
+describe("a Workshop's instructor photo refuses a caller who may not write the line before it reads", () => {
+  it('POST …/details/photo: the refusal comes first, and the file is never asked for', async () => {
+    const upload = tooLargeUpload();
+    const refusing = {
+      writableLine: async () => {
+        throw new ForbiddenException('Not this line');
+      },
+    };
+    await expect(
+      new WorkshopInstructorDetailsController(refusing as never, authAs()).uploadPhoto(
+        ORG,
+        EVENT,
+        upload.req,
+      ),
+    ).rejects.toThrow(ForbiddenException);
     expect(upload.file).not.toHaveBeenCalled();
   });
 });
