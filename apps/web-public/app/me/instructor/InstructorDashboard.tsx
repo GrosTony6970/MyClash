@@ -42,6 +42,7 @@ interface InstructorWorkshop {
   slug: string;
   title: string;
   shortDescription: string | null;
+  prerequisites: string | null;
   descriptionMd: string | null;
   category: string | null;
   weapon: string | null;
@@ -53,6 +54,16 @@ interface InstructorWorkshop {
   durationMinutes: number | null;
   sessions: InstructorSession[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+}
+
+/** What the instructor edits on a Workshop they teach, as the form holds it. */
+interface EditFields {
+  weapon: string;
+  level: string;
+  language: string;
+  descriptionMd: string;
+  shortDescription: string;
+  prerequisites: string;
 }
 
 interface InstructorGroup {
@@ -190,11 +201,13 @@ function WorkshopManageCard({
 }) {
   const { t } = useI18n();
   // Local copy so instructor edits reflect immediately without a full reload.
-  const [fields, setFields] = useState({
+  const [fields, setFields] = useState<EditFields>({
     weapon: workshop.weapon ?? '',
     level: workshop.level ?? '',
     language: workshop.language ?? '',
     descriptionMd: workshop.descriptionMd ?? '',
+    shortDescription: workshop.shortDescription ?? '',
+    prerequisites: workshop.prerequisites ?? '',
   });
   const [panel, setPanel] = useState<'none' | 'edit' | 'notify' | 'feedback'>('none');
 
@@ -206,6 +219,7 @@ function WorkshopManageCard({
     level: fields.level || null,
     language: fields.language || null,
     descriptionMd: fields.descriptionMd || null,
+    shortDescription: fields.shortDescription.trim() || null,
   };
 
   return (
@@ -277,7 +291,8 @@ function WorkshopManageCard({
 
 // ── Edit panel ──────────────────────────────────────────────────────────────────
 
-function EditPanel({
+/** Exported for its test (`EditPanel.test.tsx`). */
+export function EditPanel({
   workshopId,
   apiUrl,
   fields,
@@ -285,13 +300,8 @@ function EditPanel({
 }: {
   workshopId: string;
   apiUrl: string;
-  fields: { weapon: string; level: string; language: string; descriptionMd: string };
-  onSaved: (next: {
-    weapon: string;
-    level: string;
-    language: string;
-    descriptionMd: string;
-  }) => void;
+  fields: EditFields;
+  onSaved: (next: EditFields) => void;
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(fields);
@@ -318,6 +328,8 @@ function EditPanel({
           level: draft.level.trim() || null,
           language: draft.language.trim() || null,
           descriptionMd: draft.descriptionMd.trim() || null,
+          shortDescription: draft.shortDescription.trim() || null,
+          prerequisites: draft.prerequisites.trim() || null,
         }),
       });
       if (!res.ok) throw new Error('save');
@@ -374,6 +386,26 @@ function EditPanel({
           className={`${inputClass} resize-none`}
           value={draft.descriptionMd}
           onChange={(e) => setDraft((d) => ({ ...d, descriptionMd: e.target.value }))}
+        />
+      </label>
+      {/* The catalogue line and what to know or bring (ruling 557); the server's limits. */}
+      <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
+        {t('publicApp.me.instructor.shortDescriptionLabel')}
+        <input
+          maxLength={200}
+          className={inputClass}
+          value={draft.shortDescription}
+          onChange={(e) => setDraft((d) => ({ ...d, shortDescription: e.target.value }))}
+        />
+      </label>
+      <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
+        {t('publicApp.me.instructor.prerequisitesLabel')}
+        <textarea
+          rows={2}
+          maxLength={2000}
+          className={`${inputClass} resize-none`}
+          value={draft.prerequisites}
+          onChange={(e) => setDraft((d) => ({ ...d, prerequisites: e.target.value }))}
         />
       </label>
       {error && (

@@ -296,4 +296,40 @@ describe('MeEventsService.getInstructorWorkshops — sessions', () => {
       's-none',
     ]);
   });
+
+  it('carries the two short texts the instructor edits, read from their columns (557)', async () => {
+    const service = buildService({
+      workshopInstructors: [
+        {
+          workshops: {
+            id: 'w-1',
+            slug: 'intro',
+            title: 'Intro',
+            short_description: 'First steps',
+            prerequisites: 'Bring a mask',
+            events: EVENT(),
+            workshop_sessions: [],
+          },
+        },
+      ],
+    });
+    const groups = await service.getInstructorWorkshops('user-1');
+
+    expect(groups[0]!.workshops[0]).toMatchObject({
+      shortDescription: 'First steps',
+      prerequisites: 'Bring a mask',
+    });
+    // The double ignores projections: the SELECT itself names the column.
+    const from = (
+      service as unknown as { supabase: { service: { from: ReturnType<typeof vi.fn> } } }
+    ).supabase.service.from;
+    const selects = from.mock.calls.flatMap(([table], index) =>
+      table === 'workshop_instructors'
+        ? (from.mock.results[index]!.value as Chain).select!.mock.calls.map((args) =>
+            String(args[0]),
+          )
+        : [],
+    );
+    expect(selects.join('\n')).toMatch(/short_description, prerequisites, description_md/);
+  });
 });

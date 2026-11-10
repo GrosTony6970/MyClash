@@ -223,6 +223,8 @@ export interface InstructorWorkshop {
   slug: string;
   title: string;
   shortDescription: string | null;
+  /** What a learner should know or bring: the instructor edits it here (ruling 557). */
+  prerequisites: string | null;
   descriptionMd: string | null;
   category: string | null;
   level: string | null;
@@ -1255,7 +1257,7 @@ export class MeEventsService {
       .from('workshop_instructors')
       .select(
         `workshops (
-          id, slug, title, short_description, description_md,
+          id, slug, title, short_description, prerequisites, description_md,
           category, level, weapon, language, color, cover_image_url,
           capacity, duration_minutes,
           events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
@@ -1314,6 +1316,7 @@ export class MeEventsService {
         slug: String(workshop['slug']),
         title: String(workshop['title'] ?? ''),
         shortDescription: (workshop['short_description'] as string | null) ?? null,
+        prerequisites: (workshop['prerequisites'] as string | null) ?? null,
         descriptionMd: (workshop['description_md'] as string | null) ?? null,
         category: (workshop['category'] as string | null) ?? null,
         level: (workshop['level'] as string | null) ?? null,

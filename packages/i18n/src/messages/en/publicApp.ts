@@ -326,6 +326,8 @@ export const publicApp = {
       levelLabel: 'Level',
       languageLabel: 'Language',
       descriptionLabel: 'Description',
+      shortDescriptionLabel: 'Short description (one line for the catalogue)',
+      prerequisitesLabel: 'Prerequisites (what to know or bring)',
       save: 'Save',
       saveError: 'Could not save the changes.',
       notify: 'Notify participants',
