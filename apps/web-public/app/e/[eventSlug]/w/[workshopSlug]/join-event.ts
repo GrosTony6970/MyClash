@@ -38,6 +38,10 @@ export function joinRefusalWords(failure: ApiFailure, t: (key: string) => string
   if (code === 'event_completed' || code === 'event_archived') {
     return t('publicApp.workshopDetail.join.ended');
   }
+  // Any other refusal by the server (a lost race, a database message, names of spaces only) has
+  // no words for the public in it: its English `detail` must not reach the page (rule 6).
+  if (refusedByServer(failure)) return t('publicApp.workshopDetail.join.failed');
+  // A lapsed login (401), a rate limit, the network, a 5xx: the shared words say what to do.
   return failureMessage(failure, t, t('publicApp.workshopDetail.join.failed')) ?? '';
 }
 
@@ -56,6 +60,11 @@ export function joinOffer(
 export interface JoinOffer {
   apiUrl: string;
   eventId: string;
+}
+
+function refusedByServer(failure: ApiFailure): boolean {
+  if (failure.kind === 'http') return failure.status < 500 && failure.status !== 429;
+  return failure.kind === 'unauthenticated' && failure.status === 403;
 }
 
 export async function joinEvent(

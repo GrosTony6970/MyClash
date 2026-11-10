@@ -109,6 +109,22 @@ describe('joining the Event from a Workshop page (ruling 568)', () => {
   });
 
   it.each([
+    [400, 'BAD_REQUEST', 'Your account, Bob'],
+    [409, 'CONFLICT', 'Already on this Event'],
+  ])('never shows the English of another %s refusal (%s)', async (status, code, english) => {
+    answers.push(
+      new Response(JSON.stringify({ status, code, detail: english }), {
+        status,
+        headers: { 'content-type': 'application/problem+json' },
+      }),
+    );
+    await open();
+    await submit();
+    const alert = container.querySelector('[role="alert"]')?.textContent ?? '';
+    expect(alert).toBe('You could not be added to the event.');
+  });
+
+  it.each([
     [409, 'SELF_JOIN_CLOSED', 'no longer lets people join'],
     [403, 'event_completed', 'This event is over'],
     [403, 'event_archived', 'This event is over'],
