@@ -508,6 +508,13 @@ export default function WorkshopsAdminPage() {
     return !question || confirm(question);
   }
 
+  /** The texts this save sent are now stored: a later save of the still-open form compares
+   *  against them (a refused session keeps it open), so a box emptied then is sent. */
+  function textsStored() {
+    const sent = { shortDescription: form.shortDescription, prerequisites: form.prerequisites };
+    setForm((f) => ({ ...f, textsAsLoaded: sent }));
+  }
+
   async function handleSubmit() {
     if (!form.title.trim() || !form.slug.trim()) {
       setFormError(t('admin.common.titleAndSlugRequired'));
@@ -558,6 +565,7 @@ export default function WorkshopsAdminPage() {
           if (message) setFormError(message);
           return;
         }
+        textsStored();
 
         // Reconcile instructors against the chosen set.
         const currentIds = new Set(
@@ -620,6 +628,7 @@ export default function WorkshopsAdminPage() {
         return;
       }
       const created = r.data;
+      textsStored();
 
       for (const globalPersonId of form.instructorIds) {
         await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/instructors`, {

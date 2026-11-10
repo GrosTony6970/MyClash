@@ -133,4 +133,39 @@ describe("the Workshop form's two short texts", () => {
       )?.[2]?.body;
     expect(body).toMatchObject({ shortDescription: 'Daggers, gently', prerequisites: 'Gloves' });
   });
+
+  it('after a refused session keeps the new Workshop open, a box emptied then is sent', async () => {
+    page = await openEventPage(<WorkshopsAdminPage />, READS, {
+      [`POST /api/v1/events/${EVENT_ID}/workshops`]: { id: 'w-new' },
+      'PATCH /api/v1/workshops/w-new': {},
+      // No answer seeded for 'POST /api/v1/workshops/w-new/sessions': the session is refused.
+    });
+    await press('+ New workshop');
+    const title = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="text"]',
+    )!;
+    await act(async () => type(title, 'Dagger intro'));
+    await act(async () => type(field('workshop-prerequisites'), 'Gloves'));
+    const startTime = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] [aria-label="Start time"]',
+    )!;
+    const day = document.body.querySelector<HTMLInputElement | HTMLSelectElement>(
+      '[role="dialog"] [aria-label="Day (optional)"]',
+    )!;
+    await act(async () => type(day, '2026-05-02'));
+    await act(async () => type(startTime, '10:00'));
+    await act(async () => startTime.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    await press('Create');
+    expect(page.writes()).toContain('POST /api/v1/workshops/w-new/sessions');
+
+    await act(async () => type(field('workshop-prerequisites'), ''));
+    await press('Save');
+
+    const patch = vi
+      .mocked(apiRequest)
+      .mock.calls.find(
+        ([, p, init]) => p === '/api/v1/workshops/w-new' && init?.method === 'PATCH',
+      )?.[2]?.body;
+    expect(patch).toMatchObject({ prerequisites: null });
+  });
 });
