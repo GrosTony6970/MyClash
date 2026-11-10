@@ -2179,7 +2179,7 @@ export const organizer = {
       loadFailed: 'Les détails n’ont pas pu être lus.',
     },
     instructorUntick: {
-      title: 'Supprimer ce que cet atelier dit de ces intervenants ?',
+      title: 'Supprimer les détails écrits pour cet atelier ?',
       body: 'Décocher supprime la présentation, le club et la photo écrits pour cet atelier au sujet de : {names}. Les cocher à nouveau repart de leur profil. Impossible de revenir en arrière.',
       yes: 'Décocher et supprimer',
     },

@@ -3,7 +3,13 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
-import { EVENT_ID, openEventPage, type, type OpenedPage } from '../archived-page.fixtures';
+import {
+  EVENT_ID,
+  FAILED_READ,
+  openEventPage,
+  type,
+  type OpenedPage,
+} from '../archived-page.fixtures';
 import WorkshopsAdminPage from './page';
 
 /**
@@ -165,6 +171,20 @@ describe('a Save that unticks an instructor (561)', () => {
     expect(question()).toBeUndefined();
     expect(page.writes()).toEqual([]);
     expect(form()).toBeDefined();
+  });
+
+  it('asks about every unticked instructor when the Workshop cannot be read again', async () => {
+    page = await openEventPage(
+      <WorkshopsAdminPage />,
+      { ...reads(false), '/api/v1/workshops/w-1': FAILED_READ },
+      { 'PATCH /api/v1/workshops/w-1': {} },
+    );
+    await press('Edit');
+    await tick('Paul');
+    await press('Save', form());
+
+    expect(question()?.textContent).toContain('Paul');
+    expect(page.writes()).toEqual([]);
   });
 
   it('asks nothing when his line holds nothing', async () => {

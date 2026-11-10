@@ -171,8 +171,16 @@ describe('the read: this Workshop over the profile (563)', () => {
 
 describe('a save writes only the boxes sent', () => {
   it('a bio, trimmed; the club line left as it is', async () => {
-    await controller.update(WORKSHOP, PAUL, { bio: '  Ten years of Fiore ' }, signedIn('u-paul'));
+    const answer = await controller.update(
+      WORKSHOP,
+      PAUL,
+      { bio: '  Ten years of Fiore ' },
+      signedIn('u-paul'),
+    );
     expect(lineWrites()).toEqual([{ bio: 'Ten years of Fiore' }]);
+    // The answer reads the three columns back, the club line from the line's affiliation.
+    expect(selectsFor(db.from, 'workshop_instructors')).toContain('bio, affiliation, photo_url');
+    expect(answer).toMatchObject({ club: 'Salle Lyon, Thursday group' });
   });
 
   it("the club line into the line's affiliation; a blank bio and a null clear", async () => {
