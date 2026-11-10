@@ -226,3 +226,24 @@ export function moderationRefusalWords(failure: ApiFailure, t: (key: string) => 
   if (code === 'WORKSHOP_SESSION_CANCELLED') return t('publicApp.workshopDetail.sessionCancelled');
   return t('publicApp.me.instructor.actionError');
 }
+
+/**
+ * The instructor ticks a person present in a session, or clears the tick (operator rulings
+ * 539-545). Named by the booking's roster row. A tick changes no booking.
+ */
+export function checkInPath(sessionId: string, personId: string): string {
+  return `/api/v1/workshop-sessions/${sessionId}/enrollments/${personId}/check-in`;
+}
+
+/** The bookings a "Present" box is drawn for: a seat or a waiting-list place, never a refusal (541). */
+export function canTick(status: string): boolean {
+  return status === 'confirmed' || status === 'waitlisted';
+}
+
+/** A refused tick, in the reader's language. Any other failure is the dashboard's "try again". */
+export function checkInRefusalWords(failure: ApiFailure, t: (key: string) => string): string {
+  const code = failureCode(failure);
+  if (code === 'CHECK_IN_REFUSED_BOOKING') return t('publicApp.me.instructor.checkInRefused');
+  if (code === 'WORKSHOP_SESSION_CANCELLED') return t('publicApp.workshopDetail.sessionCancelled');
+  return t('publicApp.me.instructor.actionError');
+}

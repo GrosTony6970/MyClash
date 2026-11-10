@@ -6,7 +6,13 @@ import { formatInZone } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { signInAgainHere } from '@/lib/sign-in-return';
 import { rosterReadOnOpen } from '@/components/me/roster-read';
-import { moderationRefusalWords } from '@/components/me/workshop-booking';
+import {
+  canTick,
+  checkInPath,
+  checkInRefusalWords,
+  moderationRefusalWords,
+} from '@/components/me/workshop-booking';
+import { RosterTick } from './RosterTick';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -67,6 +73,8 @@ interface RosterEntry {
   personId: string | null;
   /** No account holds the booking's roster row (ruling 264). */
   guest: boolean;
+  /** When the person was ticked present in this session (rulings 539-547). */
+  checkedInAt?: string | null;
   persons: {
     id: string;
     givenName: string;
@@ -611,6 +619,24 @@ function SessionRow({
     }
   }
 
+  // Ticked present or cleared (rulings 539-545), then the roster read again: the list stays on
+  // screen while it reads, and the numbered reads keep the latest answer.
+  async function tick(entry: RosterEntry, present: boolean) {
+    if (!entry.personId) return;
+    setBusyId(entry.personId);
+    setActionError(null);
+    try {
+      const result = await apiRequest(apiUrl, checkInPath(session.id, entry.personId), {
+        method: 'PUT',
+        body: { present },
+      });
+      if (result.ok) await loadRoster();
+      else setActionError(checkInRefusalWords(result, t));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // When the roster is loaded, derive counts from it so accept/refuse reflect live.
   const confirmedCount = roster
     ? roster.filter((r) => r.status === 'confirmed').length
@@ -688,6 +714,7 @@ function SessionRow({
                 onModerate={
                   cancelled ? undefined : (personId, action) => void moderate(personId, action)
                 }
+                onTick={cancelled ? undefined : (entry, present) => void tick(entry, present)}
               />
             </>
           )}
@@ -701,11 +728,14 @@ function RosterLists({
   roster,
   busyId,
   onModerate,
+  onTick,
 }: {
   roster: RosterEntry[];
   busyId: string | null;
   /** Absent for a cancelled session: its roster is read only (ruling 526). */
   onModerate?: (personId: string, action: 'accept' | 'refuse') => void;
+  /** Absent for a cancelled session: its ticks show and take no tap. */
+  onTick?: (entry: RosterEntry, present: boolean) => void;
 }) {
   const { t } = useI18n();
   const confirmed = roster.filter((r) => r.status === 'confirmed');
@@ -753,7 +783,17 @@ function RosterLists({
     return (
       <li key={r.id} className="flex items-center justify-between gap-2 text-sm text-foreground">
         <RosterName name={nameOf(r)} guest={r.guest} club={club} />
-        {actionButton(r, action)}
+        <span className="flex shrink-0 items-center gap-2">
+          {canTick(r.status) && (
+            <RosterTick
+              name={nameOf(r)}
+              checkedInAt={r.checkedInAt}
+              busy={busyId === r.personId}
+              onTick={onTick && r.personId ? (present) => onTick(r, present) : undefined}
+            />
+          )}
+          {actionButton(r, action)}
+        </span>
       </li>
     );
   };

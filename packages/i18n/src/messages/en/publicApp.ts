@@ -317,6 +317,10 @@ export const publicApp = {
       actionError: 'Action failed. Try again.',
       alreadyBooked:
         'This person already has a place in another session of this workshop. They give it up first.',
+      // Who was in the room (rulings 539-547).
+      present: 'Present',
+      presentFor: 'Present: {name}',
+      checkInRefused: 'A refused person cannot be ticked present.',
       edit: 'Edit details',
       weaponLabel: 'Weapon',
       levelLabel: 'Level',

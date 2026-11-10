@@ -312,6 +312,10 @@ export const publicApp = {
       actionError: 'Action échouée. Réessayez.',
       alreadyBooked:
         "Cette personne a déjà une place dans une autre séance de cet atelier. Elle doit d'abord la libérer.",
+      // Qui était dans la salle (décisions 539-547).
+      present: 'Présent',
+      presentFor: 'Présent : {name}',
+      checkInRefused: 'Une personne refusée ne peut pas être cochée présente.',
       edit: 'Modifier',
       weaponLabel: 'Arme',
       levelLabel: 'Niveau',
