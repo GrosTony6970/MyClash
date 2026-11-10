@@ -276,13 +276,36 @@ describe('several sessions of one Workshop', () => {
       ]);
     });
 
-    it("never halves a card by another day's card in the same room and hour", () => {
-      const sunday = dagger({
-        startsAt: '2027-06-02T07:00:00.000Z',
-        endsAt: '2027-06-02T08:00:00.000Z',
+    it('leaves two cancelled cards in one room as they were: the ruling is live beside cancelled', () => {
+      const cancelledDagger = workshop({
+        id: 'w-dagger',
+        sessions: [{ ...saturday, id: 's-dagger', cancelled: true }],
       });
-      expect(lanes([cancelledLongsword, sunday], '2027-06-01')).toEqual([['s-saturday', null]]);
-      expect(lanes([cancelledLongsword, sunday], '2027-06-02')).toEqual([['s-dagger', null]]);
+      expect(lanes([cancelledLongsword, cancelledDagger])).toEqual([
+        ['s-saturday', null],
+        ['s-dagger', null],
+      ]);
+    });
+
+    it('halves all three when one cancelled card spans two live ones', () => {
+      const late = workshop({
+        id: 'w-rapier',
+        sessions: [
+          {
+            ...saturday,
+            id: 's-rapier',
+            startsAt: '2027-06-01T07:30:00.000Z',
+            endsAt: '2027-06-01T08:30:00.000Z',
+          },
+        ],
+      });
+      expect(
+        lanes([cancelledLongsword, dagger({ endsAt: '2027-06-01T07:30:00.000Z' }), late]),
+      ).toEqual([
+        ['s-dagger', 'start'],
+        ['s-rapier', 'start'],
+        ['s-saturday', 'end'],
+      ]);
     });
   });
 });
