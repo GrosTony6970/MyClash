@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
+import { tickFromDesk, untickFromDesk } from '../workshops/workshop-check-in';
 import type { MarkArrivalDto } from './dto';
 import { PassService } from './pass.service';
 import { queryEventRoster, ROSTER_LIMIT, type RosterPage } from './roster-query';
@@ -35,6 +36,8 @@ const DESK_ROLES = ['checkin'] as const;
  */
 @Injectable()
 export class CheckinService {
+  private readonly logger = new Logger(CheckinService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     // Value imports, not `import type` — a type-only import erases the DI
@@ -150,7 +153,34 @@ export class CheckinService {
       .select('person_id,state,via,marked_at,reversed_at')
       .single();
     if (error) throw new BadRequestException(error.message);
+    // The Workshops whose switch is on tick the person in that day's sessions (rulings 540,
+    // 543-547). Awaited before the answer, so an Undo the scan overlay offers runs after it.
+    await this.workshopTicks('written', staff.event_id, personId, (warn) =>
+      tickFromDesk(this.supabase.service, staff.event_id, personId, now, warn),
+    );
     return data as unknown as ArrivalRow;
+  }
+
+  /**
+   * The Workshop ticks an arrival writes or an undo removes. The arrival is the desk's job: a
+   * failed tick does not fail it. It is logged with the person and the Event, and the instructor
+   * can tick by hand.
+   */
+  private async workshopTicks(
+    what: 'written' | 'removed',
+    eventId: string,
+    personId: string,
+    write: (warn: (message: string) => void) => Promise<void>,
+  ): Promise<void> {
+    try {
+      await write((message) => this.logger.warn(message));
+    } catch (error) {
+      this.logger.error(
+        `Event ${eventId}: the Workshop ticks of ${personId} were not ${what}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**
@@ -176,6 +206,13 @@ export class CheckinService {
       .select('person_id,state,via,marked_at,reversed_at')
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
+    // The desk's Workshop ticks of the day the undo is pressed go with it (547); a tap stays.
+    if (data) {
+      const now = new Date().toISOString();
+      await this.workshopTicks('removed', staff.event_id, personId, (warn) =>
+        untickFromDesk(this.supabase.service, staff.event_id, personId, now, warn),
+      );
+    }
     // No row means nobody ever marked them, which is already the desired end
     // state. Reporting 404 for an undo that had nothing to undo would make a
     // double-tap look like a failure.

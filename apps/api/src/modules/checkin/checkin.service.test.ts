@@ -356,7 +356,12 @@ describe('CheckinService.redeemPass — the QR fast lane', () => {
     });
     const people = supabaseChain({ data: [PERSON], error: null });
     const supabase = mockSupabase({ event_arrivals: { data: null, error: null } });
-    supabase.from.mockReturnValueOnce(arrivals).mockReturnValueOnce(people);
+    // Between the arrival and the row: the person's Workshop bookings, for the auto ticks (540).
+    const bookings = supabaseChain({ data: [], error: null });
+    supabase.from
+      .mockReturnValueOnce(arrivals)
+      .mockReturnValueOnce(bookings)
+      .mockReturnValueOnce(people);
     const service = new CheckinService(
       supabase as never,
       staff.service as never,
@@ -379,7 +384,11 @@ describe('CheckinService.redeemPass — the QR fast lane', () => {
     });
     const people = supabaseChain({ data: [PERSON], error: null });
     const supabase = mockSupabase({ event_arrivals: { data: null, error: null } });
-    supabase.from.mockReturnValueOnce(arrivals).mockReturnValueOnce(people);
+    const bookings = supabaseChain({ data: [], error: null });
+    supabase.from
+      .mockReturnValueOnce(arrivals)
+      .mockReturnValueOnce(bookings)
+      .mockReturnValueOnce(people);
     const service = new CheckinService(
       supabase as never,
       staff.service as never,
