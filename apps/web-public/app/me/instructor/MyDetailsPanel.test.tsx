@@ -127,6 +127,28 @@ describe("the instructor's own details for a Workshop", () => {
     expect(container.querySelector('textarea')!.value).toBe('Ten years of Fiore');
   });
 
+  it('holds both boxes while a save runs, so nothing typed then is dropped by its answer', async () => {
+    let land: (value: unknown) => void = () => undefined;
+    vi.mocked(apiRequest).mockImplementation(async (_base, _path, init) =>
+      init?.method === 'PATCH'
+        ? new Promise((resolve) => (land = resolve))
+        : { ok: true, data: VIEW },
+    );
+    await open();
+
+    act(() => type(container.querySelector('textarea')!, 'Ten years of Fiore'));
+    await save();
+    expect(container.querySelector('textarea')!.disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input:not([type="file"])')!.disabled).toBe(
+      true,
+    );
+
+    await act(async () =>
+      land({ ok: true, data: { ...VIEW.override, bio: 'Ten years of Fiore' } }),
+    );
+    expect(container.querySelector('textarea')!.disabled).toBe(false);
+  });
+
   it('says so when his details cannot be read', async () => {
     serve({ ok: false, kind: 'http', status: 500, detail: null, code: null, details: null });
     await open();

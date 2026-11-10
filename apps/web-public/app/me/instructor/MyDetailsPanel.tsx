@@ -76,6 +76,8 @@ function MyBoxes({ details, view }: { details: MyDetails; view: DetailsView }) {
           className={`${INPUT} resize-none`}
           value={details.draft.bio}
           placeholder={view.profile.bio ?? ''}
+          // Held while a save runs: its answer settles both boxes, and would drop what is typed.
+          disabled={details.busy}
           onChange={(e) => details.setBox('bio', e.target.value)}
         />
       </label>
@@ -86,6 +88,7 @@ function MyBoxes({ details, view }: { details: MyDetails; view: DetailsView }) {
           className={INPUT}
           value={details.draft.club}
           placeholder={view.profile.club ?? ''}
+          disabled={details.busy}
           onChange={(e) => details.setBox('club', e.target.value)}
         />
       </label>
