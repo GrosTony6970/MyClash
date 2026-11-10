@@ -80,8 +80,8 @@ const CLUB: Record<string, TableSeed> = {
   workshop_instructors: { rows: [] },
 };
 
-function build(bookings: TableSeed = BOOKINGS) {
-  const db = mockSupabase({ ...CLUB, workshop_enrollments: bookings });
+function build(bookings: TableSeed = BOOKINGS, over: Record<string, TableSeed> = {}) {
+  const db = mockSupabase({ ...CLUB, workshop_enrollments: bookings, ...over });
   // The token IS the user id here.
   const supabase = {
     service: db.service,
@@ -134,7 +134,18 @@ describe("a message from one session's roster (530)", () => {
     expect(result).toEqual({ id: 'broadcast-1', recipientCount: 2 });
     // The double ignores the projection: only this holds the columns each read uses.
     expect(selectsFor(db.from, 'workshop_sessions')).toEqual(['workshop_id, status']);
-    expect(selectsFor(db.from, 'workshop_enrollments')).toEqual(['user_id']);
+    // Paged by id: a second read finds the page after the last one empty.
+    expect(new Set(selectsFor(db.from, 'workshop_enrollments'))).toEqual(new Set(['id, user_id']));
+  });
+
+  it('tells every one of more people than one read returns', async () => {
+    const many = Array.from({ length: 1205 }, (_, i) => {
+      const n = String(i).padStart(4, '0');
+      return booking(`e-${n}`, SUNDAY, `p-${n}`, 'confirmed');
+    });
+    const { controller, sent } = build({ rows: many });
+    await controller.notifyEnrollees(WORKSHOP, { ...MESSAGE, sessionId: SUNDAY }, req(LEAD));
+    expect(told(sent)).toHaveLength(1205);
   });
 
   it('refuses a session of another Workshop, telling nobody', async () => {
@@ -186,6 +197,16 @@ describe('a cancelled session tells nobody (531, 532)', () => {
 });
 
 describe('the door', () => {
+  it('fails, rather than reporting 0 people, when the sessions cannot be read', async () => {
+    const { controller, sent } = build(BOOKINGS, {
+      workshop_sessions: { data: null, error: { message: 'sessions down' } },
+    });
+    await expect(controller.notifyEnrollees(WORKSHOP, MESSAGE, req(LEAD))).rejects.toThrow(
+      'sessions down',
+    );
+    expect(sent).not.toHaveBeenCalled();
+  });
+
   it('fails, rather than reporting 0 people, when the bookings cannot be read', async () => {
     const { controller, sent } = build({ data: null, error: { message: 'boom' } });
     await expect(

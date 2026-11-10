@@ -3,6 +3,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { inListChunks } from '../../common/postgrest-in-list';
 import {
   profileRecipients,
   type BroadcastRecipient,
@@ -341,13 +342,19 @@ export class BroadcastNotificationsService {
     eventId: string,
     personIds: string[],
   ): Promise<BroadcastRecipient[]> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id, claimed_by_user_id, email')
-      .eq('event_id', eventId)
-      .in('id', personIds);
-    if (error) throw new BadRequestException(error.message);
-    return this.mapPersons(data ?? []);
+    // An Event's Workshop attendees or fighters can be hundreds: a list that long outgrows the
+    // request line, so it is read in pieces (`IN_LIST_MAX`, fewer rows than a read's cut).
+    const recipients: BroadcastRecipient[] = [];
+    for (const piece of inListChunks(personIds)) {
+      const { data, error } = await this.supabase.service
+        .from('persons')
+        .select('id, claimed_by_user_id, email')
+        .eq('event_id', eventId)
+        .in('id', piece);
+      if (error) throw new BadRequestException(error.message);
+      recipients.push(...this.mapPersons(data ?? []));
+    }
+    return recipients;
   }
 
   private async getTournamentIds(eventId: string, tournamentId?: string): Promise<string[]> {

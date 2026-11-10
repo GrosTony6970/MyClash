@@ -16,6 +16,7 @@
 import { BadRequestException, Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  filtersFor,
   mockSupabase,
   selectsFor,
   writesTo,
@@ -167,7 +168,28 @@ describe('a broadcast to the Workshop attendees (533)', () => {
     // The double ignores the projection: only these hold the columns each read uses.
     expect(selectsFor(db.from, 'workshops')).toEqual(['id']);
     expect(selectsFor(db.from, 'workshop_sessions')).toEqual(['id']);
-    expect(selectsFor(db.from, 'workshop_enrollments')).toEqual(['user_id']);
+    expect(new Set(selectsFor(db.from, 'workshop_enrollments'))).toEqual(new Set(['id, user_id']));
+  });
+
+  it('reads hundreds of attendees in pieces a request line can carry', async () => {
+    const crowd = Array.from({ length: 250 }, (_, i) => `x${String(i).padStart(3, '0')}`);
+    const base = tables();
+    const { db, sent } = broadcast(
+      'workshop_attendees',
+      tables({
+        workshop_enrollments: {
+          rows: [
+            ...base.workshop_enrollments.rows,
+            ...crowd.map((name) => booking(name, 's-sun', 'confirmed')),
+          ],
+        },
+        persons: { rows: [...base.persons.rows, ...crowd.map((name) => person(name))] },
+      }),
+    );
+
+    await expect(sent).resolves.toMatchObject({ recipientCount: 253 });
+    const pieces = filtersFor(db.from, 'persons', 'in').map(([, ids]) => (ids as string[]).length);
+    expect(pieces).toEqual([200, 53]);
   });
 
   it('is refused as having nobody when the Event has no Workshop', async () => {
