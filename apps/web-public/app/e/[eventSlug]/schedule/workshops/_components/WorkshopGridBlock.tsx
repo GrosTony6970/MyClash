@@ -11,6 +11,7 @@
  * nothing is actually lost at the small sizes.
  */
 
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { SLOT_HEIGHT_MIN, slotToHHMM } from '@myclash/schedule-core';
 import { statusLabel, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
@@ -29,6 +30,22 @@ interface Props {
   /** Body row for a slot — row 1 is the venue band, row 2 the area header. */
   rowFor: (slot: number) => number;
   gridColumn: number;
+}
+
+/** The card's cell on the grid. A live and a cancelled card in one room and hour: half each (552). */
+function cardPlacement(
+  block: BlockModel,
+  rowFor: Props['rowFor'],
+  gridColumn: number,
+): CSSProperties {
+  return {
+    gridColumn,
+    gridRow: `${rowFor(block.startSlot)} / ${rowFor(Math.max(block.startSlot + 1, block.endSlot))}`,
+    zIndex: 10,
+    ...(block.lane
+      ? { width: 'calc(50% - 2px)', justifySelf: block.lane === 'start' ? 'start' : 'end' }
+      : {}),
+  };
 }
 
 export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Props) {
@@ -54,15 +71,7 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
         tintTextClassFor(block.color),
         block.cancelled ? 'opacity-60' : '',
       ].join(' ')}
-      style={{
-        gridColumn,
-        gridRow: `${rowFor(block.startSlot)} / ${rowFor(Math.max(block.startSlot + 1, block.endSlot))}`,
-        zIndex: 10,
-        // A live and a cancelled card in one room and hour: side by side, half each (552).
-        ...(block.lane
-          ? { width: 'calc(50% - 2px)', justifySelf: block.lane === 'start' ? 'start' : 'end' }
-          : {}),
-      }}
+      style={cardPlacement(block, rowFor, gridColumn)}
     >
       {cancelledWord && heightPx >= SHOW_INSTRUCTORS_PX ? (
         <span className="truncate text-[11px] font-semibold uppercase">{cancelledWord}</span>
