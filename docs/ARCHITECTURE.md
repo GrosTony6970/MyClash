@@ -2103,7 +2103,7 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   and hides the AI question panel, which only answers about Tournaments (ruling 566). The counts
   come with `GET events/:eventId/dashboard-stats` (`workshop-totals.ts`): a cancelled session
   counts nowhere; seats taken are confirmed bookings; the seat total is unknown (the number alone)
-  when a live session has no limit.
+  when a live session has no limit, or when no session is live.
 
 ---
 

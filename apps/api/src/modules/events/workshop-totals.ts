@@ -8,7 +8,7 @@ export interface WorkshopTotals {
   sessions: number;
   /** Confirmed bookings in those sessions — the public page's "12 / 20" rule. */
   seatsTaken: number;
-  /** Seats in those sessions; null when one of them has no limit (no honest total). */
+  /** Seats in those sessions; null when one has no limit or none is live (no honest total). */
   seats: number | null;
   /** People waiting for a seat in those sessions. */
   waitlisted: number;
