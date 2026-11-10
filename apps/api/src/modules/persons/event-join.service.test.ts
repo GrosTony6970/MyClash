@@ -125,7 +125,7 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
   it('refuses an Event whose switch is off, and writes nothing', async () => {
     const { joins } = service({ events: [ok({ ...OPEN_EVENT, workshop_self_join: false })] });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
-      response: { error: 'SelfJoinClosed' },
+      response: { code: 'SELF_JOIN_CLOSED' },
     });
     expect(createPerson).not.toHaveBeenCalled();
   });
@@ -171,7 +171,7 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
       persons: [ok([row({ id: 'p-other', email: 'bob@mail.fr', claimed_by_user_id: 'user-x' })])],
     });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
-      response: { error: 'AskOrganiser', reason: 'yourAddress' },
+      response: { code: 'ASK_ORGANISER', reason: 'yourAddress' },
     });
     expect(claimOwnRow).not.toHaveBeenCalled();
     expect(createPerson).not.toHaveBeenCalled();
@@ -184,7 +184,7 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
       persons: [ok([]), ok([row({ given_name: ' bob ', family_name: 'MARTIN' })])],
     });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
-      response: { error: 'AskOrganiser', reason: 'sameName' },
+      response: { code: 'ASK_ORGANISER', reason: 'sameName' },
     });
     expect(createPerson).not.toHaveBeenCalled();
   });
@@ -211,7 +211,7 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
       persons: [ok([]), ok([row({ email: 'old@mail.fr', global_person_id: 'gp-bob' })])],
     });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
-      response: { error: 'AskOrganiser', reason: 'yourProfile' },
+      response: { code: 'ASK_ORGANISER', reason: 'yourProfile' },
     });
   });
 
@@ -242,7 +242,7 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
       persons: [ok([])],
     });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
-      response: { error: 'NamesRequired' },
+      response: { code: 'NAMES_REQUIRED' },
     });
     expect(createPerson).not.toHaveBeenCalled();
   });

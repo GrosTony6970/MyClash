@@ -6,7 +6,7 @@ import { EventJoinController } from './event-join.controller';
 const req = { cookies: {}, headers: {} } as never;
 
 describe('EventJoinController — POST me/events/:eventId/join', () => {
-  it('refuses a caller with no account (a guest session is none) before anything is read', async () => {
+  it('refuses a caller with no account (a guest session is none) before the handler reads anything', async () => {
     const auth = {
       requireAccount: vi
         .fn()

@@ -50,7 +50,7 @@ const ROSTER_SELECT = 'id, email, given_name, family_name, claimed_by_user_id, g
 
 function askOrganiser(reason: AskOrganiserReason): ConflictException {
   return new ConflictException({
-    error: 'AskOrganiser',
+    code: 'ASK_ORGANISER',
     reason,
     message: 'Ask the organiser to add you to this Event.',
   });
@@ -115,7 +115,7 @@ export class EventJoinService {
     if (!event || !(await canReadEvent(deps, event, reader))) throw eventNotFound(eventId);
     if (event.workshop_self_join !== true) {
       throw new ConflictException({
-        error: 'SelfJoinClosed',
+        code: 'SELF_JOIN_CLOSED',
         message: 'People cannot join this Event by themselves.',
       });
     }
@@ -200,6 +200,8 @@ export class EventJoinService {
     const outcome = await this.auth.claimOwnRow(account, personId);
     if (outcome === 'claimed') return { personId, joined };
     // The account already holds a row here (0220): a second tap won. The caller looks again.
+    // After `create`, the row just made stays on the list unheld, with the account's address
+    // (named, accepted: two taps landing at once; the organiser can remove it).
     if (outcome === 'already_at_event') throw new ConflictException('Already on this Event');
     throw new InternalServerErrorException(
       `Row ${personId} could not be claimed by its own address`,
@@ -213,7 +215,7 @@ function namesTyped(typed: Partial<Names>): Names {
     return { givenName: typed.givenName, familyName: typed.familyName };
   }
   throw new BadRequestException({
-    error: 'NamesRequired',
+    code: 'NAMES_REQUIRED',
     message: 'Your first and last name are needed to join.',
   });
 }
