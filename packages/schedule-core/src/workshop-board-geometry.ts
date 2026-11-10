@@ -11,6 +11,7 @@
 
 import { zonedDay } from '@myclash/time';
 import { GRID_START_HOUR, isoToSlot, SLOT_MINUTES } from './schedule-grid-geometry';
+import type { TimeWindowMs } from './match-window';
 
 export interface BoardVenue {
   id: string;
@@ -78,6 +79,19 @@ export interface WorkshopBlock {
  */
 export function isCancelledSession(session: { status?: string | null }): boolean {
   return session.status === 'cancelled';
+}
+
+/**
+ * When a Workshop session holds its people, for a clash check: from its start to its end. A
+ * session missing either end overlaps nothing until it has both (ADR-016). The one owner, for the
+ * referee checker and for the Workshop board's instructor warning (rulings 553-555).
+ */
+export function sessionWindowMs(session: {
+  startsAt: string | null;
+  endsAt: string | null;
+}): TimeWindowMs | null {
+  if (session.startsAt === null || session.endsAt === null) return null;
+  return { startMs: Date.parse(session.startsAt), endMs: Date.parse(session.endsAt) };
 }
 
 export function columnKey(venueId: string, areaId: string | null): string {

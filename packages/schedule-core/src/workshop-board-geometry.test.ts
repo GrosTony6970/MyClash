@@ -4,6 +4,7 @@ import {
   buildColumnBands,
   buildWorkshopSessionBlocks,
   columnKey,
+  sessionWindowMs,
   unplacedSessions,
   type BoardVenue,
   type BoardWorkshop,
@@ -283,5 +284,21 @@ describe('unplacedSessions', () => {
       ['mixed', 's-no-venue'],
       ['mixed', 's-gone-venue'],
     ]);
+  });
+});
+
+describe('sessionWindowMs', () => {
+  it('runs from the start to the end', () => {
+    expect(
+      sessionWindowMs({ startsAt: '2026-05-23T10:00:00Z', endsAt: '2026-05-23T11:00:00Z' }),
+    ).toEqual({
+      startMs: Date.parse('2026-05-23T10:00:00Z'),
+      endMs: Date.parse('2026-05-23T11:00:00Z'),
+    });
+  });
+
+  it('is none while either end is missing: such a session overlaps nothing (ADR-016)', () => {
+    expect(sessionWindowMs({ startsAt: '2026-05-23T10:00:00Z', endsAt: null })).toBeNull();
+    expect(sessionWindowMs({ startsAt: null, endsAt: '2026-05-23T11:00:00Z' })).toBeNull();
   });
 });

@@ -8,13 +8,18 @@
  * - Busy: one of the session's instructors fights (their whole Pool) or referees then, from the
  *   server's answer (`workshop-instructor-busy`).
  *
- * A session counts with a start and an end and not cancelled: the referee checker's own rule
- * (ADR-016). Times are half-open, so 10:00-11:00 does not clash with 11:00-12:00. A session with
+ * A session counts when it is not cancelled, over `sessionWindowMs`: the window the referee
+ * checker reads too (ADR-016), so the two boards agree. Times are half-open, so 10:00-11:00 does not clash with 11:00-12:00. A session with
  * no venue has no card, but it still teaches at its time.
  *
  * Pure: no React, no DOM.
  */
-import { isCancelledSession, overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
+import {
+  isCancelledSession,
+  overlapsHalfOpen,
+  sessionWindowMs,
+  type TimeWindowMs,
+} from '@myclash/schedule-core';
 import type { WorkshopInstructorBusy } from '@myclash/types';
 
 export interface ClashWorkshop {
@@ -46,18 +51,10 @@ function timedSessions(workshops: ReadonlyArray<ClashWorkshop>): TimedSession[] 
     const instructors = workshop.instructors.flatMap((i) =>
       i.globalPersonId ? [{ globalPersonId: i.globalPersonId, displayName: i.displayName }] : [],
     );
-    return workshop.sessions.flatMap((session) =>
-      session.startsAt && session.endsAt && !isCancelledSession(session)
-        ? [
-            {
-              sessionId: session.id,
-              title: workshop.title,
-              window: { startMs: Date.parse(session.startsAt), endMs: Date.parse(session.endsAt) },
-              instructors,
-            },
-          ]
-        : [],
-    );
+    return workshop.sessions.flatMap((session) => {
+      const window = isCancelledSession(session) ? null : sessionWindowMs(session);
+      return window ? [{ sessionId: session.id, title: workshop.title, window, instructors }] : [];
+    });
   });
 }
 

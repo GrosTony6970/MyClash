@@ -29,7 +29,7 @@ import type {
   RefereeTarget,
 } from '@myclash/rulesets/scheduling/referee-checker';
 import type { RefereeCommitmentPool } from '@myclash/types';
-import type { TimeWindowMs } from '@myclash/schedule-core';
+import { sessionWindowMs } from '@myclash/schedule-core';
 import { boutWindowMs, unitWindowMs } from './board-unit-ends';
 import type { AssignmentBoardPool } from './assignment-board.service';
 import type { PoolAssignmentSettings } from './settings.service';
@@ -218,16 +218,11 @@ function dutyCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
   });
 }
 
-function sessionWindow(session: WorkshopSessionCommitments): TimeWindowMs | null {
-  if (session.startsAt === null || session.endsAt === null) return null;
-  return { startMs: Date.parse(session.startsAt), endMs: Date.parse(session.endsAt) };
-}
-
 function workshopCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
   return inputs.sessions.flatMap((session) => {
     const common = {
       sessionId: session.sessionId,
-      window: sessionWindow(session),
+      window: sessionWindowMs(session),
       label: session.title,
     };
     return [
