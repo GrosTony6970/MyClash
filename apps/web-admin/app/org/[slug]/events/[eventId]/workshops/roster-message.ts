@@ -51,7 +51,9 @@ export function useRosterMessage(target: RosterMessageTarget) {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<RosterMessageOutcome>(null);
-  const ready = Boolean(title.trim() && body.trim()) && !busy;
+  // Cancelled since the roster was opened (532): every further Send would be refused the same way.
+  const [cancelled, setCancelled] = useState(false);
+  const ready = Boolean(title.trim() && body.trim()) && !busy && !cancelled;
 
   async function send() {
     if (!ready) return;
@@ -66,6 +68,7 @@ export function useRosterMessage(target: RosterMessageTarget) {
         { method: 'POST', body: { ...message, sessionId: target.sessionId } },
       );
       if (!r.ok) {
+        if (failureCode(r) === 'WORKSHOP_SESSION_CANCELLED') setCancelled(true);
         const words = rosterMessageRefusal(r, t);
         if (words) setOutcome({ error: words });
         return;

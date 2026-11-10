@@ -98,6 +98,8 @@ const ROSTER = [
 
 let reads: Record<string, unknown>;
 let notifyAnswer: unknown;
+/** Set to hold the first Workshop's roster read; it is then the function that answers it. */
+let slowRoster: (() => void) | null;
 
 function setReads(sessionStatus = 'scheduled', roster: unknown[] = ROSTER) {
   reads = {
@@ -137,9 +139,16 @@ beforeEach(() => {
   NAVIGATION.eventStatus = 'running';
   setReads();
   notifyAnswer = { ok: true, data: { id: 'b-1', recipientCount: 3 } };
+  slowRoster = null;
   vi.mocked(apiRequest).mockReset();
   vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string, init) => {
     if (init?.method === 'POST' && path.endsWith('/notify')) return notifyAnswer as never;
+    // Remove and Promote answer ok; the roster is then read again.
+    if (init?.method && init.method !== 'GET') return { ok: true, data: undefined };
+    if (path === '/api/v1/workshop-sessions/s-1/roster' && slowRoster) {
+      const answer = { ok: true, data: reads[path] };
+      return new Promise((resolve) => (slowRoster = () => resolve(answer as never)));
+    }
     if (path in reads) return { ok: true, data: reads[path] };
     // The second Workshop's roster cannot be read.
     if (path === '/api/v1/workshop-sessions/s-2/roster') {
@@ -225,8 +234,21 @@ describe("a message from a session's roster", () => {
         body: { title: 'Hall B', body: 'We moved to Hall B.', sessionId: 's-1' },
       },
     ]);
-    expect(document.body.textContent).toContain('Sent. People reached: 3.');
+    expect(box.querySelector('[role="status"]')?.textContent).toBe('Sent. People reached: 3.');
     expect(box.querySelector('input')!.value).toBe('');
+  });
+
+  it('keeps a typed message when a Remove reads the roster again', async () => {
+    await openPage();
+    await click(buttons('Roster')[0]);
+    await writeMessage();
+    await click(buttons('Remove')[1]);
+    await click(buttons('Confirm').at(-1));
+
+    expect(writes().map((w) => w.path)).toEqual([
+      '/api/v1/workshop-sessions/s-1/enrollments/Tom-row',
+    ]);
+    expect(messageBox()!.querySelector('input')!.value).toBe('Hall B');
   });
 
   it('sends nothing when the question is answered "Cancel"', async () => {
@@ -253,9 +275,12 @@ describe("a message from a session's roster", () => {
     await click(sendIn(await writeMessage()));
     await click(buttons('Send').at(-1));
 
-    expect(document.body.textContent).toContain(
+    const box = messageBox()!;
+    expect(box.querySelector('[role="alert"]')?.textContent).toBe(
       'This session was cancelled: its people are not messaged.',
     );
+    // Every further Send would be refused the same way.
+    expect(sendIn(box)!.disabled).toBe(true);
   });
 
   it('is not offered on a cancelled session: it does nothing (532)', async () => {
@@ -295,6 +320,23 @@ describe("a message from a session's roster", () => {
     await settle();
 
     await click(buttons('Roster')[1]);
+
+    expect(document.body.textContent).not.toContain('Tom Roux');
+    expect(messageBox()).toBeUndefined();
+  });
+
+  it("drops a slow roster that answers after another session's was opened", async () => {
+    slowRoster = () => undefined;
+    await openPage();
+    await click(buttons('Roster')[0]);
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    await click(buttons('Roster')[1]);
+
+    await act(async () => slowRoster!());
+    await settle();
 
     expect(document.body.textContent).not.toContain('Tom Roux');
     expect(messageBox()).toBeUndefined();

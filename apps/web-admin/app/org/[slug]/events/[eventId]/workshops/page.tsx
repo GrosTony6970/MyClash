@@ -10,7 +10,7 @@
  *   ✓ Cancel session stub (notification via T-1201 when available)
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
@@ -330,6 +330,8 @@ export default function WorkshopsAdminPage() {
   );
   const rosterWorkshop = workshops.find((w) => w.sessions.some((s) => s.id === rosterSession));
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  /** The session whose roster was asked for last: an older answer is dropped. */
+  const rosterAsked = useRef<string | null>(null);
   // Who a message from the roster reaches: seats and waiting list, as the server counts them.
   const rosterBooked = roster.filter(
     (e) => e.status === 'confirmed' || e.status === 'waitlisted',
@@ -616,12 +618,15 @@ export default function WorkshopsAdminPage() {
     // Another session's list must not stand in for this one's when the read fails: its names
     // would show under this session, and its count would head this session's message.
     if (sessionId !== rosterSession) setRoster([]);
+    rosterAsked.current = sessionId;
     setRosterSession(sessionId);
     setRosterLoading(true);
     const r = await apiRequest<RosterEntry[]>(
       apiUrl,
       `/api/v1/workshop-sessions/${sessionId}/roster`,
     );
+    // A slow answer for a roster closed since, when another one was opened: it is not this one's.
+    if (rosterAsked.current !== sessionId) return;
     if (r.ok) {
       setRoster(r.data);
     } else {
@@ -1562,8 +1567,10 @@ export default function WorkshopsAdminPage() {
               ))}
             </div>
           )}
-          {/* A cancelled session does nothing (532); keyed so a typed draft stays with its session. */}
-          {!rosterLoading && rosterWorkshop && !rosterCancelled && rosterBooked > 0 && (
+          {/* A cancelled session does nothing (532). Not hidden while the same roster is read
+              again after a Remove or a Promote: the draft and the "Sent" line stay. Another
+              session's roster starts empty (`openRoster`), so the box waits for its read. */}
+          {rosterWorkshop && !rosterCancelled && rosterBooked > 0 && (
             <RosterMessage
               key={rosterSession}
               apiUrl={apiUrl}

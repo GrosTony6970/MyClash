@@ -34,9 +34,13 @@ export function RosterMessage({
         maxLength={1000}
         onChange={(e) => message.setBody(e.target.value)}
       />
-      {outcome && 'error' in outcome && <p className="text-sm text-danger">{outcome.error}</p>}
+      {outcome && 'error' in outcome && (
+        <p role="alert" className="text-sm text-danger">
+          {outcome.error}
+        </p>
+      )}
       {outcome && 'sent' in outcome && (
-        <p className="text-sm text-success">
+        <p role="status" className="text-sm text-success">
           {t('organizer.workshopsPage.message.sent', { count: outcome.sent })}
         </p>
       )}
