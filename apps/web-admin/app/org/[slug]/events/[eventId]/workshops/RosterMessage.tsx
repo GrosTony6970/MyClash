@@ -2,7 +2,11 @@
 
 import { Button, FormField } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { useRosterMessage, type RosterMessageTarget } from './roster-message';
+import {
+  useRosterMessage,
+  type RosterMessageOutcome,
+  type RosterMessageTarget,
+} from './roster-message';
 
 /**
  * "Message the people booked" under a session's roster (operator ruling 530). The page shows it
@@ -18,7 +22,6 @@ export function RosterMessage({
 }: RosterMessageTarget & { readOnly: boolean; rereading: boolean }) {
   const { t } = useI18n();
   const message = useRosterMessage(target);
-  const { outcome } = message;
 
   return (
     <section className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
@@ -37,16 +40,7 @@ export function RosterMessage({
         maxLength={1000}
         onChange={(e) => message.setBody(e.target.value)}
       />
-      {outcome && 'error' in outcome && (
-        <p role="alert" className="text-sm text-danger">
-          {outcome.error}
-        </p>
-      )}
-      {outcome && 'sent' in outcome && (
-        <p role="status" className="text-sm text-success">
-          {t('organizer.workshopsPage.message.sent', { count: outcome.sent })}
-        </p>
-      )}
+      <OutcomeLine outcome={message.outcome} />
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -60,5 +54,23 @@ export function RosterMessage({
         </Button>
       </div>
     </section>
+  );
+}
+
+/** What became of the last Send: a status a screen reader says, or an alert. */
+function OutcomeLine({ outcome }: { outcome: RosterMessageOutcome }) {
+  const { t } = useI18n();
+  if (!outcome) return null;
+  if ('error' in outcome) {
+    return (
+      <p role="alert" className="text-sm text-danger">
+        {outcome.error}
+      </p>
+    );
+  }
+  return (
+    <p role="status" className="text-sm text-success">
+      {t('organizer.workshopsPage.message.sent', { count: outcome.sent })}
+    </p>
   );
 }
