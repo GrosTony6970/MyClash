@@ -41,49 +41,59 @@ const booking = (person: string, session: string, status: string) => ({
   status,
 });
 
+/** The Open's Workshops, their sessions and bookings, and one Workshop of another Event. */
+const WORKSHOP_TABLES = {
+  workshops: {
+    rows: [
+      { id: 'w-long', event_id: OPEN, status: 'published' },
+      { id: 'w-sabre', event_id: OPEN, status: 'draft' },
+      { id: 'w-elsewhere', event_id: 'e-other', status: 'published' },
+    ],
+  },
+  workshop_sessions: {
+    rows: [
+      { id: 's-sat', workshop_id: 'w-long', status: 'cancelled' },
+      { id: 's-sun', workshop_id: 'w-long', status: 'scheduled' },
+      { id: 's-mon', workshop_id: 'w-sabre', status: 'scheduled' },
+      { id: 's-other', workshop_id: 'w-elsewhere', status: 'scheduled' },
+    ],
+  },
+  workshop_enrollments: {
+    rows: [
+      booking('carl', 's-sat', 'confirmed'),
+      booking('alice', 's-sun', 'confirmed'),
+      booking('dan', 's-sun', 'refused'),
+      booking('bob', 's-sun', 'waitlisted'),
+      booking('eve', 's-mon', 'confirmed'),
+      booking('olga', 's-other', 'confirmed'),
+    ],
+  },
+} satisfies Record<string, TableSeed>;
+
+/** Who teaches: tagged on the Event, named on a Workshop, or both. */
+const INSTRUCTOR_TABLES = {
+  event_instructors: {
+    rows: [
+      { event_id: OPEN, person_id: 'gp-marie' },
+      { event_id: OPEN, person_id: 'gp-zoe' },
+      { event_id: 'e-other', person_id: 'gp-xavier' },
+    ],
+  },
+  workshop_instructors: {
+    rows: [
+      { workshop_id: 'w-long', global_person_id: 'gp-paul' },
+      { workshop_id: 'w-long', global_person_id: 'gp-zoe' },
+      { workshop_id: 'w-long', global_person_id: null },
+      { workshop_id: 'w-elsewhere', global_person_id: 'gp-xavier' },
+    ],
+  },
+} satisfies Record<string, TableSeed>;
+
 function tables(over: Record<string, TableSeed> = {}) {
   return {
     events: { rows: [{ id: OPEN, organization_id: 'o-lyon', slug: 'open', name: 'Open' }] },
-    workshops: {
-      rows: [
-        { id: 'w-long', event_id: OPEN, status: 'published' },
-        { id: 'w-sabre', event_id: OPEN, status: 'draft' },
-        { id: 'w-elsewhere', event_id: 'e-other', status: 'published' },
-      ],
-    },
-    workshop_sessions: {
-      rows: [
-        { id: 's-sat', workshop_id: 'w-long', status: 'cancelled' },
-        { id: 's-sun', workshop_id: 'w-long', status: 'scheduled' },
-        { id: 's-mon', workshop_id: 'w-sabre', status: 'scheduled' },
-        { id: 's-other', workshop_id: 'w-elsewhere', status: 'scheduled' },
-      ],
-    },
-    workshop_enrollments: {
-      rows: [
-        booking('carl', 's-sat', 'confirmed'),
-        booking('alice', 's-sun', 'confirmed'),
-        booking('dan', 's-sun', 'refused'),
-        booking('bob', 's-sun', 'waitlisted'),
-        booking('eve', 's-mon', 'confirmed'),
-        booking('olga', 's-other', 'confirmed'),
-      ],
-    },
-    event_instructors: {
-      rows: [
-        { event_id: OPEN, person_id: 'gp-marie' },
-        { event_id: OPEN, person_id: 'gp-zoe' },
-        { event_id: 'e-other', person_id: 'gp-xavier' },
-      ],
-    },
-    workshop_instructors: {
-      rows: [
-        { workshop_id: 'w-long', global_person_id: 'gp-paul' },
-        { workshop_id: 'w-long', global_person_id: 'gp-zoe' },
-        { workshop_id: 'w-long', global_person_id: null },
-        { workshop_id: 'w-elsewhere', global_person_id: 'gp-xavier' },
-      ],
-    },
+    ...WORKSHOP_TABLES,
+    ...INSTRUCTOR_TABLES,
     persons: {
       rows: [
         person('alice'),
