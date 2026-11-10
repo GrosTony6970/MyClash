@@ -58,6 +58,7 @@ import {
   workshopSortValue,
 } from './filter-workshops';
 import { rosterRequests } from './roster-requests';
+import { RosterMessage } from './RosterMessage';
 import { RosterName } from './RosterName';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -327,7 +328,12 @@ export default function WorkshopsAdminPage() {
   const rosterCancelled = workshops.some((w) =>
     w.sessions.some((s) => s.id === rosterSession && isCancelledSession(s)),
   );
+  const rosterWorkshop = workshops.find((w) => w.sessions.some((s) => s.id === rosterSession));
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  // Who a message from the roster reaches: seats and waiting list, as the server counts them.
+  const rosterBooked = roster.filter(
+    (e) => e.status === 'confirmed' || e.status === 'waitlisted',
+  ).length;
   const [rosterLoading, setRosterLoading] = useState(false);
   const [linkingEnrollmentId, setLinkingEnrollmentId] = useState<string | null>(null);
   const [gpSearch, setGpSearch] = useState('');
@@ -607,6 +613,9 @@ export default function WorkshopsAdminPage() {
   // ── Roster ────────────────────────────────────────────────────────────────────
 
   async function openRoster(sessionId: string) {
+    // Another session's list must not stand in for this one's when the read fails: its names
+    // would show under this session, and its count would head this session's message.
+    if (sessionId !== rosterSession) setRoster([]);
     setRosterSession(sessionId);
     setRosterLoading(true);
     const r = await apiRequest<RosterEntry[]>(
@@ -1552,6 +1561,18 @@ export default function WorkshopsAdminPage() {
                 </div>
               ))}
             </div>
+          )}
+          {/* A cancelled session does nothing (532); keyed so a typed draft stays with its session. */}
+          {!rosterLoading && rosterWorkshop && !rosterCancelled && rosterBooked > 0 && (
+            <RosterMessage
+              key={rosterSession}
+              apiUrl={apiUrl}
+              workshopId={rosterWorkshop.id}
+              sessionId={rosterSession}
+              count={rosterBooked}
+              confirm={confirm}
+              readOnly={isReadOnly}
+            />
           )}
         </Modal>
       )}

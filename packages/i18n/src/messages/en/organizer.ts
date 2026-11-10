@@ -2209,6 +2209,19 @@ export const organizer = {
       hasBookings:
         'People are booked on this workshop. Remove its sessions from the schedule first.',
     },
+    message: {
+      heading: 'Message the people booked',
+      titleLabel: 'Title',
+      bodyLabel: 'Message',
+      send: 'Send',
+      sending: 'Sending…',
+      confirmTitle: 'Send "{title}"?',
+      confirmBody:
+        'It goes to the people booked or waiting in this session: {count}. They get it on their phone or by email, and it cannot be taken back.',
+      sent: 'Sent. People reached: {count}.',
+      failed: 'The message could not be sent.',
+      sessionCancelled: 'This session was cancelled: its people are not messaged.',
+    },
     editWorkshop: 'Edit workshop',
     newWorkshopTitle: 'New workshop',
     titleLabel: 'Title *',

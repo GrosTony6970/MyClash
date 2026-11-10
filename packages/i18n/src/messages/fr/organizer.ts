@@ -2168,6 +2168,19 @@ export const organizer = {
       hasBookings:
         "Des personnes sont inscrites à cet atelier. Retirez d'abord ses séances du programme.",
     },
+    message: {
+      heading: 'Écrire aux inscrits',
+      titleLabel: 'Titre',
+      bodyLabel: 'Message',
+      send: 'Envoyer',
+      sending: 'Envoi…',
+      confirmTitle: 'Envoyer « {title} » ?',
+      confirmBody:
+        "Il part aux inscrits et à la liste d'attente de cette séance : {count}. Ils le reçoivent sur leur téléphone ou par e-mail, et il ne peut pas être repris.",
+      sent: 'Envoyé. Personnes jointes : {count}.',
+      failed: "Le message n'a pas pu être envoyé.",
+      sessionCancelled: 'Cette séance a été annulée : ses inscrits ne reçoivent pas de message.',
+    },
     editWorkshop: "Modifier l'atelier",
     newWorkshopTitle: 'Nouvel atelier',
     titleLabel: 'Titre *',
