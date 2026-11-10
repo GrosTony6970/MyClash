@@ -13,6 +13,8 @@ interface TableLog {
   updates: Record<string, unknown>[];
   deletes: number;
   rows: Record<string, unknown>[];
+  /** Each `.in(column, values)` asked of the table: which rows a step aims at. */
+  ins: [string, unknown][];
 }
 
 function makeSupabase(
@@ -22,7 +24,7 @@ function makeSupabase(
 ) {
   const log: Record<string, TableLog> = {};
   const tableLog = (table: string): TableLog =>
-    (log[table] ??= { updates: [], deletes: 0, rows: seed[table] ?? [] });
+    (log[table] ??= { updates: [], deletes: 0, rows: seed[table] ?? [], ins: [] });
 
   const service = {
     from(table: string) {
@@ -34,7 +36,10 @@ function makeSupabase(
       const chain: Record<string, unknown> = {
         select: () => chain,
         eq: () => chain,
-        in: () => chain,
+        in: (column: string, values: unknown) => {
+          entry.ins.push([column, values]);
+          return chain;
+        },
         contains: () => chain,
         maybeSingle: () => Promise.resolve({ data: entry.rows[0] ?? null, error: null }),
         insert: (row: Record<string, unknown>) => {
@@ -218,7 +223,7 @@ describe('ErasureService.redactSubject', () => {
     expect(log['global_persons']!.updates).toEqual([]);
   });
 
-  it("deletes each Workshop line's photo files before the lines are wiped", async () => {
+  it("wipes the person's own Workshop lines, then deletes each one's photo files", async () => {
     const bucket = photoBucket();
     const { supabase, log } = makeSupabase(
       { global_persons: [{ id: 'g1' }], workshop_instructors: [{ id: 'wi-1' }, { id: 'wi-2' }] },
@@ -227,14 +232,16 @@ describe('ErasureService.redactSubject', () => {
     );
     await new ErasureService(supabase).redactSubject('u1');
 
+    // The lines of the erased profile, and no other.
+    expect(log['workshop_instructors']!.ins).toEqual([['global_person_id', ['g1']]]);
+    expect(log['workshop_instructors']!.updates).toHaveLength(1);
     expect(bucket.removed).toEqual([
       ['workshop_instructors/wi-1/photo-1.png'],
       ['workshop_instructors/wi-2/photo-1.png'],
     ]);
-    expect(log['workshop_instructors']!.updates).toHaveLength(1);
   });
 
-  it('a photo the bucket will not delete stops the erasure before any line or profile changes', async () => {
+  it('a photo the bucket will not delete stops the erasure before the profile forgets the account', async () => {
     const bucket = photoBucket('timeout');
     const { supabase, log } = makeSupabase(
       { global_persons: [{ id: 'g1' }], workshop_instructors: [{ id: 'wi-1' }] },
@@ -244,7 +251,7 @@ describe('ErasureService.redactSubject', () => {
     await expect(new ErasureService(supabase).redactSubject('u1')).rejects.toThrow(
       /could not be deleted/,
     );
-    expect(log['workshop_instructors']!.updates).toEqual([]);
+    // A retry finds the lines again by the profile, which still names the account.
     expect(log['global_persons']!.updates).toEqual([]);
   });
 });
@@ -265,6 +272,7 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     const { supabase, log } = makeSupabase();
     const { counts } = await new ErasureService(supabase).anonymiseGlobalPerson('g1');
 
+    expect(log['workshop_instructors']!.ins).toEqual([['global_person_id', ['g1']]]);
     expect(log['workshop_instructors']!.updates).toEqual([
       { bio: null, affiliation: null, photo_url: null },
     ]);

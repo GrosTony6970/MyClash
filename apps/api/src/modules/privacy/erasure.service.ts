@@ -314,28 +314,25 @@ export class ErasureService {
   /**
    * What a Workshop says about the person, over their profile (rulings 556, 560): a bio, a club
    * line and a photo written for one Workshop, the photo's files included. Found by the profile
-   * ids, so `redactSubject` runs
+   * ids (a retry finds the same lines: they stay), so `redactSubject` runs
    * it before the profile update clears the column those ids come from: a failure stays
    * retryable.
    */
   private async redactWorkshopLines(globalPersonIds: string[]): Promise<number> {
     if (globalPersonIds.length === 0) return 0;
-    // The photo files first: a storage failure stops here, and the lines are found again.
-    const lines = await this.supabase.service
-      .from('workshop_instructors')
-      .select('id')
-      .in('global_person_id', globalPersonIds);
-    if (lines.error) throw new Error(`workshop_instructors: ${lines.error.message}`);
-    for (const { id } of (lines.data ?? []) as { id: string }[]) {
-      await deleteInstructorPhotoFolder(this.supabase.service.storage, id);
-    }
+    // The columns first, then the files: a photo uploaded between the two is no longer shown and
+    // is deleted with its folder. A storage failure throws; the lines stay, found again by a retry.
     const { data, error } = await this.supabase.service
       .from('workshop_instructors')
       .update(nulls(WORKSHOP_INSTRUCTOR_NULLED))
       .in('global_person_id', globalPersonIds)
       .select('id');
     if (error) throw new Error(`redact workshop_instructors: ${error.message}`);
-    return (data ?? []).length;
+    const lines = (data ?? []) as { id: string }[];
+    for (const { id } of lines) {
+      await deleteInstructorPhotoFolder(this.supabase.service.storage, id);
+    }
+    return lines.length;
   }
 
   // ── Supabase helpers ────────────────────────────────────────────────────────
