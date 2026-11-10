@@ -11535,6 +11535,7 @@ export interface components {
       eventKind?: 'standard' | 'test' | 'club';
       /** @enum {string} */
       photoMode?: 'off' | 'live' | 'approve';
+      workshopSelfJoin?: boolean;
     };
     UpsertEventThemeDto: {
       logoUrl?: string | null;

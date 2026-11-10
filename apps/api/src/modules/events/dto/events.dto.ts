@@ -92,6 +92,8 @@ const updateEventSchema = z
     eventKind: z.enum(EVENT_KINDS).optional(),
     // Event photos: off (default), live, or approve first.
     photoMode: z.enum(PHOTO_MODES).optional(),
+    // People with an account may put themselves on the list from a Workshop page (ruling 516).
+    workshopSelfJoin: z.boolean().optional(),
   })
   .strict();
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}

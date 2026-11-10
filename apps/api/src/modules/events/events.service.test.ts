@@ -1445,6 +1445,26 @@ describe('EventsService', () => {
       const written = updateChain.update.mock.calls[0]![0] as Record<string, unknown>;
       expect(written['photo_mode']).toBe('approve');
     });
+
+    it('writes the join switch it was sent as workshop_self_join, off as well as on', async () => {
+      for (const workshopSelfJoin of [true, false]) {
+        const updateChain = {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'event-1' }, error: null }),
+        };
+        fromMock
+          .mockReturnValueOnce(makeChain({ data: stored, error: null }))
+          .mockReturnValueOnce(updateChain);
+        assertOrgRole.mockResolvedValue(undefined);
+
+        await service.updateEvent('event-1', { workshopSelfJoin }, 'user-7');
+
+        const written = updateChain.update.mock.calls[0]![0] as Record<string, unknown>;
+        expect(written['workshop_self_join']).toBe(workshopSelfJoin);
+      }
+    });
   });
 
   it('updateEvent rejects a slug already used by another event in the org', async () => {

@@ -754,6 +754,7 @@ export class EventsService {
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
     if (dto.eventKind !== undefined) updates['event_kind'] = dto.eventKind;
     if (dto.photoMode !== undefined) updates['photo_mode'] = dto.photoMode;
+    if (dto.workshopSelfJoin !== undefined) updates['workshop_self_join'] = dto.workshopSelfJoin;
 
     const previousKind = asEventKind((event as { event_kind?: string }).event_kind);
     const nextKind = dto.eventKind ?? previousKind;
