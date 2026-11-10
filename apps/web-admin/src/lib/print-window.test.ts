@@ -23,8 +23,8 @@ describe('the print doors', () => {
 
   it('each say the window was blocked, in the shared words', () => {
     const doors = files.filter(({ text }) => text.includes('openPrintWindow('));
-    // 6: the Event photos poster (slice 5a).
-    expect(doors.length).toBe(6);
+    // 6: the Event photos poster (slice 5a). 7: a session's roster as a sign-in sheet (537).
+    expect(doors.length).toBe(7);
     for (const { path, text } of doors) {
       const calls = text.split('openPrintWindow(').length - 1;
       const said = text.split("t('organizer.printWindow.popupBlocked')").length - 1;
