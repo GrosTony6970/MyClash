@@ -121,6 +121,8 @@ const notifyWorkshopSchema = z
   .object({
     title: z.string().min(1).max(120),
     body: z.string().min(1).max(1000),
+    // One session's people (the organiser's roster, ruling 530); none = the whole Workshop.
+    sessionId: z.uuid().optional(),
   })
   .strict();
 class NotifyWorkshopBody extends createZodDto(notifyWorkshopSchema) {}
@@ -305,7 +307,8 @@ export class WorkshopsController {
   @Post('workshops/:id/notify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Message all enrollees of a workshop (workshop instructor or workshop_lead+)',
+    summary:
+      'Message the people booked in one session (sessionId) or in every session of a workshop; a cancelled session tells nobody, and a message to one answers 409 WorkshopSessionCancelled (workshop instructor or workshop_lead+)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async notifyEnrollees(
@@ -315,7 +318,10 @@ export class WorkshopsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     await this.workshops.assertCanManageWorkshopAsInstructorOrLead(id, userId);
-    const { eventId, personIds } = await this.workshops.getWorkshopEnrolleeRecipients(id);
+    const { eventId, personIds } = await this.workshops.getWorkshopEnrolleeRecipients(
+      id,
+      dto.sessionId,
+    );
     if (personIds.length === 0) return { id: null, recipientCount: 0 };
     return this.broadcasts.sendToEventPersons(eventId, userId, personIds, dto.title, dto.body);
   }

@@ -8670,7 +8670,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Message all enrollees of a workshop (workshop instructor or workshop_lead+) */
+    /** Message the people booked in one session (sessionId) or in every session of a workshop; a cancelled session tells nobody, and a message to one answers 409 WorkshopSessionCancelled (workshop instructor or workshop_lead+) */
     post: operations['WorkshopsController_notifyEnrollees'];
     delete?: never;
     options?: never;
@@ -12235,6 +12235,8 @@ export interface components {
     NotifyWorkshopBody: {
       title: string;
       body: string;
+      /** Format: uuid */
+      sessionId?: string;
     };
     SubmitFeedbackBody: {
       rating: number;

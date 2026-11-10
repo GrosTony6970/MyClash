@@ -35,6 +35,7 @@ import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { inStartOrder } from './session-order';
+import { bookedPersonIds } from './workshop-booked-people';
 import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 import {
   ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
@@ -1075,31 +1076,18 @@ export class WorkshopsService {
   }
 
   /**
-   * Event id + unique enrollee persons.ids (confirmed + waitlisted) across all of
-   * a workshop's sessions — the recipient set for an instructor's "notify all".
+   * Event id + the people a message to the Workshop reaches: one session's (the organiser's
+   * roster, ruling 530) or every session's (the instructor's), never a cancelled session's (531,
+   * 532). See `workshop-booked-people.ts`.
    */
   async getWorkshopEnrolleeRecipients(
     workshopId: string,
+    sessionId?: string,
   ): Promise<{ eventId: string; personIds: string[] }> {
     const eventId = await this.resolveWorkshopEvent(workshopId);
-    const { data: sessions } = await this.supabase.service
-      .from('workshop_sessions')
-      .select('id')
-      .eq('workshop_id', workshopId);
-    const sessionIds = ((sessions ?? []) as Array<{ id: string }>).map((s) => s.id);
-    if (sessionIds.length === 0) return { eventId, personIds: [] };
-
-    const { data: enr } = await this.supabase.service
-      .from('workshop_enrollments')
-      .select('user_id')
-      .in('workshop_session_id', sessionIds)
-      .in('status', ['confirmed', 'waitlisted']);
-    const personIds = Array.from(
-      new Set(
-        ((enr ?? []) as Array<{ user_id: string | null }>)
-          .map((e) => e.user_id)
-          .filter((id): id is string => Boolean(id)),
-      ),
+    const personIds = await bookedPersonIds(
+      this.supabase.service,
+      sessionId ? { workshopId, sessionId } : { workshopIds: [workshopId] },
     );
     return { eventId, personIds };
   }
