@@ -2037,7 +2037,26 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   `PersonNotInEvent`, `apps/api/src/modules/workshops/workshop-person-on-event.ts`): a booking's
   person has no foreign key, so nothing else ties it to the Event. The roster prints and exports
   as a sign-in sheet (537): seats by name, then the waiting list, refusals left out
-  (`roster-sheet.ts`). Check-in is not built.
+  (`roster-sheet.ts`); the print marks whoever is ticked present, the CSV gives the tick's time on
+  the Event's clock (542).
+- Check-in per session (rulings 539-549, migration 0259). A booking carries `checked_in_at` and
+  `check_in_source` (`desk` | `hand` | null; one CHECK: a desk tick always has a time, `hand`
+  without one is a tick cleared by hand). Information only: a tick never changes a booking, and a
+  seat is enough to rate (539). A seat or a waiting-list place can be ticked, a refusal cannot
+  (541). The instructor or a `workshop_lead` ticks from either roster through
+  `PUT workshop-sessions/:id/enrollments/:personId/check-in` (`{ present }`); a cancelled session
+  takes none (526). The one writer is `apps/api/src/modules/workshops/workshop-check-in.ts`.
+  - Auto check-in: `workshops.auto_check_in`, one switch per Workshop on its edit form, off by
+    default (540, 543). With it on, the Event's front desk (`event_arrivals`, one row per person
+    per Event) ticks the person, at the moment of the tap or scan, in that Workshop's sessions of
+    the same day on the Event's clock (544, 546); a booking made later that day is ticked when
+    made. A desk undo removes the desk's ticks of the day it is pressed (547). A tap (`hand`) wins
+    for good: the desk never writes over it (545). Every desk write names the state it read, so a
+    tap or a refusal landing in between keeps its booking out. On a later day the desk offers
+    "Arrived today" to someone who arrived on an earlier one (547).
+  - Privacy: who was in the room is personal data, like `event_arrivals`. The two columns are left
+    out of the public roles' column grant on `workshop_enrollments` (548, the 0205 pattern) and out
+    of the Event archive (`TableSpec.personal`, 549); the person's own GDPR export carries them.
 - Cancel session → all enrollees notified (push + email).
 - A Workshop's message has one door, `POST workshops/:id/notify` (its instructor or a
   `workshop_lead`). With a `sessionId` it reaches that session's seats and waiting list: the
