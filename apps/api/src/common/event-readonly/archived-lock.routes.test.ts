@@ -154,7 +154,9 @@ describe('the archived-Event lock, API-wide', () => {
     // route) and `DELETE me/events/:eventId/photos/:photoId` (opted out), placed by their Event.
     // 193: the organiser's `DELETE workshops/:id`, placed by its Workshop: an archived Event's
     // Workshop is not deleted.
-    expect(placed).toHaveLength(193);
+    // 194: `PUT workshop-sessions/:id/enrollments/:personId/check-in`, placed by its session: an
+    // archived Event's roster takes no tick.
+    expect(placed).toHaveLength(194);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

@@ -8974,6 +8974,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workshop-sessions/{id}/enrollments/{personId}/check-in': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Tick a person present in a session, or clear the tick (workshop instructor or workshop_lead+). Information only: the booking does not change. */
+    put: operations['WorkshopsController_checkIn'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/my-schedule': {
     parameters: {
       query?: never;
@@ -12292,6 +12309,9 @@ export interface components {
       venueId?: string | null;
       /** Format: uuid */
       areaId?: string | null;
+    };
+    CheckInBody: {
+      present: boolean;
     };
     SchedulePlacementsDto: {
       placements: {
@@ -25861,6 +25881,30 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopsController_checkIn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        personId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CheckInBody'];
+      };
+    };
     responses: {
       200: {
         headers: {

@@ -22,6 +22,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -48,6 +49,8 @@ import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archi
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
 import { WORKSHOP_LOGO_UPLOAD } from './workshop-assets';
+import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
+import { tickByHand } from './workshop-check-in';
 import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
@@ -149,6 +152,9 @@ class CreateSessionBody extends createZodDto(createSessionSchema) {}
 // A move names only what it changes; a null venue or room clears it. A class of its own: a
 // `Partial<CreateSessionBody>` parameter erases to `Object`, and nothing validated it.
 class UpdateSessionBody extends createZodDto(createSessionSchema.partial()) {}
+
+const checkInSchema = z.object({ present: z.boolean() }).strict();
+class CheckInBody extends createZodDto(checkInSchema) {}
 
 const addInstructorSchema = z.object({ globalPersonId: z.uuid() }).strict();
 class AddInstructorBody extends createZodDto(addInstructorSchema) {}
@@ -654,6 +660,30 @@ export class WorkshopsController {
     );
     await this.enrollment.refuse(id, personId);
     return { ok: true };
+  }
+
+  @Put('workshop-sessions/:id/enrollments/:personId/check-in')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Tick a person present in a session, or clear the tick (workshop instructor or workshop_lead+). Information only: the booking does not change.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async checkIn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Body() body: CheckInBody,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.workshops.assertCanManageSessionAsInstructorOrLead(
+      id,
+      await getUserId(req, this.supabase),
+    );
+    // A cancelled session's roster is read only (526). Read before the write: a cancel landing in
+    // between leaves a tick on a cancelled session, shown greyed; harmless.
+    if (await isSessionCancelled(this.supabase.service, id)) throw sessionCancelledRefusal();
+    return tickByHand(this.supabase.service, id, personId, body.present);
   }
 
   // ── Private ───────────────────────────────────────────────────────────────────

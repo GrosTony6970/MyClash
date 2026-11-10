@@ -988,7 +988,7 @@ export class WorkshopsService {
       .from('workshop_enrollments')
       .select(
         `
-        id, status, position, enrolled_at, user_id, global_person_id,
+        id, status, position, enrolled_at, user_id, global_person_id, checked_in_at,
         global_persons ( id, given_name, family_name )
       `,
       )
@@ -1005,6 +1005,7 @@ export class WorkshopsService {
       enrolled_at: string;
       user_id: string | null;
       global_person_id: string | null;
+      checked_in_at: string | null;
       global_persons: Gp | Gp[] | null;
     }>;
 
@@ -1071,6 +1072,8 @@ export class WorkshopsService {
         persons,
         // False when the roster row could not be read: nothing says "guest" then.
         guest: fallback?.guest ?? false,
+        // When the person was ticked present (0259); who ticked stays private.
+        checkedInAt: e.checked_in_at,
       };
     });
   }
