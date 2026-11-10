@@ -33,6 +33,7 @@ import { NotificationEventsService } from '../notifications/event-handlers/notif
 import { SupabaseService } from '../supabase/supabase.service';
 import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { assertNoOtherBooking, assertNoOtherBookingFor } from './workshop-one-booking';
+import { assertPersonOnEvent } from './workshop-person-on-event';
 
 export interface EnrollmentResult {
   id: string;
@@ -58,9 +59,14 @@ export class EnrollmentService {
    * Book a seat, then ask for the booking's alert: set for a confirmed seat, none for the
    * waitlist. A booking that already exists asks again, which is how a second tap repairs.
    * `again` is the person's own "Register again" on a refusal (ruling 236).
+   *
+   * The organiser's door: the person is named by the caller, so they must be one of this Event's
+   * people (ruling 535). The person's own booking reads their person on this Event already.
    */
   async enroll(sessionId: string, personId: string, again = false): Promise<EnrollmentResult> {
-    return this.enrollIn(await this.bookableSession(sessionId), sessionId, personId, again);
+    const session = await this.bookableSession(sessionId);
+    await assertPersonOnEvent(this.supabase.service, workshopOf(session)?.event_id, personId);
+    return this.enrollIn(session, sessionId, personId, again);
   }
 
   /**
@@ -108,7 +114,7 @@ export class EnrollmentService {
   private async bookableSession(sessionId: string): Promise<unknown> {
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
-      .select('status, workshop_id, workshops ( capacity, status )')
+      .select('status, workshop_id, workshops ( capacity, status, event_id )')
       .eq('id', sessionId)
       .maybeSingle();
 
@@ -566,11 +572,14 @@ export class EnrollmentService {
 const OPEN_TO_OWN_BOOKINGS = ['published', 'running'];
 
 /** The Workshop embed of a session row (Supabase joins as object or array). */
-function workshopOf(session: unknown): { capacity?: number | null; status?: string | null } | null {
+function workshopOf(
+  session: unknown,
+): { capacity?: number | null; status?: string | null; event_id?: string | null } | null {
   const w = (session as { workshops?: unknown }).workshops;
   return ((Array.isArray(w) ? w[0] : w) ?? null) as {
     capacity?: number | null;
     status?: string | null;
+    event_id?: string | null;
   } | null;
 }
 

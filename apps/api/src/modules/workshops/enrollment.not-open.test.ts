@@ -22,7 +22,7 @@ function build(workshopStatus: string) {
       row({
         status: 'scheduled',
         workshop_id: 'w-1',
-        workshops: { capacity: null, status: workshopStatus },
+        workshops: { capacity: null, status: workshopStatus, event_id: 'ev-1' },
       }),
       row([{ id: SESSION }]),
     ],
@@ -75,7 +75,7 @@ describe('a person books only an open Workshop', () => {
     // The double ignores the projection: only this holds the column the check reads.
     // Then the Workshop's sessions, for the one-session rule (rulings 520-523).
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
-      'status, workshop_id, workshops ( capacity, status )',
+      'status, workshop_id, workshops ( capacity, status, event_id )',
       'id',
     ]);
   });

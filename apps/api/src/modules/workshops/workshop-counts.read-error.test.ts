@@ -16,9 +16,16 @@ describe('a seat count that cannot be read', () => {
   it('books nobody: an over-booking was the price of reading it as 0', async () => {
     const supabase = mockSupabase({
       workshop_sessions: {
-        rows: [{ id: 's-1', status: 'scheduled', workshop_id: 'w-1', workshops: { capacity: 2 } }],
+        rows: [
+          {
+            id: 's-1',
+            status: 'scheduled',
+            workshop_id: 'w-1',
+            workshops: { capacity: 2, event_id: 'ev-1' },
+          },
+        ],
       },
-      persons: { rows: [{ id: 'p-1', global_person_id: null }] },
+      persons: { rows: [{ id: 'p-1', event_id: 'ev-1', global_person_id: null }] },
       // No booking of this person yet; then the seat count fails.
       workshop_enrollments: [{ data: null, error: null }, DOWN],
     });

@@ -25,7 +25,7 @@ const session = (id: string, workshopId = 'w-longsword', status = 'scheduled') =
   id,
   status,
   workshop_id: workshopId,
-  workshops: { capacity: 12, status: 'published' },
+  workshops: { capacity: 12, status: 'published', event_id: 'ev-1' },
 });
 const booking = (sessionId: string, personId: string, status: string) => ({
   id: `${sessionId}-${personId}`,
@@ -47,8 +47,8 @@ function build(bookings: Record<string, unknown>[], saturdayStatus = 'scheduled'
     // Nobody here teaches, and no profile flag is written.
     persons: {
       rows: [
-        { id: ALICE, global_person_id: null },
-        { id: BOB, global_person_id: null },
+        { id: ALICE, event_id: 'ev-1', global_person_id: null },
+        { id: BOB, event_id: 'ev-1', global_person_id: null },
       ],
     },
     workshop_enrollments: { rows: bookings, returning: { id: 'e-new' } },
@@ -157,7 +157,7 @@ describe('one session per Workshop (rulings 520-523)', () => {
     await service.enrollOwn(SUNDAY, ALICE);
     // The double ignores the projection: only this holds the columns the rule reads.
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
-      'status, workshop_id, workshops ( capacity, status )',
+      'status, workshop_id, workshops ( capacity, status, event_id )',
       'id',
     ]);
     expect(selectsFor(supabase.from, 'workshop_enrollments')[0]).toBe('workshop_session_id');

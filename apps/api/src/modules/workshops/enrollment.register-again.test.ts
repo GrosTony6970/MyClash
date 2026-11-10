@@ -27,7 +27,7 @@ function build(bookings: TableSeed, capacity: number | null = null) {
   const supabase = mockSupabase({
     // The session booked, then the Workshop's sessions: this one alone (rulings 520-523).
     workshop_sessions: [
-      row({ workshop_id: 'w-1', workshops: { capacity } }),
+      row({ workshop_id: 'w-1', workshops: { capacity, event_id: 'ev-1' } }),
       row([{ id: SESSION }]),
     ],
     // Nobody here teaches the Workshop, and no profile flag is written.

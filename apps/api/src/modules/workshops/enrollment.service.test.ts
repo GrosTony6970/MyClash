@@ -51,7 +51,10 @@ function buildFake(opts: {
           eq: () => ({
             maybeSingle: () =>
               Promise.resolve({
-                data: { workshop_id: 'w-1', workshops: { capacity: opts.capacity } },
+                data: {
+                  workshop_id: 'w-1',
+                  workshops: { capacity: opts.capacity, event_id: 'ev-1' },
+                },
                 error: null,
               }),
             // The one-session rule's read of the Workshop's other live sessions: it has none.
@@ -61,19 +64,27 @@ function buildFake(opts: {
       };
     }
     if (name === 'persons') {
-      // markGlobalWorkshopParticipant resolves personId → global_person_id.
+      // markGlobalWorkshopParticipant resolves personId → global_person_id. The organiser's
+      // door first asks the person to be on the session's Event (ruling 535): they are.
       return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () =>
-              Promise.resolve({
-                data:
-                  opts.personGlobalId === undefined
-                    ? null
-                    : { global_person_id: opts.personGlobalId },
-                error: opts.personsError ?? null,
-              }),
-          }),
+        select: (columns: string) => ({
+          eq: () =>
+            columns === 'id'
+              ? {
+                  eq: () => ({
+                    maybeSingle: () => Promise.resolve({ data: { id: 'p' }, error: null }),
+                  }),
+                }
+              : {
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data:
+                        opts.personGlobalId === undefined
+                          ? null
+                          : { global_person_id: opts.personGlobalId },
+                      error: opts.personsError ?? null,
+                    }),
+                },
         }),
       };
     }
