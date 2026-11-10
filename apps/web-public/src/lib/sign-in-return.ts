@@ -29,6 +29,13 @@ export function loginHref(from: string | null | undefined): string {
   return returnable(from) ? `/login?next=${encodeURIComponent(from)}` : '/login';
 }
 
+/** The sign-in page opened on "create an account", returning to `from` the same way. */
+export function signupHref(from: string | null | undefined): string {
+  return returnable(from)
+    ? `/login?tab=signup&next=${encodeURIComponent(from)}`
+    : '/login?tab=signup';
+}
+
 /**
  * Leave a page whose login ended, for the sign-in page; signing in returns to
  * this page. For the browser only: every page of the personal space that meets

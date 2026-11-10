@@ -29,16 +29,15 @@ import {
 } from './auth-requests';
 import { useLinkWords } from './link-words';
 import { missingField } from './missing-field';
+import { initialTab, type Tab } from './initial-tab';
 
-type Tab = 'signin' | 'signup' | 'reset';
 type Query = Promise<Record<string, string | string[] | undefined>>;
 
 export default function PublicLoginPage({ searchParams }: { searchParams: Query }) {
   const { t } = useI18n();
   const router = useRouter();
   const query = use(searchParams);
-  // The "Forgot password?" of a spent sign-up link opens the reset tab (choose-password).
-  const [tab, setTab] = useState<Tab>(query['tab'] === 'reset' ? 'reset' : 'signin');
+  const [tab, setTab] = useState<Tab>(initialTab(query['tab']));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

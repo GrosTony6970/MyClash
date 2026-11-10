@@ -1396,6 +1396,27 @@ export const publicApp = {
     participantsList: 'Liste des participants',
     accountNotOnRoster:
       "Votre compte n'est pas dans la liste des participants de cet événement. Demandez à l'organisateur de vous ajouter.",
+    createAccount: 'Créer un compte',
+    visitorMayJoin:
+      "Cet événement permet de s'inscrire soi-même : créez un compte ou connectez-vous, puis réservez.",
+    join: {
+      title: 'Rejoindre cet événement',
+      lead: "Cet événement permet de s'inscrire soi-même. Vous le rejoignez avec le nom de votre profil MyClash, qui apparaît dans la liste des participants, comme pour toute personne ajoutée par l'organisateur.",
+      namesLead: "Votre compte n'a pas encore de nom. Saisissez le nom à afficher dans la liste.",
+      givenName: 'Prénom',
+      familyName: 'Nom',
+      button: 'Rejoindre et réserver',
+      busy: 'Inscription…',
+      closed: "Cet événement ne permet plus de s'inscrire soi-même.",
+      ended: "Cet événement est terminé : plus personne ne peut s'y inscrire.",
+      sameName:
+        "Une personne portant votre nom est déjà dans la liste, sans adresse e-mail. Demandez à l'organisateur d'y ajouter votre adresse.",
+      yourProfile:
+        "Votre profil est déjà dans la liste de cet événement, avec une autre adresse. Demandez à l'organisateur.",
+      yourAddress:
+        "Votre adresse est déjà dans la liste de cet événement, rattachée à un autre compte. Demandez à l'organisateur.",
+      failed: "Vous n'avez pas pu être ajouté à l'événement.",
+    },
     bookingsUnread: "Vos inscriptions n'ont pas pu être lues.",
     guestNoAlerts:
       "En tant qu'invité, vous ne recevez aucune alerte. Créez un compte pour être prévenu.",

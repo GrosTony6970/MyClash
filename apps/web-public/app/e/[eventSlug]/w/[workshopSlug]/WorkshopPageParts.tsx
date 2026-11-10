@@ -8,7 +8,8 @@ import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UnknownCaller } from '@/components/me/workshop-booking';
 import { CANCELLED_TEXT } from '@/components/workshops/session-cancelled';
-import { loginHref } from '@/lib/sign-in-return';
+import { loginHref, signupHref } from '@/lib/sign-in-return';
+import { JoinEventPanel } from './JoinEventPanel';
 
 const NOTICE = 'rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-sm';
 const DOOR =
@@ -20,18 +21,24 @@ const DOOR =
  * the participants list (a guest session, or a claim), or her account. An
  * account that is signed in and not on this Event's roster is told so: "sign in"
  * would send it round in a circle.
+ *
+ * `join` is set when the Event lets people join by themselves (rulings 516, 568): the account then
+ * joins and books from here, and a visitor is offered an account as well.
  */
 export function UnknownCallerNotice({
   who,
   eventSlug,
+  join,
 }: {
   who: UnknownCaller;
   eventSlug: string;
+  join: { apiUrl: string; eventId: string; onJoined: () => Promise<void> } | null;
 }): ReactNode {
   const { t } = useI18n();
   // Signing in returns to this Workshop's page.
   const here = usePathname();
   if (who === 'account') {
+    if (join) return <JoinEventPanel {...join} />;
     return (
       <p role="status" className={`${NOTICE} text-foreground-secondary`}>
         {t('publicApp.workshopDetail.accountNotOnRoster')}
@@ -41,6 +48,7 @@ export function UnknownCallerNotice({
   return (
     <div role="status" className={`${NOTICE} text-foreground-secondary`}>
       <p>{t('publicApp.workshopDetail.findYourName')}</p>
+      {join && <p className="mt-1">{t('publicApp.workshopDetail.visitorMayJoin')}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <Link href={`/e/${eventSlug}/participants`} className={DOOR}>
           {t('publicApp.workshopDetail.participantsList')}
@@ -48,6 +56,11 @@ export function UnknownCallerNotice({
         <Link href={loginHref(here)} className={DOOR}>
           {t('publicApp.home.signIn')}
         </Link>
+        {join && (
+          <Link href={signupHref(here)} className={DOOR}>
+            {t('publicApp.workshopDetail.createAccount')}
+          </Link>
+        )}
       </div>
     </div>
   );

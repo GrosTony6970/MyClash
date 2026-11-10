@@ -38,6 +38,8 @@ export interface EventInfo {
   organizationSlug: string | null;
   /** `null`: the read carried no mode this build knows (`asPhotoMode`). */
   photoMode: PhotoMode | null;
+  /** People with an account may put themselves on the list from a Workshop page (ruling 516). */
+  workshopSelfJoin: boolean;
 }
 
 function formatEventPlace(
@@ -127,6 +129,8 @@ function eventInfoOf(
     organizationId: typeof raw['organization_id'] === 'string' ? raw['organization_id'] : null,
     organizationSlug: typeof org?.slug === 'string' ? org.slug : null,
     photoMode: asPhotoMode(raw['photo_mode']),
+    // Only a stored `true` opens it: a read without the column offers no join.
+    workshopSelfJoin: raw['workshop_self_join'] === true,
   };
 }
 

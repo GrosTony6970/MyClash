@@ -42,6 +42,10 @@ describe('the read itself', () => {
     expect(source).toContain("photoMode: asPhotoMode(raw['photo_mode']),");
   });
 
+  it('opens joining by oneself on a stored true only (ruling 516): a read without it offers none', () => {
+    expect(source).toContain("workshopSelfJoin: raw['workshop_self_join'] === true,");
+  });
+
   /**
    * The layout once read the Event a second time, through a helper this file's
    * sweep could not see, to set a CSS variable and a data attribute that nothing

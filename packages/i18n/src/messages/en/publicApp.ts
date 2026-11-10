@@ -1395,6 +1395,27 @@ export const publicApp = {
     participantsList: 'Participants list',
     accountNotOnRoster:
       "Your account is not on this event's participants list. Ask the organiser to add you.",
+    createAccount: 'Create an account',
+    visitorMayJoin:
+      'This event lets people join by themselves: create an account or sign in, then book.',
+    join: {
+      title: 'Join this event',
+      lead: "This event lets people join by themselves. You join with the name on your MyClash profile, and it joins the event's participants list, as for everyone the organiser adds.",
+      namesLead: 'Your account has no name yet. Type the name to show on the list.',
+      givenName: 'First name',
+      familyName: 'Last name',
+      button: 'Join and book',
+      busy: 'Joining…',
+      closed: 'This event no longer lets people join by themselves.',
+      ended: 'This event is over: nobody can join it any more.',
+      sameName:
+        'Someone with your name is already on the list, without an email address. Ask the organiser to add your address to it.',
+      yourProfile:
+        "Your profile is already on this event's list under another address. Ask the organiser.",
+      yourAddress:
+        "Your address is already on this event's list, held by another account. Ask the organiser.",
+      failed: 'You could not be added to the event.',
+    },
     bookingsUnread: 'Your bookings could not be read.',
     guestNoAlerts: 'As a guest you get no alerts. Make an account to be told.',
     addedToWaitlist: 'Added to waitlist',

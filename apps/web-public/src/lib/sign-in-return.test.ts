@@ -1,7 +1,20 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { afterSignIn, loginHref, signInAgainHere } from './sign-in-return';
+import { afterSignIn, loginHref, signInAgainHere, signupHref } from './sign-in-return';
+
+describe('signupHref', () => {
+  it('opens the sign-up tab and comes back to the Workshop page (ruling 568)', () => {
+    const href = new URL(signupHref('/e/open-2027/w/longsword'), 'https://x.test');
+    expect(href.pathname).toBe('/login');
+    expect(href.searchParams.get('tab')).toBe('signup');
+    expect(href.searchParams.get('next')).toBe('/e/open-2027/w/longsword');
+  });
+
+  it('carries no page that is not our own, as the sign-in link', () => {
+    expect(signupHref('//other-site.test/x')).toBe('/login?tab=signup');
+  });
+});
 
 describe('loginHref', () => {
   it('carries the page the door is on', () => {
