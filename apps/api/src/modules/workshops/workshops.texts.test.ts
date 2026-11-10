@@ -181,4 +181,12 @@ describe('the bodies', () => {
       ).rejects.toThrow(BadRequestException);
     },
   );
+
+  it("the instructor's body still refuses what an instructor may not change", async () => {
+    for (const body of [{ title: 'New title' }, { capacity: 30 }, { status: 'draft' }]) {
+      await expect(pipe.transform(body, bodyOf('instructorUpdate'))).rejects.toThrow(
+        BadRequestException,
+      );
+    }
+  });
 });

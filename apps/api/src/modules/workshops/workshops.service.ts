@@ -609,7 +609,8 @@ export class WorkshopsService {
   }
 
   /**
-   * Instructor-scoped workshop edit: only weapon / description / level / language,
+   * Instructor-scoped workshop edit: only weapon / description / level / language, and the
+   * catalogue line and prerequisites (ruling 557),
    * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
    * is validated against the catalog exactly like the organizer update path.
    */

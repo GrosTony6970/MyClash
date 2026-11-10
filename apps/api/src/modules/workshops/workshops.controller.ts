@@ -307,7 +307,8 @@ export class WorkshopsController {
 
   @Patch('workshops/:id/instructor')
   @ApiOperation({
-    summary: 'Edit weapon/description/level/language (workshop instructor or workshop_lead+)',
+    summary:
+      'Edit weapon/description/level/language/short description/prerequisites (workshop instructor or workshop_lead+)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async instructorUpdate(

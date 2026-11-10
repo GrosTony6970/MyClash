@@ -8674,7 +8674,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Edit weapon/description/level/language (workshop instructor or workshop_lead+) */
+    /** Edit weapon/description/level/language/short description/prerequisites (workshop instructor or workshop_lead+) */
     patch: operations['WorkshopsController_instructorUpdate'];
     trace?: never;
   };
