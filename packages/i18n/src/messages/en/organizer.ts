@@ -2291,6 +2291,15 @@ export const organizer = {
     waitlistBadge: 'Waitlist #{position}',
     confirmedBadge: 'Confirmed',
     refusedBadge: 'Refused',
+    // Who was in the room (rulings 539-547).
+    present: 'Present',
+    presentFor: 'Present: {name}',
+    checkInFailed: 'The tick was not saved.',
+    checkInRefused: 'A refused person cannot be ticked present.',
+    checkInGone: 'This booking no longer exists. Close the roster and open it again.',
+    autoCheckIn: 'Tick people when the front desk marks them arrived',
+    autoCheckInHint:
+      'Ticks this Workshop’s people in the sessions of the day they arrive. The instructor can still clear or add a tick.',
     linked: 'Linked',
     guestTag: 'Guest',
     searchGlobalPersonPlaceholder: 'Search global person…',

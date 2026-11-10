@@ -197,6 +197,24 @@ describe('the Workshops page of an archived Event', () => {
     expect(page.writes()).toEqual([]);
   });
 
+  it('ticks nobody present on a roster (rulings 539-547)', async () => {
+    page = await openArchivedPage(<WorkshopsAdminPage />, READS);
+    await press('Roster');
+
+    const boxes = [
+      ...document.body.querySelectorAll<HTMLInputElement>('input[aria-label^="Present:"]'),
+    ];
+    // Claire's seat and Zoe's waiting-list place: drawn, and greyed.
+    expect(boxes).toHaveLength(2);
+    for (const box of boxes) {
+      expect(box.disabled).toBe(true);
+      await act(async () => box.click());
+    }
+    await page.settle();
+
+    expect(page.writes()).toEqual([]);
+  });
+
   it('still ties a booking to a profile', async () => {
     page = await openArchivedPage(<WorkshopsAdminPage />, READS, { [LINK]: null });
     await press('Roster');

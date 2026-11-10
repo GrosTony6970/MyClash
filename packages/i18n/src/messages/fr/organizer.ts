@@ -2252,6 +2252,15 @@ export const organizer = {
     waitlistBadge: "Liste d'attente n°{position}",
     confirmedBadge: 'Confirmé',
     refusedBadge: 'Refusé',
+    // Qui était dans la salle (décisions 539-547).
+    present: 'Présent',
+    presentFor: 'Présent : {name}',
+    checkInFailed: "La coche n'a pas été enregistrée.",
+    checkInRefused: 'Une personne refusée ne peut pas être cochée présente.',
+    checkInGone: "Cette inscription n'existe plus. Fermez la liste et rouvrez-la.",
+    autoCheckIn: "Cocher les participants quand l'accueil les marque arrivés",
+    autoCheckInHint:
+      "Coche les participants de cet atelier dans les sessions du jour de leur arrivée. L'instructeur peut toujours retirer ou ajouter une coche.",
     linked: 'Lié',
     guestTag: 'Invité',
     searchGlobalPersonPlaceholder: 'Rechercher une personne globale…',

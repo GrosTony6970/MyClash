@@ -11,5 +11,7 @@ export function rosterRequests(sessionId: string, booking: { personId: string })
   return {
     remove: { path: `${session}/enrollments/${booking.personId}`, method: 'DELETE' },
     promote: { path: `${session}/promote/${booking.personId}`, method: 'POST' },
+    // Ticked present or cleared, with `{ present }` (rulings 539-545).
+    checkIn: { path: `${session}/enrollments/${booking.personId}/check-in`, method: 'PUT' },
   } as const;
 }

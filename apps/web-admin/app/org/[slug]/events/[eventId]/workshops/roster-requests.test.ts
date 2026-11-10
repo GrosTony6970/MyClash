@@ -15,6 +15,13 @@ describe('the requests of a Workshop roster', () => {
     });
   });
 
+  it('the "Present" tick names the same roster row', () => {
+    expect(rosterRequests('session-1', tom).checkIn).toStrictEqual({
+      path: '/api/v1/workshop-sessions/session-1/enrollments/tom-roster-row/check-in',
+      method: 'PUT',
+    });
+  });
+
   it('"Promote" names the same roster row', () => {
     expect(rosterRequests('session-1', tom).promote).toStrictEqual({
       path: '/api/v1/workshop-sessions/session-1/promote/tom-roster-row',

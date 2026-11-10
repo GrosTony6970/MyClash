@@ -59,6 +59,7 @@ import {
 } from './filter-workshops';
 import { rosterRequests } from './roster-requests';
 import { RosterAddPerson } from './RosterAddPerson';
+import { RosterCheckIn } from './RosterCheckIn';
 import { RosterMessage } from './RosterMessage';
 import { RosterSheetActions } from './RosterSheetActions';
 import { RosterName } from './RosterName';
@@ -109,6 +110,8 @@ interface Workshop {
   // Venue picker.
   venueId: string | null;
   venue: NamedRef | null;
+  /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
+  autoCheckIn?: boolean;
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
   sessions: WorkshopSessionView[];
 }
@@ -136,6 +139,8 @@ interface RosterEntry {
   global_person_id?: string | null;
   /** No account holds the booking's roster row (ruling 264). */
   guest: boolean;
+  /** When the person was ticked present in this session (rulings 539-547). */
+  checkedInAt?: string | null;
   persons: {
     id: string;
     givenName: string;
@@ -164,6 +169,8 @@ const EMPTY_FORM = {
   venueId: '' as string,
   color: '' as string,
   status: 'draft',
+  /** Off by default (543). */
+  autoCheckIn: false,
   /** One line per session (rulings 515, 524). */
   sessions: [blankLine('')] as SessionLine[],
   instructorIds: [] as string[],
@@ -305,6 +312,7 @@ export default function WorkshopsAdminPage() {
       venueId: w.venueId ?? '',
       color: w.color ?? '',
       status: w.status,
+      autoCheckIn: w.autoCheckIn === true,
       sessions: linesOf(w.sessions, eventTz, w.venueId ?? ''),
       instructorIds: w.instructors
         .map((i) => i.globalPersonId)
@@ -519,6 +527,7 @@ export default function WorkshopsAdminPage() {
             status: form.status,
             color: form.color || null,
             venueId: form.venueId || null,
+            autoCheckIn: form.autoCheckIn,
             // Clear a saved logo when the operator removed it. Setting a
             // new logo goes through the dedicated upload endpoint below.
             ...(logoRemoved ? { coverImageUrl: null } : {}),
@@ -582,6 +591,7 @@ export default function WorkshopsAdminPage() {
           status: form.status,
           color: form.color || undefined,
           venueId: form.venueId || undefined,
+          autoCheckIn: form.autoCheckIn,
         },
       });
       if (!r.ok) {
@@ -1412,6 +1422,21 @@ export default function WorkshopsAdminPage() {
               </div>
             )}
           </div>
+          {/* The front desk ticks this Workshop's people on the day they arrive (540, 543). */}
+          <div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.autoCheckIn}
+                onChange={(e) => setForm((f) => ({ ...f, autoCheckIn: e.target.checked }))}
+                className="rounded"
+              />
+              {t('organizer.workshopsPage.autoCheckIn')}
+            </label>
+            <p className="mt-1 text-xs text-muted">
+              {t('organizer.workshopsPage.autoCheckInHint')}
+            </p>
+          </div>
           <div>
             <label className="block text-xs font-medium text-foreground-secondary mb-1">
               {t('organizer.workshopsPage.defaultVenueLabel')}
@@ -1576,7 +1601,24 @@ export default function WorkshopsAdminPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <RosterCheckIn
+                      apiUrl={apiUrl}
+                      sessionId={rosterSession}
+                      booking={entry}
+                      name={
+                        entry.persons
+                          ? `${entry.persons.givenName} ${entry.persons.familyName}`
+                          : t('organizer.workshopsPage.unknownPerson')
+                      }
+                      readOnly={isReadOnly}
+                      cancelled={rosterCancelled}
+                      onSaved={(bookingId, checkedInAt) =>
+                        setRoster((rows) =>
+                          rows.map((row) => (row.id === bookingId ? { ...row, checkedInAt } : row)),
+                        )
+                      }
+                    />
                     {entry.status === 'waitlisted' && !rosterCancelled && (
                       <button
                         onClick={() => void handlePromote(rosterSession, entry)}
