@@ -5,6 +5,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   AUTH_ACTION_THROTTLE,
   SIGNUP_ACTION_THROTTLE,
+  VENUE_AUTH_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { ThrottleByEmail } from '../../common/throttling/throttle-by-email';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
@@ -41,9 +42,10 @@ export class AuthController {
    * - Organizer login (admin app): type='login'
    * - Participant claim (public app): type='claim', personId required
    *
-   * Rate limited: 10 per hour per IP (via ThrottlerGuard), and nothing else —
-   * GoTrue only MINTS the link here, the mail is sent by our own MailService,
-   * so no per-address limit of its own applies on this path.
+   * Rate limited: 60 per hour per IP (a venue's wifi, ruling 570), and 10 per
+   * hour per email address. GoTrue only MINTS the link here, the mail is sent by
+   * our own MailService, so the per-address limit is ours: without it the venue
+   * number would let one network mail sixty links an hour to one mailbox.
    * A login link always answers the same generic message, to prevent email
    * enumeration. A claim link is refused (400/404) when the row does not carry
    * the typed email, or cannot be read. Whether the row is already CLAIMED is
@@ -53,7 +55,8 @@ export class AuthController {
    */
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_ACTION_THROTTLE)
+  @Throttle(VENUE_AUTH_THROTTLE)
+  @ThrottleByEmail()
   @ApiOperation({ summary: 'Request a magic link (login or claim)' })
   @ApiResponse({
     status: 200,
@@ -83,12 +86,12 @@ export class AuthController {
   /**
    * POST /api/v1/auth/password-login
    *
-   * Rate limited: 10 per hour per IP, and 10 per hour per email address shared
-   * with `public-login` (both are sign-ins for the same Supabase account).
+   * Rate limited: 60 per hour per IP (a venue's wifi, ruling 570), and 10 per
+   * hour per email address shared with the other sign-in doors.
    */
   @Post('password-login')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_ACTION_THROTTLE)
+  @Throttle(VENUE_AUTH_THROTTLE)
   @ThrottleByEmail()
   @ApiOperation({ summary: 'Sign in with email and password for admin access' })
   @ApiResponse({ status: 200, description: 'Password session accepted' })
@@ -110,7 +113,8 @@ export class AuthController {
    */
   @Post('public-signup')
   @HttpCode(HttpStatus.ACCEPTED)
-  @Throttle(SIGNUP_ACTION_THROTTLE)
+  @Throttle(VENUE_AUTH_THROTTLE)
+  @ThrottleByEmail()
   @ApiOperation({ summary: 'Create a public email account' })
   @ApiResponse({ status: 202, description: 'Confirmation email queued' })
   @ApiResponse({ status: 503, description: 'Signups temporarily disabled' })
@@ -134,12 +138,12 @@ export class AuthController {
    * `email_not_confirmed` as a 403 so the UI can route to the "check
    * your inbox" state.
    *
-   * Rate limited: 10 per hour per IP, and 10 per hour per email address shared
-   * with `password-login`.
+   * Rate limited: 60 per hour per IP (a venue's wifi, ruling 570), and 10 per
+   * hour per email address shared with the other sign-in doors.
    */
   @Post('public-login')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_ACTION_THROTTLE)
+  @Throttle(VENUE_AUTH_THROTTLE)
   @ThrottleByEmail()
   @ApiOperation({ summary: 'Sign in to the public app with email + password' })
   @ApiResponse({ status: 200, description: 'Session accepted' })
@@ -195,7 +199,7 @@ export class AuthController {
    */
   @Post('public-choose-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle(AUTH_ACTION_THROTTLE)
+  @Throttle(VENUE_AUTH_THROTTLE)
   @ApiOperation({ summary: 'Confirm an address, choose its password and sign in' })
   @ApiResponse({
     status: 200,

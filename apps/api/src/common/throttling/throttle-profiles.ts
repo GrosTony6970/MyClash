@@ -78,3 +78,19 @@ export const STAFF_PIN_THROTTLE = {
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;
+
+/**
+ * The doors a person at the venue goes through: sign up, choose a password from the mail, sign
+ * in (password or mail link). Per network per hour.
+ *
+ * Sized for a HALL, like PUBLIC_LIVE_READ_THROTTLE: forty people at a seminar share the wifi's one
+ * public address, and a Workshop walk-in needs an account (ruling 568). At 5 sign-ups an hour the
+ * sixth was refused, and twenty refusals in ten minutes trip the edge ban for the whole venue
+ * (rulings 569, 570). Every one of these doors that takes an address also carries the per-address
+ * limit (`ThrottleByEmail`, 10/h), so the high network number cannot flood one mailbox or guess
+ * one password faster; choose-password takes no address, and its one-use mailed code is its guard.
+ * The club sign-up and the password reset stay on SIGNUP_ACTION_THROTTLE.
+ */
+export const VENUE_AUTH_THROTTLE = {
+  global: { limit: 60, ttl: 3_600_000 },
+} as const;
