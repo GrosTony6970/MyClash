@@ -110,7 +110,6 @@ export function useRosterAdd(target: RosterAddTarget) {
   }
 
   async function add(person: EventPerson) {
-    if (busy) return;
     setBusy(true);
     setOutcome(null);
     try {
