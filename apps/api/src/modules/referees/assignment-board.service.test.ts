@@ -1300,9 +1300,10 @@ describe('AssignmentBoardService', () => {
       fromMock
         .mockReturnValueOnce(makeChain({ data: { timezone: 'Europe/Paris' }, error: null }))
         .mockReturnValueOnce(makeChain({ data: [], error: null }));
-      queueInstructors([PURE_REF_GLOBAL_ID]);
 
       await expect(service.getInstructorBusy('event-1')).resolves.toEqual({ busy: [] });
+      // Nothing can be busy, so the instructors are not read.
+      expect(fromMock.mock.calls.map(([table]) => table)).not.toContain('workshops');
     });
 
     it('fails when the instructors cannot be read, never answering "nobody is busy"', async () => {

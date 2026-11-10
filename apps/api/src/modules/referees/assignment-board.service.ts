@@ -544,10 +544,11 @@ export class AssignmentBoardService {
   /**
    * When the Event's Workshop instructors fight or referee, for the Workshop board's red card
    * (rulings 553-555), from the same commitments the checker reads. An Event with no unit has
-   * no fight and no duty: `loadContext` then skips its Workshop read, and the answer is empty.
+   * no fight and no duty, so nobody is busy: the instructors are not read.
    */
   async getInstructorBusy(eventId: string): Promise<WorkshopInstructorBusyResult> {
     const context = await this.loadContext(eventId);
+    if (context.pools.length === 0) return { busy: [] };
     const instructorIds = await loadInstructorIds(this.supabase.service, eventId);
     return { busy: instructorBusy(context.commitments, instructorIds) };
   }
