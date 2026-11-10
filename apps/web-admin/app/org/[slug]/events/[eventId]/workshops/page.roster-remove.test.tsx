@@ -99,6 +99,8 @@ const ROSTER = [
   booking('Zoe', 'waitlisted', 'zoe-profile'),
   // A booking whose roster row was deleted: the roster has no name for it.
   { ...booking('Ghost', 'confirmed', null), persons: null },
+  // Refused by the instructor: the refusal stays, so Ana cannot book again (ruling 538).
+  booking('Ana', 'refused', null),
 ];
 
 const READS: Record<string, unknown> = {
@@ -227,6 +229,25 @@ describe('the roster of a Workshop session', () => {
     } finally {
       session!.status = 'scheduled';
     }
+  });
+
+  it('says "Refused" next to a refused person, never "Confirmed", and keeps Remove (ruling 538)', () => {
+    const line = lineOf('Ana Roux');
+
+    expect([...line.querySelectorAll('span')].map((span) => span.textContent)).toContain('Refused');
+    expect(line.textContent).not.toContain('Confirmed');
+    // "Link" is the roster's profile link, offered on any line not yet linked.
+    expect([...line.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Link',
+      'Remove',
+    ]);
+  });
+
+  it('"Remove" lifts a refusal: it deletes the booking of the refused person', async () => {
+    await click(lineOf('Ana Roux'), 'Remove');
+    await click(document.body, 'Confirm');
+
+    expect(writes()).toEqual(['DELETE /api/v1/workshop-sessions/s-1/enrollments/Ana-row']);
   });
 
   it('tags the person no account holds as a guest, beside the name, and nobody else', () => {

@@ -125,7 +125,8 @@ interface GlobalPersonResult {
 
 interface RosterEntry {
   id: string;
-  status: 'confirmed' | 'waitlisted';
+  /** A refusal stays on the roster, so the person cannot book again (ruling 538 labels it). */
+  status: 'confirmed' | 'waitlisted' | 'refused';
   waitlistPosition: number | null;
   enrolledAt: string;
   /** The booking's roster row: what the roster's requests name (`roster-requests.ts`). */
@@ -140,6 +141,13 @@ interface RosterEntry {
     clubs: { name: string } | null;
   } | null;
 }
+
+/** A roster badge's colours, by the booking's state. */
+const BADGE_TONE: Record<RosterEntry['status'], string> = {
+  confirmed: 'bg-success/10 text-success',
+  waitlisted: 'bg-warning/10 text-warning',
+  refused: 'bg-danger/10 text-danger',
+};
 
 const EMPTY_FORM = {
   title: '',
@@ -1490,18 +1498,15 @@ export default function WorkshopsAdminPage() {
                     />
                     <div className="flex items-center gap-2 mt-0.5">
                       <span
-                        className={[
-                          'text-xs px-1.5 py-0.5 rounded font-medium',
-                          entry.status === 'confirmed'
-                            ? 'bg-success/10 text-success'
-                            : 'bg-warning/10 text-warning',
-                        ].join(' ')}
+                        className={`text-xs px-1.5 py-0.5 rounded font-medium ${BADGE_TONE[entry.status]}`}
                       >
                         {entry.status === 'waitlisted'
                           ? t('organizer.workshopsPage.waitlistBadge', {
                               position: entry.waitlistPosition,
                             })
-                          : t('organizer.workshopsPage.confirmedBadge')}
+                          : entry.status === 'refused'
+                            ? t('organizer.workshopsPage.refusedBadge')
+                            : t('organizer.workshopsPage.confirmedBadge')}
                       </span>
                       {entry.global_person_id ? (
                         <span className="text-xs text-success font-medium">

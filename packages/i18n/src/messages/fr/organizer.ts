@@ -2221,6 +2221,7 @@ export const organizer = {
     unknownPerson: 'Inconnu',
     waitlistBadge: "Liste d'attente n°{position}",
     confirmedBadge: 'Confirmé',
+    refusedBadge: 'Refusé',
     linked: 'Lié',
     guestTag: 'Invité',
     searchGlobalPersonPlaceholder: 'Rechercher une personne globale…',

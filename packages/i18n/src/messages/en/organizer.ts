@@ -2261,6 +2261,7 @@ export const organizer = {
     unknownPerson: 'Unknown',
     waitlistBadge: 'Waitlist #{position}',
     confirmedBadge: 'Confirmed',
+    refusedBadge: 'Refused',
     linked: 'Linked',
     guestTag: 'Guest',
     searchGlobalPersonPlaceholder: 'Search global person…',
