@@ -818,6 +818,8 @@ export function WorkshopScheduleBoard({
                                     ? 'left-1/2 right-0.5'
                                     : 'left-0.5 right-0.5',
                                 fixed ? '' : 'cursor-grab',
+                                // While resized it may cross a cancelled card at full width: on top.
+                                r ? 'z-10' : '',
                                 bl.cancelled ? 'opacity-60' : '',
                                 conflict
                                   ? 'border-danger bg-danger/10 text-danger ring-2 ring-danger'
