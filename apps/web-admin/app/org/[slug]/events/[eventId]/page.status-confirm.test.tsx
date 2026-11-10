@@ -33,6 +33,11 @@ vi.mock('./_components/ReadinessPanel', () => ({
   ReadinessChip: () => null,
   ReadinessPanel: () => null,
 }));
+// The AI question panel's own reads (`tournaments/:id/query/*`) are not this test's subject:
+// only whether the page shows it.
+vi.mock('./TournamentQueryPanel', () => ({
+  TournamentQueryPanel: () => <section data-testid="ai-question-panel" />,
+}));
 
 const EVENT = { id: EVENT_ID, name: 'Open 2026', slug: 'open-2026', status: 'running' };
 const TOURNAMENT = { id: 't-1', slug: 'longsword', name: 'Longsword', status: 'running' };
@@ -51,6 +56,7 @@ const READS = {
       uniqueReferees: 0,
       clubsRepresented: 0,
     },
+    workshops: { workshops: 3, sessions: 4, seatsTaken: 34, seats: 60, waitlisted: 2 },
     tournaments: [
       {
         ...TOURNAMENT,
@@ -158,24 +164,74 @@ describe("the Event's zone on the Event dashboard", () => {
 describe("the club's sidebar profile on the Event dashboard", () => {
   const cardLabels = () =>
     [...document.body.querySelectorAll('p.uppercase')].map((p) => p.textContent);
-  const openFor = async (menuProfile: string) => {
+  /** Each card's label with its number, e.g. "Seats taken: 34 / 60". */
+  const cards = () =>
+    [...document.body.querySelectorAll('p.uppercase')].map(
+      (p) => `${p.textContent}: ${p.nextElementSibling?.textContent ?? ''}`,
+    );
+  const FIGHTER_CARDS = ['Participants', 'Unique fighters', 'Waitlist', 'Unique referees'];
+  const WORKSHOP_CARDS = ['Workshops', 'Sessions', 'Seats taken', 'Waitlists'];
+  const aiPanel = () => document.body.querySelector('[data-testid="ai-question-panel"]');
+  const openFor = async (menuProfile: string, reads: Record<string, unknown> = READS) => {
     page = await openEventPage(<EventDetailPage />, {
-      ...READS,
+      ...reads,
       [ORG_READ]: { id: 'org-1', name: 'Club', menu_profile: menuProfile },
     });
   };
+  /** The org's AI key is set, so the AI question panel may show. */
+  const WITH_AI = {
+    ...READS,
+    '/api/v1/organizations/org-1/ai-settings': {
+      provider: 'anthropic',
+      hasKey: true,
+      updatedAt: '2026-11-10T00:00:00Z',
+    },
+  };
 
-  it('shows the Tournaments card and table to a club that shows everything', async () => {
+  it('shows the Tournaments card, the fighter cards and the table to a club that shows everything', async () => {
     await openFor('everything');
     expect(cardLabels()).toContain('Tournaments');
+    for (const label of FIGHTER_CARDS) expect(cardLabels()).toContain(label);
+    for (const label of WORKSHOP_CARDS) expect(cardLabels()).not.toContain(label);
     expect(document.body.querySelector('table')).not.toBeNull();
   });
 
-  it('shows neither to a Workshops-only club', async () => {
+  it('shows a Workshops-only club Workshop cards in place of the fighter cards, and no table', async () => {
     await openFor('workshops');
     expect(cardLabels()).not.toContain('Tournaments');
-    expect(cardLabels()).toContain('Participants');
+    for (const label of FIGHTER_CARDS) expect(cardLabels()).not.toContain(label);
+    expect(cards()).toEqual(
+      expect.arrayContaining([
+        'Workshops: 3',
+        'Sessions: 4',
+        'Seats taken: 34 / 60',
+        'Waitlists: 2',
+        'Clubs represented: 0',
+      ]),
+    );
     expect(document.body.querySelector('table')).toBeNull();
+  });
+
+  it('shows seats taken alone when a session has no seat limit', async () => {
+    const stats = READS[`/api/v1/events/${EVENT_ID}/dashboard-stats`];
+    await openFor('workshops', {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}/dashboard-stats`]: {
+        ...stats,
+        workshops: { ...stats.workshops, seats: null },
+      },
+    });
+    expect(cards()).toContain('Seats taken: 34');
+  });
+
+  it('shows the AI question panel to a club that shows everything (ruling 566)', async () => {
+    await openFor('everything', WITH_AI);
+    expect(aiPanel()).not.toBeNull();
+  });
+
+  it('hides the AI question panel from a Workshops-only club (ruling 566)', async () => {
+    await openFor('workshops', WITH_AI);
+    expect(aiPanel()).toBeNull();
   });
 });
 

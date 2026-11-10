@@ -29,6 +29,7 @@ import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
 import { RequestDeletionModal } from '../_components/RequestDeletionModal';
 import { EventLogoCard } from './_components/EventLogoCard';
+import { MetricCard, WorkshopMetricCards, type WorkshopTotals } from './_components/MetricCards';
 import { ReadinessChip, ReadinessPanel } from './_components/ReadinessPanel';
 import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
 import { formatCountOfMax } from './format-count-of-max';
@@ -79,6 +80,7 @@ interface DashboardStats {
     uniqueReferees: number;
     clubsRepresented: number;
   };
+  workshops: WorkshopTotals;
   tournaments: Array<
     Tournament & {
       fighterCount: number;
@@ -129,7 +131,8 @@ export default function EventDetailPage() {
   const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
-  // A Workshops-only club sees no Tournaments card and no Tournaments table.
+  // A Workshops-only club sees no Tournaments card, no Tournaments table, Workshop cards in place
+  // of the fighter and referee cards, and no AI question panel (ruling 566).
   const showTournaments = useOrganizerSelectedEvent().menuProfile !== 'workshops';
   const [showDeletionModal, setShowDeletionModal] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
@@ -567,38 +570,44 @@ export default function EventDetailPage() {
             value={formatDate(event?.endDate ?? null, locale)}
             detail={liveState}
           />
-          {showTournaments && (
-            <MetricCard
-              label={t('organizer.eventHub.dashboard.tournaments')}
-              value={String(stats?.totals.tournaments ?? 0)}
-            />
+          {showTournaments ? (
+            <>
+              <MetricCard
+                label={t('organizer.eventHub.dashboard.tournaments')}
+                value={String(stats?.totals.tournaments ?? 0)}
+              />
+              <MetricCard
+                label={t('organizer.eventHub.dashboard.participants')}
+                value={formatCountOfMax(
+                  stats?.totals.registeredFighters ?? 0,
+                  stats?.totals.maxParticipants ?? null,
+                )}
+              />
+              <MetricCard
+                label={t('organizer.eventHub.dashboard.uniqueFighters')}
+                value={String(stats?.totals.uniqueFighters ?? 0)}
+              />
+              <MetricCard
+                label={t('organizer.eventHub.dashboard.waitlist')}
+                value={formatCountOfMax(
+                  stats?.totals.waitlistedFighters ?? 0,
+                  stats?.totals.maxWaitlist ?? null,
+                )}
+              />
+            </>
+          ) : (
+            <WorkshopMetricCards totals={stats?.workshops} />
           )}
-          <MetricCard
-            label={t('organizer.eventHub.dashboard.participants')}
-            value={formatCountOfMax(
-              stats?.totals.registeredFighters ?? 0,
-              stats?.totals.maxParticipants ?? null,
-            )}
-          />
-          <MetricCard
-            label={t('organizer.eventHub.dashboard.uniqueFighters')}
-            value={String(stats?.totals.uniqueFighters ?? 0)}
-          />
-          <MetricCard
-            label={t('organizer.eventHub.dashboard.waitlist')}
-            value={formatCountOfMax(
-              stats?.totals.waitlistedFighters ?? 0,
-              stats?.totals.maxWaitlist ?? null,
-            )}
-          />
           <MetricCard
             label={t('organizer.eventHub.dashboard.clubs')}
             value={String(stats?.totals.clubsRepresented ?? 0)}
           />
-          <MetricCard
-            label={t('organizer.eventHub.dashboard.uniqueReferees')}
-            value={String(stats?.totals.uniqueReferees ?? 0)}
-          />
+          {showTournaments && (
+            <MetricCard
+              label={t('organizer.eventHub.dashboard.uniqueReferees')}
+              value={String(stats?.totals.uniqueReferees ?? 0)}
+            />
+          )}
           <MetricCard
             label={t('organizer.eventHub.dashboard.countdown')}
             value={liveState}
@@ -806,7 +815,7 @@ export default function EventDetailPage() {
         )}
       </section>
 
-      {aiEnabled && (
+      {aiEnabled && showTournaments && (
         <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} readOnly={isReadOnly} />
       )}
 
@@ -963,15 +972,5 @@ export default function EventDetailPage() {
         />
       )}
     </main>
-  );
-}
-
-function MetricCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
-      {detail ? <p className="mt-1 text-sm text-muted">{detail}</p> : null}
-    </div>
   );
 }
