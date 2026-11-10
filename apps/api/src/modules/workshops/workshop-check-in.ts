@@ -101,7 +101,17 @@ function sameEventDay(
 ): boolean {
   const workshop = one(one(booking.workshop_sessions)?.workshops);
   if (workshop?.event_id !== eventId) return false;
-  const timezone = one(workshop.events)?.timezone;
+  return sameDayOn(one(workshop.events)?.timezone, eventId, a, b, warn);
+}
+
+/** Whether two instants fall on the same day of an Event clock; never for an instant with none. */
+function sameDayOn(
+  timezone: string | null | undefined,
+  eventId: string,
+  a: string | null | undefined,
+  b: string | null | undefined,
+  warn: Warn,
+): boolean {
   const { zone, unknownZone } = eventZone(timezone);
   if (unknownZone) warn(unknownZoneWarning(eventId, timezone));
   const day = zonedDay(a, zone);
@@ -185,5 +195,46 @@ export async function untickFromDesk(
     .eq('check_in_source', 'desk');
   if (writeError) {
     throw new Error(`The desk ticks of ${personId} were not removed: ${writeError.message}`);
+  }
+}
+
+/**
+ * A booking just made, in a Workshop whose switch is on (the caller checks it): when the desk holds
+ * the person arrived on the session's day, the booking is ticked as if they had arrived after it
+ * (546), with the arrival time. A session with no start has no day.
+ */
+export async function tickOnBooking(
+  db: SupabaseClient,
+  eventId: string,
+  sessionId: string,
+  personId: string,
+  startsAt: string | null,
+  warn: Warn,
+): Promise<void> {
+  if (!startsAt) return;
+  const { data, error } = await db
+    .from('event_arrivals')
+    .select('state, marked_at, events ( timezone )')
+    .eq('event_id', eventId)
+    .eq('person_id', personId)
+    .maybeSingle();
+  if (error) throw new Error(`The arrival of ${personId} was not read: ${error.message}`);
+  const arrival = data as {
+    state: string;
+    marked_at: string | null;
+    events: One<{ timezone: string | null }>;
+  } | null;
+  if (arrival?.state !== 'present') return;
+  const timezone = one(arrival.events)?.timezone;
+  if (!sameDayOn(timezone, eventId, arrival.marked_at, startsAt, warn)) return;
+  const { error: writeError } = await db
+    .from('workshop_enrollments')
+    .update({ checked_in_at: arrival.marked_at, check_in_source: 'desk' })
+    .eq('workshop_session_id', sessionId)
+    .eq('user_id', personId)
+    .is('check_in_source', null)
+    .in('status', TICKABLE);
+  if (writeError) {
+    throw new Error(`The desk tick of ${personId} was not written: ${writeError.message}`);
   }
 }

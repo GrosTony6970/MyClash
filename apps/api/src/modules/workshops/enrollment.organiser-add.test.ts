@@ -73,7 +73,7 @@ describe('the organiser books only a person of this Event', () => {
     expect(writesTo(supabase, 'workshop_enrollments')).toHaveLength(1);
     // The double ignores the projection: only this holds the column the check reads.
     expect(selectsFor(supabase.from, 'workshop_sessions')[0]).toBe(
-      'status, workshop_id, workshops ( capacity, status, event_id )',
+      'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in )',
     );
     expect(selectsFor(supabase.from, 'persons')[0]).toBe('id');
   });

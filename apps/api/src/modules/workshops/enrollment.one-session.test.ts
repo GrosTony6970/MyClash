@@ -157,7 +157,7 @@ describe('one session per Workshop (rulings 520-523)', () => {
     await service.enrollOwn(SUNDAY, ALICE);
     // The double ignores the projection: only this holds the columns the rule reads.
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
-      'status, workshop_id, workshops ( capacity, status, event_id )',
+      'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in )',
       'id',
     ]);
     expect(selectsFor(supabase.from, 'workshop_enrollments')[0]).toBe('workshop_session_id');

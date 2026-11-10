@@ -34,6 +34,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { assertNoOtherBooking, assertNoOtherBookingFor } from './workshop-one-booking';
 import { assertPersonOnEvent } from './workshop-person-on-event';
+import { tickOnBooking } from './workshop-check-in';
 
 export interface EnrollmentResult {
   id: string;
@@ -99,9 +100,35 @@ export class EnrollmentService {
       await assertNoOtherBooking(this.supabase.service, workshopId, sessionId, personId);
     }
     if (again) await this.removeRefusal(sessionId, personId);
-    const booking = await this.book(session, sessionId, personId);
+    const { created, ...booking } = await this.book(session, sessionId, personId);
     await this.bookingAlert(sessionId, personId);
+    // A NEW booking of someone the desk marked arrived that day is ticked (546). A second "Book"
+    // tap on an existing one ticks nobody: the switch may have gone on after the arrival.
+    if (created) await this.deskTickOnBooking(session, sessionId, personId);
     return booking;
+  }
+
+  /** Best effort, as the alert: the booking is saved; a failed tick is logged, ticked by hand. */
+  private async deskTickOnBooking(session: unknown, sessionId: string, personId: string) {
+    const workshop = workshopOf(session);
+    if (workshop?.auto_check_in !== true || !workshop.event_id) return;
+    const startsAt = (session as { starts_at?: string | null }).starts_at ?? null;
+    try {
+      await tickOnBooking(
+        this.supabase.service,
+        workshop.event_id,
+        sessionId,
+        personId,
+        startsAt,
+        (message) => this.logger.warn(message),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Session ${sessionId}: the desk tick of ${personId} was not written: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**
@@ -114,7 +141,9 @@ export class EnrollmentService {
   private async bookableSession(sessionId: string): Promise<unknown> {
     const { data: session, error } = await this.supabase.service
       .from('workshop_sessions')
-      .select('status, workshop_id, workshops ( capacity, status, event_id )')
+      .select(
+        'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in )',
+      )
       .eq('id', sessionId)
       .maybeSingle();
 
@@ -128,11 +157,12 @@ export class EnrollmentService {
     return session;
   }
 
+  /** `created` is set when this call inserted the booking; an existing one comes back without. */
   private async book(
     session: unknown,
     sessionId: string,
     personId: string,
-  ): Promise<EnrollmentResult> {
+  ): Promise<EnrollmentResult & { created?: true }> {
     // An instructor takes no participant seat in a workshop they teach.
     // Checked BEFORE the idempotency read below, so a row that predates this
     // rule can't short-circuit into a success.
@@ -226,6 +256,7 @@ export class EnrollmentService {
         sessionId,
         status: 'waitlisted',
         waitlistPosition: position,
+        created: true,
       };
     }
 
@@ -251,6 +282,7 @@ export class EnrollmentService {
       sessionId,
       status: 'confirmed',
       waitlistPosition: null,
+      created: true,
     };
   }
 
@@ -575,14 +607,18 @@ export class EnrollmentService {
 const OPEN_TO_OWN_BOOKINGS = ['published', 'running'];
 
 /** The Workshop embed of a session row (Supabase joins as object or array). */
-function workshopOf(
-  session: unknown,
-): { capacity?: number | null; status?: string | null; event_id?: string | null } | null {
+function workshopOf(session: unknown): {
+  capacity?: number | null;
+  status?: string | null;
+  event_id?: string | null;
+  auto_check_in?: boolean;
+} | null {
   const w = (session as { workshops?: unknown }).workshops;
   return ((Array.isArray(w) ? w[0] : w) ?? null) as {
     capacity?: number | null;
     status?: string | null;
     event_id?: string | null;
+    auto_check_in?: boolean;
   } | null;
 }
 

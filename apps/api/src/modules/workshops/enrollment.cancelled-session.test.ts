@@ -65,7 +65,7 @@ describe('a cancelled session takes no booking', () => {
     // The double ignores the projection: only this holds the column the check reads.
     // Then the Workshop's sessions, for the one-session rule (rulings 520-523).
     expect(selectsFor(supabase.from, 'workshop_sessions')).toEqual([
-      'status, workshop_id, workshops ( capacity, status, event_id )',
+      'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in )',
       'id',
     ]);
   });
