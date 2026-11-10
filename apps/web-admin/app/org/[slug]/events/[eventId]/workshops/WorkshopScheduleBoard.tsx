@@ -810,7 +810,13 @@ export function WorkshopScheduleBoard({
                                     ].join('\n')
                               }
                               className={[
-                                'group absolute left-0.5 right-0.5 overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
+                                'group absolute overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
+                                // A live and a cancelled card in one room and hour: side by side (552).
+                                bl.lane === 'start'
+                                  ? 'left-0.5 right-1/2'
+                                  : bl.lane === 'end'
+                                    ? 'left-1/2 right-0.5'
+                                    : 'left-0.5 right-0.5',
                                 fixed ? '' : 'cursor-grab',
                                 bl.cancelled ? 'opacity-60' : '',
                                 conflict

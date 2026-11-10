@@ -70,6 +70,12 @@ export interface WorkshopBlock {
   confirmedCount: number;
   /** The session was cancelled: drawn struck through, its room free (rulings 526, 528). */
   cancelled: boolean;
+  /**
+   * Half of its column, when a live and a cancelled card share the room and the hour (ruling
+   * 552): the live one on the left (`start`), the cancelled one on the right (`end`). Null: the
+   * whole column.
+   */
+  lane: 'start' | 'end' | null;
 }
 
 /**
@@ -168,9 +174,11 @@ function matchColumn(
 const DEFAULT_BLOCK_MINUTES = 60;
 
 /**
- * Blocks for every session that falls on `day` (in `tz`) and maps to a column. A cancelled block
- * comes first: drawn first, it lies UNDER a live one in the same room and hour, which took its
- * room (ruling 528); drawn last, it covered that card and caught its clicks.
+ * Blocks for every session that falls on `day` (in `tz`) and maps to a column. A live block and a
+ * cancelled one in the same room and hour (the live one took the room, ruling 528) each take half
+ * the column, side by side (ruling 552): one day at a time, so Saturday's cancelled card never
+ * halves Sunday's. Live blocks come first, so Tab reaches the left card before the right.
+ * Two cancelled cards in one room and hour still share their half (not ruled).
  */
 export function buildWorkshopSessionBlocks(
   workshops: ReadonlyArray<BoardWorkshop>,
@@ -186,7 +194,27 @@ export function buildWorkshopSessionBlocks(
       if (block) blocks.push(block);
     }
   }
-  return [...blocks.filter((b) => b.cancelled), ...blocks.filter((b) => !b.cancelled)];
+  const live = blocks.filter((b) => !b.cancelled);
+  const cancelled = blocks.filter((b) => b.cancelled);
+  return [...live, ...cancelled].map((b) => ({
+    ...b,
+    lane: laneOf(b, b.cancelled ? live : cancelled),
+  }));
+}
+
+/** `start` or `end` when the block shares its room and some of its time with one of the other kind. */
+function laneOf(
+  block: WorkshopBlock,
+  otherKind: ReadonlyArray<WorkshopBlock>,
+): WorkshopBlock['lane'] {
+  const shares = otherKind.some(
+    (other) =>
+      other.columnKey === block.columnKey &&
+      other.startSlot < block.endSlot &&
+      block.startSlot < other.endSlot,
+  );
+  if (!shares) return null;
+  return block.cancelled ? 'end' : 'start';
 }
 
 type BoardSession = BoardWorkshop['sessions'][number];
@@ -229,6 +257,7 @@ function sessionBlock(
     instructorNames: w.instructorNames ?? [],
     confirmedCount: session.confirmedCount ?? 0,
     cancelled: session.cancelled === true,
+    lane: null,
   };
 }
 

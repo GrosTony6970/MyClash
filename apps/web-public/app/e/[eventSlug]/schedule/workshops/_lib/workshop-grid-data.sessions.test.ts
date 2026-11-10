@@ -89,10 +89,31 @@ describe('the public Workshop grid, a Workshop with several sessions', () => {
 
     const data = await loadWorkshopSchedule('fal', 'https://api.test');
 
+    // Live first: Tab reaches the left card first (ruling 552).
     expect(data.blocks.map((b) => [b.sessionId, b.cancelled])).toEqual([
-      ['s-saturday', true],
       ['s-sunday', false],
+      ['s-saturday', true],
     ]);
     expect(data.unplaced.map((u) => [u.key, u.cancelled])).toEqual([['s-elsewhere', true]]);
+  });
+
+  it('puts a live and a cancelled card of one room and hour side by side, on their day only (552)', async () => {
+    workshops.mockResolvedValue([
+      // Saturday 10:00 in the hall: Longsword cancelled, Dagger took the room.
+      workshop('longsword', [
+        session('s-longsword', '2027-06-05T08:00:00.000Z', 'v-hall', 'cancelled'),
+      ]),
+      workshop('dagger', [session('s-dagger', '2027-06-05T08:00:00.000Z', 'v-hall')]),
+      // Sunday 10:00 in the hall: Rapier, live, beside nothing cancelled that day.
+      workshop('rapier', [session('s-rapier', '2027-06-06T08:00:00.000Z', 'v-hall')]),
+    ]);
+
+    const data = await loadWorkshopSchedule('fal', 'https://api.test');
+
+    expect(data.blocks.map((b) => [b.sessionId, b.dayIndex, b.lane])).toEqual([
+      ['s-dagger', 0, 'start'],
+      ['s-longsword', 0, 'end'],
+      ['s-rapier', 1, null],
+    ]);
   });
 });

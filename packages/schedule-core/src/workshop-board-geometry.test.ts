@@ -229,21 +229,61 @@ describe('several sessions of one Workshop', () => {
       ),
     };
     const blocks = buildWorkshopSessionBlocks([cancelled], columns, '2027-06-01', TZ);
+    // Live first (552: Tab reaches the left card first).
     expect(blocks.map((b) => [b.sessionId, b.cancelled])).toEqual([
-      ['s-saturday', true],
       ['s-saturday-pm', false],
+      ['s-saturday', true],
     ]);
   });
 
-  it('puts a cancelled block first, so the live one that took its room is drawn over it (528)', () => {
-    const dagger = workshop({
-      id: 'w-dagger',
-      sessions: [{ ...longsword.sessions[0]!, id: 's-dagger' }],
+  describe('a live and a cancelled card in one room and hour, side by side (552)', () => {
+    const saturday = longsword.sessions[0]!; // 09:00-10:00 Paris, Mat A
+    const cancelledLongsword = { ...longsword, sessions: [{ ...saturday, cancelled: true }] };
+    const dagger = (over: Partial<typeof saturday> = {}) =>
+      workshop({ id: 'w-dagger', sessions: [{ ...saturday, id: 's-dagger', ...over }] });
+    const lanes = (ws: BoardWorkshop[], day = '2027-06-01') =>
+      buildWorkshopSessionBlocks(ws, columns, day, TZ).map((b) => [b.sessionId, b.lane]);
+
+    it('puts the live card on the left and the cancelled one on the right, live first', () => {
+      expect(lanes([cancelledLongsword, dagger({ startsAt: '2027-06-01T07:30:00.000Z' })])).toEqual(
+        [
+          ['s-dagger', 'start'],
+          ['s-saturday', 'end'],
+        ],
+      );
     });
-    const cancelled = { ...longsword, sessions: [{ ...longsword.sessions[0]!, cancelled: true }] };
-    // The live Workshop is listed first: the order the board used to keep.
-    const blocks = buildWorkshopSessionBlocks([dagger, cancelled], columns, '2027-06-01', TZ);
-    expect(blocks.map((b) => b.sessionId)).toEqual(['s-saturday', 's-dagger']);
+
+    it('leaves the whole column to cards that only touch, or sit in another room', () => {
+      expect(
+        lanes([
+          cancelledLongsword,
+          dagger({ startsAt: '2027-06-01T08:00:00.000Z', endsAt: '2027-06-01T09:00:00.000Z' }),
+        ]),
+      ).toEqual([
+        ['s-dagger', null],
+        ['s-saturday', null],
+      ]);
+      expect(lanes([cancelledLongsword, dagger({ areaId: 'a2' })])).toEqual([
+        ['s-dagger', null],
+        ['s-saturday', null],
+      ]);
+    });
+
+    it('leaves two live cards in one room as they were: the room warning shows them', () => {
+      expect(lanes([longsword, dagger()]).filter(([id]) => id !== 's-saturday-pm')).toEqual([
+        ['s-saturday', null],
+        ['s-dagger', null],
+      ]);
+    });
+
+    it("never halves a card by another day's card in the same room and hour", () => {
+      const sunday = dagger({
+        startsAt: '2027-06-02T07:00:00.000Z',
+        endsAt: '2027-06-02T08:00:00.000Z',
+      });
+      expect(lanes([cancelledLongsword, sunday], '2027-06-01')).toEqual([['s-saturday', null]]);
+      expect(lanes([cancelledLongsword, sunday], '2027-06-02')).toEqual([['s-dagger', null]]);
+    });
   });
 });
 

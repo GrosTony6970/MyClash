@@ -58,6 +58,10 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
         gridColumn,
         gridRow: `${rowFor(block.startSlot)} / ${rowFor(Math.max(block.startSlot + 1, block.endSlot))}`,
         zIndex: 10,
+        // A live and a cancelled card in one room and hour: side by side, half each (552).
+        ...(block.lane
+          ? { width: 'calc(50% - 2px)', justifySelf: block.lane === 'start' ? 'start' : 'end' }
+          : {}),
       }}
     >
       {cancelledWord && heightPx >= SHOW_INSTRUCTORS_PX ? (
