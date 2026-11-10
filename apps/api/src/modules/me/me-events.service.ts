@@ -247,6 +247,8 @@ export interface InstructorWorkshopGroup {
     startDate: string | null;
   };
   workshops: InstructorWorkshop[];
+  /** The caller's own profile: the line of each Workshop they write their details on (558). */
+  myGlobalPersonId: string;
 }
 
 /** PostgREST embeds resolve to an object (1:1) or an array (1:N); normalise to one. */
@@ -1405,6 +1407,7 @@ export class MeEventsService {
           if (sb) return 1;
           return a.title.localeCompare(b.title);
         }),
+        myGlobalPersonId: globalPersonId,
       }))
       .sort((a, b) => (b.event.startDate ?? '').localeCompare(a.event.startDate ?? ''));
   }

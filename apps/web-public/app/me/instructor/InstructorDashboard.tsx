@@ -13,6 +13,8 @@ import {
   moderationRefusalWords,
 } from '@/components/me/workshop-booking';
 import { RosterTick } from './RosterTick';
+import { changedText } from './changed-text';
+import { MyDetailsPanel } from './MyDetailsPanel';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -57,16 +59,6 @@ interface InstructorWorkshop {
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
-/** `{ [key]: text }` when the text changed since the panel opened, a blank one as null; else `{}`. */
-function changedText(
-  key: 'shortDescription' | 'prerequisites',
-  draft: EditFields,
-  loaded: EditFields,
-): Partial<Record<typeof key, string | null>> {
-  const now = draft[key].trim() || null;
-  return now === (loaded[key].trim() || null) ? {} : { [key]: now };
-}
-
 /** What the instructor edits on a Workshop they teach, as the form holds it. */
 interface EditFields {
   weapon: string;
@@ -86,6 +78,8 @@ interface InstructorGroup {
     startDate: string | null;
   };
   workshops: InstructorWorkshop[];
+  /** The caller's own profile: their line on each Workshop (2.6b). */
+  myGlobalPersonId: string;
 }
 
 interface RosterEntry {
@@ -184,6 +178,7 @@ export function InstructorDashboard() {
                 <WorkshopManageCard
                   key={w.id}
                   workshop={w}
+                  myGlobalPersonId={group.myGlobalPersonId}
                   tz={group.event.timezone ?? 'Europe/Paris'}
                   tag={tag}
                   apiUrl={apiUrl}
@@ -201,11 +196,13 @@ export function InstructorDashboard() {
 
 function WorkshopManageCard({
   workshop,
+  myGlobalPersonId,
   tz,
   tag,
   apiUrl,
 }: {
   workshop: InstructorWorkshop;
+  myGlobalPersonId: string;
   tz: string;
   tag: string;
   apiUrl: string;
@@ -220,7 +217,7 @@ function WorkshopManageCard({
     shortDescription: workshop.shortDescription ?? '',
     prerequisites: workshop.prerequisites ?? '',
   });
-  const [panel, setPanel] = useState<'none' | 'edit' | 'notify' | 'feedback'>('none');
+  const [panel, setPanel] = useState<'none' | 'edit' | 'me' | 'notify' | 'feedback'>('none');
 
   // Reflect local instructor edits live on the shared card; empty → null so the
   // card falls back to shortDescription and hides blank tag pills.
@@ -250,6 +247,13 @@ function WorkshopManageCard({
             </button>
             <button
               type="button"
+              onClick={() => setPanel(panel === 'me' ? 'none' : 'me')}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+            >
+              {t('publicApp.me.instructor.myDetails')}
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel(panel === 'notify' ? 'none' : 'notify')}
               className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
             >
@@ -273,6 +277,13 @@ function WorkshopManageCard({
                 setFields(next);
                 setPanel('none');
               }}
+            />
+          )}
+          {panel === 'me' && (
+            <MyDetailsPanel
+              workshopId={workshop.id}
+              globalPersonId={myGlobalPersonId}
+              apiUrl={apiUrl}
             />
           )}
           {panel === 'notify' && <NotifyPanel workshopId={workshop.id} apiUrl={apiUrl} />}

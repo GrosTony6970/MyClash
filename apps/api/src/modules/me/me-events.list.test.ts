@@ -295,6 +295,8 @@ describe('MeEventsService.getInstructorWorkshops — sessions', () => {
       's-sun',
       's-none',
     ]);
+    // The caller's own line on each Workshop: where they write their details (2.6b, 558).
+    expect(groups[0]!.myGlobalPersonId).toBe('gp-1');
   });
 
   it('carries the two short texts the instructor edits, read from their columns (557)', async () => {
