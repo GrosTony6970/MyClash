@@ -12,6 +12,7 @@ import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 import { photoToken } from '../photos/photo-token';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { resolveMatchLengths } from '../schedule/match-lengths';
+import { readWorkshopTotals } from './workshop-totals';
 
 // The length helper has reads of its own and its own test. Mocked so the
 // routed `from()` doubles below serve only this service's reads; an empty
@@ -22,6 +23,15 @@ vi.mock('../schedule/match-lengths', () => ({
   ),
 }));
 const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
+
+// The Workshop totals have reads of their own and their own test (`workshop-totals.test.ts`).
+// Mocked so the ordered `from()` doubles below serve only the Tournament reads.
+const { WORKSHOP_TOTALS } = vi.hoisted(() => ({
+  WORKSHOP_TOTALS: { workshops: 3, sessions: 4, seatsTaken: 34, seats: 60, waitlisted: 2 },
+}));
+vi.mock('./workshop-totals', () => ({
+  readWorkshopTotals: vi.fn(() => Promise.resolve(WORKSHOP_TOTALS)),
+}));
 
 const fromMock = vi.fn();
 
@@ -522,8 +532,10 @@ describe('EventsService', () => {
           eliminationType: null,
         },
       ],
+      workshops: WORKSHOP_TOTALS,
     });
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
+    expect(vi.mocked(readWorkshopTotals)).toHaveBeenCalledWith({ from: fromMock }, 'event-1');
   });
 
   it('getEventUniqueParticipantCounts dedupes fighters by global identity + distinct qualified referees', async () => {

@@ -110,6 +110,7 @@ import { EntityLabelService } from '../entity-label/entity-label.service';
 import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
+import { readWorkshopTotals } from './workshop-totals';
 import {
   appliedRow,
   assertConfirmedName,
@@ -937,13 +938,16 @@ export class EventsService {
 
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, persons, qualificationRows, refereeCounts, phases] = await Promise.all([
-      this.getRegistrationsForTournaments(tournamentIds),
-      this.getEventPersons(eventId),
-      this.getRefereeQualificationPersons(eventId),
-      this.countTournamentRefereeAssignments(eventId, tournamentIds),
-      this.getPhasesForTournaments(tournamentIds),
-    ]);
+    const [registrations, persons, qualificationRows, refereeCounts, phases, workshops] =
+      await Promise.all([
+        this.getRegistrationsForTournaments(tournamentIds),
+        this.getEventPersons(eventId),
+        this.getRefereeQualificationPersons(eventId),
+        this.countTournamentRefereeAssignments(eventId, tournamentIds),
+        this.getPhasesForTournaments(tournamentIds),
+        // A Workshops-only club's overview shows these in place of the fighter cards (slice 2.7).
+        readWorkshopTotals(this.supabase.service, eventId),
+      ]);
     const globalByPersonId = new Map(persons.map((person) => [person.id, person.global_person_id]));
 
     const registrationsByTournament = new Map<string, number>();
@@ -1050,6 +1054,7 @@ export class EventsService {
         uniqueReferees: countDistinctPersonIds(qualificationRows),
         clubsRepresented: representedClubIds.size,
       },
+      workshops,
       tournaments: tournaments.map((tournament) => {
         const poolPhase = poolPhaseByTournament.get(tournament.id);
         const swissPhase = swissPhaseByTournament.get(tournament.id);
