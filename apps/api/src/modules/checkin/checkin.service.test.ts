@@ -433,6 +433,36 @@ describe('CheckinService.redeemPass — the QR fast lane', () => {
     );
   });
 
+  it('admits the scanned person when the Event clock cannot be read: the arrival was written (547)', async () => {
+    const staff = staffDouble('checkin');
+    const arrivals = supabaseChain({
+      data: { person_id: 'p1', state: 'present', via: 'qr', marked_at: '2026-08-08T09:12:00Z' },
+      error: null,
+    });
+    const people = supabaseChain({ data: [PERSON], error: null });
+    const supabase = mockSupabase({
+      event_arrivals: { data: null, error: null },
+      events: { data: null, error: { message: 'connection reset' } },
+    });
+    const bookings = supabaseChain({ data: [], error: null });
+    supabase.from
+      .mockReturnValueOnce(arrivals)
+      .mockReturnValueOnce(bookings)
+      .mockReturnValueOnce(people);
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble('p1') as never,
+    );
+
+    // It used to answer 400 here: the overlay said the pass bounced for someone marked present.
+    await expect(service.redeemPass(REQ, 'tok')).resolves.toMatchObject({
+      personId: 'p1',
+      arrived: true,
+      arrivedToday: true,
+    });
+  });
+
   it('returns the full desk row so the overlay shows the face it just admitted', async () => {
     const staff = staffDouble('checkin');
     const arrivals = supabaseChain({
