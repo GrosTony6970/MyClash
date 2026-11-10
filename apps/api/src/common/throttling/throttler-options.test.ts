@@ -167,6 +167,13 @@ describe('auth-mail throttler (wired): the mailing doors count apart (rulings 56
     }
   });
 
+  it('exempts whitelisted IPs, as the sign-in bucket does', async () => {
+    process.env.THROTTLE_IP_WHITELIST = '10.12.0.1';
+    for (let i = 0; i < 15; i++) {
+      expect(await post('/t/mail', 'mailed-2@example.com', '10.12.0.1')).toBe(200);
+    }
+  });
+
   it('and sign-in tries leave the mails whole', async () => {
     delete process.env.THROTTLE_IP_WHITELIST;
     const bob = 'bob-signs-in@example.com';

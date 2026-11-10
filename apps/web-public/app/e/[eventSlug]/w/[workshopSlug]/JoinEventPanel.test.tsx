@@ -124,6 +124,14 @@ describe('joining the Event from a Workshop page (ruling 568)', () => {
     expect(alert).toBe('You could not be added to the event.');
   });
 
+  it('keeps the shared "wait" of a 403 the edge sent (a venue ban, ruling 569)', async () => {
+    answers.push(new Response('Forbidden', { status: 403 }));
+    await open();
+    await submit();
+    const alert = container.querySelector('[role="alert"]')?.textContent ?? '';
+    expect(alert).toContain('Wait a minute, then try again.');
+  });
+
   it.each([
     [409, 'SELF_JOIN_CLOSED', 'no longer lets people join'],
     [403, 'event_completed', 'This event is over'],

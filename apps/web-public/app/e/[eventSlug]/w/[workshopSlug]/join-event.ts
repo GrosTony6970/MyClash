@@ -1,4 +1,10 @@
-import { apiRequest, failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
+import {
+  apiRequest,
+  failureCode,
+  failureMessage,
+  isApiForbidden,
+  type ApiFailure,
+} from '@myclash/api-client';
 import type { UnknownCaller, WorkshopBooking } from '@/components/me/workshop-booking';
 
 /** A tap the booking door refused as a stranger's, with who the stranger was. */
@@ -62,9 +68,10 @@ export interface JoinOffer {
   eventId: string;
 }
 
+/** The API itself refused; not a 403 from the edge (a ban says "wait", in the shared words). */
 function refusedByServer(failure: ApiFailure): boolean {
   if (failure.kind === 'http') return failure.status < 500 && failure.status !== 429;
-  return failure.kind === 'unauthenticated' && failure.status === 403;
+  return isApiForbidden(failure);
 }
 
 export async function joinEvent(
