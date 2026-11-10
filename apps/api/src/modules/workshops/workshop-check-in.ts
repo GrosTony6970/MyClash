@@ -70,6 +70,16 @@ export async function tickByHand(
 /** Where an unknown Event zone is said; the desk passes its logger. */
 export type Warn = (message: string) => void;
 
+/** Each sentence said once per call: five bookings of one Event read its zone five times. */
+function onceEach(warn: Warn): Warn {
+  const said = new Set<string>();
+  return (message) => {
+    if (said.has(message)) return;
+    said.add(message);
+    warn(message);
+  };
+}
+
 type One<T> = T | T[] | null;
 const one = <T>(value: One<T> | undefined): T | null =>
   Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -144,13 +154,14 @@ export async function tickFromDesk(
     .in('status', TICKABLE)
     .is('check_in_source', null);
   if (error) throw new Error(`The bookings of ${personId} were not read: ${error.message}`);
+  const say = onceEach(warn);
   const ids = ((data ?? []) as unknown as DeskBooking[])
     .filter((booking) => {
       const session = one(booking.workshop_sessions);
       if (session?.status === 'cancelled' || one(session?.workshops)?.auto_check_in !== true) {
         return false;
       }
-      return sameEventDay(booking, eventId, session?.starts_at, arrivedAt, warn);
+      return sameEventDay(booking, eventId, session?.starts_at, arrivedAt, say);
     })
     .map((booking) => booking.id);
   if (ids.length === 0) return;
@@ -184,8 +195,9 @@ export async function untickFromDesk(
     .eq('user_id', personId)
     .eq('check_in_source', 'desk');
   if (error) throw new Error(`The desk ticks of ${personId} were not read: ${error.message}`);
+  const say = onceEach(warn);
   const ids = ((data ?? []) as unknown as DeskBooking[])
-    .filter((booking) => sameEventDay(booking, eventId, booking.checked_in_at, now, warn))
+    .filter((booking) => sameEventDay(booking, eventId, booking.checked_in_at, now, say))
     .map((booking) => booking.id);
   if (ids.length === 0) return;
   const { error: writeError } = await db

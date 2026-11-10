@@ -133,12 +133,16 @@ describe('the desk marks Léa arrived (540, 543, 544)', () => {
     expect(writesTo(db, 'workshop_enrollments')).toEqual([]);
   });
 
-  it('says an unknown Event zone, and reads the day on the default clock', async () => {
-    const { db, warn } = deskWith([{ id: 'b-sat', startsAt: SATURDAY, timezone: 'Mars/Olympus' }]);
+  it('says an unknown Event zone once per arrival, and reads the day on the default clock', async () => {
+    const { db, warn } = deskWith([
+      { id: 'b-sat', startsAt: SATURDAY, timezone: 'Mars/Olympus' },
+      { id: 'b-sat-2', startsAt: SATURDAY, timezone: 'Mars/Olympus' },
+    ]);
     await tickFromDesk(db.service as never, EVENT, LEA, SATURDAY_ARRIVAL, warn);
 
+    expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('unknown time zone "Mars/Olympus"'));
-    expect(onlyWrite(db).ids).toEqual(['b-sat']);
+    expect(onlyWrite(db).ids).toEqual(['b-sat', 'b-sat-2']);
   });
 
   it('throws when the bookings cannot be read: never read as "nothing to tick"', async () => {
