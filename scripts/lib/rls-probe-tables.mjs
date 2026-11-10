@@ -123,6 +123,11 @@ export const PRIVATE_COLUMNS = [
   // arrivals, which nobody reads through PostgREST.
   { table: 'workshop_enrollments', column: 'checked_in_at' },
   { table: 'workshop_enrollments', column: 'check_in_source' },
+  // What a Workshop says about its instructor (0260, ruling 565): the public sees it through the
+  // app, which hides draft and test Events; the row policy reads the Workshop's status only.
+  { table: 'workshop_instructors', column: 'bio' },
+  { table: 'workshop_instructors', column: 'affiliation' },
+  { table: 'workshop_instructors', column: 'photo_url' },
 ];
 
 /**
