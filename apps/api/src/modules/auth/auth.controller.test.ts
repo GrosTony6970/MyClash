@@ -13,6 +13,10 @@ function throttledByEmail(methodName: keyof AuthController): unknown {
   return Reflect.getMetadata('throttle:by-email', AuthController.prototype[methodName]);
 }
 
+function mailedByEmail(methodName: keyof AuthController): unknown {
+  return Reflect.getMetadata('throttle:mail-by-email', AuthController.prototype[methodName]);
+}
+
 describe('AuthController throttling', () => {
   // A venue's wifi is one address for the whole hall (rulings 569, 570).
   const VENUE_DOORS = [
@@ -35,17 +39,21 @@ describe('AuthController throttling', () => {
     expect(throttleLimit('publicPasswordResetConfirm')).toBe(10);
   });
 
-  it('throttles every door that takes an address by email, not just by IP', () => {
+  it('throttles both sign-in doors by email, not just by IP', () => {
     // The per-IP limit bounds one IP across all accounts; only the per-email
-    // limit bounds one account across many IPs (distributed credential stuffing),
-    // and one mailbox against a flood of sign-up or sign-in mails.
-    for (const door of [
-      'passwordLogin',
-      'publicLogin',
-      'publicSignup',
-      'requestMagicLink',
-    ] as const)
+    // limit bounds one account across many IPs (distributed credential stuffing).
+    for (const door of ['passwordLogin', 'publicLogin'] as const) {
       expect([door, throttledByEmail(door)]).toEqual([door, true]);
+      expect([door, mailedByEmail(door)]).toEqual([door, undefined]);
+    }
+  });
+
+  it('counts the mailing doors per address on their own bucket, never the sign-in one', () => {
+    // A stranger mailing Bob must not use up Bob's sign-in tries (rulings 569, 570).
+    for (const door of ['publicSignup', 'requestMagicLink'] as const) {
+      expect([door, mailedByEmail(door)]).toEqual([door, true]);
+      expect([door, throttledByEmail(door)]).toEqual([door, undefined]);
+    }
   });
 
   it('leaves non-login routes off the email throttler', () => {

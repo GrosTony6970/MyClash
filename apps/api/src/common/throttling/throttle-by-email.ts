@@ -29,11 +29,31 @@ export function authEmailTracker(req: Record<string, unknown>): string {
 }
 
 export function skipAuthEmailThrottle(context: ExecutionContext): boolean {
+  return skipUnlessMarked(context, THROTTLE_BY_EMAIL);
+}
+
+/**
+ * The doors that MAIL an address (sign-up, the mail link) count per address on their own
+ * throttler, never on the sign-in one (rulings 569, 570). Shared, ten mail-link requests for Bob's
+ * address by a stranger shut Bob out of every password sign-in for an hour; apart, the stranger
+ * can only stop the mails, which is the flood this limit is for.
+ */
+export const AUTH_MAIL_THROTTLER = 'auth-mail';
+
+const THROTTLE_MAIL_BY_EMAIL = 'throttle:mail-by-email';
+
+export const ThrottleMailByEmail = (): CustomDecorator => SetMetadata(THROTTLE_MAIL_BY_EMAIL, true);
+
+export function skipAuthMailThrottle(context: ExecutionContext): boolean {
+  return skipUnlessMarked(context, THROTTLE_MAIL_BY_EMAIL);
+}
+
+function skipUnlessMarked(context: ExecutionContext, marker: string): boolean {
   // A per-throttler skipIf REPLACES the module-level one rather than composing
   // with it (throttler.guard: `namedThrottler.skipIf || commonOptions.skipIf`),
   // so the whitelist check has to be repeated here.
   if (isThrottleWhitelisted(context)) return true;
-  if (Reflect.getMetadata(THROTTLE_BY_EMAIL, context.getHandler()) !== true) return true;
+  if (Reflect.getMetadata(marker, context.getHandler()) !== true) return true;
   // No email to key on — let the validation pipe reject it as a 400 rather than
   // bucketing every malformed request together.
   return requestEmail(context.switchToHttp().getRequest<{ body?: unknown }>()) === '';

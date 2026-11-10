@@ -7,7 +7,7 @@ import {
   SIGNUP_ACTION_THROTTLE,
   VENUE_AUTH_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
-import { ThrottleByEmail } from '../../common/throttling/throttle-by-email';
+import { ThrottleByEmail, ThrottleMailByEmail } from '../../common/throttling/throttle-by-email';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
 import { acceptedVersionsOf } from '../../common/legal/accepted-legal.schema';
 import { AuthService } from './auth.service';
@@ -42,10 +42,11 @@ export class AuthController {
    * - Organizer login (admin app): type='login'
    * - Participant claim (public app): type='claim', personId required
    *
-   * Rate limited: 60 per hour per IP (a venue's wifi, ruling 570), and 10 per
-   * hour per email address. GoTrue only MINTS the link here, the mail is sent by
-   * our own MailService, so the per-address limit is ours: without it the venue
-   * number would let one network mail sixty links an hour to one mailbox.
+   * Rate limited: 60 per hour per IP (a venue's wifi, ruling 570), and 10 mails
+   * per hour per email address, counted apart from the sign-in tries (a stranger
+   * mailing Bob must not use them up). GoTrue only MINTS the link here, the mail
+   * is sent by our own MailService, so the per-address limit is ours: without it
+   * the venue number would let one network mail sixty links an hour to one mailbox.
    * A login link always answers the same generic message, to prevent email
    * enumeration. A claim link is refused (400/404) when the row does not carry
    * the typed email, or cannot be read. Whether the row is already CLAIMED is
@@ -56,7 +57,7 @@ export class AuthController {
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)
   @Throttle(VENUE_AUTH_THROTTLE)
-  @ThrottleByEmail()
+  @ThrottleMailByEmail()
   @ApiOperation({ summary: 'Request a magic link (login or claim)' })
   @ApiResponse({
     status: 200,
@@ -114,7 +115,7 @@ export class AuthController {
   @Post('public-signup')
   @HttpCode(HttpStatus.ACCEPTED)
   @Throttle(VENUE_AUTH_THROTTLE)
-  @ThrottleByEmail()
+  @ThrottleMailByEmail()
   @ApiOperation({ summary: 'Create a public email account' })
   @ApiResponse({ status: 202, description: 'Confirmation email queued' })
   @ApiResponse({ status: 503, description: 'Signups temporarily disabled' })

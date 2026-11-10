@@ -4,8 +4,18 @@ import {
   authAccountTracker,
   skipAuthAccountThrottle,
 } from './throttle-by-account';
-import { AUTH_EMAIL_THROTTLER, authEmailTracker, skipAuthEmailThrottle } from './throttle-by-email';
-import { AUTH_ACCOUNT_THROTTLE, AUTH_EMAIL_THROTTLE } from './throttle-profiles';
+import {
+  AUTH_EMAIL_THROTTLER,
+  AUTH_MAIL_THROTTLER,
+  authEmailTracker,
+  skipAuthEmailThrottle,
+  skipAuthMailThrottle,
+} from './throttle-by-email';
+import {
+  AUTH_ACCOUNT_THROTTLE,
+  AUTH_EMAIL_THROTTLE,
+  AUTH_MAIL_THROTTLE,
+} from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
 /**
@@ -19,6 +29,9 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                @ThrottleByEmail. The per-IP limit bounds one IP across all
  *                accounts; this bounds one account across all IPs, which is the
  *                only thing that constrains distributed credential stuffing.
+ * `auth-mail`  — mails per hour per email address, on the doors that mail one
+ *                (sign-up, the mail link; @ThrottleMailByEmail). Its own bucket,
+ *                so a stranger mailing Bob cannot use up Bob's sign-in tries.
  * `auth-account` — checks of a current password per hour per signed-in account,
  *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
  *                account of the request's login, never on `req.ip`.
@@ -52,6 +65,15 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       // fresh allowance on each surface.
       generateKey: (_context, tracker) => `${AUTH_EMAIL_THROTTLER}:${tracker}`,
       skipIf: skipAuthEmailThrottle,
+    },
+    {
+      name: AUTH_MAIL_THROTTLER,
+      ttl: AUTH_MAIL_THROTTLE.ttl,
+      limit: AUTH_MAIL_THROTTLE.limit,
+      getTracker: authEmailTracker,
+      // One bucket per address across the mailing doors, apart from the sign-in one.
+      generateKey: (_context, tracker) => `${AUTH_MAIL_THROTTLER}:${tracker}`,
+      skipIf: skipAuthMailThrottle,
     },
     {
       name: AUTH_ACCOUNT_THROTTLER,

@@ -6,7 +6,7 @@ import { Throttle, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { trustOneLocalProxy } from '../trust-proxy';
 import { AUTH_ACTION_THROTTLE } from './throttle-profiles';
-import { ThrottleByEmail } from './throttle-by-email';
+import { ThrottleByEmail, ThrottleMailByEmail } from './throttle-by-email';
 import { throttlerOptions } from './throttler-options';
 
 /**
@@ -37,6 +37,14 @@ class ProbeController {
   @Post('unmarked')
   @HttpCode(HttpStatus.OK)
   unmarked(@Body() _body: unknown): { ok: true } {
+    return { ok: true };
+  }
+
+  @Post('mail')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
+  @ThrottleMailByEmail()
+  mail(@Body() _body: unknown): { ok: true } {
     return { ok: true };
   }
 }
@@ -135,6 +143,36 @@ describe('auth-email throttler (wired)', () => {
     for (let i = 0; i < 15; i++) {
       expect(await post('/t/login', email, '10.6.0.1')).toBe(200);
     }
+  });
+});
+
+describe('auth-mail throttler (wired): the mailing doors count apart (rulings 569, 570)', () => {
+  it('stops the 11th mail to one address, whatever network it comes from', async () => {
+    delete process.env.THROTTLE_IP_WHITELIST;
+    const email = 'mailed-1@example.com';
+
+    for (let i = 0; i < 10; i++) {
+      expect(await post('/t/mail', email, `10.9.0.${i}`)).toBe(200);
+    }
+    expect(await post('/t/mail', email, '10.9.0.99')).toBe(429);
+  });
+
+  it("a stranger who uses up Bob's mails leaves Bob's sign-in tries whole", async () => {
+    delete process.env.THROTTLE_IP_WHITELIST;
+    const bob = 'bob-mailed@example.com';
+
+    for (let i = 0; i < 11; i++) await post('/t/mail', bob, `10.10.0.${i}`);
+    for (let i = 0; i < 10; i++) {
+      expect(await post('/t/login', bob, `10.10.1.${i}`)).toBe(200);
+    }
+  });
+
+  it('and sign-in tries leave the mails whole', async () => {
+    delete process.env.THROTTLE_IP_WHITELIST;
+    const bob = 'bob-signs-in@example.com';
+
+    for (let i = 0; i < 11; i++) await post('/t/login', bob, `10.11.0.${i}`);
+    expect(await post('/t/mail', bob, '10.11.1.1')).toBe(200);
   });
 });
 
