@@ -7,12 +7,15 @@
  */
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { WORKSHOP_INSTRUCTOR_BIO_MAX, WORKSHOP_INSTRUCTOR_CLUB_MAX } from '@myclash/types';
+import {
+  WORKSHOP_INSTRUCTOR_BIO_MAX,
+  WORKSHOP_INSTRUCTOR_CLUB_MAX,
+  WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES,
+} from '@myclash/types';
 import { AvatarCropper } from '../../profile/fighter/AvatarCropper';
 import { useMyDetails, type DetailsError, type DetailsView } from './use-my-details';
 
-/** The photo's cap and types, the server's (`WORKSHOP_INSTRUCTOR_PHOTO_UPLOAD`). */
-const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+/** The photo's types, the server's (`WORKSHOP_INSTRUCTOR_PHOTO_UPLOAD`). */
 const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 const INPUT =
@@ -112,7 +115,7 @@ function MyPhoto({ details, view }: { details: MyDetails; view: DetailsView }) {
   const shown = own ?? view.profile.photoUrl;
 
   function pick(file: File) {
-    if (file.size > PHOTO_MAX_BYTES || !PHOTO_TYPES.includes(file.type)) {
+    if (file.size > WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES || !PHOTO_TYPES.includes(file.type)) {
       details.setError('myPhotoInvalid');
       return;
     }

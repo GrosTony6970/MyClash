@@ -1,6 +1,7 @@
 import { EXTENSIONS, storedObjectOf } from '../exports/archive-images';
 import type { SupabaseService } from '../supabase/supabase.service';
-import { WORKSHOP_LOGO_BUCKET, WORKSHOP_LOGO_MAX_BYTES } from './workshop-assets';
+import { WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES } from '@myclash/types';
+import { WORKSHOP_LOGO_BUCKET } from './workshop-assets';
 import type { UploadLimit } from '../../common/read-upload';
 
 type Storage = SupabaseService['service']['storage'];
@@ -10,7 +11,7 @@ type Storage = SupabaseService['service']['storage'];
  * It lives beside the Workshop's cover, in the same bucket, under the same size and types.
  */
 export const WORKSHOP_INSTRUCTOR_PHOTO_UPLOAD: UploadLimit = {
-  maxBytes: WORKSHOP_LOGO_MAX_BYTES,
+  maxBytes: WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES,
   tooLarge: 'Photo upload exceeds the 15 MB size limit.',
 };
 

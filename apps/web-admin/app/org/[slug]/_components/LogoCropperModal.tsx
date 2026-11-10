@@ -4,14 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { computeMinZoom, type Size } from './logo-cropper-zoom';
+import { bakedSize, computeMinZoom, type Size } from './logo-cropper-zoom';
 
 interface Props {
   /** File freshly picked from the operator's file picker. */
   file: File;
   onCancel: () => void;
-  /** Receives the baked PNG blob; caller is responsible for the upload. */
+  /** Receives the baked blob; caller is responsible for the upload. */
   onSave: (croppedBlob: Blob) => void | Promise<void>;
+  /** A person's photo: baked at most `PHOTO_SIDE_MAX` wide, as a JPEG. A logo: its own pixels, PNG. */
+  photo?: boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ interface Props {
  * caller. The existing `POST /organizations/:id/logo` endpoint
  * doesn't change.
  */
-export function LogoCropperModal({ file, onCancel, onSave }: Props) {
+export function LogoCropperModal({ file, onCancel, onSave, photo = false }: Props) {
   const { t } = useI18n();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -62,7 +64,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
     if (!imageSrc || !croppedAreaPixels) return;
     setSaving(true);
     try {
-      const blob = await cropImageToBlob(imageSrc, croppedAreaPixels);
+      const blob = await cropImageToBlob(imageSrc, croppedAreaPixels, photo);
       if (!blob) return;
       await onSave(blob);
     } finally {
@@ -161,11 +163,16 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
  * source's natural pixel size. Used by the modal on **Save** to
  * bake the crop client-side before uploading.
  */
-async function cropImageToBlob(imageSrc: string, pixelArea: Area): Promise<Blob | null> {
+async function cropImageToBlob(
+  imageSrc: string,
+  pixelArea: Area,
+  photo: boolean,
+): Promise<Blob | null> {
   const image = await loadImage(imageSrc);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(pixelArea.width));
-  canvas.height = Math.max(1, Math.round(pixelArea.height));
+  const size = bakedSize(pixelArea, photo);
+  canvas.width = size.width;
+  canvas.height = size.height;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   // Fill with white before drawImage so transparent source pixels
@@ -185,11 +192,11 @@ async function cropImageToBlob(imageSrc: string, pixelArea: Area): Promise<Blob 
     pixelArea.height,
     0,
     0,
-    pixelArea.width,
-    pixelArea.height,
+    size.width,
+    size.height,
   );
   return await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), 'image/png', 0.92);
+    canvas.toBlob((blob) => resolve(blob), photo ? 'image/jpeg' : 'image/png', 0.92);
   });
 }
 

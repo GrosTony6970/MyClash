@@ -11,3 +11,5 @@ export const WORKSHOP_PREREQUISITES_MAX = 2000;
  */
 export const WORKSHOP_INSTRUCTOR_BIO_MAX = 2000;
 export const WORKSHOP_INSTRUCTOR_CLUB_MAX = 200;
+/** The photo's cap: the server refuses a larger file, the forms refuse to pick one. */
+export const WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES = 15 * 1024 * 1024;

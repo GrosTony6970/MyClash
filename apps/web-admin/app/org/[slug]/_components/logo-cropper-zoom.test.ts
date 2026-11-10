@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { ZOOM_OUT_FLOOR, computeMinZoom } from './logo-cropper-zoom';
+import { PHOTO_SIDE_MAX, ZOOM_OUT_FLOOR, bakedSize, computeMinZoom } from './logo-cropper-zoom';
+
+describe('bakedSize', () => {
+  it("bakes a phone portrait's square crop at most 512 pixels wide as a photo", () => {
+    expect(bakedSize({ width: 3024, height: 3024 }, true)).toEqual({
+      width: PHOTO_SIDE_MAX,
+      height: PHOTO_SIDE_MAX,
+    });
+  });
+
+  it('keeps a small photo and every logo at their own pixels', () => {
+    expect(bakedSize({ width: 300, height: 300 }, true)).toEqual({ width: 300, height: 300 });
+    expect(bakedSize({ width: 3024, height: 3024 }, false)).toEqual({ width: 3024, height: 3024 });
+  });
+});
 
 describe('computeMinZoom', () => {
   it('returns the zoom-out floor when sizes are missing or invalid', () => {

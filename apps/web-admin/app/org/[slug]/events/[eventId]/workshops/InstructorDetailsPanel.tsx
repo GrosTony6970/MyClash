@@ -10,13 +10,14 @@ import { useRef, useState } from 'react';
 import { Button, FormField, Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { failureMessage } from '@myclash/api-client';
-import { WORKSHOP_INSTRUCTOR_BIO_MAX, WORKSHOP_INSTRUCTOR_CLUB_MAX } from '@myclash/types';
+import {
+  WORKSHOP_INSTRUCTOR_BIO_MAX,
+  WORKSHOP_INSTRUCTOR_CLUB_MAX,
+  WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES,
+} from '@myclash/types';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
 import { LogoCropperModal } from '../../../_components/LogoCropperModal';
 import { useInstructorDetails, type InstructorDetailsView } from './use-instructor-details';
-
-/** The photo's cap, the server's (`WORKSHOP_INSTRUCTOR_PHOTO_UPLOAD`). */
-const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
 
 interface Props {
   apiUrl: string;
@@ -131,7 +132,7 @@ function PhotoField({
   const own = view.override.photoUrl;
 
   function pick(file: File) {
-    if (!validateLogoFile(file, PHOTO_MAX_BYTES).ok) {
+    if (!validateLogoFile(file, WORKSHOP_INSTRUCTOR_PHOTO_MAX_BYTES).ok) {
       setError(t('organizer.workshopsPage.instructorDetails.photoInvalid'));
       return;
     }
@@ -149,14 +150,11 @@ function PhotoField({
           onPick={pick}
           onRemove={() => void details.removePhoto()}
         />
-        {error && (
-          <p role="alert" className="text-xs text-danger">
-            {error}
-          </p>
-        )}
+        {error && <PhotoError text={error} />}
       </div>
       {pending && (
         <LogoCropperModal
+          photo
           file={pending}
           onCancel={() => setPending(null)}
           onSave={async (blob) => {
@@ -166,6 +164,15 @@ function PhotoField({
         />
       )}
     </div>
+  );
+}
+
+/** Why a picked file was refused before any upload. */
+function PhotoError({ text }: { text: string }) {
+  return (
+    <p role="alert" className="text-xs text-danger">
+      {text}
+    </p>
   );
 }
 

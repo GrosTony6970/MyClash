@@ -50,7 +50,7 @@ function useDetailsRead(apiUrl: string, path: string) {
     };
   }, [apiUrl, path]);
 
-  return { view, setView, loadFailure, boxes, setBoxes, asLoaded, setAsLoaded };
+  return { view, setView, loadFailure, boxes, setBoxes, asLoaded };
 }
 
 /** One write at a time: busy while it runs, its refusal kept for the panel to say. */
@@ -75,13 +75,10 @@ function useWrite() {
 /**
  * Reads and writes one instructor line's details (2.6b). Two people write them (558): the
  * organiser here, the instructor from their own page. A Save sends only the boxes changed since
- * the panel opened, and the baseline moves after each landed save. A photo is stored at once.
+ * the panel opened; the panel closes once it lands. A photo is stored at once.
  */
 export function useInstructorDetails(apiUrl: string, path: string) {
-  const { view, setView, loadFailure, boxes, setBoxes, asLoaded, setAsLoaded } = useDetailsRead(
-    apiUrl,
-    path,
-  );
+  const { view, setView, loadFailure, boxes, setBoxes, asLoaded } = useDetailsRead(apiUrl, path);
   const { busy, failure, write } = useWrite();
   const stored = (override: InstructorDetails) =>
     setView((current) => current && { ...current, override });
@@ -93,16 +90,13 @@ export function useInstructorDetails(apiUrl: string, path: string) {
     const saved = await write(() =>
       apiRequest<InstructorDetails>(apiUrl, path, { method: 'PATCH', body: sent }),
     );
-    if (!saved) return false;
-    setAsLoaded(boxes);
-    stored(saved);
-    return true;
+    return saved !== null;
   }
 
   async function uploadPhoto(blob: Blob) {
     if (!view) return;
     const form = new FormData();
-    form.append('file', new File([blob], 'photo.png', { type: blob.type || 'image/png' }));
+    form.append('file', new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' }));
     const answer = await write(() =>
       apiRequest<{ url: string }>(apiUrl, `${path}/photo`, { method: 'POST', body: form }),
     );

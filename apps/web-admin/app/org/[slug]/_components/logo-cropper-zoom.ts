@@ -39,3 +39,19 @@ export function computeMinZoom(media: Size | null, crop: Size | null): number {
   if (!Number.isFinite(fit) || fit <= 0) return ZOOM_OUT_FLOOR;
   return Math.min(fit, ZOOM_OUT_FLOOR);
 }
+
+/** A person's photo is baked at most this wide, as the public site's avatar cropper does. */
+export const PHOTO_SIDE_MAX = 512;
+
+/**
+ * The canvas a crop is baked into. A logo keeps the source's own pixels. A photo is scaled down
+ * to `PHOTO_SIDE_MAX` on its longer side: a phone portrait's crop at full size, as a PNG, is
+ * larger than the 15 MB the server takes, though the picked file was 4 MB.
+ */
+export function bakedSize(area: Size, photo: boolean): Size {
+  const scale = photo ? Math.min(1, PHOTO_SIDE_MAX / Math.max(area.width, area.height)) : 1;
+  return {
+    width: Math.max(1, Math.round(area.width * scale)),
+    height: Math.max(1, Math.round(area.height * scale)),
+  };
+}
