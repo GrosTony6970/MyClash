@@ -2157,6 +2157,12 @@ export const organizer = {
       swissBadge: 'Swiss',
     },
   },
+  selfJoin: {
+    title: 'People may join this Event by themselves',
+    help: 'Someone with a MyClash account who is not on the list can add themselves from a Workshop page, then book. Their name shows in the participants list.',
+    loadError: 'Could not read whether people may join by themselves.',
+    saveError: 'Could not change whether people may join by themselves.',
+  },
   workshopsPage: {
     breadcrumbEvent: 'Event',
     breadcrumbWorkshops: 'Workshops',

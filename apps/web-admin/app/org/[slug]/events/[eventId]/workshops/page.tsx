@@ -63,6 +63,7 @@ import {
 } from './filter-workshops';
 import { rosterRequests } from './roster-requests';
 import { RosterAddPerson } from './RosterAddPerson';
+import { SelfJoinCard } from './SelfJoinCard';
 import { RosterCheckIn } from './RosterCheckIn';
 import { RosterMessage } from './RosterMessage';
 import { RosterSheetActions } from './RosterSheetActions';
@@ -1081,6 +1082,8 @@ export default function WorkshopsAdminPage() {
           {t('organizer.workshopsPage.newWorkshop')}
         </button>
       </div>
+
+      <SelfJoinCard apiUrl={apiUrl} eventId={eventId} readOnly={isReadOnly} />
 
       {/* Tabs */}
       <div className="mb-5 flex gap-1 border-b border-border">

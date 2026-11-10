@@ -2116,6 +2116,12 @@ export const organizer = {
       swissBadge: 'Suisse',
     },
   },
+  selfJoin: {
+    title: "Les personnes peuvent s'inscrire elles-mêmes à cet événement",
+    help: "Une personne qui a un compte MyClash et n'est pas sur la liste peut s'y ajouter depuis la page d'un atelier, puis réserver. Son nom apparaît dans la liste des participants.",
+    loadError: "Impossible de lire si les personnes peuvent s'inscrire elles-mêmes.",
+    saveError: "Impossible de modifier l'inscription par soi-même.",
+  },
   workshopsPage: {
     breadcrumbEvent: 'Événement',
     breadcrumbWorkshops: 'Ateliers',
