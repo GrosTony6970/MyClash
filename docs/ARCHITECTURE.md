@@ -2035,7 +2035,19 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   photo by default; a Workshop may override any of the three on its instructor line
   (`workshop_instructors.bio`, `affiliation`, `photo_url`), written by the organiser or by that
   instructor. An override is shown even when the profile bio is private: it was written for that
-  page. NOT BUILT yet: slice 2.6b; slice 3.6 shows instructors to the public.
+  page. Built in slice 2.6b (`workshop-instructor-details.service.ts`, `…controller.ts`): the
+  organiser opens a panel from an instructor saved on the Workshop (564); the instructor writes
+  their own line from "My workshops", and a co-instructor is refused; an empty box shows the
+  profile's value as a hint, never a private bio to the organiser (563); each door sends only the
+  boxes changed since it opened (two writers). Bio 2000 and club line 200 characters
+  (`@myclash/types`). The photo is stored in `workshop-assets` at
+  `workshop_instructors/<line id>/photo-…` (`workshop-instructor-photo.ts`, the folder an archive
+  restore writes too); a replaced or removed photo's file is deleted at once, only when it lies in
+  that line's folder (562). Unticking an instructor deletes the line with its details and files,
+  after a question asked before any write of the Save (561). Erasure clears the three and deletes
+  the files, before the profile forgets the account. The Event archive carries the photo. The
+  three columns are closed to the web roles (migration 0260, ruling 565): only the API reads
+  them, and slice 3.6 shows them to the public through the app.
 - Drag-drop session scheduler showing Lices + venue rooms in a single timeline. A Workshop may
   run several sessions (operator rulings 515, 524): the drawer lists every Workshop, and a drag
   of one adds a session; a card on the grid is one session, moved by its id; a session the board
