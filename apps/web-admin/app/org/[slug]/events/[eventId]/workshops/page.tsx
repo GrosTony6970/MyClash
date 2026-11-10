@@ -58,6 +58,7 @@ import {
   workshopSortValue,
 } from './filter-workshops';
 import { rosterRequests } from './roster-requests';
+import { RosterAddPerson } from './RosterAddPerson';
 import { RosterMessage } from './RosterMessage';
 import { RosterName } from './RosterName';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
@@ -1588,6 +1589,19 @@ export default function WorkshopsAdminPage() {
                 </div>
               ))}
             </div>
+          )}
+          {/* A cancelled session takes nobody (the server refuses it too). One box per session. */}
+          {!rosterCancelled && (
+            <RosterAddPerson
+              key={`add-${rosterSession}`}
+              apiUrl={apiUrl}
+              eventId={eventId}
+              sessionId={rosterSession}
+              onRoster={new Set(roster.map((entry) => entry.personId))}
+              onAdded={() => rereadRoster(rosterSession)}
+              readOnly={isReadOnly}
+              rereading={rosterLoading}
+            />
           )}
           {/* A cancelled session does nothing (532). Not hidden while the same roster is read
               again after a Remove or a Promote: the draft and the "Sent" line stay. Another
