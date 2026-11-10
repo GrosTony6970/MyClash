@@ -203,6 +203,29 @@ describe('the roster of a Workshop session', () => {
     expect(rosterReads()).toBe(2);
   });
 
+  it('a Remove answered after the roster was closed reopens nothing', async () => {
+    let answer: () => void = () => undefined;
+    const reads = vi.mocked(apiRequest).getMockImplementation()!;
+    vi.mocked(apiRequest).mockImplementation((base, path, init) =>
+      init?.method === 'DELETE'
+        ? new Promise((resolve) => (answer = () => resolve({ ok: true, data: undefined })))
+        : reads(base, path, init),
+    );
+    await click(lineOf('Tom Roux'), 'Remove');
+    await click(document.body, 'Confirm');
+
+    // The organiser closes the roster (a click on the backdrop) before the server answers.
+    const backdrop = document.querySelector('[role="dialog"]')!.parentElement!;
+    await act(async () => backdrop.click());
+    await settle();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => answer());
+    await settle();
+
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(rosterReads()).toBe(1);
+  });
+
   it('"Remove" works on a booking the roster has no name for', async () => {
     await click(lineOf('Unknown'), 'Remove');
     await click(document.body, 'Confirm');

@@ -653,6 +653,14 @@ export default function WorkshopsAdminPage() {
     setRosterLoading(false);
   }
 
+  /**
+   * The roster read again after a write, only while the dialog still shows that session: a slow
+   * answer to a Remove reopened a roster the organiser had closed, or switched it back.
+   */
+  async function rereadRoster(sessionId: string) {
+    if (rosterRead.current.of === sessionId) await openRoster(sessionId);
+  }
+
   async function handlePromote(sessionId: string, entry: RosterEntry) {
     const { path, method } = rosterRequests(sessionId, entry).promote;
     const r = await apiRequest(apiUrl, path, { method });
@@ -663,7 +671,7 @@ export default function WorkshopsAdminPage() {
       if (message) toast.error(message);
       return;
     }
-    await openRoster(sessionId);
+    await rereadRoster(sessionId);
   }
 
   // Delete the Workshop being edited: one nobody is booked on (operator ruling, 2026-11-09).
@@ -697,7 +705,7 @@ export default function WorkshopsAdminPage() {
       if (message) toast.error(message);
       return;
     }
-    await openRoster(sessionId);
+    await rereadRoster(sessionId);
   }
 
   // ── Global person search for enrollment linking ────────────────────────────
@@ -742,7 +750,7 @@ export default function WorkshopsAdminPage() {
     setLinkingEnrollmentId(null);
     setGpSearch('');
     setGpResults([]);
-    if (rosterSession) await openRoster(rosterSession);
+    if (rosterSession) await rereadRoster(rosterSession);
   }
 
   // ── Tabs (#list / #schedule) ────────────────────────────────────────────────────
