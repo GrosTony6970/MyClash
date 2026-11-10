@@ -1,9 +1,12 @@
 /**
  * A Workshop's two short texts the organiser and its instructor fill in (ruling 557): the line on
- * the catalogue card, and what a learner should know or bring. Plain text, no Markdown.
+ * the catalogue card, and what a learner should know or bring. Plain text, no Markdown. Their
+ * limits are shared with the forms (`@myclash/types`).
  */
-export const SHORT_DESCRIPTION_MAX = 200;
-export const PREREQUISITES_MAX = 2000;
+export {
+  WORKSHOP_PREREQUISITES_MAX as PREREQUISITES_MAX,
+  WORKSHOP_SHORT_DESCRIPTION_MAX as SHORT_DESCRIPTION_MAX,
+} from '@myclash/types';
 
 /**
  * What to store for a text field a form sent: trimmed, and a blank box clears it (null). Left

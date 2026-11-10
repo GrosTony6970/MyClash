@@ -81,4 +81,35 @@ describe("the instructor's edit panel", () => {
       expect.objectContaining({ shortDescription: '', prerequisites: ' Bring a mask ' }),
     );
   });
+
+  it("sends neither text when neither changed, so the organiser's newer one is kept", async () => {
+    act(() =>
+      root.render(
+        <I18nProvider locale="en">
+          <EditPanel
+            workshopId="w-1"
+            apiUrl="http://api.test"
+            fields={{
+              weapon: '',
+              level: '',
+              language: 'en',
+              descriptionMd: '',
+              shortDescription: 'First steps',
+              prerequisites: 'A mask',
+            }}
+            onSaved={vi.fn()}
+          />
+        </I18nProvider>,
+      ),
+    );
+
+    act(() => type(labelled('Level'), 'Beginner'));
+    const save = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save')!;
+    await act(async () => save.click());
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+    expect(body).toMatchObject({ level: 'Beginner' });
+    expect(body).not.toHaveProperty('shortDescription');
+    expect(body).not.toHaveProperty('prerequisites');
+  });
 });

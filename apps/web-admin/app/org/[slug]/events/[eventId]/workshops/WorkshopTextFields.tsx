@@ -6,17 +6,14 @@
  * and a blank box clears the field on save.
  */
 import { useI18n } from '@myclash/next-i18n/client';
-
-/** The server's limits (`apps/api/src/modules/workshops/workshop-text.ts`). */
-const SHORT_DESCRIPTION_MAX = 200;
-const PREREQUISITES_MAX = 2000;
+import { WORKSHOP_PREREQUISITES_MAX, WORKSHOP_SHORT_DESCRIPTION_MAX } from '@myclash/types';
 
 interface Texts {
   shortDescription: string;
   prerequisites: string;
 }
 
-/** What a save sends: trimmed, a blank box as null (clears it). */
+/** What a new Workshop's save sends: trimmed, a blank box as null. */
 export function formTexts(form: Texts): {
   shortDescription: string | null;
   prerequisites: string | null;
@@ -24,6 +21,25 @@ export function formTexts(form: Texts): {
   return {
     shortDescription: form.shortDescription.trim() || null,
     prerequisites: form.prerequisites.trim() || null,
+  };
+}
+
+/**
+ * What an edit's save sends: only a text changed since the form opened. The instructor writes
+ * them too (557), from a page this form never sees: an untouched box sent back would wipe what
+ * they wrote meanwhile. A text both changed: the last save wins.
+ */
+export function changedTexts(
+  form: Texts,
+  asLoaded: Texts,
+): Partial<{ shortDescription: string | null; prerequisites: string | null }> {
+  const sent = formTexts(form);
+  const before = formTexts(asLoaded);
+  return {
+    ...(sent.shortDescription !== before.shortDescription
+      ? { shortDescription: sent.shortDescription }
+      : {}),
+    ...(sent.prerequisites !== before.prerequisites ? { prerequisites: sent.prerequisites } : {}),
   };
 }
 
@@ -50,7 +66,7 @@ export function WorkshopTextFields({
         <input
           id="workshop-short-description"
           value={values.shortDescription}
-          maxLength={SHORT_DESCRIPTION_MAX}
+          maxLength={WORKSHOP_SHORT_DESCRIPTION_MAX}
           onChange={(e) => onChange({ shortDescription: e.target.value })}
           className={FIELD}
         />
@@ -68,7 +84,7 @@ export function WorkshopTextFields({
         <textarea
           id="workshop-prerequisites"
           value={values.prerequisites}
-          maxLength={PREREQUISITES_MAX}
+          maxLength={WORKSHOP_PREREQUISITES_MAX}
           onChange={(e) => onChange({ prerequisites: e.target.value })}
           rows={2}
           className={`${FIELD} resize-none`}

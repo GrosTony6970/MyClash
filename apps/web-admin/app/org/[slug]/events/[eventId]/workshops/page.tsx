@@ -47,7 +47,7 @@ import {
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { useInstructorClashes } from './use-instructor-clashes';
-import { formTexts, WorkshopTextFields } from './WorkshopTextFields';
+import { changedTexts, formTexts, WorkshopTextFields } from './WorkshopTextFields';
 import { sessionDeleteQuestion } from './session-delete-question';
 import { workshopDeleteQuestion, workshopDeleteRefusal } from './workshop-delete';
 import { WorkshopLogoField } from './WorkshopLogoField';
@@ -174,6 +174,8 @@ const EMPTY_FORM = {
   /** The catalogue line and what to know or bring (557): a blank box clears it. */
   shortDescription: '',
   prerequisites: '',
+  /** The two texts as the form opened them: a save sends only a changed one (two writers). */
+  textsAsLoaded: { shortDescription: '', prerequisites: '' },
   venueId: '' as string,
   color: '' as string,
   status: 'draft',
@@ -319,6 +321,10 @@ export default function WorkshopsAdminPage() {
       description: '',
       shortDescription: w.shortDescription ?? '',
       prerequisites: w.prerequisites ?? '',
+      textsAsLoaded: {
+        shortDescription: w.shortDescription ?? '',
+        prerequisites: w.prerequisites ?? '',
+      },
       venueId: w.venueId ?? '',
       color: w.color ?? '',
       status: w.status,
@@ -538,7 +544,7 @@ export default function WorkshopsAdminPage() {
             color: form.color || null,
             venueId: form.venueId || null,
             autoCheckIn: form.autoCheckIn,
-            ...formTexts(form),
+            ...changedTexts(form, form.textsAsLoaded),
             // Clear a saved logo when the operator removed it. Setting a
             // new logo goes through the dedicated upload endpoint below.
             ...(logoRemoved ? { coverImageUrl: null } : {}),

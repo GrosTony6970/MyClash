@@ -16,6 +16,7 @@ import { RosterTick } from './RosterTick';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
+import { WORKSHOP_PREREQUISITES_MAX, WORKSHOP_SHORT_DESCRIPTION_MAX } from '@myclash/types';
 import {
   CANCELLED_TEXT,
   CancelledBadge,
@@ -54,6 +55,16 @@ interface InstructorWorkshop {
   durationMinutes: number | null;
   sessions: InstructorSession[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+}
+
+/** `{ [key]: text }` when the text changed since the panel opened, a blank one as null; else `{}`. */
+function changedText(
+  key: 'shortDescription' | 'prerequisites',
+  draft: EditFields,
+  loaded: EditFields,
+): Partial<Record<typeof key, string | null>> {
+  const now = draft[key].trim() || null;
+  return now === (loaded[key].trim() || null) ? {} : { [key]: now };
 }
 
 /** What the instructor edits on a Workshop they teach, as the form holds it. */
@@ -328,8 +339,10 @@ export function EditPanel({
           level: draft.level.trim() || null,
           language: draft.language.trim() || null,
           descriptionMd: draft.descriptionMd.trim() || null,
-          shortDescription: draft.shortDescription.trim() || null,
-          prerequisites: draft.prerequisites.trim() || null,
+          // Only a text changed here: the organiser writes them too (557), and an untouched
+          // box sent back would wipe what they wrote meanwhile. Both changed: the last wins.
+          ...changedText('shortDescription', draft, fields),
+          ...changedText('prerequisites', draft, fields),
         }),
       });
       if (!res.ok) throw new Error('save');
@@ -392,7 +405,7 @@ export function EditPanel({
       <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
         {t('publicApp.me.instructor.shortDescriptionLabel')}
         <input
-          maxLength={200}
+          maxLength={WORKSHOP_SHORT_DESCRIPTION_MAX}
           className={inputClass}
           value={draft.shortDescription}
           onChange={(e) => setDraft((d) => ({ ...d, shortDescription: e.target.value }))}
@@ -402,7 +415,7 @@ export function EditPanel({
         {t('publicApp.me.instructor.prerequisitesLabel')}
         <textarea
           rows={2}
-          maxLength={2000}
+          maxLength={WORKSHOP_PREREQUISITES_MAX}
           className={`${inputClass} resize-none`}
           value={draft.prerequisites}
           onChange={(e) => setDraft((d) => ({ ...d, prerequisites: e.target.value }))}

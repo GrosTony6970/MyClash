@@ -100,4 +100,37 @@ describe("the Workshop form's two short texts", () => {
 
     expect(patchBody()).toMatchObject({ shortDescription: null, prerequisites: 'Bring a mask' });
   });
+
+  it("sends neither when neither was touched, so the instructor's newer text is kept", async () => {
+    page = await openEventPage(<WorkshopsAdminPage />, READS, {
+      'PATCH /api/v1/workshops/w-1': {},
+    });
+    await press('Edit');
+    await press('Save');
+
+    expect(patchBody()).toMatchObject({ title: 'Saturday longsword' });
+    expect(patchBody()).not.toHaveProperty('shortDescription');
+    expect(patchBody()).not.toHaveProperty('prerequisites');
+  });
+
+  it('sends both on a new Workshop', async () => {
+    page = await openEventPage(<WorkshopsAdminPage />, READS, {
+      [`POST /api/v1/events/${EVENT_ID}/workshops`]: { id: 'w-new' },
+    });
+    await press('+ New workshop');
+    const title = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="text"]',
+    )!;
+    await act(async () => type(title, 'Dagger intro'));
+    await act(async () => type(field('workshop-short-description'), 'Daggers, gently'));
+    await act(async () => type(field('workshop-prerequisites'), 'Gloves'));
+    await press('Create');
+
+    const body = vi
+      .mocked(apiRequest)
+      .mock.calls.find(
+        ([, p, init]) => p === `/api/v1/events/${EVENT_ID}/workshops` && init?.method === 'POST',
+      )?.[2]?.body;
+    expect(body).toMatchObject({ shortDescription: 'Daggers, gently', prerequisites: 'Gloves' });
+  });
 });
