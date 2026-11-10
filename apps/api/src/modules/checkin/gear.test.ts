@@ -59,7 +59,7 @@ describe('latestCheckPerWeapon', () => {
 });
 
 describe('buildGearEntry', () => {
-  const person = mapRosterRow(PERSON, null);
+  const person = mapRosterRow(PERSON, null, null, null);
 
   it('renders one line per entered weapon, unchecked until there is a row', () => {
     const entry = buildGearEntry(

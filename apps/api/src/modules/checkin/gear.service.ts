@@ -78,7 +78,11 @@ export class GearService {
 
     return {
       entries: people.map((person) =>
-        buildGearEntry(mapRosterRow(person, null), weaponsByPerson.get(person.id) ?? [], latest),
+        buildGearEntry(
+          mapRosterRow(person, null, null, null),
+          weaponsByPerson.get(person.id) ?? [],
+          latest,
+        ),
       ),
       truncated,
     };

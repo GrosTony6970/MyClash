@@ -96,8 +96,9 @@ export interface DeskList<T> {
 export function mapRosterRow(
   person: RosterPersonRow,
   arrival: ArrivalRow | null,
-  next: NextMatch | null = null,
-  today: DeskToday | null = null,
+  next: NextMatch | null,
+  /** Null when the Event's clock could not be read (`deskToday`), or on the gear table. */
+  today: DeskToday | null,
 ): RosterEntry {
   const arrived = arrival?.state === 'present';
   return {
@@ -112,7 +113,8 @@ export function mapRosterRow(
     // Only meaningful while present. Carrying the old timestamp through an undo
     // would render "arrived 09:12" beside an Absent state.
     arrivedAt: arrived ? (arrival?.marked_at ?? null) : null,
-    // With no clock (the gear table) an arrival counts as today's.
+    // With no clock (the Event could not be read) an arrival counts as today's: the desk then
+    // offers no "Arrived today" rather than offering it to everyone. The gear table reads none.
     arrivedToday:
       arrived && (!today || zonedDay(arrival?.marked_at ?? null, today.zone) === today.day),
     via: arrived ? (arrival?.via ?? null) : null,

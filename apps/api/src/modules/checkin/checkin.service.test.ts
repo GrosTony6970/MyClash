@@ -126,6 +126,40 @@ describe('CheckinService.listRoster', () => {
     registrations: { data: [], error: null },
   };
 
+  it('still lists the roster when the Event clock cannot be read, and says so in the log (547)', async () => {
+    const staff = staffDouble('checkin');
+    const supabase = mockSupabase({
+      persons: { rows: [person('p1', 'A')] },
+      ...NO_SCHEDULE,
+      event_arrivals: {
+        data: [
+          { person_id: 'p1', state: 'present', via: 'search', marked_at: '2026-08-08T07:00:00Z' },
+        ],
+        error: null,
+      },
+      events: { data: null, error: { message: 'connection reset' } },
+    });
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble() as never,
+    );
+    const logged = vi.spyOn(
+      (service as unknown as { logger: { error: (m: string) => void } }).logger,
+      'error',
+    );
+
+    const page = await service.listRoster(REQ);
+
+    // Every arrival counts as today's: no "Arrived today" offered to everyone.
+    expect(page.entries.map((entry) => [entry.arrived, entry.arrivedToday])).toEqual([
+      [true, true],
+    ]);
+    expect(logged).toHaveBeenCalledWith(
+      'Event event-1: the clock was not read, no "Arrived today": connection reset',
+    );
+  });
+
   it('says so when the event outgrew the ceiling, instead of truncating in silence', async () => {
     const staff = staffDouble('checkin');
     const supabase = mockSupabase({
@@ -231,8 +265,13 @@ describe('CheckinService.markArrived', () => {
     const staff = staffDouble('checkin');
     const arrivals = supabaseChain({ data: { person_id: 'p1', state: 'present' }, error: null });
     const supabase = mockSupabase({ persons: { data: { id: 'p1' }, error: null } });
+    // The person's Workshop bookings, for the desk's auto ticks (540): none here.
     supabase.from.mockImplementation((table: string) =>
-      table === 'event_arrivals' ? arrivals : supabaseChain({ data: { id: 'p1' }, error: null }),
+      table === 'event_arrivals'
+        ? arrivals
+        : table === 'workshop_enrollments'
+          ? supabaseChain({ data: [], error: null })
+          : supabaseChain({ data: { id: 'p1' }, error: null }),
     );
     const service = new CheckinService(
       supabase as never,
@@ -272,7 +311,9 @@ describe('CheckinService.undoArrival', () => {
     const staff = staffDouble('checkin');
     const arrivals = supabaseChain({ data: { person_id: 'p1', state: 'absent' }, error: null });
     const supabase = mockSupabase({ event_arrivals: { data: null, error: null } });
-    supabase.from.mockReturnValue(arrivals);
+    supabase.from.mockImplementation((table: string) =>
+      table === 'workshop_enrollments' ? supabaseChain({ data: [], error: null }) : arrivals,
+    );
     const service = new CheckinService(
       supabase as never,
       staff.service as never,

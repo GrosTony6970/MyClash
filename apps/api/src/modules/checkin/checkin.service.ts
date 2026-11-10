@@ -230,14 +230,24 @@ export class CheckinService {
 
   // ── queries ───────────────────────────────────────────────────────────────
 
-  /** Today on the Event's clock, for `arrivedToday` (547). An unknown zone is said. */
-  private async deskToday(eventId: string): Promise<DeskToday> {
+  /**
+   * Today on the Event's clock, for `arrivedToday` (547). An unknown zone is said. A clock that
+   * cannot be read is null, and logged: the desk still lists and marks people, every arrival
+   * counting as today's (no "Arrived today"). The scan has written its arrival by then; a failure
+   * here must not bounce the pass.
+   */
+  private async deskToday(eventId: string): Promise<DeskToday | null> {
     const { data, error } = await this.supabase.service
       .from('events')
       .select('timezone')
       .eq('id', eventId)
       .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      this.logger.error(
+        `Event ${eventId}: the clock was not read, no "Arrived today": ${error.message}`,
+      );
+      return null;
+    }
     const timezone = (data as { timezone?: unknown } | null)?.timezone;
     const { zone, unknownZone } = eventZone(timezone);
     if (unknownZone) this.logger.warn(unknownZoneWarning(eventId, timezone));
