@@ -9008,6 +9008,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workshops/{id}/instructors/{globalPersonId}/details': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What this Workshop says about one instructor, and the profile it falls back to (the instructor, own line; workshop_lead+, any line). The profile's bio only when public, or to the person. */
+    get: operations['WorkshopInstructorDetailsController_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Write this Workshop's bio and club line for one instructor (the instructor, own line; workshop_lead+, any line). A box not sent is kept; a blank one clears it. */
+    patch: operations['WorkshopInstructorDetailsController_update'];
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/my-schedule': {
     parameters: {
       query?: never;
@@ -12335,6 +12353,10 @@ export interface components {
     };
     CheckInBody: {
       present: boolean;
+    };
+    InstructorDetailsBody: {
+      bio?: string | null;
+      club?: string | null;
     };
     SchedulePlacementsDto: {
       placements: {
@@ -25945,6 +25967,50 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['CheckInBody'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopInstructorDetailsController_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopInstructorDetailsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['InstructorDetailsBody'];
       };
     };
     responses: {

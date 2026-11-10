@@ -15,7 +15,10 @@ interface TableLog {
   rows: Record<string, unknown>[];
 }
 
-function makeSupabase(seed: Record<string, Record<string, unknown>[]> = {}) {
+function makeSupabase(
+  seed: Record<string, Record<string, unknown>[]> = {},
+  failing: readonly string[] = [],
+) {
   const log: Record<string, TableLog> = {};
   const tableLog = (table: string): TableLog =>
     (log[table] ??= { updates: [], deletes: 0, rows: seed[table] ?? [] });
@@ -23,7 +26,10 @@ function makeSupabase(seed: Record<string, Record<string, unknown>[]> = {}) {
   const service = {
     from(table: string) {
       const entry = tableLog(table);
-      const result = { data: entry.rows, error: null };
+      const result = {
+        data: entry.rows,
+        error: failing.includes(table) ? { message: `${table} is down` } : null,
+      };
       const chain: Record<string, unknown> = {
         select: () => chain,
         eq: () => chain,
@@ -175,6 +181,27 @@ describe('ErasureService.redactSubject', () => {
     expect(log['global_person_claim_requests']?.deletes).toBeGreaterThan(0);
     expect(log['global_person_claim_tokens']?.deletes).toBeGreaterThan(0);
   });
+
+  it('wipes what a Workshop says about the person, keeping the name on the line', async () => {
+    const { supabase, log } = makeSupabase({ global_persons: [{ id: 'g1' }] });
+    const counts = await new ErasureService(supabase).redactSubject('u1');
+
+    expect(log['workshop_instructors']!.updates).toEqual([
+      { bio: null, affiliation: null, photo_url: null },
+    ]);
+    expect(counts).toHaveProperty('workshop_instructors');
+  });
+
+  it('wipes the Workshop lines BEFORE the profile forgets the account, so a retry finds them', async () => {
+    // The profile ids come from claimed_by_user_id, which the profile update clears.
+    const { supabase, log } = makeSupabase({ global_persons: [{ id: 'g1' }] }, [
+      'workshop_instructors',
+    ]);
+    await expect(new ErasureService(supabase).redactSubject('u1')).rejects.toThrow(
+      /workshop_instructors/,
+    );
+    expect(log['global_persons']!.updates).toEqual([]);
+  });
 });
 
 describe('ErasureService.anonymiseGlobalPerson', () => {
@@ -187,6 +214,16 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     expect(patch['slug']).toBe(slugFor('g1'));
     expect(patch['email']).toBeNull();
     expect(patch['photo_url']).toBeNull();
+  });
+
+  it('wipes what a Workshop says about the person', async () => {
+    const { supabase, log } = makeSupabase();
+    const { counts } = await new ErasureService(supabase).anonymiseGlobalPerson('g1');
+
+    expect(log['workshop_instructors']!.updates).toEqual([
+      { bio: null, affiliation: null, photo_url: null },
+    ]);
+    expect(counts).toHaveProperty('workshop_instructors');
   });
 });
 

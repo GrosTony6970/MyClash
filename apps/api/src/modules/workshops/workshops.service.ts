@@ -1451,6 +1451,22 @@ export class WorkshopsService {
     return Boolean(data);
   }
 
+  /**
+   * Who may write what a Workshop says about one of its instructors (ruling 558): that person,
+   * for their own line, or an organiser of the Workshop's Event, for any line. True when the
+   * caller IS that person. Decided before the line is read, so a stranger never learns who
+   * teaches a draft Workshop.
+   */
+  async assertCanWriteInstructorLine(
+    workshopId: string,
+    globalPersonId: string,
+    userId: string,
+  ): Promise<boolean> {
+    if ((await this.resolveClaimedGlobalPersonId(userId)) === globalPersonId) return true;
+    await this.assertCanManageEvent(await this.resolveWorkshopEvent(workshopId), userId);
+    return false;
+  }
+
   async assertCanManageWorkshopAsInstructorOrLead(
     workshopId: string,
     userId: string,

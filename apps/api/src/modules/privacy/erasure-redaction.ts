@@ -29,6 +29,14 @@ export const GLOBAL_PERSON_NULLED = [
   'hema_ratings_id',
 ] as const;
 
+/**
+ * Fields nulled on every Workshop line of the person (`workshop_instructors`): what a Workshop
+ * says about them over their profile (rulings 556, 560). The club line goes too: unlike the
+ * profile's club, a link to a club, it is free text about the person. `display_name` stays, as
+ * the profile's name does.
+ */
+export const WORKSHOP_INSTRUCTOR_NULLED = ['bio', 'affiliation', 'photo_url'] as const;
+
 /** Fields nulled on every event-scoped `persons` row. Names stay. */
 export const PERSON_NULLED = ['email', 'notes', 'date_of_birth'] as const;
 

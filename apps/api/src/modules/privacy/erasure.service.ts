@@ -31,6 +31,7 @@ import {
   pseudonymFor,
   scrubPii,
   slugFor,
+  WORKSHOP_INSTRUCTOR_NULLED,
 } from './erasure-redaction';
 
 export type RedactionCounts = Record<string, number>;
@@ -68,6 +69,8 @@ export class ErasureService {
     // Before the profile update below clears `claimed_by_user_id`: the ids above
     // come from that column, so a retry after a failure here still finds them.
     const aimed = await this.deleteRowsAimedAt(globalPersonIds);
+    // Before the profile update for the same reason.
+    const workshopLines = await this.redactWorkshopLines(globalPersonIds);
 
     return {
       // Profile: strip the private individual, keep the competitor.
@@ -82,6 +85,7 @@ export class ErasureService {
         claimed_by_user_id: null,
         claim_status: 'unclaimed',
       }),
+      workshop_instructors: workshopLines,
       // Device telemetry: no historical value, delete outright.
       guest_sessions: await this.deleteIn('guest_sessions', 'person_id', personIds),
       ...addCounts(await this.deleteOwnedRows(uid), aimed),
@@ -206,6 +210,7 @@ export class ErasureService {
       family_name: '',
     });
     counts['guest_sessions'] = await this.deleteIn('guest_sessions', 'person_id', personIds);
+    counts['workshop_instructors'] = await this.redactWorkshopLines([globalPersonId]);
     Object.assign(counts, await this.deleteRowsAimedAt([globalPersonId]));
     // Her personal-space photos carry the old name (ruling 462). The account link survives the
     // update above, so they are still found by it.
@@ -303,6 +308,23 @@ export class ErasureService {
       absorb(data);
     }
     return rows;
+  }
+
+  /**
+   * What a Workshop says about the person, over their profile (rulings 556, 560): a bio, a club
+   * line and a photo written for one Workshop. Found by the profile ids, so `redactSubject` runs
+   * it before the profile update clears the column those ids come from: a failure stays
+   * retryable.
+   */
+  private async redactWorkshopLines(globalPersonIds: string[]): Promise<number> {
+    if (globalPersonIds.length === 0) return 0;
+    const { data, error } = await this.supabase.service
+      .from('workshop_instructors')
+      .update(nulls(WORKSHOP_INSTRUCTOR_NULLED))
+      .in('global_person_id', globalPersonIds)
+      .select('id');
+    if (error) throw new Error(`redact workshop_instructors: ${error.message}`);
+    return (data ?? []).length;
   }
 
   // ── Supabase helpers ────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ function anonymising(profile: Record<string, unknown>) {
     global_person_claim_requests: { rows: [] },
     directory_follows: { rows: [] },
     event_photos: { rows: [{ id: 'ph1', uploader_user_id: 'u1' }] },
+    workshop_instructors: { rows: [] },
   });
   return { supabase, run: () => new ErasureService(supabase as never).anonymiseGlobalPerson('g1') };
 }

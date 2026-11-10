@@ -156,7 +156,9 @@ describe('the archived-Event lock, API-wide', () => {
     // Workshop is not deleted.
     // 194: `PUT workshop-sessions/:id/enrollments/:personId/check-in`, placed by its session: an
     // archived Event's roster takes no tick.
-    expect(placed).toHaveLength(194);
+    // 195: `PATCH workshops/:id/instructors/:globalPersonId/details` (2.6b), placed by its
+    // Workshop: an archived Event's Workshop says nothing new about its instructors.
+    expect(placed).toHaveLength(195);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });
