@@ -113,6 +113,17 @@ describe('WorkshopsService — public gate', () => {
     expect(fake.selectedColumns.join(',')).not.toContain('hide_workshops_publicly');
   });
 
+  it('never reads what a Workshop says of its instructors: the public sees it in 3.6, through the app (565)', async () => {
+    const fake = buildSupabase([]);
+    await makeSvc(fake).listPublicWorkshops('fal-2027', ANONYMOUS);
+
+    const workshopsApi = fake.service.from('workshops') as unknown as {
+      select: ReturnType<typeof vi.fn>;
+    };
+    const [workshopRead] = workshopsApi.select.mock.calls.map(([columns]) => String(columns));
+    expect(workshopRead).toMatch(/workshop_instructors \( global_person_id, display_name \)/);
+  });
+
   it('returns [] for an unknown event slug', async () => {
     const fake = buildSupabase([]);
     // Override events.maybeSingle to resolve null.

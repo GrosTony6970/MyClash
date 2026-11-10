@@ -49,6 +49,8 @@ import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoa
 import { useInstructorClashes } from './use-instructor-clashes';
 import { changedTexts, formTexts, WorkshopTextFields } from './WorkshopTextFields';
 import { sessionDeleteQuestion } from './session-delete-question';
+import { instructorUntickQuestion } from './instructor-untick-question';
+import { InstructorDetailsPanel } from './InstructorDetailsPanel';
 import { workshopDeleteQuestion, workshopDeleteRefusal } from './workshop-delete';
 import { WorkshopLogoField } from './WorkshopLogoField';
 import { WorkshopsTableHeader } from './WorkshopsTableHeader';
@@ -69,7 +71,7 @@ import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface NamedRef {
@@ -117,7 +119,8 @@ interface Workshop {
   venue: NamedRef | null;
   /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
   autoCheckIn?: boolean;
-  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  /** `hasDetails`: this Workshop says something of its own about them (2.6b). */
+  instructors: Array<{ globalPersonId: string | null; displayName: string; hasDetails?: boolean }>;
   sessions: WorkshopSessionView[];
 }
 
@@ -348,9 +351,18 @@ export default function WorkshopsAdminPage() {
     })();
   }
 
+  // The Workshop in the form, as last read: its saved instructors have a details button (564).
+  const editingWorkshop = editingId ? workshops.find((w) => w.id === editingId) : undefined;
+  // The instructor whose details for this Workshop are open (564), over the Workshop's form.
+  const [detailsFor, setDetailsFor] = useState<{
+    globalPersonId: string;
+    displayName: string;
+  } | null>(null);
+
   function closeModal() {
     setShowCreate(false);
     setEditingId(null);
+    setDetailsFor(null);
     setForm(EMPTY_FORM);
     setFormError(null);
     resetLogoState();
@@ -508,6 +520,37 @@ export default function WorkshopsAdminPage() {
     return !question || confirm(question);
   }
 
+  /**
+   * Unticking an instructor deletes what this Workshop says about them (561): ask first when it
+   * says anything. The Workshop is read now: the instructor may have written theirs from their own
+   * page since this list loaded. A read that fails asks about every instructor unticked.
+   */
+  async function mayUntickInstructors(workshop: Workshop, kept: readonly string[]) {
+    const unticked = workshop.instructors.filter(
+      (i) => i.globalPersonId && !kept.includes(i.globalPersonId),
+    );
+    if (unticked.length === 0) return true;
+    const read = await apiRequest<Workshop>(apiUrl, `/api/v1/workshops/${workshop.id}`);
+    const names = unticked
+      .filter(
+        (i) =>
+          !read.ok ||
+          read.data.instructors.some(
+            (line) => line.globalPersonId === i.globalPersonId && line.hasDetails,
+          ),
+      )
+      .map((i) => i.displayName);
+    const question = instructorUntickQuestion(names, t);
+    return !question || confirm(question);
+  }
+
+  /** A refused instructor change keeps the form open and says why; the Workshop is saved. */
+  function instructorRefused(failure: ApiFailure) {
+    const message = failureMessage(failure, t, t('admin.common.saveFailed'));
+    if (message) setFormError(message);
+    setRefreshKey((k) => k + 1);
+  }
+
   /** The texts this save sent are now stored: a later save of the still-open form compares
    *  against them (a refused session keeps it open), so a box emptied then is sent. */
   function textsStored() {
@@ -536,6 +579,7 @@ export default function WorkshopsAdminPage() {
       )) {
         if (!(await mayDeleteSession(dropped.id))) return;
       }
+      if (current && !(await mayUntickInstructors(current, form.instructorIds))) return;
       if (editingId) {
         const patchRes = await apiRequest(apiUrl, `/api/v1/workshops/${editingId}`, {
           method: 'PATCH',
@@ -576,17 +620,21 @@ export default function WorkshopsAdminPage() {
         const nextIds = new Set(form.instructorIds);
         for (const id of nextIds) {
           if (!currentIds.has(id)) {
-            await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/instructors`, {
+            const added = await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/instructors`, {
               method: 'POST',
               body: { globalPersonId: id },
             });
+            if (!added.ok) return instructorRefused(added);
           }
         }
         for (const id of currentIds) {
           if (!nextIds.has(id)) {
-            await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/instructors/${id}`, {
-              method: 'DELETE',
-            });
+            const removed = await apiRequest(
+              apiUrl,
+              `/api/v1/workshops/${editingId}/instructors/${id}`,
+              { method: 'DELETE' },
+            );
+            if (!removed.ok) return instructorRefused(removed);
           }
         }
 
@@ -631,10 +679,14 @@ export default function WorkshopsAdminPage() {
       textsStored();
 
       for (const globalPersonId of form.instructorIds) {
-        await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/instructors`, {
+        const added = await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/instructors`, {
           method: 'POST',
           body: { globalPersonId },
         });
+        if (!added.ok) {
+          setEditingId(created.id);
+          return instructorRefused(added);
+        }
       }
 
       // A refused session leaves the Workshop created: the form turns to editing it, so a second
@@ -1439,22 +1491,45 @@ export default function WorkshopsAdminPage() {
             ) : (
               <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2">
                 {eventInstructors.map((ins) => (
-                  <label key={ins.personId} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.instructorIds.includes(ins.personId)}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          instructorIds: e.target.checked
-                            ? [...f.instructorIds, ins.personId]
-                            : f.instructorIds.filter((id) => id !== ins.personId),
-                        }))
-                      }
-                      className="rounded"
-                    />
-                    {ins.displayName}
-                  </label>
+                  <div key={ins.personId} className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.instructorIds.includes(ins.personId)}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            instructorIds: e.target.checked
+                              ? [...f.instructorIds, ins.personId]
+                              : f.instructorIds.filter((id) => id !== ins.personId),
+                          }))
+                        }
+                        className="rounded"
+                      />
+                      {ins.displayName}
+                    </label>
+                    {/* Once saved on this Workshop: its own bio, club and photo (564). */}
+                    {form.instructorIds.includes(ins.personId) &&
+                      editingWorkshop?.instructors.some(
+                        (i) => i.globalPersonId === ins.personId,
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDetailsFor({
+                              globalPersonId: ins.personId,
+                              displayName: ins.displayName,
+                            })
+                          }
+                          aria-label={t('organizer.workshopsPage.instructorDetails.openAria', {
+                            name: ins.displayName,
+                          })}
+                          className="text-xs font-medium text-accent hover:underline"
+                        >
+                          {t('organizer.workshopsPage.instructorDetails.open')}
+                        </button>
+                      )}
+                  </div>
                 ))}
               </div>
             )}
@@ -1840,6 +1915,14 @@ export default function WorkshopsAdminPage() {
             </div>
           </div>
         </Modal>
+      )}
+      {detailsFor && editingId && (
+        <InstructorDetailsPanel
+          apiUrl={apiUrl}
+          workshopId={editingId}
+          instructor={detailsFor}
+          onClose={() => setDetailsFor(null)}
+        />
       )}
       {confirmDialog}
     </main>

@@ -194,6 +194,61 @@ describe('a save writes only the boxes sent', () => {
   });
 });
 
+describe("the organiser's Workshop list says which lines carry details (561)", () => {
+  it('reads the three columns and answers a flag, never their values', async () => {
+    db = mockSupabase({
+      events: { rows: [{ id: EVENT, status: 'published', organization_id: 'org-a' }] },
+      organization_members: {
+        rows: [{ organization_id: 'org-a', user_id: 'u-lea', role: 'workshop_lead' }],
+      },
+      workshop_enrollments: { rows: [] },
+      workshops: {
+        rows: [
+          {
+            id: WORKSHOP,
+            event_id: EVENT,
+            title: 'Longsword basics',
+            workshop_sessions: [],
+            workshop_instructors: [
+              {
+                global_person_id: PAUL,
+                display_name: 'Paul',
+                bio: null,
+                affiliation: 'Salle Lyon',
+                photo_url: null,
+              },
+              {
+                global_person_id: MARIE,
+                display_name: 'Marie',
+                bio: null,
+                affiliation: null,
+                photo_url: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const workshops = new WorkshopsService(
+      { service: db.service, getAuthUser: async (token: string) => ({ id: token }) } as never,
+      {} as never,
+      {} as never,
+      new OrganizationsService({ service: db.service } as never),
+      {} as never,
+      {} as never,
+    );
+    const [view] = await workshops.listWorkshops(EVENT, 'u-lea');
+
+    expect(selectsFor(db.from, 'workshops')[0]).toMatch(
+      /workshop_instructors \( global_person_id, display_name, bio, affiliation, photo_url \)/,
+    );
+    expect(view!.instructors).toEqual([
+      { globalPersonId: PAUL, displayName: 'Paul', hasDetails: true },
+      { globalPersonId: MARIE, displayName: 'Marie', hasDetails: false },
+    ]);
+  });
+});
+
 describe('the body', () => {
   const pipe = new ZodOrClassValidationPipe({
     whitelist: true,

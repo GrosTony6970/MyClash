@@ -33,14 +33,25 @@ export function changedTexts(
   form: Texts,
   asLoaded: Texts,
 ): Partial<{ shortDescription: string | null; prerequisites: string | null }> {
-  const sent = formTexts(form);
-  const before = formTexts(asLoaded);
-  return {
-    ...(sent.shortDescription !== before.shortDescription
-      ? { shortDescription: sent.shortDescription }
-      : {}),
-    ...(sent.prerequisites !== before.prerequisites ? { prerequisites: sent.prerequisites } : {}),
-  };
+  return changedBoxes(['shortDescription', 'prerequisites'], form, asLoaded);
+}
+
+/**
+ * The boxes `keys` changed since the form opened, each trimmed, a blank one as null. The one rule
+ * of a field two people write (the organiser here, the instructor from their own page): a box not
+ * touched is not sent, so it cannot wipe what the other wrote meanwhile.
+ */
+export function changedBoxes<K extends string>(
+  keys: readonly K[],
+  form: Record<K, string>,
+  asLoaded: Record<K, string>,
+): Partial<Record<K, string | null>> {
+  const sent: Partial<Record<K, string | null>> = {};
+  for (const key of keys) {
+    const now = form[key].trim() || null;
+    if (now !== (asLoaded[key].trim() || null)) sent[key] = now;
+  }
+  return sent;
 }
 
 const FIELD =

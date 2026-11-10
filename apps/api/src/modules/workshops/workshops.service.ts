@@ -179,7 +179,8 @@ export interface WorkshopView {
   venue: NamedRef | null;
   /** Event IANA timezone — set on public reads so the FE renders in event time. */
   eventTimezone: string | null;
-  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  /** `hasDetails` (organiser reads only): this Workshop says something of its own about them. */
+  instructors: Array<{ globalPersonId: string | null; displayName: string; hasDetails?: boolean }>;
   /**
    * True when the CALLER is a listed instructor of this workshop — they teach
    * it, so they can't take a participant seat. Caller-scoped, therefore only
@@ -222,6 +223,10 @@ interface RawSession {
 interface RawInstructor {
   global_person_id: string | null;
   display_name: string;
+  /** What this Workshop says of them (2.6b): read by the organiser's reads only. */
+  bio?: string | null;
+  affiliation?: string | null;
+  photo_url?: string | null;
 }
 
 interface RawWorkshop {
@@ -276,19 +281,24 @@ function sessionsInOrder(row: RawWorkshop): RawSession[] {
   return inStartOrder(row.workshop_sessions ?? [], (s) => s.starts_at);
 }
 
-const WORKSHOP_SELECT = `
+const workshopSelect = (instructorColumns: string) => `
   id, slug, title, short_description, prerequisites, description_md, category, level, weapon, language,
   capacity, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
-  workshop_instructors ( global_person_id, display_name )
+  workshop_instructors ( ${instructorColumns} )
 `;
+
+const WORKSHOP_SELECT = workshopSelect('global_person_id, display_name');
 
 /**
  * The organiser's reads add the Workshop's own settings the public pages never show: the front
- * desk's auto check-in switch (rulings 540, 543).
+ * desk's auto check-in switch (rulings 540, 543), and whether this Workshop says something of its
+ * own about an instructor (2.6b), so unticking them can ask first (561).
  */
-const ORGANISER_WORKSHOP_SELECT = `${WORKSHOP_SELECT.trimEnd()},
+const ORGANISER_WORKSHOP_SELECT = `${workshopSelect(
+  'global_person_id, display_name, bio, affiliation, photo_url',
+).trimEnd()},
   auto_check_in
 `;
 
@@ -1149,7 +1159,15 @@ export class WorkshopsService {
 
   /** A Workshop as its organiser reads it: the public view plus its own settings. */
   private organiserView(row: RawWorkshop, counts: Map<string, number>): WorkshopView {
-    return { ...this.mapWorkshop(row, counts), autoCheckIn: row.auto_check_in === true };
+    return {
+      ...this.mapWorkshop(row, counts),
+      autoCheckIn: row.auto_check_in === true,
+      instructors: (row.workshop_instructors ?? []).map((i) => ({
+        globalPersonId: i.global_person_id,
+        displayName: i.display_name,
+        hasDetails: Boolean(i.bio || i.affiliation || i.photo_url),
+      })),
+    };
   }
 
   private mapWorkshop(row: RawWorkshop, counts: Map<string, number>): WorkshopView {
