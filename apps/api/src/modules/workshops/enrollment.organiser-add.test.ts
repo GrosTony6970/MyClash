@@ -78,6 +78,20 @@ describe('the organiser books only a person of this Event', () => {
     expect(selectsFor(supabase.from, 'persons')[0]).toBe('id');
   });
 
+  it('throws on a session read that failed, never "no such session", and writes nothing', async () => {
+    const supabase = mockSupabase({
+      workshop_sessions: { data: null, error: { message: 'connection reset' } },
+      workshop_enrollments: [],
+    });
+    const service = new EnrollmentService(supabase as never, {} as never, {} as never);
+
+    const failure = await service.enroll(SESSION, 'lea').catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect(writesTo(supabase, 'workshop_enrollments')).toEqual([]);
+  });
+
   it('throws when the session names no Event, rather than book anyone', async () => {
     const { service, supabase } = build(undefined, { capacity: null, status: 'draft' });
 

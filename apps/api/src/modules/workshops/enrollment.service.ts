@@ -112,12 +112,15 @@ export class EnrollmentService {
    * effective capacity (sessions have no own column).
    */
   private async bookableSession(sessionId: string): Promise<unknown> {
-    const { data: session } = await this.supabase.service
+    const { data: session, error } = await this.supabase.service
       .from('workshop_sessions')
       .select('status, workshop_id, workshops ( capacity, status, event_id )')
       .eq('id', sessionId)
       .maybeSingle();
 
+    // A read that failed is an error, never "no such session": the organiser was told the
+    // session no longer exists during a database blip.
+    if (error) throw new Error(`Session ${sessionId} was not read: ${error.message}`);
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
     // A page opened before the organiser cancelled the session still offers it. Named, so
     // the page says it in the reader's language.
