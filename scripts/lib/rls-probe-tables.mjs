@@ -119,6 +119,10 @@ export const VERDICTS = [
 export const PRIVATE_COLUMNS = [
   // The reasons an organiser confirmed over (W1): "attends a Workshop" names a private enrolment.
   { table: 'referee_assignments', column: 'conflicts_jsonb' },
+  // Who was in a Workshop's room, and when (0259, ruling 548): personal data, like the desk's
+  // arrivals, which nobody reads through PostgREST.
+  { table: 'workshop_enrollments', column: 'checked_in_at' },
+  { table: 'workshop_enrollments', column: 'check_in_source' },
 ];
 
 /**
