@@ -35,6 +35,7 @@ import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { inStartOrder } from './session-order';
+import { textOrNull, writeTexts } from './workshop-text';
 import { bookedPersonIds } from './workshop-booked-people';
 import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 import {
@@ -54,6 +55,7 @@ export interface CreateWorkshopDto {
   slug: string;
   title: string;
   shortDescription?: string | null;
+  prerequisites?: string | null;
   descriptionMd?: string | null;
   category?: string | null;
   level?: string | null;
@@ -81,6 +83,7 @@ export interface CreateWorkshopDto {
 export interface UpdateWorkshopDto {
   title?: string;
   shortDescription?: string | null;
+  prerequisites?: string | null;
   descriptionMd?: string | null;
   category?: string | null;
   level?: string | null;
@@ -155,6 +158,8 @@ export interface WorkshopView {
   /** The front desk's auto check-in switch: on the organiser's reads only, never a public one. */
   autoCheckIn?: boolean;
   shortDescription: string | null;
+  /** What a learner should know or bring (ruling 557). */
+  prerequisites: string | null;
   descriptionMd: string | null;
   category: string | null;
   level: string | null;
@@ -223,6 +228,7 @@ interface RawWorkshop {
   slug: string;
   title: string;
   short_description: string | null;
+  prerequisites: string | null;
   description_md: string | null;
   category: string | null;
   level: string | null;
@@ -249,7 +255,8 @@ function newWorkshopRow(eventId: string, dto: CreateWorkshopDto, weapon: string 
     event_id: eventId,
     slug: dto.slug,
     title: dto.title.trim(),
-    short_description: dto.shortDescription ?? null,
+    short_description: textOrNull(dto.shortDescription) ?? null,
+    prerequisites: textOrNull(dto.prerequisites) ?? null,
     description_md: dto.descriptionMd ?? null,
     category: dto.category ?? null,
     level: dto.level ?? 'all',
@@ -269,7 +276,7 @@ function sessionsInOrder(row: RawWorkshop): RawSession[] {
 }
 
 const WORKSHOP_SELECT = `
-  id, slug, title, short_description, description_md, category, level, weapon, language,
+  id, slug, title, short_description, prerequisites, description_md, category, level, weapon, language,
   capacity, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
@@ -517,7 +524,7 @@ export class WorkshopsService {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.title !== undefined) updates['title'] = dto.title.trim();
-    if (dto.shortDescription !== undefined) updates['short_description'] = dto.shortDescription;
+    writeTexts(updates, dto);
     if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.level !== undefined) updates['level'] = dto.level;
@@ -613,12 +620,15 @@ export class WorkshopsService {
       descriptionMd?: string | null;
       level?: string | null;
       language?: string | null;
+      shortDescription?: string | null;
+      prerequisites?: string | null;
     },
     userId: string,
   ) {
     await this.assertCanManageWorkshopAsInstructorOrLead(workshopId, userId);
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    writeTexts(updates, dto);
     if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.level !== undefined) updates['level'] = dto.level;
     if (dto.language !== undefined) updates['language'] = dto.language;
@@ -1132,6 +1142,7 @@ export class WorkshopsService {
       slug: row.slug,
       title: row.title,
       shortDescription: row.short_description,
+      prerequisites: row.prerequisites,
       descriptionMd: row.description_md,
       category: row.category,
       level: row.level,

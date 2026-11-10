@@ -12237,6 +12237,7 @@ export interface components {
       slug: string;
       title: string;
       shortDescription?: string | null;
+      prerequisites?: string | null;
       descriptionMd?: string | null;
       category?: string | null;
       level?: string | null;
@@ -12254,6 +12255,7 @@ export interface components {
     UpdateWorkshopBody: {
       title?: string;
       shortDescription?: string | null;
+      prerequisites?: string | null;
       descriptionMd?: string | null;
       category?: string | null;
       level?: string | null;
@@ -12274,6 +12276,8 @@ export interface components {
       descriptionMd?: string | null;
       level?: string | null;
       language?: string | null;
+      shortDescription?: string | null;
+      prerequisites?: string | null;
     };
     NotifyWorkshopBody: {
       title: string;

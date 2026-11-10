@@ -49,6 +49,7 @@ import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archi
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
 import { WORKSHOP_LOGO_UPLOAD } from './workshop-assets';
+import { PREREQUISITES_MAX, SHORT_DESCRIPTION_MAX } from './workshop-text';
 import { isSessionCancelled, sessionCancelledRefusal } from './session-cancelled';
 import { tickByHand } from './workshop-check-in';
 import { WorkshopsService } from './workshops.service';
@@ -72,7 +73,9 @@ const createWorkshopSchema = z
   .object({
     slug: z.string(),
     title: z.string(),
-    shortDescription: z.string().nullish(),
+    // A line on the catalogue card, and what a learner should know or bring (ruling 557).
+    shortDescription: z.string().max(SHORT_DESCRIPTION_MAX).nullish(),
+    prerequisites: z.string().max(PREREQUISITES_MAX).nullish(),
     descriptionMd: z.string().nullish(),
     category: z.string().nullish(),
     level: z.string().nullish(),
@@ -91,7 +94,9 @@ class CreateWorkshopBody extends createZodDto(createWorkshopSchema) {}
 const updateWorkshopSchema = z
   .object({
     title: z.string().optional(),
-    shortDescription: z.string().nullish(),
+    // A line on the catalogue card, and what a learner should know or bring (ruling 557).
+    shortDescription: z.string().max(SHORT_DESCRIPTION_MAX).nullish(),
+    prerequisites: z.string().max(PREREQUISITES_MAX).nullish(),
     descriptionMd: z.string().nullish(),
     category: z.string().nullish(),
     level: z.string().nullish(),
@@ -110,7 +115,7 @@ const updateWorkshopSchema = z
   .strict();
 class UpdateWorkshopBody extends createZodDto(updateWorkshopSchema) {}
 
-// Instructor-scoped edit: only the four fields an instructor may change.
+// Instructor-scoped edit: only the fields an instructor may change (557 adds the last two).
 // `.nullish()` (= nullable + optional) lets the FE send null to clear a field.
 const instructorUpdateWorkshopSchema = z
   .object({
@@ -118,6 +123,8 @@ const instructorUpdateWorkshopSchema = z
     descriptionMd: z.string().nullish(),
     level: z.string().nullish(),
     language: z.string().nullish(),
+    shortDescription: z.string().max(SHORT_DESCRIPTION_MAX).nullish(),
+    prerequisites: z.string().max(PREREQUISITES_MAX).nullish(),
   })
   .strict();
 class InstructorUpdateWorkshopBody extends createZodDto(instructorUpdateWorkshopSchema) {}
