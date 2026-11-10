@@ -325,6 +325,22 @@ describe("a message from a session's roster", () => {
     expect(messageBox()).toBeUndefined();
   });
 
+  it('holds Send while the roster is read again, so the question never counts the old list', async () => {
+    await openPage();
+    await click(buttons('Roster')[0]);
+    await writeMessage();
+    slowRoster = () => undefined;
+    await click(buttons('Remove')[1]);
+    await click(buttons('Confirm').at(-1));
+
+    expect(messageBox()!.querySelector('input')!.value).toBe('Hall B');
+    expect(sendIn(messageBox()!)!.disabled).toBe(true);
+
+    await act(async () => slowRoster!());
+    await settle();
+    expect(sendIn(messageBox()!)!.disabled).toBe(false);
+  });
+
   it("drops a slow roster that answers after another session's was opened", async () => {
     slowRoster = () => undefined;
     await openPage();

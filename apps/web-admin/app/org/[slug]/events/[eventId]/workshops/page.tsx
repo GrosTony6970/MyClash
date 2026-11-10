@@ -330,8 +330,17 @@ export default function WorkshopsAdminPage() {
   );
   const rosterWorkshop = workshops.find((w) => w.sessions.some((s) => s.id === rosterSession));
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  /** The session whose roster was asked for last: an older answer is dropped. */
-  const rosterAsked = useRef<string | null>(null);
+  /**
+   * The roster reads, one owner. `seq` numbers each read: only the last one asked lands, so a
+   * slow answer (another session's, or an older read of this one) is dropped. `of` is the session
+   * whose list is on screen, null once the dialog closes. Refs, not state: a Promote's answer
+   * re-reads from the render that sent it, whose state is old.
+   */
+  const rosterRead = useRef<{ seq: number; of: string | null }>({ seq: 0, of: null });
+  const closeRoster = () => {
+    rosterRead.current.of = null;
+    setRosterSession(null);
+  };
   // Who a message from the roster reaches: seats and waiting list, as the server counts them.
   const rosterBooked = roster.filter(
     (e) => e.status === 'confirmed' || e.status === 'waitlisted',
@@ -617,16 +626,16 @@ export default function WorkshopsAdminPage() {
   async function openRoster(sessionId: string) {
     // Another session's list must not stand in for this one's when the read fails: its names
     // would show under this session, and its count would head this session's message.
-    if (sessionId !== rosterSession) setRoster([]);
-    rosterAsked.current = sessionId;
+    if (rosterRead.current.of !== sessionId) setRoster([]);
+    const read = ++rosterRead.current.seq;
+    rosterRead.current.of = sessionId;
     setRosterSession(sessionId);
     setRosterLoading(true);
     const r = await apiRequest<RosterEntry[]>(
       apiUrl,
       `/api/v1/workshop-sessions/${sessionId}/roster`,
     );
-    // A slow answer for a roster closed since, when another one was opened: it is not this one's.
-    if (rosterAsked.current !== sessionId) return;
+    if (rosterRead.current.seq !== read) return;
     if (r.ok) {
       setRoster(r.data);
     } else {
@@ -1454,7 +1463,7 @@ export default function WorkshopsAdminPage() {
       {rosterSession && (
         <Modal
           open
-          onClose={() => setRosterSession(null)}
+          onClose={closeRoster}
           size="md"
           title={t('organizer.workshopsPage.rosterTitle')}
         >
@@ -1579,6 +1588,7 @@ export default function WorkshopsAdminPage() {
               count={rosterBooked}
               confirm={confirm}
               readOnly={isReadOnly}
+              rereading={rosterLoading}
             />
           )}
         </Modal>

@@ -7,12 +7,15 @@ import { useRosterMessage, type RosterMessageTarget } from './roster-message';
 /**
  * "Message the people booked" under a session's roster (operator ruling 530). The page shows it
  * only for a session that runs and has someone booked or waiting (532). On an archived Event, Send
- * is greyed, as Remove is: the server refuses the message there.
+ * is greyed, as Remove is: the server refuses the message there. While the roster is read again
+ * (after a Remove or a Promote) the box stays, with what was typed, but Send waits: the question
+ * would count the people as they were before.
  */
 export function RosterMessage({
   readOnly,
+  rereading,
   ...target
-}: RosterMessageTarget & { readOnly: boolean }) {
+}: RosterMessageTarget & { readOnly: boolean; rereading: boolean }) {
   const { t } = useI18n();
   const message = useRosterMessage(target);
   const { outcome } = message;
@@ -47,7 +50,7 @@ export function RosterMessage({
       <div className="flex justify-end">
         <Button
           size="sm"
-          disabled={readOnly || !message.ready}
+          disabled={readOnly || rereading || !message.ready}
           title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           onClick={() => void message.send()}
         >
