@@ -60,6 +60,7 @@ import {
 import { rosterRequests } from './roster-requests';
 import { RosterAddPerson } from './RosterAddPerson';
 import { RosterMessage } from './RosterMessage';
+import { RosterSheetActions } from './RosterSheetActions';
 import { RosterName } from './RosterName';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -338,6 +339,7 @@ export default function WorkshopsAdminPage() {
     w.sessions.some((s) => s.id === rosterSession && isCancelledSession(s)),
   );
   const rosterWorkshop = workshops.find((w) => w.sessions.some((s) => s.id === rosterSession));
+  const rosterSessionRow = rosterWorkshop?.sessions.find((s) => s.id === rosterSession);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   /**
    * The roster reads, one owner. `seq` numbers each read: only the last one asked lands, so a
@@ -1484,6 +1486,15 @@ export default function WorkshopsAdminPage() {
           size="md"
           title={t('organizer.workshopsPage.rosterTitle')}
         >
+          {rosterWorkshop && rosterSessionRow && (
+            <RosterSheetActions
+              workshop={rosterWorkshop}
+              session={rosterSessionRow}
+              roster={roster}
+              tz={eventTz}
+              rereading={rosterLoading}
+            />
+          )}
           {rosterLoading ? (
             <p className="text-muted text-sm">{t('organizer.workshopsPage.loading')}</p>
           ) : roster.length === 0 ? (
