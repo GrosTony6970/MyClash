@@ -2245,6 +2245,11 @@ export const organizer = {
     noColor: 'Sans couleur',
     colorHint: "Affichée en bandeau à gauche sur le planning et les cartes publiques de l'atelier.",
     descriptionLabel: 'Description',
+    shortDescriptionLabel: 'Description courte',
+    shortDescriptionHint: "Une ligne pour la carte de l'atelier dans le catalogue.",
+    prerequisitesLabel: 'Prérequis',
+    prerequisitesHint:
+      'Ce que les participants doivent savoir ou apporter. Laisser vide si tout le monde peut venir.',
     create: 'Créer',
     rosterTitle: 'Inscrits à la session',
     noEnrollments: 'Aucune inscription pour le moment.',

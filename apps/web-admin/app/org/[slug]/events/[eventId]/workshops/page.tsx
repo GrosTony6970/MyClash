@@ -47,6 +47,7 @@ import {
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { useInstructorClashes } from './use-instructor-clashes';
+import { formTexts, WorkshopTextFields } from './WorkshopTextFields';
 import { sessionDeleteQuestion } from './session-delete-question';
 import { workshopDeleteQuestion, workshopDeleteRefusal } from './workshop-delete';
 import { WorkshopLogoField } from './WorkshopLogoField';
@@ -94,6 +95,9 @@ interface Workshop {
   id: string;
   slug: string;
   title: string;
+  /** In the list payload, so the form fills them at once (ruling 557). */
+  shortDescription: string | null;
+  prerequisites: string | null;
   category: string | null;
   level: string | null;
   /** Weapon/discipline (free text), like tournaments. */
@@ -167,6 +171,9 @@ const EMPTY_FORM = {
   capacity: 20,
   durationMinutes: '' as string | number,
   description: '',
+  /** The catalogue line and what to know or bring (557): a blank box clears it. */
+  shortDescription: '',
+  prerequisites: '',
   venueId: '' as string,
   color: '' as string,
   status: 'draft',
@@ -310,6 +317,8 @@ export default function WorkshopsAdminPage() {
       capacity: w.capacity ?? 20,
       durationMinutes: w.durationMinutes ?? '',
       description: '',
+      shortDescription: w.shortDescription ?? '',
+      prerequisites: w.prerequisites ?? '',
       venueId: w.venueId ?? '',
       color: w.color ?? '',
       status: w.status,
@@ -529,6 +538,7 @@ export default function WorkshopsAdminPage() {
             color: form.color || null,
             venueId: form.venueId || null,
             autoCheckIn: form.autoCheckIn,
+            ...formTexts(form),
             // Clear a saved logo when the operator removed it. Setting a
             // new logo goes through the dedicated upload endpoint below.
             ...(logoRemoved ? { coverImageUrl: null } : {}),
@@ -593,6 +603,7 @@ export default function WorkshopsAdminPage() {
           color: form.color || undefined,
           venueId: form.venueId || undefined,
           autoCheckIn: form.autoCheckIn,
+          ...formTexts(form),
         },
       });
       if (!r.ok) {
@@ -1510,6 +1521,10 @@ export default function WorkshopsAdminPage() {
               className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
             />
           </div>
+          <WorkshopTextFields
+            values={form}
+            onChange={(texts) => setForm((f) => ({ ...f, ...texts }))}
+          />
         </div>
         {formError && <p className="text-sm text-danger mt-2">{formError}</p>}
       </Modal>
