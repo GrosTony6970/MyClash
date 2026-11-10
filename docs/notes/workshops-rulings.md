@@ -7,7 +7,7 @@ became the Workshops track: safety fixes first (group 1), then the organiser's a
 gaps (groups 2 and 3), one slice at a time.
 
 Each question was asked with a short story, and the operator picked one answer. This file keeps
-every ruling of that track, 512 to 552, with its story and its answer. Code comments and tests cite
+every ruling of that track, 512 to 566, with its story and its answer. Code comments and tests cite
 these numbers ("ruling 545"): look them up here. Rulings 1 to 511 belong to other tracks; most are
 in `quick-wins-2026-10-08.md`.
 
@@ -140,3 +140,11 @@ details in slice 3.6.
 | Default (563)       | Paul opens his panel for the Workshop; nothing is written yet.                                                                                                                   | **Empty boxes, his profile's values in grey as a hint.** Saving an empty box writes nothing. The organiser sees the hint too, but never a bio Paul made private. Not picked: pre-filled boxes; empty with no hint. | `a83b8c0e`, `80c24b7e`, `2abc5aed` |
 | Where (564)         | Where does the organiser write Paul's Workshop bio, club and photo?                                                                                                              | **A per-instructor panel**, opened from an instructor already saved on the Workshop. Not picked: inline boxes in the Workshop form.                                                                                | `80c24b7e`                         |
 | Database door (565) | A test Event has a published Workshop; the organiser writes Paul a bio there. Anyone who knows the database address can read it, though the app hides the test Event everywhere. | **Close it now**: only the API reads the three columns (a column grant, as for the check-in); the public sees them through the app in 3.6. Not picked: leave it and note it.                                       | `be76cea5`                         |
+
+### Slice 2.7 — the Event overview in Workshops-only mode (2026-11-10, session b7e1f621)
+
+Asked at the slice's start. The cards themselves were the queue's plan (`what-do-you-think-lucky-goose.md` §2.7).
+
+| Row            | Story                                                                                                                                                                                                             | Ruling                                                                                                                                                                           | Built in   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| AI panel (566) | Salle d'Armes is set to Workshops only; its Event still holds an old test Tournament. Below the overview's cards sits the AI question panel ("who has the best win rate?"), which only answers about Tournaments. | **Hide it in Workshops only**, like the Tournaments card and table. The AI budget box and the AI assistant page stay. Not picked: keep it whenever the Event holds a Tournament. | `7f791ddb` |

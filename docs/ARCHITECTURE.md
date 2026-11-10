@@ -2098,6 +2098,12 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   people are left out of a message to the whole Workshop (531), and a message to it alone answers
   409 `WorkshopSessionCancelled`; its roster offers no message (532). Who is told is owned by
   `apps/api/src/modules/workshops/workshop-booked-people.ts`.
+- The Event overview of a Workshops-only club (the menu setting of migration 0256, slice 2.7)
+  shows Workshops, Sessions, Seats taken and Waitlists in place of the fighter and referee cards,
+  and hides the AI question panel, which only answers about Tournaments (ruling 566). The counts
+  come with `GET events/:eventId/dashboard-stats` (`workshop-totals.ts`): a cancelled session
+  counts nowhere; seats taken are confirmed bookings; the seat total is unknown (the number alone)
+  when a live session has no limit.
 
 ---
 
