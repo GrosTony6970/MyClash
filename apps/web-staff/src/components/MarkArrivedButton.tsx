@@ -19,9 +19,12 @@ import { useI18n } from '@myclash/next-i18n/client';
 export function MarkArrivedButton({
   personId,
   onMark,
+  today = false,
 }: {
   personId: string;
   onMark: (personId: string) => void;
+  /** Someone who arrived on an earlier day of the Event: "Arrived today" (ruling 547). */
+  today?: boolean;
 }) {
   const { t } = useI18n();
 
@@ -31,7 +34,7 @@ export function MarkArrivedButton({
       onClick={() => onMark(personId)}
       className="min-h-[44px] rounded-lg border border-success px-5 text-sm font-bold text-success [touch-action:manipulation]"
     >
-      {t('scoring.desk.markArrived')}
+      {today ? t('scoring.desk.arrivedToday') : t('scoring.desk.markArrived')}
     </button>
   );
 }

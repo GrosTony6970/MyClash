@@ -1,7 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { CheckinService } from './checkin.service';
-import { mockSupabase, selectsFor, supabaseChain } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase as mockTables,
+  selectsFor,
+  supabaseChain,
+} from '../../common/testing/supabase-chain';
+
+/**
+ * What the desk reads beside its own tables: the Event's clock (`arrivedToday`, ruling 547) and the
+ * person's Workshop bookings (the auto ticks, 540). Empty here; `workshop-check-in.desk.test.ts`
+ * holds the ticks. A test's own tables win.
+ */
+const mockSupabase: typeof mockTables = (tables) =>
+  mockTables({
+    events: { rows: [{ id: 'event-1', timezone: 'Europe/Paris' }] },
+    workshop_enrollments: { rows: [] },
+    ...tables,
+  });
 
 /**
  * The desk's authorization contract.
@@ -404,6 +420,8 @@ describe('CheckinService.redeemPass — the QR fast lane', () => {
       photoUrl: 'https://example.test/marie.jpg',
       arrived: true,
       arrivedAt: '2026-08-08T09:12:00Z',
+      // The canned arrival is from 8 August, not today on the Event's clock (547).
+      arrivedToday: false,
       via: 'qr',
       // The QR overlay shows a face and a club, never a schedule — so the fast
       // lane does not pay for the two-hop next-bout query the desk list runs.

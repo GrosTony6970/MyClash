@@ -13,6 +13,8 @@ export interface RosterEntry {
   photoUrl: string | null;
   arrived: boolean;
   arrivedAt: string | null;
+  /** Marked present today on the Event's clock; false for an earlier day's arrival (547). */
+  arrivedToday: boolean;
   via: string | null;
   /** The soonest bout this fighter is due on. Null when they have none. */
   next: NextMatch | null;

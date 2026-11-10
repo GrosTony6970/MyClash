@@ -31,6 +31,15 @@ function inTab(person: RosterEntry, tab: DeskTab): boolean {
   return tab === 'arrived' ? person.arrived : !person.arrived;
 }
 
+/**
+ * Marked present on an earlier day of the Event, not today (ruling 547). The desk keeps one
+ * arrival per person for the whole Event, so such a person still counts as arrived; the row then
+ * offers "Arrived today", which ticks that day's Workshop sessions.
+ */
+export function arrivedEarlierDay(person: RosterEntry): boolean {
+  return person.arrived && !person.arrivedToday;
+}
+
 /** How many people each tab holds. Event-wide, because the roster is. */
 export function countsByTab(roster: readonly RosterEntry[]): DeskCounts {
   const arrived = roster.filter((person) => person.arrived).length;

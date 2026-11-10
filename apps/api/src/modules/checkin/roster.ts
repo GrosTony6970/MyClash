@@ -9,6 +9,7 @@
  * browser holds the whole roster, so the client sorts. Keeping a second copy
  * here would be two owners of one order.
  */
+import { zonedDay } from '@myclash/time';
 
 /** A `persons` row as the desk's select returns it. */
 export interface RosterPersonRow {
@@ -40,6 +41,12 @@ export interface RosterEntry {
   arrived: boolean;
   /** When they were marked present. Null while absent. */
   arrivedAt: string | null;
+  /**
+   * Marked present TODAY on the Event's clock. The desk keeps one arrival per person for the
+   * whole Event, so on day 2 a person who came on day 1 reads `arrived` and not this: the desk then
+   * offers "Arrived today", which ticks that day's Workshop sessions (ruling 547).
+   */
+  arrivedToday: boolean;
   via: string | null;
   /**
    * The soonest bout this person is scheduled for, or null.
@@ -90,6 +97,7 @@ export function mapRosterRow(
   person: RosterPersonRow,
   arrival: ArrivalRow | null,
   next: NextMatch | null = null,
+  today: DeskToday | null = null,
 ): RosterEntry {
   const arrived = arrival?.state === 'present';
   return {
@@ -104,6 +112,15 @@ export function mapRosterRow(
     // Only meaningful while present. Carrying the old timestamp through an undo
     // would render "arrived 09:12" beside an Absent state.
     arrivedAt: arrived ? (arrival?.marked_at ?? null) : null,
+    // With no clock (the gear table) an arrival counts as today's.
+    arrivedToday:
+      arrived && (!today || zonedDay(arrival?.marked_at ?? null, today.zone) === today.day),
     via: arrived ? (arrival?.via ?? null) : null,
   };
+}
+
+/** Today on the Event's clock: its zone and its `YYYY-MM-DD`. */
+export interface DeskToday {
+  zone: string;
+  day: string;
 }

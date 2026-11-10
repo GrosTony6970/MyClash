@@ -88,3 +88,33 @@ describe('mapRosterRow', () => {
     expect(mapRosterRow(person({ id: 'p1' }), null, next).next).toEqual(next);
   });
 });
+
+describe('arrivedToday: day 2 of an Event (ruling 547)', () => {
+  /** Saturday 8 August on the Paris clock. */
+  const SATURDAY = { zone: 'Europe/Paris', day: '2026-08-08' };
+  const SUNDAY = { zone: 'Europe/Paris', day: '2026-08-09' };
+
+  it('is true for an arrival marked today on the Event clock', () => {
+    expect(mapRosterRow(person({ id: 'p1' }), arrival(), null, SATURDAY).arrivedToday).toBe(true);
+  });
+
+  it('is false on Sunday for Saturday’s arrival, which still reads arrived', () => {
+    const row = mapRosterRow(person({ id: 'p1' }), arrival(), null, SUNDAY);
+
+    expect(row.arrived).toBe(true);
+    expect(row.arrivedToday).toBe(false);
+  });
+
+  it('reads the Event clock: 00:30 Sunday in Paris is Sunday, though 22:30 UTC Saturday', () => {
+    const late = arrival({ marked_at: '2026-08-08T22:30:00.000Z' });
+
+    expect(mapRosterRow(person({ id: 'p1' }), late, null, SUNDAY).arrivedToday).toBe(true);
+  });
+
+  it('is false for an undone arrival, and counts as today with no clock (the gear table)', () => {
+    expect(
+      mapRosterRow(person({ id: 'p1' }), arrival({ state: 'absent' }), null, SATURDAY).arrivedToday,
+    ).toBe(false);
+    expect(mapRosterRow(person({ id: 'p1' }), arrival()).arrivedToday).toBe(true);
+  });
+});

@@ -25,6 +25,7 @@ function entry(personId: string, weapons: WeaponStatus[], familyName = 'Dubois')
       photoUrl: null,
       arrived: false,
       arrivedAt: null,
+      arrivedToday: false,
       via: null,
       next: null,
     },

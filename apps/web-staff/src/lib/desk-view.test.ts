@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  arrivedEarlierDay,
   countMatchingQuery,
   countsByTab,
   DESK_TABS,
@@ -17,11 +18,25 @@ function person(over: Partial<RosterEntry> & { personId: string }): RosterEntry 
     photoUrl: null,
     arrived: false,
     arrivedAt: null,
+    arrivedToday: false,
     via: null,
     next: null,
     ...over,
   };
 }
+
+describe('arrivedEarlierDay: day 2 at the desk (ruling 547)', () => {
+  it('offers "Arrived today" to someone marked present on an earlier day only', () => {
+    expect(arrivedEarlierDay(person({ personId: 'sat', arrived: true, arrivedToday: false }))).toBe(
+      true,
+    );
+    expect(arrivedEarlierDay(person({ personId: 'sun', arrived: true, arrivedToday: true }))).toBe(
+      false,
+    );
+    // Not here at all: the row offers "Arrived", not "Arrived today".
+    expect(arrivedEarlierDay(person({ personId: 'none' }))).toBe(false);
+  });
+});
 
 function due(personId: string, scheduledAt: string | null, familyName = 'Zulu'): RosterEntry {
   return person({

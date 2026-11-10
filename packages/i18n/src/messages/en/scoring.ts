@@ -92,6 +92,8 @@ export const scoring = {
     markArrived: 'Arrived',
     notArrived: 'Not arrived',
     undo: 'Undo',
+    // A person whose arrival is from an earlier day of the Event (ruling 547).
+    arrivedToday: 'Arrived today',
     tabAll: 'All',
     tabArrived: 'Arrived',
     tabNotArrived: 'Not arrived',

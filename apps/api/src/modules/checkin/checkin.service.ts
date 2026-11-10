@@ -3,6 +3,8 @@ import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
 import { tickFromDesk, untickFromDesk } from '../workshops/workshop-check-in';
+import { zonedDay } from '@myclash/time';
+import { eventZone, unknownZoneWarning } from '../../common/event-clock';
 import type { MarkArrivalDto } from './dto';
 import { PassService } from './pass.service';
 import { queryEventRoster, ROSTER_LIMIT, type RosterPage } from './roster-query';
@@ -10,6 +12,7 @@ import {
   mapRosterRow,
   type ArrivalRow,
   type DeskList,
+  type DeskToday,
   type NextMatch,
   type RosterEntry,
   type RosterPersonRow,
@@ -68,13 +71,19 @@ export class CheckinService {
     if (people.length === 0) return { entries: [], truncated };
 
     const personIds = people.map((person) => person.id);
-    const [arrivals, nextMatches] = await Promise.all([
+    const [arrivals, nextMatches, today] = await Promise.all([
       this.arrivalsFor(staff.event_id, personIds),
       this.nextMatchByPerson(personIds),
+      this.deskToday(staff.event_id),
     ]);
     return {
       entries: people.map((person) =>
-        mapRosterRow(person, arrivals.get(person.id) ?? null, nextMatches.get(person.id) ?? null),
+        mapRosterRow(
+          person,
+          arrivals.get(person.id) ?? null,
+          nextMatches.get(person.id) ?? null,
+          today,
+        ),
       ),
       truncated,
     };
@@ -119,7 +128,7 @@ export class CheckinService {
     // The token resolved against this event, so the roster row must exist —
     // unless the person was deleted between the two reads.
     if (!person) throw new NotFoundException('pass_not_recognized');
-    return mapRosterRow(person, arrival);
+    return mapRosterRow(person, arrival, null, await this.deskToday(staff.event_id));
   }
 
   /**
@@ -220,6 +229,20 @@ export class CheckinService {
   }
 
   // ── queries ───────────────────────────────────────────────────────────────
+
+  /** Today on the Event's clock, for `arrivedToday` (547). An unknown zone is said. */
+  private async deskToday(eventId: string): Promise<DeskToday> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('timezone')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const timezone = (data as { timezone?: unknown } | null)?.timezone;
+    const { zone, unknownZone } = eventZone(timezone);
+    if (unknownZone) this.logger.warn(unknownZoneWarning(eventId, timezone));
+    return { zone, day: zonedDay(new Date().toISOString(), zone) ?? '' };
+  }
 
   private queryPeople(eventId: string, limit = ROSTER_LIMIT): Promise<RosterPage> {
     return queryEventRoster(this.supabase, eventId, limit);

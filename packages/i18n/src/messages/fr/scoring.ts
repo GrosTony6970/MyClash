@@ -96,6 +96,8 @@ export const scoring = {
     markArrived: 'Arrivé',
     notArrived: 'Pas arrivé',
     undo: 'Annuler',
+    // Une personne arrivée un jour précédent de l'événement (décision 547).
+    arrivedToday: "Arrivé aujourd'hui",
     tabAll: 'Tous',
     tabArrived: 'Arrivés',
     tabNotArrived: 'Pas arrivés',

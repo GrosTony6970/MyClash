@@ -12,6 +12,7 @@ import { ScanOverlay } from '../../src/components/ScanOverlay';
 import { RosterNotice } from '../../src/components/RosterNotice';
 import { useDesk, type NextMatch, type RosterEntry } from '../../src/lib/useDesk';
 import {
+  arrivedEarlierDay,
   countMatchingQuery,
   countsByTab,
   visibleRoster,
@@ -343,9 +344,15 @@ function ArrivalButton({
   const { t } = useI18n();
 
   if (person.arrived) {
+    // An earlier day's arrival says its day, and offers today's: it ticks that day's Workshop
+    // sessions (ruling 547). The same Undo stays.
+    const earlier = arrivedEarlierDay(person);
     return (
       <div className="flex items-center gap-2">
-        <span className="text-base font-semibold text-success">{formatTime(person.arrivedAt)}</span>
+        <span className="text-base font-semibold text-success">
+          {formatTime(person.arrivedAt, earlier)}
+        </span>
+        {earlier && <MarkArrivedButton personId={person.personId} onMark={onMark} today />}
         <button
           type="button"
           onClick={() => onUndo(person.personId)}
@@ -373,10 +380,12 @@ function ArrivalButton({
  * benefit. Rendered from the browser's locale rather than through @myclash/time
  * because there is no span to pluralize here, only an instant.
  */
-function formatTime(iso: string | null): string {
+function formatTime(iso: string | null, withDay = false): string {
   if (!iso) return '';
   const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? ''
+  if (Number.isNaN(at.getTime())) return '';
+  // An earlier day's arrival says which day: "09:12" alone would read as this morning (547).
+  return withDay
+    ? at.toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
     : at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
