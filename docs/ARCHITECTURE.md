@@ -2030,7 +2030,14 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   of one adds a session; a card on the grid is one session, moved by its id; a session the board
   cannot draw (its venue is not on the board) is listed under its Workshop and placed by a drag
   (`workshop-drawer.ts`).
-- Roster view per session (confirmed, waitlisted), with check-in.
+- Roster view per session: seats, waiting list, and refusals (a refusal stays, so the person cannot
+  book again; Remove lifts it, ruling 538). From the roster the organiser adds one of the Event's
+  people (535) through `POST workshop-sessions/:id/enrollments/:personId`, which waitlists when the
+  session is full (536) and refuses a person who is not on the session's Event (404
+  `PersonNotInEvent`, `apps/api/src/modules/workshops/workshop-person-on-event.ts`): a booking's
+  person has no foreign key, so nothing else ties it to the Event. The roster prints and exports
+  as a sign-in sheet (537): seats by name, then the waiting list, refusals left out
+  (`roster-sheet.ts`). Check-in is not built.
 - Cancel session → all enrollees notified (push + email).
 - A Workshop's message has one door, `POST workshops/:id/notify` (its instructor or a
   `workshop_lead`). With a `sessionId` it reaches that session's seats and waiting list: the
