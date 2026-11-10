@@ -1,7 +1,7 @@
 'use client';
 
 import { CsvExportMenu, statusLabel, useToast } from '@myclash/ui';
-import { localeToBcp47, zonedDay } from '@myclash/time';
+import { formatInZone, localeToBcp47, zonedDay } from '@myclash/time';
 import type { CsvFormat } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { downloadCsv } from '@/lib/csv-file';
@@ -88,11 +88,17 @@ function useRosterSheet({ workshop, session, roster, tz }: SheetSource) {
       words('colClub'),
       words('colPlace'),
       words('colWaitingPosition'),
+      words('colPresent'),
     ] as const;
+    const bcp47 = localeToBcp47(locale);
     const csv = rosterSheetCsv(
       rows,
       headers,
-      { seat: words('seat'), waiting: words('waiting') },
+      {
+        seat: words('seat'),
+        waiting: words('waiting'),
+        presentAt: (iso) => formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, bcp47),
+      },
       format,
     );
     downloadCsv(rosterCsvName(workshop.slug, zonedDay(session.startsAt, tz)), csv);

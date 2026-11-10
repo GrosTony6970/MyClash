@@ -1,7 +1,8 @@
 /**
  * A session's roster as a sign-in sheet (operator ruling 537): printed for the instructor, or a
  * CSV. Seats first, by family name; then the waiting list, in its order. Refused people are left
- * out. The printed page has an empty "Present" column, ticked with a pen; the CSV has not.
+ * out. The printed page has a "Present" column: a mark for anyone already ticked, an empty box for
+ * a pen; the CSV says the time of the tick (ruling 542).
  *
  * Pure. The page hands in the words, in the reader's language. Names, clubs and titles are
  * organiser or attendee input: HTML-escaped in print (`escapeHtml`), formula-safe in the CSV
@@ -14,6 +15,8 @@ import { printDocument } from '../print/print-shell';
 export interface SheetEntry {
   status: string;
   waitlistPosition: number | null;
+  /** When the person was ticked present (rulings 539-547). */
+  checkedInAt?: string | null;
   persons: { givenName: string; familyName: string; clubs: { name: string } | null } | null;
 }
 
@@ -23,6 +26,8 @@ export interface SheetRow {
   club: string;
   /** The place on the waiting list; `null` for a seat. */
   waiting: number | null;
+  /** When the person was ticked present, or `null` (ruling 542). */
+  checkedInAt: string | null;
 }
 
 /** The sheet's lines. `unknown` names a person whose roster row could not be read. */
@@ -32,6 +37,7 @@ export function rosterSheetRows(roster: readonly SheetEntry[], unknown: string):
     givenName: e.persons?.givenName ?? '',
     club: e.persons?.clubs?.name ?? '',
     waiting: e.status === 'waitlisted' ? (e.waitlistPosition ?? null) : null,
+    checkedInAt: e.checkedInAt ?? null,
   });
   const byName = (a: SheetRow, b: SheetRow) =>
     a.familyName.localeCompare(b.familyName, undefined, { sensitivity: 'base' }) ||
@@ -84,7 +90,8 @@ export function rosterSheetHtml(
         `<td>${escapeHtml(`${r.familyName} ${r.givenName}`.trim())}</td>` +
         `<td>${escapeHtml(r.club)}</td>` +
         `<td>${escapeHtml(r.waiting === null ? labels.seat : labels.waitingAt(r.waiting))}</td>` +
-        `<td class="box narrow"></td></tr>`,
+        // Ticked already: a mark (542). Not yet: an empty box for a pen.
+        `<td class="box narrow center">${r.checkedInAt ? '✓' : ''}</td></tr>`,
     )
     .join('');
   const columns = ['#', labels.name, labels.club, labels.place, labels.present]
@@ -98,13 +105,15 @@ export function rosterSheetHtml(
   return printDocument(head.title, [sheet]);
 }
 
-/** Family name, Given name, Club, Place, Waiting list position. */
-export type RosterCsvHeaders = readonly [string, string, string, string, string];
+/** Family name, Given name, Club, Place, Waiting list position, Present. */
+export type RosterCsvHeaders = readonly [string, string, string, string, string, string];
 
-/** The CSV's "Place" words: "Seat" and "Waiting list". */
+/** The CSV's "Place" words, "Seat" and "Waiting list", and the time of a tick. */
 export interface CsvPlaces {
   seat: string;
   waiting: string;
+  /** "10:02" on the Event's clock: when the person was ticked present (542). */
+  presentAt: (iso: string) => string;
 }
 
 export function rosterSheetCsv(
@@ -123,6 +132,7 @@ export function rosterSheetCsv(
         r.waiting === null ? places.seat : places.waiting,
         // A plain number, so the column sorts.
         r.waiting === null ? '' : String(r.waiting),
+        r.checkedInAt ? places.presentAt(r.checkedInAt) : '',
       ]),
     ],
     format,

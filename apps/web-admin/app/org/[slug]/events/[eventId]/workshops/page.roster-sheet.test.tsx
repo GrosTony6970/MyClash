@@ -39,6 +39,11 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
 }));
+// The file the CSV menu hands the browser, kept for the test.
+const DOWNLOADS = vi.hoisted(() => ({ files: [] as Array<{ name: string; text: string }> }));
+vi.mock('@/lib/csv-file', () => ({
+  downloadCsv: (name: string, text: string) => DOWNLOADS.files.push({ name, text }),
+}));
 
 const WORKSHOP = {
   id: 'w-1',
@@ -157,6 +162,28 @@ describe("a session's roster prints and exports", () => {
     for (const text of ['Longsword basics', '10:00', 'Paul Roux', 'Martin Léa', 'Present']) {
       expect(printed).toContain(text);
     }
+  });
+
+  it('says who was ticked: a mark on the print, the time on the Event clock in the CSV (542)', async () => {
+    // Léa ticked at 07:58 UTC: 08:58 in Paris in November.
+    roster = [
+      { ...booking('Léa', 'confirmed'), checkedInAt: '2026-11-14T07:58:00Z' },
+      booking('Tom', 'confirmed'),
+    ];
+    DOWNLOADS.files = [];
+    await openRoster();
+
+    await act(async () => button('Print')!.click());
+    expect(printed.match(/✓/g)).toHaveLength(1);
+
+    await act(async () => button('Export CSV')!.click());
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click(),
+    );
+    const lines = DOWNLOADS.files[0]!.text.slice(1).trim().split(/\r\n/);
+    expect(lines[0]).toMatch(/Present$/);
+    expect(lines).toContain('Martin,Léa,,Seat,,08:58');
+    expect(lines).toContain('Martin,Tom,,Seat,,');
   });
 
   it('greys both while the roster is read', async () => {

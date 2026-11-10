@@ -13,7 +13,7 @@ import {
 /**
  * A session's roster as a sign-in sheet (operator ruling 537). Saturday's "Longsword basics" has
  * three seats (Zoé Roux, Anne Martin, Léa Martin), two on the waiting list (Tom at 2, Ana at 1),
- * and Marc, refused by the instructor.
+ * and Marc, refused by the instructor. Zoé was ticked present at the door (ruling 542).
  */
 
 const entry = (
@@ -22,15 +22,17 @@ const entry = (
   status: string,
   waitlistPosition: number | null = null,
   club: string | null = null,
+  checkedInAt: string | null = null,
 ): SheetEntry => ({
   status,
   waitlistPosition,
+  checkedInAt,
   persons: { givenName, familyName, clubs: club ? { name: club } : null },
 });
 
 const ROSTER: SheetEntry[] = [
   entry('Tom', 'Petit', 'waitlisted', 2),
-  entry('Zoé', 'Roux', 'confirmed', null, 'Salle Lyon'),
+  entry('Zoé', 'Roux', 'confirmed', null, 'Salle Lyon', '2026-11-14T08:58:00Z'),
   entry('Marc', 'Blanc', 'refused'),
   entry('Léa', 'Martin', 'confirmed'),
   entry('Ana', 'Durand', 'waitlisted', 1),
@@ -58,8 +60,10 @@ const CSV_HEADERS = [
   'Club',
   'Place',
   'Waiting list position',
+  'Present',
 ] as const;
-const PLACES = { seat: 'Seat', waiting: 'Waiting list' };
+/** The page hands in the Event clock's time; this one says which instant it was given. */
+const PLACES = { seat: 'Seat', waiting: 'Waiting list', presentAt: (iso: string) => `at ${iso}` };
 
 describe('the lines of a sign-in sheet', () => {
   it('lists the seats by family then given name, then the waiting list in its order', () => {
@@ -77,7 +81,9 @@ describe('the lines of a sign-in sheet', () => {
       [{ status: 'confirmed', waitlistPosition: null, persons: null }],
       'Unknown',
     );
-    expect(rows).toEqual([{ familyName: 'Unknown', givenName: '', club: '', waiting: null }]);
+    expect(rows).toEqual([
+      { familyName: 'Unknown', givenName: '', club: '', waiting: null, checkedInAt: null },
+    ]);
   });
 });
 
@@ -90,9 +96,14 @@ describe('the printed sheet', () => {
     }
   });
 
-  it('has an empty "Present" box on every line', () => {
+  it('marks the "Present" box of whoever was ticked, and leaves the others empty for a pen (542)', () => {
     expect(html).toContain('<th>Present</th>');
-    expect(html.match(/<td class="box narrow"><\/td>/g)).toHaveLength(5);
+    expect(html.match(/<td class="box narrow center">✓<\/td>/g)).toHaveLength(1);
+    expect(html.match(/<td class="box narrow center"><\/td>/g)).toHaveLength(4);
+    // Zoé's line carries the mark.
+    expect(html).toMatch(
+      /Roux Zoé<\/td><td>Salle Lyon<\/td><td>Seat<\/td><td class="box narrow center">✓/,
+    );
   });
 
   it('says a seat or the place on the waiting list', () => {
@@ -118,7 +129,7 @@ describe('the printed sheet', () => {
 });
 
 describe('the CSV of the sheet', () => {
-  it('has the same lines, no "Present" column, and the waiting place as a number', () => {
+  it('has the same lines, the waiting place as a number, and the time of a tick (542)', () => {
     const csv = rosterSheetCsv(
       rosterSheetRows(ROSTER, 'Unknown'),
       CSV_HEADERS,
@@ -128,12 +139,12 @@ describe('the CSV of the sheet', () => {
     // The file opens with a byte-order mark, so Excel reads it as UTF-8.
     const lines = csv.slice(1).trim().split('\r\n');
     expect(lines).toEqual([
-      'Family name,Given name,Club,Place,Waiting list position',
-      'Martin,Anne,,Seat,',
-      'Martin,Léa,,Seat,',
-      'Roux,Zoé,Salle Lyon,Seat,',
-      'Durand,Ana,,Waiting list,1',
-      'Petit,Tom,,Waiting list,2',
+      'Family name,Given name,Club,Place,Waiting list position,Present',
+      'Martin,Anne,,Seat,,',
+      'Martin,Léa,,Seat,,',
+      'Roux,Zoé,Salle Lyon,Seat,,at 2026-11-14T08:58:00Z',
+      'Durand,Ana,,Waiting list,1,',
+      'Petit,Tom,,Waiting list,2,',
     ]);
   });
 
@@ -144,7 +155,7 @@ describe('the CSV of the sheet', () => {
       PLACES,
       CSV_EXCEL_FR,
     );
-    expect(csv).toContain('Durand;Ana;;Waiting list;1');
+    expect(csv).toContain('Durand;Ana;;Waiting list;1;');
   });
 
   it('neutralises a name typed as a formula', () => {
