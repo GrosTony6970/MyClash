@@ -107,6 +107,26 @@ describe("the instructor's own details for a Workshop", () => {
     expect(patches()).toHaveLength(1);
   });
 
+  it('shows the club line the organiser wrote meanwhile once his save lands', async () => {
+    serve({ ok: true, data: VIEW });
+    vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
+      if (path !== DETAILS) throw new Error(`unexpected request ${path}`);
+      if (init?.method !== 'PATCH') return { ok: true, data: VIEW };
+      return {
+        ok: true,
+        data: { ...VIEW.override, ...(init.body as object), club: 'Salle Paris' },
+      };
+    });
+    await open();
+
+    act(() => type(container.querySelector('textarea')!, 'Ten years of Fiore'));
+    await save();
+
+    const club = container.querySelector<HTMLInputElement>('input:not([type="file"])')!;
+    expect(club.value).toBe('Salle Paris');
+    expect(container.querySelector('textarea')!.value).toBe('Ten years of Fiore');
+  });
+
   it('says so when his details cannot be read', async () => {
     serve({ ok: false, kind: 'http', status: 500, detail: null, code: null, details: null });
     await open();

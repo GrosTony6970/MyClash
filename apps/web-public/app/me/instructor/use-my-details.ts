@@ -24,6 +24,16 @@ const boxesOf = (details: Details): Boxes => ({
   club: details.club ?? '',
 });
 
+/**
+ * The boxes after a landed save: a box sent keeps what was typed; a box not sent shows what is
+ * stored now, since the organiser may have written it meanwhile.
+ */
+function afterSave(stored: Details, sent: object, draft: Boxes): Boxes {
+  const next = boxesOf(stored);
+  for (const key of Object.keys(sent) as (keyof Boxes)[]) next[key] = draft[key];
+  return next;
+}
+
 /** What failed last, as the name of the line the panel says. */
 export type DetailsError = 'myDetailsLoadError' | 'saveError' | 'myPhotoError' | 'myPhotoInvalid';
 
@@ -32,6 +42,11 @@ function useMyRead(apiUrl: string, path: string, setError: (error: DetailsError 
   const [view, setView] = useState<DetailsView | null>(null);
   const [draft, setDraft] = useState<Boxes>({ bio: '', club: '' });
   const [loaded, setLoaded] = useState<Boxes>({ bio: '', club: '' });
+  /** The boxes as stored: what they show, and what a later save compares against. */
+  const settle = (boxes: Boxes) => {
+    setDraft(boxes);
+    setLoaded(boxes);
+  };
 
   useEffect(() => {
     let live = true;
@@ -51,7 +66,7 @@ function useMyRead(apiUrl: string, path: string, setError: (error: DetailsError 
     };
   }, [apiUrl, path, setError]);
 
-  return { view, setView, draft, setDraft, loaded, setLoaded };
+  return { view, setView, draft, setDraft, loaded, settle };
 }
 
 /** One write at a time: busy while it runs, what failed last kept for the panel to say. */
@@ -75,12 +90,12 @@ function useMyWrite() {
 
 /**
  * Reads and writes the instructor's own line on a Workshop (2.6b, ruling 558). The organiser
- * writes it too: a Save sends only the boxes changed since the panel opened, and the baseline
- * moves after each landed save. A photo is stored at once.
+ * writes it too: a Save sends only the boxes changed since the panel opened, and every box
+ * settles on what is stored after each landed save. A photo is stored at once.
  */
 export function useMyDetails(apiUrl: string, path: string) {
   const { busy, error, setError, write } = useMyWrite();
-  const { view, setView, draft, setDraft, loaded, setLoaded } = useMyRead(apiUrl, path, setError);
+  const { view, setView, draft, setDraft, loaded, settle } = useMyRead(apiUrl, path, setError);
 
   async function save() {
     if (!view) return;
@@ -91,7 +106,7 @@ export function useMyDetails(apiUrl: string, path: string) {
       'saveError',
     );
     if (!stored) return;
-    setLoaded(draft);
+    settle(afterSave(stored, sent, draft));
     setView({ ...view, override: stored });
   }
 
