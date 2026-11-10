@@ -4188,6 +4188,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/workshop-instructor-busy': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read when the Workshop instructors of an Event fight or referee */
+    get: operations['AssignmentBoardController_getInstructorBusy'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/referee-assignment-board/preview': {
     parameters: {
       query?: never;
@@ -18673,6 +18690,25 @@ export interface operations {
     };
   };
   AssignmentBoardController_getCrewConflicts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AssignmentBoardController_getInstructorBusy: {
     parameters: {
       query?: never;
       header?: never;

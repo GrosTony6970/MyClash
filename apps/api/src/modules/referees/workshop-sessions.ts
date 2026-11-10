@@ -83,6 +83,33 @@ export async function loadWorkshopSessions(
   });
 }
 
+/**
+ * Every instructor of the Event's Workshops, whatever their sessions (rulings 553-555): a
+ * Workshop still in the board's drawer gets its first session by a drag, and the board must
+ * already know when its instructor is busy. `loadWorkshopSessions` keeps only Workshops with a
+ * live session, so it cannot answer this.
+ */
+export async function loadInstructorIds(
+  db: Pick<SupabaseClient, 'from'>,
+  eventId: string,
+): Promise<Set<string>> {
+  const workshops = dataOrThrow<{
+    workshop_instructors: Array<{ global_person_id: string | null }> | null;
+  }>(
+    'the Workshop instructors',
+    await db
+      .from('workshops')
+      .select('workshop_instructors(global_person_id)')
+      .eq('event_id', eventId),
+  );
+  return new Set(
+    workshops
+      .flatMap((w) => w.workshop_instructors ?? [])
+      .map((i) => i.global_person_id)
+      .filter((id): id is string => id !== null),
+  );
+}
+
 /** The sessions of these Workshops that anybody still runs: a cancelled one is no commitment. */
 async function runningSessions(db: Pick<SupabaseClient, 'from'>, workshopIds: string[]) {
   return dataOrThrow<{

@@ -37,7 +37,12 @@ import {
   type DeclaredAvailability,
 } from './referee-availability';
 import { resolveMatchLengths } from '../schedule/match-lengths';
-import { detectConcurrencyShortage, formatRoundCode, type CapacityWarning } from '@myclash/types';
+import {
+  detectConcurrencyShortage,
+  formatRoundCode,
+  type CapacityWarning,
+  type WorkshopInstructorBusyResult,
+} from '@myclash/types';
 import {
   assignmentTarget,
   boardClock,
@@ -50,7 +55,8 @@ import {
   unitLabel,
   unitTarget,
 } from './event-commitments';
-import { loadWorkshopSessions } from './workshop-sessions';
+import { loadInstructorIds, loadWorkshopSessions } from './workshop-sessions';
+import { instructorBusy } from './instructor-busy';
 import { refereeBoardLocked } from './referee-lock';
 import { qualifiedCandidate, refuseUnlessFine } from './write-verdict';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -533,6 +539,17 @@ export class AssignmentBoardService {
       rules: switchesOf(context.ruleSettings),
       asOf: new Date().toISOString(),
     };
+  }
+
+  /**
+   * When the Event's Workshop instructors fight or referee, for the Workshop board's red card
+   * (rulings 553-555), from the same commitments the checker reads. An Event with no unit has
+   * no fight and no duty: `loadContext` then skips its Workshop read, and the answer is empty.
+   */
+  async getInstructorBusy(eventId: string): Promise<WorkshopInstructorBusyResult> {
+    const context = await this.loadContext(eventId);
+    const instructorIds = await loadInstructorIds(this.supabase.service, eventId);
+    return { busy: instructorBusy(context.commitments, instructorIds) };
   }
 
   /**

@@ -1245,6 +1245,77 @@ describe('AssignmentBoardService', () => {
   });
 
   /**
+   * The Workshop board's red card (rulings 553-555): when the Event's instructors fight or
+   * referee. The instructors are read on their own, after the board: a Workshop still in the
+   * drawer has no session, and its instructor must still be known.
+   */
+  describe('getInstructorBusy', () => {
+    const POOL_SPAN = {
+      label: 'Longsword · Pool 1',
+      startsAt: '2026-05-21T10:00:00.000Z',
+      endsAt: '2026-05-21T10:05:00.000Z',
+    };
+    const pureDuty = {
+      id: 'pure-duty',
+      person_id: PURE_REF_GLOBAL_ID,
+      pool_id: 'pool-1',
+      match_id: null,
+      role: 'arbitre_declarant',
+      status: 'assigned',
+      auto_assigned: false,
+    };
+    function queueInstructors(ids: string[]) {
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: [{ workshop_instructors: ids.map((id) => ({ global_person_id: id })) }],
+          error: null,
+        }),
+      );
+    }
+
+    it('gives an instructor with no session their duty, and leaves a non-instructor out', async () => {
+      queueBoardReads([pureDuty]);
+      queueInstructors([PURE_REF_GLOBAL_ID]);
+
+      const result = await service.getInstructorBusy('event-1');
+
+      expect(result).toEqual({
+        busy: [{ personId: PURE_REF_GLOBAL_ID, kind: 'referee', ...POOL_SPAN }],
+      });
+      expect(selectsFor(fromMock as never, 'workshops')).toContain(
+        'workshop_instructors(global_person_id)',
+      );
+    });
+
+    it("gives a fighting instructor their Pool's span once, not each bout again", async () => {
+      queueBoardReads();
+      queueInstructors([FIGHTER_REF_GLOBAL_ID]);
+
+      const { busy } = await service.getInstructorBusy('event-1');
+
+      expect(busy).toEqual([{ personId: FIGHTER_REF_GLOBAL_ID, kind: 'fight', ...POOL_SPAN }]);
+    });
+
+    it('answers nothing for an Event with no Tournament: nobody fights or referees', async () => {
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { timezone: 'Europe/Paris' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [], error: null }));
+      queueInstructors([PURE_REF_GLOBAL_ID]);
+
+      await expect(service.getInstructorBusy('event-1')).resolves.toEqual({ busy: [] });
+    });
+
+    it('fails when the instructors cannot be read, never answering "nobody is busy"', async () => {
+      queueBoardReads([pureDuty]);
+      fromMock.mockReturnValueOnce(makeChain(FAILED));
+
+      await expect(service.getInstructorBusy('event-1')).rejects.toThrow(
+        'Could not read the Workshop instructors',
+      );
+    });
+  });
+
+  /**
    * A referee committed to ONE FIGHT is still committed.
    *
    * Two things put a referee on a bout. The board assigns a whole pool and

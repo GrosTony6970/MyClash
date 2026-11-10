@@ -115,6 +115,23 @@ export class AssignmentBoardController {
     return this.assignments.getCrewConflicts(eventId);
   }
 
+  /**
+   * The Workshop board's red card (rulings 553-555): when the Workshops' instructors fight or
+   * referee. The crew-conflicts bar: any member of the Event, who can already read the board.
+   */
+  @Get('events/:eventId/workshop-instructor-busy')
+  @ApiOperation({
+    summary: 'Read when the Workshop instructors of an Event fight or referee',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getInstructorBusy(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await assertEventMember(this.authz, eventId, await this.userId(req));
+    return this.assignments.getInstructorBusy(eventId);
+  }
+
   @Post('events/:eventId/referee-assignment-board/preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

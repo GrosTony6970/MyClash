@@ -78,7 +78,8 @@ describe('referees module authorization', () => {
 
     // The count is the point: it makes a NEW route a deliberate edit here
     // rather than something that slips in behind the API-wide rule.
-    expect(board.length).toBe(12);
+    // 13: the Workshop board's busy read (rulings 553-555).
+    expect(board.length).toBe(13);
     expect(withoutAssert).toEqual([]);
   });
 });
