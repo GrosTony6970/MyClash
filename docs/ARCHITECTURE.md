@@ -2030,6 +2030,16 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   of one adds a session; a card on the grid is one session, moved by its id; a session the board
   cannot draw (its venue is not on the board) is listed under its Workshop and placed by a drag
   (`workshop-drawer.ts`).
+- The board turns a card red, as a warning that refuses nothing, when two Workshops share a room
+  at the same time, or when an instructor of the session is somewhere else then (rulings
+  553-555): teaching another session (of any Workshop, the same one included), refereeing, or
+  fighting, where a fighter is busy for their whole Pool or Swiss round and a bracket bout for
+  its own window. The tooltip names the person and the other place. The busy times come from
+  `GET events/:eventId/workshop-instructor-busy`, built from the referee checker's own
+  commitments (ADR-016), for the Event's instructors only; the overlap is worked out in the page
+  (`instructor-clashes.ts`). A session counts with a start and an end and not cancelled, as in
+  the checker. A failed read says the fights and refereeing were not checked. ADR-016 is the
+  other face: refereeing while teaching is refused on the referee board.
 - Roster view per session: seats, waiting list, and refusals (a refusal stays, so the person cannot
   book again; Remove lifts it, ruling 538). From the roster the organiser adds one of the Event's
   people (535) through `POST workshop-sessions/:id/enrollments/:personId`, which waitlists when the
