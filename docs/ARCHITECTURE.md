@@ -2032,6 +2032,13 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   (`workshop-drawer.ts`).
 - Roster view per session (confirmed, waitlisted), with check-in.
 - Cancel session → all enrollees notified (push + email).
+- A Workshop's message has one door, `POST workshops/:id/notify` (its instructor or a
+  `workshop_lead`). With a `sessionId` it reaches that session's seats and waiting list: the
+  organiser's "Message the people booked" under a session's roster (operator ruling 530). Without
+  one it reaches every session's: the instructor's dashboard. A cancelled session tells nobody: its
+  people are left out of a message to the whole Workshop (531), and a message to it alone answers
+  409 `WorkshopSessionCancelled`; its roster offers no message (532). Who is told is owned by
+  `apps/api/src/modules/workshops/workshop-booked-people.ts`.
 
 ---
 
@@ -2071,8 +2078,9 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
 - Offline-tolerant: if a user's device is offline, the push is queued by the OS; delivered on reconnect.
 - Off means off (operator ruling 200): a notice whose own switch is off, or any notice while the main switch is off (`enabled=false`), sends neither a push nor an email. The one exception is a broadcast (an organiser's, or an instructor's to a Workshop), which still reaches a reader whose main switch is off, by email, when the recipient has an address. The email is the fallback of a reader with no push subscription, never the answer to a switch.
 - Every automatic notice is written in French and in English, side by side, French first (operator ruling 202): the API does not know a reader's language. The texts live in the `notices` namespace of `@myclash/i18n`, and `apps/api/src/modules/notifications/notice-texts/notice-texts.ts` is the one module that words a notice. A broadcast is sent as its organiser or instructor typed it.
-- Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
-- A broadcast to referees reaches a referee by his profile (operator ruling 216; `apps/api/src/modules/notifications/broadcast-referee-recipients.ts`). With a roster row in the Event he is a recipient like a Fighter: that row, its holder, its address. With none, he is told through the account that holds his profile, at that account's own address (`account_emails`); his recipient row names no roster row, and the address is not saved with it, because every member of the Event's organisation may read those rows. A referee with no roster row whose profile no account holds is left out of the broadcast and of its count, and logged: nobody can be told.
+- Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, Workshop attendees, instructors, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
+- A broadcast to referees reaches a referee by his profile (operator ruling 216; `apps/api/src/modules/notifications/broadcast-profile-recipients.ts`). With a roster row in the Event he is a recipient like a Fighter: that row, its holder, its address. With none, he is told through the account that holds his profile, at that account's own address (`account_emails`); his recipient row names no roster row, and the address is not saved with it, because every member of the Event's organisation may read those rows. A referee with no roster row whose profile no account holds is left out of the broadcast and of its count, and logged: nobody can be told.
+- A broadcast to the Workshop attendees reaches everyone with a seat or a waiting-list place in a session that still runs, in any Workshop of the Event, a draft one included (operator ruling 533; the rule of a Workshop's own message, `workshop-booked-people.ts`). A broadcast to the instructors reaches everyone tagged as an instructor of the Event (`event_instructors`) and everyone named on one of its Workshops (`workshop_instructors`), each once (ruling 534). Both name a profile, so an instructor is reached as a referee is; one typed as a name only has no profile, is left out, and is counted in the log (`broadcast-workshop-recipients.ts`). Neither audience is narrowed by a `tournamentId`.
 - Broadcasts may include `tournamentId` for tournament-scoped fighter/referee targeting. Pool/bracket publish flows use this to open editable "ready" notification drafts without auto-sending.
 - The "your workshop starts" alert follows the booking (operator ruling 210).
   `NotificationSchedulerService.scheduleWorkshopSessionStarting` sets it for the account that holds

@@ -42,7 +42,7 @@ It is designed around three convictions:
 - Schedule matches on a day grid, and workshops on their own board — two boards, and two separate public pages.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
 - **Leagues / Classement**: org owners run multi-tournament leagues that aggregate standings across linked events/tournaments, with per-league organization and user roles, tournament/event linking and membership requests, on-demand recompute, and a public final report (CSV + printable HTML) export — managed in web-admin `/org/[slug]/leagues` and surfaced for competitors under `/me/leagues`.
-- Send event-wide notifications to everyone, fighters, referees, fighters and referees, or selected people with Info, Warning, and Alert severity; pool/bracket publish flows can prefill an editable "ready" broadcast.
+- Send event-wide notifications to everyone, fighters, referees, fighters and referees, Workshop attendees, instructors, or selected people with Info, Warning, and Alert severity; message the people booked in one Workshop session from its roster; pool/bracket publish flows can prefill an editable "ready" broadcast.
 - Publish results, rich statistics, and export to CSV/JSON/PDF/HEMA Ratings format.
 - **Archive & restore**: export a lossless, round-trippable JSON archive of a whole event or tournament, then restore it (with a restore-preview step) as a distinct backup/migration path, alongside the flat CSV/JSON/PDF/HEMA-Ratings exports.
 
