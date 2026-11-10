@@ -1998,7 +1998,9 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - A cancelled session stays on every page, struck through and marked with the `workshopSession`
   status word (rulings 526-529), and does nothing. The pages give it no booking control; it is
   never "live" nor "next", no time clash, not attended and not rated; on the board it cannot be
-  moved and holds no room; in the Workshop form its line is locked and only its ✕ (a delete) acts.
+  moved and holds no room; when a live session took its room and hour, the two cards stand side by
+  side, half each, live on the left, on the board and the public grid (ruling 552,
+  `buildWorkshopSessionBlocks` gives each block its `lane`, one day at a time); in the Workshop form its line is locked and only its ✕ (a delete) acts.
   The server holds the same: it is not moved (`WORKSHOP_SESSION_CANCELLED` on a time or room
   change; its status may still change), nobody is promoted into it, and deleting it sends no second
   cancel notice (`apps/api/src/modules/workshops/session-cancelled.ts`). One test of "cancelled"
