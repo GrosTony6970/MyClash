@@ -171,8 +171,16 @@ async function answerDialogs(): Promise<void> {
   }
   await settle();
   const left = openDialog();
-  // Still open: its yes is closed, or it stays up after a refusal. Close it.
-  if (left) await act(async () => liveButtons(left)[0]?.click());
+  // Still open: its yes is closed, or it stays up after a refusal. Close it: Escape, as a person
+  // would, then its first live button for a dialog deaf to Escape. Escape first: a roster's
+  // first live button is its CSV menu, which opened a fresh menu on every press, for ever.
+  if (!left) return;
+  await act(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+  });
+  await settle();
+  const deaf = openDialog();
+  if (deaf) await act(async () => liveButtons(deaf)[0]?.click());
 }
 
 async function pressAll(selector: string, within: ParentNode = document.body): Promise<void> {
