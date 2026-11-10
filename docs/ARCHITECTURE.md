@@ -2027,6 +2027,15 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 ### 11bis.6 Organizer admin
 
 - Admin UI for creating workshops, adding instructors, scheduling sessions.
+- A Workshop's short description (its catalogue line, at most 200 characters) and its
+  prerequisites (what to know or bring, at most 2000) are plain text, written by the organiser in
+  the Workshop form and by the Workshop's instructor from their dashboard (ruling 557); a blank
+  box clears the field (`apps/api/src/modules/workshops/workshop-text.ts`).
+- About an instructor (rulings 556, 558-560): the person's own profile gives the bio, club and
+  photo by default; a Workshop may override any of the three on its instructor line
+  (`workshop_instructors.bio`, `affiliation`, `photo_url`), written by the organiser or by that
+  instructor. An override is shown even when the profile bio is private: it was written for that
+  page. NOT BUILT yet: slice 2.6b; slice 3.6 shows instructors to the public.
 - Drag-drop session scheduler showing Lices + venue rooms in a single timeline. A Workshop may
   run several sessions (operator rulings 515, 524): the drawer lists every Workshop, and a drag
   of one adds a session; a card on the grid is one session, moved by its id; a session the board
