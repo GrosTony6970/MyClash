@@ -72,6 +72,7 @@ const READS = {
   '/api/v1/organizations/org-1/venues': [],
   [`/api/v1/events/${EVENT_ID}/workshops`]: [],
   [`/api/v1/events/${EVENT_ID}/workshop-breaks`]: [],
+  [`/api/v1/events/${EVENT_ID}/workshop-instructor-busy`]: { busy: [] },
 };
 
 let page: OpenedPage;

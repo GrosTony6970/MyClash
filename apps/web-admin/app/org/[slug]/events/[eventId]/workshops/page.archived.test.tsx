@@ -103,6 +103,7 @@ const READS: Record<string, unknown> = {
   ],
   '/api/v1/workshops/w-1': { descriptionMd: null },
   '/api/v1/workshops/w-2': { descriptionMd: null },
+  '/api/v1/events/ev1/workshop-instructor-busy': { busy: [] },
   '/api/v1/events/ev1/workshop-breaks': [
     { id: 'b-1', dayIndex: 0, startTime: '12:00', endTime: '13:00', label: 'Lunch', color: null },
   ],

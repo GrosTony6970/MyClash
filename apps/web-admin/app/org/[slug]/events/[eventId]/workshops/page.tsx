@@ -46,6 +46,7 @@ import {
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
+import { useInstructorClashes } from './use-instructor-clashes';
 import { sessionDeleteQuestion } from './session-delete-question';
 import { workshopDeleteQuestion, workshopDeleteRefusal } from './workshop-delete';
 import { WorkshopLogoField } from './WorkshopLogoField';
@@ -780,6 +781,8 @@ export default function WorkshopsAdminPage() {
     window.location.hash = next === 'schedule' ? '#schedule' : '#list';
     setTab(next);
   }
+  // An instructor busy elsewhere at the same time turns the card red (rulings 553-555).
+  const personClashes = useInstructorClashes(apiUrl, eventId, tab === 'schedule', workshops, t);
 
   // ── List header: fuzzy search + column filters + sort ───────────────────────────
   //
@@ -1031,6 +1034,8 @@ export default function WorkshopsAdminPage() {
           timezone={eventTz}
           breaks={breaks}
           readOnly={isReadOnly}
+          personClashes={personClashes.lines}
+          busyUnchecked={personClashes.unchecked}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
           onBlockClick={(_wid, sessionId) => void openRoster(sessionId)}
           onUnschedule={isReadOnly ? undefined : (sessionId) => void handleUnschedule(sessionId)}

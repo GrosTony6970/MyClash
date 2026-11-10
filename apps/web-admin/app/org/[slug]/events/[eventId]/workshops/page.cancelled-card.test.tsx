@@ -83,6 +83,7 @@ const READS: Record<string, unknown> = {
   '/api/v1/workshops/w-1': { descriptionMd: null },
   '/api/v1/workshops/w-2': { descriptionMd: null },
   '/api/v1/events/ev1/workshop-breaks': [],
+  '/api/v1/events/ev1/workshop-instructor-busy': { busy: [] },
 };
 
 let page: OpenedPage;

@@ -83,6 +83,10 @@ interface Props {
   breaks?: WorkshopBreak[];
   /** The Event is archived: no card is dragged or resized, so `onPlace` is never called. */
   readOnly: boolean;
+  /** Session id → why an instructor of it is busy elsewhere then (rulings 553-555). */
+  personClashes?: ReadonlyMap<string, readonly string[]>;
+  /** The instructors' fights and refereeing could not be read: said, never shown as clear. */
+  busyUnchecked?: boolean;
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
   /** A card was clicked: the page opens that session's roster. */
   onBlockClick?: (workshopId: string, sessionId: string) => void;
@@ -139,6 +143,8 @@ export function WorkshopScheduleBoard({
   timezone,
   breaks = [],
   readOnly,
+  personClashes,
+  busyUnchecked = false,
   onPlace,
   onBlockClick,
   onUnschedule,
@@ -523,6 +529,11 @@ export function WorkshopScheduleBoard({
 
   return (
     <div className="flex flex-col gap-3">
+      {busyUnchecked && (
+        <p role="status" className="text-sm text-warning">
+          {t('organizer.workshopsPage.board.busyUnchecked')}
+        </p>
+      )}
       {/* Day tabs + toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         {days.length > 1 &&
@@ -749,7 +760,9 @@ export function WorkshopScheduleBoard({
                           const startSlot = r ? r.curStart : bl.startSlot;
                           const endSlot = r ? r.curEnd : bl.endSlot;
                           const span = endSlot - startSlot;
-                          const conflict = conflictIds.has(bl.sessionId);
+                          const roomClash = conflictIds.has(bl.sessionId);
+                          const personLines = personClashes?.get(bl.sessionId) ?? [];
+                          const conflict = roomClash || personLines.length > 0;
                           const color = bl.color;
                           // A cancelled card is struck through and stays put (rulings 526, 528).
                           const fixed = readOnly || bl.cancelled;
@@ -780,11 +793,14 @@ export function WorkshopScheduleBoard({
                               title={
                                 bl.cancelled
                                   ? `${statusLabel('workshopSession', 'cancelled', t)} · ${bl.title}`
-                                  : conflict
-                                    ? t('organizer.workshopsPage.board.overlapsTitle', {
-                                        title: bl.title,
-                                      })
-                                    : bl.title
+                                  : [
+                                      roomClash
+                                        ? t('organizer.workshopsPage.board.overlapsTitle', {
+                                            title: bl.title,
+                                          })
+                                        : bl.title,
+                                      ...personLines,
+                                    ].join('\n')
                               }
                               className={[
                                 'group absolute left-0.5 right-0.5 overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',

@@ -119,6 +119,7 @@ const READS = {
     workshop('empty', 'Sunday dagger'),
   ],
   [`/api/v1/events/${EVENT_ID}/workshop-breaks`]: [],
+  [`/api/v1/events/${EVENT_ID}/workshop-instructor-busy`]: { busy: [] },
   '/api/v1/workshops/full': { descriptionMd: null },
   '/api/v1/workshops/empty': { descriptionMd: null },
   // Two seats, one on the waiting list, and one refusal, which is no booking.

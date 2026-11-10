@@ -2300,6 +2300,10 @@ export const organizer = {
       noVenues:
         "Aucun site compatible ateliers pour cet événement. Ajoutez-en un depuis l'onglet Sites.",
       overlapsTitle: '{title} — chevauche un autre atelier',
+      teachesClash: '{name} enseigne aussi {against} à ce moment-là',
+      refereesClash: '{name} arbitre {against} à ce moment-là',
+      fightsClash: '{name} combat dans {against} à ce moment-là',
+      busyUnchecked: "Les combats et l'arbitrage des instructeurs n'ont pas pu être vérifiés.",
       unscheduleAria: 'Déprogrammer',
       deleteBlockAria: 'Supprimer le bloc',
       editBlockAria: 'Modifier le bloc',
