@@ -159,7 +159,9 @@ describe('the archived-Event lock, API-wide', () => {
     // 195: `PATCH workshops/:id/instructors/:globalPersonId/details` (2.6b), placed by its
     // Workshop: an archived Event's Workshop says nothing new about its instructors.
     // 197: its `POST …/details/photo` and `DELETE …/details/photo`, placed alike.
-    expect(placed).toHaveLength(197);
+    // 198: `POST me/events/:eventId/join` (568), placed by its Event: nobody joins an archived
+    // Event (nor a completed one, 573).
+    expect(placed).toHaveLength(198);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

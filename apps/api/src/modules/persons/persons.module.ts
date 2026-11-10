@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CsvImportService } from './csv-import.service';
+import { EventJoinController } from './event-join.controller';
+import { EventJoinService } from './event-join.service';
 import { LookupController } from './lookup.controller';
 import { PersonEmailChangeController } from './person-email-change.controller';
 import { PersonEmailChangeService } from './person-email-change.service';
@@ -33,9 +35,11 @@ import { NotificationSchedulingModule } from '../notifications/notification-sche
     PublicScheduleController,
     PrivacyController,
     PersonEmailChangeController,
+    EventJoinController,
   ],
   providers: [
     PersonsService,
+    EventJoinService,
     CsvImportService,
     PrivacyService,
     PublicScheduleService,

@@ -42,6 +42,22 @@ export const createPersonSchema = z
   });
 export class CreatePersonDto extends createZodDto(createPersonSchema) {}
 
+/**
+ * Joining an Event by oneself (ruling 568). The names are read only when the account has no
+ * profile: then both, by the add's own rule. No email field: the row takes the account's address.
+ */
+export const joinEventSchema = z
+  .object({
+    givenName: z.string().trim().min(1).max(100).optional(),
+    familyName: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict()
+  .refine((d) => (d.givenName === undefined) === (d.familyName === undefined), {
+    message: 'givenName and familyName come together',
+    path: ['familyName'],
+  });
+export class JoinEventDto extends createZodDto(joinEventSchema) {}
+
 // givenName / familyName stay non-nullable (the service trims them and the
 // form never clears a name); the rest are `.nullable()` so the edit form can
 // blank a field by sending null (see createPersonSchema note above).

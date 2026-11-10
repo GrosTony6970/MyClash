@@ -5,7 +5,7 @@ import {
   UpdateFighterDto,
   UpdateGlobalPersonDto,
 } from '../../fighters/dto/fighters.dto';
-import { createPersonSchema, updatePersonSchema } from './persons.dto';
+import { createPersonSchema, joinEventSchema, updatePersonSchema } from './persons.dto';
 
 /**
  * A name of spaces is no name. "  " passed `min(1)`, the service trimmed it to "", and the public
@@ -14,6 +14,7 @@ import { createPersonSchema, updatePersonSchema } from './persons.dto';
 const SCHEMAS = [
   ['a participant', createPersonSchema, {}],
   ['a participant edited', updatePersonSchema, {}],
+  ['a person joining by themselves', joinEventSchema, {}],
   ['a fighter', CreateFighterDto.schema, { displayName: 'Jean Dupont' }],
   ['a fighter edited', UpdateFighterDto.schema, {}],
   ['a global profile', CreateGlobalPersonDto.schema, {}],

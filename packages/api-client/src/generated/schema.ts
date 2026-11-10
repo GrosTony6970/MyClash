@@ -5433,6 +5433,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/events/{eventId}/join': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Put one's own account on an Event's list (the Event allows it) */
+    post: operations['EventJoinController_join'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/persons/{personId}/assignments': {
     parameters: {
       query?: never;
@@ -11252,6 +11269,10 @@ export interface components {
     RequestPersonEmailChangeDto: {
       /** Format: email */
       newEmail: string;
+    };
+    JoinEventDto: {
+      givenName?: string;
+      familyName?: string;
     };
     CreateRegistrationDto: {
       /** Format: uuid */
@@ -20606,6 +20627,58 @@ export interface operations {
     responses: {
       /** @description Redirect to the sign-in page with the outcome */
       302: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventJoinController_join: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['JoinEventDto'];
+      };
+    };
+    responses: {
+      /** @description { personId, joined: new | claimed | already } */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `NamesRequired`: the account has no profile */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No signed-in account (a guest session is none) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unknown Event, or one this caller may not see */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `SelfJoinClosed`, or `AskOrganiser` with `reason`: sameName | yourProfile | yourAddress */
+      409: {
         headers: {
           [name: string]: unknown;
         };

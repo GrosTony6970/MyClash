@@ -752,34 +752,53 @@ export class AuthService {
     request: FastifyRequest,
     personIds: string[],
   ): Promise<{ claimed: number; alreadyAtEvent: number }> {
+    const user = await this.requireAccount(request);
+    let claimed = 0;
+    let alreadyAtEvent = 0;
+    for (const personId of personIds) {
+      const outcome = await this.claimOwnRow(user, personId);
+      if (outcome === 'already_at_event') alreadyAtEvent += 1;
+      else if (outcome === 'claimed') claimed += 1;
+    }
+    return { claimed, alreadyAtEvent };
+  }
+
+  /** The signed-in account behind a request, with its address. 401 when there is none. */
+  async requireAccount(request: FastifyRequest): Promise<{ id: string; email: string }> {
     const accessToken = this.extractToken(request);
     if (!accessToken) throw new UnauthorizedException('Authentication required');
     const user = await this.requestAuthUser(accessToken);
     if (!user || !user.email) throw new UnauthorizedException('Invalid session');
+    return { id: user.id, email: user.email };
+  }
 
-    let claimed = 0;
-    let alreadyAtEvent = 0;
-    for (const personId of personIds) {
-      const { data, error } = await this.supabase.service
-        .from('persons')
-        .select('id, email, claimed_by_user_id')
-        .eq('id', personId)
-        .maybeSingle();
-      // A failed read is not "no such row": that answered "0 claimed" and said nothing.
-      if (error) throw new Error(`Could not read person ${personId}: ${error.message}`);
-      const person = data as {
-        id: string;
-        email: string | null;
-        claimed_by_user_id: string | null;
-      } | null;
-      if (!person) continue;
-      // Already owned by someone else → never reassign.
-      if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) continue;
-      if (!personEmailMatchesUser(person.email, user.email)) continue;
-      if (await this.completeClaim(user.id, user.email, personId)) alreadyAtEvent += 1;
-      else claimed += 1;
-    }
-    return { claimed, alreadyAtEvent };
+  /**
+   * Claims one roster row for the account, by the claim's rule: the row carries the account's
+   * address, and is no other account's. The one owner for the /me confirm-to-claim and for joining
+   * an Event by oneself (ruling 568). The claim links the row's profile to the account, so alerts
+   * reach it at once. `skipped`: no such row, another account's, or another address.
+   */
+  async claimOwnRow(
+    user: { id: string; email: string },
+    personId: string,
+  ): Promise<'claimed' | 'already_at_event' | 'skipped'> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id, email, claimed_by_user_id')
+      .eq('id', personId)
+      .maybeSingle();
+    // A failed read is not "no such row": that answered "0 claimed" and said nothing.
+    if (error) throw new Error(`Could not read person ${personId}: ${error.message}`);
+    const person = data as {
+      id: string;
+      email: string | null;
+      claimed_by_user_id: string | null;
+    } | null;
+    if (!person) return 'skipped';
+    // Already owned by someone else → never reassign.
+    if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) return 'skipped';
+    if (!personEmailMatchesUser(person.email, user.email)) return 'skipped';
+    return (await this.completeClaim(user.id, user.email, personId)) ?? 'claimed';
   }
 
   /**
