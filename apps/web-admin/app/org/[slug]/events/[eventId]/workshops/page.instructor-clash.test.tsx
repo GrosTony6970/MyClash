@@ -162,6 +162,7 @@ describe('an instructor busy elsewhere at the same time', () => {
     expect(card('Rapier').className).not.toContain('ring-danger');
     // It was read, and it answered: no "could not be checked" line.
     expect(document.body.textContent).not.toContain(UNCHECKED);
+    expect(document.body.textContent).not.toContain('Checking when the instructors fight');
     expect(document.body.querySelectorAll('[draggable="true"]').length).toBeGreaterThan(0);
   });
 

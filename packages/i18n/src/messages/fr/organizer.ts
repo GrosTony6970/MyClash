@@ -2304,6 +2304,7 @@ export const organizer = {
       refereesClash: '{name} arbitre {against} à ce moment-là',
       fightsClash: '{name} combat dans {against} à ce moment-là',
       busyUnchecked: "Les combats et l'arbitrage des instructeurs n'ont pas pu être vérifiés.",
+      busyChecking: "Vérification des combats et de l'arbitrage des instructeurs…",
       unscheduleAria: 'Déprogrammer',
       deleteBlockAria: 'Supprimer le bloc',
       editBlockAria: 'Modifier le bloc',

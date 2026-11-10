@@ -4,13 +4,15 @@
  * The Workshop board's person warnings (rulings 553-555): reads when the instructors fight or
  * referee, and says, per session, why its card is red.
  *
- * Read when the Schedule tab is shown, and again when the set of instructors changes (a new
- * Workshop or instructor while the tab is open). Fights and duties do not move when a Workshop
- * moves, so a drag re-reads nothing: the teaching clash comes from the Workshops the page holds.
- * A newer read aborts the older one, so a slow answer never lands over a fresher one.
+ * Read when the Schedule tab is shown (and the Workshops have loaded: before that the set of
+ * instructors is empty, and a second read would follow at once), and again when the set of
+ * instructors changes (a new Workshop or instructor while the tab is open). Fights and duties do
+ * not move when a Workshop moves, so a drag re-reads nothing: the teaching clash comes from the
+ * Workshops the page holds. A newer read aborts the older one, so a slow answer never lands over a
+ * fresher one.
  *
- * A failed or malformed answer says so (`unchecked`): an empty list would read as "nobody is
- * busy", and nobody checked.
+ * The board never looks all clear when nobody checked: until an answer for the current set of
+ * instructors arrives it is `checking`, and a failed or malformed answer is `failed`.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@myclash/api-client';
@@ -18,9 +20,14 @@ import type { Translator } from '@myclash/next-i18n/client';
 import type { WorkshopInstructorBusy } from '@myclash/types';
 import { instructorClashes, instructorKey, type ClashWorkshop } from './instructor-clashes';
 
+/** Where the read of the instructors' fights and refereeing stands, as the board says it. */
+export type BusyCheck = 'checking' | 'checked' | 'failed';
+
 interface BusyRead {
+  /** The set of instructors this answer covers (`instructorKey`); null before any answer. */
+  key: string | null;
   busy: WorkshopInstructorBusy[];
-  unchecked: boolean;
+  failed: boolean;
 }
 
 function isBusyAnswer(data: unknown): data is { busy: WorkshopInstructorBusy[] } {
@@ -45,8 +52,8 @@ export function useInstructorClashes(
   enabled: boolean,
   workshops: ReadonlyArray<ClashWorkshop>,
   t: Translator,
-): { lines: Map<string, string[]>; unchecked: boolean } {
-  const [read, setRead] = useState<BusyRead>({ busy: [], unchecked: false });
+): { lines: Map<string, string[]>; check: BusyCheck } {
+  const [read, setRead] = useState<BusyRead>({ key: null, busy: [], failed: false });
   const key = instructorKey(workshops);
 
   useEffect(() => {
@@ -58,8 +65,8 @@ export function useInstructorClashes(
       if (controller.signal.aborted) return;
       setRead(
         result.ok && isBusyAnswer(result.data)
-          ? { busy: result.data.busy, unchecked: false }
-          : { busy: [], unchecked: true },
+          ? { key, busy: result.data.busy, failed: false }
+          : { key, busy: [], failed: true },
       );
     });
     return () => controller.abort();
@@ -76,5 +83,6 @@ export function useInstructorClashes(
     return out;
   }, [workshops, read.busy, t]);
 
-  return { lines, unchecked: read.unchecked };
+  const check: BusyCheck = read.key !== key ? 'checking' : read.failed ? 'failed' : 'checked';
+  return { lines, check };
 }

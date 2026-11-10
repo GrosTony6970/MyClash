@@ -782,7 +782,13 @@ export default function WorkshopsAdminPage() {
     setTab(next);
   }
   // An instructor busy elsewhere at the same time turns the card red (rulings 553-555).
-  const personClashes = useInstructorClashes(apiUrl, eventId, tab === 'schedule', workshops, t);
+  const personClashes = useInstructorClashes(
+    apiUrl,
+    eventId,
+    tab === 'schedule' && !loading,
+    workshops,
+    t,
+  );
 
   // ── List header: fuzzy search + column filters + sort ───────────────────────────
   //
@@ -1035,7 +1041,7 @@ export default function WorkshopsAdminPage() {
           breaks={breaks}
           readOnly={isReadOnly}
           personClashes={personClashes.lines}
-          busyUnchecked={personClashes.unchecked}
+          busyCheck={personClashes.check}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
           onBlockClick={(_wid, sessionId) => void openRoster(sessionId)}
           onUnschedule={isReadOnly ? undefined : (sessionId) => void handleUnschedule(sessionId)}

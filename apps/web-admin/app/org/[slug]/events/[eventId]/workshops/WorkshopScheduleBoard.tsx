@@ -55,6 +55,7 @@ import {
   placeWorkshopBlock,
   type Interval,
 } from './workshop-placement';
+import type { BusyCheck } from './use-instructor-clashes';
 import { drawerEntries, sessionRemovedByDrawerDrop, writeDrag } from './workshop-drawer';
 import { WorkshopDrawerList } from './WorkshopDrawerList';
 
@@ -84,9 +85,10 @@ interface Props {
   /** The Event is archived: no card is dragged or resized, so `onPlace` is never called. */
   readOnly: boolean;
   /** Session id → why an instructor of it is busy elsewhere then (rulings 553-555). */
-  personClashes?: ReadonlyMap<string, readonly string[]>;
-  /** The instructors' fights and refereeing could not be read: said, never shown as clear. */
-  busyUnchecked?: boolean;
+  personClashes: ReadonlyMap<string, readonly string[]>;
+  /** Until the instructors' fights and refereeing are read, or when they cannot be: said, never
+   *  shown as clear. */
+  busyCheck: BusyCheck;
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
   /** A card was clicked: the page opens that session's roster. */
   onBlockClick?: (workshopId: string, sessionId: string) => void;
@@ -144,7 +146,7 @@ export function WorkshopScheduleBoard({
   breaks = [],
   readOnly,
   personClashes,
-  busyUnchecked = false,
+  busyCheck,
   onPlace,
   onBlockClick,
   onUnschedule,
@@ -529,9 +531,14 @@ export function WorkshopScheduleBoard({
 
   return (
     <div className="flex flex-col gap-3">
-      {busyUnchecked && (
+      {busyCheck === 'failed' && (
         <p role="status" className="text-sm text-warning">
           {t('organizer.workshopsPage.board.busyUnchecked')}
+        </p>
+      )}
+      {busyCheck === 'checking' && (
+        <p role="status" className="text-sm text-muted">
+          {t('organizer.workshopsPage.board.busyChecking')}
         </p>
       )}
       {/* Day tabs + toolbar */}
@@ -761,7 +768,7 @@ export function WorkshopScheduleBoard({
                           const endSlot = r ? r.curEnd : bl.endSlot;
                           const span = endSlot - startSlot;
                           const roomClash = conflictIds.has(bl.sessionId);
-                          const personLines = personClashes?.get(bl.sessionId) ?? [];
+                          const personLines = personClashes.get(bl.sessionId) ?? [];
                           const conflict = roomClash || personLines.length > 0;
                           const color = bl.color;
                           // A cancelled card is struck through and stays put (rulings 526, 528).

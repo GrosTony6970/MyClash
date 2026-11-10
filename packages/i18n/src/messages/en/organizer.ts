@@ -2342,6 +2342,7 @@ export const organizer = {
       refereesClash: '{name} referees {against} at this time',
       fightsClash: '{name} fights in {against} at this time',
       busyUnchecked: 'Fights and refereeing could not be checked for the instructors.',
+      busyChecking: 'Checking when the instructors fight or referee…',
       unscheduleAria: 'Unschedule',
       deleteBlockAria: 'Delete block',
       editBlockAria: 'Edit block',
