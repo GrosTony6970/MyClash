@@ -13,7 +13,17 @@ import { broadcastQuestion, narrowedToTournament } from './broadcast-question';
 import { MAX_RECIPIENTS, type Recipient } from './recipients';
 import { RecipientPicker } from './_components/RecipientPicker';
 
-type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
+/** The audiences, in button order; also what the address may preselect. */
+const TARGET_TYPES = [
+  'all',
+  'fighters',
+  'referees',
+  'fighters_and_referees',
+  'workshop_attendees',
+  'instructors',
+  'specific_persons',
+] as const;
+type TargetType = (typeof TARGET_TYPES)[number];
 type Severity = 'info' | 'warning' | 'alert';
 
 interface BroadcastHistory {
@@ -44,12 +54,7 @@ export default function EventNotificationsPage() {
   const initialTarget = searchParams.get('targetType') as TargetType | null;
   const initialSeverity = searchParams.get('severity') as Severity | null;
   const [targetType, setTargetType] = useState<TargetType>(
-    initialTarget &&
-      ['all', 'fighters', 'referees', 'fighters_and_referees', 'specific_persons'].includes(
-        initialTarget,
-      )
-      ? initialTarget
-      : 'all',
+    initialTarget && TARGET_TYPES.includes(initialTarget) ? initialTarget : 'all',
   );
   const [severity, setSeverity] = useState<Severity>(
     initialSeverity && ['info', 'warning', 'alert'].includes(initialSeverity)
@@ -152,13 +157,17 @@ export default function EventNotificationsPage() {
     }
   }
 
-  const targetOptions: Array<{ value: TargetType; label: string }> = [
-    { value: 'all', label: t('organizer.broadcast.targetAll') },
-    { value: 'fighters', label: t('organizer.broadcast.targetFighters') },
-    { value: 'referees', label: t('organizer.broadcast.targetReferees') },
-    { value: 'fighters_and_referees', label: t('organizer.broadcast.targetFightersAndReferees') },
-    { value: 'specific_persons', label: t('organizer.broadcast.targetSpecific') },
-  ];
+  const targetLabels: Record<TargetType, string> = {
+    all: t('organizer.broadcast.targetAll'),
+    fighters: t('organizer.broadcast.targetFighters'),
+    referees: t('organizer.broadcast.targetReferees'),
+    fighters_and_referees: t('organizer.broadcast.targetFightersAndReferees'),
+    // Rulings 533, 534: seats and waiting places of running sessions; tagged and named instructors.
+    workshop_attendees: t('organizer.broadcast.targetWorkshopAttendees'),
+    instructors: t('organizer.broadcast.targetInstructors'),
+    specific_persons: t('organizer.broadcast.targetSpecific'),
+  };
+  const targetOptions = TARGET_TYPES.map((value) => ({ value, label: targetLabels[value] }));
   const severityOptions: Array<{ value: Severity; label: string }> = [
     { value: 'info', label: t('organizer.broadcast.info') },
     { value: 'warning', label: t('organizer.broadcast.warning') },

@@ -171,3 +171,23 @@ describe('Send on the broadcast page', () => {
     expect(dialog()?.textContent).toContain('Recipients: Everyone at event. Type');
   });
 });
+
+describe('the Workshop audiences (rulings 533, 534)', () => {
+  it('sends to the Workshop attendees, naming them in the question', async () => {
+    await openWithMessage();
+    await press('Workshop attendees');
+    await press('Send notification');
+    expect(dialog()?.textContent).toContain('Recipients: Workshop attendees. Type');
+    await press('Send notification', dialog()!);
+    expect(sentBody()).toMatchObject({ targetType: 'workshop_attendees' });
+  });
+
+  it('takes the instructors from the address, and no Tournament narrows them', async () => {
+    ADDRESS.search = new URLSearchParams({ targetType: 'instructors', tournamentId: 't-1' });
+    await openWithMessage();
+    await press('Send notification');
+    expect(dialog()?.textContent).toContain('Recipients: Instructors. Type');
+    await press('Send notification', dialog()!);
+    expect(sentBody()).toMatchObject({ targetType: 'instructors' });
+  });
+});

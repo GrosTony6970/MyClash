@@ -1499,6 +1499,8 @@ export const organizer = {
     targetFighters: 'Fighters only',
     targetReferees: 'Referees only',
     targetFightersAndReferees: 'Fighters and referees',
+    targetWorkshopAttendees: 'Workshop attendees',
+    targetInstructors: 'Instructors',
     targetSpecific: 'Specific people',
     severity: 'Type',
     info: 'Info',

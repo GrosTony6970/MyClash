@@ -1498,6 +1498,8 @@ export const organizer = {
     targetFighters: 'Combattants seulement',
     targetReferees: 'Arbitres seulement',
     targetFightersAndReferees: 'Combattants et arbitres',
+    targetWorkshopAttendees: 'Inscrits aux ateliers',
+    targetInstructors: 'Instructeurs',
     targetSpecific: 'Personnes choisies',
     severity: 'Type',
     info: 'Info',
