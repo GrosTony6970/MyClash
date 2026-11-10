@@ -74,6 +74,8 @@ export interface CreateWorkshopDto {
    * references.
    */
   venueId?: string | null;
+  /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
+  autoCheckIn?: boolean;
 }
 
 export interface UpdateWorkshopDto {
@@ -95,6 +97,8 @@ export interface UpdateWorkshopDto {
    * (subsequent sessions will not pre-fill a venue).
    */
   venueId?: string | null;
+  /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
+  autoCheckIn?: boolean;
   /**
    * Workshop logo URL. Set via the dedicated upload endpoint; the
    * update path only carries it so the operator can clear it — send
@@ -148,6 +152,8 @@ export interface WorkshopView {
   id: string;
   slug: string;
   title: string;
+  /** The front desk's auto check-in switch: on the organiser's reads only, never a public one. */
+  autoCheckIn?: boolean;
   shortDescription: string | null;
   descriptionMd: string | null;
   category: string | null;
@@ -229,6 +235,8 @@ interface RawWorkshop {
   color: string | null;
   cover_image_url: string | null;
   venue_id: string | null;
+  /** Read by the organiser's reads only (`ORGANISER_WORKSHOP_SELECT`). */
+  auto_check_in?: boolean;
   venues: NamedRef | null;
   // A Workshop has several sessions (0257), so PostgREST embeds them as an array.
   workshop_sessions: RawSession[] | null;
@@ -245,6 +253,14 @@ const WORKSHOP_SELECT = `
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
   workshop_instructors ( global_person_id, display_name )
+`;
+
+/**
+ * The organiser's reads add the Workshop's own settings the public pages never show: the front
+ * desk's auto check-in switch (rulings 540, 543).
+ */
+const ORGANISER_WORKSHOP_SELECT = `${WORKSHOP_SELECT.trimEnd()},
+  auto_check_in
 `;
 
 @Injectable()
@@ -267,7 +283,7 @@ export class WorkshopsService {
     await this.assertCanReadEvent(eventId, userId);
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .select(WORKSHOP_SELECT)
+      .select(ORGANISER_WORKSHOP_SELECT)
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true })
       .order('title', { ascending: true });
@@ -275,7 +291,7 @@ export class WorkshopsService {
     if (error) throw new BadRequestException(error.message);
     const rows = (data ?? []) as unknown as RawWorkshop[];
     const counts = await this.confirmedCountsForWorkshops(rows);
-    return rows.map((row) => this.mapWorkshop(row, counts));
+    return rows.map((row) => this.organiserView(row, counts));
   }
 
   // ── Public reads (slug-based, status-gated) ─────────────────────────────────────
@@ -417,7 +433,7 @@ export class WorkshopsService {
 
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .select(WORKSHOP_SELECT)
+      .select(ORGANISER_WORKSHOP_SELECT)
       .eq('id', workshopId)
       .maybeSingle();
 
@@ -425,7 +441,7 @@ export class WorkshopsService {
     if (!data) throw new NotFoundException(`Workshop ${workshopId} not found`);
     const row = data as unknown as RawWorkshop;
     const counts = await this.confirmedCountsForWorkshops([row]);
-    return this.mapWorkshop(row, counts);
+    return this.organiserView(row, counts);
   }
 
   // ── Create workshop ───────────────────────────────────────────────────────────
@@ -473,6 +489,7 @@ export class WorkshopsService {
         status: dto.status ?? 'draft',
         color: dto.color ?? null,
         venue_id: dto.venueId ?? null,
+        auto_check_in: dto.autoCheckIn ?? false,
       })
       .select('*')
       .single();
@@ -527,6 +544,7 @@ export class WorkshopsService {
     if (dto.color !== undefined) updates['color'] = dto.color;
     if (dto.coverImageUrl !== undefined) updates['cover_image_url'] = dto.coverImageUrl;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
+    if (dto.autoCheckIn !== undefined) updates['auto_check_in'] = dto.autoCheckIn;
 
     const { data, error } = await this.supabase.service
       .from('workshops')
@@ -1096,6 +1114,11 @@ export class WorkshopsService {
   }
 
   // ── DTO mapping ────────────────────────────────────────────────────────────────
+
+  /** A Workshop as its organiser reads it: the public view plus its own settings. */
+  private organiserView(row: RawWorkshop, counts: Map<string, number>): WorkshopView {
+    return { ...this.mapWorkshop(row, counts), autoCheckIn: row.auto_check_in === true };
+  }
 
   private mapWorkshop(row: RawWorkshop, counts: Map<string, number>): WorkshopView {
     const capacity = row.capacity ?? null;

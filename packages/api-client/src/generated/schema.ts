@@ -12232,6 +12232,7 @@ export interface components {
       color?: string | null;
       /** Format: uuid */
       venueId?: string | null;
+      autoCheckIn?: boolean;
     };
     UpdateWorkshopBody: {
       title?: string;
@@ -12249,6 +12250,7 @@ export interface components {
       coverImageUrl?: string | null;
       /** Format: uuid */
       venueId?: string | null;
+      autoCheckIn?: boolean;
     };
     InstructorUpdateWorkshopBody: {
       weapon?: string | null;

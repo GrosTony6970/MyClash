@@ -83,6 +83,7 @@ const createWorkshopSchema = z
     status: z.enum(WORKSHOP_STATUSES).nullish(),
     color: z.string().nullish(),
     venueId: z.uuid().nullish(),
+    autoCheckIn: z.boolean().optional(),
   })
   .strict();
 class CreateWorkshopBody extends createZodDto(createWorkshopSchema) {}
@@ -104,6 +105,7 @@ const updateWorkshopSchema = z
     // carries it so the operator can clear it (send null).
     coverImageUrl: z.string().nullish(),
     venueId: z.uuid().nullish(),
+    autoCheckIn: z.boolean().optional(),
   })
   .strict();
 class UpdateWorkshopBody extends createZodDto(updateWorkshopSchema) {}
