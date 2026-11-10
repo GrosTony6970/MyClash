@@ -10,6 +10,7 @@ import type { UnknownCaller } from '@/components/me/workshop-booking';
 import { CANCELLED_TEXT } from '@/components/workshops/session-cancelled';
 import { loginHref, signupHref } from '@/lib/sign-in-return';
 import { JoinEventPanel } from './JoinEventPanel';
+import type { JoinOffer } from './join-event';
 
 const NOTICE = 'rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-sm';
 const DOOR =
@@ -29,16 +30,18 @@ export function UnknownCallerNotice({
   who,
   eventSlug,
   join,
+  onJoined,
 }: {
   who: UnknownCaller;
   eventSlug: string;
-  join: { apiUrl: string; eventId: string; onJoined: () => Promise<void> } | null;
+  join: JoinOffer | null;
+  onJoined: () => Promise<void>;
 }): ReactNode {
   const { t } = useI18n();
   // Signing in returns to this Workshop's page.
   const here = usePathname();
   if (who === 'account') {
-    if (join) return <JoinEventPanel {...join} />;
+    if (join) return <JoinEventPanel {...join} onJoined={onJoined} />;
     return (
       <p role="status" className={`${NOTICE} text-foreground-secondary`}>
         {t('publicApp.workshopDetail.accountNotOnRoster')}

@@ -25,6 +25,36 @@ export function JoinEventPanel({
   onJoined: () => Promise<void>;
 }): ReactNode {
   const { t } = useI18n();
+  const { askNames, names, setNames, busy, refusal, submit } = useJoin(apiUrl, eventId, onJoined);
+  return (
+    <form
+      onSubmit={(e) => void submit(e)}
+      className="rounded-xl border border-border bg-surface px-4 py-3 text-sm"
+    >
+      <p className="font-semibold text-foreground">{t('publicApp.workshopDetail.join.title')}</p>
+      <p className="mt-1 text-foreground-secondary">
+        {t(
+          askNames
+            ? 'publicApp.workshopDetail.join.namesLead'
+            : 'publicApp.workshopDetail.join.lead',
+        )}
+      </p>
+      {askNames && <NameBoxes names={names} setNames={setNames} disabled={busy} />}
+      {refusal && (
+        <p role="alert" className="mt-2 text-danger">
+          {refusal}
+        </p>
+      )}
+      <Button type="submit" disabled={busy} className="mt-3 min-h-11">
+        {t(busy ? 'publicApp.workshopDetail.join.busy' : 'publicApp.workshopDetail.join.button')}
+      </Button>
+    </form>
+  );
+}
+
+/** The join's state: one tap, the names box only once the server asks, the refusal in words. */
+function useJoin(apiUrl: string, eventId: string, onJoined: () => Promise<void>) {
+  const { t } = useI18n();
   const [askNames, setAskNames] = useState(false);
   const [names, setNames] = useState<JoinNames>({ givenName: '', familyName: '' });
   const [busy, setBusy] = useState(false);
@@ -44,44 +74,34 @@ export function JoinEventPanel({
     }
   }
 
+  return { askNames, names, setNames, busy, refusal, submit };
+}
+
+function NameBoxes({
+  names,
+  setNames,
+  disabled,
+}: {
+  names: JoinNames;
+  setNames: (update: (n: JoinNames) => JoinNames) => void;
+  disabled: boolean;
+}) {
+  const { t } = useI18n();
   return (
-    <form
-      onSubmit={(e) => void submit(e)}
-      className="rounded-xl border border-border bg-surface px-4 py-3 text-sm"
-    >
-      <p className="font-semibold text-foreground">{t('publicApp.workshopDetail.join.title')}</p>
-      <p className="mt-1 text-foreground-secondary">
-        {t(
-          askNames
-            ? 'publicApp.workshopDetail.join.namesLead'
-            : 'publicApp.workshopDetail.join.lead',
-        )}
-      </p>
-      {askNames && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <NameBox
-            label={t('publicApp.workshopDetail.join.givenName')}
-            value={names.givenName}
-            disabled={busy}
-            onChange={(givenName) => setNames((n) => ({ ...n, givenName }))}
-          />
-          <NameBox
-            label={t('publicApp.workshopDetail.join.familyName')}
-            value={names.familyName}
-            disabled={busy}
-            onChange={(familyName) => setNames((n) => ({ ...n, familyName }))}
-          />
-        </div>
-      )}
-      {refusal && (
-        <p role="alert" className="mt-2 text-danger">
-          {refusal}
-        </p>
-      )}
-      <Button type="submit" disabled={busy} className="mt-3 min-h-11">
-        {t(busy ? 'publicApp.workshopDetail.join.busy' : 'publicApp.workshopDetail.join.button')}
-      </Button>
-    </form>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <NameBox
+        label={t('publicApp.workshopDetail.join.givenName')}
+        value={names.givenName}
+        disabled={disabled}
+        onChange={(givenName) => setNames((n) => ({ ...n, givenName }))}
+      />
+      <NameBox
+        label={t('publicApp.workshopDetail.join.familyName')}
+        value={names.familyName}
+        disabled={disabled}
+        onChange={(familyName) => setNames((n) => ({ ...n, familyName }))}
+      />
+    </div>
   );
 }
 

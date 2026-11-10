@@ -37,7 +37,6 @@ import {
   type BookingChange,
   type CallerBookings,
   type TapsInFlight,
-  type UnknownCaller,
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
 import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
@@ -54,6 +53,7 @@ import {
   SessionWhen,
   UnknownCallerNotice,
 } from './WorkshopPageParts';
+import { joinOffer, type StrangerTap } from './join-event';
 
 /**
  * What the page says after a tap: the booking as the server gave it, or why it
@@ -86,10 +86,8 @@ export default function WorkshopDetailPage() {
   // for the clash check. Nothing for nobody.
   const [caller, setCaller] = useState<CallerBookings>({ bookings: new Map(), schedule: null });
   const [readFailed, setReadFailed] = useState(false);
-  // Who the booking door did not know, at the last tap.
-  const [unknown, setUnknown] = useState<UnknownCaller | null>(null);
-  // The tap the door refused as a stranger's: "Join and book" books it once joined (ruling 568).
-  const strangerTap = useRef<{ sessionId: string; booking: WorkshopBooking } | null>(null);
+  // Who the booking door did not know at the last tap, and that tap: "Join and book" books it (568).
+  const [unknown, setUnknown] = useState<StrangerTap | null>(null);
   const [me, setMe] = useState<MeSession | null>(null);
   const taps = useRef(0);
   const [busy, setBusy] = useState<TapsInFlight>(new Set());
@@ -167,21 +165,10 @@ export default function WorkshopDetailPage() {
     // The notice under the sessions follows the last tap: the door knew her, or did not.
     // Two taps close together: the `/me` answer of the older one must not undo the newer one's.
     const stranger = !change.ok && change.why === 'nobody';
-    if (stranger) strangerTap.current = { sessionId, booking };
     const who = stranger ? await unknownCaller(apiUrl) : null;
-    if (taps.current === tap) setUnknown(who);
+    if (taps.current === tap) setUnknown(who && { who, sessionId, booking });
   }
-
-  /** Joined by oneself: the tap that was refused now books, as the same one call. */
-  async function bookTheRefusedTap() {
-    const refused = strangerTap.current;
-    if (refused) await act(refused.sessionId, 'book', refused.booking);
-  }
-  // An Event that lets people join by themselves (rulings 516, 568), once its read is in.
-  const join =
-    eventInfo?.workshopSelfJoin === true
-      ? { apiUrl, eventId: eventInfo.id, onJoined: bookTheRefusedTap }
-      : null;
+  const join = joinOffer(eventInfo, apiUrl);
 
   if (loading) {
     return (
@@ -390,7 +377,14 @@ export default function WorkshopDetailPage() {
                 </div>
               );
             })}
-            {unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} join={join} />}
+            {unknown && (
+              <UnknownCallerNotice
+                who={unknown.who}
+                eventSlug={eventSlug}
+                join={join}
+                onJoined={() => act(unknown.sessionId, 'book', unknown.booking)}
+              />
+            )}
             {guestPersonId && <GuestAlertsLine eventSlug={eventSlug} personId={guestPersonId} />}
           </div>
         </section>

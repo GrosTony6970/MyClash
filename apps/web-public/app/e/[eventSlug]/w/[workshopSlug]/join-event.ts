@@ -1,4 +1,12 @@
 import { apiRequest, failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
+import type { UnknownCaller, WorkshopBooking } from '@/components/me/workshop-booking';
+
+/** A tap the booking door refused as a stranger's, with who the stranger was. */
+export interface StrangerTap {
+  who: UnknownCaller;
+  sessionId: string;
+  booking: WorkshopBooking;
+}
 
 /** The typed names, sent only when the account has no profile to take them from. */
 export interface JoinNames {
@@ -31,6 +39,23 @@ export function joinRefusalWords(failure: ApiFailure, t: (key: string) => string
     return t('publicApp.workshopDetail.join.ended');
   }
   return failureMessage(failure, t, t('publicApp.workshopDetail.join.failed')) ?? '';
+}
+
+/**
+ * What a Workshop page offers a caller its door did not know: the join, when the Event lets people
+ * join by themselves (rulings 516, 568) and its read is in; else nothing, and today's notices.
+ */
+export function joinOffer(
+  event: { id: string; workshopSelfJoin: boolean } | null,
+  apiUrl: string,
+): JoinOffer | null {
+  return event?.workshopSelfJoin === true ? { apiUrl, eventId: event.id } : null;
+}
+
+/** Where a join goes; the page hands the booking that follows it as its own handler prop. */
+export interface JoinOffer {
+  apiUrl: string;
+  eventId: string;
 }
 
 export async function joinEvent(

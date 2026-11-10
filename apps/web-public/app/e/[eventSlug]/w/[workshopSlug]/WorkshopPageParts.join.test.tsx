@@ -26,13 +26,18 @@ afterEach(() => {
   container.remove();
 });
 
-const JOIN = { apiUrl: 'http://api.test', eventId: 'ev-1', onJoined: async () => undefined };
+const JOIN = { apiUrl: 'http://api.test', eventId: 'ev-1' };
 
 function show(who: 'account' | 'visitor', join: typeof JOIN | null) {
   act(() => {
     root.render(
       <I18nProvider locale="en">
-        <UnknownCallerNotice who={who} eventSlug="open-2027" join={join} />
+        <UnknownCallerNotice
+          who={who}
+          eventSlug="open-2027"
+          join={join}
+          onJoined={async () => undefined}
+        />
       </I18nProvider>,
     );
   });

@@ -250,15 +250,18 @@ describe('the public Workshop page', () => {
 
   it('tells a caller the door did not know the ways in, after the tap, and until a tap is accepted (ruling 266)', () => {
     expect(page).toMatch(
-      /const stranger = !change\.ok && change\.why === 'nobody';\s+if \(stranger\) strangerTap\.current = \{ sessionId, booking \};\s+const who = stranger \? await unknownCaller\(apiUrl\) : null;/,
+      /const stranger = !change\.ok && change\.why === 'nobody';\s+const who = stranger \? await unknownCaller\(apiUrl\) : null;/,
     );
     // Two taps close together: only the last tap's answer is shown.
     expect(page).toMatch(
       /const tap = \+\+taps\.current;\s+setBusy\(\(taps\) => tapStarted\(taps, sessionId\)\);/,
     );
-    expect(page).toContain('if (taps.current === tap) setUnknown(who);');
+    // The notice keeps the tap it was raised by: "Join and book" books that one (ruling 568).
     expect(page).toContain(
-      '{unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} join={join} />}',
+      'if (taps.current === tap) setUnknown(who && { who, sessionId, booking });',
+    );
+    expect(page).toMatch(
+      /\{unknown && \(\s+<UnknownCallerNotice\s+who=\{unknown\.who\}[\s\S]*?onJoined=\{\(\) => act\(unknown\.sessionId, 'book', unknown\.booking\)\}/,
     );
     // No 3-second message for her: the notice stays.
     expect(page).toContain("return change.why === 'nobody' ? null : refusalWords(change, t);");
