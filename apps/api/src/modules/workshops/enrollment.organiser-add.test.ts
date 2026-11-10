@@ -20,15 +20,14 @@ const PEOPLE = [
   { id: 'tom', event_id: 'ev-b', global_person_id: null },
 ];
 
-function build(persons: Parameters<typeof mockSupabase>[0][string] = { rows: PEOPLE }) {
+function build(
+  persons: Parameters<typeof mockSupabase>[0][string] = { rows: PEOPLE },
+  workshop: Record<string, unknown> = { capacity: null, status: 'draft', event_id: EVENT },
+) {
   const supabase = mockSupabase({
     // The session booked, then the Workshop's sessions: this one alone (rulings 520-523).
     workshop_sessions: [
-      row({
-        status: 'scheduled',
-        workshop_id: 'w-1',
-        workshops: { capacity: null, status: 'draft', event_id: EVENT },
-      }),
+      row({ status: 'scheduled', workshop_id: 'w-1', workshops: workshop }),
       row([{ id: SESSION }]),
     ],
     persons,
@@ -77,6 +76,16 @@ describe('the organiser books only a person of this Event', () => {
       'status, workshop_id, workshops ( capacity, status, event_id )',
     );
     expect(selectsFor(supabase.from, 'persons')[0]).toBe('id');
+  });
+
+  it('throws when the session names no Event, rather than book anyone', async () => {
+    const { service, supabase } = build(undefined, { capacity: null, status: 'draft' });
+
+    const failure = await service.enroll(SESSION, 'lea').catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect(writesTo(supabase, 'workshop_enrollments')).toEqual([]);
   });
 
   it('throws on a persons read that failed, never "not on this Event", and writes nothing', async () => {
