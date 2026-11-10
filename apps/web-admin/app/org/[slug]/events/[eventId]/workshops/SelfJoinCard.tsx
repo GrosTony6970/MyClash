@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Switch } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { useSelfJoinSwitch } from './use-self-join-switch';
 
 /**
  * "People may join this Event by themselves" (rulings 516, 568): with it on, a signed-in account
@@ -21,40 +20,7 @@ export function SelfJoinCard({
   readOnly: boolean;
 }) {
   const { t } = useI18n();
-  // Null until the Event is read: the switch waits rather than show "off" for an Event that is on.
-  const [on, setOn] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void apiRequest<{ workshop_self_join?: boolean }>(apiUrl, `/api/v1/events/${eventId}`, {
-      signal: controller.signal,
-    }).then((r) => {
-      if (r.ok) setOn(r.data.workshop_self_join === true);
-      else if (r.kind !== 'aborted')
-        setError(failureMessage(r, t, t('organizer.selfJoin.loadError')));
-    });
-    return () => controller.abort();
-  }, [apiUrl, eventId, t]);
-
-  async function save(next: boolean) {
-    setOn(next);
-    setSaving(true);
-    setError(null);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}`, {
-        method: 'PATCH',
-        body: { workshopSelfJoin: next },
-      });
-      if (r.ok) return;
-      setOn(!next);
-      setError(failureMessage(r, t, t('organizer.selfJoin.saveError')));
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  const { on, saving, error, save } = useSelfJoinSwitch(apiUrl, eventId);
   return (
     <section className="mb-6 rounded-lg border border-border bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
