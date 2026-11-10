@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { readWorkshopTotals } from './workshop-totals';
 
-type Answer = { data: unknown; error: { message: string } | null };
+type Answer = { data?: unknown; count?: number | null; error: { message: string } | null };
 
 /**
- * A double that answers each table once and RECORDS what each read asked for: the select string,
- * every `.eq` and every `.in`. A double that ignored them could not prove which rows are counted.
+ * A double that RECORDS what each read asked for: the select string and its options, every `.eq`
+ * and every `.in`. A double that ignored them could not prove which rows are counted. A read is
+ * answered by `table:status` when it filters on a status (the head counts), else by `table`.
  */
 function recordingDb(answers: Record<string, Answer>) {
   const reads: Array<{
     table: string;
     select?: string;
+    options?: unknown;
     eq: Array<[string, unknown]>;
     in: Array<[string, unknown[]]>;
   }> = [];
@@ -23,8 +25,8 @@ function recordingDb(answers: Record<string, Answer>) {
       };
       reads.push(read);
       const chain = {
-        select(columns: string) {
-          Object.assign(read, { select: columns });
+        select(columns: string, options?: unknown) {
+          Object.assign(read, { select: columns }, options === undefined ? {} : { options });
           return chain;
         },
         eq(column: string, value: unknown) {
@@ -36,7 +38,8 @@ function recordingDb(answers: Record<string, Answer>) {
           return chain;
         },
         then(resolve: (value: Answer) => unknown, reject?: (reason: unknown) => unknown) {
-          const answer = answers[table];
+          const status = read.eq.find(([column]) => column === 'status')?.[1];
+          const answer = answers[status ? `${table}:${String(status)}` : table];
           if (!answer)
             return Promise.reject(new Error(`unexpected read of ${table}`)).then(resolve, reject);
           return Promise.resolve(answer).then(resolve, reject);
@@ -49,6 +52,11 @@ function recordingDb(answers: Record<string, Answer>) {
 }
 
 const ok = (data: unknown): Answer => ({ data, error: null });
+const counted = (count: number): Answer => ({ data: null, count, error: null });
+const NO_BOOKINGS = {
+  'workshop_enrollments:confirmed': counted(0),
+  'workshop_enrollments:waitlisted': counted(0),
+};
 
 describe('readWorkshopTotals — the Workshop cards of the Event overview', () => {
   it("reads the Event's Workshops with their sessions' status", async () => {
@@ -74,12 +82,8 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
         },
         { capacity: 20, workshop_sessions: [{ id: 's-dag', status: 'running' }] },
       ]),
-      workshop_enrollments: ok([
-        { workshop_session_id: 's-sat', status: 'confirmed' },
-        { workshop_session_id: 's-sat', status: 'waitlisted' },
-        { workshop_session_id: 's-dag', status: 'confirmed' },
-        { workshop_session_id: 's-dag', status: 'confirmed' },
-      ]),
+      'workshop_enrollments:confirmed': counted(3),
+      'workshop_enrollments:waitlisted': counted(1),
     });
 
     await expect(readWorkshopTotals(db, 'event-1')).resolves.toEqual({
@@ -89,15 +93,15 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
       seats: 32,
       waitlisted: 1,
     });
-    expect(reads[1]).toEqual({
+    // Head counts (no rows, so no 1000-row cap), over the live sessions only.
+    const countRead = (status: string) => ({
       table: 'workshop_enrollments',
-      select: 'workshop_session_id, status',
-      eq: [],
-      in: [
-        ['workshop_session_id', ['s-sat', 's-dag']],
-        ['status', ['confirmed', 'waitlisted']],
-      ],
+      select: 'id',
+      options: { count: 'exact', head: true },
+      eq: [['status', status]],
+      in: [['workshop_session_id', ['s-sat', 's-dag']]],
     });
+    expect(reads.slice(1)).toEqual([countRead('confirmed'), countRead('waitlisted')]);
   });
 
   it('adds the seats of every session: two sessions of 12 make 24', async () => {
@@ -107,11 +111,11 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
           capacity: 12,
           workshop_sessions: [
             { id: 's-1', status: 'scheduled' },
-            { id: 's-2', status: null },
+            { id: 's-2', status: 'running' },
           ],
         },
       ]),
-      workshop_enrollments: ok([]),
+      ...NO_BOOKINGS,
     });
     await expect(readWorkshopTotals(db, 'event-1')).resolves.toMatchObject({
       sessions: 2,
@@ -125,7 +129,7 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
         { capacity: 12, workshop_sessions: [{ id: 's-1', status: 'scheduled' }] },
         { capacity: null, workshop_sessions: [{ id: 's-2', status: 'scheduled' }] },
       ]),
-      workshop_enrollments: ok([]),
+      ...NO_BOOKINGS,
     });
     await expect(readWorkshopTotals(db, 'event-1')).resolves.toMatchObject({ seats: null });
   });
@@ -136,12 +140,12 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
         { capacity: 12, workshop_sessions: [{ id: 's-1', status: 'scheduled' }] },
         { capacity: null, workshop_sessions: [{ id: 's-2', status: 'cancelled' }] },
       ]),
-      workshop_enrollments: ok([]),
+      ...NO_BOOKINGS,
     });
     await expect(readWorkshopTotals(db, 'event-1')).resolves.toMatchObject({ seats: 12 });
   });
 
-  it('reads no booking when no session is live, and counts a Workshop without sessions', async () => {
+  it('reads no booking and has no seat total when no session is live ("0 / 0" reads as full)', async () => {
     const { db, reads } = recordingDb({
       workshops: ok([
         { capacity: 12, workshop_sessions: [] },
@@ -152,7 +156,7 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
       workshops: 2,
       sessions: 0,
       seatsTaken: 0,
-      seats: 0,
+      seats: null,
       waitlisted: 0,
     });
     expect(reads.map((r) => r.table)).toEqual(['workshops']);
@@ -163,13 +167,14 @@ describe('readWorkshopTotals — the Workshop cards of the Event overview', () =
     await expect(readWorkshopTotals(db, 'event-1')).rejects.toThrow(/were not counted: boom/);
   });
 
-  it('throws when the bookings cannot be read, rather than saying every seat is free', async () => {
+  it('throws when a booking count fails, rather than saying every seat is free', async () => {
     const { db } = recordingDb({
       workshops: ok([{ capacity: 12, workshop_sessions: [{ id: 's-1', status: 'scheduled' }] }]),
-      workshop_enrollments: { data: null, error: { message: 'boom' } },
+      'workshop_enrollments:confirmed': { count: null, error: { message: 'boom' } },
+      'workshop_enrollments:waitlisted': counted(0),
     });
     await expect(readWorkshopTotals(db, 'event-1')).rejects.toThrow(
-      /bookings .* not counted: boom/,
+      /confirmed bookings .* not counted: boom/,
     );
   });
 });

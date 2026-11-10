@@ -45,22 +45,32 @@ export async function readWorkshopTotals(
     }
   }
 
-  let seatsTaken = 0;
-  let waitlisted = 0;
-  if (liveIds.length > 0) {
-    const { data: bookings, error: bookingsError } = await db
-      .from('workshop_enrollments')
-      .select('workshop_session_id, status')
-      .in('workshop_session_id', liveIds)
-      .in('status', ['confirmed', 'waitlisted']);
-    if (bookingsError) {
-      throw new Error(`The bookings of the Workshops were not counted: ${bookingsError.message}`);
-    }
-    for (const booking of (bookings ?? []) as Array<{ status: string }>) {
-      if (booking.status === 'confirmed') seatsTaken++;
-      else if (booking.status === 'waitlisted') waitlisted++;
-    }
+  // With no live session there are no seats to count: "0 / 0" would read as a full Workshop.
+  if (liveIds.length === 0) {
+    return { workshops: workshops.length, sessions: 0, seatsTaken: 0, seats: null, waitlisted: 0 };
   }
-
+  const [seatsTaken, waitlisted] = await Promise.all([
+    countBookings(db, liveIds, 'confirmed'),
+    countBookings(db, liveIds, 'waitlisted'),
+  ]);
   return { workshops: workshops.length, sessions: liveIds.length, seatsTaken, seats, waitlisted };
+}
+
+/**
+ * A head count, not the rows: PostgREST returns at most 1000 rows, so counting fetched rows would
+ * fall short on a large Event with no error.
+ */
+async function countBookings(
+  db: SupabaseClient,
+  sessionIds: string[],
+  status: 'confirmed' | 'waitlisted',
+): Promise<number> {
+  const { count, error } = await db
+    .from('workshop_enrollments')
+    .select('id', { count: 'exact', head: true })
+    .in('workshop_session_id', sessionIds)
+    .eq('status', status);
+  if (error)
+    throw new Error(`The ${status} bookings of the Workshops were not counted: ${error.message}`);
+  return count ?? 0;
 }
