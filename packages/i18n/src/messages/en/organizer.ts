@@ -2296,6 +2296,7 @@ export const organizer = {
     presentFor: 'Present: {name}',
     checkInFailed: 'The tick was not saved.',
     checkInRefused: 'A refused person cannot be ticked present.',
+    checkInCancelled: 'This session was cancelled: nobody is ticked present in it.',
     checkInGone: 'This booking no longer exists. Close the roster and open it again.',
     autoCheckIn: 'Tick people when the front desk marks them arrived',
     autoCheckInHint:

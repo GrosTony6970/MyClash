@@ -2257,6 +2257,7 @@ export const organizer = {
     presentFor: 'Présent : {name}',
     checkInFailed: "La coche n'a pas été enregistrée.",
     checkInRefused: 'Une personne refusée ne peut pas être cochée présente.',
+    checkInCancelled: 'Cette session a été annulée : personne n’y est coché présent.',
     checkInGone: "Cette inscription n'existe plus. Fermez la liste et rouvrez-la.",
     autoCheckIn: "Cocher les participants quand l'accueil les marque arrivés",
     autoCheckInHint:

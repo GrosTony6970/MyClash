@@ -15,7 +15,7 @@ export function canTick(status: string): boolean {
 export function checkInRefusal(failure: ApiFailure, t: Translator): string | null {
   const words: Record<string, string> = {
     CHECK_IN_REFUSED_BOOKING: 'organizer.workshopsPage.checkInRefused',
-    WORKSHOP_SESSION_CANCELLED: 'organizer.workshopsPage.message.sessionCancelled',
+    WORKSHOP_SESSION_CANCELLED: 'organizer.workshopsPage.checkInCancelled',
     NOT_FOUND: 'organizer.workshopsPage.checkInGone',
   };
   const key = words[failureCode(failure) ?? ''];
