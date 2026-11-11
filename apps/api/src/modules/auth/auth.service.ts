@@ -1097,7 +1097,9 @@ export class AuthService {
    * which change won — deleted, another address, another account. A re-read that
    * finds nothing wrong (the row changed and changed back, or only its address's
    * case changed) decided nothing: `check_failed`, whose words say "try again".
-   * The re-read only names the reason; nothing was written either way.
+   * The re-read only names the reason; nothing was written either way. A re-read
+   * that fails throws, as a failed write does: "This is me" never answers
+   * "0 claimed" for a row it could not read.
    */
   private async lostClaimReason(
     personId: string,
@@ -1105,9 +1107,11 @@ export class AuthService {
     userId: string,
   ): Promise<ClaimCheckRefusal> {
     const again = await this.claimRefusal(personId, userEmail, userId);
+    if (again.refusal === 'check_failed') {
+      throw new Error(`Could not read person ${personId} after a lost claim: ${again.fault}`);
+    }
     const reason = again.refusal ?? 'check_failed';
-    const fault = again.refusal === 'check_failed' ? ` (${again.fault})` : '';
-    this.logger.warn(`claim of person ${personId} lost: ${reason}${fault}`);
+    this.logger.warn(`claim of person ${personId} lost: ${reason}`);
     return reason;
   }
 

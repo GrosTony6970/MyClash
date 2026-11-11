@@ -267,13 +267,39 @@ describe('a claim that lost the row between its check and its write (rulings 581
     try {
       await expect(linkReason(unclaimed(ROW))).resolves.toBe('check_failed');
       expect(warn).toHaveBeenCalledWith(`claim of person ${ROW} lost: check_failed`);
-      await expect(linkReason(FAULT)).resolves.toBe('check_failed');
-      expect(warn).toHaveBeenCalledWith(
-        `claim of person ${ROW} lost: check_failed (connection refused)`,
-      );
     } finally {
       warn.mockRestore();
     }
+  });
+
+  // A second read that fails is a failed write: never "0 claimed", never a reason it did not read.
+  it('a second read that fails throws, at "this is me" and at the link', async () => {
+    const thisIsMe = build([unclaimed(ROW), LOST, FAULT]);
+    await expect(thisIsMe.service.claimPersons(signedIn, [ROW])).rejects.toThrow(
+      `Could not read person ${ROW} after a lost claim: connection refused`,
+    );
+    const link = build([unclaimed(ROW), LOST, FAULT, NO_ROWS]);
+    const landed = link.service.handleCallback(
+      'token-hash',
+      'claim',
+      ROW,
+      undefined,
+      link.reply as never,
+    );
+    await expect(landed).rejects.toThrow('connection refused');
+    expect(link.reply.redirect).not.toHaveBeenCalled();
+  });
+
+  // The write requires the address as the check READ it, never the account's own spelling: a row
+  // stored with capitals would otherwise miss every time and say "try again" forever.
+  it('aims at the address as stored, not as the account spells it', async () => {
+    const stored = ' Lea@Example.COM';
+    const { service, db } = build([row({ email: stored }), OK, NO_PROFILE]);
+    await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
+      claimed: 1,
+      alreadyAtEvent: 0,
+    });
+    expect(filtersFor(db.from, 'persons', 'eq')).toContainEqual(['email', stored]);
   });
 });
 
