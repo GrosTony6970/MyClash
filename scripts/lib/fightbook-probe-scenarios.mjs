@@ -108,15 +108,16 @@ export async function noAskingTwice(tx) {
   await scenario(tx, async (q) => {
     const free = await ask(q, F.marc, F.julie, { event: null });
     await answer(q, free.id, F.julie, 'no');
-    await q`UPDATE spar_requests SET expires_at = now() - interval '6 days' WHERE id = ${free.id}`;
+    // The refused day is still ahead (its end an hour away): the 7 days run from the ask.
+    await q`UPDATE spar_requests SET created_at = now() - interval '6 days' WHERE id = ${free.id}`;
     check(
-      'free date, 6 days after the day',
+      'free date, 6 days after the ask',
       await refused(q, (sp) => ask(sp, F.marc, F.julie, { event: null })),
       'not_again',
     );
-    await q`UPDATE spar_requests SET expires_at = now() - interval '8 days' WHERE id = ${free.id}`;
+    await q`UPDATE spar_requests SET created_at = now() - interval '8 days' WHERE id = ${free.id}`;
     check(
-      'free date, 8 days after the day',
+      'free date, 8 days after the ask, its day still ahead',
       await refused(q, (sp) => ask(sp, F.marc, F.julie, { event: null })),
       null,
     );

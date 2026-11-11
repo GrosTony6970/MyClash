@@ -50,7 +50,7 @@ draft or test Event, fighters pick "free date and place". Otherwise a request co
 a roster nobody may see yet.
 
 **No asking twice.** After a "Not this time", Marc cannot ask Julie again for the same Event, nor for
-a free date until 7 days after the refused day. Julie can still ask Marc. Marc also cannot pile up
+a free date until 7 days after he asked (ruling 667). Julie can still ask Marc. Marc also cannot pile up
 requests: one waiting request per person, and a cap on asks per hour.
 
 **Block.** Julie blocks Marc from a request card. Marc is not told and nothing changes on his side:
@@ -438,8 +438,8 @@ message):
   6. A `pending` asker→receiver row → `already_asked`.
   7. No re-asking: `event` kind and a `not_this_time` asker→receiver row with the same `event_id` →
      `not_again`; `free` kind and a `not_this_time` asker→receiver `free` row whose
-     `expires_at + interval '7 days' > now()` → `not_again` (7 days after the refused day ended; no
-     decline time is needed).
+     `created_at > now() - interval '7 days'` → `not_again` (7 days after the refused request was
+     asked, ruling 667; no decline time is needed).
   8. Insert with status `not_this_time` when the receiver blocked the asker, else `pending`.
 - `fightbook_answer(p_request uuid, p_receiver uuid, p_answer text, p_comment text, p_comment_shared boolean) returns jsonb` → `{"asker": uuid, "status": "agreed" | "not_this_time"}`. `p_answer` not in (`yes`,`no`) → `bad_answer`. One conditional update `WHERE id = p_request AND receiver_global_person_id = p_receiver AND status = 'pending' AND expires_at > now()` and the asker is live with the switch on (a sub-select in the same WHERE); no row → `not_open`. `yes` sets `agreed_at = now()` and ignores any comment; `no` sets `shared_comment` only when shared; an unshared comment inserts the receiver's note into `spar_private_notes`.
 - `fightbook_block(p_blocker uuid, p_blocked uuid) returns void`: `self` when equal; the same pair

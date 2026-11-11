@@ -2555,7 +2555,7 @@ blocked asker never meets "already asked" (their requests are stored ended at on
 
 Each change that two taps can race is one call, one transaction (0264): `fightbook_ask` (one
 waiting request per pair; no asking again for the same Event, nor for a free date until 7 days after
-the refused day; a pair lock serialises an ask and a block), `fightbook_answer` (lands only on the
+the refused request was asked, ruling 667; a pair lock serialises an ask and a block), `fightbook_answer` (lands only on the
 receiver's own request, still waiting and open, from an asker still on FightBook), `fightbook_block`
 (the blocked fighter's waiting requests end as a no, the blocker's own are withdrawn, an agreed
 spar stays). Withdraw and cancel are one conditional update each. The loser of any race gets 409

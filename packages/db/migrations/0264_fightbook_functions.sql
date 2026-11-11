@@ -18,7 +18,9 @@
 --     a stale one neither counts as waiting nor escapes the no-asking-twice rule.
 --   - already_asked: one waiting request per asker and receiver (the 0263 unique index backs it).
 --   - not_again: after a "Not this time", not for the same Event again; for a free date, not until
---     7 days after the refused day ended. No decline time is stored (0263), and none is needed.
+--     7 days after the refused request was asked (ruling 667: counted from the refused DAY, a no
+--     to a day 11 months out would bar asking for 11 months). No decline time is stored (0263),
+--     and none is needed.
 --   - A receiver who blocked the asker: the request is stored ended, as "Not this time", and the
 --     call answers as it does for any ask. The receiver never sees it.
 --
@@ -109,7 +111,7 @@ begin
        and r.status = 'not_this_time'
        and case p_kind
              when 'event' then r.kind = 'event' and r.event_id = p_event_id
-             when 'free' then r.kind = 'free' and r.expires_at + interval '7 days' > now()
+             when 'free' then r.kind = 'free' and r.created_at > now() - interval '7 days'
              else false end
   ) then
     raise exception 'not_again' using errcode = 'P0001';
