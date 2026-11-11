@@ -211,7 +211,7 @@ export class ErasureService {
       family_name: '',
     });
     counts['guest_sessions'] = await this.deleteIn('guest_sessions', 'person_id', personIds);
-    counts['workshop_instructors'] = await this.redactWorkshopLines([globalPersonId]);
+    counts['workshop_instructors'] = await this.redactWorkshopLines([globalPersonId], pseudonym);
     Object.assign(counts, await this.deleteRowsAimedAt([globalPersonId]));
     // Her personal-space photos carry the old name (ruling 462). The account link survives the
     // update above, so they are still found by it.
@@ -316,16 +316,20 @@ export class ErasureService {
    * line and a photo written for one Workshop, the photo's files included. Found by the profile
    * ids (a retry finds the same lines: they stay), so `redactSubject` runs
    * it before the profile update clears the column those ids come from: a failure stays
-   * retryable.
+   * retryable. `rename` (an anonymisation's pseudonym) replaces the name the lines show on the
+   * public Workshop pages, in the same write (578); an account's deletion keeps the name.
    */
-  private async redactWorkshopLines(globalPersonIds: string[]): Promise<number> {
+  private async redactWorkshopLines(globalPersonIds: string[], rename?: string): Promise<number> {
     if (globalPersonIds.length === 0) return 0;
     // The columns first, then the files: a photo uploaded between the two may set its link again,
     // but its file goes with the folder, so no photo of the person survives. A storage failure
     // throws; the lines stay, found again by a retry.
     const { data, error } = await this.supabase.service
       .from('workshop_instructors')
-      .update(nulls(WORKSHOP_INSTRUCTOR_NULLED))
+      .update({
+        ...nulls(WORKSHOP_INSTRUCTOR_NULLED),
+        ...(rename ? { display_name: rename } : {}),
+      })
       .in('global_person_id', globalPersonIds)
       .select('id');
     if (error) throw new Error(`redact workshop_instructors: ${error.message}`);

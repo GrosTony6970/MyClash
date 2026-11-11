@@ -268,13 +268,14 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     expect(patch['photo_url']).toBeNull();
   });
 
-  it('wipes what a Workshop says about the person', async () => {
+  it('wipes what a Workshop says about the person, and renames them there too (578)', async () => {
     const { supabase, log } = makeSupabase();
     const { counts } = await new ErasureService(supabase).anonymiseGlobalPerson('g1');
 
+    // Aimed at the person's own lines only: a lost aim would rename every instructor.
     expect(log['workshop_instructors']!.ins).toEqual([['global_person_id', ['g1']]]);
     expect(log['workshop_instructors']!.updates).toEqual([
-      { bio: null, affiliation: null, photo_url: null },
+      { bio: null, affiliation: null, photo_url: null, display_name: pseudonymFor('g1') },
     ]);
     expect(counts).toHaveProperty('workshop_instructors');
   });

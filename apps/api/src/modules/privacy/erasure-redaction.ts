@@ -32,8 +32,9 @@ export const GLOBAL_PERSON_NULLED = [
 /**
  * Fields nulled on every Workshop line of the person (`workshop_instructors`): what a Workshop
  * says about them over their profile (rulings 556, 560). The club line goes too: unlike the
- * profile's club, a link to a club, it is free text about the person. `display_name` stays, as
- * the profile's name does.
+ * profile's club, a link to a club, it is free text about the person. `display_name` stays on an
+ * account's deletion, as the profile's name does; an anonymisation replaces it with the
+ * pseudonym, as it does the profile's (ruling 578).
  */
 export const WORKSHOP_INSTRUCTOR_NULLED = ['bio', 'affiliation', 'photo_url'] as const;
 
