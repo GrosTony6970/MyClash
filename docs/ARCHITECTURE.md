@@ -2534,7 +2534,8 @@ rulings 642-665: `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 
 
 Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
 profile is the switch, off by default; off means nobody may ask them and they may ask nobody, yet
-they still see and cancel the spars they agreed (ruling 666) and manage their blocks. Three
+they still see and cancel the spars they agreed (ruling 666), take back a request still waiting,
+and manage their blocks. Three
 tables, RLS on and no policy, read and written by the API only (0263): `spar_requests` (one row is
 one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
 `fightbook_blocks`. A request names a public Event the asker is on and one of its days (ruling 665),

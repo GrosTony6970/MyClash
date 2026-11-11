@@ -138,16 +138,17 @@ export class FightBookController {
     return this.requests.answer(requireFightBookOn(await this.caller(req)), id, dto);
   }
 
+  // Take back, My spars and cancel need a profile, not the switch (ruling 666): a fighter who
+  // switched off still sees the spars they agreed and can call one off, and can pull back a
+  // request a half-failed switch-off left waiting. None of them reaches anyone new.
   @Post('requests/:id/withdraw')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Take back my spar request still waiting' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async withdraw(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.requests.withdraw(requireFightBookOn(await this.caller(req)), id);
+    await this.requests.withdraw(requireProfile(await this.caller(req)), id);
   }
 
-  // My spars and cancel need a profile, not the switch (ruling 666): a fighter who switched off
-  // still sees the spars they agreed, and can call one off.
   @Post('requests/:id/cancel')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Cancel an agreed spar' })

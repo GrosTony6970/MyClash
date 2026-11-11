@@ -63,15 +63,18 @@ describe('FightBookController, a fighter who switched FightBook off', () => {
     expect(requests.cancel).toHaveBeenCalledWith(MARC, SPAR, 'Sick');
   });
 
-  it('may not ask, answer, take back or read the Inbox', async () => {
+  it('still takes back a request left waiting (the switch-off withdraw failed half way)', async () => {
+    const { ctl, requests } = controller();
+    await ctl.withdraw(SPAR, req);
+    expect(requests.withdraw).toHaveBeenCalledWith(MARC, SPAR);
+  });
+
+  it('may not ask, answer or read the Inbox', async () => {
     const { ctl, reads, requests } = controller();
     expect(await code(ctl.ask({} as never, req))).toBe('fightbook_off');
     expect(await code(ctl.answer(SPAR, { answer: 'yes' } as never, req))).toBe('fightbook_off');
-    expect(await code(ctl.withdraw(SPAR, req))).toBe('fightbook_off');
     expect(await code(ctl.inbox(req))).toBe('fightbook_off');
     expect(reads.inbox).not.toHaveBeenCalled();
-    expect([requests.ask, requests.answer, requests.withdraw].flatMap((f) => f.mock.calls)).toEqual(
-      [],
-    );
+    expect([requests.ask, requests.answer].flatMap((f) => f.mock.calls)).toEqual([]);
   });
 });
