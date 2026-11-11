@@ -267,6 +267,7 @@ export const publicApp = {
       workshop: 'Profil atelier',
       profile: 'Profil',
       people: 'Personnes',
+      fightBook: 'FightBook',
       leagues: 'Ligues',
       notifications: 'Notifications',
       settings: 'Paramètres',

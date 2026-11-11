@@ -112,6 +112,7 @@ export const NAV_ICON_NAMES = [
   'profile',
   'settings',
   'security',
+  'fightBook',
   // Cross-shell
   'switchWorkspace',
   'logout',
@@ -173,6 +174,7 @@ export const NAV_ICON_GLYPHS: Record<NavIconName, GlyphName> = {
   profile: 'user',
   settings: 'settings',
   security: 'lock',
+  fightBook: 'handshake',
   switchWorkspace: 'arrow-left-right',
   logout: 'log-out',
 };

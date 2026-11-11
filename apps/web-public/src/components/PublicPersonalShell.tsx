@@ -19,6 +19,7 @@ const navItems = [
   { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', icon: 'eventOverview' },
   { href: '/me/profile', labelKey: 'publicApp.personalShell.nav.profile', icon: 'profile' },
   { href: '/me/follows', labelKey: 'publicApp.personalShell.nav.people', icon: 'persons' },
+  { href: '/me/fightbook', labelKey: 'publicApp.personalShell.nav.fightBook', icon: 'fightBook' },
   { href: '/me/leagues', labelKey: 'publicApp.personalShell.nav.leagues', icon: 'leagues' },
   {
     href: '/me/notifications',

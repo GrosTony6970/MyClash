@@ -272,6 +272,7 @@ export const publicApp = {
       workshop: 'Workshop profile',
       profile: 'Profile',
       people: 'People',
+      fightBook: 'FightBook',
       leagues: 'Leagues',
       notifications: 'Notifications',
       settings: 'Settings',
