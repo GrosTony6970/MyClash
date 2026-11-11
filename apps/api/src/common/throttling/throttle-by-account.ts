@@ -32,7 +32,7 @@ type Carrier = { headers?: Record<string, unknown>; cookies?: Record<string, str
  * Never `req.ip`: a whole venue shares one address, and the person guessing a
  * password at an open session is on it too.
  */
-function requestAccount(req: Carrier): string {
+export function requestAccount(req: Carrier): string {
   const header = req.headers?.['authorization'];
   const token =
     typeof header === 'string' && header.startsWith('Bearer ')

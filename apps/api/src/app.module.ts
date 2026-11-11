@@ -9,6 +9,7 @@ import { ClubsModule } from './modules/clubs/clubs.module';
 import { EventsModule } from './modules/events/events.module';
 import { FightersModule } from './modules/fighters/fighters.module';
 import { FollowsModule } from './modules/follows/follows.module';
+import { FightBookModule } from './modules/fightbook/fightbook.module';
 import { DirectoryGroupsModule } from './modules/directory-groups/directory-groups.module';
 import { HealthModule } from './modules/health/health.module';
 import { HemaRatingsModule } from './modules/hema-ratings/hema-ratings.module';
@@ -108,6 +109,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     GeneratedContentModule,
     TournamentQueryModule,
     FollowsModule,
+    FightBookModule,
     DirectoryGroupsModule,
     WorkshopsModule,
     ScheduleModule,

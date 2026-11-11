@@ -8520,6 +8520,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/fightbook/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The caller's FightBook switch, and whether they have a profile */
+    get: operations['FightBookController_getSettings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Switch FightBook on or off */
+    patch: operations['FightBookController_setSettings'];
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/requests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ask a fighter for a spar */
+    post: operations['FightBookController_ask'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/groups': {
     parameters: {
       query?: never;
@@ -12284,6 +12319,23 @@ export interface components {
     FollowDto: {
       /** Format: uuid */
       personId: string;
+    };
+    FightBookSettingsDto: {
+      enabled: boolean;
+    };
+    AskSparDto: {
+      /** Format: uuid */
+      receiverGlobalPersonId: string;
+      /** @enum {string} */
+      kind: 'event' | 'free';
+      /** Format: uuid */
+      eventId?: string;
+      day: string;
+      zone?: string;
+      time?: string;
+      place?: string;
+      weapons: string[];
+      message?: string;
     };
     CreateGroupDto: {
       name: string;
@@ -25212,6 +25264,65 @@ export interface operations {
       };
       /** @description Event hidden from the caller, or person not in it */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookController_getSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookController_setSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FightBookSettingsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookController_ask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AskSparDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

@@ -84,6 +84,16 @@ export const STAFF_PIN_THROTTLE = {
   ttl: 3_600_000,
 } as const;
 
+/**
+ * Spar requests per hour per signed-in account (FightBook slice 1; see ThrottleFightBookAsk). A
+ * fighter asking twenty people in an hour is already a lot; the per-pair rules (one waiting request,
+ * no asking twice) are the database's.
+ */
+export const FIGHTBOOK_ASK_THROTTLE = {
+  limit: 20,
+  ttl: 3_600_000,
+} as const;
+
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;

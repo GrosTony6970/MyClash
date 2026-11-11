@@ -11,10 +11,12 @@ import {
   skipAuthEmailThrottle,
   skipAuthMailThrottle,
 } from './throttle-by-email';
+import { FIGHTBOOK_ASK_THROTTLER, skipFightBookAskThrottle } from './throttle-fightbook-ask';
 import {
   AUTH_ACCOUNT_THROTTLE,
   AUTH_EMAIL_THROTTLE,
   AUTH_MAIL_THROTTLE,
+  FIGHTBOOK_ASK_THROTTLE,
 } from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
@@ -32,6 +34,8 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  * `auth-mail`  — mails per hour per email address, on the doors that mail one
  *                (sign-up, the mail link; @ThrottleMailByEmail). Its own bucket,
  *                so a stranger mailing Bob cannot use up Bob's sign-in tries.
+ * `fightbook-ask` — spar requests per hour per signed-in account, on routes marked
+ *                @ThrottleFightBookAsk; keyed as auth-account is, in its own bucket.
  * `auth-account` — checks of a current password per hour per signed-in account,
  *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
  *                account of the request's login, never on `req.ip`.
@@ -83,6 +87,15 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       // One bucket per account across both doors, as for auth-email above.
       generateKey: (_context, tracker) => `${AUTH_ACCOUNT_THROTTLER}:${tracker}`,
       skipIf: skipAuthAccountThrottle,
+    },
+    {
+      name: FIGHTBOOK_ASK_THROTTLER,
+      ttl: FIGHTBOOK_ASK_THROTTLE.ttl,
+      limit: FIGHTBOOK_ASK_THROTTLE.limit,
+      // The account, hashed, as for auth-account; its own bucket by name.
+      getTracker: authAccountTracker,
+      generateKey: (_context, tracker) => `${FIGHTBOOK_ASK_THROTTLER}:${tracker}`,
+      skipIf: skipFightBookAskThrottle,
     },
   ],
   skipIf: isThrottleWhitelisted,
