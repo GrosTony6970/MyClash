@@ -33,7 +33,8 @@
 -- fightbook_block: the same pair lock. The blocked fighter's waiting requests to the blocker end as
 -- "Not this time", like any no. The blocker's own waiting request to them is WITHDRAWN: a "Not this
 -- time" there would show the blocked fighter, in their own data download, a refusal nobody gave.
--- An agreed spar stays: either of them cancels it the ordinary way.
+-- An agreed spar stays: either of them cancels it the ordinary way. Only a live profile may be
+-- blocked (not merged away, not deleted): a block on any other would hold nothing.
 --
 -- SECURITY INVOKER, search_path pinned, service role only (the 0190 / 0207 / 0212 pattern): the API
 -- calls these as the service role; anon and authenticated are revoked by name (0184).
@@ -213,7 +214,11 @@ begin
    where id in (p_blocker, p_blocked)
    order by id for key share;
 
-  if not exists (select 1 from public.global_persons where id = p_blocked) then
+  -- A live profile only: a block on a merged-away or deleted one would hold nothing.
+  if not exists (
+    select 1 from public.global_persons
+     where id = p_blocked and merged_into_id is null and deleted_at is null
+  ) then
     raise exception 'not_found' using errcode = 'P0002';
   end if;
 

@@ -204,6 +204,30 @@ export async function answeringWithComments(tx) {
   });
 }
 
+// ── Every "no" is the same row ──────────────────────────────────────────────
+/**
+ * Marc's ask that Julie declined and Paul's ask stored ended because Julie blocked him: the asker's
+ * data download carries the whole row, so the two rows must match in every column but the id,
+ * when it was asked and who asked (review M10).
+ */
+export async function everyNoIsOneRow(tx) {
+  await scenario(tx, async (q) => {
+    const expires = HOUR_AHEAD();
+    const declined = await ask(q, F.marc, F.julie, { expires });
+    await answer(q, declined.id, F.julie, 'no');
+    await block(q, F.julie, F.paul);
+    const stored = await ask(q, F.paul, F.julie, { expires });
+    const rows = await q`
+      SELECT to_jsonb(r) - 'id' - 'created_at' - 'asker_global_person_id' AS body
+        FROM spar_requests r WHERE r.id IN (${declined.id}, ${stored.id}) ORDER BY r.id`;
+    check(
+      'a declined row and a block-stored row are one row',
+      [rows.length, rows[0]?.body],
+      [2, rows[1]?.body],
+    );
+  });
+}
+
 // ── Blocking ────────────────────────────────────────────────────────────────
 export async function blocking(tx) {
   await scenario(tx, async (q) => {
@@ -226,6 +250,10 @@ export async function blocking(tx) {
     check('blocking yourself', await refused(q, (sp) => block(sp, F.julie, F.julie)), 'self');
     const unknown = await refusal(q, (sp) => block(sp, F.julie, id(99)));
     check('blocking nobody', unknown, words('P0002', 'not_found'));
+    // A merged-away profile is nobody any more: a block on it would hold nothing (review M6).
+    await q`UPDATE global_persons SET merged_into_id = ${F.marc} WHERE id = ${F.paul}`;
+    const merged = await refusal(q, (sp) => block(sp, F.julie, F.paul));
+    check('blocking a merged-away profile', merged, words('P0002', 'not_found'));
   });
   await scenario(tx, async (q) => {
     const r = await ask(q, F.marc, F.julie);
