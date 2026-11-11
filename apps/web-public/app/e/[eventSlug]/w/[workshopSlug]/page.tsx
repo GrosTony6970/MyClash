@@ -43,7 +43,7 @@ import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-cla
 import { CancelledBadge, isCancelledSession } from '@/components/workshops/session-cancelled';
 import { useParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import { Button, TournamentColorDot, accentClassFor } from '@myclash/ui';
+import { Button, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '@myclash/next-i18n/client';
 import { workshopPath, type Session, type Workshop } from './workshop-view';
@@ -54,6 +54,7 @@ import {
   UnknownCallerNotice,
 } from './WorkshopPageParts';
 import { joinOffer, type StrangerTap } from './join-event';
+import { WorkshopIntro } from './WorkshopIntro';
 
 /**
  * What the page says after a tap: the booking as the server gave it, or why it
@@ -205,8 +206,6 @@ export default function WorkshopDetailPage() {
     );
   }
 
-  const instructorNames = workshop.instructors.map((i) => i.displayName);
-  const description = workshop.descriptionMd ?? workshop.shortDescription;
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
   const labels = registerLabels(t);
   // A cancelled session stays listed, struck through and with no control (ruling 526): people who
@@ -258,50 +257,7 @@ export default function WorkshopDetailPage() {
           />
         )}
 
-        {/* Header */}
-        <h1
-          className="mb-1 flex items-center gap-2 font-display text-2xl font-bold sm:text-3xl"
-          style={{ color: 'var(--color-accent)' }}
-        >
-          <TournamentColorDot color={workshop.color} size="md" />
-          {workshop.title}
-        </h1>
-
-        {/* Instructors */}
-        {instructorNames.length > 0 && (
-          <p className="text-muted text-sm mb-3">{instructorNames.join(', ')}</p>
-        )}
-
-        {/* Tags */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {workshop.category && (
-            <span className="text-xs bg-border text-foreground-secondary px-2 py-0.5 rounded-full">
-              {workshop.category}
-            </span>
-          )}
-          {workshop.level && (
-            <span className="text-xs bg-info/10 text-info px-2 py-0.5 rounded-full">
-              {workshop.level}
-            </span>
-          )}
-          {workshop.language && (
-            <span className="text-xs bg-border text-muted px-2 py-0.5 rounded-full">
-              {workshop.language.toUpperCase()}
-            </span>
-          )}
-          {workshop.durationMinutes != null && (
-            <span className="text-xs bg-border text-muted px-2 py-0.5 rounded-full">
-              {t('publicApp.workshops.durationMinutes', { count: workshop.durationMinutes })}
-            </span>
-          )}
-        </div>
-
-        {/* Description — paragraphs/line breaks preserved */}
-        {description && (
-          <div className="prose prose-sm mb-6 max-w-none whitespace-pre-line text-sm leading-relaxed text-foreground-secondary">
-            {description}
-          </div>
-        )}
+        <WorkshopIntro workshop={workshop} />
 
         {/* Sessions */}
         <section>

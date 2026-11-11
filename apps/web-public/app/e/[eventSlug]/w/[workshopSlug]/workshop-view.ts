@@ -11,20 +11,39 @@ export interface Session {
   status: string;
 }
 
+/** What the page says about an instructor: the Workshop's words over the profile's (3.6). */
+export interface InstructorAbout {
+  bio: string | null;
+  club: string | null;
+  photoUrl: string | null;
+}
+
+export interface Instructor {
+  globalPersonId: string | null;
+  displayName: string;
+  about?: InstructorAbout;
+}
+
 export interface Workshop {
   id: string;
   slug: string;
   title: string;
   shortDescription: string | null;
   descriptionMd: string | null;
+  /** What a learner should know or bring (ruling 557). */
+  prerequisites: string | null;
   category: string | null;
   level: string | null;
+  /** The weapon's catalogue name, as on the list's cards. */
+  weapon: string | null;
   language: string | null;
   color: string | null;
+  /** The Workshop's square picture. */
+  coverImageUrl: string | null;
   durationMinutes: number | null;
   eventTimezone: string | null;
   sessions: Session[];
-  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  instructors: Instructor[];
   /** The signed-in caller teaches this workshop — no participant seat for them. */
   viewerIsInstructor: boolean;
 }

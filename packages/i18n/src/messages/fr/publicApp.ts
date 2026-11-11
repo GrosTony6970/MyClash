@@ -1430,6 +1430,8 @@ export const publicApp = {
     instructorCannotEnroll: 'Vous ne pouvez pas vous inscrire à un atelier que vous animez.',
     sessionCancelled: 'Cette séance a été annulée.',
     notBookable: "Cet atelier n'est pas ouvert aux inscriptions.",
+    prerequisites: 'Avant de venir',
+    instructorsHeading: 'Instructeurs',
     alreadyBooked:
       "Vous avez déjà une place dans une autre séance de cet atelier. Libérez-la d'abord pour prendre celle-ci.",
   },

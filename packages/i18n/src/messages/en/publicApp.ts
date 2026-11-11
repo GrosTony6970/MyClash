@@ -1428,6 +1428,8 @@ export const publicApp = {
     instructorCannotEnroll: 'You cannot register for a workshop you teach.',
     sessionCancelled: 'This session was cancelled.',
     notBookable: 'This workshop is not open for booking.',
+    prerequisites: 'Before you come',
+    instructorsHeading: 'Instructors',
     alreadyBooked:
       'You already have a place in another session of this workshop. Give it up first to take this one.',
   },
