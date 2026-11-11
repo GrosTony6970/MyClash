@@ -166,6 +166,18 @@ describe('ErasureService.redactSubject', () => {
     expect(patch).not.toHaveProperty('slug');
   });
 
+  it("deletes the profile's FightBook rows before the profile forgets the account, and switches FightBook off", async () => {
+    const { supabase, log } = makeSupabase({ global_persons: [{ id: 'g1' }] });
+    await new ErasureService(supabase).redactSubject('u1');
+
+    for (const table of ['spar_requests', 'spar_private_notes', 'fightbook_blocks']) {
+      expect(log[table]?.deletes, table).toBeGreaterThan(0);
+      expect(log[table]!.ins.every(([, ids]) => JSON.stringify(ids) === '["g1"]')).toBe(true);
+    }
+    const patch = log['global_persons']!.updates[0] as Record<string, unknown>;
+    expect(patch['fightbook_enabled']).toBe(false);
+  });
+
   it('nulls the email on every event roster row while keeping names', async () => {
     const { supabase, log } = makeSupabase();
     await new ErasureService(supabase).redactSubject('u1');
@@ -266,6 +278,15 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     expect(patch['slug']).toBe(slugFor('g1'));
     expect(patch['email']).toBeNull();
     expect(patch['photo_url']).toBeNull();
+  });
+
+  it('keeps every FightBook row: the account stays signed in, and its blocks must hold', async () => {
+    const { supabase, log } = makeSupabase();
+    await new ErasureService(supabase).anonymiseGlobalPerson('g1');
+
+    for (const table of ['spar_requests', 'spar_private_notes', 'fightbook_blocks']) {
+      expect(log[table], table).toBeUndefined();
+    }
   });
 
   it('wipes what a Workshop says about the person, and renames them there too (578)', async () => {

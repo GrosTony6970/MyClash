@@ -23,6 +23,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { deleteInstructorPhotoFolder } from '../workshops/workshop-instructor-photo';
+import { eraseFightBookRows } from './erasure-fightbook';
 import {
   GLOBAL_PERSON_NULLED,
   PERSON_NULLED,
@@ -72,6 +73,8 @@ export class ErasureService {
     const aimed = await this.deleteRowsAimedAt(globalPersonIds);
     // Before the profile update for the same reason.
     const workshopLines = await this.redactWorkshopLines(globalPersonIds);
+    // Before it too. Not in deleteRowsAimedAt: the anonymisation runs that list, and keeps these.
+    const fightBook = await eraseFightBookRows(this.supabase.service, globalPersonIds);
 
     return {
       // Profile: strip the private individual, keep the competitor.
@@ -79,6 +82,8 @@ export class ErasureService {
         ...nulls(GLOBAL_PERSON_NULLED),
         account_deleted_at: new Date().toISOString(),
         claimed_by_user_id: null,
+        // Slice 3 shows "Sparred N times" for fighters with FightBook on: not for an erased one.
+        fightbook_enabled: false,
         updated_at: new Date().toISOString(),
       }),
       persons: await this.update('persons', 'claimed_by_user_id', uid, {
@@ -89,7 +94,7 @@ export class ErasureService {
       workshop_instructors: workshopLines,
       // Device telemetry: no historical value, delete outright.
       guest_sessions: await this.deleteIn('guest_sessions', 'person_id', personIds),
-      ...addCounts(await this.deleteOwnedRows(uid), aimed),
+      ...addCounts(addCounts(await this.deleteOwnedRows(uid), aimed), fightBook),
       // Governance trail: keep the row, scrub the personal values.
       audit_log: await this.redactAuditPayloads(uid, globalPersonIds, personIds),
     };

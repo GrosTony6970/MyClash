@@ -652,6 +652,11 @@ export const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'ai_generated_content', // regenerable AI output, not source data
 
   'follows', // user social graph, not event data
+  // FightBook: private arrangements between two fighters, not the Event record. Only
+  // spar_requests names an Event; the other two are listed so every FightBook table is.
+  'spar_requests',
+  'spar_private_notes',
+  'fightbook_blocks',
   'club_review_requests', // club-verification workflow, not event data
   'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
 ]);

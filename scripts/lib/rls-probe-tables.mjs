@@ -110,6 +110,25 @@ export const VERDICTS = [
     visible: [],
     hidden: ['22222222-2222-4222-8222-222222222222'],
   },
+  // FightBook (0263): deny-all, read and written by the API only.
+  {
+    table: 'spar_requests',
+    key: 'id',
+    visible: [],
+    hidden: ['5b000000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'spar_private_notes',
+    key: 'id',
+    visible: [],
+    hidden: ['5c000000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'fightbook_blocks',
+    key: 'id',
+    visible: [],
+    hidden: ['5d000000-0000-4000-8000-00000000000a'],
+  },
 ];
 
 /**

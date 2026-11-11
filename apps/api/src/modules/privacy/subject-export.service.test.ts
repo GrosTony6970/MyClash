@@ -240,6 +240,14 @@ describe('subject table census', () => {
     expect(columns).not.toContain('followed_person_id');
   });
 
+  it('never exports a FightBook block aimed at the subject, nor anyone’s private note', () => {
+    // Who blocked the subject names someone else and tells them they were blocked — Art. 15(4).
+    const blocks = SUBJECT_EXPORT_TABLES['fightbook_blocks']?.reaches.map((r) => r.column) ?? [];
+    expect(blocks).toEqual(['blocker_global_person_id']);
+    const notes = SUBJECT_EXPORT_TABLES['spar_private_notes']?.reaches.map((r) => r.column) ?? [];
+    expect(notes).toEqual(['author_global_person_id']);
+  });
+
   it('exports the subject’s league standing even though the archive excludes it', () => {
     // Different question, different answer: cross-event and recomputed for an
     // event archive, but unambiguously about the person for a subject request.

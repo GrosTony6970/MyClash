@@ -171,3 +171,18 @@ INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization
 INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers, decision_edition) VALUES
   ('c5100000-0000-4000-8000-00000000000a', 'c5000000-0000-4000-8000-00000000000a', '1.0.0', 'Club scoring',
    '{}', '{}', '[]', '2026-10');
+-- FightBook (0263): a free-date request between two fighters, a private note on it and a block.
+-- All three tables are deny-all: anon reads none of them.
+INSERT INTO global_persons (id, slug, display_name, given_name, family_name) VALUES
+  ('9e000000-0000-4000-8000-00000000000b', 'rls-probe-sparrer', 'Probe Sparrer', 'Probe', 'Sparrer');
+INSERT INTO spar_requests
+  (id, asker_global_person_id, receiver_global_person_id, kind, spar_day, zone, place, weapons, expires_at) VALUES
+  ('5b000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000b', 'free', '2026-05-22', 'Europe/Paris', 'Salle Probe',
+   ARRAY['Longsword'], '2026-05-22T22:00:00Z');
+INSERT INTO spar_private_notes (id, spar_request_id, author_global_person_id, body) VALUES
+  ('5c000000-0000-4000-8000-00000000000a', '5b000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000b', 'Probe note');
+INSERT INTO fightbook_blocks (id, blocker_global_person_id, blocked_global_person_id) VALUES
+  ('5d000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000b',
+   '9e000000-0000-4000-8000-00000000000a');

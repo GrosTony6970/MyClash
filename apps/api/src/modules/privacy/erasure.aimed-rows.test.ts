@@ -70,6 +70,9 @@ function tables(): Record<string, TableSeed> {
     push_subscriptions: { rows: [] },
     event_photos: { rows: [] },
     workshop_instructors: { rows: [] },
+    spar_requests: { rows: [] },
+    spar_private_notes: { rows: [] },
+    fightbook_blocks: { rows: [] },
     // Canned: its read filters with `contains`, which the seeded double does not model.
     audit_log: { data: [], error: null },
   };

@@ -262,6 +262,29 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'follows.csv',
   },
 
+  // ── FightBook ───────────────────────────────────────────────────────────────
+  spar_requests: {
+    reaches: [
+      { column: 'asker_global_person_id', reach: 'global_person' },
+      { column: 'receiver_global_person_id', reach: 'global_person' },
+    ],
+    file: 'fightbook.csv',
+    note:
+      'Spar requests the subject sent or received. A comment the decliner kept private is in ' +
+      'spar_private_notes, never on the row. In the hour before the expiry job a row past its ' +
+      'end still reads pending.',
+  },
+  spar_private_notes: {
+    reaches: [{ column: 'author_global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+  },
+  // Outbound only, as follows above: a block AIMED at the subject names someone else and would
+  // tell the subject they were blocked (Art. 15(4)).
+  fightbook_blocks: {
+    reaches: [{ column: 'blocker_global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+  },
+
   // ── Notifications ───────────────────────────────────────────────────────────
   notification_preferences: {
     reaches: [{ column: 'user_id', reach: 'uid' }],
