@@ -104,8 +104,9 @@ describe('SparReadsService.inbox', () => {
   });
 
   it('leaves out a request its asker can no longer be answered on (off, merged, unclaimed)', async () => {
-    // Paul switched off and Julie's profile was merged away after they asked: a Yes would only
-    // answer "no longer open", and the page would read the card back after it.
+    // Paul asked Julie, then switched off (a merge, a delete or an unclaim end the same way, by
+    // the reachable filters asserted below): her Yes would only answer "no longer open", and
+    // the page would read the card back after it.
     const { reads, supabase } = service(
       [
         request('from-marc', { asker_global_person_id: MARC, receiver_global_person_id: JULIE }),
