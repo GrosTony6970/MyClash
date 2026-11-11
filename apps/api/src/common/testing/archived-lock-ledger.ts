@@ -206,6 +206,17 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'POST notifications/me/unsubscribe',
     'POST staff-auth/logout',
   ],
+  // An ask may name an Event, but only a public one whose day has not ended (ruling 665), so never
+  // an archived one; and the archive excludes every FightBook table.
+  "FightBook: a fighter's own spar requests, answers and blocks, not the Event record.": [
+    'DELETE me/fightbook/blocks/:globalPersonId',
+    'PATCH me/fightbook/settings',
+    'POST me/fightbook/blocks',
+    'POST me/fightbook/requests',
+    'POST me/fightbook/requests/:id/answer',
+    'POST me/fightbook/requests/:id/cancel',
+    'POST me/fightbook/requests/:id/withdraw',
+  ],
 };
 
 /** The lock reads the Event the body names (`body.eventId`), when it names one. */
