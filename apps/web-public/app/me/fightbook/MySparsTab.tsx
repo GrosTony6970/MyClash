@@ -1,0 +1,187 @@
+'use client';
+
+import { useState } from 'react';
+import { useI18n } from '@myclash/next-i18n/client';
+import type { AgreedSpar, MySpars, SentSparRequest } from '@myclash/types';
+import { Button, EmptyState, usePrompt } from '@myclash/ui';
+import { fightBookPath, writeFightBook } from '@/lib/fightbook/read-fightbook';
+import { sparRefusalKey } from '@/lib/fightbook/refusal';
+import { SparCard, useDayLabel } from './SparCard';
+
+/** The spars of each day, in day order (the list arrives sorted by day, then time). */
+function byDay(spars: AgreedSpar[]): Array<[string, AgreedSpar[]]> {
+  const days = new Map<string, AgreedSpar[]>();
+  for (const spar of spars) days.set(spar.day, [...(days.get(spar.day) ?? []), spar]);
+  return [...days.entries()];
+}
+
+function AgreedNote({ spar }: { spar: AgreedSpar }) {
+  const { t } = useI18n();
+  if (spar.status === 'agreed') {
+    return (
+      <p className="text-muted">
+        {spar.iAsked
+          ? t('publicApp.fightBook.spars.youAsked')
+          : t('publicApp.fightBook.spars.theyAsked')}
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="font-semibold text-danger">{t('publicApp.fightBook.spars.cancelled')}</p>
+      <p className="text-muted">
+        {spar.cancelledByMe
+          ? t('publicApp.fightBook.spars.cancelledByYou')
+          : t('publicApp.fightBook.spars.cancelledByThem')}
+      </p>
+      {spar.cancelMessage ? <p className="italic text-muted">{spar.cancelMessage}</p> : null}
+    </>
+  );
+}
+
+function SentNote({ request }: { request: SentSparRequest }) {
+  const { t } = useI18n();
+  if (request.status === 'pending') {
+    return <p className="text-muted">{t('publicApp.fightBook.spars.waiting')}</p>;
+  }
+  return (
+    <>
+      <p className="font-semibold text-foreground">{t('publicApp.fightBook.spars.notThisTime')}</p>
+      {request.comment ? <p className="italic text-muted">{request.comment}</p> : null}
+    </>
+  );
+}
+
+/** Cancel and withdraw: each one write, its refusal said; a won write patches the list. */
+function useSparActions(
+  apiUrl: string,
+  onCancelled: (id: string, message: string | null) => void,
+  onWithdrawn: (id: string) => void,
+) {
+  const { t } = useI18n();
+  const { prompt, promptDialog } = usePrompt();
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const cancel = async (spar: AgreedSpar) => {
+    const message = await prompt({
+      title: t('publicApp.fightBook.spars.cancelTitle'),
+      description: t('publicApp.fightBook.spars.cancelDescription'),
+      placeholder: t('publicApp.fightBook.spars.cancelPlaceholder'),
+      confirmLabel: t('publicApp.fightBook.spars.cancelConfirm'),
+      cancelLabel: t('publicApp.fightBook.spars.keep'),
+      allowEmpty: true,
+      multiline: true,
+      danger: true,
+    });
+    if (message === null) return;
+    setRefusal(null);
+    const body = message.trim() ? { message: message.trim() } : {};
+    const res = await writeFightBook(
+      apiUrl,
+      fightBookPath(`/requests/${spar.id}/cancel`),
+      'POST',
+      body,
+    );
+    if (res.ok) onCancelled(spar.id, message.trim() || null);
+    else setRefusal(t(sparRefusalKey(res.code)));
+  };
+  const withdraw = async (request: SentSparRequest) => {
+    setRefusal(null);
+    const path = fightBookPath(`/requests/${request.id}/withdraw`);
+    const res = await writeFightBook(apiUrl, path, 'POST');
+    if (res.ok) onWithdrawn(request.id);
+    else setRefusal(t(sparRefusalKey(res.code)));
+  };
+  return { cancel, withdraw, refusal, promptDialog };
+}
+
+/** My agreed spars, by day, then the requests I sent and their answer so far. */
+export function MySparsTab(props: {
+  apiUrl: string;
+  spars: MySpars;
+  onCancelled: (id: string, message: string | null) => void;
+  onWithdrawn: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn);
+  const { spars, sent } = props.spars;
+  if (spars.length === 0 && sent.length === 0) {
+    return (
+      <EmptyState
+        title={t('publicApp.fightBook.spars.empty')}
+        description={t('publicApp.fightBook.spars.emptyDescription')}
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {actions.refusal ? (
+        <p role="alert" className="text-sm text-danger">
+          {actions.refusal}
+        </p>
+      ) : null}
+      <SparDays spars={spars} onCancel={(spar) => void actions.cancel(spar)} />
+      {sent.length > 0 ? (
+        <SentList sent={sent} onWithdraw={(r) => void actions.withdraw(r)} />
+      ) : null}
+      {actions.promptDialog}
+    </div>
+  );
+}
+
+/** My spars, a heading per day. */
+function SparDays(props: { spars: AgreedSpar[]; onCancel: (spar: AgreedSpar) => void }) {
+  const { t } = useI18n();
+  const dayLabel = useDayLabel();
+  return byDay(props.spars).map(([day, ofDay]) => (
+    <section key={day}>
+      <h3 data-spar-day className="mb-2 text-sm font-semibold text-foreground">
+        {dayLabel(day)}
+      </h3>
+      <ul className="flex flex-col gap-3">
+        {ofDay.map((spar) => (
+          <SparCard
+            key={spar.id}
+            fighter={spar.partner}
+            when={spar}
+            message={spar.message}
+            note={<AgreedNote spar={spar} />}
+          >
+            {spar.status === 'agreed' ? (
+              <Button type="button" variant="outline" onClick={() => props.onCancel(spar)}>
+                {t('publicApp.fightBook.spars.cancel')}
+              </Button>
+            ) : null}
+          </SparCard>
+        ))}
+      </ul>
+    </section>
+  ));
+}
+
+function SentList(props: { sent: SentSparRequest[]; onWithdraw: (r: SentSparRequest) => void }) {
+  const { t } = useI18n();
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-foreground">
+        {t('publicApp.fightBook.spars.sentHeading')}
+      </h3>
+      <ul className="flex flex-col gap-3">
+        {props.sent.map((request) => (
+          <SparCard
+            key={request.id}
+            fighter={request.receiver}
+            when={request}
+            message={request.message}
+            note={<SentNote request={request} />}
+          >
+            {request.status === 'pending' ? (
+              <Button type="button" variant="outline" onClick={() => props.onWithdraw(request)}>
+                {t('publicApp.fightBook.spars.withdraw')}
+              </Button>
+            ) : null}
+          </SparCard>
+        ))}
+      </ul>
+    </section>
+  );
+}

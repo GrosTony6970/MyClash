@@ -7,6 +7,8 @@ import { Button, Spinner } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { ReadFailed } from '@/components/me/ReadFailed';
 import { FightBookSettingsPanel, FightBookSwitch } from './FightBookSettingsPanel';
+import { FightBookTabs } from './FightBookTabs';
+import { unblocked } from './fightbook-patches';
 import { useFightBook, type FightBookState } from './use-fightbook';
 
 /**
@@ -84,13 +86,14 @@ function Body({
   if (!state.settings.hasProfile) return <NoProfile />;
   if (!state.settings.enabled) return <SwitchedOff apiUrl={apiUrl} onOn={reload} />;
   return (
-    <FightBookSettingsPanel
-      apiUrl={apiUrl}
-      blocks={state.blocks}
-      onSwitched={reload}
-      onUnblocked={(id) =>
-        update((data) => ({ blocks: data.blocks.filter((b) => b.fighter.globalPersonId !== id) }))
-      }
-    />
+    <>
+      <FightBookTabs apiUrl={apiUrl} data={state} update={update} />
+      <FightBookSettingsPanel
+        apiUrl={apiUrl}
+        blocks={state.blocks}
+        onSwitched={reload}
+        onUnblocked={(id) => update(unblocked(id))}
+      />
+    </>
   );
 }

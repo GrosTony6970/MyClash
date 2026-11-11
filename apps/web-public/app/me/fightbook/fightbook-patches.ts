@@ -1,0 +1,70 @@
+import type { AgreedSpar, IncomingSparRequest, SparFighter } from '@myclash/types';
+import type { FightBookData } from './use-fightbook';
+
+/**
+ * How each FightBook write changes the page's lists, from the write's own answer: no re-read, so
+ * a tap never flashes the list. Pure, one per write.
+ */
+type Patch = (data: FightBookData) => Partial<FightBookData>;
+
+const bySpar = (a: AgreedSpar, b: AgreedSpar) =>
+  a.day.localeCompare(b.day) || (a.time ?? '').localeCompare(b.time ?? '');
+
+/** A request she said yes to, as My spars shows it. */
+function agreedFrom(request: IncomingSparRequest): AgreedSpar {
+  const { asker, id, kind, eventName, day, time, place, weapons, message } = request;
+  return {
+    ...{ id, kind, eventName, day, time, place, weapons, message },
+    partner: asker,
+    iAsked: false,
+    status: 'agreed',
+    cancelledByMe: null,
+    cancelMessage: null,
+  };
+}
+
+/** Answered (or lost to a request no longer open, `status` null): out of the Inbox; a yes is a spar. */
+export const answered =
+  (request: IncomingSparRequest, status: string | null): Patch =>
+  (d) => ({
+    inbox: d.inbox.filter((r) => r.id !== request.id),
+    spars:
+      status === 'agreed'
+        ? { ...d.spars, spars: [...d.spars.spars, agreedFrom(request)].sort(bySpar) }
+        : d.spars,
+  });
+
+/** As fightbook_block does: their requests to me end, and my request still waiting goes. */
+export const blocked =
+  (asker: SparFighter): Patch =>
+  (d) => ({
+    inbox: d.inbox.filter((r) => r.asker.globalPersonId !== asker.globalPersonId),
+    blocks: [{ fighter: asker }, ...d.blocks],
+    spars: {
+      ...d.spars,
+      sent: d.spars.sent.filter(
+        (s) => !(s.receiver.globalPersonId === asker.globalPersonId && s.status === 'pending'),
+      ),
+    },
+  });
+
+export const withdrawn =
+  (id: string): Patch =>
+  (d) => ({ spars: { ...d.spars, sent: d.spars.sent.filter((s) => s.id !== id) } });
+
+export const cancelled =
+  (id: string, message: string | null): Patch =>
+  (d) => ({
+    spars: {
+      ...d.spars,
+      spars: d.spars.spars.map((s) =>
+        s.id === id
+          ? { ...s, status: 'cancelled' as const, cancelledByMe: true, cancelMessage: message }
+          : s,
+      ),
+    },
+  });
+
+export const unblocked =
+  (id: string): Patch =>
+  (d) => ({ blocks: d.blocks.filter((b) => b.fighter.globalPersonId !== id) });

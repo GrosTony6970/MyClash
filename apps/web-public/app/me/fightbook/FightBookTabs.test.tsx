@@ -1,0 +1,286 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiRequest } from '@myclash/api-client';
+import type * as ApiClient from '@myclash/api-client';
+import type { IncomingSparRequest, MySpars } from '@myclash/types';
+// Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
+import { I18nProvider } from '../../../src/i18n/I18nProvider';
+import { FightBookClient } from './FightBookClient';
+
+/**
+ * Julie has FightBook on. Marc asked her for a longsword spar after the Pools; Paul asked too.
+ * She answers from the Inbox; My spars keeps what she agreed to, by day, and what she sent.
+ */
+vi.mock('@myclash/api-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof ApiClient>()),
+  apiRequest: vi.fn(),
+}));
+let search = new URLSearchParams();
+const replace = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace }),
+  useSearchParams: () => search,
+}));
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
+const PAUL = '2d9e5c74-9f7b-4c79-9b77-3d3b5b7e4c23';
+const marc = { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null };
+const paul = { globalPersonId: PAUL, name: 'Paul Probe', photoUrl: null };
+
+const incoming = (id: string, asker = marc): IncomingSparRequest => ({
+  id,
+  asker,
+  kind: 'event',
+  eventName: 'Probe Open',
+  day: '2026-05-23',
+  time: '18:30',
+  place: null,
+  weapons: ['Longsword', 'Sabre'],
+  message: 'After the Pools?',
+});
+
+type Answer = { ok: boolean; data?: unknown; kind?: string; status?: number; code?: string | null };
+let container: HTMLDivElement;
+let root: Root;
+beforeEach(() => {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  search = new URLSearchParams();
+});
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  vi.mocked(apiRequest).mockReset();
+  replace.mockReset();
+});
+
+function serve(inbox: IncomingSparRequest[], spars: MySpars, writes: Record<string, Answer> = {}) {
+  const routes: Record<string, Answer> = {
+    'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: true } },
+    'GET /api/v1/me/fightbook/inbox': { ok: true, data: inbox },
+    'GET /api/v1/me/fightbook/spars': { ok: true, data: spars },
+    'GET /api/v1/me/fightbook/blocks': { ok: true, data: [] },
+    ...writes,
+  };
+  vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
+    const route = routes[`${init?.method ?? 'GET'} ${path}`];
+    if (!route) throw new Error(`unexpected request ${init?.method ?? 'GET'} ${path}`);
+    return route as never;
+  });
+}
+
+const settled = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+async function open() {
+  await act(async () =>
+    root.render(
+      <I18nProvider locale="en">
+        <FightBookClient />
+      </I18nProvider>,
+    ),
+  );
+  await settled();
+}
+const button = (label: string, within: ParentNode = container) =>
+  [...within.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
+const sent = (method: string, path: string) =>
+  vi
+    .mocked(apiRequest)
+    .mock.calls.find(([, p, init]) => p === path && init?.method === method)?.[2];
+const NONE: MySpars = { spars: [], sent: [] };
+
+describe('the Inbox', () => {
+  it('shows who asks, the weapons, the day and the message, with the count on the tab', async () => {
+    serve([incoming('r-1'), incoming('r-2', paul)], NONE);
+    await open();
+    const text = container.textContent ?? '';
+    expect(text).toContain('Inbox (2)');
+    expect(text).toContain('Marc Probe');
+    expect(text).toContain('Weapons: Longsword, Sabre');
+    expect(text).toContain('At Probe Open');
+    expect(text).toContain('18:30');
+    expect(text).toContain('After the Pools?');
+  });
+
+  it('a yes saves, leaves the Inbox and lands in My spars', async () => {
+    serve([incoming('r-1')], NONE, {
+      'POST /api/v1/me/fightbook/requests/r-1/answer': { ok: true, data: { status: 'agreed' } },
+    });
+    await open();
+    await act(async () => button('Yes')!.click());
+    await settled();
+    expect(sent('POST', '/api/v1/me/fightbook/requests/r-1/answer')).toMatchObject({
+      body: { answer: 'yes' },
+    });
+    expect(container.querySelectorAll('[data-spar-card]')).toHaveLength(0);
+    expect(container.textContent).not.toContain('Inbox (1)');
+    // It is in My spars now, from the answer itself: no second read.
+    search = new URLSearchParams('tab=spars');
+    await open();
+    expect(container.textContent).toContain('Marc Probe');
+  });
+
+  it('"Not this time" keeps the comment private unless she ticks it', async () => {
+    serve([incoming('r-1')], NONE, {
+      'POST /api/v1/me/fightbook/requests/r-1/answer': {
+        ok: true,
+        data: { status: 'not_this_time' },
+      },
+    });
+    await open();
+    await act(async () => button('Not this time')!.click());
+    const field = document.querySelector<HTMLTextAreaElement>('textarea')!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(field, 'Not my weapon');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => button('Send "Not this time"', document)!.click());
+    await settled();
+    expect(sent('POST', '/api/v1/me/fightbook/requests/r-1/answer')).toMatchObject({
+      body: { answer: 'no', comment: 'Not my weapon', showComment: false },
+    });
+    expect(container.textContent).not.toContain('After the Pools?');
+  });
+
+  it('a request no longer open leaves the Inbox and says so', async () => {
+    serve([incoming('r-1')], NONE, {
+      'POST /api/v1/me/fightbook/requests/r-1/answer': {
+        ok: false,
+        kind: 'http',
+        status: 409,
+        code: 'not_open',
+      },
+    });
+    await open();
+    await act(async () => button('Yes')!.click());
+    await settled();
+    expect(container.textContent).not.toContain('After the Pools?');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'This request is no longer open.',
+    );
+  });
+
+  it('blocking asks first, then blocks the asker and clears their requests', async () => {
+    serve([incoming('r-1'), incoming('r-2', paul)], NONE, {
+      'POST /api/v1/me/fightbook/blocks': { ok: true, data: null },
+    });
+    await open();
+    await act(async () => button('Block')!.click());
+    await act(async () => button('Block', document.querySelector('[role="dialog"]')!)!.click());
+    await settled();
+    expect(sent('POST', '/api/v1/me/fightbook/blocks')).toMatchObject({
+      body: { globalPersonId: MARC },
+    });
+    const cards = [...container.querySelectorAll('[data-spar-card]')];
+    expect(cards.map((card) => card.textContent?.includes('Paul Probe'))).toEqual([true]);
+    expect(container.textContent).toContain('Inbox (1)');
+    // Marc is now in her blocked list instead.
+    expect(container.textContent).toContain('Blocked fighters');
+  });
+});
+
+describe('My spars', () => {
+  const spar = (id: string, over: Partial<MySpars['spars'][number]> = {}) => ({
+    id,
+    partner: marc,
+    iAsked: false,
+    kind: 'event' as const,
+    eventName: 'Probe Open',
+    day: '2026-05-23',
+    time: null,
+    place: null,
+    weapons: ['Longsword'],
+    message: null,
+    status: 'agreed' as const,
+    cancelledByMe: null,
+    cancelMessage: null,
+    ...over,
+  });
+
+  it('follows ?tab=spars, groups the spars of one day under one heading', async () => {
+    search = new URLSearchParams('tab=spars');
+    serve([], {
+      spars: [spar('s-1'), spar('s-2', { partner: paul, iAsked: true })],
+      sent: [],
+    });
+    await open();
+    expect(container.querySelectorAll('h3[data-spar-day]')).toHaveLength(1);
+    expect(container.textContent).toContain('Marc Probe');
+    expect(container.textContent).toContain('Paul Probe');
+  });
+
+  it('says a cancelled spar, who cancelled, and the message', async () => {
+    search = new URLSearchParams('tab=spars');
+    serve([], {
+      spars: [spar('s-1', { status: 'cancelled', cancelledByMe: false, cancelMessage: 'Injured' })],
+      sent: [],
+    });
+    await open();
+    expect(container.textContent).toContain('Spar cancelled');
+    expect(container.textContent).toContain('They cancelled this spar.');
+    expect(container.textContent).toContain('Injured');
+  });
+
+  it('shows a sent "Not this time" the same way, with a comment only when shown', async () => {
+    search = new URLSearchParams('tab=spars');
+    const base = {
+      receiver: paul,
+      kind: 'free' as const,
+      eventName: null,
+      day: '2026-05-24',
+      time: null,
+      place: 'Salle Probe',
+      weapons: ['Sabre'],
+      message: null,
+      status: 'not_this_time' as const,
+    };
+    serve([], {
+      spars: [],
+      sent: [
+        { ...base, id: 'q-1', comment: null },
+        { ...base, id: 'q-2', comment: 'Next Event!' },
+      ],
+    });
+    await open();
+    const cards = [...container.querySelectorAll('[data-spar-card]')].map((c) => c.textContent);
+    expect(cards.filter((text) => text?.includes('Not this time'))).toHaveLength(2);
+    expect(container.textContent).toContain('Next Event!');
+    expect(container.textContent).toContain('At Salle Probe');
+  });
+
+  it('withdraws a request still waiting', async () => {
+    search = new URLSearchParams('tab=spars');
+    serve(
+      [],
+      {
+        spars: [],
+        sent: [
+          {
+            id: 'q-1',
+            receiver: paul,
+            kind: 'free',
+            eventName: null,
+            day: '2026-05-24',
+            time: null,
+            place: 'Salle Probe',
+            weapons: ['Sabre'],
+            message: null,
+            status: 'pending',
+            comment: null,
+          },
+        ],
+      },
+      { 'POST /api/v1/me/fightbook/requests/q-1/withdraw': { ok: true, data: null } },
+    );
+    await open();
+    await act(async () => button('Take back')!.click());
+    await settled();
+    expect(sent('POST', '/api/v1/me/fightbook/requests/q-1/withdraw')).toBeDefined();
+    expect(container.textContent).not.toContain('Waiting for an answer');
+  });
+});
