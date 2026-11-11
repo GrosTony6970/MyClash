@@ -203,8 +203,8 @@ export class EventJoinService {
     // After `create`, the row just made stays on the list unheld, with the account's address
     // (named, accepted: two taps landing at once; the organiser can remove it).
     if (outcome === 'already_at_event') throw new ConflictException('Already on this Event');
-    // `skipped` here needs another account to have taken a row carrying this account's address
-    // between the read and the write (ruling 581): a server error, named, not fixed.
+    // `skipped`: the row changed between the roster read and the claim (deleted, given another
+    // address, or taken by another account, ruling 581): a server error, named, not fixed.
     throw new InternalServerErrorException(
       `Row ${personId} could not be claimed by its own address`,
     );

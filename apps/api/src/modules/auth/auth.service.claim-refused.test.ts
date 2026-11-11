@@ -196,14 +196,18 @@ describe('a claim that lost the row between its check and its write (ruling 581)
   it('"this is me" does not count it, and its write aims at an unheld row only', async () => {
     const { service, db } = build([unclaimed(ROW), LOST]);
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-
-    await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
-      claimed: 0,
-      alreadyAtEvent: 0,
-    });
-    // The page counts nothing; the log says why.
-    expect(warn).toHaveBeenCalledWith(`claim of person ${ROW} lost: another account took it`);
-    warn.mockRestore();
+    try {
+      await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
+        claimed: 0,
+        alreadyAtEvent: 0,
+      });
+      // The page counts nothing; the log says why.
+      expect(warn).toHaveBeenCalledWith(
+        `claim of person ${ROW} lost: taken by another account, or deleted`,
+      );
+    } finally {
+      warn.mockRestore();
+    }
     // The write asks for its rows back: without that the answer carries none, and every claim
     // would read as lost. The double answers rows either way, so the projection is named.
     expect(selectsFor(db.from, 'persons')).toEqual([CHECK, 'id']);

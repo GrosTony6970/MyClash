@@ -798,7 +798,7 @@ export class AuthService {
     const refused = await this.completeClaim(user.id, user.email, personId);
     if (refused === 'held_by_another') {
       // Another account took the row between the check and the write (ruling 581).
-      this.logger.warn(`claim of person ${personId} lost: another account took it`);
+      this.logger.warn(`claim of person ${personId} lost: taken by another account, or deleted`);
       return 'skipped';
     }
     return refused ?? 'claimed';
