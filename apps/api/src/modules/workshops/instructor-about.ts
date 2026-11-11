@@ -1,4 +1,4 @@
-import { isReachableEmbed } from '../fighters/directory-predicate';
+import { isReachableEmbed, REACHABLE_COLUMNS } from '../fighters/directory-predicate';
 import { isFieldPublic } from '../fighters/public-visibility';
 
 /** A bio, a club line and a photo: what a Workshop or a profile says about an instructor. */
@@ -21,9 +21,11 @@ export interface RawLine {
   } | null;
 }
 
-/** The public read's instructor columns: the line, its override, and the profile under it. */
-export const PUBLIC_INSTRUCTOR_COLUMNS =
-  'global_person_id, display_name, bio, affiliation, photo_url, global_persons ( bio, photo_url, public_visibility, deleted_at, merged_into_id, account_deleted_at, clubs ( name ) )';
+/**
+ * The public read's instructor columns: the line, its override, and the profile under it, with
+ * every column `isReachable` reads (a column left out reads `undefined`, which counts as live).
+ */
+export const PUBLIC_INSTRUCTOR_COLUMNS = `global_person_id, display_name, bio, affiliation, photo_url, global_persons ( bio, photo_url, public_visibility, ${REACHABLE_COLUMNS.join(', ')}, clubs ( name ) )`;
 
 export function overrideOf(
   line: Pick<RawLine, 'bio' | 'affiliation' | 'photo_url'>,
@@ -51,7 +53,8 @@ const filled = (value: string | null): string | null => value?.trim() || null;
 /**
  * What a visitor of the Workshop page reads about one instructor: per field, what the Workshop
  * says, else what a live profile shows (556, 559). A deleted, merged-away or erased profile gives
- * nothing (577); the Workshop's own words still show. Hidden profiles are not consulted (579).
+ * nothing (577); the Workshop's own words still show. Whether the profile is hidden from the
+ * fighter pages is not asked: teaching at a public Event makes the person known there (579).
  */
 export function publicAbout(line: RawLine): InstructorDetails {
   const profile: InstructorDetails = isReachableEmbed(line.global_persons)

@@ -237,7 +237,10 @@ interface RawSession {
 interface RawInstructor {
   global_person_id: string | null;
   display_name: string;
-  /** What this Workshop says of them (2.6b): read by the organiser's reads only. */
+  /**
+   * What this Workshop says of them (2.6b): read by the organiser's reads and the public
+   * Workshop page's (3.6, with the profile embedded: `PublicInstructorLine`); never the list's.
+   */
   bio?: string | null;
   affiliation?: string | null;
   photo_url?: string | null;

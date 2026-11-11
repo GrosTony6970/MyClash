@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { REACHABLE_COLUMNS } from '../fighters/directory-predicate';
 import { WorkshopsService } from './workshops.service';
 
 type Resp = { data: unknown; error: { message: string } | null };
@@ -136,6 +137,9 @@ describe('WorkshopsService — public gate', () => {
         'global_persons ( bio, photo_url, public_visibility, deleted_at, merged_into_id, ' +
         'account_deleted_at, clubs ( name ) ) )',
     );
+    // Every column the live-profile check reads: one left out reads `undefined`, which is "live".
+    const profileEmbed = workshopRead?.match(/global_persons \(([^)]*)/)?.[1] ?? '';
+    for (const column of REACHABLE_COLUMNS) expect(profileEmbed).toContain(column);
   });
 
   it('returns [] for an unknown event slug', async () => {
