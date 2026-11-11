@@ -99,6 +99,9 @@ type ClaimCheck =
   | { refusal: Exclude<ClaimCheckRefusal, 'check_failed'>; eventSlug: string | null }
   | { refusal: null; eventSlug: string | null; email: string };
 
+/** Why a claim did not land, with the database's words when a read failed (`fault`). */
+type ClaimRefused = { refusal: ClaimLinkRefusal; fault?: string };
+
 /**
  * What the one claim door that answers with an error throws for each refusal: the
  * anonymous link request. The emailed link's callback and the Google claim
@@ -552,14 +555,14 @@ export class AuthService {
     const checked = await this.claimRefusal(personId, userEmail, userId);
     const { eventSlug } = checked;
     // The check, then the write: the database refuses a second row at an Event (ruling 300).
-    const refusal =
+    const refused: ClaimRefused | null =
       checked.refusal === null
         ? await this.completeClaim(userId, userEmail, personId, checked.email)
-        : checked.refusal;
-    if (!refusal) return null;
-    const fault = checked.refusal === 'check_failed' ? ` (${checked.fault})` : '';
-    this.logger.warn(`claim of person ${personId} refused: ${refusal}${fault}`);
-    const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
+        : checked;
+    if (!refused) return null;
+    const fault = refused.fault ? ` (${refused.fault})` : '';
+    this.logger.warn(`claim of person ${personId} refused: ${refused.refusal}${fault}`);
+    const reason = `${CLAIM_REFUSED_PARAM}=${refused.refusal}`;
     return eventSlug ? `${claimPagePath(eventSlug, personId)}&${reason}` : `/me?${reason}`;
   }
 
@@ -804,7 +807,11 @@ export class AuthService {
     }
     if (checked.refusal) return 'skipped';
     const refused = await this.completeClaim(user.id, user.email, personId, checked.email);
-    if (refused === 'already_at_event') return refused;
+    // Nor is a failed second read, after a write that missed (ruling 583).
+    if (refused?.fault) {
+      throw new Error(`Could not read person ${personId} after a lost claim: ${refused.fault}`);
+    }
+    if (refused?.refusal === 'already_at_event') return 'already_at_event';
     return refused ? 'skipped' : 'claimed';
   }
 
@@ -1062,7 +1069,7 @@ export class AuthService {
     userEmail: string | undefined,
     personId: string,
     checkedEmail: string,
-  ): Promise<ClaimLinkRefusal | null> {
+  ): Promise<ClaimRefused | null> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .update({
@@ -1073,7 +1080,9 @@ export class AuthService {
       .eq('email', checkedEmail)
       .or(`claimed_by_user_id.is.null,claimed_by_user_id.eq.${userId}`)
       .select('id');
-    if (error?.message.includes(ONE_ROW_PER_ACCOUNT_AT_EVENT)) return 'already_at_event';
+    if (error?.message.includes(ONE_ROW_PER_ACCOUNT_AT_EVENT)) {
+      return { refusal: 'already_at_event' };
+    }
     if (error) throw new Error(`Could not claim person ${personId}: ${error.message}`);
     if (!data?.length) return this.lostClaimReason(personId, userEmail, userId);
 
@@ -1098,21 +1107,21 @@ export class AuthService {
    * finds nothing wrong (the row changed and changed back, or only its address's
    * case changed) decided nothing: `check_failed`, whose words say "try again".
    * The re-read only names the reason; nothing was written either way. A re-read
-   * that fails throws, as a failed write does: "This is me" never answers
-   * "0 claimed" for a row it could not read.
+   * that fails is `check_failed` with the database's words (`fault`), as a failed
+   * first check is: the link says "could not check" (ruling 60), and "This is me"
+   * throws, never "0 claimed".
    */
   private async lostClaimReason(
     personId: string,
     userEmail: string | undefined,
     userId: string,
-  ): Promise<ClaimCheckRefusal> {
+  ): Promise<ClaimRefused> {
     const again = await this.claimRefusal(personId, userEmail, userId);
-    if (again.refusal === 'check_failed') {
-      throw new Error(`Could not read person ${personId} after a lost claim: ${again.fault}`);
-    }
-    const reason = again.refusal ?? 'check_failed';
-    this.logger.warn(`claim of person ${personId} lost: ${reason}`);
-    return reason;
+    const lost: ClaimRefused =
+      again.refusal === 'check_failed' ? again : { refusal: again.refusal ?? 'check_failed' };
+    const fault = lost.fault ? ` (${lost.fault})` : '';
+    this.logger.warn(`claim of person ${personId} lost: ${lost.refusal}${fault}`);
+    return lost;
   }
 
   /**

@@ -272,22 +272,22 @@ describe('a claim that lost the row between its check and its write (rulings 581
     }
   });
 
-  // A second read that fails is a failed write: never "0 claimed", never a reason it did not read.
-  it('a second read that fails throws, at "this is me" and at the link', async () => {
-    const thisIsMe = build([unclaimed(ROW), LOST, FAULT]);
-    await expect(thisIsMe.service.claimPersons(signedIn, [ROW])).rejects.toThrow(
-      `Could not read person ${ROW} after a lost claim: connection refused`,
-    );
-    const link = build([unclaimed(ROW), LOST, FAULT, NO_ROWS]);
-    const landed = link.service.handleCallback(
-      'token-hash',
-      'claim',
-      ROW,
-      undefined,
-      link.reply as never,
-    );
-    await expect(landed).rejects.toThrow('connection refused');
-    expect(link.reply.redirect).not.toHaveBeenCalled();
+  // A second read that fails is a failed read, as a failed first check is: "this is me" never
+  // answers "0 claimed" for it, and the link says "could not check" (ruling 60), never a raw error.
+  it('a second read that fails: "this is me" throws, the link says "could not check"', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      const thisIsMe = build([unclaimed(ROW), LOST, FAULT]);
+      await expect(thisIsMe.service.claimPersons(signedIn, [ROW])).rejects.toThrow(
+        `Could not read person ${ROW} after a lost claim: connection refused`,
+      );
+      await expect(linkReason(FAULT)).resolves.toBe('check_failed');
+      expect(warn).toHaveBeenCalledWith(
+        `claim of person ${ROW} lost: check_failed (connection refused)`,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   // The write requires the address as the check READ it, never the account's own spelling: a row
