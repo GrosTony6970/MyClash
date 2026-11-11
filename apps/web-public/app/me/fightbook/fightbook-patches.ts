@@ -23,13 +23,17 @@ function agreedFrom(request: IncomingSparRequest): AgreedSpar {
   };
 }
 
-/** Answered (or lost to a request no longer open, `status` null): out of the Inbox; a yes is a spar. */
+/**
+ * Answered (or lost to a request no longer open, `status` null): out of the Inbox; a yes is a spar.
+ * Each patch leaves alone what is already there: a re-read can land between a write and its
+ * answer, and has then listed the spar or the block already.
+ */
 export const answered =
   (request: IncomingSparRequest, status: string | null): Patch =>
   (d) => ({
     inbox: d.inbox.filter((r) => r.id !== request.id),
     spars:
-      status === 'agreed'
+      status === 'agreed' && !d.spars.spars.some((s) => s.id === request.id)
         ? { ...d.spars, spars: [...d.spars.spars, agreedFrom(request)].sort(bySpar) }
         : d.spars,
   });
@@ -39,7 +43,10 @@ export const blocked =
   (asker: SparFighter): Patch =>
   (d) => ({
     inbox: d.inbox.filter((r) => r.asker.globalPersonId !== asker.globalPersonId),
-    blocks: [{ fighter: asker }, ...d.blocks],
+    blocks: [
+      { fighter: asker },
+      ...d.blocks.filter((b) => b.fighter.globalPersonId !== asker.globalPersonId),
+    ],
     spars: {
       ...d.spars,
       sent: d.spars.sent.filter(
