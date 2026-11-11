@@ -787,7 +787,7 @@
     "apps/web-public/app/profile/fighter/InsightCard.tsx:20",
     "apps/web-public/app/profile/referee/RefereeProfileClient.tsx:81",
     "apps/web-public/app/reset-password/page.tsx:12",
-    "apps/web-public/src/components/PublicPersonalShell.tsx:41",
+    "apps/web-public/src/components/PublicPersonalShell.tsx:42",
     "apps/web-public/src/components/account/EmailChangeSection.tsx:22",
     "apps/web-public/src/components/fighter/FighterStatsPanel.tsx:63",
     "apps/web-public/src/components/me/CommitmentCard.tsx:81",
