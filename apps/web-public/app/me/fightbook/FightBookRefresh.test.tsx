@@ -115,14 +115,7 @@ describe('a re-read that a write overtakes', () => {
       return { ok: true, data: await route() } as never;
     });
 
-    await act(async () =>
-      root.render(
-        <I18nProvider locale="en">
-          <FightBookClient />
-        </I18nProvider>,
-      ),
-    );
-    await settled();
+    await open();
     await act(async () => buttons('Take back')[0]!.click());
     await settled();
     // The re-read is on its way; Julie cancels her spar with Marc meanwhile.
@@ -141,3 +134,45 @@ describe('a re-read that a write overtakes', () => {
     expect(container.textContent).toContain('You asked');
   });
 });
+
+describe('a re-read that fails', () => {
+  it('keeps the page and the sentence that said why it read again', async () => {
+    let first = true;
+    vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
+      const key = `${init?.method ?? 'GET'} ${path}`;
+      if (key === 'POST /api/v1/me/fightbook/requests/q-1/withdraw') {
+        return { ok: false, kind: 'http', status: 409, code: 'not_open' } as never;
+      }
+      if (key === 'GET /api/v1/me/fightbook/settings') {
+        return { ok: true, data: { hasProfile: true, enabled: true } } as never;
+      }
+      if (key === 'GET /api/v1/me/fightbook/spars' && first) {
+        first = false;
+        return { ok: true, data: { spars: [withMarc], sent: [waiting] } } as never;
+      }
+      if (key === 'GET /api/v1/me/fightbook/spars') return { ok: false, kind: 'network' } as never;
+      return { ok: true, data: [] } as never;
+    });
+    await open();
+    await act(async () => buttons('Take back')[0]!.click());
+    await settled();
+    await settled();
+    expect(first).toBe(false);
+    expect(container.textContent).not.toContain('FightBook could not be loaded.');
+    expect(container.textContent).toContain('Marc Probe');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'This request is no longer open.',
+    );
+  });
+});
+
+async function open() {
+  await act(async () =>
+    root.render(
+      <I18nProvider locale="en">
+        <FightBookClient />
+      </I18nProvider>,
+    ),
+  );
+  await settled();
+}
