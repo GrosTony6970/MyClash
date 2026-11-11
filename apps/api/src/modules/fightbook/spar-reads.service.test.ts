@@ -124,6 +124,14 @@ describe('SparReadsService.mySpars', () => {
         cancel_message: 'Injured',
       }),
       request('gone', { status: 'withdrawn' }),
+      // Not Marc's: each list must leave them out (a filter with no excluded row holds nothing).
+      request('pauls-ask', { asker_global_person_id: PAUL, receiver_global_person_id: JULIE }),
+      request('pauls-spar', {
+        asker_global_person_id: PAUL,
+        receiver_global_person_id: JULIE,
+        status: 'agreed',
+      }),
+      request('to-marc', { asker_global_person_id: JULIE, receiver_global_person_id: MARC }),
     ]);
     const { spars, sent } = await reads.mySpars(MARC, NOW);
     expect(spars.map((s) => [s.id, s.partner.name, s.iAsked, s.cancelledByMe])).toEqual([
@@ -131,6 +139,11 @@ describe('SparReadsService.mySpars', () => {
       ['mine', 'Julie P.', true, null],
     ]);
     expect(sent).toEqual([]);
+    expect(filtersFor(supabase.from, 'spar_requests', 'eq')).toEqual([
+      ['asker_global_person_id', MARC],
+      ['receiver_global_person_id', MARC],
+      ['asker_global_person_id', MARC],
+    ]);
     expect(filtersFor(supabase.from, 'spar_requests', 'in')).toEqual([
       ['status', ['agreed', 'cancelled']],
       ['status', ['agreed', 'cancelled']],
