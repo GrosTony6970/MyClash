@@ -34,7 +34,7 @@
 -- "Not this time", like any no. The blocker's own waiting request to them is WITHDRAWN: a "Not this
 -- time" there would show the blocked fighter, in their own data download, a refusal nobody gave.
 -- An agreed spar stays: either of them cancels it the ordinary way. Only a live profile may be
--- blocked (not merged away, not deleted): a block on any other would hold nothing.
+-- blocked (not merged away, not deleted, account not erased): a block on any other holds nothing.
 --
 -- SECURITY INVOKER, search_path pinned, service role only (the 0190 / 0207 / 0212 pattern): the API
 -- calls these as the service role; anon and authenticated are revoked by name (0184).
@@ -214,10 +214,12 @@ begin
    where id in (p_blocker, p_blocked)
    order by id for key share;
 
-  -- A live profile only: a block on a merged-away or deleted one would hold nothing.
+  -- A live profile only, as the ask and the answer test it: a block on a merged-away or deleted
+  -- profile, or one whose account was erased, would hold nothing.
   if not exists (
     select 1 from public.global_persons
      where id = p_blocked and merged_into_id is null and deleted_at is null
+       and account_deleted_at is null
   ) then
     raise exception 'not_found' using errcode = 'P0002';
   end if;

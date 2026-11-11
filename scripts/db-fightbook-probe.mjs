@@ -44,7 +44,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 46;
+const EXPECTED_CHECKS = 47;
 
 async function onlyTheServiceRole(tx) {
   const roles = [

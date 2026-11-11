@@ -254,6 +254,9 @@ export async function blocking(tx) {
     await q`UPDATE global_persons SET merged_into_id = ${F.marc} WHERE id = ${F.paul}`;
     const merged = await refusal(q, (sp) => block(sp, F.julie, F.paul));
     check('blocking a merged-away profile', merged, words('P0002', 'not_found'));
+    await q`UPDATE global_persons SET merged_into_id = NULL, account_deleted_at = now() WHERE id = ${F.paul}`;
+    const erased = await refusal(q, (sp) => block(sp, F.julie, F.paul));
+    check('blocking a profile whose account was erased', erased, words('P0002', 'not_found'));
   });
   await scenario(tx, async (q) => {
     const r = await ask(q, F.marc, F.julie);
