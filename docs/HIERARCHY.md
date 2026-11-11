@@ -23,6 +23,12 @@ Organization
               └── WorkshopSession (recurring slots)
 ```
 
+**A Spar is not in this tree.** A Spar is one friendly, unscored meeting between two fighters,
+arranged through FightBook. It has no Exchanges, no score, no ruleset and no referee, so it is not a
+Match. It keys on Global Persons, not on Registrations. It may name an Event day, or a free date and
+place outside any Event. See
+[the FightBook design](superpowers/specs/2026-11-10-fightbook-design.md).
+
 **Phase is a real tier, not a synonym for Pool.** `matches.phase_id` is `NOT NULL` — every match
 belongs to a phase. `pool_id`, `bracket_slot_id` and `swiss_round_id` are all _nullable_, and which
 one is set depends on the phase's `type`. A tournament typically runs a pool phase and then an
@@ -90,6 +96,7 @@ A person registers once per **event**, then holds a registration per **tournamen
 | **Swiss round**   | One pairing round of a swiss phase.                                                                                                                       | "Round 3 of 5"                      |
 | **Match**         | A single fight between two registrations. Always belongs to a phase.                                                                                      | "Pool A · Match 7"                  |
 | **Exchange**      | The atomic scoring unit.                                                                                                                                  | "Clean hit, fighter A, head"        |
+| **Spar**          | One friendly, unscored meeting between two fighters, with one or more weapons. Not a Match: no Exchanges. Outside the competition tree.                   | "Longsword spar, Sat after Pools"   |
 | **Workshop**      | A teaching session inside an event. Has an instructor, a topic, capacity, and recurring sessions.                                                         | "Beginner Sword & Buckler workshop" |
 | **Venue**         | A place an organization runs events at. May have sub-areas.                                                                                               | "Gymnase Jean Moulin"               |
 | **Lice**          | The fighting area a match is held on. Scoped to an event; optionally placed in a venue and area.                                                          | "Lice 3"                            |
