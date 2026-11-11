@@ -890,6 +890,9 @@ export const publicApp = {
       organizerUpdatesDescription:
         'Être notifié quand un organisateur que vous suivez publie un nouvel événement.',
       swissRoundPublished: 'Ronde suisse appariée',
+      fightbook: 'FightBook',
+      fightbookDescription:
+        'Nouvelles demandes de spar, un oui à votre demande, et les spars annulés.',
       swissRoundPublishedDescription:
         'Être notifié dès que la prochaine ronde suisse est tirée, avec votre adversaire et votre piste.',
       decrease: 'Réduire le délai',

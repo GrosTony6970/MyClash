@@ -15,6 +15,7 @@ interface Prefs {
   resultsPublished: boolean;
   organizerUpdates: boolean;
   swissRoundPublished: boolean;
+  fightbook: boolean;
   enabled: boolean;
 }
 
@@ -211,6 +212,18 @@ export function NotificationPreferences({ apiUrl }: { apiUrl: string }) {
                   onChange={(v) => void patch({ swissRoundPublished: v })}
                   disabled={!prefs.enabled}
                   ariaLabel={t('publicApp.meSettings.notif.swissRoundPublished')}
+                />
+              }
+            />
+            <SettingRow
+              label={t('publicApp.meSettings.notif.fightbook')}
+              description={t('publicApp.meSettings.notif.fightbookDescription')}
+              control={
+                <Switch
+                  checked={prefs.fightbook}
+                  onChange={(v) => void patch({ fightbook: v })}
+                  disabled={!prefs.enabled}
+                  ariaLabel={t('publicApp.meSettings.notif.fightbook')}
                 />
               }
             />
