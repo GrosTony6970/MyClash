@@ -20677,7 +20677,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description `SelfJoinClosed`, or `AskOrganiser` with `reason`: sameName | yourProfile | yourAddress */
+      /** @description `SelfJoinClosed`, `AskOrganiser` with `reason`: sameName | yourProfile | yourAddress, or `RosterChanged`: the list changed twice during the join */
       409: {
         headers: {
           [name: string]: unknown;
