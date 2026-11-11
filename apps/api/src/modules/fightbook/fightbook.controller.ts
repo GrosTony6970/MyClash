@@ -4,6 +4,9 @@
  * GET   /me/fightbook/settings  — the caller's switch, and whether they have a fighter profile
  * PATCH /me/fightbook/settings  — switch FightBook on or off
  * POST  /me/fightbook/requests  — ask a fighter for a spar
+ * POST  /me/fightbook/requests/:id/answer   — yes, or "Not this time" with an optional comment
+ * POST  /me/fightbook/requests/:id/withdraw — take back my request still waiting
+ * POST  /me/fightbook/requests/:id/cancel   — cancel an agreed spar, either side
  * GET   /me/fightbook/inbox     — requests waiting for my answer
  * GET   /me/fightbook/spars     — my agreed spars, and the requests I sent
  *
@@ -11,8 +14,19 @@
  * starts with `caller()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
  * shadow mode, so each route refuses on its own).
  */
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
@@ -54,6 +68,19 @@ export const askSchema = z
   );
 class AskSparDto extends createZodDto(askSchema) {}
 
+/** A comment goes with a "Not this time" only; it stays private unless shown (ruling 644). */
+const answerSchema = z
+  .object({
+    answer: z.enum(['yes', 'no']),
+    comment: text(500).optional(),
+    showComment: z.boolean().optional(),
+  })
+  .strict();
+class AnswerSparDto extends createZodDto(answerSchema) {}
+
+const cancelSchema = z.object({ message: text(500).optional() }).strict();
+class CancelSparDto extends createZodDto(cancelSchema) {}
+
 @ApiTags('fightbook')
 @Controller('me/fightbook')
 export class FightBookController {
@@ -83,6 +110,38 @@ export class FightBookController {
   async ask(@Body() dto: AskSparDto, @Req() req: FastifyRequest) {
     const caller = await this.caller(req);
     return this.requests.ask(requireFightBookOn(caller), dto);
+  }
+
+  @Post('requests/:id/answer')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Answer a spar request: yes, or not this time' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async answer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AnswerSparDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.requests.answer(requireFightBookOn(await this.caller(req)), id, dto);
+  }
+
+  @Post('requests/:id/withdraw')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Take back my spar request still waiting' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async withdraw(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.requests.withdraw(requireFightBookOn(await this.caller(req)), id);
+  }
+
+  @Post('requests/:id/cancel')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Cancel an agreed spar' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelSparDto,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.requests.cancel(requireFightBookOn(await this.caller(req)), id, dto.message);
   }
 
   @Get('inbox')

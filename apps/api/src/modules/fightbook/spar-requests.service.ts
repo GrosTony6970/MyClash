@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   type HttpException,
 } from '@nestjs/common';
 import { addDays, isIanaZone } from '@myclash/time';
@@ -13,7 +14,12 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { SupabaseService } from '../supabase/supabase.service';
 import { refusal } from './fightbook-caller';
 import { SPAR_MAX_DAYS_AHEAD, eventDayRefusal, sparExpiresAt } from './spar-ask-rules';
-import { notifySparRequestReceived, type SparNoticeDeps } from './spar-notices';
+import {
+  notifySparAgreed,
+  notifySparCancelled,
+  notifySparRequestReceived,
+  type SparNoticeDeps,
+} from './spar-notices';
 
 /** An ask, as the route's body carries it. */
 export interface AskSparInput {
@@ -28,11 +34,21 @@ export interface AskSparInput {
   message?: string;
 }
 
+/** An answer, as the route's body carries it. */
+export interface SparAnswerInput {
+  answer: 'yes' | 'no';
+  comment?: string;
+  showComment?: boolean;
+}
+
 interface Where {
   eventId: string | null;
   zone: string;
   place: string | null;
 }
+
+const notOpen = () =>
+  new ConflictException({ code: 'not_open', message: 'This request is no longer open' });
 
 const badRequest = (code: SparRefusalCode, message: string) =>
   new BadRequestException({ code, message });
@@ -97,6 +113,78 @@ export class SparRequestsService {
       void notifySparRequestReceived(this.noticeDeps(), stored.id, input.receiverGlobalPersonId);
     }
     return { id: stored.id };
+  }
+
+  /**
+   * Yes or "Not this time", as the fighter asked (`me`, never a body value). One database call
+   * (`fightbook_answer`): it lands only on my own request, still waiting and open, from an asker
+   * still on FightBook; else 409 `not_open`. A yes tells the asker; a no tells nobody (663).
+   */
+  async answer(me: string, requestId: string, input: SparAnswerInput): Promise<{ status: string }> {
+    const { data, error } = await this.supabase.service.rpc('fightbook_answer', {
+      p_request: requestId,
+      p_receiver: me,
+      p_answer: input.answer,
+      p_comment: input.comment ?? null,
+      p_comment_shared: input.showComment === true,
+    });
+    if (error) throw databaseRefusal(error, 'spar answer');
+    const answered = data as { asker: string; status: 'agreed' | 'not_this_time' };
+    if (answered.status === 'agreed') {
+      void notifySparAgreed(this.noticeDeps(), requestId, answered.asker);
+    }
+    return { status: answered.status };
+  }
+
+  /**
+   * Take back my own request, still waiting and still open: one conditional update. A request
+   * past its end is already a "no": withdrawing it would show the asker it ran out, and free them
+   * from the no-asking-twice rule. Lost to an answer or to its end: 409 `not_open`. No notice.
+   */
+  async withdraw(me: string, requestId: string, now = new Date()): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('spar_requests')
+      .update({ status: 'withdrawn' })
+      .eq('id', requestId)
+      .eq('asker_global_person_id', me)
+      .eq('status', 'pending')
+      .gt('expires_at', now.toISOString())
+      .select('id');
+    if (error) throw new Error(`spar withdraw failed: ${error.message}`);
+    if ((data ?? []).length === 0) throw notOpen();
+  }
+
+  /**
+   * Cancel an agreed spar, either side, with an optional message; the other fighter is told.
+   * A stranger gets 404, never 403 (a 403 would confirm the request exists). One conditional
+   * update on the caller's own side: two cancels race to one winner, the loser gets `not_open`.
+   */
+  async cancel(me: string, requestId: string, message: string | undefined): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('spar_requests')
+      .select('id, asker_global_person_id, receiver_global_person_id, status')
+      .eq('id', requestId)
+      .maybeSingle();
+    if (error) throw new Error(`spar read failed: ${error.message}`);
+    const row = data as {
+      asker_global_person_id: string;
+      receiver_global_person_id: string;
+    } | null;
+    const side = row?.asker_global_person_id === me ? 'asker' : 'receiver';
+    if (!row || (side === 'receiver' && row.receiver_global_person_id !== me)) {
+      throw new NotFoundException('Spar not found');
+    }
+    const { data: won, error: writeError } = await this.supabase.service
+      .from('spar_requests')
+      .update({ status: 'cancelled', cancelled_by: side, cancel_message: message ?? null })
+      .eq('id', requestId)
+      .eq('status', 'agreed')
+      .eq(`${side}_global_person_id`, me)
+      .select('id');
+    if (writeError) throw new Error(`spar cancel failed: ${writeError.message}`);
+    if ((won ?? []).length === 0) throw notOpen();
+    const other = side === 'asker' ? row.receiver_global_person_id : row.asker_global_person_id;
+    void notifySparCancelled(this.noticeDeps(), requestId, other);
   }
 
   /** The deps every FightBook notice of this service uses. */
