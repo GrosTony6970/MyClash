@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
+import { applyReachable } from '../fighters/directory-predicate';
 import { SupabaseService } from '../supabase/supabase.service';
 import { readSparFighters, unknownSparFighter } from './spar-fighters';
 import { toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
@@ -21,7 +22,11 @@ const byDayThenTime = (a: SparRow, b: SparRow) =>
 export class SparReadsService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  /** Requests waiting for my answer, still open, soonest day first. */
+  /**
+   * Requests waiting for my answer, still open, soonest day first. Only those `fightbook_answer`
+   * (0264) would take: the asker still live, claimed and on. A merge, a deleted profile or a late
+   * switch can leave a request waiting from someone nobody may answer any more.
+   */
   async inbox(me: string, now = new Date()): Promise<IncomingSparRequest[]> {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
@@ -34,7 +39,9 @@ export class SparReadsService {
       .order('spar_day', { ascending: true })
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook inbox read failed: ${error.message}`);
-    const rows = ((data ?? []) as SparRow[]).sort(byDayThenTime);
+    const waiting = (data ?? []) as SparRow[];
+    const open = await this.answerableAskers(waiting.map((r) => r.asker_global_person_id));
+    const rows = waiting.filter((r) => open.has(r.asker_global_person_id)).sort(byDayThenTime);
     const { fighters, events } = await this.cards(rows);
     return rows.map((row) =>
       toIncoming(row, fighters(row.asker_global_person_id), events(row.event_id)),
@@ -100,6 +107,19 @@ export class SparReadsService {
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook sent requests read failed: ${error.message}`);
     return ((data ?? []) as SparRow[]).sort(byDayThenTime);
+  }
+
+  /** Of these askers, those still live, claimed and with FightBook on (as `fightbook_answer`). */
+  private async answerableAskers(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const { data, error } = await applyReachable(
+      this.supabase.service.from('global_persons').select('id'),
+    )
+      .in('id', [...new Set(ids)])
+      .eq('fightbook_enabled', true)
+      .not('claimed_by_user_id', 'is', null);
+    if (error) throw new Error(`FightBook askers read failed: ${error.message}`);
+    return new Set(((data ?? []) as Array<{ id: string }>).map((p) => p.id));
   }
 
   /** The fighters and Events the cards name, one read each. */

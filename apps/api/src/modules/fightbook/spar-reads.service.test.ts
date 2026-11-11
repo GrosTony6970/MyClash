@@ -31,20 +31,46 @@ const request = (id: string, over: Record<string, unknown>) => ({
   ...over,
 });
 
-function service(rows: Record<string, unknown>[]) {
+/** Every profile live, claimed and on, unless `changed` says otherwise. */
+function service(
+  rows: Record<string, unknown>[],
+  changed: Record<string, Record<string, unknown>> = {},
+) {
+  const live = {
+    claimed_by_user_id: '9a8b7c6d-1111-4222-8333-944455566677',
+    fightbook_enabled: true,
+    deleted_at: null,
+    merged_into_id: null,
+    account_deleted_at: null,
+  };
+  const person = (id: string, names: Record<string, unknown>) => ({
+    id,
+    ...live,
+    ...names,
+    ...changed[id],
+  });
   const supabase = mockSupabase({
     spar_requests: { rows },
     global_persons: {
       rows: [
-        { id: MARC, display_name: null, given_name: 'Marc', family_name: 'Probe', photo_url: null },
-        {
-          id: JULIE,
+        person(MARC, {
+          display_name: null,
+          given_name: 'Marc',
+          family_name: 'Probe',
+          photo_url: null,
+        }),
+        person(JULIE, {
           display_name: 'Julie P.',
           given_name: 'Julie',
           family_name: 'Probe',
           photo_url: 'j.jpg',
-        },
-        { id: PAUL, display_name: null, given_name: 'Paul', family_name: 'Probe', photo_url: null },
+        }),
+        person(PAUL, {
+          display_name: null,
+          given_name: 'Paul',
+          family_name: 'Probe',
+          photo_url: null,
+        }),
       ],
     },
     events: { rows: [{ id: EVENT, name: 'Probe Open' }] },
@@ -71,9 +97,36 @@ describe('SparReadsService.inbox', () => {
       ['expires_at', NOW.toISOString()],
     ]);
     expect(selectsFor(supabase.from, 'global_persons')).toEqual([
+      'id',
       'id, display_name, given_name, family_name, photo_url',
     ]);
     expect(selectsFor(supabase.from, 'events')).toEqual(['id, name']);
+  });
+
+  it('leaves out a request its asker can no longer be answered on (off, merged, unclaimed)', async () => {
+    // Paul switched off and Julie's profile was merged away after they asked: a Yes would only
+    // answer "no longer open", and the page would read the card back after it.
+    const { reads, supabase } = service(
+      [
+        request('from-marc', { asker_global_person_id: MARC, receiver_global_person_id: JULIE }),
+        request('from-paul', { asker_global_person_id: PAUL, receiver_global_person_id: JULIE }),
+      ],
+      { [PAUL]: { fightbook_enabled: false } },
+    );
+    const inbox = await reads.inbox(JULIE, NOW);
+    expect(inbox.map((r) => r.id)).toEqual(['from-marc']);
+    expect(selectsFor(supabase.from, 'global_persons')[0]).toBe('id');
+    expect(filtersFor(supabase.from, 'global_persons', 'eq')).toEqual([
+      ['fightbook_enabled', true],
+    ]);
+    expect(filtersFor(supabase.from, 'global_persons', 'not')).toEqual([
+      ['claimed_by_user_id', 'is', null],
+    ]);
+    expect(filtersFor(supabase.from, 'global_persons', 'is')).toEqual([
+      ['deleted_at', null],
+      ['merged_into_id', null],
+      ['account_deleted_at', null],
+    ]);
   });
 
   it('reads nothing more for an empty inbox', async () => {
