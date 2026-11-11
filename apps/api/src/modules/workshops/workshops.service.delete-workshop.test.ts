@@ -8,7 +8,7 @@
  * Driven through the real service over seeded tables.
  */
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { WorkshopsService } from './workshops.service';
@@ -17,10 +17,39 @@ const EVENT = '11111111-1111-4111-8111-111111111111';
 const WORKSHOP = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LEAD = 'u-lead';
 
-function build(bookings: Array<{ status: string }>, overrides: Record<string, TableSeed> = {}) {
+/** The photo bucket: each removal notes how many Workshop deletes had run by then. */
+function photoBucket(removeError?: string) {
+  const removals: Array<{ keys: string[]; workshopDeletesBefore: number }> = [];
+  let db: ReturnType<typeof mockSupabase> | null = null;
+  const bucket = {
+    list: vi.fn(async () => ({ data: [{ name: 'photo-1.jpg' }], error: null })),
+    remove: vi.fn(async (keys: string[]) => {
+      removals.push({ keys, workshopDeletesBefore: db ? deletes(db).length : -1 });
+      return { data: [], error: removeError ? { message: removeError } : null };
+    }),
+  };
+  const storage = { from: vi.fn(() => bucket) };
+  return { storage, removals, watch: (d: ReturnType<typeof mockSupabase>) => (db = d) };
+}
+
+let photos: ReturnType<typeof photoBucket>;
+
+function build(
+  bookings: Array<{ status: string }>,
+  overrides: Record<string, TableSeed> = {},
+  bucket = photoBucket(),
+) {
+  photos = bucket;
   const db = mockSupabase({
     events: { rows: [{ id: EVENT, organization_id: 'org-a', status: 'published' }] },
     workshops: { rows: [{ id: WORKSHOP, event_id: EVENT }] },
+    workshop_instructors: {
+      rows: [
+        { id: 'wi-paul', workshop_id: WORKSHOP },
+        // Another Workshop's line: its photo stays.
+        { id: 'wi-other', workshop_id: 'w-other' },
+      ],
+    },
     workshop_sessions: { rows: [{ id: 's-1', workshop_id: WORKSHOP }] },
     workshop_enrollments: {
       rows: bookings.map((b, i) => ({
@@ -38,7 +67,8 @@ function build(bookings: Array<{ status: string }>, overrides: Record<string, Ta
     },
     ...overrides,
   });
-  const supabase = { service: db.service };
+  bucket.watch(db);
+  const supabase = { service: { ...db.service, storage: bucket.storage } };
   const service = new WorkshopsService(
     supabase as never,
     {} as never,
@@ -98,6 +128,24 @@ describe('deleting a Workshop', () => {
     await expect(service.deleteWorkshop(WORKSHOP, 'u-reader')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(deletes(db)).toEqual([]);
+  });
+
+  it("deletes its instructors' photos before it, or nothing would name them (3.6)", async () => {
+    const { db, service } = build([]);
+
+    await service.deleteWorkshop(WORKSHOP, LEAD);
+
+    expect(photos.removals).toEqual([
+      { keys: ['workshop_instructors/wi-paul/photo-1.jpg'], workshopDeletesBefore: 0 },
+    ]);
+    expect(deletes(db)).toHaveLength(1);
+  });
+
+  it('refuses when a photo could not be deleted, deleting nothing', async () => {
+    const { db, service } = build([], {}, photoBucket('timeout'));
+
+    await expect(service.deleteWorkshop(WORKSHOP, LEAD)).rejects.toThrow('timeout');
     expect(deletes(db)).toEqual([]);
   });
 

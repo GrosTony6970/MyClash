@@ -257,10 +257,13 @@ describe('EventsService', () => {
     });
     // No tournaments → no recorded result to look for.
     const tournamentsChain = makeChain({ data: [], error: null });
+    // No Workshop → no instructor photo to delete first.
+    const workshopsChain = makeAwaitableChain({ data: [], error: null });
     const deleteChain = makeChain({ data: null, error: null });
     fromMock
       .mockReturnValueOnce(eventChain)
       .mockReturnValueOnce(tournamentsChain)
+      .mockReturnValueOnce(workshopsChain)
       .mockReturnValueOnce(deleteChain);
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -377,6 +380,7 @@ describe('EventsService', () => {
       tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
       phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
       pools: makeFullChain({ data: [{ id: 'pool1' }], error: null }),
+      workshops: makeFullChain({ data: [], error: null }),
       ...dependants,
     };
     fromMock.mockImplementation((table: string) => byTable[table]);
@@ -389,6 +393,42 @@ describe('EventsService', () => {
     expect(eventsChain['delete']).toHaveBeenCalledTimes(1);
     expect(deleteFilteredOn(eventsChain, 'event-marker-7')).toBe(true);
     for (const table of DEPENDANTS) expect(dependants[table]!['delete']).not.toHaveBeenCalled();
+  });
+
+  it("hard delete deletes its Workshops' instructor photos first, or nothing would name them (3.6)", async () => {
+    const eventsChain = makeFullChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+      error: null,
+    });
+    const workshopsChain = makeFullChain({ data: [{ id: 'w-1' }], error: null });
+    const linesChain = makeFullChain({ data: [{ id: 'wi-1' }], error: null });
+    const byTable: Record<string, unknown> = {
+      events: eventsChain,
+      tournaments: makeFullChain({ data: [], error: null }),
+      workshops: workshopsChain,
+      workshop_instructors: linesChain,
+    };
+    fromMock.mockImplementation((table: string) => byTable[table]);
+    assertOrgRole.mockResolvedValue(undefined);
+    const bucket = {
+      list: vi.fn().mockResolvedValue({ data: [{ name: 'photo-1.jpg' }], error: null }),
+      remove: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    service = new EventsService(
+      { service: { from: fromMock, storage: { from: vi.fn(() => bucket) } } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+      createRulesetRegistry(),
+    );
+
+    await service.deleteEvent('event-1', 'hard', 'user-1');
+
+    expect(workshopsChain['eq']).toHaveBeenCalledWith('event_id', 'event-1');
+    expect(linesChain['in']).toHaveBeenCalledWith('workshop_id', ['w-1']);
+    expect(bucket.remove).toHaveBeenCalledWith(['workshop_instructors/wi-1/photo-1.jpg']);
+    expect(bucket.remove.mock.invocationCallOrder[0]).toBeLessThan(
+      eventsChain['delete']!.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('deleteTournament leaves the dependants to the database: it deletes only the Tournament', async () => {

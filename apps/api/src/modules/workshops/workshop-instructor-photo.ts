@@ -76,3 +76,29 @@ export async function deleteInstructorPhotoFolder(
   }
   return keys.length;
 }
+
+type Db = SupabaseService['service'];
+
+/**
+ * Deletes the instructor photos of a Workshop, or of every Workshop of an Event, before it is
+ * deleted. The delete's cascade takes the lines, and then nothing names their files: they would
+ * stay served at the link the public Workshop page showed (slice 3.6), and no erasure would find
+ * them. Any failure throws, so the caller stops before its delete and can be tried again.
+ */
+export async function deleteInstructorPhotosOf(
+  db: Db,
+  of: { workshopId: string } | { eventId: string },
+): Promise<void> {
+  let workshopIds = 'workshopId' in of ? [of.workshopId] : [];
+  if ('eventId' in of) {
+    const workshops = await db.from('workshops').select('id').eq('event_id', of.eventId);
+    if (workshops.error) throw new Error(`The Workshops were not read: ${workshops.error.message}`);
+    workshopIds = ((workshops.data ?? []) as Array<{ id: string }>).map((w) => w.id);
+  }
+  if (workshopIds.length === 0) return;
+  const lines = await db.from('workshop_instructors').select('id').in('workshop_id', workshopIds);
+  if (lines.error) throw new Error(`The instructor lines were not read: ${lines.error.message}`);
+  for (const { id } of (lines.data ?? []) as Array<{ id: string }>) {
+    await deleteInstructorPhotoFolder(db.storage, id);
+  }
+}

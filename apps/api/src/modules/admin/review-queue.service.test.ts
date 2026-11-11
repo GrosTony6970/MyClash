@@ -479,6 +479,34 @@ describe('ReviewQueueService', () => {
   // ── 4b. the deleted target's League points leave the League tables (ruling 94) ──
 
   describe('approve(deletion) ranks the Leagues again (rulings 94, 230)', () => {
+    /** An Event's one Workshop, with one instructor line; the Workshops read is a step. */
+    const workshopTables = (steps: string[]): Record<string, unknown> => ({
+      workshops: {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn(async (col: string, id: string) => {
+            steps.push(`read workshops ${col} ${id}`);
+            return { data: [{ id: 'w-1' }], error: null };
+          }),
+        }),
+      },
+      workshop_instructors: {
+        select: vi.fn().mockReturnValue({
+          in: vi.fn(async () => ({ data: [{ id: 'wi-1' }], error: null })),
+        }),
+      },
+    });
+    /** The photo bucket: each line holds one photo, and its removal is a step. */
+    const photoStorage = (steps: string[]) => {
+      const bucket = {
+        list: vi.fn(async () => ({ data: [{ name: 'photo-1.jpg' }], error: null })),
+        remove: vi.fn(async (keys: string[]) => {
+          steps.push(`remove ${keys.join(',')}`);
+          return { data: [], error: null };
+        }),
+      };
+      return { from: () => bucket };
+    };
+
     /** Every step in the order it ran: the League read, the delete, the re-rank, the flip. */
     function build(targetType: 'event' | 'tournament', leagues = makeMockLeaguesService()) {
       const steps: string[] = [];
@@ -504,6 +532,8 @@ describe('ReviewQueueService', () => {
             }),
           };
         }
+        const workshopTable = workshopTables(steps)[table];
+        if (workshopTable) return workshopTable;
         if (table === 'events' || table === 'tournaments') {
           return {
             delete: vi.fn().mockReturnValue({
@@ -517,7 +547,7 @@ describe('ReviewQueueService', () => {
         return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
       });
       const service = new ReviewQueueService(
-        { service: { from: fromMock } } as never,
+        { service: { from: fromMock, storage: photoStorage(steps) } } as never,
         makeMockEventsService() as never,
         makeMockExchangeEditService() as never,
         leagues as never,
@@ -534,6 +564,9 @@ describe('ReviewQueueService', () => {
       await approve();
       expect(steps).toEqual([
         'read event target-9',
+        // Its Workshops' instructor photos go before the cascade takes their lines (3.6).
+        'read workshops event_id target-9',
+        'remove workshop_instructors/wi-1/photo-1.jpg',
         'delete events target-9',
         'rerank league-a,league-b after event target-9',
         'approved',

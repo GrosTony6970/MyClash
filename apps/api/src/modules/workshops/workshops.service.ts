@@ -43,7 +43,7 @@ import {
   WORKSHOP_LOGO_BUCKET,
   WORKSHOP_LOGO_MAX_BYTES,
 } from './workshop-assets';
-import { deleteInstructorPhotoFolder } from './workshop-instructor-photo';
+import { deleteInstructorPhotoFolder, deleteInstructorPhotosOf } from './workshop-instructor-photo';
 import {
   type InstructorDetails,
   PUBLIC_INSTRUCTOR_COLUMNS,
@@ -633,6 +633,7 @@ export class WorkshopsService {
       }
     }
 
+    await deleteInstructorPhotosOf(db, { workshopId });
     const { error } = await db.from('workshops').delete().eq('id', workshopId);
     if (error) throw new BadRequestException(error.message);
   }

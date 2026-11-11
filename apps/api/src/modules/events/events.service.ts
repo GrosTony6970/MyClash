@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { ensurePublicBucket } from '../../common/storage-bucket';
+import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
 import {
   ALLOWED_EVENT_HERO_MIME_TYPES,
   ALLOWED_EVENT_LOGO_MIME_TYPES,
@@ -1434,6 +1435,8 @@ export class EventsService {
       );
     }
 
+    // The cascade takes the Workshops' instructor lines; their photos go first, or nothing names them.
+    await deleteInstructorPhotosOf(this.supabase.service, { eventId });
     // One delete: the cascade takes the Tournaments, bouts, registrations and referees, whatever
     // order its triggers fire in (0237).
     const { error } = await this.supabase.service.from('events').delete().eq('id', eventId);

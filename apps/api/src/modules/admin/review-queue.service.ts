@@ -16,6 +16,7 @@ import { LeaguesService } from '../leagues/leagues.service';
 import type { ListExchangeEditRequestsDto } from './dto/exchange-edit-requests.dto';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
+import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -607,6 +608,8 @@ export class ReviewQueueService {
 
     // Cascade-delete via direct Supabase (bypasses status guards — super-admin approval IS the bypass)
     if (targetType === 'event') {
+      // The cascade takes the Workshops' instructor lines; their photos go first.
+      await deleteInstructorPhotosOf(this.supabase.service, { eventId: targetId });
       const { error: delErr } = await this.supabase.service
         .from('events')
         .delete()
