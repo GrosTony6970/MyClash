@@ -795,7 +795,10 @@ export class AuthService {
       throw new Error(`Could not read person ${personId}: ${checked.fault}`);
     }
     if (checked.refusal) return 'skipped';
-    return (await this.completeClaim(user.id, user.email, personId)) ?? 'claimed';
+    const refused = await this.completeClaim(user.id, user.email, personId);
+    // Another account took the row between the check and the write (ruling 581).
+    if (refused === 'held_by_another') return 'skipped';
+    return refused ?? 'claimed';
   }
 
   /**
@@ -1032,21 +1035,30 @@ export class AuthService {
    * with every other failure, so "this is me" answered "1 claimed" and a claim
    * link landed as a success. Any other failed write throws. The profile link
    * behind the row stays best effort.
+   *
+   * The race (ruling 581): the check read the row, then an organiser's save
+   * handed it to another account before this write. The write lands only on a
+   * row nobody else holds; one it missed answers `held_by_another`. A row
+   * deleted in that instant answers the same: either way it is not hers. The
+   * `select` is what tells: without it the answer carries no rows at all.
    */
   private async completeClaim(
     userId: string,
     userEmail: string | undefined,
     personId: string,
-  ): Promise<'already_at_event' | null> {
-    const { error } = await this.supabase.service
+  ): Promise<'already_at_event' | 'held_by_another' | null> {
+    const { data, error } = await this.supabase.service
       .from('persons')
       .update({
         claim_status: 'claimed',
         claimed_by_user_id: userId,
       })
-      .eq('id', personId);
+      .eq('id', personId)
+      .or(`claimed_by_user_id.is.null,claimed_by_user_id.eq.${userId}`)
+      .select('id');
     if (error?.message.includes(ONE_ROW_PER_ACCOUNT_AT_EVENT)) return 'already_at_event';
     if (error) throw new Error(`Could not claim person ${personId}: ${error.message}`);
+    if (!data?.length) return 'held_by_another';
 
     try {
       await this.linkClaimedPersonGlobalProfile(userId, userEmail, personId);

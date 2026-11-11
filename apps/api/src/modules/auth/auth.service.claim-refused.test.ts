@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import {
+  filtersFor,
   mockSupabase as seededSupabase,
+  selectsFor,
   writesTo,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
@@ -20,7 +22,10 @@ import {
  */
 const LEA = { id: 'user-lea', email: 'lea@example.com', user_metadata: {} };
 const ROW = '00000000-0000-0000-0000-00000000000b';
-const OK = { data: null, error: null };
+/** A claim write that landed: it hands back the row it wrote (ruling 581). */
+const OK = { data: [{ id: ROW }], error: null };
+/** A claim write that hit no row: another account took it after the check (ruling 581). */
+const LOST = { data: [], error: null };
 const SECOND_ROW_AT_EVENT = {
   data: null,
   error: {
@@ -174,6 +179,48 @@ describe('the emailed claim link (ruling 300)', () => {
 
     await expect(land(service, reply)).rejects.toThrow('connection refused');
     expect(reply.redirect).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The race (ruling 581). An organiser changes a row's address from Tom's to Lea's. At that instant
+ * Tom presses "This is me": his check reads the row before the change, the organiser's save hands
+ * the row to Lea, then Tom's write lands. It used to take the row from Lea. The write now lands
+ * only on a row nobody else holds, and one it missed is Tom's refusal. The canned write answers
+ * no row, as the database does when its filter misses.
+ */
+describe('a claim that lost the row between its check and its write (ruling 581)', () => {
+  const CHECK = 'id, email, claimed_by_user_id, events(slug)';
+  const AIM = 'claimed_by_user_id.is.null,claimed_by_user_id.eq.user-lea';
+
+  it('"this is me" does not count it, and its write aims at an unheld row only', async () => {
+    const { service, db } = build([unclaimed(ROW), LOST]);
+
+    await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
+      claimed: 0,
+      alreadyAtEvent: 0,
+    });
+    // The write asks for its rows back: without that the answer carries none, and every claim
+    // would read as lost. The double answers rows either way, so the projection is named.
+    expect(selectsFor(db.from, 'persons')).toEqual([CHECK, 'id']);
+    expect(filtersFor(db.from, 'persons', 'or')).toEqual([[AIM]]);
+  });
+
+  // The Google claim goes through the same `claimFromLink`, so this covers both.
+  it('the emailed link sends her to the claim page with "held by another"', async () => {
+    const { service, db, reply } = build([unclaimed(ROW), LOST, NO_ROWS]);
+
+    await service.handleCallback('token-hash', 'claim', ROW, undefined, reply as never);
+
+    expect(reply.redirect.mock.calls).toEqual([
+      [
+        `https://app.myclash.localhost/auth/signed-in?next=${encodeURIComponent(
+          `/e/spring-open/claim?personId=${ROW}&claimRefused=held_by_another`,
+        )}`,
+      ],
+    ]);
+    // The sign-in autolink reads after the claim: only the first two reads are the claim's.
+    expect(selectsFor(db.from, 'persons').slice(0, 2)).toEqual([CHECK, 'id']);
   });
 });
 
