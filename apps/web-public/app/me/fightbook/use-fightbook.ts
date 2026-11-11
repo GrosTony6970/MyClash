@@ -33,8 +33,13 @@ async function load(apiUrl: string, signal: AbortSignal): Promise<FightBookState
   const settings = await readFightBookSettings(apiUrl, signal);
   const outcome = settle([settings]);
   if (outcome !== 'data' || settings.kind !== 'data') return outcome === 'failed' ? FAILED : null;
-  if (!settings.data.hasProfile || !settings.data.enabled) {
-    return { status: 'ready', settings: settings.data, ...NOTHING };
+  if (!settings.data.hasProfile) return { status: 'ready', settings: settings.data, ...NOTHING };
+  if (!settings.data.enabled) {
+    // Off still shows the spars agreed (ruling 666): nothing else.
+    const spars = await readMySpars(apiUrl, signal);
+    const off = settle([spars]);
+    if (off !== 'data' || spars.kind !== 'data') return off === 'failed' ? FAILED : null;
+    return { status: 'ready', settings: settings.data, ...NOTHING, spars: spars.data };
   }
   const [inbox, spars, blocks] = await Promise.all([
     readInbox(apiUrl, signal),
@@ -67,7 +72,7 @@ function settle(reads: FightBookRead<unknown>[]): 'data' | 'failed' | 'aborted' 
 
 /**
  * The FightBook page's data: the switch first, then, when it is on, the Inbox, My spars and the
- * blocked list together. `reload` reads all again (after the switch changes); `update` patches the
+ * blocked list together; when it is off, My spars only. `reload` reads all again (after the switch changes); `update` patches the
  * ready state from a write's own answer, so a tap does not re-read and flash the whole page.
  */
 export function useFightBook(apiUrl: string) {

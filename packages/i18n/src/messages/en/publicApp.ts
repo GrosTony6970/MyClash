@@ -1567,7 +1567,7 @@ export const publicApp = {
       heading: 'FightBook settings',
       enabled: 'Use FightBook',
       enabledDescription:
-        'Off: nobody can ask you to spar and you cannot ask anyone. Your requests still waiting are taken back.',
+        'Off: nobody can ask you to spar and you cannot ask anyone. Your requests still waiting are taken back. The spars you agreed stay, and you can still cancel them.',
       saveFailed: 'Could not save. Try again.',
       blockedHeading: 'Blocked fighters',
       blockedDescription: 'They are not told. Their requests come back "Not this time".',

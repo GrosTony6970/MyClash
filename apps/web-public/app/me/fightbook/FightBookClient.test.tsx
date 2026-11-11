@@ -87,14 +87,60 @@ describe('FightBookClient', () => {
     expect(theSwitch()).toBeNull();
   });
 
-  it('shows what FightBook is and the switch while it is off, and nothing else', async () => {
+  it('shows what FightBook is and the switch while it is off, and no Inbox or settings', async () => {
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },
+      'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [], sent: [] } },
     });
     await open();
     expect(container.textContent).toContain('FightBook is off');
     expect(theSwitch()?.getAttribute('aria-checked')).toBe('false');
     expect(container.textContent).not.toContain('Blocked fighters');
+    // No agreed spar: no list, and no "nothing yet" either.
+    expect(container.textContent).not.toContain('My spars');
+    expect(container.textContent).not.toContain('No spar yet');
+  });
+
+  it('off, Julie still sees the Saturday spar she agreed and can cancel it (ruling 666)', async () => {
+    const agreed = {
+      id: 's-1',
+      partner: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null },
+      iAsked: false,
+      kind: 'free',
+      eventName: null,
+      day: '2026-05-23',
+      time: null,
+      place: 'Salle',
+      weapons: ['Longsword'],
+      message: null,
+      status: 'agreed',
+      cancelledByMe: null,
+      cancelMessage: null,
+    };
+    serve({
+      'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },
+      'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [agreed], sent: [] } },
+      'POST /api/v1/me/fightbook/requests/s-1/cancel': { ok: true, data: null },
+    });
+    await open();
+    expect(container.textContent).toContain('FightBook is off');
+    expect(container.textContent).toContain('My spars');
+    expect(container.textContent).toContain('Marc Probe');
+    const cancelButton = () =>
+      [...document.querySelectorAll('button')].filter((b) => b.textContent === 'Cancel the spar');
+    await act(async () => cancelButton()[0]!.click());
+    await settled();
+    await act(async () => cancelButton().at(-1)!.click());
+    await settled();
+    expect(
+      vi
+        .mocked(apiRequest)
+        .mock.calls.some(
+          ([, path, init]) =>
+            path === '/api/v1/me/fightbook/requests/s-1/cancel' && init?.method === 'POST',
+        ),
+    ).toBe(true);
+    expect(container.textContent).toContain('You cancelled this spar.');
   });
 
   it('switching on saves it and opens FightBook', async () => {
@@ -124,6 +170,7 @@ describe('FightBookClient', () => {
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },
       'PATCH /api/v1/me/fightbook/settings': { ok: false, kind: 'network' },
+      'GET /api/v1/me/fightbook/spars': ON['GET /api/v1/me/fightbook/spars'],
     });
     await open();
     await act(async () => theSwitch()!.click());
@@ -155,6 +202,7 @@ describe('FightBookClient', () => {
         fail
           ? { ok: false, kind: 'network' }
           : { ok: true, data: { hasProfile: true, enabled: false } },
+      'GET /api/v1/me/fightbook/spars': ON['GET /api/v1/me/fightbook/spars'],
     });
     await open();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(

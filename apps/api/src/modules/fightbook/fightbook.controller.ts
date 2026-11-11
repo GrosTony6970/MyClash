@@ -146,6 +146,8 @@ export class FightBookController {
     await this.requests.withdraw(requireFightBookOn(await this.caller(req)), id);
   }
 
+  // My spars and cancel need a profile, not the switch (ruling 666): a fighter who switched off
+  // still sees the spars they agreed, and can call one off.
   @Post('requests/:id/cancel')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Cancel an agreed spar' })
@@ -155,7 +157,7 @@ export class FightBookController {
     @Body() dto: CancelSparDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.requests.cancel(requireFightBookOn(await this.caller(req)), id, dto.message);
+    await this.requests.cancel(requireProfile(await this.caller(req)), id, dto.message);
   }
 
   @Get('inbox')
@@ -167,7 +169,7 @@ export class FightBookController {
   @Get('spars')
   @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
   async spars(@Req() req: FastifyRequest) {
-    return this.reads.mySpars(requireFightBookOn(await this.caller(req)));
+    return this.reads.mySpars(requireProfile(await this.caller(req)));
   }
 
   // Blocks need a profile, not the switch: a fighter who turned FightBook off still manages them.

@@ -1575,7 +1575,7 @@ export const publicApp = {
       heading: 'Réglages FightBook',
       enabled: 'Utiliser FightBook',
       enabledDescription:
-        'Désactivé : personne ne peut vous proposer de spar et vous ne pouvez en proposer à personne. Vos demandes encore en attente sont retirées.',
+        'Désactivé : personne ne peut vous proposer de spar et vous ne pouvez en proposer à personne. Vos demandes encore en attente sont retirées. Les spars acceptés restent, et vous pouvez toujours les annuler.',
       saveFailed: 'Enregistrement impossible. Réessayez.',
       blockedHeading: 'Combattants bloqués',
       blockedDescription:
