@@ -12,6 +12,7 @@ describe('collectQueues', () => {
       'tls-cert-monitor',
       'runtime-health-monitor',
       'photo-cleanup',
+      'spar-request-expiry',
     ]);
   });
 

@@ -10,6 +10,7 @@ export const RUNTIME_HEALTH_QUEUE_NAMES = [
   'tls-cert-monitor',
   'runtime-health-monitor',
   'photo-cleanup',
+  'spar-request-expiry',
 ] as const;
 
 interface QueueLike {

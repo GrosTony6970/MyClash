@@ -29,6 +29,7 @@ import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
 import { photoStoreProvider } from '../modules/photos/photo-store.provider';
 import { PHOTO_CLEANUP_QUEUE, PhotoCleanupWorker } from './photo-cleanup.worker';
+import { SPAR_REQUEST_EXPIRY_QUEUE, SparRequestExpiryWorker } from './spar-request-expiry.worker';
 import {
   RUNTIME_HEALTH_MONITOR_QUEUE,
   RuntimeHealthMonitorWorker,
@@ -95,6 +96,11 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
       // blip does not hold the health card on "warning" (totalFailed > 0) for good.
       defaultJobOptions: { removeOnComplete: true, removeOnFail: { age: 86_400, count: 100 } },
     }),
+    BullModule.registerQueue({
+      name: SPAR_REQUEST_EXPIRY_QUEUE,
+      // Hourly: keep a day of failures at most, as photo-cleanup does.
+      defaultJobOptions: { removeOnComplete: true, removeOnFail: { age: 86_400, count: 100 } },
+    }),
     SupabaseModule,
     // Leaf module (imports nothing), so this edge cannot form a cycle.
     PrivacyModule,
@@ -127,6 +133,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     TlsCertMonitorWorker,
     DataRetentionWorker,
     PhotoCleanupWorker,
+    SparRequestExpiryWorker,
     photoStoreProvider,
     {
       provide: RuntimeHealthMonitorWorker,
