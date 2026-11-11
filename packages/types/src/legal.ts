@@ -58,7 +58,12 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // Event's list from a Workshop page, when its organiser allows it (rulings
     // 516, 568): the entry carries the profile's name (or a typed one) and the
     // account's address. Bumped: this EXPANDS processing; everyone is asked to
-    // accept the new text (ruling 571).
+    // accept the new text (ruling 571). Also: §2.1 names what an organiser or
+    // the instructor writes about a workshop's instructor (a bio, a club line, a
+    // photo), and §5 says a profile photo and bio are public on the public profile
+    // and on the pages of the workshops one teaches (ruling 576; the old "visible
+    // to signed-in users" was untrue). Added before any deploy of this version,
+    // so under the same date.
     //
     // 2026-11-08: §6.1 says a copy of the database is kept on our server for
     // about 30 days before each update (499), and that a restore can bring back
