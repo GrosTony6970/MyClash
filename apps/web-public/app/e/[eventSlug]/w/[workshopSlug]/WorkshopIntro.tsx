@@ -99,8 +99,9 @@ function InstructorCards({ instructors }: { instructors: Instructor[] }) {
         {t('publicApp.workshopDetail.instructorsHeading')}
       </h2>
       <ul className="flex flex-col gap-4">
-        {instructors.map((i) => (
-          <InstructorCard key={i.globalPersonId ?? i.displayName} instructor={i} />
+        {instructors.map((i, index) => (
+          // Two lines with no profile may carry one name: the position keeps their keys apart.
+          <InstructorCard key={i.globalPersonId ?? `${index}:${i.displayName}`} instructor={i} />
         ))}
       </ul>
     </section>

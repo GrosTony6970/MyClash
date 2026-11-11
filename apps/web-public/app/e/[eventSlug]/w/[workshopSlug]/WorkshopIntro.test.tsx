@@ -71,9 +71,10 @@ const images = () => [...container.querySelectorAll('img')].map((img) => img.get
 
 describe('WorkshopIntro', () => {
   it('shows the picture, the weapon and what to know or bring', () => {
-    show(workshop());
+    // A weapon named nowhere else on the page: only its tag can show it.
+    show(workshop({ weapon: 'Rondel' }));
     expect(images()).toContain('/storage/v1/object/public/workshop-assets/dagger.png');
-    expect(text()).toContain('Dagger');
+    expect(text()).toContain('Rondel');
     expect(text()).toContain('Before you come');
     expect(text()).toContain('Bring a mask');
     expect(text()).toContain('Grips and guards.');
