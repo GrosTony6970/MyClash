@@ -424,7 +424,7 @@ describe('EventsService', () => {
     await service.deleteEvent('event-1', 'hard', 'user-1');
 
     expect(workshopsChain['eq']).toHaveBeenCalledWith('event_id', 'event-1');
-    expect(linesChain['in']).toHaveBeenCalledWith('workshop_id', ['w-1']);
+    expect(linesChain['eq']).toHaveBeenCalledWith('workshop_id', 'w-1');
     expect(bucket.remove).toHaveBeenCalledWith(['workshop_instructors/wi-1/photo-1.jpg']);
     expect(bucket.remove.mock.invocationCallOrder[0]).toBeLessThan(
       eventsChain['delete']!.mock.invocationCallOrder[0]!,

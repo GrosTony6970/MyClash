@@ -79,26 +79,43 @@ export async function deleteInstructorPhotoFolder(
 
 type Db = SupabaseService['service'];
 
-/**
- * Deletes the instructor photos of a Workshop, or of every Workshop of an Event, before it is
- * deleted. The delete's cascade takes the lines, and then nothing names their files: they would
- * stay served at the link the public Workshop page showed (slice 3.6), and no erasure would find
- * them. Any failure throws, so the caller stops before its delete and can be tried again.
- */
-export async function deleteInstructorPhotosOf(
-  db: Db,
-  of: { workshopId: string } | { eventId: string },
-): Promise<void> {
-  let workshopIds = 'workshopId' in of ? [of.workshopId] : [];
-  if ('eventId' in of) {
-    const workshops = await db.from('workshops').select('id').eq('event_id', of.eventId);
-    if (workshops.error) throw new Error(`The Workshops were not read: ${workshops.error.message}`);
-    workshopIds = ((workshops.data ?? []) as Array<{ id: string }>).map((w) => w.id);
+type Deleted = { workshopId: string } | { eventId: string } | { organizationId: string };
+
+function idsOf(read: { data: unknown; error: { message: string } | null }, what: string) {
+  if (read.error) throw new Error(`The ${what} were not read: ${read.error.message}`);
+  return ((read.data ?? []) as Array<{ id: string }>).map((row) => row.id);
+}
+
+/** The Workshops a delete takes, one Event at a time: no read nears the 1000-row cap. */
+async function workshopsOf(db: Db, of: Deleted): Promise<string[]> {
+  if ('workshopId' in of) return [of.workshopId];
+  const eventIds =
+    'eventId' in of
+      ? [of.eventId]
+      : idsOf(
+          await db.from('events').select('id').eq('organization_id', of.organizationId),
+          'Events',
+        );
+  const workshopIds: string[] = [];
+  for (const eventId of eventIds) {
+    const read = await db.from('workshops').select('id').eq('event_id', eventId);
+    workshopIds.push(...idsOf(read, 'Workshops'));
   }
-  if (workshopIds.length === 0) return;
-  const lines = await db.from('workshop_instructors').select('id').in('workshop_id', workshopIds);
-  if (lines.error) throw new Error(`The instructor lines were not read: ${lines.error.message}`);
-  for (const { id } of (lines.data ?? []) as Array<{ id: string }>) {
-    await deleteInstructorPhotoFolder(db.storage, id);
+  return workshopIds;
+}
+
+/**
+ * Deletes the instructor photos of a Workshop, or of every Workshop of an Event or of a club,
+ * before it is deleted. The delete's cascade takes the lines, and then nothing names their files:
+ * they would stay served at the link the public Workshop page showed (slice 3.6), and no erasure
+ * would find them. Any failure throws, so the caller stops before its delete and can be tried
+ * again.
+ */
+export async function deleteInstructorPhotosOf(db: Db, of: Deleted): Promise<void> {
+  for (const workshopId of await workshopsOf(db, of)) {
+    const read = await db.from('workshop_instructors').select('id').eq('workshop_id', workshopId);
+    for (const lineId of idsOf(read, 'instructor lines')) {
+      await deleteInstructorPhotoFolder(db.storage, lineId);
+    }
   }
 }

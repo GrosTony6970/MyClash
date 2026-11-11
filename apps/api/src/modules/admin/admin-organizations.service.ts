@@ -13,6 +13,7 @@ import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
+import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
 import type {
   CreateOrganizationDto,
   ListOrgsQueryDto,
@@ -442,6 +443,8 @@ export class AdminOrganizationsService {
       // Read before the delete: the cascade takes the club's Events and the League results that
       // name the Leagues they fed (ruling 233).
       const leagueIds = await this.leagues.leaguesHoldingResultsOf('organization', id);
+      // The cascade takes the Workshops' instructor lines too; their photos go first.
+      await deleteInstructorPhotosOf(this.supabase.service, { organizationId: id });
 
       // Log before deletion
       await this.writeAuditLog(actorUserId, 'org.delete', 'organization', id, { hard: true });

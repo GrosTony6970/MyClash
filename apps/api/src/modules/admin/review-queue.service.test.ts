@@ -491,7 +491,7 @@ describe('ReviewQueueService', () => {
       },
       workshop_instructors: {
         select: vi.fn().mockReturnValue({
-          in: vi.fn(async () => ({ data: [{ id: 'wi-1' }], error: null })),
+          eq: vi.fn(async () => ({ data: [{ id: 'wi-1' }], error: null })),
         }),
       },
     });

@@ -800,9 +800,35 @@ describe('AdminOrganizationsService', () => {
         steps.push('delete');
         return orgChain;
       });
+      // One Event, one Workshop, one instructor line holding one photo (3.6).
+      const reads: Record<string, unknown> = {
+        events: [{ id: 'e-1' }],
+        workshops: [{ id: 'w-1' }],
+        workshop_instructors: [{ id: 'wi-1' }],
+      };
+      const read = (table: string) => ({
+        select: () => ({
+          eq: async (column: string, value: string) => {
+            steps.push(`read ${table} ${column} ${value}`);
+            return { data: reads[table], error: null };
+          },
+        }),
+      });
       fromMock.mockImplementation((table: string) =>
-        table === 'organizations' ? orgChain : makeChain({ data: null, error: null }),
+        table === 'organizations'
+          ? orgChain
+          : table in reads
+            ? read(table)
+            : makeChain({ data: null, error: null }),
       );
+      const bucket = {
+        list: vi.fn(async () => ({ data: [{ name: 'photo-1.jpg' }], error: null })),
+        remove: vi.fn(async (keys: string[]) => {
+          steps.push(`remove ${keys.join(',')}`);
+          return { data: [], error: null };
+        }),
+      };
+      Object.assign(mockSupabase.service, { storage: { from: () => bucket } });
       mockLeagues.leaguesHoldingResultsOf.mockImplementation(async (target: string, id: string) => {
         steps.push(`read ${target} ${id}`);
         return ['league-a'];
@@ -818,6 +844,11 @@ describe('AdminOrganizationsService', () => {
       await service.deleteOrganization('org-1', 'actor');
       expect(steps).toEqual([
         'read organization org-1',
+        // Its Workshops' instructor photos go before the cascade takes their lines (3.6).
+        'read events organization_id org-1',
+        'read workshops event_id e-1',
+        'read workshop_instructors workshop_id w-1',
+        'remove workshop_instructors/wi-1/photo-1.jpg',
         'delete',
         'rerank league-a after organization org-1',
       ]);
