@@ -264,7 +264,7 @@ CHECKs (each a CASE with `ELSE false`):
 
 Indexes (all `CREATE [UNIQUE] INDEX IF NOT EXISTS … ON …`, because `db:review`'s foreign-key check
 reads only `ON tbl (…)` lists, `scripts/lib/db-rules.mjs:328-340`):
-`spar_requests (receiver_global_person_id, status, spar_day)`, `(asker_global_person_id, created_at desc)`,
+`spar_requests (receiver_global_person_id, status, spar_day)`, `(asker_global_person_id, status, spar_day)`,
 `(event_id)`, unique `(asker_global_person_id, receiver_global_person_id) WHERE status = 'pending'`,
 `(expires_at) WHERE status = 'pending'` (the hourly job); unique
 `spar_private_notes (spar_request_id, author_global_person_id)`, `spar_private_notes (author_global_person_id)`;

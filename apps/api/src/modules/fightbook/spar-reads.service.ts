@@ -47,7 +47,7 @@ export class SparReadsService {
     const [asked, wasAsked, sent] = await Promise.all([
       this.sparsOf('asker_global_person_id', me, since),
       this.sparsOf('receiver_global_person_id', me, since),
-      this.sentBy(me, now),
+      this.sentBy(me, since),
     ]);
     const spars = [...asked, ...wasAsked].sort(byDayThenTime);
     const { fighters, events } = await this.cards([...spars, ...sent]);
@@ -82,9 +82,12 @@ export class SparReadsService {
     return (data ?? []) as SparRow[];
   }
 
-  /** Withdrawn requests are not listed: the asker took them back. */
-  private async sentBy(me: string, now: Date): Promise<SparRow[]> {
-    const since = new Date(now.getTime() - LOOK_BACK_DAYS * 86_400_000).toISOString();
+  /**
+   * Withdrawn requests are not listed: the asker took them back. Looks back by the spar's DAY, as
+   * `sparsOf` does, never by when it was asked: a request still waiting for a far day stays in
+   * sight, or its asker meets "already asked" for a request they cannot see.
+   */
+  private async sentBy(me: string, since: string): Promise<SparRow[]> {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .select(
@@ -92,7 +95,7 @@ export class SparReadsService {
       )
       .eq('asker_global_person_id', me)
       .in('status', ['pending', 'not_this_time'])
-      .gte('created_at', since)
+      .gte('spar_day', since)
       .order('spar_day', { ascending: true })
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook sent requests read failed: ${error.message}`);

@@ -97,6 +97,22 @@ describe('SparReadsService.mySpars', () => {
     expect(new Set(bodies).size).toBe(1);
   });
 
+  it('keeps a request still waiting for a far day, however long ago it was asked', async () => {
+    // Marc asked Julie 40 days ago for a day 3 weeks ahead: hidden, he would meet "already
+    // asked" for a request he cannot see. Every list looks back by the spar's DAY.
+    const { reads, supabase } = service([
+      request('far', { spar_day: '2026-06-12', created_at: '2026-04-12T10:00:00Z' }),
+      request('old', { status: 'not_this_time', spar_day: '2026-04-10' }),
+    ]);
+    const { sent } = await reads.mySpars(MARC, NOW);
+    expect(sent.map((s) => s.id)).toEqual(['far']);
+    expect(filtersFor(supabase.from, 'spar_requests', 'gte')).toEqual([
+      ['spar_day', '2026-04-22'],
+      ['spar_day', '2026-04-22'],
+      ['spar_day', '2026-04-22'],
+    ]);
+  });
+
   it('lists my agreed spars both ways, and leaves withdrawn requests out', async () => {
     const { reads, supabase } = service([
       request('mine', { status: 'agreed', spar_day: '2026-05-24' }),

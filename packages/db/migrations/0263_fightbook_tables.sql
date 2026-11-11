@@ -91,7 +91,7 @@ COMMENT ON TABLE public.spar_requests IS
 CREATE INDEX IF NOT EXISTS spar_requests_receiver_idx
   ON public.spar_requests (receiver_global_person_id, status, spar_day);
 CREATE INDEX IF NOT EXISTS spar_requests_asker_idx
-  ON public.spar_requests (asker_global_person_id, created_at DESC);
+  ON public.spar_requests (asker_global_person_id, status, spar_day);
 CREATE INDEX IF NOT EXISTS spar_requests_event_idx
   ON public.spar_requests (event_id);
 CREATE UNIQUE INDEX IF NOT EXISTS spar_requests_one_pending_uk
