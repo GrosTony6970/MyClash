@@ -1921,6 +1921,12 @@ describe('AuthService', () => {
       const [flip] = writesTo(seeded, 'persons');
       expect(flip?.row).toMatchObject({ claim_status: 'claimed', claimed_by_user_id: USER });
       expect(scopedTo(flip, 'id')).toBe('ok');
+      // Each row is judged by the claim's one rule (`claimRefusal`, ruling 580): its read, once per
+      // id. The double ignores projections, so the read is named.
+      const checks = selectsFor(seeded.from, 'persons').filter(
+        (projection) => projection === 'id, email, claimed_by_user_id, events(slug)',
+      );
+      expect(checks).toHaveLength(2);
 
       // …and the claim carries through to the global profile behind that row,
       // because that profile carries the account's email (ruling 40).

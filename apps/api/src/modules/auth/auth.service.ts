@@ -90,6 +90,11 @@ import { SIGNUP_ANSWER, signupAccount, type SignupAccount } from './signup-accou
 /** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
 
+/** The check's answer: a failed read carries the database's words, for the log and the error. */
+type ClaimCheck =
+  | { refusal: 'check_failed'; fault: string; eventSlug: null }
+  | { refusal: Exclude<ClaimCheckRefusal, 'check_failed'> | null; eventSlug: string | null };
+
 /**
  * What the one claim door that answers with an error throws for each refusal: the
  * anonymous link request. The emailed link's callback and the Google claim
@@ -545,7 +550,8 @@ export class AuthService {
     // The check, then the write: the database refuses a second row at an Event (ruling 300).
     const refusal = checked.refusal ?? (await this.completeClaim(userId, userEmail, personId));
     if (!refusal) return null;
-    this.logger.warn(`claim of person ${personId} refused: ${refusal}`);
+    const fault = checked.refusal === 'check_failed' ? ` (${checked.fault})` : '';
+    this.logger.warn(`claim of person ${personId} refused: ${refusal}${fault}`);
     const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
     return eventSlug ? `${claimPagePath(eventSlug, personId)}&${reason}` : `/me?${reason}`;
   }
@@ -773,31 +779,22 @@ export class AuthService {
   }
 
   /**
-   * Claims one roster row for the account, by the claim's rule: the row carries the account's
-   * address, and is no other account's. The one owner for the /me confirm-to-claim and for joining
-   * an Event by oneself (ruling 568). The claim links the row's profile to the account, so alerts
-   * reach it at once. `skipped`: no such row, another account's, or another address.
+   * Claims one roster row for the account, by the claim's one rule (`claimRefusal`, ruling 580):
+   * the row carries the account's address, and no other account holds it. Used by the /me
+   * confirm-to-claim and by joining an Event by oneself (ruling 568). The claim links the row's
+   * profile to the account, so alerts reach it at once. `skipped`: no such row, another account's,
+   * or another address.
    */
   async claimOwnRow(
     user: { id: string; email: string },
     personId: string,
   ): Promise<'claimed' | 'already_at_event' | 'skipped'> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id, email, claimed_by_user_id')
-      .eq('id', personId)
-      .maybeSingle();
+    const checked = await this.claimRefusal(personId, user.email, user.id);
     // A failed read is not "no such row": that answered "0 claimed" and said nothing.
-    if (error) throw new Error(`Could not read person ${personId}: ${error.message}`);
-    const person = data as {
-      id: string;
-      email: string | null;
-      claimed_by_user_id: string | null;
-    } | null;
-    if (!person) return 'skipped';
-    // Already owned by someone else → never reassign.
-    if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) return 'skipped';
-    if (!personEmailMatchesUser(person.email, user.email)) return 'skipped';
+    if (checked.refusal === 'check_failed') {
+      throw new Error(`Could not read person ${personId}: ${checked.fault}`);
+    }
+    if (checked.refusal) return 'skipped';
     return (await this.completeClaim(user.id, user.email, personId)) ?? 'claimed';
   }
 
@@ -993,29 +990,26 @@ export class AuthService {
    * row, and retries the global-profile link behind it — which ruling 40 gates
    * on the account's own address, so the retry can only repair, never take over.
    *
-   * The holder decides, and the status only backs it up: `completeClaim`'s write
-   * is scoped by id with no `claimed_by_user_id IS NULL` guard, so a row whose
-   * holder is set while its status says otherwise would be handed over to the
-   * next asker. No writer produces that state today — every one sets both
-   * columns together, and nothing in the schema pairs them — and this is the
-   * same bar the /me confirm-to-claim door uses (`claimPersons`).
+   * The holder alone decides (ruling 580): the database refuses a status that
+   * disagrees with it (0262). The one owner of this rule: the /me confirm-to-claim
+   * and joining an Event by oneself read through it too (`claimOwnRow`). A failed
+   * read hands back the database's words (`fault`) for the log and the error.
    */
   private async claimRefusal(
     personId: string,
     email: string | undefined,
     claimingUserId: string | null,
-  ): Promise<{ refusal: ClaimCheckRefusal | null; eventSlug: string | null }> {
+  ): Promise<ClaimCheck> {
     const { data, error } = await this.supabase.service
       .from('persons')
-      .select('id, email, claim_status, claimed_by_user_id, events(slug)')
+      .select('id, email, claimed_by_user_id, events(slug)')
       .eq('id', personId)
       .maybeSingle();
-    if (error) return { refusal: 'check_failed', eventSlug: null };
+    if (error) return { refusal: 'check_failed', fault: error.message, eventSlug: null };
     if (!data) return { refusal: 'not_found', eventSlug: null };
 
     const row = data as {
       email: string | null;
-      claim_status: string;
       claimed_by_user_id: string | null;
       events: { slug?: string } | null;
     };
@@ -1023,9 +1017,7 @@ export class AuthService {
     if (!personEmailMatchesUser(row.email, email)) return { refusal: 'email_mismatch', eventSlug };
     if (claimingUserId === null) return { refusal: null, eventSlug };
 
-    const heldByAnother = row.claimed_by_user_id
-      ? row.claimed_by_user_id !== claimingUserId
-      : row.claim_status === 'claimed';
+    const heldByAnother = !!row.claimed_by_user_id && row.claimed_by_user_id !== claimingUserId;
     return { refusal: heldByAnother ? 'held_by_another' : null, eventSlug };
   }
 

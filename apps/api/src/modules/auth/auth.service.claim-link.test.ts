@@ -165,15 +165,6 @@ describe('AuthService.handleCallback — claim', () => {
       { email: EMAIL, claim_status: 'claimed', claimed_by_user_id: 'other-user' },
       claimPage('held_by_another'),
     ],
-    // The holder decides, not the status column: `completeClaim` writes scoped
-    // by id alone, so a row whose holder is set while its status says otherwise
-    // would be handed to the next asker. The /me door refuses that state too.
-    [
-      'a row another account holds while its status disagrees',
-      EMAIL,
-      { email: EMAIL, claim_status: 'unclaimed', claimed_by_user_id: 'other-user' },
-      claimPage('held_by_another'),
-    ],
     // A row with no email matches nobody. (The old loose check read it as a
     // TypeError, swallowed it and let the claim through.)
     [
@@ -309,7 +300,7 @@ describe('AuthService.handleCallback — claim', () => {
     // "already claimed by someone else", and the Event's slug names the claim
     // page a refusal goes to — the double ignores projections.
     expect(selectsFor(seeded.from, 'persons')).toContain(
-      'id, email, claim_status, claimed_by_user_id, events(slug)',
+      'id, email, claimed_by_user_id, events(slug)',
     );
   });
 
