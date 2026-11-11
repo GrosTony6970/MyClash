@@ -7,6 +7,11 @@
  * unique index refuses the second row at its own write, by an insert or by a claim; it leaves
  * alone the rows no account holds, another account's row, and the same account's row at
  * another Event.
+ *
+ * It also checks that a row says "claimed" exactly when an account holds it (migration 0262,
+ * ruling 580): a "claimed" row with no holder, and a held row that says otherwise, are refused.
+ * Those two run last: with no CHECK they would land, and the state the earlier checks read would
+ * change.
  */
 
 const PAUL = '66666666-6666-4666-8666-666666666666';
@@ -69,6 +74,32 @@ async function failuresInside(sp) {
   if (claim?.code !== '23505')
     failures.push(
       `an account was given a second roster row at one Event by a claim (${claim?.message ?? 'no error'})`,
+    );
+  return [...failures, ...(await statusFailures(sp))];
+}
+
+/** 0262: the status follows the holder. Run last (see the header). */
+async function statusFailures(sp) {
+  const failures = [];
+  const noHolder = await attempt(
+    sp,
+    (inner) => inner`
+      INSERT INTO persons (event_id, given_name, family_name, claim_status)
+      VALUES (${OPEN}, 'Nobody', 'Probe', 'claimed')`,
+  );
+  if (noHolder?.code !== '23514')
+    failures.push(
+      `a roster row was saved as claimed with no holder (${noHolder?.message ?? 'no error'}): the claim doors would read it two ways`,
+    );
+  const held = await attempt(
+    sp,
+    (inner) => inner`
+      UPDATE persons SET claim_status = 'unclaimed'
+      WHERE event_id = ${OPEN} AND claimed_by_user_id = ${PAUL}`,
+  );
+  if (held?.code !== '23514')
+    failures.push(
+      `a held roster row was saved as unclaimed (${held?.message ?? 'no error'}): the claim doors would read it two ways`,
     );
   return failures;
 }
