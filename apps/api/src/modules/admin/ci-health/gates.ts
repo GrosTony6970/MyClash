@@ -84,6 +84,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Database replay', step: 'Replay migrations on Postgres 17' },
   { job: 'Database replay', step: 'Probe RLS as an anonymous reader' },
   { job: 'Database replay', step: 'Probe the fighter merge' },
+  { job: 'Database replay', step: 'Probe FightBook' },
   { job: 'Database replay', step: 'Probe cascade deletes' },
   { job: 'Deploy migration run', step: 'Run the deploy migrations twice' },
   { job: 'Deploy migration run', step: 'Prove each service logs in as its own database user' },

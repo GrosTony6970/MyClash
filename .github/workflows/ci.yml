@@ -585,6 +585,12 @@ jobs:
         if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
         run: pnpm db:merge-probe
 
+      # FightBook (0264): asking, answering and blocking are database functions; this runs them.
+      # After a replay that succeeded, whatever the probes above said: they are independent.
+      - name: Probe FightBook
+        if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
+        run: pnpm db:fightbook-probe
+
       # 0237 (rulings 91, 92): an Event, a Tournament, a phase and a club delete whatever order
       # their cascade's triggers fire in. LAST: it is the one probe that commits rows (its seed,
       # deleted at its end), so a failure part-way cannot sit under the other two.
