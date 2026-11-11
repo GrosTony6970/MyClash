@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 import { FightBookController } from './fightbook.controller';
 import { FightBookSettingsService } from './fightbook-settings.service';
+import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
 /**
@@ -11,6 +12,6 @@ import { SparRequestsService } from './spar-requests.service';
 @Module({
   imports: [NotificationSchedulingModule],
   controllers: [FightBookController],
-  providers: [FightBookSettingsService, SparRequestsService],
+  providers: [FightBookSettingsService, SparRequestsService, SparReadsService],
 })
 export class FightBookModule {}

@@ -4,6 +4,8 @@
  * GET   /me/fightbook/settings  — the caller's switch, and whether they have a fighter profile
  * PATCH /me/fightbook/settings  — switch FightBook on or off
  * POST  /me/fightbook/requests  — ask a fighter for a spar
+ * GET   /me/fightbook/inbox     — requests waiting for my answer
+ * GET   /me/fightbook/spars     — my agreed spars, and the requests I sent
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
  * starts with `caller()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
@@ -18,6 +20,7 @@ import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook
 import { SupabaseService } from '../supabase/supabase.service';
 import { fightBookCaller, requireFightBookOn, type FightBookCaller } from './fightbook-caller';
 import { FightBookSettingsService } from './fightbook-settings.service';
+import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
 const settingsSchema = z.object({ enabled: z.boolean() }).strict();
@@ -58,6 +61,7 @@ export class FightBookController {
     private readonly supabase: SupabaseService,
     private readonly settings: FightBookSettingsService,
     private readonly requests: SparRequestsService,
+    private readonly reads: SparReadsService,
   ) {}
 
   @Get('settings')
@@ -79,6 +83,18 @@ export class FightBookController {
   async ask(@Body() dto: AskSparDto, @Req() req: FastifyRequest) {
     const caller = await this.caller(req);
     return this.requests.ask(requireFightBookOn(caller), dto);
+  }
+
+  @Get('inbox')
+  @ApiOperation({ summary: 'Spar requests waiting for my answer' })
+  async inbox(@Req() req: FastifyRequest) {
+    return this.reads.inbox(requireFightBookOn(await this.caller(req)));
+  }
+
+  @Get('spars')
+  @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
+  async spars(@Req() req: FastifyRequest) {
+    return this.reads.mySpars(requireFightBookOn(await this.caller(req)));
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

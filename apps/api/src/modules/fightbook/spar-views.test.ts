@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+import type { SparFighter } from '@myclash/types';
+import { effectiveSparStatus, toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
+
+const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
+const JULIE = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
+const NOW = new Date('2026-05-22T12:00:00Z');
+const julie: SparFighter = { globalPersonId: JULIE, name: 'Julie Probe', photoUrl: null };
+const marc: SparFighter = { globalPersonId: MARC, name: 'Marc Probe', photoUrl: 'm.jpg' };
+
+const row = (over: Partial<SparRow> = {}): SparRow => ({
+  id: 'r-1',
+  asker_global_person_id: MARC,
+  receiver_global_person_id: JULIE,
+  kind: 'event',
+  event_id: 'e-1',
+  spar_day: '2026-05-23',
+  spar_time: '18:30:00',
+  place: null,
+  weapons: ['Longsword'],
+  message: 'After the Pools?',
+  status: 'pending',
+  expires_at: '2026-05-24T04:00:00+00:00',
+  shared_comment: null,
+  cancelled_by: null,
+  cancel_message: null,
+  ...over,
+});
+
+describe('effectiveSparStatus', () => {
+  it('reads a waiting request past its end as a no', () => {
+    expect(effectiveSparStatus(row({ expires_at: '2026-05-22T11:59:00Z' }), NOW)).toBe(
+      'not_this_time',
+    );
+    expect(effectiveSparStatus(row(), NOW)).toBe('pending');
+    expect(effectiveSparStatus(row({ status: 'agreed' }), NOW)).toBe('agreed');
+  });
+});
+
+describe('toSent: what the asker sees', () => {
+  it('gives one payload for every kind of "Not this time"', () => {
+    const declined = row({ id: 'a', status: 'not_this_time' });
+    const blocked = row({ id: 'b', status: 'not_this_time' });
+    const swept = row({ id: 'c', status: 'not_this_time', expires_at: '2026-05-21T04:00:00Z' });
+    const unswept = row({ id: 'd', status: 'pending', expires_at: '2026-05-21T04:00:00Z' });
+    const shown = [declined, blocked, swept, unswept].map((r) => {
+      const { id: _id, ...rest } = toSent(r, julie, 'Probe Open', NOW);
+      return JSON.stringify(rest);
+    });
+    expect(new Set(shown).size).toBe(1);
+    expect(JSON.parse(shown[0]!)).toMatchObject({ status: 'not_this_time', comment: null });
+  });
+
+  it('shows the decliner’s comment only when they shared it', () => {
+    const view = toSent(
+      row({ status: 'not_this_time', shared_comment: 'Next Event!' }),
+      julie,
+      null,
+      NOW,
+    );
+    expect(view.comment).toBe('Next Event!');
+  });
+
+  it('says the day, the time as HH:MM, the Event and the weapons', () => {
+    expect(toSent(row(), julie, 'Probe Open', NOW)).toEqual({
+      id: 'r-1',
+      receiver: julie,
+      kind: 'event',
+      eventName: 'Probe Open',
+      day: '2026-05-23',
+      time: '18:30',
+      place: null,
+      weapons: ['Longsword'],
+      message: 'After the Pools?',
+      status: 'pending',
+      comment: null,
+    });
+  });
+});
+
+describe('toIncoming: what the fighter asked sees', () => {
+  it('carries the asker, the day and the message, with an Event since deleted read as none', () => {
+    expect(toIncoming(row({ event_id: null }), marc, null)).toEqual({
+      id: 'r-1',
+      asker: marc,
+      kind: 'event',
+      eventName: null,
+      day: '2026-05-23',
+      time: '18:30',
+      place: null,
+      weapons: ['Longsword'],
+      message: 'After the Pools?',
+    });
+  });
+});
+
+describe('toAgreed: a spar both said yes to', () => {
+  it('says who asked, and who cancelled', () => {
+    const cancelled = row({
+      status: 'cancelled',
+      cancelled_by: 'receiver',
+      cancel_message: 'Injured, sorry',
+    });
+    expect(toAgreed(cancelled, MARC, julie, null)).toMatchObject({
+      partner: julie,
+      iAsked: true,
+      status: 'cancelled',
+      cancelledByMe: false,
+      cancelMessage: 'Injured, sorry',
+    });
+    expect(toAgreed(cancelled, JULIE, marc, null)).toMatchObject({
+      iAsked: false,
+      cancelledByMe: true,
+    });
+    expect(toAgreed(row({ status: 'agreed' }), MARC, julie, null)).toMatchObject({
+      status: 'agreed',
+      cancelledByMe: null,
+    });
+  });
+});
