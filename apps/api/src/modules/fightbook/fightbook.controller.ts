@@ -8,6 +8,9 @@
  * POST  /me/fightbook/requests/:id/withdraw — take back my request still waiting
  * POST  /me/fightbook/requests/:id/cancel   — cancel an agreed spar, either side
  * GET   /me/fightbook/inbox     — requests waiting for my answer
+ * GET   /me/fightbook/blocks    — the fighters I blocked
+ * POST  /me/fightbook/blocks    — block a fighter
+ * DELETE /me/fightbook/blocks/:globalPersonId — unblock
  * GET   /me/fightbook/spars     — my agreed spars, and the requests I sent
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
@@ -17,6 +20,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -32,7 +36,13 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
 import { SupabaseService } from '../supabase/supabase.service';
-import { fightBookCaller, requireFightBookOn, type FightBookCaller } from './fightbook-caller';
+import {
+  fightBookCaller,
+  requireFightBookOn,
+  requireProfile,
+  type FightBookCaller,
+} from './fightbook-caller';
+import { FightBookBlocksService } from './fightbook-blocks.service';
 import { FightBookSettingsService } from './fightbook-settings.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
@@ -81,6 +91,9 @@ class AnswerSparDto extends createZodDto(answerSchema) {}
 const cancelSchema = z.object({ message: text(500).optional() }).strict();
 class CancelSparDto extends createZodDto(cancelSchema) {}
 
+const blockSchema = z.object({ globalPersonId: z.uuid() }).strict();
+class BlockDto extends createZodDto(blockSchema) {}
+
 @ApiTags('fightbook')
 @Controller('me/fightbook')
 export class FightBookController {
@@ -89,6 +102,7 @@ export class FightBookController {
     private readonly settings: FightBookSettingsService,
     private readonly requests: SparRequestsService,
     private readonly reads: SparReadsService,
+    private readonly blocks: FightBookBlocksService,
   ) {}
 
   @Get('settings')
@@ -154,6 +168,31 @@ export class FightBookController {
   @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
   async spars(@Req() req: FastifyRequest) {
     return this.reads.mySpars(requireFightBookOn(await this.caller(req)));
+  }
+
+  // Blocks need a profile, not the switch: a fighter who turned FightBook off still manages them.
+  @Get('blocks')
+  @ApiOperation({ summary: 'The fighters I blocked in FightBook' })
+  async listBlocks(@Req() req: FastifyRequest) {
+    return this.blocks.list(requireProfile(await this.caller(req)));
+  }
+
+  @Post('blocks')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Block a fighter in FightBook' })
+  async block(@Body() dto: BlockDto, @Req() req: FastifyRequest) {
+    await this.blocks.block(requireProfile(await this.caller(req)), dto.globalPersonId);
+  }
+
+  @Delete('blocks/:globalPersonId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unblock a fighter in FightBook' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async unblock(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.blocks.unblock(requireProfile(await this.caller(req)), globalPersonId);
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

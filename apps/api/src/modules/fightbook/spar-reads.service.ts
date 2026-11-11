@@ -2,19 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { readSparFighters, unknownSparFighter } from './spar-fighters';
 import { toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
 
 /** How far back My spars looks, in days, and how many rows each list holds (Decision 12). */
 const LOOK_BACK_DAYS = 30;
 const LIST_CAP = 200;
-
-type FighterRow = {
-  id: string;
-  display_name: string | null;
-  given_name: string | null;
-  family_name: string | null;
-  photo_url: string | null;
-};
 
 const byDayThenTime = (a: SparRow, b: SparRow) =>
   a.spar_day.localeCompare(b.spar_day) || (a.spar_time ?? '').localeCompare(b.spar_time ?? '');
@@ -113,33 +106,13 @@ export class SparReadsService {
     ];
     const eventIds = [...new Set(rows.map((r) => r.event_id).filter((id): id is string => !!id))];
     const [people, eventNames] = await Promise.all([
-      this.fightersById(fighterIds),
+      readSparFighters(this.supabase.service, fighterIds),
       this.eventNames(eventIds),
     ]);
     return {
-      fighters: (id: string): SparFighter =>
-        people.get(id) ?? { globalPersonId: id, name: '', photoUrl: null },
+      fighters: (id: string): SparFighter => people.get(id) ?? unknownSparFighter(id),
       events: (id: string | null) => (id ? (eventNames.get(id) ?? null) : null),
     };
-  }
-
-  private async fightersById(ids: string[]): Promise<Map<string, SparFighter>> {
-    if (ids.length === 0) return new Map();
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select('id, display_name, given_name, family_name, photo_url')
-      .in('id', ids);
-    if (error) throw new Error(`FightBook fighters read failed: ${error.message}`);
-    return new Map(
-      ((data ?? []) as FighterRow[]).map((p) => [
-        p.id,
-        {
-          globalPersonId: p.id,
-          name: p.display_name?.trim() || `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim(),
-          photoUrl: p.photo_url || null,
-        },
-      ]),
-    );
   }
 
   private async eventNames(ids: string[]): Promise<Map<string, string>> {
