@@ -771,7 +771,7 @@
     "apps/web-public/app/me/security/page.tsx:84",
     "apps/web-public/app/me/settings/AccountSection.tsx:16",
     "apps/web-public/app/me/settings/LegalSection.tsx:31",
-    "apps/web-public/app/me/settings/NotificationPreferences.tsx:29",
+    "apps/web-public/app/me/settings/NotificationPreferences.tsx:30",
     "apps/web-public/app/me/settings/PrivacySettings.tsx:20",
     "apps/web-public/app/notifications/NotificationSettingsClient.tsx:123",
     "apps/web-public/app/notifications/NotificationSettingsClient.tsx:57",
