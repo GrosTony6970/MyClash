@@ -108,6 +108,9 @@ const SWITCHED: Array<[string, NotificationKind, NotificationPreferenceToggle]> 
   ["the referee's lock message", 'assignment_changed', 'schedule_changes'],
   ['a refused exchange correction', 'exchange_edit_rejected', 'schedule_changes'],
   ['an approved exchange correction', 'exchange_edit_approved', 'schedule_changes'],
+  ['a new spar request', 'spar_request_received', 'fightbook'],
+  ['a yes to her spar request', 'spar_agreed', 'fightbook'],
+  ['a cancelled spar', 'spar_cancelled', 'fightbook'],
 ];
 
 /** The notices with no switch of their own: only the main switch stops them. */
@@ -144,7 +147,7 @@ describe('a notice whose own switch Léa turned off', () => {
     await sent(notice('results_published', 'results_published'), tables({ enabled: true }));
     // The double ignores projections: a switch left out of the read would count as "on".
     expect(selectsFor(db.from, 'notification_preferences')).toEqual([
-      'user_id, enabled, schedule_changes, results_published, organizer_updates, swiss_round_published',
+      'user_id, enabled, schedule_changes, results_published, organizer_updates, swiss_round_published, fightbook',
     ]);
   });
 });

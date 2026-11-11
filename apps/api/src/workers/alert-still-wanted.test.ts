@@ -328,6 +328,9 @@ describe('what the check reads', () => {
     ['organizer_broadcast'],
     ['organizer_published_event'],
     ['swiss_round_published'],
+    ['spar_request_received'],
+    ['spar_agreed'],
+    ['spar_cancelled'],
   ])('%s is not checked: nothing is read', async (kind) => {
     const { db, answer } = wanted(kind, 'x', 'u-lea');
 

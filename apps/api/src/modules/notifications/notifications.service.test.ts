@@ -129,6 +129,8 @@ describe('NotificationsService', () => {
       // Also ON by default: a Swiss round auto-pairs, so this is how a fighter
       // learns their next opponent at all.
       swissRoundPublished: true,
+      // FightBook is opt-in already (its own switch, off by default): switching it on is consent.
+      fightbook: true,
       enabled: true,
     });
   });

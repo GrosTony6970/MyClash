@@ -99,4 +99,17 @@ export const notices = {
     title: 'Exchange correction approved',
     body: 'The correction you asked for was made.',
   },
+  // FightBook: no names, these show on a locked phone.
+  sparRequestReceived: {
+    title: 'New spar request',
+    body: 'Open FightBook to answer.',
+  },
+  sparAgreed: {
+    title: 'Spar agreed',
+    body: 'Your spar request was accepted. It is in My spars.',
+  },
+  sparCancelled: {
+    title: 'Spar cancelled',
+    body: 'A spar you agreed to was cancelled.',
+  },
 } as const satisfies MessageTree;

@@ -126,6 +126,10 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   results_published: null,
   // Checked when queued, on the same bar (swiss-round-context.ts, ruling 198).
   swiss_round_published: null,
+  // FightBook: a private arrangement between two fighters, never public; nothing to check.
+  spar_request_received: null,
+  spar_agreed: null,
+  spar_cancelled: null,
 };
 
 export async function isPublicAlert(

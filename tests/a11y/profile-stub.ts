@@ -118,6 +118,7 @@ async function answerSettingsReads(page: Page): Promise<void> {
         resultsPublished: true,
         organizerUpdates: true,
         swissRoundPublished: true,
+        fightbook: true,
         enabled: true,
       },
     }),

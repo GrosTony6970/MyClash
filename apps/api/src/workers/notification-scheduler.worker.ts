@@ -59,7 +59,12 @@ export type ImmediateNotificationKind =
   // Immediate for the same reason: a Swiss round auto-pairs the instant the
   // previous one completes, so the pairing IS the news — a reminder scheduled
   // against its start time would arrive after fighters had already been called.
-  | 'swiss_round_published';
+  | 'swiss_round_published'
+  // FightBook (slice 1): to ONE fighter, at once — a new request, a yes, a cancelled spar. A
+  // 'Not this time' sends nothing (ruling 663).
+  | 'spar_request_received'
+  | 'spar_agreed'
+  | 'spar_cancelled';
 
 export type FollowNotificationKind =
   'follow_match_starting' | 'follow_referee_starting' | 'follow_workshop_starting';
@@ -81,6 +86,7 @@ export const PREFERENCE_TOGGLE_COLUMNS = [
   'results_published',
   'organizer_updates',
   'swiss_round_published',
+  'fightbook',
 ] as const;
 
 export type NotificationPreferenceToggle = (typeof PREFERENCE_TOGGLE_COLUMNS)[number];

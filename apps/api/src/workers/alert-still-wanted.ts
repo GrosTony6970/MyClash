@@ -233,6 +233,10 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   organizer_broadcast: null,
   organizer_published_event: null,
   swiss_round_published: null,
+  // FightBook: sent at once, to the one fighter the change concerns.
+  spar_request_received: null,
+  spar_agreed: null,
+  spar_cancelled: null,
 };
 
 export async function isStillWanted(

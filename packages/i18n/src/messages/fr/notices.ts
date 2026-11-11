@@ -96,4 +96,16 @@ export const notices = {
     title: 'Demande de correction approuvée',
     body: 'La correction demandée a été faite.',
   },
+  sparRequestReceived: {
+    title: 'Nouvelle demande de spar',
+    body: 'Ouvrez FightBook pour répondre.',
+  },
+  sparAgreed: {
+    title: 'Spar accepté',
+    body: 'Votre demande de spar a été acceptée. Elle est dans Mes spars.',
+  },
+  sparCancelled: {
+    title: 'Spar annulé',
+    body: 'Un spar que vous aviez accepté a été annulé.',
+  },
 } as const satisfies DeepString<typeof enNotices>;

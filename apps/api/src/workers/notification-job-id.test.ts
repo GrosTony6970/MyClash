@@ -50,6 +50,9 @@ const KINDS: NotificationKind[] = [
   'follow_match_starting',
   'follow_referee_starting',
   'follow_workshop_starting',
+  'spar_request_received',
+  'spar_agreed',
+  'spar_cancelled',
 ];
 
 describe('BullMQ job ids', () => {

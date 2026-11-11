@@ -33,6 +33,7 @@ const updateNotificationPreferencesSchema = z
     organizerUpdates: z.boolean().optional(),
     /** Next Swiss round paired — your opponent and piste. */
     swissRoundPublished: z.boolean().optional(),
+    fightbook: z.boolean().optional(),
     enabled: z.boolean().optional(),
   })
   .strict();

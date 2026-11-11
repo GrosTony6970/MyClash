@@ -12095,6 +12095,7 @@ export interface components {
       resultsPublished?: boolean;
       organizerUpdates?: boolean;
       swissRoundPublished?: boolean;
+      fightbook?: boolean;
       enabled?: boolean;
     };
     PushAddressDto: {

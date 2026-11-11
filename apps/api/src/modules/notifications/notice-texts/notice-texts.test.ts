@@ -84,6 +84,21 @@ describe('the notices of the Tournament day', () => {
   });
 
   it('an approved correction, and the reason a request ends with when its hit was edited', () => {
+    expect(texts.sparRequestReceived()).toEqual({
+      title: 'Nouvelle demande de spar / New spar request',
+      emailSubject: 'Nouvelle demande de spar / New spar request',
+      body: 'Ouvrez FightBook pour répondre. / Open FightBook to answer.',
+    });
+    expect(texts.sparAgreed()).toEqual({
+      title: 'Spar accepté / Spar agreed',
+      emailSubject: 'Spar accepté / Spar agreed',
+      body: 'Votre demande de spar a été acceptée. Elle est dans Mes spars. / Your spar request was accepted. It is in My spars.',
+    });
+    expect(texts.sparCancelled()).toEqual({
+      title: 'Spar annulé / Spar cancelled',
+      emailSubject: 'Spar annulé / Spar cancelled',
+      body: 'Un spar que vous aviez accepté a été annulé. / A spar you agreed to was cancelled.',
+    });
     expect(texts.correctionApproved()).toEqual({
       title: 'Demande de correction approuvée / Exchange correction approved',
       body: 'La correction demandée a été faite. / The correction you asked for was made.',

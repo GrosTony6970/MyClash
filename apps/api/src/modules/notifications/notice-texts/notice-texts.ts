@@ -259,3 +259,27 @@ export function correctionApproved(): NoticeText {
     body: bilingual('notices.correctionApproved.body'),
   };
 }
+
+/** FightBook: a new spar request. No name: it shows on a locked phone. */
+export function sparRequestReceived(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparRequestReceived.title'),
+    body: bilingual('notices.sparRequestReceived.body'),
+  });
+}
+
+/** FightBook: the fighter asked said yes. No name. */
+export function sparAgreed(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparAgreed.title'),
+    body: bilingual('notices.sparAgreed.body'),
+  });
+}
+
+/** FightBook: the other fighter cancelled an agreed spar. No name, no message. */
+export function sparCancelled(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparCancelled.title'),
+    body: bilingual('notices.sparCancelled.body'),
+  });
+}

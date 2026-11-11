@@ -16,6 +16,7 @@ export interface NotificationPreferencesResponse {
   resultsPublished: boolean;
   organizerUpdates: boolean;
   swissRoundPublished: boolean;
+  fightbook: boolean;
   enabled: boolean;
 }
 
@@ -32,6 +33,8 @@ const DEFAULT_PREFERENCES: NotificationPreferencesResponse = {
   // how a fighter learns their next opponent. On by default for the same
   // reason results_published is: entering the tournament is the consent.
   swissRoundPublished: true,
+  // FightBook is opt-in already (its own switch, off by default): switching it on is the consent.
+  fightbook: true,
   enabled: true,
 };
 
@@ -120,7 +123,7 @@ export class NotificationsService {
       .select(
         'match_starting_minutes_before, workshop_starting_minutes_before, ' +
           'referee_starting_minutes_before, schedule_changes, results_published, ' +
-          'organizer_updates, swiss_round_published, enabled',
+          'organizer_updates, swiss_round_published, fightbook, enabled',
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -152,6 +155,7 @@ export class NotificationsService {
     if (dto.swissRoundPublished !== undefined) {
       patch['swiss_round_published'] = dto.swissRoundPublished;
     }
+    if (dto.fightbook !== undefined) patch['fightbook'] = dto.fightbook;
     if (dto.enabled !== undefined) patch['enabled'] = dto.enabled;
 
     const { data, error } = await this.supabase.service
@@ -160,7 +164,7 @@ export class NotificationsService {
       .select(
         'match_starting_minutes_before, workshop_starting_minutes_before, ' +
           'referee_starting_minutes_before, schedule_changes, results_published, ' +
-          'organizer_updates, swiss_round_published, enabled',
+          'organizer_updates, swiss_round_published, fightbook, enabled',
       )
       .single();
 
@@ -202,6 +206,8 @@ export class NotificationsService {
         typeof row['swiss_round_published'] === 'boolean'
           ? row['swiss_round_published']
           : DEFAULT_PREFERENCES.swissRoundPublished,
+      fightbook:
+        typeof row['fightbook'] === 'boolean' ? row['fightbook'] : DEFAULT_PREFERENCES.fightbook,
       enabled: typeof row['enabled'] === 'boolean' ? row['enabled'] : DEFAULT_PREFERENCES.enabled,
     };
   }
