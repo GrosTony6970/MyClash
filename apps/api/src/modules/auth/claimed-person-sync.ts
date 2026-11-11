@@ -109,6 +109,7 @@ async function claimAtStoredAddresses(
 ): Promise<void> {
   const byAddress = new Map<string, string[]>();
   for (const row of rows) byAddress.set(row.email, [...(byAddress.get(row.email) ?? []), row.id]);
+  let landed = 0;
   for (const [email, ids] of byAddress) {
     const { error } = await deps.supabase.service
       .from('persons')
@@ -116,7 +117,12 @@ async function claimAtStoredAddresses(
       .in('id', ids)
       .eq('email', email)
       .is('claimed_by_user_id', null);
+    // The log must not say "skipped" of rows an earlier write already claimed.
+    if (error && landed > 0) {
+      throw new Error(`${error.message} (${landed} of ${byAddress.size} address writes landed)`);
+    }
     if (error) throw error;
+    landed += 1;
   }
 }
 

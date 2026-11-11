@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import {
   mockSupabase,
   selectsFor,
+  supabaseChain,
   writesTo,
   type SupabaseRow,
   type TableSeed,
@@ -178,6 +179,24 @@ describe('a failed read never fails the save of the row', () => {
     expect(await saved(HER_PROFILE, tables([OPEN_ROW]))).toEqual([]);
     expect(warn).toHaveBeenCalledWith(
       `persons claim-status sync skipped for global_persons ${HER_PROFILE}: the account read answered ${status}`,
+    );
+  });
+
+  it('a second address write that fails: the log says the first one landed', async () => {
+    const winter = { ...OPEN_ROW, id: 'p-lea-winter', email: 'LEA@example.com' };
+    db = mockSupabase(tables([OPEN_ROW, winter]));
+    let rosterCalls = 0;
+    const from = (table: string) =>
+      table === 'persons' && ++rosterCalls === 3
+        ? supabaseChain({ data: null, error: { message: 'boom' } })
+        : db.from(table);
+    await syncRowsOfClaimedProfile(
+      { supabase: { service: { from }, getAuthAdminUser } as never, logger },
+      HER_PROFILE,
+    );
+    expect(writesTo(db, 'persons')).toEqual(claimedFor(['p-lea-open']));
+    expect(warn).toHaveBeenCalledWith(
+      `persons claim-status sync skipped for global_persons ${HER_PROFILE}: boom (1 of 2 address writes landed)`,
     );
   });
 
