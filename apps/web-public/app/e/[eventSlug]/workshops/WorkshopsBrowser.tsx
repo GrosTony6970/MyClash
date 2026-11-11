@@ -3,23 +3,28 @@
 /**
  * WorkshopsBrowser — client-side filtering for the public workshop catalog:
  * a fuzzy search box (matches workshop title OR any instructor name) plus the
- * day / category / level / language selects, all applied live to the workshops
+ * day / category / level / language / weapon / instructor selects
+ * (`filter-workshops.ts`), all applied live to the workshops
  * the server passed in. Cards are grouped under a day heading (by the earliest
  * session's day, in the event timezone) and show the session date + time. The
  * card itself (coloured stripe, tags, capacity badge) is the shared
  * `WorkshopCard`, also used by the personal-space workshops tab.
  */
 import { useMemo, useState } from 'react';
-import { fuzzyMatch } from '@myclash/ui';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
   groupWorkshopsByDay,
-  WORKSHOP_UNSCHEDULED,
-  workshopDayKeys,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
+import {
+  filterOptions,
+  filterWorkshops,
+  NO_FILTERS,
+  type FilterOption,
+  type WorkshopFilters,
+} from './filter-workshops';
 
 export type { WorkshopListItem };
 
@@ -35,51 +40,18 @@ export function WorkshopsBrowser({
   eventSlug: string;
   timezone: string;
 }) {
-  const { t, locale } = useI18n();
-  const [query, setQuery] = useState('');
-  const [day, setDay] = useState('');
-  const [category, setCategory] = useState('');
-  const [level, setLevel] = useState('');
-  const [language, setLanguage] = useState('');
-
-  // Distinct days (sorted) + a representative ISO per day for labelling: every day a Workshop
-  // runs, from the same grouping the cards are drawn with (ruling 515).
-  const dayOptions = useMemo(
-    () =>
-      groupWorkshopsByDay(workshops, timezone)
-        .filter((g) => g.key !== WORKSHOP_UNSCHEDULED && g.repIso)
-        .map((g) => [g.key, g.repIso!] as const),
-    [workshops, timezone],
-  );
-
-  const categories = useMemo(
-    () => [...new Set(workshops.map((w) => w.category).filter((v): v is string => Boolean(v)))],
-    [workshops],
-  );
-  const levels = useMemo(
-    () => [...new Set(workshops.map((w) => w.level).filter((v): v is string => Boolean(v)))],
-    [workshops],
-  );
-  const languages = useMemo(
-    () => [...new Set(workshops.map((w) => w.language).filter((v): v is string => Boolean(v)))],
-    [workshops],
-  );
-
-  const filtered = workshops.filter((w) => {
-    if (day && !workshopDayKeys(w, timezone).includes(day)) return false;
-    if (category && w.category !== category) return false;
-    if (level && w.level !== level) return false;
-    if (language && w.language !== language) return false;
-    // Fuzzy match on the workshop title + every instructor name together, so
-    // "fiore" or an instructor's name both surface the workshop.
-    const haystack = [w.title, ...w.instructors.map((i) => i.displayName)].join(' ');
-    return fuzzyMatch(query, haystack);
-  });
+  const { t } = useI18n();
+  const [filters, setFilters] = useState<WorkshopFilters>(NO_FILTERS);
+  const choose = (key: keyof WorkshopFilters) => (value: string) =>
+    setFilters((f) => ({ ...f, [key]: value }));
+  const selects = useFilterSelects(workshops, timezone);
+  const filtered = filterWorkshops(workshops, filters, timezone);
 
   // A Workshop that runs on the chosen day lists that day only.
   const groups = useMemo(
-    () => groupWorkshopsByDay(filtered, timezone).filter((g) => !day || g.key === day),
-    [filtered, timezone, day],
+    () =>
+      groupWorkshopsByDay(filtered, timezone).filter((g) => !filters.day || g.key === filters.day),
+    [filtered, timezone, filters.day],
   );
 
   return (
@@ -88,86 +60,24 @@ export function WorkshopsBrowser({
         <input
           aria-label={t('publicApp.workshops.searchPlaceholder')}
           type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={filters.query}
+          onChange={(e) => choose('query')(e.target.value)}
           placeholder={t('publicApp.workshops.searchPlaceholder')}
           className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
       </div>
-      {(dayOptions.length > 0 ||
-        categories.length > 0 ||
-        levels.length > 0 ||
-        languages.length > 0) && (
+      {selects.some((s) => s.options.length > 0) && (
         <div className="mb-6 flex flex-wrap gap-2">
-          {dayOptions.length > 0 && (
-            <select
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              aria-label={t('publicApp.workshops.filterDay')}
-              className={SELECT_CLS}
-            >
-              <option value="">{t('publicApp.workshops.allDays')}</option>
-              {dayOptions.map(([key, rep]) => (
-                <option key={key} value={key}>
-                  {formatInZone(
-                    rep,
-                    timezone,
-                    {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                    },
-                    localeToBcp47(locale),
-                  )}
-                </option>
-              ))}
-            </select>
-          )}
-          {categories.length > 0 && (
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              aria-label={t('publicApp.workshops.filterCategory')}
-              className={SELECT_CLS}
-            >
-              <option value="">{t('publicApp.workshops.allCategories')}</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          )}
-          {levels.length > 0 && (
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value)}
-              aria-label={t('publicApp.workshops.filterLevel')}
-              className={SELECT_CLS}
-            >
-              <option value="">{t('publicApp.workshops.allLevels')}</option>
-              {levels.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          )}
-          {languages.length > 0 && (
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              aria-label={t('publicApp.workshops.filterLanguage')}
-              className={SELECT_CLS}
-            >
-              <option value="">{t('publicApp.workshops.allLanguages')}</option>
-              {languages.map((lang) => (
-                <option key={lang} value={lang}>
-                  {lang.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          )}
+          {selects.map((s) => (
+            <FilterSelect
+              key={s.key}
+              label={s.label}
+              allLabel={s.allLabel}
+              options={s.options}
+              value={filters[s.key]}
+              onChange={choose(s.key)}
+            />
+          ))}
         </div>
       )}
 
@@ -197,5 +107,97 @@ export function WorkshopsBrowser({
         </div>
       )}
     </>
+  );
+}
+
+type SelectKey = Exclude<keyof WorkshopFilters, 'query'>;
+
+interface SelectSpec {
+  key: SelectKey;
+  label: string;
+  allLabel: string;
+  options: FilterOption[];
+}
+
+const spec = (key: SelectKey, label: string, allLabel: string, options: FilterOption[]) => ({
+  key,
+  label,
+  allLabel,
+  options,
+});
+const plain = (values: string[], label = (v: string) => v): FilterOption[] =>
+  values.map((value) => ({ value, label: label(value) }));
+
+/** The drop-downs, in their order on the page; each lists only what the Workshops use. */
+function useFilterSelects(workshops: WorkshopListItem[], timezone: string): SelectSpec[] {
+  const { t, locale } = useI18n();
+  const o = useMemo(() => filterOptions(workshops, timezone), [workshops, timezone]);
+  const days = o.days.map((d) => ({
+    value: d.key,
+    label: formatInZone(
+      d.repIso,
+      timezone,
+      { weekday: 'short', day: 'numeric', month: 'short' },
+      localeToBcp47(locale),
+    ),
+  }));
+  return [
+    spec('day', t('publicApp.workshops.filterDay'), t('publicApp.workshops.allDays'), days),
+    spec(
+      'category',
+      t('publicApp.workshops.filterCategory'),
+      t('publicApp.workshops.allCategories'),
+      plain(o.categories),
+    ),
+    spec(
+      'level',
+      t('publicApp.workshops.filterLevel'),
+      t('publicApp.workshops.allLevels'),
+      plain(o.levels),
+    ),
+    spec(
+      'language',
+      t('publicApp.workshops.filterLanguage'),
+      t('publicApp.workshops.allLanguages'),
+      plain(o.languages, (lang) => lang.toUpperCase()),
+    ),
+    spec(
+      'weapon',
+      t('publicApp.workshops.filterWeapon'),
+      t('publicApp.workshops.allWeapons'),
+      plain(o.weapons),
+    ),
+    spec(
+      'instructor',
+      t('publicApp.workshops.filterInstructor'),
+      t('publicApp.workshops.allInstructors'),
+      o.instructors,
+    ),
+  ];
+}
+
+/** One drop-down, drawn only when it has a choice to offer. */
+function FilterSelect({
+  label,
+  allLabel,
+  options,
+  value,
+  onChange,
+}: Omit<SelectSpec, 'key'> & { value: string; onChange: (value: string) => void }) {
+  if (options.length === 0) return null;
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+      className={SELECT_CLS}
+    >
+      <option value="">{allLabel}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
