@@ -67,6 +67,10 @@ const EXPECTED: Record<Exclude<EntityKind, 'user'>, { table: string; columns: st
     columns: 'id, title',
   },
   audit_log: { table: 'audit_log', columns: 'id, action, created_at' },
+  // FightBook rows a merge moved: private, so labelled by date and status, never by a name.
+  spar_request: { table: 'spar_requests', columns: 'id, spar_day, status' },
+  fightbook_block: { table: 'fightbook_blocks', columns: 'id, created_at' },
+  spar_private_note: { table: 'spar_private_notes', columns: 'id, created_at' },
 };
 
 describe('the query each spec sends', () => {

@@ -60,6 +60,7 @@ import {
   revertMovesBackOnlyWhatIsStillThere,
   strictSurvivorStaysStrict,
 } from './lib/merge-probe-scenarios.mjs';
+import { fightBookMovesWithTheMerge } from './lib/merge-probe-fightbook.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -70,7 +71,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 69;
+const EXPECTED_CHECKS = 85;
 
 // ── Refusals (ruling 125) ───────────────────────────────────────────────────
 async function refusalsBeforeAnyMerge(q) {
@@ -225,6 +226,7 @@ try {
       await revertMovesBackOnlyWhatIsStillThere(tx);
       await recordBeforeFollowsMoved(tx);
       await manyFollowsMoveInOneCall(tx);
+      await fightBookMovesWithTheMerge(tx);
       await refusals(tx);
       await allOrNothing(tx);
       await onlyTheServiceRole(tx);

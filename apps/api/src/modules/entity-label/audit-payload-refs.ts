@@ -90,6 +90,11 @@ export const REF_RULES: readonly RefRule[] = [
   { suffix: ['workshopInstructorIds'], kind: 'workshop_instructor' },
   { suffix: ['registrationIds'], kind: 'registration' },
   { suffix: ['directoryFollowerUserIds'], kind: 'user' },
+  { suffix: ['sparRequestAskerIds'], kind: 'spar_request' },
+  { suffix: ['sparRequestReceiverIds'], kind: 'spar_request' },
+  { suffix: ['blockBlockerIds'], kind: 'fightbook_block' },
+  { suffix: ['blockBlockedIds'], kind: 'fightbook_block' },
+  { suffix: ['sparNoteIds'], kind: 'spar_private_note' },
   // ── `id` inside a row snapshot — meaningless as a bare leaf name ────────────
   { suffix: ['source', 'id'], kind: 'global_person' },
   { suffix: ['target', 'id'], kind: 'global_person' },

@@ -61,6 +61,25 @@ describe('collectPayloadRefs', () => {
     expect(refs).toEqual([{ pointer: '/moved/directoryFollowerUserIds/0', kind: 'user', id: A }]);
   });
 
+  it('names the FightBook rows a merge moved, by kind', () => {
+    const { refs } = collect('fighter.merge', {
+      moved: {
+        sparRequestAskerIds: [A],
+        sparRequestReceiverIds: [B],
+        blockBlockerIds: [C],
+        blockBlockedIds: [A],
+        sparNoteIds: [B],
+      },
+    });
+    expect(refs).toEqual([
+      { pointer: '/moved/sparRequestAskerIds/0', kind: 'spar_request', id: A },
+      { pointer: '/moved/sparRequestReceiverIds/0', kind: 'spar_request', id: B },
+      { pointer: '/moved/blockBlockerIds/0', kind: 'fightbook_block', id: C },
+      { pointer: '/moved/blockBlockedIds/0', kind: 'fightbook_block', id: A },
+      { pointer: '/moved/sparNoteIds/0', kind: 'spar_private_note', id: B },
+    ]);
+  });
+
   it('resolves an ambiguous key differently per action, and not at all without one', () => {
     expect(collect('archive_restore_event', { sourceId: A }).refs[0]?.kind).toBe('event');
     expect(collect('archive_restore_tournament', { sourceId: A }).refs[0]?.kind).toBe('tournament');

@@ -31,7 +31,10 @@ export type EntityKind =
   | 'deletion_request'
   | 'exchange_edit_request'
   | 'event_broadcast_notification'
-  | 'audit_log';
+  | 'audit_log'
+  | 'spar_request'
+  | 'fightbook_block'
+  | 'spar_private_note';
 
 type Row = Record<string, unknown>;
 
@@ -187,6 +190,23 @@ export const LABEL_SPECS: Record<Exclude<EntityKind, 'user'>, EntityLabelSpec> =
     table: 'audit_log',
     columns: 'id, action, created_at',
     label: (r) => nonEmpty(`${text(r, 'action')} · ${text(r, 'created_at').slice(0, 10)}`),
+  },
+  // FightBook rows a fighter merge moved (0265). Private between two fighters: an admin reading
+  // the merge record sees a day and a status, never who sparred or blocked whom.
+  spar_request: {
+    table: 'spar_requests',
+    columns: 'id, spar_day, status',
+    label: (r) => nonEmpty(`${text(r, 'spar_day')} · ${text(r, 'status')}`),
+  },
+  fightbook_block: {
+    table: 'fightbook_blocks',
+    columns: 'id, created_at',
+    label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
+  },
+  spar_private_note: {
+    table: 'spar_private_notes',
+    columns: 'id, created_at',
+    label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
   },
 };
 

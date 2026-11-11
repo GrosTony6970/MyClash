@@ -97,10 +97,24 @@ describe('the merge record is written by the merge itself', () => {
     // Every other audit row goes through the API's insertAuditLog, which masks personal values
     // (audit-log.coverage.test.ts). These two write the record in the same transaction as the
     // merge; the snapshots arrive already masked by that same masker (merge.service.ts).
+    // Each later redefinition of the pair carries the record too (0265 added FightBook), so every
+    // writer defines the merge or its revert, and the newest writer defines both.
     const writers = files.filter((file) =>
       /insert\s+into\s+(public\.)?audit_log\b/i.test(sqlOf(file)),
     );
-    expect(writers).toEqual([lastDefinition('merge_fighters').file]);
+    const defines = (file: string, name: string) =>
+      new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${name}\\s*\\(`, 'i').test(
+        sqlOf(file),
+      );
+    for (const file of writers) {
+      expect(
+        defines(file, 'merge_fighters') || defines(file, 'revert_fighter_merge'),
+        `${file} writes audit_log from SQL outside the merge`,
+      ).toBe(true);
+    }
+    const newest = writers.at(-1)!;
+    expect(newest).toBe(lastDefinition('merge_fighters').file);
+    expect(newest).toBe(lastDefinition('revert_fighter_merge').file);
     for (const { name } of FUNCTIONS) {
       expect(lastDefinition(name).body).toContain(
         'insert into public.audit_log (actor_user_id, action, entity_type, entity_id, payload_json)',

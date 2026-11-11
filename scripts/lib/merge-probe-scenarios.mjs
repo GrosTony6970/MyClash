@@ -57,9 +57,15 @@ async function checkRecord(q) {
   const record = await lastMerge(q, P.source);
   check('merge record', record.payload_json, {
     moved: {
+      // In jsonb's own key order: shorter keys first, then byte order.
       personIds: [PERSON.s1, PERSON.s2],
       claimUserId: U.lea,
+      sparNoteIds: [],
+      blockBlockedIds: [],
+      blockBlockerIds: [],
+      sparRequestAskerIds: [],
       workshopInstructorIds: [I.sourceOwn],
+      sparRequestReceiverIds: [],
       directoryFollowerUserIds: [U.alice],
     },
     reason: 'duplicate',
