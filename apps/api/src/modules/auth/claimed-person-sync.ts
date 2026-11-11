@@ -88,17 +88,7 @@ export async function syncClaimedPersonRows(
         `persons claim-status sync for global_persons ${globalPersonId}: claimed ${mine.length} of ${linked.length} linked rows; the rest carry another address or none`,
       );
     }
-    // One write per stored address, which the write requires (ruling 582): an organiser save
-    // that moves a row to another address between the read and the write leaves it unclaimed.
-    for (const [email, ids] of idsByStoredAddress(mine)) {
-      const { error: updateError } = await deps.supabase.service
-        .from('persons')
-        .update({ claim_status: 'claimed', claimed_by_user_id: userId })
-        .in('id', ids)
-        .eq('email', email)
-        .is('claimed_by_user_id', null);
-      if (updateError) throw updateError;
-    }
+    await claimAtStoredAddresses(deps, userId, mine);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     deps.logger.warn(
@@ -107,11 +97,27 @@ export async function syncClaimedPersonRows(
   }
 }
 
-/** The rows' ids under each address exactly as stored: usually one address, so one write. */
-function idsByStoredAddress(rows: Array<{ id: string; email: string }>): Map<string, string[]> {
+/**
+ * Claims the rows, one write per address as stored (usually one), and each write requires its
+ * address (ruling 582): an organiser save that moves a row to another address between the read
+ * and the write leaves it unclaimed. A failed write throws to the caller's log.
+ */
+async function claimAtStoredAddresses(
+  deps: ClaimedPersonSyncDeps,
+  userId: string,
+  rows: Array<{ id: string; email: string }>,
+): Promise<void> {
   const byAddress = new Map<string, string[]>();
   for (const row of rows) byAddress.set(row.email, [...(byAddress.get(row.email) ?? []), row.id]);
-  return byAddress;
+  for (const [email, ids] of byAddress) {
+    const { error } = await deps.supabase.service
+      .from('persons')
+      .update({ claim_status: 'claimed', claimed_by_user_id: userId })
+      .in('id', ids)
+      .eq('email', email)
+      .is('claimed_by_user_id', null);
+    if (error) throw error;
+  }
 }
 
 /**
