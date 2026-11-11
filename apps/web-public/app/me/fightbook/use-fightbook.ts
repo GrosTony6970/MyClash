@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   FightBookBlock,
   FightBookSettings,
@@ -72,17 +72,30 @@ function settle(reads: FightBookRead<unknown>[]): 'data' | 'failed' | 'aborted' 
 
 /**
  * The FightBook page's data: the switch first, then, when it is on, the Inbox, My spars and the
- * blocked list together; when it is off, My spars only. `reload` reads all again (after the switch changes); `update` patches the
- * ready state from a write's own answer, so a tap does not re-read and flash the whole page.
+ * blocked list together; when it is off, My spars only. `reload` reads all again (after the
+ * switch changes); `update` patches the ready state from a write's own answer, so a tap does not
+ * re-read and flash the whole page; `refresh` reads again behind the page when a write found it
+ * stale (`not_open`). A refresh that fails keeps the page as it is.
  */
 export function useFightBook(apiUrl: string) {
   const [state, setState] = useState<FightBookState>({ status: 'loading' });
   const [asked, setAsked] = useState(0);
+  // Bumped by every patch. A read that started before a patch answers older news than the page
+  // shows: it is dropped and the page reads once more, so the last read starts after the last patch.
+  const patches = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    const startedAt = patches.current;
     void load(apiUrl, controller.signal).then((next) => {
-      if (next) setState(next);
+      if (!next) return;
+      if (patches.current !== startedAt) {
+        setAsked((n) => n + 1);
+        return;
+      }
+      setState((current) =>
+        next.status === 'failed' && current.status === 'ready' ? current : next,
+      );
     });
     return () => controller.abort();
   }, [apiUrl, asked]);
@@ -92,11 +105,15 @@ export function useFightBook(apiUrl: string) {
     setAsked((n) => n + 1);
   }, []);
 
+  /** Read all again behind the page as it stands: no spinner, so a refusal said stays said. */
+  const refresh = useCallback(() => setAsked((n) => n + 1), []);
+
   const update = useCallback((change: (data: FightBookData) => Partial<FightBookData>) => {
+    patches.current += 1;
     setState((current) =>
       current.status === 'ready' ? { ...current, ...change(current) } : current,
     );
   }, []);
 
-  return { state, reload, update };
+  return { state, reload, refresh, update };
 }

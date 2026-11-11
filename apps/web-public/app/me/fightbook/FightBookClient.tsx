@@ -15,13 +15,13 @@ import { useFightBook, type FightBookState } from './use-fightbook';
 
 /**
  * `/me/fightbook` — FightBook (slice 1). A fighter with no profile is sent to claim one; while
- * FightBook is off, the page says what it is and shows the switch, and My spars; once on, the settings panel
- * and the fighters they blocked. The Inbox and My spars tabs sit above the panel.
+ * FightBook is off, the page says what it is and shows the switch, and My spars; once on, the
+ * settings panel and the fighters they blocked. The Inbox and My spars tabs sit above the panel.
  */
 export function FightBookClient() {
   const { t } = useI18n();
   const apiUrl = useMemo(() => getPublicApiUrl(), []);
-  const { state, reload, update } = useFightBook(apiUrl);
+  const { state, reload, refresh, update } = useFightBook(apiUrl);
 
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8">
@@ -35,7 +35,7 @@ export function FightBookClient() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted">{t('publicApp.fightBook.subtitle')}</p>
         </header>
-        <Body apiUrl={apiUrl} state={state} reload={reload} update={update} />
+        <Body apiUrl={apiUrl} state={state} reload={reload} refresh={refresh} update={update} />
       </div>
     </main>
   );
@@ -65,12 +65,13 @@ function SwitchedOff({
   apiUrl,
   onOn,
   spars,
+  refresh,
   update,
 }: {
   apiUrl: string;
   onOn: () => void;
   spars: MySpars;
-} & Pick<ReturnType<typeof useFightBook>, 'update'>) {
+} & Pick<ReturnType<typeof useFightBook>, 'refresh' | 'update'>) {
   const { t } = useI18n();
   return (
     <>
@@ -91,6 +92,7 @@ function SwitchedOff({
             spars={spars}
             onWithdrawn={(id) => update(withdrawn(id))}
             onCancelled={(id, message) => update(cancelled(id, message))}
+            onStale={refresh}
           />
         </section>
       ) : null}
@@ -102,11 +104,12 @@ function Body({
   apiUrl,
   state,
   reload,
+  refresh,
   update,
 }: {
   apiUrl: string;
   state: FightBookState;
-} & Pick<ReturnType<typeof useFightBook>, 'reload' | 'update'>) {
+} & Pick<ReturnType<typeof useFightBook>, 'reload' | 'refresh' | 'update'>) {
   const { t } = useI18n();
   if (state.status === 'loading') return <Spinner />;
   if (state.status === 'failed') {
@@ -114,11 +117,19 @@ function Body({
   }
   if (!state.settings.hasProfile) return <NoProfile />;
   if (!state.settings.enabled) {
-    return <SwitchedOff apiUrl={apiUrl} onOn={reload} spars={state.spars} update={update} />;
+    return (
+      <SwitchedOff
+        apiUrl={apiUrl}
+        onOn={reload}
+        spars={state.spars}
+        refresh={refresh}
+        update={update}
+      />
+    );
   }
   return (
     <>
-      <FightBookTabs apiUrl={apiUrl} data={state} update={update} />
+      <FightBookTabs apiUrl={apiUrl} data={state} update={update} refresh={refresh} />
       <FightBookSettingsPanel
         apiUrl={apiUrl}
         blocks={state.blocks}

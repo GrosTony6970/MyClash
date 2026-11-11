@@ -59,20 +59,35 @@ afterEach(() => {
   replace.mockReset();
 });
 
-function serve(inbox: IncomingSparRequest[], spars: MySpars, writes: Record<string, Answer> = {}) {
-  const routes: Record<string, Answer> = {
+type Route = Answer | (() => Answer | Promise<Answer>);
+
+/** The reads answer the lists given; a list may change between reads (a function, read each time). */
+function serve(
+  inbox: IncomingSparRequest[] | (() => IncomingSparRequest[]),
+  spars: MySpars | (() => MySpars),
+  writes: Record<string, Route> = {},
+) {
+  const now = <T,>(list: T | (() => T)) =>
+    typeof list === 'function' ? (list as () => T)() : list;
+  const routes: Record<string, Route> = {
     'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: true } },
-    'GET /api/v1/me/fightbook/inbox': { ok: true, data: inbox },
-    'GET /api/v1/me/fightbook/spars': { ok: true, data: spars },
+    'GET /api/v1/me/fightbook/inbox': () => ({ ok: true, data: now(inbox) }),
+    'GET /api/v1/me/fightbook/spars': () => ({ ok: true, data: now(spars) }),
     'GET /api/v1/me/fightbook/blocks': { ok: true, data: [] },
     ...writes,
   };
   vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
     const route = routes[`${init?.method ?? 'GET'} ${path}`];
     if (!route) throw new Error(`unexpected request ${init?.method ?? 'GET'} ${path}`);
-    return route as never;
+    return (typeof route === 'function' ? await route() : route) as never;
   });
 }
+
+const reads = (path: string) =>
+  vi
+    .mocked(apiRequest)
+    .mock.calls.filter(([, p, init]) => p === path && (init?.method ?? 'GET') === 'GET').length;
+const NOT_OPEN: Answer = { ok: false, kind: 'http', status: 409, code: 'not_open' };
 
 const settled = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 async function open() {
@@ -147,15 +162,18 @@ describe('the Inbox', () => {
     expect(container.textContent).not.toContain('After the Pools?');
   });
 
-  it('a request no longer open leaves the Inbox and says so', async () => {
-    serve([incoming('r-1')], NONE, {
-      'POST /api/v1/me/fightbook/requests/r-1/answer': {
-        ok: false,
-        kind: 'http',
-        status: 409,
-        code: 'not_open',
+  it('a request no longer open leaves the Inbox, says so, and the page reads again', async () => {
+    let answered = false;
+    serve(
+      () => (answered ? [] : [incoming('r-1')]),
+      () => NONE,
+      {
+        'POST /api/v1/me/fightbook/requests/r-1/answer': () => {
+          answered = true;
+          return NOT_OPEN;
+        },
       },
-    });
+    );
     await open();
     await act(async () => button('Yes')!.click());
     await settled();
@@ -163,6 +181,25 @@ describe('the Inbox', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'This request is no longer open.',
     );
+    expect(reads('/api/v1/me/fightbook/inbox')).toBe(2);
+    expect(reads('/api/v1/me/fightbook/spars')).toBe(2);
+  });
+
+  it("a card's buttons stay disabled while its answer is on its way", async () => {
+    let land: (answer: Answer) => void = () => {};
+    serve([incoming('r-1'), incoming('r-2', paul)], NONE, {
+      'POST /api/v1/me/fightbook/requests/r-1/answer': () =>
+        new Promise<Answer>((resolve) => (land = resolve)),
+    });
+    await open();
+    await act(async () => button('Yes')!.click());
+    const [first, second] = [...container.querySelectorAll('[data-spar-card]')];
+    const disabled = (card: Element) => [...card.querySelectorAll('button')].map((b) => b.disabled);
+    expect(disabled(first!)).toEqual([true, true, true]);
+    expect(disabled(second!)).toEqual([false, false, false]);
+    await act(async () => land({ ok: true, data: { status: 'agreed' } }));
+    await settled();
+    expect(container.querySelectorAll('[data-spar-card]')).toHaveLength(1);
   });
 
   it('blocking asks first, then blocks the asker and clears their requests', async () => {
@@ -282,5 +319,45 @@ describe('My spars', () => {
     await settled();
     expect(sent('POST', '/api/v1/me/fightbook/requests/q-1/withdraw')).toBeDefined();
     expect(container.textContent).not.toContain('Waiting for an answer');
+  });
+
+  it('a Take back that loses to a yes reads again: the request is now a spar', async () => {
+    search = new URLSearchParams('tab=spars');
+    let julieSaidYes = false;
+    const waiting = {
+      id: 'q-1',
+      receiver: paul,
+      kind: 'free' as const,
+      eventName: null,
+      day: '2026-05-24',
+      time: null,
+      place: 'Salle Probe',
+      weapons: ['Sabre'],
+      message: null,
+      status: 'pending' as const,
+      comment: null,
+    };
+    serve(
+      [],
+      () =>
+        julieSaidYes
+          ? { spars: [spar('q-1', { partner: paul, iAsked: true, day: '2026-05-24' })], sent: [] }
+          : { spars: [], sent: [waiting] },
+      {
+        'POST /api/v1/me/fightbook/requests/q-1/withdraw': () => {
+          julieSaidYes = true;
+          return NOT_OPEN;
+        },
+      },
+    );
+    await open();
+    await act(async () => button('Take back')!.click());
+    await settled();
+    expect(button('Take back')).toBeUndefined();
+    expect(container.textContent).toContain('You asked');
+    expect(button('Cancel the spar')).toBeDefined();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'This request is no longer open.',
+    );
   });
 });

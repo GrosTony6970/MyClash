@@ -7,6 +7,7 @@ import { Button, EmptyState, usePrompt } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { SparCard, useDayLabel } from './SparCard';
+import { useInFlight } from './use-in-flight';
 
 /** The spars of each day, in day order (the list arrives sorted by day, then time). */
 function byDay(spars: AgreedSpar[]): Array<[string, AgreedSpar[]]> {
@@ -52,15 +53,25 @@ function SentNote({ request }: { request: SentSparRequest }) {
   );
 }
 
-/** Cancel and withdraw: each one write, its refusal said; a won write patches the list. */
+/**
+ * Cancel and withdraw: each one write, its refusal said; a won write patches the list. A write
+ * lost to a request no longer open reads the page again (`onStale`): the spar may be cancelled
+ * already, the request a spar now. A card's buttons are disabled while its write runs.
+ */
 function useSparActions(
   apiUrl: string,
   onCancelled: (id: string, message: string | null) => void,
   onWithdrawn: (id: string) => void,
+  onStale: () => void,
 ) {
   const { t } = useI18n();
   const { prompt, promptDialog } = usePrompt();
+  const { inFlight, run } = useInFlight();
   const [refusal, setRefusal] = useState<string | null>(null);
+  const refused = (code: string | null) => {
+    if (code === 'not_open') onStale();
+    setRefusal(t(sparRefusalKey(code)));
+  };
   const cancel = async (spar: AgreedSpar) => {
     const message = await prompt({
       title: t('publicApp.fightBook.spars.cancelTitle'),
@@ -75,23 +86,19 @@ function useSparActions(
     if (message === null) return;
     setRefusal(null);
     const body = message.trim() ? { message: message.trim() } : {};
-    const res = await writeFightBook(
-      apiUrl,
-      `/api/v1/me/fightbook/requests/${spar.id}/cancel`,
-      'POST',
-      body,
-    );
+    const path = `/api/v1/me/fightbook/requests/${spar.id}/cancel`;
+    const res = await run(spar.id, () => writeFightBook(apiUrl, path, 'POST', body));
     if (res.ok) onCancelled(spar.id, message.trim() || null);
-    else setRefusal(t(sparRefusalKey(res.code)));
+    else refused(res.code);
   };
   const withdraw = async (request: SentSparRequest) => {
     setRefusal(null);
     const path = `/api/v1/me/fightbook/requests/${request.id}/withdraw`;
-    const res = await writeFightBook(apiUrl, path, 'POST');
+    const res = await run(request.id, () => writeFightBook(apiUrl, path, 'POST'));
     if (res.ok) onWithdrawn(request.id);
-    else setRefusal(t(sparRefusalKey(res.code)));
+    else refused(res.code);
   };
-  return { cancel, withdraw, refusal, promptDialog };
+  return { cancel, withdraw, inFlight, refusal, promptDialog };
 }
 
 /** My agreed spars, by day, then the requests I sent and their answer so far. */
@@ -100,9 +107,10 @@ export function MySparsTab(props: {
   spars: MySpars;
   onCancelled: (id: string, message: string | null) => void;
   onWithdrawn: (id: string) => void;
+  onStale: () => void;
 }) {
   const { t } = useI18n();
-  const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn);
+  const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn, props.onStale);
   const { spars, sent } = props.spars;
   if (spars.length === 0 && sent.length === 0) {
     return (
@@ -119,9 +127,17 @@ export function MySparsTab(props: {
           {actions.refusal}
         </p>
       ) : null}
-      <SparDays spars={spars} onCancel={(spar) => void actions.cancel(spar)} />
+      <SparDays
+        spars={spars}
+        busy={actions.inFlight}
+        onCancel={(spar) => void actions.cancel(spar)}
+      />
       {sent.length > 0 ? (
-        <SentList sent={sent} onWithdraw={(r) => void actions.withdraw(r)} />
+        <SentList
+          sent={sent}
+          busy={actions.inFlight}
+          onWithdraw={(r) => void actions.withdraw(r)}
+        />
       ) : null}
       {actions.promptDialog}
     </div>
@@ -129,7 +145,11 @@ export function MySparsTab(props: {
 }
 
 /** My spars, a heading per day. */
-function SparDays(props: { spars: AgreedSpar[]; onCancel: (spar: AgreedSpar) => void }) {
+function SparDays(props: {
+  spars: AgreedSpar[];
+  busy: (id: string) => boolean;
+  onCancel: (spar: AgreedSpar) => void;
+}) {
   const { t } = useI18n();
   const dayLabel = useDayLabel();
   return byDay(props.spars).map(([day, ofDay]) => (
@@ -147,7 +167,12 @@ function SparDays(props: { spars: AgreedSpar[]; onCancel: (spar: AgreedSpar) => 
             note={<AgreedNote spar={spar} />}
           >
             {spar.status === 'agreed' ? (
-              <Button type="button" variant="outline" onClick={() => props.onCancel(spar)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={props.busy(spar.id)}
+                onClick={() => props.onCancel(spar)}
+              >
                 {t('publicApp.fightBook.spars.cancel')}
               </Button>
             ) : null}
@@ -158,7 +183,11 @@ function SparDays(props: { spars: AgreedSpar[]; onCancel: (spar: AgreedSpar) => 
   ));
 }
 
-function SentList(props: { sent: SentSparRequest[]; onWithdraw: (r: SentSparRequest) => void }) {
+function SentList(props: {
+  sent: SentSparRequest[];
+  busy: (id: string) => boolean;
+  onWithdraw: (r: SentSparRequest) => void;
+}) {
   const { t } = useI18n();
   return (
     <section>
@@ -175,7 +204,12 @@ function SentList(props: { sent: SentSparRequest[]; onWithdraw: (r: SentSparRequ
             note={<SentNote request={request} />}
           >
             {request.status === 'pending' ? (
-              <Button type="button" variant="outline" onClick={() => props.onWithdraw(request)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={props.busy(request.id)}
+                onClick={() => props.onWithdraw(request)}
+              >
                 {t('publicApp.fightBook.spars.withdraw')}
               </Button>
             ) : null}

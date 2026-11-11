@@ -7,30 +7,41 @@ import { Button, EmptyState, Modal, useConfirm } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { SparCard } from './SparCard';
+import { useInFlight } from './use-in-flight';
 
 export type AnswerBody = { answer: 'yes' | 'no'; comment?: string; showComment?: boolean };
 
 /**
  * What the Inbox's buttons do. A won answer, and one lost to a request no longer open, take the
- * card out of the list from the write's own answer: no re-read. Any refusal is said.
+ * card out of the list from the write's own answer. A lost one also reads the page again
+ * (`onStale`): the request may be a spar now. Any refusal is said. A card's buttons are disabled
+ * while its write runs.
  */
 function useInboxActions(
   apiUrl: string,
   onAnswered: (request: IncomingSparRequest, status: string | null) => void,
   onBlocked: (asker: SparFighter) => void,
+  onStale: () => void,
 ) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
+  const { inFlight, run } = useInFlight();
   const [refusal, setRefusal] = useState<string | null>(null);
   const answer = async (request: IncomingSparRequest, body: AnswerBody) => {
     setRefusal(null);
     const path = `/api/v1/me/fightbook/requests/${request.id}/answer`;
-    const res = await writeFightBook<{ status: string }>(apiUrl, path, 'POST', body);
+    const res = await run(request.id, () =>
+      writeFightBook<{ status: string }>(apiUrl, path, 'POST', body),
+    );
     if (res.ok) return onAnswered(request, res.data.status);
-    if (res.code === 'not_open') onAnswered(request, null);
+    if (res.code === 'not_open') {
+      onAnswered(request, null);
+      onStale();
+    }
     setRefusal(t(sparRefusalKey(res.code)));
   };
-  const block = async (asker: SparFighter) => {
+  const block = async (request: IncomingSparRequest) => {
+    const { asker } = request;
     const sure = await confirm({
       title: t('publicApp.fightBook.inbox.blockTitle'),
       description: t('publicApp.fightBook.inbox.blockDescription'),
@@ -41,11 +52,13 @@ function useInboxActions(
     if (!sure) return;
     setRefusal(null);
     const body = { globalPersonId: asker.globalPersonId };
-    const res = await writeFightBook(apiUrl, '/api/v1/me/fightbook/blocks', 'POST', body);
+    const res = await run(request.id, () =>
+      writeFightBook(apiUrl, '/api/v1/me/fightbook/blocks', 'POST', body),
+    );
     if (res.ok) onBlocked(asker);
     else setRefusal(t(sparRefusalKey(res.code)));
   };
-  return { answer, block, refusal, confirmDialog };
+  return { answer, block, inFlight, refusal, confirmDialog };
 }
 
 /** "Not this time", with a comment that stays private unless she ticks "let them see it". */
@@ -94,21 +107,22 @@ function DeclineDialog(props: { onSend: (body: AnswerBody) => void; onClose: () 
 /** One request waiting for my answer, with its three buttons. */
 function InboxCard(props: {
   request: IncomingSparRequest;
+  busy: boolean;
   onYes: () => void;
   onNo: () => void;
   onBlock: () => void;
 }) {
   const { t } = useI18n();
-  const { request } = props;
+  const { request, busy } = props;
   return (
     <SparCard fighter={request.asker} when={request} message={request.message}>
-      <Button type="button" onClick={props.onYes}>
+      <Button type="button" disabled={busy} onClick={props.onYes}>
         {t('publicApp.fightBook.inbox.yes')}
       </Button>
-      <Button type="button" variant="secondary" onClick={props.onNo}>
+      <Button type="button" variant="secondary" disabled={busy} onClick={props.onNo}>
         {t('publicApp.fightBook.inbox.no')}
       </Button>
-      <Button type="button" variant="ghost" onClick={props.onBlock}>
+      <Button type="button" variant="ghost" disabled={busy} onClick={props.onBlock}>
         {t('publicApp.fightBook.inbox.block')}
       </Button>
     </SparCard>
@@ -121,9 +135,10 @@ export function InboxTab(props: {
   inbox: IncomingSparRequest[];
   onAnswered: (request: IncomingSparRequest, status: string | null) => void;
   onBlocked: (asker: SparFighter) => void;
+  onStale: () => void;
 }) {
   const { t } = useI18n();
-  const actions = useInboxActions(props.apiUrl, props.onAnswered, props.onBlocked);
+  const actions = useInboxActions(props.apiUrl, props.onAnswered, props.onBlocked, props.onStale);
   const [declining, setDeclining] = useState<IncomingSparRequest | null>(null);
   return (
     <div className="flex flex-col gap-3">
@@ -143,9 +158,10 @@ export function InboxTab(props: {
             <InboxCard
               key={request.id}
               request={request}
+              busy={actions.inFlight(request.id)}
               onYes={() => void actions.answer(request, { answer: 'yes' })}
               onNo={() => setDeclining(request)}
-              onBlock={() => void actions.block(request.asker)}
+              onBlock={() => void actions.block(request)}
             />
           ))}
         </ul>
