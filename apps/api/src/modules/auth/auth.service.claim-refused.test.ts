@@ -245,10 +245,9 @@ describe('a claim that lost the row between its check and its write (rulings 581
     await service.handleCallback('token-hash', 'claim', ROW, undefined, reply as never);
     // The sign-in autolink reads after the claim: only the first three reads are the claim's.
     expect(selectsFor(db.from, 'persons').slice(0, 3)).toEqual([CHECK, 'id', CHECK]);
-    const [[target]] = reply.redirect.mock.calls as string[][];
-    return new URLSearchParams(decodeURIComponent(target!.split('next=')[1]!).split('?')[1]).get(
-      'claimRefused',
-    );
+    const target = String(reply.redirect.mock.calls[0]?.[0]);
+    const next = decodeURIComponent(target.split('next=')[1] ?? '');
+    return new URLSearchParams(next.split('?')[1]).get('claimRefused');
   };
 
   it('the emailed link names each reason the second read finds (ruling 583)', async () => {
