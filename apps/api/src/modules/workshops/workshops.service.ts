@@ -44,6 +44,12 @@ import {
   WORKSHOP_LOGO_MAX_BYTES,
 } from './workshop-assets';
 import { deleteInstructorPhotoFolder } from './workshop-instructor-photo';
+import {
+  type InstructorDetails,
+  PUBLIC_INSTRUCTOR_COLUMNS,
+  type PublicInstructorLine,
+  publicInstructors,
+} from './instructor-about';
 
 /** Multipart file payload for the workshop logo upload endpoint. */
 export interface WorkshopLogoUpload {
@@ -179,8 +185,16 @@ export interface WorkshopView {
   venue: NamedRef | null;
   /** Event IANA timezone — set on public reads so the FE renders in event time. */
   eventTimezone: string | null;
-  /** `hasDetails` (organiser reads only): this Workshop says something of its own about them. */
-  instructors: Array<{ globalPersonId: string | null; displayName: string; hasDetails?: boolean }>;
+  /**
+   * `hasDetails` (organiser reads only): this Workshop says something of its own about them.
+   * `about` (the public Workshop page's read only): the bio, club and photo it shows (3.6).
+   */
+  instructors: Array<{
+    globalPersonId: string | null;
+    displayName: string;
+    hasDetails?: boolean;
+    about?: InstructorDetails;
+  }>;
   /**
    * True when the CALLER is a listed instructor of this workshop — they teach
    * it, so they can't take a participant seat. Caller-scoped, therefore only
@@ -291,6 +305,9 @@ const workshopSelect = (instructorColumns: string) => `
 
 const WORKSHOP_SELECT = workshopSelect('global_person_id, display_name');
 
+/** The public Workshop page adds what it says about each instructor (3.6); the list does not. */
+const PUBLIC_DETAIL_WORKSHOP_SELECT = workshopSelect(PUBLIC_INSTRUCTOR_COLUMNS);
+
 /**
  * The organiser's reads add the Workshop's own settings the public pages never show: the front
  * desk's auto check-in switch (rulings 540, 543), and whether this Workshop says something of its
@@ -384,7 +401,7 @@ export class WorkshopsService {
 
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .select(WORKSHOP_SELECT)
+      .select(PUBLIC_DETAIL_WORKSHOP_SELECT)
       .eq('event_id', event.id)
       .eq('slug', workshopSlug)
       .in('status', PUBLIC_WORKSHOP_STATUSES)
@@ -411,6 +428,7 @@ export class WorkshopsService {
       ...this.mapWorkshop(row, counts),
       eventTimezone: event.timezone,
       viewerIsInstructor,
+      instructors: publicInstructors(row.workshop_instructors as PublicInstructorLine[] | null),
     };
     const [withPrivacy] = await this.applyInstructorPrivacy([view]);
     return withPrivacy!;

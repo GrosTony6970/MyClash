@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Upload } from '../../common/read-upload';
 import { ensurePublicBucket } from '../../common/storage-bucket';
-import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
+import { type InstructorDetails, overrideOf, profileOf, type RawLine } from './instructor-about';
 import {
   ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
   WORKSHOP_LOGO_BUCKET,
@@ -12,13 +12,6 @@ import { instructorPhotoLink, instructorPhotoPath, ownPhotoKey } from './worksho
 import { textOrNull } from './workshop-text';
 import { WorkshopsService } from './workshops.service';
 
-/** A bio, a club line and a photo: what a Workshop or a profile says about an instructor. */
-export interface InstructorDetails {
-  bio: string | null;
-  club: string | null;
-  photoUrl: string | null;
-}
-
 /**
  * One instructor line of a Workshop: what this Workshop says over the profile (rulings 556, 560),
  * and the profile it falls back to, shown as the empty boxes' grey hint (563).
@@ -26,36 +19,6 @@ export interface InstructorDetails {
 export interface InstructorDetailsView {
   override: InstructorDetails;
   profile: InstructorDetails;
-}
-
-interface RawLine {
-  bio: string | null;
-  affiliation: string | null;
-  photo_url: string | null;
-  global_persons: {
-    bio: string | null;
-    photo_url: string | null;
-    public_visibility: unknown;
-    clubs: { name: string | null } | null;
-  } | null;
-}
-
-function overrideOf(line: Pick<RawLine, 'bio' | 'affiliation' | 'photo_url'>): InstructorDetails {
-  return { bio: line.bio, club: line.affiliation, photoUrl: line.photo_url };
-}
-
-/**
- * The profile's values. Its bio only to the person or when the profile shows it (563): an
- * organiser never reads a bio the instructor made private. Photo and club have no switch.
- */
-function profileOf(line: RawLine, own: boolean): InstructorDetails {
-  const profile = line.global_persons;
-  const bioShown = own || isFieldPublic(profile?.public_visibility, 'bio');
-  return {
-    bio: bioShown ? (profile?.bio ?? null) : null,
-    club: profile?.clubs?.name ?? null,
-    photoUrl: profile?.photo_url ?? null,
-  };
 }
 
 /**
