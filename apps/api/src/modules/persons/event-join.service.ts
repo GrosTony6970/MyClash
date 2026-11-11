@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { eventNotFound } from '../../common/auth/event-read-gate';
 import { AuthService } from '../auth/auth.service';
@@ -48,6 +43,9 @@ interface RosterRow {
 
 const ROSTER_SELECT = 'id, email, given_name, family_name, claimed_by_user_id, global_person_id';
 
+/** The claim lost its row to a change of the list: not an answer, `join` looks again. */
+class ClaimLost extends Error {}
+
 function askOrganiser(reason: AskOrganiserReason): ConflictException {
   return new ConflictException({
     code: 'ASK_ORGANISER',
@@ -63,6 +61,8 @@ function askOrganiser(reason: AskOrganiserReason): ConflictException {
  */
 @Injectable()
 export class EventJoinService {
+  private readonly logger = new Logger(EventJoinService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly auth: AuthService,
@@ -78,6 +78,39 @@ export class EventJoinService {
   ): Promise<JoinOutcome> {
     await this.assertJoinable(eventId, reader);
     const profile = await this.liveProfile(account.id);
+    // A claim lost to a change of the list (ruling 582): look once more, and do what fits now.
+    const placed =
+      (await this.attempt(eventId, account, profile, typed)) ??
+      (await this.attempt(eventId, account, profile, typed));
+    if (placed) return placed;
+    this.logger.warn(`join of ${account.id} at Event ${eventId}: the list changed twice`);
+    throw new ConflictException({
+      code: 'ROSTER_CHANGED',
+      message: 'The list changed while you joined. Try again.',
+    });
+  }
+
+  /** One look at the list and what it calls for; null when the claim was lost to a change. */
+  private async attempt(
+    eventId: string,
+    account: Account,
+    profile: Profile | null,
+    typed: Partial<Names>,
+  ): Promise<JoinOutcome | null> {
+    try {
+      return await this.place(eventId, account, profile, typed);
+    } catch (err) {
+      if (err instanceof ClaimLost) return null;
+      throw err;
+    }
+  }
+
+  private async place(
+    eventId: string,
+    account: Account,
+    profile: Profile | null,
+    typed: Partial<Names>,
+  ): Promise<JoinOutcome> {
     const found = await this.ownRow(eventId, account);
     if (found) return found;
     const names = profile ?? namesTyped(typed);
@@ -204,10 +237,8 @@ export class EventJoinService {
     // (named, accepted: two taps landing at once; the organiser can remove it).
     if (outcome === 'already_at_event') throw new ConflictException('Already on this Event');
     // `skipped`: the row changed between the roster read and the claim (deleted, given another
-    // address, or taken by another account, ruling 581): a server error, named, not fixed.
-    throw new InternalServerErrorException(
-      `Row ${personId} could not be claimed by its own address`,
-    );
+    // address, or taken by another account; the claim's log says which). `join` looks again.
+    throw new ClaimLost();
   }
 }
 

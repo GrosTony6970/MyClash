@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -283,5 +284,88 @@ describe('EventJoinService — an account joins an Event by itself (rulings 516,
       persons: [ok([]), ok([]), ok([]), ok([])],
     });
     await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toBe(fault);
+  });
+});
+
+/**
+ * Bob presses "join"; the list has an unclaimed row with his address. In that same second the
+ * organiser saves a change to it, so the claim misses (ruling 582). It answered a 500. The join
+ * now looks at the list once more and does what fits it then.
+ */
+describe('EventJoinService — a claim lost to a change of the list (ruling 582)', () => {
+  const LISTED = row({ id: 'p-listed', email: 'bob@mail.fr' });
+
+  it('the row went to another account: ask the organiser, and make no row', async () => {
+    claimOwnRow.mockResolvedValueOnce('skipped');
+    const { joins } = service({
+      events: [ok(OPEN_EVENT)],
+      global_persons: [ok([PROFILE])],
+      persons: [ok([LISTED]), ok([{ ...LISTED, claimed_by_user_id: 'user-x' }])],
+    });
+    await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
+      response: { code: 'ASK_ORGANISER', reason: 'yourAddress' },
+    });
+    expect(claimOwnRow).toHaveBeenCalledTimes(1);
+    expect(createPerson).not.toHaveBeenCalled();
+  });
+
+  it('the row went to another address: Bob gets a row of his own', async () => {
+    claimOwnRow.mockResolvedValueOnce('skipped');
+    const moved = { ...LISTED, email: 'lea@mail.fr' };
+    const { joins } = service({
+      events: [ok(OPEN_EVENT)],
+      global_persons: [ok([PROFILE])],
+      persons: [ok([LISTED]), ok([moved]), ok([moved])],
+    });
+    await expect(joins.join('ev-1', ACCOUNT, READER, {})).resolves.toEqual({
+      personId: 'p-new',
+      joined: 'new',
+    });
+    expect(claimOwnRow.mock.calls).toEqual([
+      [ACCOUNT, 'p-listed'],
+      [ACCOUNT, 'p-new'],
+    ]);
+  });
+
+  it('the row just made changed before its claim: the second look claims it, no second row', async () => {
+    claimOwnRow.mockResolvedValueOnce('skipped');
+    const made = row({
+      id: 'p-new',
+      email: 'Bob@Mail.fr',
+      given_name: 'Bob',
+      family_name: 'Martin',
+    });
+    const { joins } = service({
+      events: [ok(OPEN_EVENT)],
+      global_persons: [ok([PROFILE])],
+      persons: [ok([]), ok([]), ok([made])],
+    });
+    await expect(joins.join('ev-1', ACCOUNT, READER, {})).resolves.toEqual({
+      personId: 'p-new',
+      joined: 'claimed',
+    });
+    expect(createPerson).toHaveBeenCalledTimes(1);
+  });
+
+  it('lost twice: a plain refusal (409), and the log says so', async () => {
+    claimOwnRow.mockResolvedValue('skipped');
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { joins, reads } = service({
+      events: [ok(OPEN_EVENT)],
+      global_persons: [ok([PROFILE])],
+      persons: [ok([LISTED]), ok([LISTED])],
+    });
+    try {
+      await expect(joins.join('ev-1', ACCOUNT, READER, {})).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'ROSTER_CHANGED' },
+      });
+      expect(warn).toHaveBeenCalledWith('join of user-bob at Event ev-1: the list changed twice');
+    } finally {
+      warn.mockRestore();
+    }
+    expect(claimOwnRow).toHaveBeenCalledTimes(2);
+    expect(reads.filter((r) => r.table === 'persons')).toHaveLength(2);
+    expect(createPerson).not.toHaveBeenCalled();
   });
 });

@@ -42,7 +42,7 @@ export class EventJoinController {
   @ApiResponse({
     status: 409,
     description:
-      '`SelfJoinClosed`, or `AskOrganiser` with `reason`: sameName | yourProfile | yourAddress',
+      '`SelfJoinClosed`, `AskOrganiser` with `reason`: sameName | yourProfile | yourAddress, or `RosterChanged`: the list changed twice during the join',
   })
   async join(
     @Param('eventId', ParseUUIDPipe) eventId: string,
