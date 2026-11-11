@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CLAIM_LINK_REFUSALS } from '@myclash/types';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
@@ -268,20 +267,6 @@ describe('AuthService.handleCallback — claim', () => {
     const call = service.requestMagicLink({ email: EMAIL, type: 'claim', personId: ROW });
     await expect(call).rejects.toThrow(text);
     expect(await call.catch((e: { getStatus(): number }) => e.getStatus())).toBe(status);
-  });
-
-  // The 400 says nothing of why; the log keeps the database's words.
-  it('the link request logs why a row could not be read', async () => {
-    seedTables({ persons: { data: null, error: { message: 'timeout' } } });
-    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    try {
-      await service
-        .requestMagicLink({ email: EMAIL, type: 'claim', personId: ROW })
-        .catch(() => undefined);
-      expect(warn).toHaveBeenCalledWith(`claim check of person ${ROW} failed: timeout`);
-    } finally {
-      warn.mockRestore();
-    }
   });
 
   it('the Google claim answers a row another account holds as the link does (307)', async () => {

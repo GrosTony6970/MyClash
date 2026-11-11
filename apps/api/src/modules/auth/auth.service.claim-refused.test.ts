@@ -180,6 +180,19 @@ describe('the emailed claim link (ruling 300)', () => {
     await expect(land(service, reply)).rejects.toThrow('connection refused');
     expect(reply.redirect).not.toHaveBeenCalled();
   });
+
+  // Asking for the link: the 400 says nothing of why a row could not be read; the log keeps it.
+  it('logs why the row could not be read when the link is asked for', async () => {
+    const { service } = build([FAULT]);
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      const asked = service.requestMagicLink({ email: LEA.email, type: 'claim', personId: ROW });
+      await expect(asked).rejects.toThrow('Could not validate profile');
+      expect(warn).toHaveBeenCalledWith(`claim check of person ${ROW} failed: connection refused`);
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 /**
