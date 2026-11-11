@@ -100,8 +100,9 @@ export async function noAskingTwice(tx) {
     check('same Event after a no', await refused(q, (sp) => ask(sp, F.marc, F.julie)), 'not_again');
     check(
       'another Event after a no',
-      (await ask(q, F.marc, F.julie, { event: E.b })).status,
-      'pending',
+      // Refused here would abort the probe unnamed: the refusal word is the failure to report.
+      await refused(q, (sp) => ask(sp, F.marc, F.julie, { event: E.b })),
+      null,
     );
   });
   await scenario(tx, async (q) => {
@@ -116,8 +117,8 @@ export async function noAskingTwice(tx) {
     await q`UPDATE spar_requests SET expires_at = now() - interval '8 days' WHERE id = ${free.id}`;
     check(
       'free date, 8 days after the day',
-      (await ask(q, F.marc, F.julie, { event: null })).status,
-      'pending',
+      await refused(q, (sp) => ask(sp, F.marc, F.julie, { event: null })),
+      null,
     );
   });
   await scenario(tx, async (q) => {
