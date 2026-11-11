@@ -1314,6 +1314,7 @@ export const publicApp = {
     meTournament: 'Mon tournoi',
     meWorkshops: 'Mes ateliers',
     meFollows: 'Personnes',
+    meFightBook: 'FightBook',
     meInstructor: 'Instructeur',
     meLeagues: 'Mes ligues',
     meProfile: 'Profil',
@@ -1550,6 +1551,50 @@ export const publicApp = {
       commentTooLong: '{max} caractères au plus.',
       send: 'Signaler',
       cancel: 'Annuler',
+    },
+  },
+  fightBook: {
+    title: 'FightBook',
+    subtitle:
+      'Proposez un spar amical à d’autres combattants, et gardez chaque oui dans une seule liste.',
+    loadFailed: 'FightBook n’a pas pu être chargé.',
+    unknownFighter: 'Un combattant',
+    noProfile: {
+      title: 'FightBook demande un profil de combattant',
+      body: 'Réclamez ou retrouvez d’abord votre profil de combattant, depuis votre espace personnel.',
+      action: 'Aller à mon espace personnel',
+    },
+    off: {
+      title: 'FightBook est désactivé',
+      body: 'Ici, les combattants se proposent des spars amicaux, avant un événement ou le jour même. Chaque réponse reste privée : oui, ou « pas cette fois ». Tant qu’il est désactivé, personne ne peut vous solliciter et vous ne pouvez solliciter personne.',
+    },
+    settings: {
+      heading: 'Réglages FightBook',
+      enabled: 'Utiliser FightBook',
+      enabledDescription:
+        'Désactivé : personne ne peut vous proposer de spar et vous ne pouvez en proposer à personne. Vos demandes encore en attente sont retirées.',
+      saveFailed: 'Enregistrement impossible. Réessayez.',
+      blockedHeading: 'Combattants bloqués',
+      blockedDescription:
+        'Ils n’en sont pas informés. Leurs demandes reviennent « Pas cette fois ».',
+      blockedEmpty: 'Vous n’avez bloqué personne.',
+      unblock: 'Débloquer',
+      unblockFailed: 'Déblocage impossible. Réessayez.',
+    },
+    refusal: {
+      no_profile: 'FightBook demande un profil de combattant.',
+      fightbook_off: 'Activez d’abord FightBook.',
+      not_on_fightbook: 'Ce combattant n’utilise pas FightBook.',
+      already_asked: 'Vous avez déjà sollicité ce combattant. Attendez sa réponse.',
+      not_again:
+        'Ce combattant a répondu « pas cette fois ». Vous ne pouvez pas redemander pour l’instant.',
+      you_blocked: 'Vous avez bloqué ce combattant. Débloquez-le d’abord.',
+      not_open: 'Cette demande n’est plus ouverte.',
+      bad_day: 'Ce jour ne peut pas être choisi.',
+      bad_event: 'Un spar ne peut nommer qu’un événement public auquel vous participez.',
+      bad_answer: 'Cette réponse n’est pas possible.',
+      self: 'Vous ne pouvez pas vous solliciter vous-même.',
+      unknown: 'Une erreur est survenue. Réessayez.',
     },
   },
   myPhotos: {
