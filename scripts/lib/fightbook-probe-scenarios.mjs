@@ -171,6 +171,9 @@ export async function answering(tx) {
       'not_open',
     );
   });
+}
+
+export async function answeringWithComments(tx) {
   await scenario(tx, async (q) => {
     const kept = await ask(q, F.marc, F.julie);
     await answer(q, kept.id, F.julie, 'no', 'Not my weapon', false);

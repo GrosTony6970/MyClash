@@ -25,6 +25,7 @@ import { ROLLBACK, check, probeResult, rolledBack } from './lib/merge-probe-fixt
 import {
   FUNCTIONS,
   answering,
+  answeringWithComments,
   asking,
   blocking,
   noAskingTwice,
@@ -66,6 +67,7 @@ try {
       await asking(tx);
       await noAskingTwice(tx);
       await answering(tx);
+      await answeringWithComments(tx);
       await blocking(tx);
       await tableShape(tx);
       await onlyTheServiceRole(tx);
