@@ -2033,8 +2033,17 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 
 ### 11bis.5 Public discovery
 
-- `/e/[eventSlug]/workshops` — browsable workshop catalog with filters (day, category, language, level, instructor).
-- Workshop detail page with description, instructor bio, sessions, and the register controls of 11bis.4.
+- `/e/[eventSlug]/workshops` — browsable workshop catalog: a search over titles and instructor
+  names, and filters (day, category, level, language, weapon, instructor), each listing only what
+  the Event's Workshops use (`filter-workshops.ts`). The list reads instructors by name only.
+- Workshop detail page (`WorkshopIntro.tsx`): the Workshop's picture, weapon, description,
+  prerequisites ("Before you come"), a card per instructor, the sessions, and the register
+  controls of 11bis.4. The instructor cards come from the one public read that carries them
+  (`GET workshops/slug/:slug`, slice 3.6; `apps/api/src/modules/workshops/instructor-about.ts`):
+  per field, what the Workshop says about the instructor, else what a live profile shows; a
+  private profile bio never; nothing from a deleted, merged-away or erased profile (577). Whoever
+  may open the page reads them, a draft Event's insiders included (575); an instructor who hides
+  their Workshops is dropped whole. Anonymising a person renames them on these lines too (578).
 - Anonymous browsing allowed; a booking needs an account or a guest session.
 
 ### 11bis.6 Organizer admin
@@ -2060,7 +2069,7 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   after a question asked before any write of the Save (561). Erasure clears the three and deletes
   the files, before the profile forgets the account. The Event archive carries the photo. The
   three columns are closed to the web roles (migration 0260, ruling 565): only the API reads
-  them, and slice 3.6 shows them to the public through the app.
+  them, and the public Workshop page shows them through the app (11bis.5, slice 3.6).
 - Drag-drop session scheduler showing Lices + venue rooms in a single timeline. A Workshop may
   run several sessions (operator rulings 515, 524): the drawer lists every Workshop, and a drag
   of one adds a session; a card on the grid is one session, moved by its id; a session the board
