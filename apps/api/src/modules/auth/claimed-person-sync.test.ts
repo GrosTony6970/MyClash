@@ -58,13 +58,15 @@ async function saved(profileId: string | null, seed: Record<string, TableSeed>) 
   return writesTo(db, 'persons');
 }
 
-const claimedFor = (ids: string[]) => [
+/** One write per address as stored: it lands only while the row still carries it (582). */
+const claimedFor = (ids: string[], email = 'lea@example.com') => [
   {
     table: 'persons',
     op: 'update',
     row: { claim_status: 'claimed', claimed_by_user_id: LEA },
     filters: [
       { method: 'in', args: ['id', ids] },
+      { method: 'eq', args: ['email', email] },
       { method: 'is', args: ['claimed_by_user_id', null] },
     ],
   },
@@ -89,7 +91,17 @@ describe('a roster row saved for a profile that an account holds', () => {
 
   it('becomes hers when Claire typed the address with capitals and spaces', async () => {
     const typed = { ...OPEN_ROW, email: '  Lea@Example.COM ' };
-    expect(await saved(HER_PROFILE, tables([typed]))).toEqual(claimedFor(['p-lea-open']));
+    expect(await saved(HER_PROFILE, tables([typed]))).toEqual(
+      claimedFor(['p-lea-open'], '  Lea@Example.COM '),
+    );
+  });
+
+  it('writes each row under the address it carries, as typed', async () => {
+    const winter = { ...OPEN_ROW, id: 'p-lea-winter', email: 'LEA@example.com' };
+    expect(await saved(HER_PROFILE, tables([OPEN_ROW, winter]))).toEqual([
+      ...claimedFor(['p-lea-open']),
+      ...claimedFor(['p-lea-winter'], 'LEA@example.com'),
+    ]);
   });
 
   it('takes her older rows of the same profile with it', async () => {

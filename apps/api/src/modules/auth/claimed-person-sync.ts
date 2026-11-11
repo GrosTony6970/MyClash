@@ -45,7 +45,9 @@ export interface ClaimedPersonSyncTarget {
  * Reads the candidates first so the address can be compared here: `ilike` would
  * read `_` and `%` in a stored address as wildcards, which is the hole this
  * closes. The write keeps `claimed_by_user_id IS NULL` so a row claimed between
- * the read and the write is never taken from its owner.
+ * the read and the write is never taken from its owner, and requires the address
+ * it read, so a row given another address in that instant is not taken either
+ * (ruling 582, as the claim's own write).
  *
  * Best-effort: a failure is logged, never thrown — it must not block a login or
  * a claim confirmation. One owner for its callers (the sign-in autolink, the /me
@@ -73,9 +75,10 @@ export async function syncClaimedPersonRows(
     if (error) throw error;
 
     const linked = (data ?? []) as Array<{ id: string; email: string | null }>;
-    const mine = linked
-      .filter((row) => personEmailMatchesUser(row.email, accountEmail))
-      .map((row) => row.id);
+    const mine = linked.filter(
+      (row): row is { id: string; email: string } =>
+        !!row.email && personEmailMatchesUser(row.email, accountEmail),
+    );
     if (mine.length < linked.length) {
       // The ruled cost, where it happens. Without this line a fighter asking
       // why an Event is missing from their /me leaves no trace in the log at
@@ -85,20 +88,30 @@ export async function syncClaimedPersonRows(
         `persons claim-status sync for global_persons ${globalPersonId}: claimed ${mine.length} of ${linked.length} linked rows; the rest carry another address or none`,
       );
     }
-    if (mine.length === 0) return;
-
-    const { error: updateError } = await deps.supabase.service
-      .from('persons')
-      .update({ claim_status: 'claimed', claimed_by_user_id: userId })
-      .in('id', mine)
-      .is('claimed_by_user_id', null);
-    if (updateError) throw updateError;
+    // One write per stored address, which the write requires (ruling 582): an organiser save
+    // that moves a row to another address between the read and the write leaves it unclaimed.
+    for (const [email, ids] of idsByStoredAddress(mine)) {
+      const { error: updateError } = await deps.supabase.service
+        .from('persons')
+        .update({ claim_status: 'claimed', claimed_by_user_id: userId })
+        .in('id', ids)
+        .eq('email', email)
+        .is('claimed_by_user_id', null);
+      if (updateError) throw updateError;
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     deps.logger.warn(
       `persons claim-status sync skipped for global_persons ${globalPersonId}: ${message}`,
     );
   }
+}
+
+/** The rows' ids under each address exactly as stored: usually one address, so one write. */
+function idsByStoredAddress(rows: Array<{ id: string; email: string }>): Map<string, string[]> {
+  const byAddress = new Map<string, string[]>();
+  for (const row of rows) byAddress.set(row.email, [...(byAddress.get(row.email) ?? []), row.id]);
+  return byAddress;
 }
 
 /**
