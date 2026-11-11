@@ -87,7 +87,7 @@ import { safeRedirectPath } from './safe-redirect';
 import { passwordIfKnown, signsInWithPassword } from './sign-in-methods';
 import { SIGNUP_ANSWER, signupAccount, type SignupAccount } from './signup-account';
 
-/** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
+/** What `claimRefusal` can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
 
 /** The check's answer: a failed read carries the database's words, for the log and the error. */
@@ -796,8 +796,11 @@ export class AuthService {
     }
     if (checked.refusal) return 'skipped';
     const refused = await this.completeClaim(user.id, user.email, personId);
-    // Another account took the row between the check and the write (ruling 581).
-    if (refused === 'held_by_another') return 'skipped';
+    if (refused === 'held_by_another') {
+      // Another account took the row between the check and the write (ruling 581).
+      this.logger.warn(`claim of person ${personId} lost: another account took it`);
+      return 'skipped';
+    }
     return refused ?? 'claimed';
   }
 
@@ -966,8 +969,11 @@ export class AuthService {
     email: string | undefined,
     claimingUserId: string | null,
   ): Promise<void> {
-    const { refusal } = await this.claimRefusal(personId, email, claimingUserId);
-    if (refusal) throw CLAIM_REFUSAL_ERRORS[refusal]();
+    const checked = await this.claimRefusal(personId, email, claimingUserId);
+    if (checked.refusal === 'check_failed') {
+      this.logger.warn(`claim check of person ${personId} failed: ${checked.fault}`);
+    }
+    if (checked.refusal) throw CLAIM_REFUSAL_ERRORS[checked.refusal]();
   }
 
   /**
@@ -1040,7 +1046,10 @@ export class AuthService {
    * handed it to another account before this write. The write lands only on a
    * row nobody else holds; one it missed answers `held_by_another`. A row
    * deleted in that instant answers the same: either way it is not hers. The
-   * `select` is what tells: without it the answer carries no rows at all.
+   * `select` is what tells: without it the answer carries no rows at all. The
+   * write does not re-check the ADDRESS: a save that moves an unheld row to
+   * another address in that instant leaves it hers, with the new address
+   * (named, not fixed; ruling 581 is about the holder).
    */
   private async completeClaim(
     userId: string,

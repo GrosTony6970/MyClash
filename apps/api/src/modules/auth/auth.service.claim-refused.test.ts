@@ -1,4 +1,4 @@
-import { HttpException } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
@@ -183,10 +183,10 @@ describe('the emailed claim link (ruling 300)', () => {
 });
 
 /**
- * The race (ruling 581). An organiser changes a row's address from Tom's to Lea's. At that instant
- * Tom presses "This is me": his check reads the row before the change, the organiser's save hands
- * the row to Lea, then Tom's write lands. It used to take the row from Lea. The write now lands
- * only on a row nobody else holds, and one it missed is Tom's refusal. The canned write answers
+ * The race (ruling 581). An organiser changes a row's address from Lea's to Tom's. At that instant
+ * Lea presses "This is me": her check reads the row before the change, the organiser's save hands
+ * the row to Tom, then Lea's write lands. It used to take the row from Tom. The write now lands
+ * only on a row nobody else holds, and one it missed is Lea's refusal. The canned write answers
  * no row, as the database does when its filter misses.
  */
 describe('a claim that lost the row between its check and its write (ruling 581)', () => {
@@ -195,11 +195,15 @@ describe('a claim that lost the row between its check and its write (ruling 581)
 
   it('"this is me" does not count it, and its write aims at an unheld row only', async () => {
     const { service, db } = build([unclaimed(ROW), LOST]);
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
       claimed: 0,
       alreadyAtEvent: 0,
     });
+    // The page counts nothing; the log says why.
+    expect(warn).toHaveBeenCalledWith(`claim of person ${ROW} lost: another account took it`);
+    warn.mockRestore();
     // The write asks for its rows back: without that the answer carries none, and every claim
     // would read as lost. The double answers rows either way, so the projection is named.
     expect(selectsFor(db.from, 'persons')).toEqual([CHECK, 'id']);
