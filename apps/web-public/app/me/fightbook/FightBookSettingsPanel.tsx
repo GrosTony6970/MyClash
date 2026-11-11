@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookBlock, SparFighter } from '@myclash/types';
 import { Avatar, Button, Switch } from '@myclash/ui';
-import { fightBookPath, writeFightBook } from '@/lib/fightbook/read-fightbook';
+import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { SettingRow } from '../settings/controls';
 
 /**
@@ -19,7 +19,7 @@ function useSwitchSave(apiUrl: string, enabled: boolean, onSaved: (enabled: bool
     setFailed(false);
     const res = await writeFightBook<{ enabled: boolean }>(
       apiUrl,
-      fightBookPath('/settings'),
+      '/api/v1/me/fightbook/settings',
       'PATCH',
       { enabled: next },
     );
@@ -88,7 +88,7 @@ function BlockedFighters(props: {
   const [failed, setFailed] = useState(false);
   const unblock = async (id: string) => {
     setFailed(false);
-    const res = await writeFightBook(props.apiUrl, fightBookPath(`/blocks/${id}`), 'DELETE');
+    const res = await writeFightBook(props.apiUrl, `/api/v1/me/fightbook/blocks/${id}`, 'DELETE');
     if (res.ok) props.onUnblocked(id);
     else setFailed(true);
   };

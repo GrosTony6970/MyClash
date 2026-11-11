@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { AgreedSpar, MySpars, SentSparRequest } from '@myclash/types';
 import { Button, EmptyState, usePrompt } from '@myclash/ui';
-import { fightBookPath, writeFightBook } from '@/lib/fightbook/read-fightbook';
+import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { SparCard, useDayLabel } from './SparCard';
 
@@ -77,7 +77,7 @@ function useSparActions(
     const body = message.trim() ? { message: message.trim() } : {};
     const res = await writeFightBook(
       apiUrl,
-      fightBookPath(`/requests/${spar.id}/cancel`),
+      `/api/v1/me/fightbook/requests/${spar.id}/cancel`,
       'POST',
       body,
     );
@@ -86,7 +86,7 @@ function useSparActions(
   };
   const withdraw = async (request: SentSparRequest) => {
     setRefusal(null);
-    const path = fightBookPath(`/requests/${request.id}/withdraw`);
+    const path = `/api/v1/me/fightbook/requests/${request.id}/withdraw`;
     const res = await writeFightBook(apiUrl, path, 'POST');
     if (res.ok) onWithdrawn(request.id);
     else setRefusal(t(sparRefusalKey(res.code)));

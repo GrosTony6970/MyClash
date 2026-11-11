@@ -6,7 +6,7 @@ import { databaseRefusal } from './spar-requests.service';
 
 /**
  * Block and unblock in FightBook (slice 1). The blocked fighter is not told and sees nothing
- * change: their next request "sends" as any other and ends "Not this time" (`fightbook_ask`).
+ * change: their next request "sends" like every other one and ends "Not this time" (`fightbook_ask`).
  * Blocking ends what waits between the two (`fightbook_block`, 0264); an agreed spar stays.
  * Only the blocker ever reads a block: these reads name the caller as the blocker.
  */

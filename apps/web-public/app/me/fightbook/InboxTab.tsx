@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { IncomingSparRequest, SparFighter } from '@myclash/types';
 import { Button, EmptyState, Modal, useConfirm } from '@myclash/ui';
-import { fightBookPath, writeFightBook } from '@/lib/fightbook/read-fightbook';
+import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { SparCard } from './SparCard';
 
@@ -24,7 +24,7 @@ function useInboxActions(
   const [refusal, setRefusal] = useState<string | null>(null);
   const answer = async (request: IncomingSparRequest, body: AnswerBody) => {
     setRefusal(null);
-    const path = fightBookPath(`/requests/${request.id}/answer`);
+    const path = `/api/v1/me/fightbook/requests/${request.id}/answer`;
     const res = await writeFightBook<{ status: string }>(apiUrl, path, 'POST', body);
     if (res.ok) return onAnswered(request, res.data.status);
     if (res.code === 'not_open') onAnswered(request, null);
@@ -41,7 +41,7 @@ function useInboxActions(
     if (!sure) return;
     setRefusal(null);
     const body = { globalPersonId: asker.globalPersonId };
-    const res = await writeFightBook(apiUrl, fightBookPath('/blocks'), 'POST', body);
+    const res = await writeFightBook(apiUrl, '/api/v1/me/fightbook/blocks', 'POST', body);
     if (res.ok) onBlocked(asker);
     else setRefusal(t(sparRefusalKey(res.code)));
   };

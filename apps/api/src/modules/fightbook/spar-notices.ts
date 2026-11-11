@@ -41,7 +41,7 @@ export const notifySparCancelled = (d: SparNoticeDeps, requestId: string, other:
  * (ruling 663).
  *
  * Never throws: the change it reports is saved before it is called, and the caller does not wait
- * for it (a blocked ask, which sends nothing, must answer as fast as any other). A profile no
+ * for it (a blocked ask, which sends nothing, must answer as fast as every other ask). A profile no
  * account holds, an unreadable profile or a failed send is logged with the request id.
  */
 async function notify(

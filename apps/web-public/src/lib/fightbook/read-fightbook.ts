@@ -19,15 +19,13 @@ export type FightBookRead<T> =
 
 export type FightBookWrite<T> = { ok: true; data: T } | { ok: false; code: string | null };
 
-const BASE = '/api/v1/me/fightbook';
-
 async function read<T>(
   apiUrl: string,
   path: string,
   isShape: (value: unknown) => boolean,
   signal?: AbortSignal,
 ): Promise<FightBookRead<T>> {
-  const res = await apiRequest<unknown>(apiUrl, `${BASE}${path}`, { signal });
+  const res = await apiRequest<unknown>(apiUrl, path, { signal });
   if (res.ok) return isShape(res.data) ? { kind: 'data', data: res.data as T } : { kind: 'failed' };
   if (res.kind === 'aborted') return { kind: 'aborted' };
   if (res.kind === 'unauthenticated' && res.status === 401) return { kind: 'signin' };
@@ -40,24 +38,24 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 export const readFightBookSettings = (apiUrl: string, signal?: AbortSignal) =>
   read<FightBookSettings>(
     apiUrl,
-    '/settings',
+    '/api/v1/me/fightbook/settings',
     (v) => isObject(v) && typeof v['hasProfile'] === 'boolean' && typeof v['enabled'] === 'boolean',
     signal,
   );
 
 export const readInbox = (apiUrl: string, signal?: AbortSignal) =>
-  read<IncomingSparRequest[]>(apiUrl, '/inbox', Array.isArray, signal);
+  read<IncomingSparRequest[]>(apiUrl, '/api/v1/me/fightbook/inbox', Array.isArray, signal);
 
 export const readMySpars = (apiUrl: string, signal?: AbortSignal) =>
   read<MySpars>(
     apiUrl,
-    '/spars',
+    '/api/v1/me/fightbook/spars',
     (v) => isObject(v) && Array.isArray(v['spars']) && Array.isArray(v['sent']),
     signal,
   );
 
 export const readBlocks = (apiUrl: string, signal?: AbortSignal) =>
-  read<FightBookBlock[]>(apiUrl, '/blocks', Array.isArray, signal);
+  read<FightBookBlock[]>(apiUrl, '/api/v1/me/fightbook/blocks', Array.isArray, signal);
 
 /** One FightBook write; a refusal answers its `code` (null when the body named none). */
 export async function writeFightBook<T>(
@@ -69,5 +67,3 @@ export async function writeFightBook<T>(
   const res = await apiRequest<T>(apiUrl, path, { method, body });
   return res.ok ? { ok: true, data: res.data } : { ok: false, code: failureCode(res) };
 }
-
-export const fightBookPath = (path: string) => `${BASE}${path}`;
