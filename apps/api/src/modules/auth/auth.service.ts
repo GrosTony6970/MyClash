@@ -90,10 +90,14 @@ import { SIGNUP_ANSWER, signupAccount, type SignupAccount } from './signup-accou
 /** What `claimRefusal` can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
 
-/** The check's answer: a failed read carries the database's words, for the log and the error. */
+/**
+ * The check's answer: a failed read carries the database's words, for the log and the error; a
+ * pass carries the address it read, which the write then requires (ruling 582).
+ */
 type ClaimCheck =
   | { refusal: 'check_failed'; fault: string; eventSlug: null }
-  | { refusal: Exclude<ClaimCheckRefusal, 'check_failed'> | null; eventSlug: string | null };
+  | { refusal: Exclude<ClaimCheckRefusal, 'check_failed'>; eventSlug: string | null }
+  | { refusal: null; eventSlug: string | null; email: string };
 
 /**
  * What the one claim door that answers with an error throws for each refusal: the
@@ -548,7 +552,10 @@ export class AuthService {
     const checked = await this.claimRefusal(personId, userEmail, userId);
     const { eventSlug } = checked;
     // The check, then the write: the database refuses a second row at an Event (ruling 300).
-    const refusal = checked.refusal ?? (await this.completeClaim(userId, userEmail, personId));
+    const refusal =
+      checked.refusal === null
+        ? await this.completeClaim(userId, userEmail, personId, checked.email)
+        : checked.refusal;
     if (!refusal) return null;
     const fault = checked.refusal === 'check_failed' ? ` (${checked.fault})` : '';
     this.logger.warn(`claim of person ${personId} refused: ${refusal}${fault}`);
@@ -783,7 +790,8 @@ export class AuthService {
    * the row carries the account's address, and no other account holds it. Used by the /me
    * confirm-to-claim and by joining an Event by oneself (ruling 568). The claim links the row's
    * profile to the account, so alerts reach it at once. `skipped`: no such row, another account's,
-   * or another address.
+   * or another address — at the check, or by a change between the check and the write (rulings
+   * 581, 582; the write's log says which).
    */
   async claimOwnRow(
     user: { id: string; email: string },
@@ -795,13 +803,9 @@ export class AuthService {
       throw new Error(`Could not read person ${personId}: ${checked.fault}`);
     }
     if (checked.refusal) return 'skipped';
-    const refused = await this.completeClaim(user.id, user.email, personId);
-    if (refused === 'held_by_another') {
-      // Another account took the row between the check and the write (ruling 581).
-      this.logger.warn(`claim of person ${personId} lost: taken by another account, or deleted`);
-      return 'skipped';
-    }
-    return refused ?? 'claimed';
+    const refused = await this.completeClaim(user.id, user.email, personId, checked.email);
+    if (refused === 'already_at_event') return refused;
+    return refused ? 'skipped' : 'claimed';
   }
 
   /**
@@ -1023,11 +1027,15 @@ export class AuthService {
       events: { slug?: string } | null;
     };
     const eventSlug = row.events?.slug ?? null;
-    if (!personEmailMatchesUser(row.email, email)) return { refusal: 'email_mismatch', eventSlug };
-    if (claimingUserId === null) return { refusal: null, eventSlug };
+    // `!row.email` is the matcher's own verdict on an empty address; it names the address a string.
+    if (!row.email || !personEmailMatchesUser(row.email, email)) {
+      return { refusal: 'email_mismatch', eventSlug };
+    }
+    const pass = { refusal: null, eventSlug, email: row.email };
+    if (claimingUserId === null) return pass;
 
     const heldByAnother = !!row.claimed_by_user_id && row.claimed_by_user_id !== claimingUserId;
-    return { refusal: heldByAnother ? 'held_by_another' : null, eventSlug };
+    return heldByAnother ? { refusal: 'held_by_another', eventSlug } : pass;
   }
 
   /**
@@ -1042,20 +1050,19 @@ export class AuthService {
    * link landed as a success. Any other failed write throws. The profile link
    * behind the row stays best effort.
    *
-   * The race (ruling 581): the check read the row, then an organiser's save
-   * handed it to another account before this write. The write lands only on a
-   * row nobody else holds; one it missed answers `held_by_another`. A row
-   * deleted in that instant answers the same: either way it is not hers. The
-   * `select` is what tells: without it the answer carries no rows at all. The
-   * write does not re-check the ADDRESS: a save that moves an unheld row to
-   * another address in that instant leaves it hers, with the new address
-   * (named, not fixed; ruling 581 is about the holder).
+   * The race (rulings 581, 582): the check read the row, then an organiser's
+   * save deleted it, gave it another address, or handed it to another account
+   * before this write. The write lands only on the row the check passed: held by
+   * nobody else, and still carrying `checkedEmail`, the address the check read.
+   * The `select` is what tells: without it the answer carries no rows at all. A
+   * write that missed reads the row again for the reason (`lostClaimReason`).
    */
   private async completeClaim(
     userId: string,
     userEmail: string | undefined,
     personId: string,
-  ): Promise<'already_at_event' | 'held_by_another' | null> {
+    checkedEmail: string,
+  ): Promise<ClaimLinkRefusal | null> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .update({
@@ -1063,11 +1070,12 @@ export class AuthService {
         claimed_by_user_id: userId,
       })
       .eq('id', personId)
+      .eq('email', checkedEmail)
       .or(`claimed_by_user_id.is.null,claimed_by_user_id.eq.${userId}`)
       .select('id');
     if (error?.message.includes(ONE_ROW_PER_ACCOUNT_AT_EVENT)) return 'already_at_event';
     if (error) throw new Error(`Could not claim person ${personId}: ${error.message}`);
-    if (!data?.length) return 'held_by_another';
+    if (!data?.length) return this.lostClaimReason(personId, userEmail, userId);
 
     try {
       await this.linkClaimedPersonGlobalProfile(userId, userEmail, personId);
@@ -1082,6 +1090,25 @@ export class AuthService {
     // resolve the JWT user_id → person_id at request time via
     // global_persons.claimed_by_user_id.
     return null;
+  }
+
+  /**
+   * Why a claim's write missed its row (ruling 583): the row read again says
+   * which change won — deleted, another address, another account. A re-read that
+   * finds nothing wrong (the row changed and changed back, or only its address's
+   * case changed) decided nothing: `check_failed`, whose words say "try again".
+   * The re-read only names the reason; nothing was written either way.
+   */
+  private async lostClaimReason(
+    personId: string,
+    userEmail: string | undefined,
+    userId: string,
+  ): Promise<ClaimCheckRefusal> {
+    const again = await this.claimRefusal(personId, userEmail, userId);
+    const reason = again.refusal ?? 'check_failed';
+    const fault = again.refusal === 'check_failed' ? ` (${again.fault})` : '';
+    this.logger.warn(`claim of person ${personId} lost: ${reason}${fault}`);
+    return reason;
   }
 
   /**

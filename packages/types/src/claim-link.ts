@@ -10,7 +10,8 @@
  * - `held_by_another` — another account already holds the row.
  * - `email_mismatch` — the row now carries a different address.
  * - `not_found` — no such row, for example deleted after the mail went out.
- * - `check_failed` — the row could not be read, so nothing was decided (ruling 60).
+ * - `check_failed` — the row could not be read, so nothing was decided (ruling 60); or the
+ *   row changed during the claim and the second read found nothing wrong (ruling 583).
  * - `already_at_event` — the account already holds another row at that Event, and the
  *   database refuses a second (ruling 300).
  */

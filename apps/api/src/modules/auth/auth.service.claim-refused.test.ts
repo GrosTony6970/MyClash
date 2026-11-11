@@ -7,6 +7,7 @@ import {
   mockSupabase as seededSupabase,
   selectsFor,
   writesTo,
+  type ChainResult,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 
@@ -196,18 +197,24 @@ describe('the emailed claim link (ruling 300)', () => {
 });
 
 /**
- * The race (ruling 581). An organiser changes a row's address from Lea's to Tom's. At that instant
- * Lea presses "This is me": her check reads the row before the change, the organiser's save hands
- * the row to Tom, then Lea's write lands. It used to take the row from Tom. The write now lands
- * only on a row nobody else holds, and one it missed is Lea's refusal. The canned write answers
- * no row, as the database does when its filter misses.
+ * The race (rulings 581-583). An organiser changes a row's address from Lea's to Tom's. At that
+ * instant Lea presses "This is me": her check reads the row before the change, the organiser's
+ * save hands the row to Tom, then Lea's write lands. It used to take the row from Tom. The write
+ * now lands only on the row the check passed — held by nobody else, still at the address it read —
+ * and one it missed reads the row again for the reason. The canned write answers no row, as the
+ * database does when its filter misses; the next answer is the second read.
  */
-describe('a claim that lost the row between its check and its write (ruling 581)', () => {
+describe('a claim that lost the row between its check and its write (rulings 581-583)', () => {
   const CHECK = 'id, email, claimed_by_user_id, events(slug)';
   const AIM = 'claimed_by_user_id.is.null,claimed_by_user_id.eq.user-lea';
+  const row = (over: Record<string, unknown>) => ({
+    data: { ...unclaimed(ROW).data, ...over },
+    error: null,
+  });
+  const TAKEN = row({ claim_status: 'claimed', claimed_by_user_id: 'user-tom' });
 
-  it('"this is me" does not count it, and its write aims at an unheld row only', async () => {
-    const { service, db } = build([unclaimed(ROW), LOST]);
+  it('"this is me" does not count it, and its write aims at the row the check passed', async () => {
+    const { service, db } = build([unclaimed(ROW), LOST, TAKEN]);
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     try {
       await expect(service.claimPersons(signedIn, [ROW])).resolves.toEqual({
@@ -215,33 +222,59 @@ describe('a claim that lost the row between its check and its write (ruling 581)
         alreadyAtEvent: 0,
       });
       // The page counts nothing; the log says why.
-      expect(warn).toHaveBeenCalledWith(
-        `claim of person ${ROW} lost: taken by another account, or deleted`,
-      );
+      expect(warn).toHaveBeenCalledWith(`claim of person ${ROW} lost: held_by_another`);
     } finally {
       warn.mockRestore();
     }
     // The write asks for its rows back: without that the answer carries none, and every claim
     // would read as lost. The double answers rows either way, so the projection is named.
-    expect(selectsFor(db.from, 'persons')).toEqual([CHECK, 'id']);
+    expect(selectsFor(db.from, 'persons')).toEqual([CHECK, 'id', CHECK]);
     expect(filtersFor(db.from, 'persons', 'or')).toEqual([[AIM]]);
+    // The check, the write (by id AND the address the check read), the second read.
+    expect(filtersFor(db.from, 'persons', 'eq')).toEqual([
+      ['id', ROW],
+      ['id', ROW],
+      ['email', LEA.email],
+      ['id', ROW],
+    ]);
   });
 
-  // The Google claim goes through the same `claimFromLink`, so this covers both.
-  it('the emailed link sends her to the claim page with "held by another"', async () => {
-    const { service, db, reply } = build([unclaimed(ROW), LOST, NO_ROWS]);
-
+  // The Google claim goes through the same `claimFromLink`, so these cover both.
+  const linkReason = async (secondRead: ChainResult) => {
+    const { service, db, reply } = build([unclaimed(ROW), LOST, secondRead, NO_ROWS]);
     await service.handleCallback('token-hash', 'claim', ROW, undefined, reply as never);
+    // The sign-in autolink reads after the claim: only the first three reads are the claim's.
+    expect(selectsFor(db.from, 'persons').slice(0, 3)).toEqual([CHECK, 'id', CHECK]);
+    const [[target]] = reply.redirect.mock.calls as string[][];
+    return new URLSearchParams(decodeURIComponent(target!.split('next=')[1]!).split('?')[1]).get(
+      'claimRefused',
+    );
+  };
 
-    expect(reply.redirect.mock.calls).toEqual([
-      [
-        `https://app.myclash.localhost/auth/signed-in?next=${encodeURIComponent(
-          `/e/spring-open/claim?personId=${ROW}&claimRefused=held_by_another`,
-        )}`,
-      ],
-    ]);
-    // The sign-in autolink reads after the claim: only the first two reads are the claim's.
-    expect(selectsFor(db.from, 'persons').slice(0, 2)).toEqual([CHECK, 'id']);
+  it('the emailed link names each reason the second read finds (ruling 583)', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(linkReason(TAKEN)).resolves.toBe('held_by_another');
+      await expect(linkReason(row({ email: 'tom@example.com' }))).resolves.toBe('email_mismatch');
+      await expect(linkReason({ data: null, error: null })).resolves.toBe('not_found');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // The row changed and changed back (or only its address's case): nothing was decided.
+  it('a second read that finds nothing wrong says "could not check", and the log says so', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(linkReason(unclaimed(ROW))).resolves.toBe('check_failed');
+      expect(warn).toHaveBeenCalledWith(`claim of person ${ROW} lost: check_failed`);
+      await expect(linkReason(FAULT)).resolves.toBe('check_failed');
+      expect(warn).toHaveBeenCalledWith(
+        `claim of person ${ROW} lost: check_failed (connection refused)`,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
