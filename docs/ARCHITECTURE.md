@@ -2151,8 +2151,11 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | Next Swiss round paired             | immediate         | yes        |
 | New Event of a followed organiser   | immediate         | yes        |
 | Organizer or instructor broadcast   | immediate         | push only  |
+| A fighter asks you for a spar       | immediate         | yes        |
+| A fighter said yes to your spar     | immediate         | yes        |
+| A spar you agreed to was cancelled  | immediate         | yes        |
 
-"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes")
+"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the three FightBook rows share "FightBook")
 and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
 not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
 
@@ -2516,6 +2519,65 @@ organisation. Who is alerted before a duty has one owner, `referee-alert-followe
 the duty is locked and again when the alert fires. The hub switch acts at once, as the others do
 (`applyHubFollow`); a hub unfollow, and the removal of a Person's followers, turn it off before
 any follow is removed, so that no alert is set back while the follows go.
+
+---
+
+## 11septies. FightBook
+
+A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERARCHY.md`): weapons,
+a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
+rulings 642-665: `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
+`docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
+`@myclash/rulesets`, Matches or the scoring app.
+
+### 11septies.1 Data
+
+Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
+profile is the switch, off by default; off means nobody may ask them and they may ask nobody. Three
+tables, RLS on and no policy, read and written by the API only (0263): `spar_requests` (one row is
+one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
+`fightbook_blocks`. A request names a public Event the asker is on and one of its days (ruling 665),
+or a free date, a place and the asker's time zone; the zone is copied into the row.
+
+### 11septies.2 Every "no" is the same
+
+Four ways end a request as "Not this time": the fighter asked declines, the request runs out at the
+end of its day (06:00 the next morning on an Event's clock, midnight on a free date's), the fighter
+asked had blocked the asker, and a request still waiting in the database past its end (every read
+shows it as a no; the hourly `spar-request-expiry` job then stores it so). The row stores no reason
+and no decline time, the asker's payload is built from nothing that differs
+(`modules/fightbook/spar-views.ts`), and a "no" never buzzes (ruling 663). A comment the decliner
+keeps private goes to `spar_private_notes`, never on the row the asker's data download carries.
+What a fighter may still guess, accepted by ruling 660: an instant no may be automatic, and a
+blocked asker never meets "already asked" (their requests are stored ended at once).
+
+### 11septies.3 Races
+
+Each change that two taps can race is one call, one transaction (0264): `fightbook_ask` (one
+waiting request per pair; no asking again for the same Event, nor for a free date until 7 days after
+the refused day; a pair lock serialises an ask and a block), `fightbook_answer` (lands only on the
+receiver's own request, still waiting and open, from an asker still on FightBook), `fightbook_block`
+(the blocked fighter's waiting requests end as a no, the blocker's own are withdrawn, an agreed
+spar stays). Withdraw and cancel are one conditional update each. The loser of any race gets 409
+`not_open`. `pnpm db:fightbook-probe` runs the three functions on the replayed database in CI.
+
+### 11septies.4 Who sees what
+
+Every `me/fightbook` route acts on the caller's own profile, read by `fightBookCaller`
+(`modules/fightbook/fightbook-caller.ts`): 401 signed out, 403 a staff login or a guest token. A
+block is read by its blocker only. The blocked fighter sees nothing change: their ask answers
+`{ id }` like any other, and the "new request" notice is started without being awaited, so it
+answers just as fast. Notices (§11ter.2) carry no names: they show on a locked phone.
+
+### 11septies.5 Privacy registries
+
+The data download carries the requests a fighter sent or received, their own notes and the blocks
+they made, never a block aimed at them (Art. 15(4)). The Event archive excludes all three tables.
+Account erasure deletes every FightBook row of the profile (`modules/privacy/erasure-fightbook.ts`)
+and switches FightBook off; anonymisation keeps them, because the account stays signed in and its
+blocks must hold. A fighter merge (0265) moves requests, blocks and notes to the survivor, except a
+request between the two merged profiles and a waiting request that would double the survivor's; a
+block it moves ends what waits between the pair, and the survivor keeps the stricter switch.
 
 ---
 
