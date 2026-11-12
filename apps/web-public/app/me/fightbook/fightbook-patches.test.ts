@@ -3,6 +3,8 @@ import type { IncomingSparRequest } from '@myclash/types';
 import {
   answered,
   blocked,
+  cancelled as cancelledPatch,
+  flagged,
   markedDone,
   noted,
   reviewed,
@@ -85,6 +87,19 @@ describe('the list patches', () => {
       apply(done, reviewed('r-1', { stars: 3, text: null, anonymous: true })).spars.spars[0],
     ).toMatchObject({ myReview: { stars: 3 } });
     expect(apply(done, undone('r-1')).spars.spars[0]?.status).toBe('agreed');
+  });
+
+  it('a flag marks the spar as flagged in any status, and twice equals once', () => {
+    const agreed = apply(empty, answered(request, 'agreed'));
+    const once = apply(agreed, flagged('r-1'));
+    expect(once.spars.spars[0]?.iFlagged).toBe(true);
+    expect(apply(once, flagged('r-1')).spars.spars).toEqual(once.spars.spars);
+    const cancelled = apply(agreed, cancelledPatch('r-1', null));
+    expect(apply(cancelled, flagged('r-1')).spars.spars[0]).toMatchObject({
+      status: 'cancelled',
+      iFlagged: true,
+    });
+    expect(apply(agreed, flagged('other')).spars.spars).toEqual(agreed.spars.spars);
   });
 
   it('a saved star switch sets showStars and leaves the rest of the settings', () => {

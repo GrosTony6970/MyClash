@@ -88,6 +88,14 @@ export const common = {
     leave: 'Leave',
     stay: 'Stay',
   },
+  // The reasons a fighter picks when flagging a spar (FightBook safety report); one owner for the
+  // fighter's form and the admins' list.
+  fightBookFlagReason: {
+    too_hard: 'Too hard / unsafe',
+    equipment: 'Unsafe equipment',
+    disrespect: 'Disrespectful or harassing',
+    other: 'Other',
+  },
   // The two files a CSV download offers (operator, 2026-10-15): French Excel splits on ";" and
   // reads "12,50" as a number; English Excel and the other apps want "," and "12.50".
   csvExport: {

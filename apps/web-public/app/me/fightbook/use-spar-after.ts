@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import type { SparReview } from '@myclash/types';
+import type { SparFlagReason, SparReview } from '@myclash/types';
 import { writeFightBook, type FightBookWrite } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
-import { markedDone, noted, reviewed, undone } from './fightbook-patches';
+import { flagged, markedDone, noted, reviewed, undone } from './fightbook-patches';
 import { useInFlight } from './use-in-flight';
 import type { FightBookData } from './use-fightbook';
 
@@ -14,6 +14,7 @@ export interface AfterHandlers {
   onUndone: (id: string) => void;
   onReviewed: (id: string, review: SparReview) => void;
   onNoted: (id: string, note: string | null) => void;
+  onFlagged: (id: string) => void;
   /** A write found the page stale (`not_open`): read it again behind the page. */
   onStale: () => void;
 }
@@ -27,10 +28,16 @@ export const afterHandlers = (
   onUndone: (id) => update(undone(id)),
   onReviewed: (id, review) => update(reviewed(id, review)),
   onNoted: (id, note) => update(noted(id, note)),
+  onFlagged: (id) => update(flagged(id)),
   onStale: refresh,
 });
 
 type Patch = (data: FightBookData) => Partial<FightBookData>;
+
+export interface FlagInput {
+  reason: SparFlagReason;
+  text: string;
+}
 
 export interface ReviewInput {
   stars: number;
@@ -38,17 +45,11 @@ export interface ReviewInput {
   anonymous: boolean;
 }
 
-/**
- * The four writes after a spar: mark, undo, review, note. Each is one request; a won one patches
- * the list from its own answer. A refusal is said, and `not_open` (a window that closed while the
- * page was open, or a lost race) also reads the page again, so the card shows what is true now.
- * A card's buttons are disabled while its write runs.
- */
-export function useSparAfter(apiUrl: string, id: string, on: AfterHandlers) {
+/** One card's write runner: `send` says whether the write won; a refusal is kept to be said. */
+function useSparSend(id: string, on: AfterHandlers) {
   const { t } = useI18n();
   const { inFlight, run } = useInFlight();
   const [refusal, setRefusal] = useState<string | null>(null);
-  /** Whether the write won. */
   const send = async (
     write: () => Promise<FightBookWrite<unknown>>,
     won: () => void,
@@ -63,6 +64,17 @@ export function useSparAfter(apiUrl: string, id: string, on: AfterHandlers) {
     setRefusal(t(sparRefusalKey(res.code)));
     return false;
   };
+  return { send, busy: inFlight(id), refusal };
+}
+
+/**
+ * The writes after a spar: mark, undo, review, note, flag. Each is one request; a won one patches
+ * the list from its own answer. A refusal is said, and `not_open` (a window that closed while the
+ * page was open, or a lost race) also reads the page again, so the card shows what is true now.
+ * A card's buttons are disabled while its write runs.
+ */
+export function useSparAfter(apiUrl: string, id: string, on: AfterHandlers) {
+  const { send, busy, refusal } = useSparSend(id, on);
   const mark = () =>
     send(
       () => writeFightBook(apiUrl, `/api/v1/me/fightbook/requests/${id}/done`, 'POST'),
@@ -89,5 +101,11 @@ export function useSparAfter(apiUrl: string, id: string, on: AfterHandlers) {
       () => on.onNoted(id, body),
     );
   };
-  return { mark, undo, review, note, busy: inFlight(id), refusal };
+  // The API answers 204 also to a second send, so a won write is simply "flagged".
+  const flag = (body: FlagInput) =>
+    send(
+      () => writeFightBook(apiUrl, `/api/v1/me/fightbook/requests/${id}/flag`, 'POST', body),
+      () => on.onFlagged(id),
+    );
+  return { mark, undo, review, note, flag, busy, refusal };
 }

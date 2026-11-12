@@ -75,6 +75,7 @@ async function show(partnerFavourite: boolean | null) {
           onUndone={noop}
           onReviewed={noop}
           onNoted={noop}
+          onFlagged={noop}
           onStale={noop}
         />
       </I18nProvider>,

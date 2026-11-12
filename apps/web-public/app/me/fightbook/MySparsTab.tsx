@@ -123,6 +123,7 @@ const pickAfter = (p: AfterHandlers): AfterHandlers => ({
   onUndone: p.onUndone,
   onReviewed: p.onReviewed,
   onNoted: p.onNoted,
+  onFlagged: p.onFlagged,
   onStale: p.onStale,
 });
 

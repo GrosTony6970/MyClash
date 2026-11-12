@@ -197,6 +197,7 @@ describe('The thank-yous you received', () => {
             onUndone={noop}
             onReviewed={noop}
             onNoted={noop}
+            onFlagged={noop}
             onStale={noop}
           />
         </I18nProvider>,

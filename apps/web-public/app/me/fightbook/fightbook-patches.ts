@@ -98,6 +98,16 @@ export const reviewed = (id: string, review: SparReview) =>
 
 export const noted = (id: string, note: string | null) => patchSpar(id, 'done', { note });
 
+/** A safety report sent: the card says so, in any status (a re-read may list it flagged already). */
+export const flagged =
+  (id: string): Patch =>
+  (d) => ({
+    spars: {
+      ...d.spars,
+      spars: d.spars.spars.map((s) => (s.id === id ? { ...s, iFlagged: true } : s)),
+    },
+  });
+
 /** A heart set from My spars: every spar with that partner shows it (null stays: no heart there). */
 export const hearted =
   (globalPersonId: string, favourite: boolean): Patch =>

@@ -67,6 +67,7 @@ const handlers = {
   onUndone: vi.fn(),
   onReviewed: vi.fn(),
   onNoted: vi.fn(),
+  onFlagged: vi.fn(),
   onStale: vi.fn(),
 } satisfies AfterHandlers & Record<string, unknown>;
 const NOT_OPEN = { ok: false, kind: 'http', status: 409, code: 'not_open' };

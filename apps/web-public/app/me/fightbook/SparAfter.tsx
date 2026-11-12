@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { AgreedSpar } from '@myclash/types';
 import { Button } from '@myclash/ui';
+import { SparFlag } from './SparFlag';
 import { useNow } from './use-now';
 import { useSparAfter, type AfterHandlers, type ReviewInput } from './use-spar-after';
 
@@ -168,6 +169,7 @@ function Thanks({ spar }: { spar: AgreedSpar }) {
  * Under an agreed or done card: "We sparred" from the spar day, "Undo" until the window shuts,
  * then the thank-you form, and a private note on a done spar. The page compares the windows with
  * its own clock to decide what to offer; the API decides what is accepted, and a refusal is said.
+ * From the spar day on, any card (cancelled too) also offers "Report a safety problem".
  */
 export function SparAfter(props: { apiUrl: string; spar: AgreedSpar } & AfterHandlers) {
   const { t } = useI18n();
@@ -177,7 +179,7 @@ export function SparAfter(props: { apiUrl: string; spar: AgreedSpar } & AfterHan
   const after = useSparAfter(apiUrl, spar.id, handlers);
   const closed = now >= Date.parse(spar.markUntil);
   const open = !closed && now >= Date.parse(spar.markFrom);
-  if (spar.status === 'cancelled') return null;
+  const started = now >= Date.parse(spar.markFrom);
   return (
     <div className="mt-2">
       {after.refusal ? (
@@ -214,6 +216,7 @@ export function SparAfter(props: { apiUrl: string; spar: AgreedSpar } & AfterHan
           <NoteBox saved={spar.note} busy={after.busy} onSave={after.note} />
         </>
       ) : null}
+      {started ? <SparFlag spar={spar} busy={after.busy} onSend={after.flag} /> : null}
     </div>
   );
 }

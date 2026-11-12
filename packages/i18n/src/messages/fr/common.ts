@@ -55,6 +55,12 @@ export const common = {
     leave: 'Quitter',
     stay: 'Rester',
   },
+  fightBookFlagReason: {
+    too_hard: 'Trop dur / dangereux',
+    equipment: 'Équipement dangereux',
+    disrespect: 'Irrespectueux ou harcelant',
+    other: 'Autre',
+  },
   csvExport: {
     excelFrench: 'Excel (français)',
     excelFrenchHint: 'Colonnes séparées par ; · décimales en 12,50',

@@ -1651,6 +1651,19 @@ export const publicApp = {
       noteSave: 'Save',
       noteSaved: 'Saved',
     },
+    flag: {
+      link: 'Report a safety problem',
+      reasonLabel: 'What was the problem?',
+      textLabel: 'Tell us what happened',
+      whoReadsEvent:
+        'Your name goes with this report. The Event’s organisers will read it. {partner} never sees it.',
+      whoReadsFree:
+        'Your name goes with this report. The MyClash team will read it. {partner} never sees it.',
+      send: 'Send report',
+      cancel: 'Cancel',
+      doneEvent: 'You flagged this spar — the Event’s organisers have it.',
+      doneFree: 'You flagged this spar — the MyClash team has it.',
+    },
     favourites: {
       add: 'Add {name} to favourites',
       remove: 'Remove {name} from favourites',
