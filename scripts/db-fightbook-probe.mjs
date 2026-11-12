@@ -24,6 +24,13 @@
  * merged, deleted or erased author writing nothing; the window exact to the millisecond on the
  * API's clock; the star line over both tables, per subject, moving at once; the new CHECKs, named;
  * only the service role may call the two functions.
+ * Slice 4 (lib/fightbook-probe-flags.mjs and lib/fightbook-probe-flag-readers.mjs, migration 0269):
+ * a safety flag only on an agreed, done or cancelled spar, by one of its fighters, once, the snapshot
+ * of the spar and of the flagged account; the merge family; who must never read a flag (the flagged
+ * account, before or after an unlink, across a merge and its revert, and the club while no account
+ * holds the fighter); the exact page; the handled mark; the alert's recipients; erasure reaching no
+ * further than the erased account; the foreign-key actions; only the service role may call the
+ * seven functions.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -46,6 +53,15 @@ import {
   reviewing,
   starLineMoves,
 } from './lib/fightbook-probe-reviews.mjs';
+import { flagShown, flagWrites, profileFamily, seedFlags } from './lib/fightbook-probe-flags.mjs';
+import {
+  FLAG_FUNCTIONS,
+  flagForeignKeys,
+  flagMark,
+  flagRecipients,
+  flagsErase,
+  flagsPage,
+} from './lib/fightbook-probe-flag-readers.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -56,7 +72,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 76;
+const EXPECTED_CHECKS = 154;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -64,7 +80,7 @@ async function onlyTheServiceRole(tx) {
     ['authenticated', false],
     ['service_role', true],
   ];
-  for (const signature of [...FUNCTIONS, ...REVIEW_FUNCTIONS]) {
+  for (const signature of [...FUNCTIONS, ...REVIEW_FUNCTIONS, ...FLAG_FUNCTIONS]) {
     for (const [role, allowed] of roles) {
       const [{ may }] =
         await tx`SELECT has_function_privilege(${role}, ${signature}, 'EXECUTE') AS may`;
@@ -88,6 +104,15 @@ try {
       await reviewing(tx);
       await starLineMoves(tx);
       await reviewTableShape(tx);
+      await seedFlags(tx);
+      await flagWrites(tx);
+      await profileFamily(tx);
+      await flagShown(tx);
+      await flagsPage(tx);
+      await flagMark(tx);
+      await flagRecipients(tx);
+      await flagsErase(tx);
+      await flagForeignKeys(tx);
       await onlyTheServiceRole(tx);
       throw ROLLBACK;
     }),
@@ -102,7 +127,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review and _star_line.`,
+      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line and the seven safety flag functions.`,
     );
   }
 } catch (error) {

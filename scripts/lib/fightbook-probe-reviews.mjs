@@ -11,7 +11,7 @@ const HOUR = 3_600_000;
 const ago = (hours) => new Date(Date.now() - hours * HOUR).toISOString();
 
 /** A spar seeded straight into a status, its end `endedHoursAgo` hours back (the CHECK wants `agreed_at`). */
-const spar = (q, asker, receiver, { status = 'done', endedHoursAgo = 240, ...more } = {}) =>
+export const spar = (q, asker, receiver, { status = 'done', endedHoursAgo = 240, ...more } = {}) =>
   q`INSERT INTO spar_requests ${q({
     asker_global_person_id: asker,
     receiver_global_person_id: receiver,

@@ -6,7 +6,7 @@
 import { check, id, refusal, scenario, words } from './merge-probe-fixture.mjs';
 
 /** Accounts, then profiles: Marc asks, Julie answers, Paul is a third fighter. */
-const U = { marc: id(1), julie: id(2), paul: id(3) };
+export const U = { marc: id(1), julie: id(2), paul: id(3) };
 export const F = { marc: id(11), julie: id(12), paul: id(13) };
 const E = { a: id(21), b: id(22) };
 const DAY = '2026-05-22';
