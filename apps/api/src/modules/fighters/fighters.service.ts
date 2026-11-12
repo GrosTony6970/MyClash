@@ -62,6 +62,7 @@ import {
   type RefereeSkillInfo,
 } from './referee-stats';
 import { sideColorsFromScoringConfig } from '../events/side-colors';
+import { readPublicSparLine } from '../fightbook/spar-public-line';
 import {
   buildProfileRecentMatch,
   deriveMatchOutcome,
@@ -577,7 +578,10 @@ export class FightersService {
     if (await this.isHiddenProfile(row['id'] as string)) {
       throw new NotFoundException(`Fighter "${slug}" not found`);
     }
-    const publicProfile = await this.withPublicProfileRelations(this.sanitizePublicFighter(row));
+    const publicProfile = {
+      ...(await this.withPublicProfileRelations(this.sanitizePublicFighter(row))),
+      fightbook: await readPublicSparLine(this.supabase.service, row['id'] as string),
+    };
     const hemaRatingsId = row['hema_ratings_id'] as string | null | undefined;
     if (!hemaRatingsId || !this.hemaRatings) return publicProfile;
 

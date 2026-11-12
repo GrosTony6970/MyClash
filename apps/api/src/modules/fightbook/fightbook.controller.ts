@@ -55,7 +55,12 @@ import { SparFindService } from './spar-find.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
-const settingsSchema = z.object({ enabled: z.boolean() }).strict();
+const settingsSchema = z
+  .object({ enabled: z.boolean().optional(), showStars: z.boolean().optional() })
+  .strict()
+  .refine((body) => body.enabled !== undefined || body.showStars !== undefined, {
+    message: 'Say what to change',
+  });
 class FightBookSettingsDto extends createZodDto(settingsSchema) {}
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -148,7 +153,7 @@ export class FightBookController {
   @Patch('settings')
   @ApiOperation({ summary: 'Switch FightBook on or off' })
   async setSettings(@Body() dto: FightBookSettingsDto, @Req() req: FastifyRequest) {
-    return this.settings.set(await this.caller(req), dto.enabled);
+    return this.settings.set(await this.caller(req), dto);
   }
 
   @Post('requests')

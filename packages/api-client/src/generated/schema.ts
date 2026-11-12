@@ -12646,7 +12646,8 @@ export interface components {
       personId: string;
     };
     FightBookSettingsDto: {
-      enabled: boolean;
+      enabled?: boolean;
+      showStars?: boolean;
     };
     AskSparDto: {
       /** Format: uuid */

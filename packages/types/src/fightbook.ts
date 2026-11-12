@@ -107,9 +107,30 @@ export interface MySpars {
   sent: SentSparRequest[];
 }
 
+/** The star average over every review a fighter received, and how many there are (at least 1). */
+export interface SparStars {
+  average: number;
+  count: number;
+}
+
+/**
+ * The only FightBook data on a fighter's public page (rulings 682, 689): how many spars they did,
+ * and their stars when they switched those on and have at least one review.
+ */
+export interface PublicSparLine {
+  sparred: number;
+  stars: SparStars | null;
+}
+
 export interface FightBookSettings {
   hasProfile: boolean;
   enabled: boolean;
+  /** Whether the stars show on the public page (off by default). */
+  showStars: boolean;
+  /** Spars done, as the public page counts them. */
+  sparred: number;
+  /** The caller's own average, whatever the switch; null before the first review. */
+  stars: SparStars | null;
 }
 
 /** A published Event the fighter is on, with the days still open to ask for, on the Event's clock. */
