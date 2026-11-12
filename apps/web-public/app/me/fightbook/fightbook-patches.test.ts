@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingSparRequest } from '@myclash/types';
-import { answered, blocked } from './fightbook-patches';
+import { answered, blocked, markedDone, noted, reviewed, undone } from './fightbook-patches';
 import type { FightBookData } from './use-fightbook';
 
 /**
@@ -58,6 +58,24 @@ describe('the list patches', () => {
       note: null,
       partnerFavourite: null,
     });
+  });
+
+  it('mark, undo, review and note move only a spar in the state they started from', () => {
+    const agreed = apply(empty, answered(request, 'agreed'));
+    const done = apply(agreed, markedDone('r-1'));
+    expect(done.spars.spars[0]?.status).toBe('done');
+    // Twice, and on a spar a re-read already moved on: nothing more changes.
+    expect(apply(done, markedDone('r-1')).spars.spars).toEqual(done.spars.spars);
+    expect(apply(agreed, undone('r-1')).spars.spars).toEqual(agreed.spars.spars);
+    expect(apply(agreed, noted('r-1', 'x')).spars.spars[0]?.note).toBeNull();
+    expect(
+      apply(agreed, reviewed('r-1', { stars: 3, text: null, anonymous: true })).spars.spars[0],
+    ).toMatchObject({ myReview: null });
+    expect(apply(done, noted('r-1', 'x')).spars.spars[0]?.note).toBe('x');
+    expect(
+      apply(done, reviewed('r-1', { stars: 3, text: null, anonymous: true })).spars.spars[0],
+    ).toMatchObject({ myReview: { stars: 3 } });
+    expect(apply(done, undone('r-1')).spars.spars[0]?.status).toBe('agreed');
   });
 
   it('a block the page already read back is not listed twice', () => {

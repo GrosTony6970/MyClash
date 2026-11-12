@@ -33,7 +33,12 @@ function useInboxActions(
     const res = await run(request.id, () =>
       writeFightBook<{ status: string }>(apiUrl, path, 'POST', body),
     );
-    if (res.ok) return onAnswered(request, res.data.status);
+    if (res.ok) {
+      onAnswered(request, res.data.status);
+      // A Yes lands a card built here; reading again brings what only the server knows (the heart).
+      if (res.data.status === 'agreed') onStale();
+      return;
+    }
     if (res.code === 'not_open') {
       onAnswered(request, null);
       onStale();

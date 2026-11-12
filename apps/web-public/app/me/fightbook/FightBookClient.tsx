@@ -12,6 +12,7 @@ import { FightBookTabs } from './FightBookTabs';
 import { cancelled, unblocked, withdrawn } from './fightbook-patches';
 import { MySparsTab } from './MySparsTab';
 import { useFightBook, type FightBookState } from './use-fightbook';
+import { afterHandlers } from './use-spar-after';
 
 /**
  * `/me/fightbook` — FightBook (slice 1). A fighter with no profile is sent to claim one; while
@@ -93,7 +94,7 @@ function SwitchedOff({
             spars={spars}
             onWithdrawn={(id) => update(withdrawn(id))}
             onCancelled={(id, message) => update(cancelled(id, message))}
-            onStale={refresh}
+            {...afterHandlers(update, refresh)}
           />
         </section>
       ) : null}

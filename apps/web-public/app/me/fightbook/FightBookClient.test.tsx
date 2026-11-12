@@ -32,8 +32,10 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-05-23T10:00:00Z') });
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
   vi.mocked(apiRequest).mockReset();

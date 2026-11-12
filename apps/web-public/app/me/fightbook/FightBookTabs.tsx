@@ -8,6 +8,7 @@ import { FindTab } from './FindTab';
 import { InboxTab } from './InboxTab';
 import { MySparsTab } from './MySparsTab';
 import type { FightBookData } from './use-fightbook';
+import { afterHandlers } from './use-spar-after';
 
 type Tab = 'inbox' | 'spars' | 'find';
 
@@ -71,7 +72,7 @@ export function FightBookTabs(props: {
           spars={props.data.spars}
           onWithdrawn={(id) => props.update(withdrawn(id))}
           onCancelled={(id, message) => props.update(cancelled(id, message))}
-          onStale={props.refresh}
+          {...afterHandlers(props.update, props.refresh)}
         />
       ) : null}
       {tab === 'find' ? <FindTab apiUrl={props.apiUrl} onSent={props.refresh} /> : null}

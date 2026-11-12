@@ -54,8 +54,10 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   search = new URLSearchParams();
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-05-23T10:00:00Z') });
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
   vi.mocked(apiRequest).mockReset();
@@ -127,9 +129,13 @@ describe('the Inbox', () => {
     expect(text).toContain('After the Pools?');
   });
 
-  it('a yes saves, leaves the Inbox and lands in My spars', async () => {
-    serve([incoming('r-1')], NONE, {
-      'POST /api/v1/me/fightbook/requests/r-1/answer': { ok: true, data: { status: 'agreed' } },
+  it('a yes saves and leaves the Inbox (My spars: InboxYes.test.tsx)', async () => {
+    let yes = false;
+    serve(() => (yes ? [] : [incoming('r-1')]), NONE, {
+      'POST /api/v1/me/fightbook/requests/r-1/answer': () => {
+        yes = true;
+        return { ok: true, data: { status: 'agreed' } };
+      },
     });
     await open();
     await act(async () => button('Yes')!.click());
@@ -139,10 +145,6 @@ describe('the Inbox', () => {
     });
     expect(container.querySelectorAll('[data-spar-card]')).toHaveLength(0);
     expect(container.textContent).not.toContain('Inbox (1)');
-    // It is in My spars now, from the answer itself: no second read.
-    search = new URLSearchParams('tab=spars');
-    await open();
-    expect(container.textContent).toContain('Marc Probe');
   });
 
   it('"Not this time" keeps the comment private unless she ticks it', async () => {
@@ -193,9 +195,10 @@ describe('the Inbox', () => {
 
   it("a card's buttons stay disabled while its answer is on its way", async () => {
     let land: (answer: Answer) => void = () => {};
-    serve([incoming('r-1'), incoming('r-2', paul)], NONE, {
+    let yes = false;
+    serve(() => (yes ? [incoming('r-2', paul)] : [incoming('r-1'), incoming('r-2', paul)]), NONE, {
       'POST /api/v1/me/fightbook/requests/r-1/answer': () =>
-        new Promise<Answer>((resolve) => (land = resolve)),
+        new Promise<Answer>((resolve) => (land = (a) => ((yes = true), resolve(a)))),
     });
     await open();
     await act(async () => button('Yes')!.click());

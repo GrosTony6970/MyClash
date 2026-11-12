@@ -1,4 +1,4 @@
-import type { AgreedSpar, IncomingSparRequest, SparFighter } from '@myclash/types';
+import type { AgreedSpar, IncomingSparRequest, SparFighter, SparReview } from '@myclash/types';
 import type { FightBookData } from './use-fightbook';
 
 /**
@@ -77,6 +77,25 @@ export const cancelled =
       ),
     },
   });
+
+/** Each one moves only a spar still in the state the write started from (a re-read may be ahead). */
+const patchSpar =
+  (id: string, from: AgreedSpar['status'], change: Partial<AgreedSpar>): Patch =>
+  (d) => ({
+    spars: {
+      ...d.spars,
+      spars: d.spars.spars.map((s) => (s.id === id && s.status === from ? { ...s, ...change } : s)),
+    },
+  });
+
+export const markedDone = (id: string) => patchSpar(id, 'agreed', { status: 'done' });
+
+export const undone = (id: string) => patchSpar(id, 'done', { status: 'agreed' });
+
+export const reviewed = (id: string, review: SparReview) =>
+  patchSpar(id, 'done', { myReview: review });
+
+export const noted = (id: string, note: string | null) => patchSpar(id, 'done', { note });
 
 export const unblocked =
   (id: string): Patch =>

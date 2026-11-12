@@ -7,8 +7,11 @@ import { Button, EmptyState, usePrompt } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { useDayLabel } from '@/components/fightbook/day-label';
+import { SparAfter } from './SparAfter';
 import { SparCard } from './SparCard';
 import { useInFlight } from './use-in-flight';
+import { useNow } from './use-now';
+import type { AfterHandlers } from './use-spar-after';
 
 /** The spars of each day, in day order (the list arrives sorted by day, then time). */
 function byDay(spars: AgreedSpar[]): Array<[string, AgreedSpar[]]> {
@@ -31,7 +34,7 @@ function AgreedNote({ spar }: { spar: AgreedSpar }) {
         </p>
       );
     case 'done':
-      // The after-the-spar block comes with its own surface (slice 3, Task 8).
+      // A done spar says nothing here: `SparAfter` (under the card) holds what is left to say.
       return null;
     case 'cancelled':
       return (
@@ -111,14 +114,23 @@ function useSparActions(
   return { cancel, withdraw, inFlight, refusal, promptDialog };
 }
 
+const pickAfter = (p: AfterHandlers): AfterHandlers => ({
+  onMarked: p.onMarked,
+  onUndone: p.onUndone,
+  onReviewed: p.onReviewed,
+  onNoted: p.onNoted,
+  onStale: p.onStale,
+});
+
 /** My agreed spars, by day, then the requests I sent and their answer so far. */
-export function MySparsTab(props: {
-  apiUrl: string;
-  spars: MySpars;
-  onCancelled: (id: string, message: string | null) => void;
-  onWithdrawn: (id: string) => void;
-  onStale: () => void;
-}) {
+export function MySparsTab(
+  props: {
+    apiUrl: string;
+    spars: MySpars;
+    onCancelled: (id: string, message: string | null) => void;
+    onWithdrawn: (id: string) => void;
+  } & AfterHandlers,
+) {
   const { t } = useI18n();
   const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn, props.onStale);
   const { spars, sent } = props.spars;
@@ -138,6 +150,8 @@ export function MySparsTab(props: {
         </p>
       ) : null}
       <SparDays
+        {...pickAfter(props)}
+        apiUrl={props.apiUrl}
         spars={spars}
         busy={actions.inFlight}
         onCancel={(spar) => void actions.cancel(spar)}
@@ -155,13 +169,17 @@ export function MySparsTab(props: {
 }
 
 /** My spars, a heading per day. */
-function SparDays(props: {
-  spars: AgreedSpar[];
-  busy: (id: string) => boolean;
-  onCancel: (spar: AgreedSpar) => void;
-}) {
-  const { t } = useI18n();
+function SparDays(
+  props: {
+    apiUrl: string;
+    spars: AgreedSpar[];
+    busy: (id: string) => boolean;
+    onCancel: (spar: AgreedSpar) => void;
+  } & AfterHandlers,
+) {
   const dayLabel = useDayLabel();
+  // Cancel goes at the day's end; the API judges it again.
+  const now = useNow(props.spars.map((s) => s.cancelUntil));
   return byDay(props.spars).map(([day, ofDay]) => (
     <section key={day}>
       <h3 data-spar-day className="mb-2 text-sm font-semibold text-foreground">
@@ -169,28 +187,52 @@ function SparDays(props: {
       </h3>
       <ul className="flex flex-col gap-3">
         {ofDay.map((spar) => (
-          <SparCard
+          <AgreedCard
             key={spar.id}
-            fighter={spar.partner}
-            when={spar}
-            message={spar.message}
-            note={<AgreedNote spar={spar} />}
-          >
-            {spar.status === 'agreed' ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={props.busy(spar.id)}
-                onClick={() => props.onCancel(spar)}
-              >
-                {t('publicApp.fightBook.spars.cancel')}
-              </Button>
-            ) : null}
-          </SparCard>
+            {...pickAfter(props)}
+            apiUrl={props.apiUrl}
+            spar={spar}
+            canCancel={spar.status === 'agreed' && now < Date.parse(spar.cancelUntil)}
+            busy={props.busy(spar.id)}
+            onCancel={() => props.onCancel(spar)}
+          />
         ))}
       </ul>
     </section>
   ));
+}
+
+/** One agreed spar: its status line, what comes after it, and Cancel while the day lasts. */
+function AgreedCard(
+  props: {
+    apiUrl: string;
+    spar: AgreedSpar;
+    canCancel: boolean;
+    busy: boolean;
+    onCancel: () => void;
+  } & AfterHandlers,
+) {
+  const { t } = useI18n();
+  const { spar } = props;
+  return (
+    <SparCard
+      fighter={spar.partner}
+      when={spar}
+      message={spar.message}
+      note={
+        <>
+          <AgreedNote spar={spar} />
+          <SparAfter {...pickAfter(props)} apiUrl={props.apiUrl} spar={spar} />
+        </>
+      }
+    >
+      {props.canCancel ? (
+        <Button type="button" variant="outline" disabled={props.busy} onClick={props.onCancel}>
+          {t('publicApp.fightBook.spars.cancel')}
+        </Button>
+      ) : null}
+    </SparCard>
+  );
 }
 
 function SentList(props: {

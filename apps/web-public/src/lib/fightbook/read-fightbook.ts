@@ -160,7 +160,7 @@ export const readWeaponCatalog = (apiUrl: string, signal?: AbortSignal) =>
 export async function writeFightBook<T>(
   apiUrl: string,
   path: string,
-  method: 'POST' | 'PATCH' | 'DELETE',
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
 ): Promise<FightBookWrite<T>> {
   const res = await apiRequest<T>(apiUrl, path, { method, body });
