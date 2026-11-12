@@ -8811,6 +8811,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/fightbook/requests/{id}/flag': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Flag a safety problem on a spar: the organisers read it */
+    post: operations['FightBookAfterController_flag'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/fightbook/requests/{id}/note': {
     parameters: {
       query?: never;
@@ -12681,6 +12698,11 @@ export interface components {
       stars: number;
       text?: string;
       anonymous: boolean;
+    };
+    FlagDto: {
+      /** @enum {string} */
+      reason: 'too_hard' | 'equipment' | 'disrespect' | 'other';
+      text: string;
     };
     NoteDto: {
       body: string | null;
@@ -25983,6 +26005,29 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['ReviewDto'];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookAfterController_flag: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FlagDto'];
       };
     };
     responses: {

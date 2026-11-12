@@ -63,12 +63,14 @@ function setup(tables: {
   thanks?: Record<string, unknown>[];
   anonymous?: Record<string, unknown>[];
   notes?: Record<string, unknown>[];
+  flags?: Record<string, unknown>[];
   spars?: Record<string, unknown>[];
 }) {
   const supabase = mockSupabase({
     spar_thanks: { rows: tables.thanks ?? [] },
     spar_anonymous_reviews: { rows: tables.anonymous ?? [] },
     spar_private_notes: { rows: tables.notes ?? [] },
+    spar_flags: { rows: tables.flags ?? [] },
     spar_requests: { rows: tables.spars ?? [] },
     global_persons: { rows: [person(MARC, 'Marc'), person(JULIE, 'Julie'), person(PAUL, 'Paul')] },
     events: { rows: [{ id: EVENT, name: 'Probe Open' }] },
@@ -97,11 +99,13 @@ describe('SparThanksService.cardExtras', () => {
         myReview: { stars: 5, text: 'Great bout', anonymous: false },
         theirThanks: { stars: 4, text: 'Thanks!' },
         note: 'Work on my guard',
+        iFlagged: false,
       },
       [WITH_PAUL]: {
         myReview: { stars: 3, text: null, anonymous: true },
         theirThanks: null,
         note: null,
+        iFlagged: false,
       },
     });
     expect(selectsFor(supabase.from, 'spar_thanks')).toEqual([
@@ -125,6 +129,26 @@ describe('SparThanksService.cardExtras', () => {
         expect(filter).toEqual(['spar_request_id', [WITH_JULIE, WITH_PAUL]]);
       }
     }
+  });
+
+  it('shows my own safety flag on my card, and never the partner’s flag about me', async () => {
+    const { thanks, supabase } = setup({
+      flags: [
+        { spar_request_id: WITH_JULIE, reporter_global_person_id: MARC },
+        // Julie flagged Marc on the other spar: the owner filter must leave it out.
+        { spar_request_id: WITH_PAUL, reporter_global_person_id: PAUL },
+      ],
+    });
+    const extras = await thanks.cardExtras(MARC, [WITH_JULIE, WITH_PAUL]);
+    expect(extras.get(WITH_JULIE)?.iFlagged).toBe(true);
+    expect(extras.get(WITH_PAUL)?.iFlagged ?? false).toBe(false);
+    expect(selectsFor(supabase.from, 'spar_flags')).toEqual(['spar_request_id']);
+    expect(filtersFor(supabase.from, 'spar_flags', 'eq')).toEqual([
+      ['reporter_global_person_id', MARC],
+    ]);
+    expect(filtersFor(supabase.from, 'spar_flags', 'in')).toEqual([
+      ['spar_request_id', [WITH_JULIE, WITH_PAUL]],
+    ]);
   });
 
   it('reads nothing for no spars', async () => {

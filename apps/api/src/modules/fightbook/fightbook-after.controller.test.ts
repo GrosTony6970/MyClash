@@ -36,6 +36,7 @@ function controller(profile = true) {
     review: vi.fn(async () => undefined),
     setNote: vi.fn(async () => undefined),
   };
+  const flags = { raise: vi.fn(async () => undefined) };
   const thanks = { received: vi.fn(async () => ({ items: [], more: false })) };
   return {
     ctl: new FightBookAfterController(
@@ -43,44 +44,51 @@ function controller(profile = true) {
       after as never,
       thanks as never,
       {} as never,
+      flags as never,
     ),
     after,
     thanks,
+    flags,
   };
 }
 
+const FLAG = { reason: 'other', text: 'Too rough' } as const;
 const REVIEW = { stars: 4, text: 'Thanks!', anonymous: false };
 
 describe('FightBookAfterController', () => {
   it('lets a fighter who switched FightBook off still finish a spar (666)', async () => {
-    const { ctl, after, thanks } = controller();
+    const { ctl, after, thanks, flags } = controller();
     await ctl.done(SPAR, req);
     await ctl.undo(SPAR, req);
     await ctl.review(SPAR, REVIEW, req);
     await ctl.note(SPAR, { body: null }, req);
+    await ctl.flag(SPAR, FLAG, req);
     await ctl.receivedThanks({ page: 2 }, req);
     expect(after.markDone).toHaveBeenCalledWith(MARC, SPAR);
     expect(after.undo).toHaveBeenCalledWith(MARC, SPAR);
     expect(after.review).toHaveBeenCalledWith(MARC, SPAR, REVIEW);
     expect(after.setNote).toHaveBeenCalledWith(MARC, SPAR, null);
+    expect(flags.raise).toHaveBeenCalledWith(MARC, SPAR, FLAG);
     expect(thanks.received).toHaveBeenCalledWith(MARC, 2);
   });
 
   it('refuses an account with no fighter profile, and calls nothing', async () => {
-    const { ctl, after, thanks } = controller(false);
+    const { ctl, after, thanks, flags } = controller(false);
     await expect(ctl.done(SPAR, req)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(ctl.undo(SPAR, req)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(ctl.review(SPAR, REVIEW, req)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(ctl.note(SPAR, { body: 'x' }, req)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(ctl.flag(SPAR, FLAG, req)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(ctl.receivedThanks({ page: 0 }, req)).rejects.toBeInstanceOf(ForbiddenException);
     expect(after.markDone).not.toHaveBeenCalled();
     expect(after.undo).not.toHaveBeenCalled();
     expect(after.review).not.toHaveBeenCalled();
     expect(after.setNote).not.toHaveBeenCalled();
+    expect(flags.raise).not.toHaveBeenCalled();
     expect(thanks.received).not.toHaveBeenCalled();
   });
 
-  it.each(['done', 'undo', 'review', 'note'] as const)(
+  it.each(['done', 'undo', 'review', 'flag', 'note'] as const)(
     '%s takes its id through ParseUUIDPipe',
     (route) => {
       const args = Reflect.getMetadata(

@@ -86,7 +86,13 @@ export interface AgreedSpar extends SparWhen, SparWindows {
   note: string | null;
   /** Null when no heart shows: the caller has FightBook off, or may not ask the partner. */
   partnerFavourite: boolean | null;
+  /** Whether the caller already sent a safety flag on this spar (rulings 691, 693). */
+  iFlagged: boolean;
 }
+
+/** Why a fighter flags a safety problem on a spar (ruling 691). */
+export const SPAR_FLAG_REASONS = ['too_hard', 'equipment', 'disrespect', 'other'] as const;
+export type SparFlagReason = (typeof SPAR_FLAG_REASONS)[number];
 
 /** A signed thank-you the caller received, with who wrote it and the spar's when and where. */
 export interface ThankYou extends SparWhen {

@@ -41,6 +41,7 @@ const spar = (partnerFavourite: boolean | null): AgreedSpar => ({
   theirThanks: null,
   note: null,
   partnerFavourite,
+  iFlagged: false,
 });
 
 let container: HTMLDivElement;

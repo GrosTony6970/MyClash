@@ -65,6 +65,7 @@ describe('the list patches', () => {
       theirThanks: null,
       note: null,
       partnerFavourite: null,
+      iFlagged: false,
     });
   });
 

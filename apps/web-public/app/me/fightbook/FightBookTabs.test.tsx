@@ -253,6 +253,7 @@ describe('My spars', () => {
     theirThanks: null,
     note: null,
     partnerFavourite: null,
+    iFlagged: false,
     ...over,
   });
 

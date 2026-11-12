@@ -138,6 +138,7 @@ describe('FightBookClient', () => {
       theirThanks: null,
       note: null,
       partnerFavourite: null,
+      iFlagged: false,
     };
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },

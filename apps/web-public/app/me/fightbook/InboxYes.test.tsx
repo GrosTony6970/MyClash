@@ -56,6 +56,7 @@ const agreed: AgreedSpar = {
   theirThanks: null,
   note: null,
   partnerFavourite: true,
+  iFlagged: false,
 };
 
 let container: HTMLDivElement;

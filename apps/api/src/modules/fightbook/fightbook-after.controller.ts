@@ -4,6 +4,7 @@
  * POST /me/fightbook/requests/:id/done — "We sparred": mark an agreed spar done, either fighter
  * POST /me/fightbook/requests/:id/undo — put a done spar back to agreed, either fighter
  * POST /me/fightbook/requests/:id/review — a thank-you, or an anonymous review, on a done spar
+ * POST /me/fightbook/requests/:id/flag — a safety flag on a spar; the club or the platform reads it
  * PUT  /me/fightbook/requests/:id/note — my private note on a done spar; null deletes it
  * GET  /me/fightbook/thanks?page= — the signed thank-yous I received, newest first
  * GET|PUT|DELETE /me/fightbook/favourites[/:globalPersonId] — my private hearts (FightBook on)
@@ -28,6 +29,7 @@ import {
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
+import { SPAR_FLAG_REASONS } from '@myclash/types';
 import { z } from 'zod';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -38,6 +40,7 @@ import {
 } from './fightbook-caller';
 import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { SparAfterService } from './spar-after.service';
+import { SparFlagService } from './spar-flag.service';
 import { SparThanksService } from './spar-thanks.service';
 
 /** Trimmed BEFORE the length check: a text of only spaces, tabs or newlines is refused. */
@@ -52,6 +55,12 @@ export const reviewSchema = z
   .object({ stars: z.int().min(1).max(5), text: text.optional(), anonymous: z.boolean() })
   .strict();
 class ReviewDto extends createZodDto(reviewSchema) {}
+
+/** A safety flag: a reason and what happened, trimmed, 1 to 1000 characters (ruling 691). */
+export const flagSchema = z
+  .object({ reason: z.enum(SPAR_FLAG_REASONS), text: z.string().trim().min(1).max(1000) })
+  .strict();
+class FlagDto extends createZodDto(flagSchema) {}
 
 /** The note's text, or null to delete it. */
 export const noteSchema = z.object({ body: text.nullable() }).strict();
@@ -71,6 +80,7 @@ export class FightBookAfterController {
     private readonly after: SparAfterService,
     private readonly thanks: SparThanksService,
     private readonly favouritesService: FightBookFavouritesService,
+    private readonly flags: SparFlagService,
   ) {}
 
   @Post('requests/:id/done')
@@ -99,6 +109,18 @@ export class FightBookAfterController {
     @Req() req: FastifyRequest,
   ) {
     await this.after.review(requireProfile(await this.caller(req)), id, dto);
+  }
+
+  @Post('requests/:id/flag')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Flag a safety problem on a spar: the organisers read it' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async flag(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: FlagDto,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.flags.raise(requireProfile(await this.caller(req)), id, dto);
   }
 
   @Put('requests/:id/note')

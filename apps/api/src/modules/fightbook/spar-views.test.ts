@@ -160,6 +160,7 @@ describe('toAgreed: a spar both said yes to', () => {
       myReview: { stars: 5, text: 'Great bout', anonymous: false },
       theirThanks: { stars: 4, text: null },
       note: 'Guard up',
+      iFlagged: true,
     };
     expect(toAgreed(row({ status: 'done' }), MARC, julie, 'Probe Open', extras)).toEqual({
       id: 'r-1',
@@ -178,6 +179,7 @@ describe('toAgreed: a spar both said yes to', () => {
       ...PARIS_WINDOWS,
       ...extras,
       partnerFavourite: null,
+      iFlagged: true,
     });
   });
 });

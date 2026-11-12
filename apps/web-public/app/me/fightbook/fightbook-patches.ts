@@ -26,6 +26,7 @@ function agreedFrom(request: IncomingSparRequest): AgreedSpar {
     theirThanks: null,
     note: null,
     partnerFavourite: null,
+    iFlagged: false,
   };
 }
 

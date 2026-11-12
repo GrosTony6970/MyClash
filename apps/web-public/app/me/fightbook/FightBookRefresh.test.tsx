@@ -63,6 +63,7 @@ const spar = (id: string, over: Partial<AgreedSpar>): AgreedSpar => ({
   theirThanks: null,
   note: null,
   partnerFavourite: null,
+  iFlagged: false,
   ...over,
 });
 const waiting: SentSparRequest = {

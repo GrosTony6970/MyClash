@@ -52,10 +52,17 @@ export interface SparCardExtras {
   myReview: SparReview | null;
   theirThanks: { stars: number; text: string | null } | null;
   note: string | null;
+  /** The caller's own safety flag on this spar; the partner's flag about the caller never counts. */
+  iFlagged: boolean;
 }
 
 /** A card nothing was written on yet, and the card a Yes builds. */
-export const NO_EXTRAS: SparCardExtras = { myReview: null, theirThanks: null, note: null };
+export const NO_EXTRAS: SparCardExtras = {
+  myReview: null,
+  theirThanks: null,
+  note: null,
+  iFlagged: false,
+};
 
 /** When and where, as a card says it. A time is wall clock, HH:MM. */
 export function sparWhen(
@@ -169,5 +176,6 @@ export function toAgreed(
     theirThanks: extras.theirThanks,
     note: extras.note,
     partnerFavourite,
+    iFlagged: extras.iFlagged,
   };
 }

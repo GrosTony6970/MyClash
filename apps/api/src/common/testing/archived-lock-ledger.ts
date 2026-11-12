@@ -217,6 +217,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'POST me/fightbook/requests/:id/answer',
     'POST me/fightbook/requests/:id/cancel',
     'POST me/fightbook/requests/:id/done',
+    'POST me/fightbook/requests/:id/flag',
     'POST me/fightbook/requests/:id/review',
     'POST me/fightbook/requests/:id/undo',
     'POST me/fightbook/requests/:id/withdraw',

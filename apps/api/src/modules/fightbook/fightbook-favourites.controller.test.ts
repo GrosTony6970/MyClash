@@ -38,6 +38,7 @@ function controller(on: boolean) {
     {} as never,
     {} as never,
     favourites as never,
+    {} as never,
   );
   return { ctl, favourites };
 }

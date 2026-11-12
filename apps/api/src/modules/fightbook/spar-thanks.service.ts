@@ -34,42 +34,14 @@ export class SparThanksService {
 
   /**
    * For each spar card, the caller's own thank-you or anonymous review, the partner's SIGNED
-   * thank-you to the caller, and the caller's private note. Four reads per 200 spars. Each table
-   * holds one row per (spar, author), so no read passes one row per spar: the spar lists cap it.
+   * thank-you to the caller, the caller's private note, and whether the caller flagged the spar.
+   * Five reads per 200 spars. Each table holds one row per (spar, author), so no read passes one
+   * row per spar: the spar lists cap it.
    */
   async cardExtras(me: string, requestIds: string[]): Promise<Map<string, SparCardExtras>> {
     const ids = [...new Set(requestIds)];
     const db = this.supabase.service;
-    const [mine, myAnonymous, theirs, notes] = await Promise.all([
-      byRequest<Written>(ids, (piece) =>
-        db
-          .from('spar_thanks')
-          .select('spar_request_id, stars, body')
-          .eq('author_global_person_id', me)
-          .in('spar_request_id', piece),
-      ),
-      byRequest<Written>(ids, (piece) =>
-        db
-          .from('spar_anonymous_reviews')
-          .select('spar_request_id, stars')
-          .eq('author_global_person_id', me)
-          .in('spar_request_id', piece),
-      ),
-      byRequest<Written>(ids, (piece) =>
-        db
-          .from('spar_thanks')
-          .select('spar_request_id, stars, body')
-          .eq('subject_global_person_id', me)
-          .in('spar_request_id', piece),
-      ),
-      byRequest<{ spar_request_id: string; body: string }>(ids, (piece) =>
-        db
-          .from('spar_private_notes')
-          .select('spar_request_id, body')
-          .eq('author_global_person_id', me)
-          .in('spar_request_id', piece),
-      ),
-    ]);
+    const [mine, myAnonymous, theirs, notes, flags] = await writtenOn(db, me, ids);
     const extras = new Map<string, SparCardExtras>();
     const on = (id: string): SparCardExtras => {
       const card = extras.get(id) ?? { ...NO_EXTRAS };
@@ -82,6 +54,7 @@ export class SparThanksService {
       on(r.spar_request_id).theirThanks = { stars: r.stars, text: r.body ?? null };
     }
     for (const r of notes) on(r.spar_request_id).note = r.body;
+    for (const r of flags) on(r.spar_request_id).iFlagged = true;
     return extras;
   }
 
@@ -144,6 +117,48 @@ export class SparThanksService {
     if (error) throw new Error(`FightBook thank-you spars read failed: ${error.message}`);
     return new Map(((data ?? []) as WhenRow[]).map((s) => [s.id, s]));
   }
+}
+
+/** The five reads behind a spar card, in this order: my thanks, my anonymous reviews, theirs to me, my notes, my flags. */
+function writtenOn(db: SupabaseService['service'], me: string, ids: string[]) {
+  return Promise.all([
+    byRequest<Written>(ids, (piece) =>
+      db
+        .from('spar_thanks')
+        .select('spar_request_id, stars, body')
+        .eq('author_global_person_id', me)
+        .in('spar_request_id', piece),
+    ),
+    byRequest<Written>(ids, (piece) =>
+      db
+        .from('spar_anonymous_reviews')
+        .select('spar_request_id, stars')
+        .eq('author_global_person_id', me)
+        .in('spar_request_id', piece),
+    ),
+    byRequest<Written>(ids, (piece) =>
+      db
+        .from('spar_thanks')
+        .select('spar_request_id, stars, body')
+        .eq('subject_global_person_id', me)
+        .in('spar_request_id', piece),
+    ),
+    byRequest<{ spar_request_id: string; body: string }>(ids, (piece) =>
+      db
+        .from('spar_private_notes')
+        .select('spar_request_id, body')
+        .eq('author_global_person_id', me)
+        .in('spar_request_id', piece),
+    ),
+    // Only flags I wrote: the partner's flag about me must never show (anti-goal 4).
+    byRequest<{ spar_request_id: string }>(ids, (piece) =>
+      db
+        .from('spar_flags')
+        .select('spar_request_id')
+        .eq('reporter_global_person_id', me)
+        .in('spar_request_id', piece),
+    ),
+  ]);
 }
 
 const review = (row: Written, anonymous: boolean) => ({

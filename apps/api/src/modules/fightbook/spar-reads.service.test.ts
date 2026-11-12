@@ -79,6 +79,7 @@ function service(
     spar_thanks: { rows: [] },
     spar_anonymous_reviews: { rows: [] },
     spar_private_notes: { rows: [] },
+    spar_flags: { rows: [] },
   });
   const thanks = new SparThanksService(supabase as never);
   return { reads: new SparReadsService(supabase as never, thanks), supabase };
