@@ -6,7 +6,8 @@
 
 **Goal:** A fighter with FightBook on can ask another fighter for a spar from that fighter's public
 profile, from the Event people page (each search row and the person page), and from a new **Find a
-partner** tab that lists FightBook users at their Event and searches the rest by name.
+partner** tab that lists FightBook users at their Event and then all of FightBook, page by page,
+with photos.
 
 **Architecture:** No migration. Five new read routes under `me/fightbook` answer, for the signed-in
 caller only, who may be asked and who to find. The public pages stay public: the button loads in
@@ -20,9 +21,11 @@ Vitest.
 `docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`, `docs/ARCHITECTURE.md` §11septies.
 Rulings taken for this plan (2026-11-12): **672** a blocker stays listed in the blocked fighter's
 Find (his asks still end "Not this time"); the blocker's own Find hides the fighters she blocked.
-**673** below the same-Event block, a name search over all FightBook users (2+ letters, max 10);
+**673** below the same-Event block, a search over all FightBook users (widened by 675 below);
 the weapon filter applies to both. **674** "Ask to spar" on the Event person page (beside Follow)
-AND on each row of the people search.
+AND on each row of the people search. **675** (widens 673) the second section browses ALL
+FightBook users, by name, 20 per page with "Show more", narrowed by an optional name and the
+weapon; every Find card shows the fighter's photo.
 
 ## In plain words
 
@@ -37,9 +40,10 @@ whose days have not ended, with its day) or a free date and place; one to five w
 time and message. Sending answers "Request sent" or one sentence saying why not.
 
 **Find a partner.** A third tab in FightBook. At the top, everyone with FightBook on who is at
-Julie's Event (today's Event, else her next one; a picker if several run today). Below, a search box
-that finds any FightBook user by name. A weapon filter narrows both. Each card has a photo, name,
-club, weapons, and "Ask to spar".
+Julie's Event (today's Event, else her next one; a picker if several run today). Below, "All of
+FightBook": every FightBook user on MyClash, by name, 20 at a time with "Show more", and a box to
+narrow it by name. A weapon filter narrows both lists ("all sabre fighters"). Each card has the
+fighter's photo (their initials when they have none), name, club, weapons, and "Ask to spar".
 
 **Block (ruling 672).** If Marc blocked Julie, nothing changes for Julie: Marc still shows in her
 Find and his profile still shows the button; her request ends "Not this time", as in slice 1. Marc's
@@ -77,8 +81,13 @@ missing zone each get their own refusal code and sentence.
    never read (672). One predicate owner: the filter chain `applyFightBookOn(q)` =
    `applyReachable(q).eq('fightbook_enabled', true).not('claimed_by_user_id', 'is', null)` (the
    `applyReachable` shape), used by `fightBookOnFighters(ids)` (extracted from
-   `SparReadsService.answerableAskers`, which then calls it) AND by the name search's own read, so
-   one falsifier breaks both. `askableFighters` = `fightBookOnFighters` minus me, minus my blocks
+   `SparReadsService.answerableAskers`, which then calls it) AND by the browse read (675), so
+   one falsifier breaks both. The weapon filter has one owner too: `applyWeapon(q, weaponId)` adds
+   `.eq('fighter_weapons.weapon_id', weaponId)` to a select that embeds
+   `fighter_weapons!inner(weapon_id)` — the pattern the directory's club filter already runs in
+   production (`clubs!inner` + `.eq('clubs.slug', …)`, `fighters.service.ts:392,422`). Both the
+   Event block (`fightBookOnFighters(ids, weaponId?)`) and the browse use it, so paging stays
+   exact (a filter applied after a page was read would shrink pages). `askableFighters` = `fightBookOnFighters` minus me, minus my blocks
    (one read: `fightbook_blocks.select('blocked_global_person_id').eq('blocker_global_person_id',
 me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFighters`,
    `readSparFighters`, `readFighterWeaponNames`) reads in `inListChunks` pieces
@@ -102,14 +111,24 @@ me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFig
    - `me/fightbook/events/:eventId/find?weapon=` → `FindCard[]`: askable fighters with a `persons`
      row at that Event, hidden entrants left out, by name, at most 200. 400 `bad_event` unless the
      Event is public and the caller is on its roster (as ruling 665 for asks).
-   - `me/fightbook/find?q=&weapon=` → `FindCard[]`: askable fighters whose given, family or display
-     name contains `q`. `q` goes through `sanitizePostgrestFilterValue`, then `%` and `_` are
-     stripped too (they would match everyone), and the length is checked AFTER that: < 2 → `[]`
-     with no read (as `lookup.controller.ts:167-168`). One read: `applyFightBookOn`, the `or` of
-     three `ilike`, `.order('family_name').order('given_name').order('id').limit(50)`; then minus
-     me and my blocks, filter by weapon, answer at most 10. No index on `fightbook_enabled` (0263):
-     accepted at today's size, no migration in this slice.
-   - The query schemas (`askableQuerySchema`, `findQuerySchema`, `searchQuerySchema`) are exported
+   - `me/fightbook/find?q=&weapon=&page=` → `FindPage = { items: FindCard[]; more: boolean }`
+     (ruling 675: ALL of FightBook, paged). `page` 0-based, ≤ 500; 20 per page. One read:
+     `applyFightBookOn`, `applyWeapon` when `weapon` is set, `.neq('id', me)`, and when I blocked
+     anyone, ONE `.not('id', 'in', list)` with `list` the string `(id1,id2,…)` of at most
+     `IN_LIST_MAX` (200) of my blocked ids (one filter in one URL: chunking would not shorten it);
+     any further blocked ids are dropped from the page in memory, so a page may run short for
+     someone with over 200 blocks — accepted
+     (the string form: postgrest-js passes the value as given, an array would arrive without
+     brackets and PostgREST refuses it; in the query, so pages stay full),
+     `.order('family_name').order('given_name').order('id')`, `.range(page*20, page*20+20)` (21
+     rows: the 21st only sets `more`). `q` narrows by name: it goes through
+     `sanitizePostgrestFilterValue`, then `%` and `_` are stripped, and the length is checked AFTER
+     that: under 2 characters → no name filter (browse all), else the `or` of three `ilike`
+     (given, family, display). No index on `fightbook_enabled` (0263): accepted at today's size,
+     no migration in this slice.
+   - `weapon` is a catalog weapon **id** (`z.uuid()`), as the web's select lists them from
+     `GET /api/v1/weapons?active=true`; no name matching.
+   - The query schemas (`askableQuerySchema`, `findQuerySchema`, `browseQuerySchema`) are exported
      from the controller, like `askSchema`, and tested with `safeParse` (a Zod pipe does not run
      on a direct service call).
 3. **Find ignores `listed_in_directory`** (design, _my call_ there): Find lists only FightBook users
@@ -122,8 +141,9 @@ me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFig
    (`DIRECTORY_WEAPONS_SHOWN`). The read moves out of `FightersService.getFavoriteWeaponNames` into
    `fighters/fighter-weapon-names.ts` (one owner, both callers). It now **throws on a failed read**
    (today it reads `{ data }` only and shows no weapons) — the directory then 5xx's instead of
-   listing fighters with no weapons. A weapon filter matches any declared weapon, not only the 3
-   shown, case-insensitively; a fighter with none declared is left out when a filter is set.
+   listing fighters with no weapons. A weapon filter (Decision 1's `applyWeapon`) matches any
+   declared weapon, not only the 3 shown; a fighter with none declared is left out when a filter
+   is set.
 6. **Refusal codes (Minor 8):** `bad_place` (free date with no place), `bad_weapon` (a weapon not in
    the active catalog), `bad_zone` (free date with no or an unknown IANA zone). All `400 { code }`.
 7. **The ask dialog** (`AskSparDialog`, `@myclash/ui` `Modal`): kind radio (Event / free date; Event
@@ -156,8 +176,15 @@ me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFig
 10. **Find tab** (`?tab=find`): the Event block follows the design (`design.md:81-83`): the Event
     whose `today` is set; a picker only when several have `today`; none today → the soonest
     upcoming; none at all → no Event block. Then the weapon filter (catalog select, "Any weapon"),
-    the name search (debounce 250 ms, 2+ letters, its own empty state). Query strings built with
-    `URLSearchParams`. An ask from Find calls `refresh()` so My spars shows the new request.
+    then **"All of FightBook"** (675): the first page loads with the tab; a name box narrows it
+    (debounce 250 ms; under 2 letters = everyone); "Show more" appends the next page while `more`.
+    A new name or weapon starts again at page 0, and an answer for an older name, weapon or page is
+    dropped (key = `q|weapon|page`), so "Show more" never appends rows of an older search. An
+    appended page drops cards already shown (by `globalPersonId`): someone switching FightBook on
+    between pages shifts the offset and would repeat a card (and a React key). Every
+    card shows the fighter's photo through `Avatar` (initials when there is none). Query strings
+    built with `URLSearchParams`. An ask from Find calls `refresh()` so My spars shows the new
+    request.
 11. **Throttling:** reads use the global throttler; asking keeps slice 1's 20/h/account.
 
 ## Review Focus
@@ -167,7 +194,7 @@ me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFig
 2. **Marc switched FightBook off after Julie's button showed** — her ask answers
    `403 not_on_fightbook`; the dialog shows its sentence and stays open. Test in Task 7.
 3. **An Event whose last day ended at 06:00 this morning** — not in `me/fightbook/events`; Find then
-   shows only the name search, with no empty Event block. Tests in Tasks 4 and 10.
+   shows only "All of FightBook", with no empty Event block. Tests in Tasks 4 and 10.
 4. **A roster row with no fighter profile, or an unclaimed one** — no button, no error, the other
    rows still get theirs. Test in Task 3.
 5. **Julie at two Events today** — the picker shows both; the default is the first by day then name;
@@ -175,6 +202,8 @@ me)` — no `.in()`). Every `.in()` over a roster-sized id list (`fightBookOnFig
    in Task 10.
 6. **An Event of 300 people** — Find's Event block reads in chunks of 200 ids and answers, never a
    5xx. Test in Task 6 (a 250-row roster).
+7. **Hugo taps "Show more", then types a name before page 2 answers** — page 2 of the old list
+   must not land under the new list. Test in Task 10.
 
 ---
 
@@ -229,7 +258,7 @@ Block and Find lines (672, 673), the slice 1 plan untouched.
       `it.each` expecting `[400, 'bad_zone']` via `codeOf` (the "more than a year ahead" row stays
       `bad_day`); the test at `:170-177` becomes two, expecting `[400, 'bad_place']` and
       `[400, 'bad_weapon']`. Run `pnpm --filter @myclash/api exec vitest run
-  src/modules/fightbook/spar-requests.ask.test.ts` → those 4 cases FAIL, the rest pass.
+src/modules/fightbook/spar-requests.ask.test.ts` → those 4 cases FAIL, the rest pass.
 - [ ] **Step 2:** Add the three codes to `SPAR_REFUSAL_CODES`; `onFreeDate` throws
       `badRequest('bad_zone'|'bad_place', …)`; `catalogWeapons` throws `badRequest('bad_weapon', …)`.
       `refusal.ts` maps each (the `Record` makes the compiler demand them); en/fr sentences
@@ -268,8 +297,9 @@ covers it), `apps/web-public/app/me/fightbook/SparCard.tsx`, the web tests build
 - `applyFightBookOn<T>(query: T): T` — Decision 1's chain.
 - `fightBookOnFighters(db, ids: string[]): Promise<Set<string>>` — live, claimed, on:
   `applyFightBookOn(global_persons.select('id')).in('id', chunk)` for each `inListChunks(ids)`.
-- `askableFighters(db, me: string, ids: string[]): Promise<Set<string>>` — the above minus `me`
-  minus my blocks (Decision 1's one read).
+- `askableFighters(db, me: string, ids: string[], weaponId?: string): Promise<Set<string>>` — the
+  above (passing `weaponId` to `fightBookOnFighters(ids, weaponId?)`, Task 6) minus `me` minus my
+  blocks (Decision 1's one read).
 - `isOnEventRoster(db, me, eventId): Promise<boolean>` — moved from `SparRequestsService`.
 - `SparFindService.askableFighter(me, globalPersonId): Promise<{ askable: boolean }>`.
 - `SparFindService.askableAtEvent(me, eventId, personIds: string[], reader: PublicReader):
@@ -320,8 +350,8 @@ string | null }` — pure.
       by name.
 - [ ] **Step 2: Implement.** Read `persons.select('event_id').eq('global_person_id', me)`, then
       `events.select('id, name, status, event_kind, start_date, end_date, timezone').in('id', …)
-  .gte('end_date', yesterday)`; `isPublicEvent`; `openEventDays`. Route `GET
-  me/fightbook/events`. Regenerate the client. Green.
+.gte('end_date', yesterday)`; `isPublicEvent`; `openEventDays`. Route `GET
+me/fightbook/events`. Regenerate the client. Green.
 - [ ] **Step 3: Commit** `feat(fightbook): the API lists the Events a fighter can ask at`.
 
 ### Task 5: One owner for a fighter's weapons
@@ -333,7 +363,7 @@ string | null }` — pure.
 string[]>>` — favourites first, then `sort_order`; `cap` undefined = all; throws on a read error.
 
 - [ ] **Step 1: Failing test:** select string `'global_person_id, favorite, sort_order,
-  weapon_catalog(name)'`, the `.in('global_person_id', ids)` filter, cap 3 keeps 3, no cap keeps
+weapon_catalog(name)'`, the `.in('global_person_id', ids)` filter, cap 3 keeps 3, no cap keeps
       all, a failed read throws (Decision 5).
 - [ ] **Step 2:** Move the body (reading in `inListChunks` pieces); `getFavoriteWeaponNames` calls
       it with `DIRECTORY_WEAPONS_SHOWN`, which moves into the new file, exported.
@@ -343,31 +373,65 @@ string[]>>` — favourites first, then `sort_order`; `cap` undefined = all; thro
       `per-file changes: 0`; `pnpm quality:complexity` green.
 - [ ] **Step 4: Commit** `refactor(api): a fighter's weapon names have one owner`.
 
-### Task 6: Find a partner — the Event block and the name search
+### Task 6: Find a partner — the Event block and all of FightBook
 
-**Files:** `spar-find.service.ts` (+ test file(s)), controller (+ test), types, OpenAPI client.
+**Files:** `spar-find.service.ts` (+ test file(s)), `spar-askable.ts` (`applyWeapon`), controller
+(+ test), types, OpenAPI client; Step 0: `common/testing/supabase-chain-seeded.ts` (398 lines),
+`supabase-chain-internals.ts`, a new file split out of the seeded double, `supabase-chain.test.ts`.
+
+- [ ] **Step 0: Teach the seeded double to page and to exclude a list** (its own commit, first).
+      Today `range` is `UNSIMULATED` and throws on a seeded table (`supabase-chain-internals.ts:87`,
+      `supabase-chain-seeded.ts:361-367`) and `.not` accepts only `is` and `eq` (`:305-308`), so
+      every `browse` test would throw before asserting. First move the filter evaluation out of
+      `supabase-chain-seeded.ts` into its own file (the cap is 400 lines), then add `range(from,
+  to)` (applied after `order`, inclusive `to`, as PostgREST) and `.not(col, 'in', '(a,b)')`
+      (parses the parenthesised list; an array or a string without brackets THROWS, because
+      PostgREST refuses it). Tests in `supabase-chain.test.ts` for both, including the throw.
+      Rules: `range` and `limit` together → the one called LAST wins (PostgREST), tested both
+      ways; `total()` keeps counting every match, ignoring `range`; a CANNED table still lets
+      `range` through unapplied (`supabase-chain-internals.ts:80-86`). Run
+      `ai-usage.service.test.ts` by name (it chains `.range` on a canned table), then
+      `pnpm --filter @myclash/api test` green. Commit
+      `test(api): the seeded double pages and excludes a list`.
 
 **Interfaces:**
 
-- `FindCard = { fighter: SparFighter; weapons: string[] }`.
-- `SparFindService.atEvent(me, eventId, weapon: string | undefined, reader): Promise<FindCard[]>`.
-- `SparFindService.search(me, q: string, weapon: string | undefined): Promise<FindCard[]>`.
+- `FindCard = { fighter: SparFighter; weapons: string[] }`;
+  `FindPage = { items: FindCard[]; more: boolean }`; `FIND_PAGE_SIZE = 20`.
+- `applyWeapon<T>(query: T, weaponId: string | undefined): T` and the select fragment it needs.
+- `SparFindService.atEvent(me, eventId, weaponId: string | undefined, reader): Promise<FindCard[]>`.
+- `SparFindService.browse(me, q: string | undefined, weaponId: string | undefined, page: number):
+Promise<FindPage>`.
 
 - [ ] **Step 1: Failing tests:** `atEvent` lists askable fighters on that Event's roster by name
       (case-insensitive), hidden entrants out, self out, one I blocked out, **one who blocked me IN**
       (672), at most 200; 400 `bad_event` for a draft Event and for a public Event I am not on.
-      Weapon filter `'longsword'` keeps a fighter whose 4th declared weapon is "Longsword" and drops
-      one with none declared. A 250-row roster with 220 askable fighters answers (each `.in()` call
-      in the double carries ≤ 200 ids — assert it) (Review Focus 6). `search`: `q` `' a '`, `'%%'`
-      and `'(('` → `[]` with no DB call; `q` `'Ma,rc'` reaches the `or` filter sanitized (assert the
-      string); the three `order` calls and `limit(50)` asserted; only FightBook users (the
-      `applyFightBookOn` filters asserted, with an off, an unclaimed and a merged fixture row that
-      must be excluded); max 10; blocked-by-me out, blocked-me in.
-- [ ] **Step 2: Implement** with `askableFighters`, `readSparFighters`, `readFighterWeaponNames`
-      (no cap, then show the first 3). Routes `GET me/fightbook/events/:eventId/find` (query
-      `{ weapon?: text(80) }`) and `GET me/fightbook/find` (query `{ q: string ≤ 80, weapon? }`).
-      Regenerate the client. Green, including `pnpm quality:complexity`.
-- [ ] **Step 3: Commit** `feat(fightbook): find a partner at your Event or by name`.
+      With a weapon id, the select string embeds `fighter_weapons!inner(weapon_id)` and
+      `filtersFor(…, 'eq')` holds `['fighter_weapons.weapon_id', id]`; without one, neither. These
+      weapon tests assert the select string and the filter ONLY: the double compares a dotted
+      column against the row's own key (`supabase-chain-seeded.ts:295`) and returns nothing, so no
+      weapon test expects rows back; Step 2's probe is the behaviour test. A
+      250-row roster with 220 askable fighters answers (each `.in()` call in the double carries
+      ≤ 200 ids — assert it) (Review Focus 6). `browse`: no `q` → no `or` filter, all FightBook
+      users by name; `q` `' a '`, `'%%'` and `'(('` → no `or` filter either; `q` `'Ma,rc'` reaches
+      the `or` filter sanitized (assert the string); the three `order` calls, `.neq('id', me)` and
+      `range(20, 40)` for page 1 asserted; 21 rows answered → 20 items and `more: true`, 20 → `more:
+  false`; only FightBook users (the `applyFightBookOn` filters asserted, with an off, an
+      unclaimed and a merged fixture row that must be excluded); blocked-by-me out via the
+      `not in` filter, value exactly `(${ids.join(',')})` (asserted, and absent when I blocked
+      nobody; 201 blocks → one `not in` of 200 ids, and the 201st blocked fighter, seeded on the
+      page, is still absent from `items`), blocked-me in. `browseQuerySchema`
+      refuses `page` -1, 501 and a non-uuid `weapon`.
+- [ ] **Step 2: PROBE the embed on a real PostgREST before relying on it** (prompt §5: a library
+      claim is probed). On the local stack (or a replay with PostgREST), seed two FightBook fighters,
+      one declaring the weapon; run the exact `browse` read with `applyWeapon`; it returns ONE row,
+      once (a to-many `!inner` must not repeat the parent). Record the command and result in the
+      ledger. If it repeats or errors, stop and report before Step 3.
+- [ ] **Step 3: Implement** with `askableFighters(db, me, ids, weaponId)`, `readSparFighters`,
+      `readFighterWeaponNames` (cap `DIRECTORY_WEAPONS_SHOWN`: it only feeds the cards now). Routes `GET me/fightbook/events/:eventId/find` (query
+      `{ weapon?: uuid }`) and `GET me/fightbook/find` (query `{ q?: string ≤ 80, weapon?: uuid,
+  page?: int 0-500 }`). Regenerate the client. Green, including `pnpm quality:complexity`.
+- [ ] **Step 4: Commit** `feat(fightbook): find a partner at your Event or in all of FightBook`.
 
 ### Task 7: The ask dialog and its button
 
@@ -378,8 +442,8 @@ string[]>>` — favourites first, then `sort_order`; `cap` undefined = all; thro
 
 - `readFightBookEvents(apiUrl, signal?)`, `readAskableFighter(apiUrl, id, signal?)`,
   `readAskableAtEvent(apiUrl, eventId, personIds, signal?)`, `readFindAtEvent(apiUrl, eventId,
-weapon, signal?)`, `readFindSearch(apiUrl, q, weapon, signal?)` — each a `FightBookRead<T>` with
-  its shape check.
+weapon, signal?)`, `readFindBrowse(apiUrl, q, weapon, page, signal?)` — each a `FightBookRead<T>`
+  with its shape check (`readFindBrowse` needs an `items` array and a boolean `more`).
 - `<AskToSpar receiverGlobalPersonId name eventId? apiUrl onSent? />` renders the button and owns
   the dialog's open state.
 
@@ -455,9 +519,19 @@ never shown; `{}` on any non-data read.
 - [ ] **Step 1: Failing tests:** `?tab=find` opens Find; the Event block per Decision 10: two
       Events today → a picker, default the first (by day, then name), switching re-reads (Review
       Focus 5); one Event today and one next month → no picker, today's; none today, two upcoming →
-      no picker, the soonest; no Events → no Event block, the search alone (Review Focus 3); the weapon select re-reads both lists with `weapon`; search under 2 letters reads
-      nothing; a failed read shows the retry sentence; an ask sent from a card calls `refresh`.
-- [ ] **Step 2: Implement.** Cards: `Avatar`, name, club, weapons, `<AskToSpar>`.
+      no picker, the soonest; no Events → no Event block, "All of FightBook" alone (Review Focus 3).
+      "All of FightBook" reads page 0 with the tab; "Show more" shows while `more` and appends page
+      1; a name or weapon change reads page 0 again and replaces the list; **Review Focus 7**: tap
+      "Show more", type a name, then resolve the old page 1 last → the new list has no old rows.
+      The weapon select re-reads both lists with the weapon id. Each card renders `Avatar` with
+      the fighter's `photoUrl` (an `<img>` with that `src`), and initials when it is null. A failed
+      read shows the retry sentence; an ask sent from a card calls `refresh`.
+      A page 1 that repeats a page-0 card shows it once.
+- [ ] **Step 2: Implement.** Cards: `Avatar` (photo), name, club, weapons, `<AskToSpar>`. The "All
+      of FightBook" section is its own file and hook from the start (`AllOfFightBook.tsx`,
+      `use-fightbook-browse.ts`), with its own test file (`AllOfFightBook.test.tsx`: paging, Review
+      Focus 7, the repeat, the avatar); `FindTab.test.tsx` keeps the Event block, the picker cases,
+      the weapon select, retry and refresh. Both test files stay under 400 lines.
 - [ ] **Step 3: Commit** `feat(fightbook): the find a partner tab`.
 
 ### Task 11: The docs
@@ -465,8 +539,9 @@ never shown; `{}` on any non-data read.
 - [ ] `docs/ARCHITECTURE.md` §11septies.5 "Finding and asking": the five routes, Decision 1's
       predicate, 672's asymmetry, why the button never sits in public data. Design spec: the Block
       paragraph's "You disappear from their Find…" becomes ruling 672's rule; "if none, Find shows
-      everyone" becomes ruling 673's search. `pnpm quality:docs-drift` green.
-- [ ] **Commit** `docs(fightbook): finding and asking, rulings 672-674`.
+      everyone" becomes ruling 675's paged list of all FightBook users. `pnpm quality:docs-drift`
+      green.
+- [ ] **Commit** `docs(fightbook): finding and asking, rulings 672-675`.
 
 ### Task 12: Falsify, gates, review, push
 
@@ -482,10 +557,13 @@ never shown; `{}` on any non-data read.
       test red. F10 drop `sanitizePostgrestFilterValue` → the `or`-string test red. F11 drop "minus
       my blocks" → blocked-by-me tests red. F12 drop "minus me" → self tests red. F13 drop the
       `claimed_by_user_id` filter from `applyFightBookOn` → unclaimed tests red in BOTH
-      `fightBookOnFighters` and the search. F14 skip `inListChunks` in `fightBookOnFighters` → the
+      `fightBookOnFighters` and `browse`. F14 skip `inListChunks` in `fightBookOnFighters` → the
       250-row test red. F15 drop the `fetchMe` gate in `ProfileAskToSpar` → the anonymous test red.
       F16 the person page passes `viewerType === 'claimed'` instead of `askerSignedIn` → the
-      "`/me` pending / failed" page tests red.
+      "`/me` pending / failed" page tests red. F17 drop `applyWeapon`'s `.eq` → the weapon filter
+      tests red in BOTH `atEvent` and `browse`. F18 drop the `q|weapon|page` key guard in the
+      "All of FightBook" list → Review Focus 7 test red. F19 `browse` drops the `not in` (my
+      blocks) filter → blocked-by-me test red.
 - [ ] **Named, not fixed:** `hiddenEntrantIds` puts all draft-only entrants in one `.in()`
       (`hidden-entrants.ts:55`): over 200 such entrants at one Event, a 5xx. The people lookup
       already has it; not new here. Report it to the operator.
