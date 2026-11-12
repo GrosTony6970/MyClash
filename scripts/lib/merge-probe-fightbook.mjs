@@ -5,16 +5,7 @@
  * end up asking, reviewing or favouriting themselves, no Inbox may hold a request from someone its
  * owner blocked, and the survivor's star line must count the stars the merged profile was given.
  */
-import {
-  P,
-  check,
-  id,
-  lastMerge,
-  merge,
-  profile,
-  revert,
-  scenario,
-} from './merge-probe-fixture.mjs';
+import { P, check, id, lastMerge, merge, revert, scenario } from './merge-probe-fixture.mjs';
 
 /** X, Y and Z: three other fighters. */
 const X = id(14);

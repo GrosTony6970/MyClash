@@ -2656,9 +2656,14 @@ off fighter still finishes their spars (ruling 666).
 `zone`, `cancelUntil` is `expires_at`, `markUntil` is 48 h after `expires_at`. One owner computes
 them (`modules/fightbook/spar-windows.ts`); the web only compares them with its clock. "We sparred":
 status `agreed`, `markFrom` <= now < `markUntil`. Undo: status `done`, now before `markUntil`. Cancel:
-status `agreed`, now before `cancelUntil`. A review: status `done`, now at or after `markUntil`,
-no end. Either fighter may mark or undo. Each is one conditional update on the API's clock; a lost
-race or a closed window answers 409 `not_open`, one wording. `done` is a status, not a column: no
+status `agreed`, now before `cancelUntil`. A review: status `done`, now at or after `markUntil`.
+The API sets no end to a review; the web offers the thank-you form while the spar shows in My spars
+(its 30-day look-back, below). Either fighter may mark or undo. Each is one conditional update on
+the API's clock; a lost race or a closed window answers 409 `not_open`, one wording. Two fighters
+making the same move seconds apart (both tap "We sparred") is not a lost race: the second update
+matches no row, the API reads the row again on the caller's side, and a row already at the status
+asked for, inside the window, answers 204 with no second notice. A day start that cannot be
+computed (a zone the clock cannot read) throws; no window is guessed. `done` is a status, not a column: no
 "marked by", no "marked at". The status CHECK refuses a spar that is both done and cancelled.
 A review only opens when undo has closed, so no review can sit on a spar that is undone (this
 replaces the first design, which closed undo at the first review).
@@ -2686,7 +2691,9 @@ reviews") and "from 5 reviews" are overturned: the average moves after each revi
 the first. `fightbook_star_line(p_subject)` returns `{ average, count }` over both tables in one SQL
 call (PostgREST aggregates are off, and a row read would stop at the 1000-row page). The fighter
 sees their own line whatever the switch says (`GET me/fightbook/settings`: `showStars`, `sparred`,
-`stars`). `fightbook_show_stars` on the profile (default off, ruling 682) decides the public line;
+`stars`; the settings panel shows "Sparred N times" beside "Your stars"). The 48 h grace has two
+owners on purpose, `MARK_GRACE_MS` and `fightbook_review`'s own `interval '48 hours'`; a test
+holds them equal. `fightbook_show_stars` on the profile (default off, ruling 682) decides the public line;
 like `fightbook_enabled`, only the switch is public, never the number.
 
 **The public line.** `PublicSparLine = { sparred, stars }` is the only FightBook data in the public
@@ -2694,7 +2701,9 @@ fighter projection (`modules/fightbook/spar-public-line.ts`), `null` unless the 
 FightBook on. `sparred` counts spars with status `done` and `expires_at` at least 48 h past, either
 side. `stars` appears only when the switch is on and there is one review. A line with no spars and
 no stars draws nothing. It degrades alone: a failed read logs a warning and answers
-`fightbook: null`, so the profile still renders. The own line in settings throws.
+`fightbook: null`, so the profile still renders. The own line in settings degrades the same way:
+one warning, `sparred` and `stars` null, and the rest of the settings still answers, so the
+FightBook page still loads.
 
 **Lists.** My spars looks back 30 days. `GET me/fightbook/thanks?page=` lists the thank-yous the
 caller received, 20 per page, newest first; it is unbounded in time and shows even when My spars is
@@ -2706,8 +2715,9 @@ idempotent). PUT answers 404 unless the fighter is live, has claimed the profile
 caller (the caller's blocks are not checked: a blocked fighter can be hearted), and 409
 `favourites_full` at 200 (a race may land one more; a merge can also push a fighter past 200,
 accepted). `GET me/fightbook/favourites` returns `FindCard[]` through `askableFighters`, so it hides
-a fighter the caller blocked; a favourite who blocked the caller stays (ruling 672). `favouritesOf` (one read, at most 200) lives in
-`spar-askable.ts`. The favourite is never told. Favourites is a tab between My
+a fighter the caller blocked; a favourite who blocked the caller stays (ruling 672). `favouritesOf` (one read, oldest first, at most 200) lives in
+`spar-askable.ts`. The 200 is `FAVOURITES_MAX` in `@myclash/types`: the API's cap and the web's
+`favourites_full` sentence read the same number. The favourite is never told. Favourites is a tab between My
 spars and Find (`?tab=favourites`); the heart sits on Find cards, spar cards, Favourites cards and the profile.
 
 **Privacy registries.** All three tables are in `SUBJECT_EXPORT_TABLES` (thanks reach author and
