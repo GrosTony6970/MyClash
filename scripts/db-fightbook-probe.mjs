@@ -18,6 +18,10 @@
  * blocked fighter's waiting request as a no and the blocker's own as withdrawn, leaving an agreed
  * spar alone, and naming a live profile only; the table's CHECKs; an Event delete keeping the
  * request; only the service role may call the three functions.
+ * Slice 3 (lib/fightbook-probe-reviews.mjs, migration 0267): a review only on a `done` spar, by
+ * one of its two fighters, once, after the API's clock passes 48 h after the end; an anonymous
+ * review in its own table and a signed one with a blank text keeping none; the star line over
+ * both tables, moving at once; the new CHECKs; only the service role may call the two functions.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -34,6 +38,12 @@ import {
   seed,
   tableShape,
 } from './lib/fightbook-probe-scenarios.mjs';
+import {
+  REVIEW_FUNCTIONS,
+  reviewTableShape,
+  reviewing,
+  starLineMoves,
+} from './lib/fightbook-probe-reviews.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -44,7 +54,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 47;
+const EXPECTED_CHECKS = 68;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -52,7 +62,7 @@ async function onlyTheServiceRole(tx) {
     ['authenticated', false],
     ['service_role', true],
   ];
-  for (const signature of FUNCTIONS) {
+  for (const signature of [...FUNCTIONS, ...REVIEW_FUNCTIONS]) {
     for (const [role, allowed] of roles) {
       const [{ may }] =
         await tx`SELECT has_function_privilege(${role}, ${signature}, 'EXECUTE') AS may`;
@@ -73,6 +83,9 @@ try {
       await everyNoIsOneRow(tx);
       await blocking(tx);
       await tableShape(tx);
+      await reviewing(tx);
+      await starLineMoves(tx);
+      await reviewTableShape(tx);
       await onlyTheServiceRole(tx);
       throw ROLLBACK;
     }),
@@ -86,7 +99,9 @@ try {
     console.error(`FightBook probe FAILED (${failures.length}):\n  - ${failures.join('\n  - ')}`);
     process.exitCode = 1;
   } else {
-    console.log(`FightBook probe passed: ${checks} checks of fightbook_ask, _answer and _block.`);
+    console.log(
+      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review and _star_line.`,
+    );
   }
 } catch (error) {
   console.error(`FightBook probe could not run: ${error.message}`);
