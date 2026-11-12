@@ -40,36 +40,38 @@ const fresh = (search: string): View => ({
 });
 
 /**
- * One answer folded into the view. An answer of another search starts the view again (page 0 of a
- * new search lands on an empty view). A later page appends only the cards not already shown:
- * someone who switches FightBook on between two reads shifts the pages by one, and the next page
- * would repeat a card (and its React key).
+ * One answer folded into the view. An answer for any other key (`q|weapon|page`) than the one the
+ * view is waiting on is dropped: a page of an older search, or of an older visit to this search,
+ * never lands. A later page appends only the cards not already shown: someone who switches
+ * FightBook on between two reads shifts the pages by one, and the next page would repeat a card
+ * (and its React key).
  */
 function withAnswer(view: View, search: string, page: number, answer: FindPage | 'failed'): View {
-  const base = view.search === search ? view : fresh(search);
-  if (answer === 'failed') return { ...base, page, failed: true };
-  const seen = new Set(base.items?.map((card) => card.fighter.globalPersonId));
+  if (view.search !== search || view.page !== page) return view;
+  if (answer === 'failed') return { ...view, failed: true };
+  const seen = new Set(view.items?.map((card) => card.fighter.globalPersonId));
   const added = answer.items.filter((card) => !seen.has(card.fighter.globalPersonId));
-  const items = [...(base.items ?? []), ...added];
-  return { ...base, page, answered: page, items, more: answer.more, failed: false };
+  const items = [...(view.items ?? []), ...added];
+  return { ...view, answered: page, items, more: answer.more, failed: false };
 }
 
 /**
  * All of FightBook for the current search, page by page. Page 0 is read at once; `showMore` reads
  * the next while the last answer said `more`, and only once that answer is in.
  *
- * The view is kept with the search it shows. A new name or weapon finds a view of another search,
- * so it starts at page 0 with no list (no set-state needed: the view of the old search is simply
- * not the current one). The race: Hugo taps "Show more", then types a name before that page
- * answers. The new search aborts the read, and an aborted read writes nothing (key
- * `q|weapon|page`): written, that old page would replace the new search's view.
+ * Every new name or weapon starts at page 0 with no list, a return to an earlier search too: the
+ * view is kept with the search it belongs to, and a render that finds another search sets a fresh
+ * view (React's "state from the previous render" pattern; that render is redone before anything
+ * shows or reads). The race: Hugo taps "Show more", then types a name before that page answers.
+ * Two guards: the new search aborts the read, and an aborted read writes nothing; an answer that
+ * still lands is checked against the view's own key and dropped.
  */
 export function useFightBookBrowse(apiUrl: string, name: string, weapon: string) {
   const search = searchKey(name, weapon);
   const [view, setView] = useState<View>(() => fresh(search));
   const [attempt, setAttempt] = useState(0);
-  const current = view.search === search ? view : fresh(search);
-  const page = current.page;
+  if (view.search !== search) setView(fresh(search));
+  const page = view.page;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,17 +84,15 @@ export function useFightBookBrowse(apiUrl: string, name: string, weapon: string)
     return () => controller.abort();
   }, [apiUrl, name, weapon, page, attempt]);
 
-  const loading = !current.failed && current.answered !== page;
-  const sameSearch = (change: (view: View) => View) =>
-    setView((now) => (now.search === search ? change(now) : now));
+  const loading = !view.failed && view.answered !== page;
   return {
-    items: current.items,
+    items: view.items,
     loading,
-    failed: current.failed,
-    more: !loading && !current.failed && current.more,
-    showMore: () => sameSearch((now) => ({ ...now, page: now.page + 1 })),
+    failed: view.failed,
+    more: !loading && !view.failed && view.more,
+    showMore: () => setView((now) => ({ ...now, page: now.page + 1 })),
     retry: () => {
-      sameSearch((now) => ({ ...now, failed: false }));
+      setView((now) => ({ ...now, failed: false }));
       setAttempt((n) => n + 1);
     },
   };

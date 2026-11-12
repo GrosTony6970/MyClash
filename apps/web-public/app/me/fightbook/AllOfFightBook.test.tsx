@@ -170,6 +170,50 @@ describe('All of FightBook', () => {
     expect(names()).toEqual(['Probe Fighter 5']);
   });
 
+  it('a quick return to an earlier search starts at page 0 again, and the late answer is dropped', async () => {
+    const hu = later();
+    serve({
+      [P0]: page([card(1), card(2)], true),
+      [P1]: page([card(3)], false),
+      '/api/v1/me/fightbook/find?q=Hu&page=0': hu.route,
+    });
+    await open();
+    await act(async () => showMore()!.click());
+    await settled();
+    expect(names()).toHaveLength(3);
+    // Hugo types "Hu", then clears the box before "Hu" answers.
+    await typeName('Hu');
+    await debounced();
+    const before = reads().length;
+    await typeName('');
+    await debounced();
+    expect(reads().slice(before)).toEqual([P0]);
+    expect(names()).toEqual(['Probe Fighter 1', 'Probe Fighter 2']);
+    await hu.land(page([card(5)], false));
+    await settled();
+    expect(names()).toEqual(['Probe Fighter 1', 'Probe Fighter 2']);
+  });
+
+  it('a page of this search asked before a quick return does not land after it', async () => {
+    const oldPage1 = later();
+    serve({
+      [P0]: page([card(1), card(2)], true),
+      [P1]: oldPage1.route,
+      '/api/v1/me/fightbook/find?q=Hu&page=0': page([card(5)], false),
+    });
+    await open();
+    await act(async () => showMore()!.click());
+    await typeName('Hu');
+    await debounced();
+    await typeName('');
+    await debounced();
+    expect(names()).toEqual(['Probe Fighter 1', 'Probe Fighter 2']);
+    // Same search, older visit: its page 1 is not the page this view waits on.
+    await oldPage1.land(page([card(3)], false));
+    await settled();
+    expect(names()).toEqual(['Probe Fighter 1', 'Probe Fighter 2']);
+  });
+
   it('a card already shown is not shown twice when the next page repeats it', async () => {
     // Someone switched FightBook on between the two reads: the pages shifted by one.
     serve({ [P0]: page([card(1), card(2)], true), [P1]: page([card(2), card(3)], false) });

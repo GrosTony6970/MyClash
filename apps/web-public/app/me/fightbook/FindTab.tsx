@@ -46,13 +46,13 @@ function useFindSetup(apiUrl: string) {
   return { setup, retry };
 }
 
+const fightersKey = (eventId: string, weapon: string) => `${eventId}|${weapon}`;
+
 /**
  * The FightBook users at one Event, for one weapon. An answer is kept with the Event and weapon it
  * answers, and a switch aborts the read for the old pair, so an older answer never shows under a
  * newer heading. `null` while reading.
  */
-const fightersKey = (eventId: string, weapon: string) => `${eventId}|${weapon}`;
-
 function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
   const key = fightersKey(eventId, weapon);
   const [answer, setAnswer] = useState<{ key: string; cards: FindCard[] | 'failed' } | null>(null);
