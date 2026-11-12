@@ -123,7 +123,7 @@ describe('SparRequestsService.withdraw', () => {
 describe('SparRequestsService.cancel', () => {
   it('cancels as the side the caller is on, and tells the other fighter', async () => {
     const { service, supabase, send } = setup();
-    await service.cancel(JULIE, REQUEST, 'Injured, sorry');
+    await service.cancel(JULIE, REQUEST, 'Injured, sorry', NOW);
     expect(selectsFor(supabase.from, 'spar_requests')[0]).toBe(
       'id, asker_global_person_id, receiver_global_person_id, status',
     );
@@ -137,6 +137,8 @@ describe('SparRequestsService.cancel', () => {
       ['id', REQUEST],
       ['status', 'agreed'],
       ['receiver_global_person_id', JULIE],
+      // Ruling 677: a cancel after the day ends (`expires_at` not after now) lands on no row.
+      ['expires_at', NOW.toISOString()],
     ]);
     await settle();
     expect(send).toHaveBeenCalledWith(
@@ -153,9 +155,9 @@ describe('SparRequestsService.cancel', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('answers not_open to a spar no longer agreed, and tells nobody', async () => {
+  it('answers not_open to a spar no longer agreed or past its day, and tells nobody', async () => {
     const { service, send } = setup({ update: { data: [], error: null } });
-    expect(await codeOf(service.cancel(MARC, REQUEST, undefined))).toEqual([409, 'not_open']);
+    expect(await codeOf(service.cancel(MARC, REQUEST, undefined, NOW))).toEqual([409, 'not_open']);
     await settle();
     expect(send).not.toHaveBeenCalled();
   });

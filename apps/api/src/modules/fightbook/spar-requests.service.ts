@@ -159,8 +159,15 @@ export class SparRequestsService {
    * Cancel an agreed spar, either side, with an optional message; the other fighter is told.
    * A stranger gets 404, never 403 (a 403 would confirm the request exists). One conditional
    * update on the caller's own side: two cancels race to one winner, the loser gets `not_open`.
+   * A spar is cancelled only until its day ends (`expires_at`, ruling 677): after that it is a spar
+   * that happened or did not, and "We sparred" or silence is the answer.
    */
-  async cancel(me: string, requestId: string, message: string | undefined): Promise<void> {
+  async cancel(
+    me: string,
+    requestId: string,
+    message: string | undefined,
+    now = new Date(),
+  ): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .select('id, asker_global_person_id, receiver_global_person_id, status')
@@ -181,6 +188,7 @@ export class SparRequestsService {
       .eq('id', requestId)
       .eq('status', 'agreed')
       .eq(`${side}_global_person_id`, me)
+      .gt('expires_at', now.toISOString())
       .select('id');
     if (writeError) throw new Error(`spar cancel failed: ${writeError.message}`);
     if ((won ?? []).length === 0) throw notOpen();
