@@ -197,3 +197,12 @@ INSERT INTO spar_anonymous_reviews (id, spar_request_id, author_global_person_id
 INSERT INTO fightbook_favourites (id, owner_global_person_id, favourite_global_person_id) VALUES
   ('5a000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a',
    '9e000000-0000-4000-8000-00000000000b');
+-- FightBook safety flags (0269): a flag on the request above and its admin row. Written directly:
+-- the CHECKs do not test the request's status.
+INSERT INTO spar_flags
+  (id, spar_request_id, reporter_global_person_id, subject_global_person_id, kind, spar_day, place, weapons,
+   reason, body, created_at) VALUES
+  ('5f100000-0000-4000-8000-00000000000a', '5b000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000b', 'free', '2026-05-22',
+   'Salle Probe', ARRAY['Longsword'], 'too_hard', 'Probe flag', '2026-05-22T20:00:00Z');
+INSERT INTO spar_flag_admin (flag_id) VALUES ('5f100000-0000-4000-8000-00000000000a');

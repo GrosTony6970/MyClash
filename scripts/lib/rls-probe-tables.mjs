@@ -148,6 +148,19 @@ export const VERDICTS = [
     visible: [],
     hidden: ['5a000000-0000-4000-8000-00000000000a'],
   },
+  // FightBook safety flags (0269): deny-all; the flagged fighter never reads one.
+  {
+    table: 'spar_flags',
+    key: 'id',
+    visible: [],
+    hidden: ['5f100000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'spar_flag_admin',
+    key: 'flag_id',
+    visible: [],
+    hidden: ['5f100000-0000-4000-8000-00000000000a'],
+  },
 ];
 
 /**
