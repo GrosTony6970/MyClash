@@ -20,7 +20,7 @@ export function sparExpiresAt(kind: SparKind, day: string, zone: string): Date |
   return iso ? new Date(iso) : null;
 }
 
-/** No Event runs this long; the walk stops here if a stored end date is wrong. */
+/** The walk lists at most this many days from its start; it also stops here on a wrong end date. */
 const MAX_EVENT_DAYS = 31;
 
 /**
@@ -37,7 +37,10 @@ export function openEventDays(
   const last = event.end_date.slice(0, 10);
   const days: string[] = [];
   let today: string | null = null;
-  let day = addDays(event.start_date.slice(0, 10), 0);
+  // A day older than yesterday (UTC) has ended in every zone, so a long Event walks from there.
+  const yesterday = addDays(now.toISOString().slice(0, 10), -1);
+  const first = event.start_date.slice(0, 10);
+  let day = addDays(yesterday && yesterday > first ? yesterday : first, 0);
   for (let n = 0; day && day <= last && n < MAX_EVENT_DAYS; n++) {
     const ends = sparExpiresAt('event', day, zone);
     const starts = dayStartUtcIso(day, zone);

@@ -26,6 +26,24 @@ describe('openEventDays: the days of an Event not yet ended, and today on its cl
     });
   });
 
+  it('walks from yesterday on a year-long Event, so day 32 and later still list', () => {
+    const year = { start_date: '2026-01-01', end_date: '2026-12-31', timezone: 'Europe/Paris' };
+    const { days, today } = openEventDays(year, new Date('2026-06-15T12:00:00Z'));
+    // The walk starts on the 14th (closed since 06:00 Paris on the 15th) and stops after 31 days.
+    expect(days).toHaveLength(30);
+    expect(days[0]).toBe('2026-06-15');
+    expect(days.at(-1)).toBe('2026-07-14');
+    expect(today).toBe('2026-06-15');
+  });
+
+  it('still lists the first morning-after day when the walk starts a day early', () => {
+    // 02:00 Paris on the 16th: the 15th is still open until 06:00, and the walk starts on the 15th.
+    const year = { start_date: '2026-01-01', end_date: '2026-12-31', timezone: 'Europe/Paris' };
+    const { days, today } = openEventDays(year, new Date('2026-06-16T00:00:00Z'));
+    expect(days.slice(0, 2)).toEqual(['2026-06-15', '2026-06-16']);
+    expect(today).toBe('2026-06-16');
+  });
+
   it('has no today before the first day starts', () => {
     expect(openEventDays(paris, new Date('2026-05-20T10:00:00Z'))).toEqual({
       days: ['2026-05-23', '2026-05-24'],
