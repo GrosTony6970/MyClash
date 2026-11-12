@@ -104,6 +104,11 @@ describe('the notices of the Tournament day', () => {
       emailSubject: 'Un spar a été marqué comme fait / A spar was marked as done',
       body: "Vous pouvez l'annuler jusqu'à deux jours après le jour du spar. / You can undo it until two days after the spar day.",
     });
+    expect(texts.sparFlagRaised()).toEqual({
+      title: 'Un signalement de sécurité à examiner / A safety report needs a look',
+      emailSubject: 'Un signalement de sécurité à examiner / A safety report needs a look',
+      body: 'Un combattant a signalé un problème de sécurité sur un spar. / A fighter reported a safety problem on a spar.',
+    });
     expect(texts.correctionApproved()).toEqual({
       title: 'Demande de correction approuvée / Exchange correction approved',
       body: 'La correction demandée a été faite. / The correction you asked for was made.',

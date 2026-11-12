@@ -108,6 +108,10 @@ export const notices = {
     title: 'Spar annulé',
     body: 'Un spar que vous aviez accepté a été annulé.',
   },
+  sparFlagRaised: {
+    title: 'Un signalement de sécurité à examiner',
+    body: 'Un combattant a signalé un problème de sécurité sur un spar.',
+  },
   sparMarkedDone: {
     title: 'Un spar a été marqué comme fait',
     body: "Vous pouvez l'annuler jusqu'à deux jours après le jour du spar.",

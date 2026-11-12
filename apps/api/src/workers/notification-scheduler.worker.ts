@@ -65,13 +65,26 @@ export type ImmediateNotificationKind =
   | 'spar_request_received'
   | 'spar_agreed'
   | 'spar_cancelled'
-  | 'spar_marked_done';
+  | 'spar_marked_done'
+  // FightBook (slice 4): a safety flag, to the club's admins or the super admins. Passes the main
+  // switch by email (PASSES_MAIN_SWITCH, ruling 698).
+  | 'spar_flag_raised';
 
 export type FollowNotificationKind =
   'follow_match_starting' | 'follow_referee_starting' | 'follow_workshop_starting';
 
 export type NotificationKind =
   ScheduledNotificationKind | ImmediateNotificationKind | FollowNotificationKind;
+
+/**
+ * The notices the main switch does not stop: they go by email only. An organiser's announcement
+ * ("the venue changed" is not a reminder) and a safety flag to the club's admins (ruling 698).
+ * Only `isSwitchedOff` reads this: the email template stays the broadcast's own.
+ */
+const PASSES_MAIN_SWITCH: ReadonlySet<NotificationKind> = new Set<NotificationKind>([
+  'organizer_broadcast',
+  'spar_flag_raised',
+]);
 
 /**
  * The per-kind opt-outs, as column names.
@@ -883,7 +896,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     preference: TogglePreferences | null,
   ): boolean {
     if (job.preference && preference?.[job.preference] === false) return true;
-    return preference?.enabled === false && job.kind !== 'organizer_broadcast';
+    return preference?.enabled === false && !PASSES_MAIN_SWITCH.has(job.kind);
   }
 
   private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {

@@ -174,6 +174,20 @@ describe('the main switch turned off', () => {
     expect(log).not.toHaveBeenCalledWith(skipped('organizer_broadcast'));
   });
 
+  it('a safety flag still arrives, by email and as a plain notice, never as a broadcast', async () => {
+    const flag = {
+      ...notice('spar_flag_raised'),
+      title: 'A flag',
+      url: 'https://admin.example.test/x',
+    };
+    expect(await sent(flag, tables({ enabled: false }))).toEqual({ phone: 0, email: 1 });
+    expect(mail.sendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'lea@example.com', title: 'A flag' }),
+    );
+    expect(mail.sendBroadcastNotification).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalledWith(skipped('spar_flag_raised'));
+  });
+
   it('a bout alert queued before she switched off: no phone alert', async () => {
     // A timed alert carries no address: it never had an email to fall back to.
     const alert: ScheduledNotificationJob = {

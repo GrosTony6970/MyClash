@@ -131,6 +131,7 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   spar_agreed: null,
   spar_cancelled: null,
   spar_marked_done: null,
+  spar_flag_raised: null,
 };
 
 export async function isPublicAlert(

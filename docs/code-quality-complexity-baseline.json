@@ -320,7 +320,7 @@
     "apps/api/src/modules/notifications/broadcast-notifications.service.ts:407",
     "apps/api/src/modules/notifications/event-handlers/notification-events.service.test.ts:129",
     "apps/api/src/modules/notifications/event-handlers/notification-events.service.ts:273",
-    "apps/api/src/modules/organizations/organizations.service.ts:291",
+    "apps/api/src/modules/organizations/organizations.service.ts:296",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:136",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:256",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:316",

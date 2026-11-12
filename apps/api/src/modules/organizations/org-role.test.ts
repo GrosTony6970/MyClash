@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { filtersFor, mockSupabase } from '../../common/testing/supabase-chain';
-import { OrganizationsService, roleAtLeast } from './organizations.service';
+import { OrganizationsService, roleAtLeast, rolesAtLeast } from './organizations.service';
 
 const ORDER = ['read_only', 'scorekeeper', 'referee', 'workshop_lead', 'editor', 'admin', 'owner'];
 
@@ -29,6 +29,13 @@ describe('roleAtLeast', () => {
   it('refuses everyone against a bar the order does not hold', () => {
     // The one cast: the type admits no such bar, but the old compare let everyone through one.
     expect(roleAtLeast('owner', 'super_admin' as never)).toBe(false);
+  });
+});
+
+describe('rolesAtLeast', () => {
+  it('lists the bar and every role above it, from the one order', () => {
+    expect(rolesAtLeast('admin')).toEqual(['admin', 'owner']);
+    expect(rolesAtLeast('read_only')).toEqual(ORDER);
   });
 });
 

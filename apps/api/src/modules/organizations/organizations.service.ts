@@ -66,6 +66,11 @@ export function roleAtLeast(role: string | null | undefined, min: OrgRole): bool
   return bar !== -1 && ORG_ROLE_ORDER.indexOf(role as OrgRole) >= bar;
 }
 
+/** Every role that is `min` or above: `roleAtLeast` as a list, for a query's `in`. */
+export function rolesAtLeast(min: OrgRole): OrgRole[] {
+  return ORG_ROLE_ORDER.slice(ORG_ROLE_ORDER.indexOf(min));
+}
+
 @Injectable()
 export class OrganizationsService {
   constructor(

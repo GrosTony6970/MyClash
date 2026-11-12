@@ -284,6 +284,14 @@ export function sparCancelled(): NoticeEmailText {
   });
 }
 
+/** FightBook: a safety flag was raised. To the club's admins or the super admins. No name, no reason. */
+export function sparFlagRaised(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparFlagRaised.title'),
+    body: bilingual('notices.sparFlagRaised.body'),
+  });
+}
+
 /** FightBook: the other fighter marked an agreed spar as done. No name. */
 export function sparMarkedDone(): NoticeEmailText {
   return withSubject({

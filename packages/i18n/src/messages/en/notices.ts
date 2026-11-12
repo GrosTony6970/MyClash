@@ -112,6 +112,10 @@ export const notices = {
     title: 'Spar cancelled',
     body: 'A spar you agreed to was cancelled.',
   },
+  sparFlagRaised: {
+    title: 'A safety report needs a look',
+    body: 'A fighter reported a safety problem on a spar.',
+  },
   sparMarkedDone: {
     title: 'A spar was marked as done',
     body: 'You can undo it until two days after the spar day.',
