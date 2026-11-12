@@ -96,6 +96,7 @@ describe('a Yes in the Inbox', () => {
       'GET /api/v1/me/fightbook/inbox': () => (yes ? [] : [request]),
       'GET /api/v1/me/fightbook/spars': () => ({ spars: yes ? [agreed] : [], sent: [] }),
       'GET /api/v1/me/fightbook/blocks': () => [],
+      'GET /api/v1/me/fightbook/thanks?page=0': () => ({ items: [], more: false }),
       'POST /api/v1/me/fightbook/requests/r-1/answer': () => {
         yes = true;
         return { status: 'agreed' };

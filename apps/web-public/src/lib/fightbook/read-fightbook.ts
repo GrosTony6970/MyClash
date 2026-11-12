@@ -8,6 +8,7 @@ import type {
   FindPage,
   IncomingSparRequest,
   MySpars,
+  ThanksPage,
 } from '@myclash/types';
 
 /**
@@ -144,6 +145,21 @@ export const readFindBrowse = (
     signal,
   );
 };
+
+/** One page of the signed thank-yous I received, newest first (0-based page). */
+export const readThanks = (apiUrl: string, page: number, signal?: AbortSignal) =>
+  read<ThanksPage>(
+    apiUrl,
+    `/api/v1/me/fightbook/thanks?page=${page}`,
+    (v) =>
+      isObject(v) &&
+      Array.isArray(v['items']) &&
+      v['items'].every(
+        (t) => isObject(t) && isObject(t['from']) && typeof t['stars'] === 'number',
+      ) &&
+      typeof v['more'] === 'boolean',
+    signal,
+  );
 
 /** The active weapon catalog (public): ids for the Find filter, names for an ask. */
 export const readWeaponCatalog = (apiUrl: string, signal?: AbortSignal) =>

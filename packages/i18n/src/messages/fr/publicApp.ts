@@ -1650,6 +1650,12 @@ export const publicApp = {
       noteLabel: 'Note privée (vous seul la lisez)',
       noteSave: 'Enregistrer',
     },
+    thanks: {
+      heading: 'Les remerciements reçus',
+      empty: 'Aucun remerciement pour l’instant',
+      failed: 'Les remerciements n’ont pas pu être chargés.',
+      stars: '★ {stars}',
+    },
     refusal: {
       no_profile: 'FightBook demande un profil de combattant.',
       fightbook_off: 'Activez d’abord FightBook.',

@@ -67,6 +67,7 @@ async function open() {
 const ON = {
   'GET /api/v1/me/fightbook/inbox': { ok: true, data: [] },
   'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [], sent: [] } },
+  'GET /api/v1/me/fightbook/thanks?page=0': { ok: true, data: { items: [], more: false } },
   'GET /api/v1/me/fightbook/blocks': {
     ok: true,
     data: [{ fighter: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null, club: null } }],
@@ -132,6 +133,7 @@ describe('FightBookClient', () => {
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },
       'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [agreed], sent: [] } },
+      'GET /api/v1/me/fightbook/thanks?page=0': ON['GET /api/v1/me/fightbook/thanks?page=0'],
       'POST /api/v1/me/fightbook/requests/s-1/cancel': { ok: true, data: null },
     });
     await open();

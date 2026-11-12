@@ -1641,6 +1641,12 @@ export const publicApp = {
       noteLabel: 'Private note (only you can read it)',
       noteSave: 'Save',
     },
+    thanks: {
+      heading: 'Thank-yous you received',
+      empty: 'No thank-yous yet',
+      failed: 'The thank-yous could not be loaded.',
+      stars: '★ {stars}',
+    },
     refusal: {
       no_profile: 'FightBook needs a fighter profile.',
       fightbook_off: 'Switch FightBook on first.',

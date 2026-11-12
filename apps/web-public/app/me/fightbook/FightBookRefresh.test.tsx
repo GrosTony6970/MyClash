@@ -113,6 +113,7 @@ describe('a re-read that a write overtakes', () => {
       'GET /api/v1/me/fightbook/inbox': () => [],
       'GET /api/v1/me/fightbook/blocks': () => [],
       'GET /api/v1/me/fightbook/spars': () => sparReads.shift()!(),
+      'GET /api/v1/me/fightbook/thanks?page=0': () => ({ items: [], more: false }),
     };
     vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
       const key = `${init?.method ?? 'GET'} ${path}`;

@@ -79,6 +79,7 @@ function serve(
     'GET /api/v1/me/fightbook/inbox': () => ({ ok: true, data: now(inbox) }),
     'GET /api/v1/me/fightbook/spars': () => ({ ok: true, data: now(spars) }),
     'GET /api/v1/me/fightbook/blocks': { ok: true, data: [] },
+    'GET /api/v1/me/fightbook/thanks?page=0': { ok: true, data: { items: [], more: false } },
     ...writes,
   };
   vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {

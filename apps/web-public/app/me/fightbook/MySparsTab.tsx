@@ -9,6 +9,7 @@ import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { useDayLabel } from '@/components/fightbook/day-label';
 import { SparAfter } from './SparAfter';
 import { SparCard } from './SparCard';
+import { ThanksList } from './ThanksList';
 import { useInFlight } from './use-in-flight';
 import { useNow } from './use-now';
 import type { AfterHandlers } from './use-spar-after';
@@ -163,6 +164,7 @@ export function MySparsTab(
           onWithdraw={(r) => void actions.withdraw(r)}
         />
       ) : null}
+      <ThanksList apiUrl={props.apiUrl} />
       {actions.promptDialog}
     </div>
   );
