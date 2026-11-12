@@ -224,6 +224,14 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'PUT me/fightbook/favourites/:globalPersonId',
     'PUT me/fightbook/requests/:id/note',
   ],
+  // A safety report is a snapshot of a spar, written once and read by the club's or the platform's
+  // admins; marking it handled changes no Event row.
+  'FightBook safety reports: the handled mark on a report, not the Event record.': [
+    'DELETE admin/fightbook/flags/:flagId/handled',
+    'DELETE organizations/:orgId/fightbook/flags/:flagId/handled',
+    'PUT admin/fightbook/flags/:flagId/handled',
+    'PUT organizations/:orgId/fightbook/flags/:flagId/handled',
+  ],
 };
 
 /** The lock reads the Event the body names (`body.eventId`), when it names one. */

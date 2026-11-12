@@ -8897,6 +8897,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/organizations/{orgId}/fightbook/flags': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The club's safety reports, newest first (club admins) */
+    get: operations['ClubSparFlagsController_list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/fightbook/flags/{flagId}/handled': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Mark a safety report handled (club admins) */
+    put: operations['ClubSparFlagsController_handle'];
+    post?: never;
+    /** Mark a safety report not handled (club admins) */
+    delete: operations['ClubSparFlagsController_unhandle'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/fightbook/flags': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Every safety report, newest first (super admin) */
+    get: operations['PlatformSparFlagsController_list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/fightbook/flags/{flagId}/handled': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Mark a safety report handled (super admin) */
+    put: operations['PlatformSparFlagsController_handle'];
+    post?: never;
+    /** Mark a safety report not handled (super admin) */
+    delete: operations['PlatformSparFlagsController_unhandle'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/groups': {
     parameters: {
       query?: never;
@@ -26123,6 +26193,124 @@ export interface operations {
       header?: never;
       path: {
         globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubSparFlagsController_list: {
+    parameters: {
+      query?: {
+        page?: number;
+      };
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubSparFlagsController_handle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        flagId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubSparFlagsController_unhandle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        flagId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PlatformSparFlagsController_list: {
+    parameters: {
+      query?: {
+        page?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PlatformSparFlagsController_handle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        flagId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PlatformSparFlagsController_unhandle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        flagId: string;
       };
       cookie?: never;
     };

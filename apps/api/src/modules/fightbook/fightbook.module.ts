@@ -7,6 +7,8 @@ import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { FightBookController } from './fightbook.controller';
 import { FightBookSettingsService } from './fightbook-settings.service';
 import { SparAfterService } from './spar-after.service';
+import { ClubSparFlagsController, PlatformSparFlagsController } from './spar-flag-admin.controller';
+import { SparFlagAdminService } from './spar-flag-admin.service';
 import { SparFlagService } from './spar-flag.service';
 import { SparFindService } from './spar-find.service';
 import { SparReadsService } from './spar-reads.service';
@@ -21,7 +23,12 @@ import { SparThanksService } from './spar-thanks.service';
  */
 @Module({
   imports: [NotificationSchedulingModule, OrganizationsModule],
-  controllers: [FightBookController, FightBookAfterController],
+  controllers: [
+    FightBookController,
+    FightBookAfterController,
+    ClubSparFlagsController,
+    PlatformSparFlagsController,
+  ],
   providers: [
     FightBookSettingsService,
     SparRequestsService,
@@ -30,6 +37,7 @@ import { SparThanksService } from './spar-thanks.service';
     SparFindService,
     SparAfterService,
     SparFlagService,
+    SparFlagAdminService,
     SparThanksService,
     FightBookFavouritesService,
   ],

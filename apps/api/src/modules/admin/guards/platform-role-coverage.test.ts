@@ -57,6 +57,7 @@ import { WeaponsAdminController } from '../weapons/weapons-admin.controller';
 import { ClubsController } from '../../clubs/clubs.controller';
 import { FightersController, GlobalPersonsController } from '../../fighters/fighters.controller';
 import { OrganizationsController } from '../../organizations/organizations.controller';
+import { PlatformSparFlagsController } from '../../fightbook/spar-flag-admin.controller';
 import { PhotoPlatformController } from '../../photos/photo-platform.controller';
 import { PrivacyAdminController } from '../../privacy/privacy-admin.controller';
 import { PLATFORM_ROLE_KEY } from './platform-role.decorator';
@@ -96,6 +97,7 @@ const CONTROLLERS: Ctor[] = [
   GlobalPersonsController,
   OrganizationsController,
   PhotoPlatformController,
+  PlatformSparFlagsController,
   PrivacyAdminController,
 ];
 
@@ -150,6 +152,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['GET /admin/notifications/summary', 'platform_viewer'],
   ['GET /admin/organizations', 'platform_viewer'],
   ['GET /admin/organizations/:id', 'platform_viewer'],
+  ['GET /admin/fightbook/flags', 'super_admin'],
   ['GET /admin/photos/events', 'super_admin'],
   ['GET /admin/platform-log', 'platform_viewer'],
   ['GET /admin/review-queue', 'platform_viewer'],
@@ -244,6 +247,8 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['POST /global-persons', 'platform_admin'],
   ['POST /global-persons/import', 'platform_admin'],
   ['POST /global-persons/import/preview', 'platform_admin'],
+  ['DELETE /admin/fightbook/flags/:flagId/handled', 'super_admin'],
+  ['PUT /admin/fightbook/flags/:flagId/handled', 'super_admin'],
   ['PUT /admin/backups/schedule', 'super_admin'],
   ['PUT /admin/backups/uploads/:uploadId/chunks', 'super_admin'],
   ['PUT /admin/feature-flags/:key', 'super_admin'],
@@ -344,6 +349,7 @@ describe('platform tier coverage', () => {
       'GET /admin/backups/:backupId/download', // streams the database
       'GET /admin/data-retention', // GDPR configuration
       'GET /admin/photos/events', // every club's photo Events (ruling 492-493)
+      'GET /admin/fightbook/flags', // every club's safety reports (ruling 692)
       'POST /admin/users', // mints an account
       'DELETE /admin/users/:id', // destroys one
       'PUT /admin/users/:id/platform-role', // hands out the reserve itself

@@ -94,6 +94,33 @@ export interface AgreedSpar extends SparWhen, SparWindows {
 export const SPAR_FLAG_REASONS = ['too_hard', 'equipment', 'disrespect', 'other'] as const;
 export type SparFlagReason = (typeof SPAR_FLAG_REASONS)[number];
 
+/**
+ * One safety report as a club's admins or the platform's super admins read it (ruling 692).
+ * `reporter` is null for an erased account; `club` is null on the club's own list; `eventName` is
+ * null for a free date and for an Event since deleted.
+ */
+export interface SparFlagListItem {
+  id: string;
+  createdAt: string;
+  reason: SparFlagReason;
+  text: string;
+  reporter: SparFighter | null;
+  flagged: SparFighter;
+  kind: SparKind;
+  eventName: string | null;
+  club: string | null;
+  day: string;
+  place: string | null;
+  weapons: string[];
+  handled: boolean;
+}
+
+/** One page of safety reports, newest first; `more` when a further page has one. */
+export interface SparFlagPage {
+  items: SparFlagListItem[];
+  more: boolean;
+}
+
 /** A signed thank-you the caller received, with who wrote it and the spar's when and where. */
 export interface ThankYou extends SparWhen {
   id: string;
