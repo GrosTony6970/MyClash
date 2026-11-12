@@ -134,6 +134,7 @@ function Body({
       <FightBookTabs apiUrl={apiUrl} data={state} update={update} refresh={refresh} />
       <FightBookSettingsPanel
         apiUrl={apiUrl}
+        settings={state.settings}
         blocks={state.blocks}
         onSwitched={reload}
         onUnblocked={(id) => update(unblocked(id))}

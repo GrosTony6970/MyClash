@@ -210,6 +210,66 @@ describe('FightBookClient', () => {
     expect(container.textContent).toContain('You have not blocked anyone.');
   });
 
+  describe('the star switch', () => {
+    const SETTINGS = {
+      hasProfile: true,
+      enabled: true,
+      showStars: false,
+      sparred: 7,
+      stars: { average: 4.3, count: 7 },
+    };
+    const starSwitch = () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Show my stars on my public page"]');
+
+    it('saves showStars alone', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS },
+        'PATCH /api/v1/me/fightbook/settings': (body) => ({
+          ok: true,
+          data: { ...SETTINGS, ...(body as object) },
+        }),
+        ...ON,
+      });
+      await open();
+      expect(starSwitch()?.getAttribute('aria-checked')).toBe('false');
+      await act(async () => starSwitch()!.click());
+      await settled();
+      expect(
+        vi.mocked(apiRequest).mock.calls.find(([, , init]) => init?.method === 'PATCH')?.[2],
+      ).toMatchObject({ body: { showStars: true } });
+      expect(starSwitch()?.getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('puts the switch back and says so when the save fails', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS },
+        'PATCH /api/v1/me/fightbook/settings': { ok: false, kind: 'network' },
+        ...ON,
+      });
+      await open();
+      await act(async () => starSwitch()!.click());
+      await settled();
+      expect(starSwitch()?.getAttribute('aria-checked')).toBe('false');
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not save');
+    });
+
+    it('shows my own average whatever the switch, with the note', async () => {
+      serve({ 'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS }, ...ON });
+      await open();
+      expect(container.textContent).toContain('Your stars: ★ 4.3 (7)');
+      expect(container.textContent).toContain('Shown on your public page only when switched on.');
+    });
+
+    it('shows no own line before the first review', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': { ok: true, data: { ...SETTINGS, stars: null } },
+        ...ON,
+      });
+      await open();
+      expect(container.textContent).not.toContain('Your stars');
+    });
+  });
+
   it('says a failed read and reads again on retry', async () => {
     let fail = true;
     serve({

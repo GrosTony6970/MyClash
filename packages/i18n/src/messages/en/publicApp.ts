@@ -1555,6 +1555,9 @@ export const publicApp = {
     subtitle: 'Ask fighters for a friendly spar, and keep every yes in one list.',
     loadFailed: 'FightBook could not be loaded.',
     unknownFighter: 'A fighter',
+    sparredOne: 'Sparred 1 time',
+    sparredMany: 'Sparred {count} times',
+    stars: '★ {average} ({count})',
     noProfile: {
       title: 'FightBook needs a fighter profile',
       body: 'Claim or find your fighter profile first, from your personal space.',
@@ -1575,6 +1578,11 @@ export const publicApp = {
       blockedEmpty: 'You have not blocked anyone.',
       unblock: 'Unblock',
       unblockFailed: 'Could not unblock. Try again.',
+      showStars: 'Show my stars on my public page',
+      showStarsDescription:
+        'Off by default. When on, your average shows under your name on your public page.',
+      myStars: 'Your stars: {stars}',
+      myStarsNote: 'Shown on your public page only when switched on.',
     },
     tabs: {
       label: 'FightBook',

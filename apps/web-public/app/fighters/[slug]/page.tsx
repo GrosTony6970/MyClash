@@ -15,10 +15,12 @@ import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
 import { ProfileAskToSpar } from '@/components/fightbook/ProfileAskToSpar';
+import { SparredLine } from '@/components/fightbook/SparredLine';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
 import { ShareButton } from '@/components/ShareButton';
 import { historyBoutHref } from '@/lib/fighter-history';
 import type { FighterMedal, FighterPlacement } from '@/lib/weapon-stats';
+import type { PublicSparLine } from '@myclash/types';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -85,6 +87,7 @@ interface Fighter {
    * not the flags behind it.
    */
   indexable: boolean;
+  fightbook: PublicSparLine | null;
 }
 
 interface HemaRatingsProfile {
@@ -289,6 +292,7 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<FighterResult
       // Defaults CLOSED. A profile served by an older API that does not send
       // the field must not be indexed on the strength of a missing value.
       indexable: raw.indexable ?? false,
+      fightbook: raw.fightbook ?? null,
     };
     return { kind: 'ok', fighter };
   } catch {
@@ -441,6 +445,7 @@ export default async function FighterPage({ params }: Props) {
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {fighter.displayName}
           </h1>
+          <SparredLine line={fighter.fightbook} t={t} locale={locale} />
           {fighter.alias && <p className="text-sm italic text-muted">{fighter.alias}</p>}
           {fighter.clubName &&
             (fighter.clubSlug ? (

@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import type { FightBookBlock, SparFighter } from '@myclash/types';
+import type { FightBookBlock, FightBookSettings, SparFighter } from '@myclash/types';
 import { Avatar, Button, Switch } from '@myclash/ui';
+import { formatStars } from '@/components/fightbook/SparredLine';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { SettingRow } from '../settings/controls';
 
@@ -11,21 +12,26 @@ import { SettingRow } from '../settings/controls';
  * The switch's save: the tap shows at once and is put back when the save fails, with a flag the
  * page says; a save that worked calls `onSaved` with what the server saved.
  */
-function useSwitchSave(apiUrl: string, enabled: boolean, onSaved: (enabled: boolean) => void) {
+function useSwitchSave(
+  apiUrl: string,
+  field: 'enabled' | 'showStars',
+  enabled: boolean,
+  onSaved: (enabled: boolean) => void,
+) {
   const [shown, setShown] = useState(enabled);
   const [failed, setFailed] = useState(false);
   const save = async (next: boolean) => {
     setShown(next);
     setFailed(false);
-    const res = await writeFightBook<{ enabled: boolean }>(
+    const res = await writeFightBook<Record<typeof field, boolean>>(
       apiUrl,
       '/api/v1/me/fightbook/settings',
       'PATCH',
-      { enabled: next },
+      { [field]: next },
     );
     if (res.ok) {
-      setShown(res.data.enabled);
-      onSaved(res.data.enabled);
+      setShown(res.data[field]);
+      onSaved(res.data[field]);
       return;
     }
     setShown(!next);
@@ -41,18 +47,39 @@ export function FightBookSwitch(props: {
   onSaved: (enabled: boolean) => void;
 }) {
   const { t } = useI18n();
-  const { shown, failed, save } = useSwitchSave(props.apiUrl, props.enabled, props.onSaved);
+  return (
+    <SavedSwitch
+      {...props}
+      field="enabled"
+      label={t('publicApp.fightBook.settings.enabled')}
+      description={t('publicApp.fightBook.settings.enabledDescription')}
+    />
+  );
+}
+
+/** A switch that saves one setting at once and says so when it could not. */
+function SavedSwitch(props: {
+  apiUrl: string;
+  field: 'enabled' | 'showStars';
+  enabled: boolean;
+  label: string;
+  description: string;
+  onSaved: (enabled: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const { shown, failed, save } = useSwitchSave(
+    props.apiUrl,
+    props.field,
+    props.enabled,
+    props.onSaved,
+  );
   return (
     <div>
       <SettingRow
-        label={t('publicApp.fightBook.settings.enabled')}
-        description={t('publicApp.fightBook.settings.enabledDescription')}
+        label={props.label}
+        description={props.description}
         control={
-          <Switch
-            checked={shown}
-            onChange={(next) => void save(next)}
-            ariaLabel={t('publicApp.fightBook.settings.enabled')}
-          />
+          <Switch checked={shown} onChange={(next) => void save(next)} ariaLabel={props.label} />
         }
       />
       {failed ? (
@@ -61,6 +88,32 @@ export function FightBookSwitch(props: {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** The star switch and my own line. The line shows whatever the switch says. */
+function StarsSettings(props: { apiUrl: string; settings: FightBookSettings }) {
+  const { t, locale } = useI18n();
+  const { showStars, stars } = props.settings;
+  return (
+    <>
+      <SavedSwitch
+        apiUrl={props.apiUrl}
+        field="showStars"
+        enabled={showStars}
+        label={t('publicApp.fightBook.settings.showStars')}
+        description={t('publicApp.fightBook.settings.showStarsDescription')}
+        onSaved={() => undefined}
+      />
+      {stars ? (
+        <p className="mt-1 text-sm text-foreground">
+          {t('publicApp.fightBook.settings.myStars', { stars: formatStars(stars, t, locale) })}{' '}
+          <span className="text-xs text-muted">
+            {t('publicApp.fightBook.settings.myStarsNote')}
+          </span>
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -125,6 +178,7 @@ function BlockedFighters(props: {
 /** The switch and the fighters I blocked. */
 export function FightBookSettingsPanel(props: {
   apiUrl: string;
+  settings: FightBookSettings;
   blocks: FightBookBlock[];
   onSwitched: () => void;
   onUnblocked: (globalPersonId: string) => void;
@@ -136,6 +190,7 @@ export function FightBookSettingsPanel(props: {
         {t('publicApp.fightBook.settings.heading')}
       </h2>
       <FightBookSwitch apiUrl={props.apiUrl} enabled onSaved={props.onSwitched} />
+      <StarsSettings apiUrl={props.apiUrl} settings={props.settings} />
       <BlockedFighters
         apiUrl={props.apiUrl}
         blocks={props.blocks}

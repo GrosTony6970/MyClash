@@ -1562,6 +1562,9 @@ export const publicApp = {
       'Proposez un spar amical à d’autres combattants, et gardez chaque oui dans une seule liste.',
     loadFailed: 'FightBook n’a pas pu être chargé.',
     unknownFighter: 'Un combattant',
+    sparredOne: 'A sparré 1 fois',
+    sparredMany: 'A sparré {count} fois',
+    stars: '★ {average} ({count})',
     noProfile: {
       title: 'FightBook demande un profil de combattant',
       body: 'Réclamez ou retrouvez d’abord votre profil de combattant, depuis votre espace personnel.',
@@ -1583,6 +1586,11 @@ export const publicApp = {
       blockedEmpty: 'Vous n’avez bloqué personne.',
       unblock: 'Débloquer',
       unblockFailed: 'Déblocage impossible. Réessayez.',
+      showStars: 'Afficher mes étoiles sur ma page publique',
+      showStarsDescription:
+        'Désactivé par défaut. Activé, votre moyenne s’affiche sous votre nom sur votre page publique.',
+      myStars: 'Vos étoiles : {stars}',
+      myStarsNote: 'Affichées sur votre page publique seulement si vous l’activez.',
     },
     tabs: {
       label: 'FightBook',
