@@ -24,11 +24,17 @@ interface RetentionSettings {
   aiUsageLogDays: number;
   broadcastRecipientDays: number;
   auditLogDays: number;
+  sparFlagDays: number;
   lastRunAt: string | null;
   lastRunRemoved: Record<string, number>;
 }
 
-type HorizonKey = 'guestSessionDays' | 'aiUsageLogDays' | 'broadcastRecipientDays' | 'auditLogDays';
+type HorizonKey =
+  | 'guestSessionDays'
+  | 'aiUsageLogDays'
+  | 'broadcastRecipientDays'
+  | 'auditLogDays'
+  | 'sparFlagDays';
 
 const HORIZONS: { key: HorizonKey; labelKey: string; hintKey: string }[] = [
   {
@@ -50,6 +56,11 @@ const HORIZONS: { key: HorizonKey; labelKey: string; hintKey: string }[] = [
     key: 'auditLogDays',
     labelKey: 'admin.dataRetention.auditLog',
     hintKey: 'admin.dataRetention.auditLogHint',
+  },
+  {
+    key: 'sparFlagDays',
+    labelKey: 'admin.dataRetention.sparFlags',
+    hintKey: 'admin.dataRetention.sparFlagsHint',
   },
 ];
 

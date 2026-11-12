@@ -18,13 +18,14 @@ export interface RetentionSettings {
   aiUsageLogDays: number;
   broadcastRecipientDays: number;
   auditLogDays: number;
+  sparFlagDays: number;
   lastRunAt: string | null;
   lastRunRemoved: Record<string, number>;
 }
 
 type HorizonKey = keyof Pick<
   RetentionSettings,
-  'guestSessionDays' | 'aiUsageLogDays' | 'broadcastRecipientDays' | 'auditLogDays'
+  'guestSessionDays' | 'aiUsageLogDays' | 'broadcastRecipientDays' | 'auditLogDays' | 'sparFlagDays'
 >;
 
 interface SweepSpec {
@@ -53,6 +54,9 @@ const SWEEPS: readonly SweepSpec[] = [
   // as personal data; PII inside it is handled by redaction-on-erasure rather
   // than by deleting rows about people who never asked for erasure.
   { table: 'audit_log', column: 'created_at', horizon: 'auditLogDays' },
+  // FightBook safety flags (ruling 661). The spar_flag_admin rows go with their
+  // flag by FK cascade, so they need no sweep of their own.
+  { table: 'spar_flags', column: 'created_at', horizon: 'sparFlagDays' },
 ];
 
 const DEFAULTS: RetentionSettings = {
@@ -61,6 +65,7 @@ const DEFAULTS: RetentionSettings = {
   aiUsageLogDays: 365,
   broadcastRecipientDays: 365,
   auditLogDays: 0,
+  sparFlagDays: 730,
   lastRunAt: null,
   lastRunRemoved: {},
 };
@@ -88,6 +93,7 @@ export class RetentionService {
         row['broadcast_recipient_days'] ?? DEFAULTS.broadcastRecipientDays,
       ),
       auditLogDays: Number(row['audit_log_days'] ?? DEFAULTS.auditLogDays),
+      sparFlagDays: Number(row['spar_flag_days'] ?? DEFAULTS.sparFlagDays),
       lastRunAt: (row['last_run_at'] as string | null) ?? null,
       lastRunRemoved: (row['last_run_removed'] as Record<string, number>) ?? {},
     };
@@ -108,6 +114,7 @@ export class RetentionService {
       row['broadcast_recipient_days'] = patch.broadcastRecipientDays;
     }
     if (patch.auditLogDays !== undefined) row['audit_log_days'] = patch.auditLogDays;
+    if (patch.sparFlagDays !== undefined) row['spar_flag_days'] = patch.sparFlagDays;
 
     const { error } = await this.supabase.service
       .from('data_retention_settings')

@@ -10569,6 +10569,7 @@ export interface components {
       aiUsageLogDays?: number;
       broadcastRecipientDays?: number;
       auditLogDays?: number;
+      sparFlagDays?: number;
     };
     AnonymiseDto: {
       reason: string;

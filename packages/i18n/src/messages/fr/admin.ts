@@ -1826,6 +1826,9 @@ export const admin = {
     auditLog: 'Journal d’audit',
     auditLogHint:
       'Laissé à 0 volontairement : le journal d’audit est un registre de gouvernance, et les données personnelles qu’il contient sont retirées lors de l’effacement d’une personne plutôt qu’en supprimant les lignes concernant tout le monde.',
+    sparFlags: 'Signalements de sécurité (FightBook)',
+    sparFlagsHint:
+      'Signalements de sécurité envoyés au sujet d’un partenaire d’entraînement. Chacun est supprimé ce nombre de jours après son envoi. 0 les conserve.',
     lastRunTitle: 'Dernier balayage',
     lastRunAt: 'Dernier passage le {at}.',
     lastRunNever: 'Le balayage n’a pas encore été exécuté.',

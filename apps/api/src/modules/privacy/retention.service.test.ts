@@ -41,6 +41,7 @@ const BASE = {
   ai_usage_log_days: 365,
   broadcast_recipient_days: 365,
   audit_log_days: 0,
+  spar_flag_days: 730,
 };
 
 describe('RetentionService.runSweep', () => {
@@ -94,6 +95,56 @@ describe('RetentionService.runSweep', () => {
     const ageMs = before - new Date(guest!.cutoff).getTime();
     expect(ageMs).toBeGreaterThan(89 * 24 * 60 * 60 * 1000);
     expect(ageMs).toBeLessThan(91 * 24 * 60 * 60 * 1000);
+  });
+
+  it('deletes safety flags by created_at once they are 730 days old', async () => {
+    const { supabase, deletions } = makeSupabase(BASE);
+    const before = Date.now();
+    await new RetentionService(supabase).runSweep();
+
+    const flags = deletions.filter((d) => d.table === 'spar_flags');
+    expect(flags).toHaveLength(1);
+    expect(flags[0]!.column).toBe('created_at');
+    const ageDays = (before - new Date(flags[0]!.cutoff).getTime()) / (24 * 60 * 60 * 1000);
+    expect(ageDays).toBeGreaterThanOrEqual(730);
+    expect(ageDays).toBeLessThan(730.01);
+  });
+
+  it('keeps safety flags when the horizon is 0', async () => {
+    const { supabase, deletions } = makeSupabase({ ...BASE, spar_flag_days: 0 });
+    await new RetentionService(supabase).runSweep();
+    expect(deletions.some((d) => d.table === 'spar_flags')).toBe(false);
+  });
+
+  it('defaults the safety-flag horizon to 730 days when the row has none', async () => {
+    const { spar_flag_days: _omit, ...withoutFlags } = BASE;
+    const { supabase } = makeSupabase(withoutFlags);
+    expect((await new RetentionService(supabase).getSettings()).sparFlagDays).toBe(730);
+  });
+
+  it('round-trips sparFlagDays through the settings read and update', async () => {
+    const { supabase } = makeSupabase({ ...BASE, spar_flag_days: 365 });
+    const service = new RetentionService(supabase);
+    expect((await service.getSettings()).sparFlagDays).toBe(365);
+    expect((await service.updateSettings({ sparFlagDays: 365 }, 'actor-1')).sparFlagDays).toBe(365);
+  });
+
+  it('writes the patch to spar_flag_days', async () => {
+    const updates: Record<string, unknown>[] = [];
+    const chain: Record<string, unknown> = {
+      select: () => chain,
+      eq: () => chain,
+      maybeSingle: () => Promise.resolve({ data: BASE, error: null }),
+      update: (row: Record<string, unknown>) => {
+        updates.push(row);
+        return chain;
+      },
+      then: (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: null, error: null }).then(resolve),
+    };
+    const supabase = { service: { from: () => chain } } as never;
+    await new RetentionService(supabase).updateSettings({ sparFlagDays: 100 }, 'actor-1');
+    expect(updates[0]).toMatchObject({ spar_flag_days: 100 });
   });
 
   it('never sweeps a table holding competition results', async () => {

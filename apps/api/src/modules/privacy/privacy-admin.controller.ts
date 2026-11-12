@@ -42,6 +42,7 @@ const updateRetentionSchema = z
     aiUsageLogDays: days.optional(),
     broadcastRecipientDays: days.optional(),
     auditLogDays: days.optional(),
+    sparFlagDays: days.optional(),
   })
   .strict();
 export class UpdateRetentionDto extends createZodDto(updateRetentionSchema) {}

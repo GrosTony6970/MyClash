@@ -1820,6 +1820,9 @@ export const admin = {
     auditLog: 'Audit log',
     auditLogHint:
       'Left at 0 on purpose: the audit log is a governance record, and personal data inside it is removed when a person is erased rather than by deleting rows about everyone else.',
+    sparFlags: 'Safety reports (FightBook)',
+    sparFlagsHint:
+      'Safety reports sent about a sparring partner. Each one is deleted this many days after it was sent. 0 keeps them.',
     lastRunTitle: 'Last sweep',
     lastRunAt: 'Last run at {at}.',
     lastRunNever: 'The sweep has not run yet.',
