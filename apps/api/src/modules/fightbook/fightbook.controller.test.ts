@@ -1,9 +1,10 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, ParseUUIDPipe } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
 import { mockSupabase } from '../../common/testing/supabase-chain';
-import { FightBookController } from './fightbook.controller';
+import { askableQuerySchema, FightBookController } from './fightbook.controller';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -34,14 +35,16 @@ function controller() {
     answer: vi.fn(),
     withdraw: vi.fn(),
   };
+  const find = { askableFighter: vi.fn(), askableAtEvent: vi.fn() };
   const ctl = new FightBookController(
     supabase as never,
     {} as never,
     requests as never,
     reads as never,
     {} as never,
+    find as never,
   );
-  return { ctl, reads, requests };
+  return { ctl, reads, requests, find };
 }
 
 const code = async (call: Promise<unknown>) => {
@@ -76,5 +79,41 @@ describe('FightBookController, a fighter who switched FightBook off', () => {
     expect(await code(ctl.inbox(req))).toBe('fightbook_off');
     expect(reads.inbox).not.toHaveBeenCalled();
     expect([requests.ask, requests.answer].flatMap((f) => f.mock.calls)).toEqual([]);
+  });
+
+  it('may not ask who is askable, on a profile or at an Event', async () => {
+    const { ctl, find } = controller();
+    expect(await code(ctl.askableFighter(SPAR, req))).toBe('fightbook_off');
+    expect(await code(ctl.askableAtEvent(SPAR, { persons: [SPAR] } as never, req))).toBe(
+      'fightbook_off',
+    );
+    expect([find.askableFighter, find.askableAtEvent].flatMap((f) => f.mock.calls)).toEqual([]);
+  });
+});
+
+describe('FightBookController, the askable routes', () => {
+  const uuids = (n: number) =>
+    Array.from({ length: n }, (_, i) => `5d0c1f6e-2a3b-4c5d-8e9f-${String(i).padStart(12, '0')}`);
+
+  it('takes 1 to 50 roster ids, each a uuid', () => {
+    const parse = (persons: string) => askableQuerySchema.safeParse({ persons });
+    expect(parse(uuids(50).join(',')).data).toEqual({ persons: uuids(50) });
+    expect(parse('').success).toBe(false);
+    expect(parse(uuids(51).join(',')).success).toBe(false);
+    expect(parse(`${SPAR},not-a-uuid`).success).toBe(false);
+  });
+
+  // A direct handler call never runs a pipe: the route's own metadata is what Nest runs.
+  it.each([
+    ['askableFighter', 'globalPersonId'],
+    ['askableAtEvent', 'eventId'],
+  ])('%s parses its %s as a uuid', (handler, name) => {
+    const args = Object.values(
+      Reflect.getMetadata(ROUTE_ARGS_METADATA, FightBookController, handler) as Record<
+        string,
+        { data?: string; pipes: unknown[] }
+      >,
+    );
+    expect(args.find((arg) => arg.data === name)?.pipes).toContain(ParseUUIDPipe);
   });
 });

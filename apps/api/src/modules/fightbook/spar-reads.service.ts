@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
-import { applyReachable } from '../fighters/directory-predicate';
 import { SupabaseService } from '../supabase/supabase.service';
+import { fightBookOnFighters } from './spar-askable';
 import { readSparFighters, unknownSparFighter } from './spar-fighters';
 import { toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
 
@@ -40,7 +40,10 @@ export class SparReadsService {
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook inbox read failed: ${error.message}`);
     const waiting = (data ?? []) as SparRow[];
-    const open = await this.answerableAskers(waiting.map((r) => r.asker_global_person_id));
+    const open = await fightBookOnFighters(
+      this.supabase.service,
+      waiting.map((r) => r.asker_global_person_id),
+    );
     const rows = waiting.filter((r) => open.has(r.asker_global_person_id)).sort(byDayThenTime);
     const { fighters, events } = await this.cards(rows);
     return rows.map((row) =>
@@ -107,19 +110,6 @@ export class SparReadsService {
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook sent requests read failed: ${error.message}`);
     return ((data ?? []) as SparRow[]).sort(byDayThenTime);
-  }
-
-  /** Of these askers, those still live, claimed and with FightBook on (as `fightbook_answer`). */
-  private async answerableAskers(ids: string[]): Promise<Set<string>> {
-    if (ids.length === 0) return new Set();
-    const { data, error } = await applyReachable(
-      this.supabase.service.from('global_persons').select('id'),
-    )
-      .in('id', [...new Set(ids)])
-      .eq('fightbook_enabled', true)
-      .not('claimed_by_user_id', 'is', null);
-    if (error) throw new Error(`FightBook askers read failed: ${error.message}`);
-    return new Set(((data ?? []) as Array<{ id: string }>).map((p) => p.id));
   }
 
   /** The fighters and Events the cards name, one read each. */

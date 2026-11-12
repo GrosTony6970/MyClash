@@ -14,6 +14,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { SupabaseService } from '../supabase/supabase.service';
 import { refusal } from './fightbook-caller';
 import { SPAR_MAX_DAYS_AHEAD, eventDayRefusal, sparExpiresAt } from './spar-ask-rules';
+import { isOnEventRoster } from './spar-askable';
 import {
   notifySparAgreed,
   notifySparCancelled,
@@ -216,24 +217,17 @@ export class SparRequestsService {
       end_date: string;
       timezone: string | null;
     } | null;
-    if (!event || !isPublicEvent(event) || !(await this.isOnRoster(asker, eventId))) {
+    if (
+      !event ||
+      !isPublicEvent(event) ||
+      !(await isOnEventRoster(this.supabase.service, asker, eventId))
+    ) {
       throw badRequest('bad_event', 'Spars can name only a public Event you are at');
     }
     if (eventDayRefusal(input.day, event)) {
       throw badRequest('bad_day', 'That day is not a day of the Event');
     }
     return { eventId, zone: eventZone(event.timezone).zone, place: null };
-  }
-
-  private async isOnRoster(asker: string, eventId: string): Promise<boolean> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('global_person_id', asker)
-      .limit(1);
-    if (error) throw new Error(`spar roster read failed: ${error.message}`);
-    return (data ?? []).length > 0;
   }
 
   /** A free date: its place, and the asker's own clock. */

@@ -12,6 +12,8 @@
  * POST  /me/fightbook/blocks    — block a fighter
  * DELETE /me/fightbook/blocks/:globalPersonId — unblock
  * GET   /me/fightbook/spars     — my agreed spars, and the requests I sent
+ * GET   /me/fightbook/fighters/:globalPersonId/askable — may I ask this fighter
+ * GET   /me/fightbook/events/:eventId/askable?persons= — which of these people of an Event I may ask
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
  * starts with `caller()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
@@ -28,12 +30,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -44,6 +48,7 @@ import {
 } from './fightbook-caller';
 import { FightBookBlocksService } from './fightbook-blocks.service';
 import { FightBookSettingsService } from './fightbook-settings.service';
+import { SparFindService } from './spar-find.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
@@ -94,6 +99,17 @@ class CancelSparDto extends createZodDto(cancelSchema) {}
 const blockSchema = z.object({ globalPersonId: z.uuid() }).strict();
 class BlockDto extends createZodDto(blockSchema) {}
 
+/** The roster rows a people page shows: 1 to 50 `persons` ids, comma-separated. */
+export const askableQuerySchema = z
+  .object({
+    persons: z
+      .string()
+      .transform((raw) => raw.split(','))
+      .pipe(z.array(z.uuid()).min(1).max(50)),
+  })
+  .strict();
+class AskableQueryDto extends createZodDto(askableQuerySchema) {}
+
 @ApiTags('fightbook')
 @Controller('me/fightbook')
 export class FightBookController {
@@ -103,6 +119,7 @@ export class FightBookController {
     private readonly requests: SparRequestsService,
     private readonly reads: SparReadsService,
     private readonly blocks: FightBookBlocksService,
+    private readonly find: SparFindService,
   ) {}
 
   @Get('settings')
@@ -196,6 +213,29 @@ export class FightBookController {
     @Req() req: FastifyRequest,
   ) {
     await this.blocks.unblock(requireProfile(await this.caller(req)), globalPersonId);
+  }
+
+  @Get('fighters/:globalPersonId/askable')
+  @ApiOperation({ summary: 'May I ask this fighter for a spar' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async askableFighter(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const me = requireFightBookOn(await this.caller(req));
+    return this.find.askableFighter(me, globalPersonId);
+  }
+
+  @Get('events/:eventId/askable')
+  @ApiOperation({ summary: 'Which of these people of an Event I may ask for a spar' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async askableAtEvent(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: AskableQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const me = requireFightBookOn(await this.caller(req));
+    return this.find.askableAtEvent(me, eventId, query.persons, publicReader(req));
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

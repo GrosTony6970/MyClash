@@ -8675,6 +8675,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/fightbook/fighters/{globalPersonId}/askable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** May I ask this fighter for a spar */
+    get: operations['FightBookController_askableFighter'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/events/{eventId}/askable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Which of these people of an Event I may ask for a spar */
+    get: operations['FightBookController_askableAtEvent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/groups': {
     parameters: {
       query?: never;
@@ -25612,6 +25646,46 @@ export interface operations {
     requestBody?: never;
     responses: {
       204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookController_askableFighter: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookController_askableAtEvent: {
+    parameters: {
+      query: {
+        persons: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
