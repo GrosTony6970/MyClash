@@ -199,11 +199,13 @@ describe('SparFindService.askableAtEvent', () => {
   });
 
   it('skips a roster row with no fighter profile, and the others still answer', async () => {
-    const { find } = service();
+    const { find, supabase } = service();
     expect(await find.askableAtEvent(MARC, EVENT, ['p-none', 'p-julie'], reader)).toEqual({
       'p-julie': JULIE,
     });
     expect(await find.askableAtEvent(MARC, EVENT, ['p-none'], reader)).toEqual({});
+    // The double never matches a null id; PostgREST would cast it to a uuid and fail the answer.
+    expect(filtersFor(supabase.from, 'global_persons', 'in')).toEqual([['id', [JULIE]]]);
   });
 
   it.each([
