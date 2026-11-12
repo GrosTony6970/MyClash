@@ -126,7 +126,12 @@ export const readFindBrowse = (
   page: number,
   signal?: AbortSignal,
 ) => {
-  const query = new URLSearchParams({ q, weapon, page: String(page) });
+  // The API's strict schema refuses an empty `weapon` (a uuid), so empty filters are left out.
+  const query = new URLSearchParams({
+    ...(q ? { q } : {}),
+    ...(weapon ? { weapon } : {}),
+    page: String(page),
+  });
   return read<FindPage>(
     apiUrl,
     `/api/v1/me/fightbook/find?${query}`,

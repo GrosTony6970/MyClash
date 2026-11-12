@@ -12,6 +12,7 @@ import {
   readFindBrowse,
   readInbox,
   readMySpars,
+  readWeaponCatalog,
   writeFightBook,
 } from './read-fightbook';
 import { sparRefusalKey } from './refusal';
@@ -93,6 +94,22 @@ describe('the slice 2 reads', () => {
     expect(await readFindBrowse(B, '', '', 0)).toEqual({ kind: 'failed' });
     answer({ ok: true, data: { items: [card], more: false } });
     expect((await readFindBrowse(B, '', '', 0)).kind).toBe('data');
+  });
+
+  it('browsing all of FightBook sends no empty filter: the API refuses weapon=', async () => {
+    answer({ ok: true, data: { items: [], more: false } });
+    await readFindBrowse(B, '', '', 0);
+    expect(path()).toBe('/api/v1/me/fightbook/find?page=0');
+  });
+
+  it('readWeaponCatalog rejects a row without a string id and name', async () => {
+    answer({ ok: true, data: [{ id: 'w1', name: 'Longsword' }] });
+    expect((await readWeaponCatalog(B)).kind).toBe('data');
+    expect(path()).toBe('/api/v1/weapons?active=true');
+    for (const bad of [[{ name: 'x' }], [{ id: 'w1' }], [{ id: 1, name: 'x' }], {}]) {
+      answer({ ok: true, data: bad });
+      expect(await readWeaponCatalog(B)).toEqual({ kind: 'failed' });
+    }
   });
 
   it('builds the query strings with URLSearchParams', async () => {
