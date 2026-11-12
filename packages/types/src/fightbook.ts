@@ -13,6 +13,8 @@ export interface SparFighter {
   globalPersonId: string;
   name: string;
   photoUrl: string | null;
+  /** The name of the fighter's club; null when they have none. */
+  club: string | null;
 }
 
 /** When and where: an Event day, or a free date and place. Day and time are wall clock. */

@@ -5,8 +5,18 @@ import { effectiveSparStatus, toAgreed, toIncoming, toSent, type SparRow } from 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const JULIE = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
 const NOW = new Date('2026-05-22T12:00:00Z');
-const julie: SparFighter = { globalPersonId: JULIE, name: 'Julie Probe', photoUrl: null };
-const marc: SparFighter = { globalPersonId: MARC, name: 'Marc Probe', photoUrl: 'm.jpg' };
+const julie: SparFighter = {
+  globalPersonId: JULIE,
+  name: 'Julie Probe',
+  photoUrl: null,
+  club: null,
+};
+const marc: SparFighter = {
+  globalPersonId: MARC,
+  name: 'Marc Probe',
+  photoUrl: 'm.jpg',
+  club: 'Club A',
+};
 
 const row = (over: Partial<SparRow> = {}): SparRow => ({
   id: 'r-1',

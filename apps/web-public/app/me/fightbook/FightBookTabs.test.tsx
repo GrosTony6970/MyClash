@@ -28,8 +28,8 @@ vi.mock('next/navigation', () => ({
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const PAUL = '2d9e5c74-9f7b-4c79-9b77-3d3b5b7e4c23';
-const marc = { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null };
-const paul = { globalPersonId: PAUL, name: 'Paul Probe', photoUrl: null };
+const marc = { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null, club: null };
+const paul = { globalPersonId: PAUL, name: 'Paul Probe', photoUrl: null, club: 'Club B' };
 
 const incoming = (id: string, asker = marc): IncomingSparRequest => ({
   id,
@@ -115,6 +115,9 @@ describe('the Inbox', () => {
     const text = container.textContent ?? '';
     expect(text).toContain('Inbox (2)');
     expect(text).toContain('Marc Probe');
+    // The club shows under the name when the fighter has one, and only then.
+    expect(container.querySelectorAll('[data-spar-card]')[1]?.textContent).toContain('Club B');
+    expect(container.querySelectorAll('[data-spar-card]')[0]?.textContent).not.toContain('Club');
     expect(text).toContain('Weapons: Longsword, Sabre');
     expect(text).toContain('At Probe Open');
     expect(text).toContain('18:30');

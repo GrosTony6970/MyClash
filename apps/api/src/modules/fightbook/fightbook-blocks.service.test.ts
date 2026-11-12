@@ -68,7 +68,7 @@ describe('FightBookBlocksService', () => {
   it('lists the fighters I blocked, by name, and nothing about who blocked me', async () => {
     const { service, supabase } = blocks();
     expect(await service.list(JULIE)).toEqual([
-      { fighter: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null } },
+      { fighter: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null, club: null } },
     ]);
     expect(selectsFor(supabase.from, 'fightbook_blocks')).toEqual([
       'blocked_global_person_id, created_at',

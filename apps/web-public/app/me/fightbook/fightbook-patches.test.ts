@@ -12,6 +12,7 @@ const marc = {
   globalPersonId: '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01',
   name: 'Marc',
   photoUrl: null,
+  club: null,
 };
 const request: IncomingSparRequest = {
   id: 'r-1',

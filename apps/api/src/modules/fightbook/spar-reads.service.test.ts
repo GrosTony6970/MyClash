@@ -98,7 +98,7 @@ describe('SparReadsService.inbox', () => {
     ]);
     expect(selectsFor(supabase.from, 'global_persons')).toEqual([
       'id',
-      'id, display_name, given_name, family_name, photo_url',
+      'id, display_name, given_name, family_name, photo_url, clubs(name)',
     ]);
     expect(selectsFor(supabase.from, 'events')).toEqual(['id, name']);
   });

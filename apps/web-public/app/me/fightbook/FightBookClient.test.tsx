@@ -67,7 +67,7 @@ const ON = {
   'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [], sent: [] } },
   'GET /api/v1/me/fightbook/blocks': {
     ok: true,
-    data: [{ fighter: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null } }],
+    data: [{ fighter: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null, club: null } }],
   },
 };
 
@@ -104,7 +104,7 @@ describe('FightBookClient', () => {
   it('off, Julie still sees the Saturday spar she agreed and can cancel it (ruling 666)', async () => {
     const agreed = {
       id: 's-1',
-      partner: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null },
+      partner: { globalPersonId: MARC, name: 'Marc Probe', photoUrl: null, club: null },
       iAsked: false,
       kind: 'free',
       eventName: null,

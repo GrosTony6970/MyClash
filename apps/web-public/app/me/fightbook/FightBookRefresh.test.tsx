@@ -30,11 +30,13 @@ const marc = {
   globalPersonId: '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01',
   name: 'Marc Probe',
   photoUrl: null,
+  club: null,
 };
 const paul = {
   globalPersonId: '2d9e5c74-9f7b-4c79-9b77-3d3b5b7e4c23',
   name: 'Paul Probe',
   photoUrl: null,
+  club: null,
 };
 const when = {
   kind: 'free' as const,

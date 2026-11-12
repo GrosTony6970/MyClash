@@ -57,6 +57,7 @@ export function SparCard({
         <Avatar name={name} src={fighter.photoUrl ?? undefined} size="md" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{name}</p>
+          {fighter.club ? <p className="truncate text-xs text-muted">{fighter.club}</p> : null}
           <p className="text-xs text-muted">{`${dayLabel(when.day)}${time} · ${where}`}</p>
         </div>
       </div>

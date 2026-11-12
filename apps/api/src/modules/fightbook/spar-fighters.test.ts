@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import { readSparFighters, unknownSparFighter } from './spar-fighters';
+
+const A = '11111111-1111-4111-8111-111111111111';
+const B = '22222222-2222-4222-8222-222222222222';
+const C = '33333333-3333-4333-8333-333333333333';
+const D = '44444444-4444-4444-8444-444444444444';
+
+const person = (id: string, clubs: unknown) => ({
+  id,
+  display_name: 'Probe Fighter',
+  given_name: null,
+  family_name: null,
+  photo_url: null,
+  clubs,
+});
+
+describe('readSparFighters', () => {
+  it('reads the club name with the fighter, in one select', async () => {
+    const supabase = mockSupabase({
+      global_persons: { rows: [person(A, { name: 'Club A' })] },
+    });
+    await readSparFighters(supabase as never, [A]);
+    expect(selectsFor(supabase.from, 'global_persons')).toEqual([
+      'id, display_name, given_name, family_name, photo_url, clubs(name)',
+    ]);
+  });
+
+  it('names the club, and reads no club as null, a wrong shape too', async () => {
+    const supabase = mockSupabase({
+      global_persons: {
+        rows: [
+          person(A, { name: 'Club A' }),
+          person(B, null),
+          person(C, [{ name: 'Club C' }]),
+          person(D, { name: 42 }),
+        ],
+      },
+    });
+    const fighters = await readSparFighters(supabase as never, [A, B, C, D]);
+    expect([A, B, C, D].map((id) => fighters.get(id)?.club)).toEqual(['Club A', null, null, null]);
+  });
+
+  it('gives a profile it did not find no club', () => {
+    expect(unknownSparFighter(A)).toEqual({
+      globalPersonId: A,
+      name: '',
+      photoUrl: null,
+      club: null,
+    });
+  });
+});
