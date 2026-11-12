@@ -2155,10 +2155,14 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | A fighter said yes to your spar       | immediate         | yes        |
 | A spar you agreed to was cancelled    | immediate         | yes        |
 | The other fighter marked "we sparred" | immediate         | yes        |
+| A fighter sent a safety report        | immediate         | email only |
 
 "yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the four FightBook rows share "FightBook")
 and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
 not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
+"email only" = the safety report goes to the club's admins, or to the super admins, and passes the
+main switch by email (`PASSES_MAIN_SWITCH`, ruling 698); it has no switch of its own and no names or
+reason in its text (§11septies.8).
 
 ### 11ter.3 Implementation
 
@@ -2527,7 +2531,7 @@ any follow is removed, so that no alert is set back while the follows go.
 
 A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERARCHY.md`): weapons,
 a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
-rulings 642-665 (slice 3, after the spar: 677-690): `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
+rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701): `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
 `docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
 `@myclash/rulesets`, Matches or the scoring app.
 
@@ -2536,11 +2540,11 @@ rulings 642-665 (slice 3, after the spar: 677-690): `docs/superpowers/specs/2026
 Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
 profile is the switch, off by default; off means nobody may ask them and they may ask nobody, yet
 they still see and cancel the spars they agreed (ruling 666), take back a request still waiting,
-and manage their blocks. Six
-tables, RLS on and no policy, read and written by the API only (0263, 0267): `spar_requests` (one row is
+and manage their blocks. Eight
+tables, RLS on and no policy, read and written by the API only (0263, 0267, 0269): `spar_requests` (one row is
 one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
 `fightbook_blocks`, and from slice 3 `spar_thanks`, `spar_anonymous_reviews` and
-`fightbook_favourites` (§11septies.7). A request's `status` is `pending`, `agreed`, `done`,
+`fightbook_favourites` (§11septies.7); slice 4 adds `spar_flags` and `spar_flag_admin` (§11septies.8). A request's `status` is `pending`, `agreed`, `done`,
 `not_this_time`, `withdrawn` or `cancelled`; `done` is "we sparred" and goes back to `agreed` on
 undo. A request names a public Event the asker is on and one of its days (ruling 665),
 or a free date, a place and the asker's time zone; the zone is copied into the row.
@@ -2588,6 +2592,11 @@ blocks must hold. A fighter merge (0265) moves requests, blocks and notes to the
 request between the two merged profiles and a waiting request that would double the survivor's; a
 block it moves ends what waits between the pair, and the survivor keeps the stricter switch.
 Merge 0268 adds the three new tables and the stars switch (§11septies.7).
+Slice 4 adds the safety flags (§11septies.8). The data download carries the flags the fighter
+**wrote**, never one about them (Art. 15(4)); the admin table `spar_flag_admin` is in no download.
+Both flag tables are out of the Event archive. Account erasure deletes the flags about the erased
+profiles and clears the reporter on the flags they wrote; anonymisation keeps them. A fighter merge
+moves no flag: the rules follow the merged profiles instead.
 
 ### 11septies.6 Finding and asking
 
@@ -2724,6 +2733,132 @@ spars and Find (`?tab=favourites`); the heart sits on Find cards, spar cards, Fa
 subject; anonymous reviews the author only; favourites the owner only), in
 `ARCHIVE_EXCLUDED_TABLES`, in `eraseFightBookRows` and in the RLS probe. The 0266 comment is
 unchanged (pushed).
+
+### 11septies.8 Safety flags
+
+Rulings 691-701 (plan: `docs/superpowers/plans/2026-11-12-fightbook-slice4-flags.md`). One
+migration, 0269. A fighter reports a safety problem about the partner of a Spar. The club that runs
+the Event reads it, or the MyClash super admins when the Spar was on a free date. The flagged
+fighter never reads it (anti-goal 4, ruling 656).
+
+**The window (rulings 691, 697).** A flag opens at 00:00 of the Spar day on the request's own zone,
+the same `markFrom` as "We sparred" (`sparWindows(row).markFrom`,
+`modules/fightbook/spar-flag.service.ts:41`). The status is `agreed`, `done` or `cancelled`: a
+cancelled Spar can be flagged too. An undo of "We sparred" leaves the flag in place. The API sets no
+end; the web offers the form while the Spar shows in My spars (30 days). Either refusal answers 409
+`not_open`, in one wording. The route is `POST me/fightbook/requests/:id/flag`, body `{ reason, text }`
+(reason one of four, text trimmed, 1 to 1000 characters), 204. It acts on the caller's own profile
+like every `me/fightbook` route (§11septies.4): an off fighter still flags (ruling 666), and a
+stranger's Spar id answers 404.
+
+**Two tables, and why.** `spar_flags` holds what the reporter wrote and a snapshot of the Spar (kind,
+Event, the Event's club at write time, day, place, weapons), so the flag outlives the Spar: an erased
+reporter's Spars are deleted and the flag stays, with the request and the reporter set to null.
+`spar_flag_admin` holds what only admins may know: the account that held the flagged profile when
+the flag was written (`subject_user_id`, no foreign key) and the `handled_at` mark. The data download
+carries whole rows (`subject-export.reach.ts`). On `spar_flags`, `handled_at` would reach the
+reporter, who sees "sent" only (ruling 694), and `subject_user_id` would hand the reporter another
+person's account id. Both tables are deny-all (RLS on, no policy). The admin row is written with its
+flag in one transaction and goes with it by cascade (`packages/db/migrations/0269_fightbook_safety_flags.sql`).
+
+**One owner of "the flagged fighter never reads it".** `fightbook_flag_shown(flag, caller, club)` is
+the only code that decides it. The club list, the platform list, the handled mark and the alert's
+recipients all call it; the API filters no row and re-decides nothing. It answers false when:
+
+- **snapshot** the caller is the account that held the flagged profile when the flag was written;
+- **claim** the caller holds, in any state (deleted or merged included), any profile of the flagged
+  fighter's family;
+- **held** (club side only, ruling 696) no account holds any profile of that family. The flag
+  leaves the club list and shows to super admins only, and it returns when a profile is linked
+  again.
+
+An unknown flag or a null caller is false too. Because the filter runs inside `fightbook_flags_page`,
+a page is never cut short after it was read: a short page would tell the reader that a flag was
+hidden.
+
+**The merge family, and why no flag moves.** `fightbook_profile_family(ids)` returns the ids plus
+every profile joined to them by `merged_into_id`, both ways, transitively. It walks with `UNION`, not
+`UNION ALL`: the walk goes both ways, so `UNION ALL` would cycle A to B to A. A revert clears
+`merged_into_id`, so a reverted merge splits the family again. A fighter merge (0265, 0268) moves no
+flag. The flag keeps the profile ids it was written with, and the predicate, the alert and erasure
+follow the family. The reason: the merge record (`audit_log`) is readable by every platform tier,
+and a moved flag would name itself there. So there is no 0270.
+
+**The lock order in `fightbook_flag`.** It is the `fightbook_review` order (§11septies.7). Read the
+request plainly (none is `not_open`). KEY SHARE both profiles in id order, because a merge takes
+FOR UPDATE on them first. Then the request FOR UPDATE, with both profile columns re-checked, since a
+merge may have moved them between the plain read and the lock. The reporter must be its asker or
+receiver, the status one of the three, and both profiles live (not merged, deleted or erased). Every
+refusal is `not_open` (P0001). A flag on this request by any profile of the reporter's family, or a
+unique violation, returns null: two taps on Send write one flag, start one alert, and both answer
+204 (`spar-flag.service.ts:51`). The alert starts only for an id, and it is not awaited.
+
+**The alert (rulings 692, 698).** `fightbook_flag_recipients` picks the club's admins and owners
+(`rolesAtLeast('admin')`, so the role order keeps one owner in `organizations.service.ts`) for whom
+`fightbook_flag_shown` is true. When none are left, or the flag has no club, it picks the super
+admins instead. The reporter's own accounts, across the family, are never picked
+(`modules/fightbook/spar-flag-notice.ts`). Each recipient gets one `sendImmediate` of kind
+`spar_flag_raised`, to the account's email. The text carries no name and no reason: it can show on a
+locked phone (§11ter.2). The link is absolute on web-admin: `/org/<slug>/fightbook-flags` for a club,
+`/admin/fightbook-flags` for the platform. The alert passes the main notification switch, by email
+and without a buzz: the worker's one exception became a set,
+`PASSES_MAIN_SWITCH = { organizer_broadcast, spar_flag_raised }`
+(`workers/notification-scheduler.worker.ts:84`). Only the "is it switched off" check reads that set;
+the email template stays the broadcast's own. The notice has no `preference`, because the
+`fightbook` switch is the fighter's own. A failure is logged with the flag id and never thrown: the
+flag is saved before the alert starts.
+
+**The two lists and the handled mark.** The club list is `GET organizations/:orgId/fightbook/flags?page=`
+and the platform list is `GET admin/fightbook/flags?page=` (`@PlatformRole('super_admin')`, since a
+bare GET admits every platform tier). The club gate is `assertOrgRole(orgId, userId, 'admin')` with
+no platform fallback: a super admin who is not a club admin reads through the platform list.
+Each has `PUT` and `DELETE …/flags/:flagId/handled`, 204
+(`modules/fightbook/spar-flag-admin.controller.ts`). A page is 20 rows, read as 21 so the last only
+sets `more`; the write side is bounded by one flag per reporter family per Spar and the 2-year
+retention. `fightbook_flag_mark` answers true for "in that scope and shown", whatever the mark was
+before, so a second mark by another admin also answers 204 (`coalesce(handled_at, now)` on set, null
+on clear); false is a 404 and writes nothing. web-admin has one shared `SparFlagList` ("Show more",
+a Handled checkbox) behind a club page, `/org/[slug]/fightbook-flags`, and a platform page,
+`/admin/fightbook-flags`. The club page says "only the club's admins" on a 403.
+
+**The reporter's card.** The Spar card carries `iFlagged`, read from the flags the caller wrote and
+never from one about them. web-public shows one quiet link under each started card
+(`app/me/fightbook/SparFlag.tsx`). The form names who reads it, by the Spar's kind only, never by
+where the alert went. After a send, or on `iFlagged`, the card says "You flagged this Spar".
+
+**Retention (ruling 661).** A flag is deleted 730 days after it was written
+(`data_retention_settings.spar_flag_days`, a `SWEEPS` entry on `spar_flags.created_at`,
+`modules/privacy/retention.service.ts:59`; 0 keeps it). Admin rows go by cascade.
+
+**Erasure.** `fightbook_flags_erase(uid, profile ids)` runs in account erasure beside
+`eraseFightBookRows`, before the profile update clears the claim, and it runs even when the account
+claims no profile (`modules/privacy/erasure-fightbook.ts`). It reaches no further than the erased
+account. It deletes a flag about a profile of the erased profiles' family that this account holds or
+no account holds; in a merge of two claimed profiles, the other account's profile is not erased with
+this one. It deletes a flag written while this account held its subject, while that subject is still
+unheld or held by this account (not after a wrong autolink was undone and someone else holds it).
+It clears the reporter only on profiles this account holds, so the flag stays with its Spar
+snapshot and the lists show "an erased account". Counts: `spar_flags` and `spar_flags.reporter`.
+Anonymisation keeps flags: the account stays.
+
+**Export and archive.** `spar_flags` is in `SUBJECT_EXPORT_TABLES`, reaching the reporter only
+(Art. 15(4)): a Spar has one partner, so a flag about the subject names its writer. This departs
+from gear-check notes, whose subject receives them. `spar_flag_admin` is in
+`SUBJECT_EXPORT_EXCLUDED_TABLES`. `spar_flags` is in `ARCHIVE_EXCLUDED_TABLES`.
+
+**Accepted residuals.**
+
+- A super admin who unlinked their own profile before being flagged reads that flag on the platform
+  list until they link a profile again. The flag then has no snapshot account and no holder
+  (ruling 696).
+- A fighter's data download leaves out the flags they wrote from a profile that was later merged
+  into the one they hold. The export reaches by the held profile's id.
+- After a merge, a card may offer the form again for a Spar that the other profile flagged. A second
+  send returns null and answers 204.
+- A club admin who runs the club from a separate club login that claims no fighter profile sees
+  flags about themself in the club list. Nothing links that login to the profile (ruling 699).
+- Unlink, then claim a different duplicate profile of the same fighter: the flag stays
+  super-admin-only for good, as ruling 696 is written (ruling 700).
 
 ---
 

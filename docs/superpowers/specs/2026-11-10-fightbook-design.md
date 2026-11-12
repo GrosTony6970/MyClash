@@ -167,7 +167,7 @@ have asked for in person.
 > opens at 00:00 of the spar day and, with its undo, closes 48 h after the day ends; a review opens
 > when that closes, so no review ever sits on an undoable spar. The review is a signed thank-you
 > (stars, optional text) or an anonymous review (stars only); the private note is separate. The
-> safety flag is slice 4. The star average is live, not batched, and shows from the first review
+> safety flag is slice 4 (built, below). The star average is live, not batched, and shows from the first review
 > when the fighter switches it on. Details: `docs/ARCHITECTURE.md` §11septies.7.
 
 - **"We sparred"** — either fighter marks an agreed spar done; the other can undo **until either
@@ -182,7 +182,11 @@ have asked for in person.
     ruling): adds stars to the average only — the partner never sees its text, nor which spar it
     was about, nor any per-review row. The form hides the text field when "anonymous" is ticked.
   - **Private note**: text only the writer ever sees.
-  - **Safety flag**: a reason + text. Goes to the Event's organisers (Event spar) or MyClash
+  - **Safety flag** (_Built in slice 4 (rulings 691-701), where it differs from the lines below:
+    the form opens at 00:00 of the spar day, on its own apart from the thank-you; a cancelled spar
+    can be flagged; the reporter sees "sent" only; while no account holds the flagged profile the
+    flag shows to super admins only; the alert passes the main switch by email. Details:
+    `docs/ARCHITECTURE.md` §11septies.8_): a reason + text. Goes to the Event's organisers (Event spar) or MyClash
     platform admins (free-date spar). Operator ruling: recipients get an **alert** (push/email via
     the notice pipeline) and an **admin list** in web-admin showing reporter, flagged fighter,
     spar, reason, text, and a "handled" mark. Never shown to the flagged fighter, never counted
@@ -201,10 +205,13 @@ have asked for in person.
       (_my call_). Alert text carries no names and no reason (it shows on a locked phone,
       `apps/web-public/public/sw.js`).
     - **Export** (operator ruling Q1): flags about the subject are **left out** of their subject
-      export, listed in `SUBJECT_EXPORT_EXCLUDED_TABLES` with the reason written — a spar has one
-      partner, so any flag text names the reporter (Art. 15(4)). This is a deliberate departure
-      from the gear-check precedent (`subject-export.tables.ts:92-97`) and must say so. The
-      reporter's own flags are exported to the reporter.
+      export — a spar has one partner, so any flag text names the reporter (Art. 15(4)). This is a
+      deliberate departure from the gear-check precedent (`subject-export.tables.ts:92-97`) and
+      must say so. The reporter's own flags are exported to the reporter. _Built:_ `spar_flags` is
+      in `SUBJECT_EXPORT_TABLES`, reaching the reporter only, so the reporter's download carries
+      their flags and the subject's carries none. The excluded table is `spar_flag_admin` (the
+      "handled" mark and the flagged account), which sits in `SUBJECT_EXPORT_EXCLUDED_TABLES`; the
+      coverage test lets a table sit in one set only.
     - **Retention** (operator ruling Q4): a flag is deleted **2 years** after it was made
       — a new horizon in the retention settings row beside `guest_session_days` / `audit_log_days`
       (`apps/api/src/modules/privacy/retention.service.ts:85-137`), default 730 days, with a test. If the reporter's account is erased, the
@@ -306,7 +313,8 @@ Estimate: **~75 commits (60–90)** at this repo's one-concern-per-commit pace �
 3. **After the spar** (built, rulings 677-690): "We sparred" + undo; reviews (signed thank-you,
    anonymous review, private note); public count + optional live star average from the first
    review (the batch rule and "from 5 reviews" are overturned); favourites.
-4. **Safety flags**: flag form, organiser/admin alert, web-admin flag list with "handled".
+4. **Safety flags** (built, rulings 691-701): flag form, organiser/admin alert, web-admin flag list
+   with "handled".
 5. **Floor tools**: Free to spar now, open call, FightBook QR log.
 6. **Comfort**: daily limit, 10-minute reminder.
 
