@@ -14,6 +14,7 @@ import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
+import { ProfileAskToSpar } from '@/components/fightbook/ProfileAskToSpar';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
 import { ShareButton } from '@/components/ShareButton';
 import { historyBoutHref } from '@/lib/fighter-history';
@@ -519,6 +520,11 @@ export default async function FighterPage({ params }: Props) {
               <ShareButton path={`/fighters/${fighter.slug}`} />
             </div>
           )}
+          <ProfileAskToSpar
+            fighterId={fighter.id}
+            name={fighter.displayName}
+            apiUrl={getPublicApiUrl()}
+          />
         </div>
         {fighter.slug && (
           <div className="hidden shrink-0 sm:block">
