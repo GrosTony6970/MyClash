@@ -71,7 +71,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 98;
+const EXPECTED_CHECKS = 101;
 
 // ── Refusals (ruling 125) ───────────────────────────────────────────────────
 async function refusalsBeforeAnyMerge(q) {

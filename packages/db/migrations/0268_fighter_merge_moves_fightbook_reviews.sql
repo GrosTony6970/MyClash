@@ -18,7 +18,13 @@
 --   - The survivor keeps the stricter star switch: fightbook_show_stars, off wins, as
 --     fightbook_enabled (0265).
 --   - The record lists every moved id (sparThanksIds, sparAnonymousReviewIds, favouriteOwnerIds,
---     favouriteTargetIds); the revert moves exactly those back while they still sit on the
+--     favouriteTargetIds), so the audit trail shows what moved.
+--   - The revert moves a thank-you or a review back with its SPAR, not by its recorded id: every
+--     row on a spar the revert moves back (0265's sparRequestAskerIds, sparRequestReceiverIds),
+--     on the side that holds the survivor. A review written after the merge on such a spar goes
+--     back too; else the merged profile's partner's stars would stay on the survivor's line, and
+--     the restored profile could be reviewed twice for one spar.
+--   - The revert moves exactly the recorded favourites back while they still sit on the
 --     survivor, never onto a duplicate. The survivor's star switch is not touched by a revert.
 --
 -- Everything else, the lock, the refusals, the record, the rights, is 0265's, word for word.
@@ -501,41 +507,39 @@ begin
         where s.spar_request_id = n.spar_request_id
           and s.author_global_person_id = v_source_id);
 
-  -- After the spar (0267): exactly the recorded rows still on the survivor, on the side that
-  -- moved (a recorded row has the survivor on one side only), never onto a review or a favourite
-  -- the restored profile already has. Records older than 0268 carry none of these keys.
+  -- After the spar (0267). A thank-you or a review follows its spar: every row on a spar this
+  -- revert moved back goes back with it, on the side that holds the survivor, the ones written
+  -- after the merge included (written about or by the survivor on what was the merged profile's
+  -- spar). A spar has one row per writer per table, and a merged profile writes nothing, so no
+  -- row can double. Records older than 0265 carry no spar ids: nothing of theirs moved.
   update public.spar_thanks t
-     set author_global_person_id = v_source_id
-   where t.author_global_person_id = v_target_id
-     and t.id in (select value::uuid
-                    from jsonb_array_elements_text(coalesce(v_moved -> 'sparThanksIds', '[]')))
-     and not exists (
-       select 1 from public.spar_thanks s
-        where s.spar_request_id = t.spar_request_id
-          and s.author_global_person_id = v_source_id);
-
-  update public.spar_thanks t
-     set subject_global_person_id = v_source_id
-   where t.subject_global_person_id = v_target_id
-     and t.id in (select value::uuid
-                    from jsonb_array_elements_text(coalesce(v_moved -> 'sparThanksIds', '[]')));
+     set author_global_person_id  = case when t.author_global_person_id = v_target_id
+                                         then v_source_id else t.author_global_person_id end,
+         subject_global_person_id = case when t.subject_global_person_id = v_target_id
+                                         then v_source_id else t.subject_global_person_id end
+   where v_target_id in (t.author_global_person_id, t.subject_global_person_id)
+     and t.spar_request_id in (select value::uuid
+                                from jsonb_array_elements_text(coalesce(v_moved -> 'sparRequestAskerIds', '[]'))
+                              union all
+                              select value::uuid
+                                from jsonb_array_elements_text(coalesce(v_moved -> 'sparRequestReceiverIds', '[]')));
 
   update public.spar_anonymous_reviews a
-     set author_global_person_id = v_source_id
-   where a.author_global_person_id = v_target_id
-     and a.id in (select value::uuid
-                    from jsonb_array_elements_text(coalesce(v_moved -> 'sparAnonymousReviewIds', '[]')))
-     and not exists (
-       select 1 from public.spar_anonymous_reviews s
-        where s.spar_request_id = a.spar_request_id
-          and s.author_global_person_id = v_source_id);
+     set author_global_person_id  = case when a.author_global_person_id = v_target_id
+                                         then v_source_id else a.author_global_person_id end,
+         subject_global_person_id = case when a.subject_global_person_id = v_target_id
+                                         then v_source_id else a.subject_global_person_id end
+   where v_target_id in (a.author_global_person_id, a.subject_global_person_id)
+     and a.spar_request_id in (select value::uuid
+                                from jsonb_array_elements_text(coalesce(v_moved -> 'sparRequestAskerIds', '[]'))
+                              union all
+                              select value::uuid
+                                from jsonb_array_elements_text(coalesce(v_moved -> 'sparRequestReceiverIds', '[]')));
 
-  update public.spar_anonymous_reviews a
-     set subject_global_person_id = v_source_id
-   where a.subject_global_person_id = v_target_id
-     and a.id in (select value::uuid
-                    from jsonb_array_elements_text(coalesce(v_moved -> 'sparAnonymousReviewIds', '[]')));
-
+  -- Favourites: exactly the recorded rows still on the survivor, never onto a favourite the
+  -- restored profile already has. That one can exist: a favourite added on the merged profile
+  -- (by its owner, or by someone favouriting it) whose checks passed just before the merge and
+  -- whose insert landed just after it, then stays on the survivor.
   update public.fightbook_favourites f
      set owner_global_person_id = v_source_id
    where f.owner_global_person_id = v_target_id
