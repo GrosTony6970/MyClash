@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookEvent } from '@myclash/types';
+import { useDayLabel } from './day-label';
 
 const INPUT =
   'mt-1 w-full rounded-md border border-border bg-surface p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent';
@@ -61,14 +62,8 @@ export function EventFields(props: {
   onEvent: (eventId: string) => void;
   onDay: (day: string) => void;
 }) {
-  const { t, locale } = useI18n();
-  const dayLabel = (day: string) =>
-    new Intl.DateTimeFormat(locale, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    }).format(new Date(`${day}T00:00:00Z`));
+  const { t } = useI18n();
+  const dayLabel = useDayLabel();
   return (
     <>
       <Field label={t('publicApp.fightBook.ask.event')} htmlFor={`${props.id}-event`}>

@@ -6,7 +6,8 @@ import type { AgreedSpar, MySpars, SentSparRequest } from '@myclash/types';
 import { Button, EmptyState, usePrompt } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
-import { SparCard, useDayLabel } from './SparCard';
+import { useDayLabel } from '@/components/fightbook/day-label';
+import { SparCard } from './SparCard';
 import { useInFlight } from './use-in-flight';
 
 /** The spars of each day, in day order (the list arrives sorted by day, then time). */

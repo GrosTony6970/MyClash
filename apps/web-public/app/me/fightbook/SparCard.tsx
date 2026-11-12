@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { SparFighter, SparKind } from '@myclash/types';
 import { Avatar } from '@myclash/ui';
+import { useDayLabel } from '@/components/fightbook/day-label';
 
 /** When and where a spar is: what every FightBook card says. Day and time are wall clock. */
 export interface SparWhenView {
@@ -13,18 +14,6 @@ export interface SparWhenView {
   time: string | null;
   place: string | null;
   weapons: string[];
-}
-
-/** A day as the reader's language writes it. The day is a date, not an instant: read in UTC. */
-export function useDayLabel(): (day: string) => string {
-  const { locale } = useI18n();
-  return (day) =>
-    new Intl.DateTimeFormat(locale, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    }).format(new Date(`${day}T00:00:00Z`));
 }
 
 /** One FightBook card: the other fighter, when and where, the weapons, the message; then its actions. */
