@@ -157,6 +157,23 @@ describe('AskSparDialog', () => {
     expect(dialog().querySelector('input[type="date"]')).not.toBeNull();
   });
 
+  it('says her Events could not be loaded, and still lets her ask for a free date', async () => {
+    vi.mocked(apiRequest).mockImplementation(async (_base, path) => {
+      if (path === '/api/v1/weapons?active=true') return { ok: true, data: WEAPONS } as never;
+      return { ok: false, kind: 'network' } as never;
+    });
+    await openDialog();
+    expect(dialog().textContent).toContain('Your Events could not be loaded.');
+    expect(dialog().querySelector('input[type="radio"]')).toBeNull();
+    expect(dialog().querySelector('input[type="date"]')).not.toBeNull();
+  });
+
+  it('says nothing about Events when she is simply on none', async () => {
+    serve([]);
+    await openDialog();
+    expect(dialog().textContent).not.toContain('could not be loaded');
+  });
+
   it('preselects the Event she is looking at when she is on it', async () => {
     serve(EVENTS);
     await openDialog(EVENT_B);

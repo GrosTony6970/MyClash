@@ -1663,6 +1663,8 @@ export const publicApp = {
       place: 'Lieu',
       weapons: 'Armes (1 à 5)',
       weaponsFailed: 'La liste des armes n’a pas pu être chargée.',
+      eventsFailed:
+        'Vos événements n’ont pas pu être chargés. Vous pouvez quand même demander une date libre, ou fermer et réessayer.',
       time: 'Heure (facultatif)',
       message: 'Un message (facultatif)',
       send: 'Envoyer la demande',

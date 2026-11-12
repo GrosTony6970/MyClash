@@ -1652,6 +1652,8 @@ export const publicApp = {
       place: 'Place',
       weapons: 'Weapons (1 to 5)',
       weaponsFailed: 'The weapon list could not be loaded.',
+      eventsFailed:
+        'Your Events could not be loaded. You can still ask for a free date, or close and try again.',
       time: 'Time (optional)',
       message: 'A message (optional)',
       send: 'Send the request',

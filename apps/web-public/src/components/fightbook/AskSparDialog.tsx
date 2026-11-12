@@ -33,18 +33,21 @@ function localToday(): string {
 /** What the dialog needs from the API: my Events and the weapon catalog. `null` = still reading. */
 function useAskChoices(apiUrl: string) {
   const [events, setEvents] = useState<FightBookEvent[] | null>(null);
+  const [eventsFailed, setEventsFailed] = useState(false);
   const [catalog, setCatalog] = useState<string[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     void readFightBookEvents(apiUrl, controller.signal).then((r) => {
-      if (r.kind !== 'aborted') setEvents(r.kind === 'data' ? r.data : []);
+      if (r.kind === 'aborted') return;
+      setEventsFailed(r.kind !== 'data');
+      setEvents(r.kind === 'data' ? r.data : []);
     });
     void readWeaponCatalog(apiUrl, controller.signal).then((r) => {
       if (r.kind !== 'aborted') setCatalog(r.kind === 'data' ? r.data.map((w) => w.name) : []);
     });
     return () => controller.abort();
   }, [apiUrl]);
-  return { events, catalog };
+  return { events, eventsFailed, catalog };
 }
 
 /** The form's values. The Event, its day and the kind are the caller's pick, else a default. */
@@ -169,6 +172,7 @@ function FreeDateFields({ id, v }: { id: string; v: AskValues }) {
 function AskFields(props: {
   id: string;
   events: FightBookEvent[];
+  eventsFailed: boolean;
   catalog: string[];
   v: AskValues;
 }) {
@@ -176,6 +180,9 @@ function AskFields(props: {
   const { id, v } = props;
   return (
     <>
+      {props.eventsFailed ? (
+        <p className="mb-3 text-sm text-danger">{t('publicApp.fightBook.ask.eventsFailed')}</p>
+      ) : null}
       <KindRadios kind={v.kind} canEvent={props.events.length > 0} onChange={v.setKind} />
       {v.kind === 'event' && v.event ? (
         <EventFields
@@ -194,6 +201,15 @@ function AskFields(props: {
       ) : (
         <WeaponBoxes catalog={props.catalog} picked={v.weapons} onToggle={v.toggle} />
       )}
+      <TimeAndMessageFields id={id} v={v} />
+    </>
+  );
+}
+
+function TimeAndMessageFields({ id, v }: { id: string; v: AskValues }) {
+  const { t } = useI18n();
+  return (
+    <>
       <Field label={t('publicApp.fightBook.ask.time')} htmlFor={`${id}-time`}>
         <input
           id={`${id}-time`}
@@ -247,7 +263,7 @@ function AskFooter(props: {
 export function AskSparDialog(props: AskSparDialogProps) {
   const { t } = useI18n();
   const id = useId();
-  const { events, catalog } = useAskChoices(props.apiUrl);
+  const { events, eventsFailed, catalog } = useAskChoices(props.apiUrl);
   const v = useAskValues(events ?? [], props.eventId);
   const ready = events !== null && catalog !== null;
   const { sending, sent, refusal, send } = useAskSend(props, v, catalog ?? []);
@@ -280,7 +296,7 @@ export function AskSparDialog(props: AskSparDialogProps) {
           </Link>
         </p>
       ) : ready ? (
-        <AskFields id={id} events={events} catalog={catalog} v={v} />
+        <AskFields id={id} events={events} eventsFailed={eventsFailed} catalog={catalog} v={v} />
       ) : (
         <p role="status" className="text-sm text-muted">
           {t('publicApp.fightBook.ask.loading')}
