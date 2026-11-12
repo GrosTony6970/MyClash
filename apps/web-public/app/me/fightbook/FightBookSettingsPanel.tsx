@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookBlock, FightBookSettings, SparFighter } from '@myclash/types';
 import { Avatar, Button, Switch } from '@myclash/ui';
-import { formatStars } from '@/components/fightbook/SparredLine';
+import { formatStars, sparredText } from '@/components/fightbook/SparredLine';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { SettingRow } from '../settings/controls';
 
@@ -91,10 +91,23 @@ function SavedSwitch(props: {
   );
 }
 
-/** The star switch and my own line. The line shows whatever the switch says. */
-function StarsSettings(props: { apiUrl: string; settings: FightBookSettings }) {
+/**
+ * The star switch and my own line: "Sparred N times" and my stars, whatever the switch says. A
+ * line the API could not read comes as nulls and shows nothing.
+ */
+function StarsSettings(props: {
+  apiUrl: string;
+  settings: FightBookSettings;
+  onSaved: (showStars: boolean) => void;
+}) {
   const { t, locale } = useI18n();
-  const { showStars, stars } = props.settings;
+  const { showStars, sparred, stars } = props.settings;
+  const parts = [
+    sparred === null ? null : sparredText(sparred, t),
+    stars
+      ? t('publicApp.fightBook.settings.myStars', { stars: formatStars(stars, t, locale) })
+      : null,
+  ].filter(Boolean);
   return (
     <>
       <SavedSwitch
@@ -103,14 +116,19 @@ function StarsSettings(props: { apiUrl: string; settings: FightBookSettings }) {
         enabled={showStars}
         label={t('publicApp.fightBook.settings.showStars')}
         description={t('publicApp.fightBook.settings.showStarsDescription')}
-        onSaved={() => undefined}
+        onSaved={props.onSaved}
       />
-      {stars ? (
+      {parts.length > 0 ? (
         <p className="mt-1 text-sm text-foreground">
-          {t('publicApp.fightBook.settings.myStars', { stars: formatStars(stars, t, locale) })}{' '}
-          <span className="text-xs text-muted">
-            {t('publicApp.fightBook.settings.myStarsNote')}
-          </span>
+          {parts.join(' · ')}
+          {stars ? (
+            <>
+              {' '}
+              <span className="text-xs text-muted">
+                {t('publicApp.fightBook.settings.myStarsNote')}
+              </span>
+            </>
+          ) : null}
         </p>
       ) : null}
     </>
@@ -175,12 +193,13 @@ function BlockedFighters(props: {
   );
 }
 
-/** The switch and the fighters I blocked. */
+/** The FightBook switch, the star switch with my own line, and the fighters I blocked. */
 export function FightBookSettingsPanel(props: {
   apiUrl: string;
   settings: FightBookSettings;
   blocks: FightBookBlock[];
   onSwitched: () => void;
+  onStarsSaved: (showStars: boolean) => void;
   onUnblocked: (globalPersonId: string) => void;
 }) {
   const { t } = useI18n();
@@ -190,7 +209,7 @@ export function FightBookSettingsPanel(props: {
         {t('publicApp.fightBook.settings.heading')}
       </h2>
       <FightBookSwitch apiUrl={props.apiUrl} enabled onSaved={props.onSwitched} />
-      <StarsSettings apiUrl={props.apiUrl} settings={props.settings} />
+      <StarsSettings apiUrl={props.apiUrl} settings={props.settings} onSaved={props.onStarsSaved} />
       <BlockedFighters
         apiUrl={props.apiUrl}
         blocks={props.blocks}

@@ -127,9 +127,9 @@ export interface FightBookSettings {
   enabled: boolean;
   /** Whether the stars show on the public page (off by default). */
   showStars: boolean;
-  /** Spars done, as the public page counts them. */
-  sparred: number;
-  /** The caller's own average, whatever the switch; null before the first review. */
+  /** Spars done, as the public page counts them; null when the count could not be read. */
+  sparred: number | null;
+  /** The caller's own average, whatever the switch; null before the first review, or unread. */
   stars: SparStars | null;
 }
 

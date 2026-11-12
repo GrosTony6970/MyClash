@@ -111,6 +111,11 @@ export const hearted =
     },
   });
 
+/** The star switch saved: the page's settings say what was saved. */
+export const starsShown =
+  (showStars: boolean): Patch =>
+  (d) => ({ settings: { ...d.settings, showStars } });
+
 export const unblocked =
   (id: string): Patch =>
   (d) => ({ blocks: d.blocks.filter((b) => b.fighter.globalPersonId !== id) });

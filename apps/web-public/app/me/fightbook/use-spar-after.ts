@@ -48,12 +48,20 @@ export function useSparAfter(apiUrl: string, id: string, on: AfterHandlers) {
   const { t } = useI18n();
   const { inFlight, run } = useInFlight();
   const [refusal, setRefusal] = useState<string | null>(null);
-  const send = async (write: () => Promise<FightBookWrite<unknown>>, won: () => void) => {
+  /** Whether the write won. */
+  const send = async (
+    write: () => Promise<FightBookWrite<unknown>>,
+    won: () => void,
+  ): Promise<boolean> => {
     setRefusal(null);
     const res = await run(id, write);
-    if (res.ok) return won();
+    if (res.ok) {
+      won();
+      return true;
+    }
     if (res.code === 'not_open') on.onStale();
     setRefusal(t(sparRefusalKey(res.code)));
+    return false;
   };
   const mark = () =>
     send(

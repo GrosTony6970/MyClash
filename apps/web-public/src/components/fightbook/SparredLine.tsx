@@ -13,6 +13,14 @@ export function formatStars(stars: SparStars, t: Say, locale: Locale): string {
   return t('publicApp.fightBook.stars', { average, count: stars.count });
 }
 
+/** "Sparred N times", or null for none: the one owner of the count's words. */
+export function sparredText(sparred: number, t: Say): string | null {
+  if (sparred === 0) return null;
+  return sparred === 1
+    ? t('publicApp.fightBook.sparredOne')
+    : t('publicApp.fightBook.sparredMany', { count: sparred });
+}
+
 /**
  * "Sparred N times" and, when the fighter switched them on, their stars. Takes `t` and `locale`
  * so the server page and the client settings panel both render it. Nothing for no line, or a
@@ -28,12 +36,9 @@ export function SparredLine({
   locale: Locale;
 }) {
   if (!line || (line.sparred === 0 && !line.stars)) return null;
-  const sparred =
-    line.sparred === 0
-      ? null
-      : line.sparred === 1
-        ? t('publicApp.fightBook.sparredOne')
-        : t('publicApp.fightBook.sparredMany', { count: line.sparred });
-  const parts = [sparred, line.stars ? formatStars(line.stars, t, locale) : null];
+  const parts = [
+    sparredText(line.sparred, t),
+    line.stars ? formatStars(line.stars, t, locale) : null,
+  ];
   return <p className="mt-1 text-xs text-muted">{parts.filter(Boolean).join(' · ')}</p>;
 }

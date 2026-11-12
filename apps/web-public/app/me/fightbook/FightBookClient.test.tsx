@@ -7,6 +7,8 @@ import type * as ApiClient from '@myclash/api-client';
 // Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
 import { I18nProvider } from '../../../src/i18n/I18nProvider';
 import { FightBookClient } from './FightBookClient';
+import type * as Patches from './fightbook-patches';
+import { starsShown } from './fightbook-patches';
 
 /**
  * Julie opens FightBook. It is off until she switches it on; once on she sees her settings and the
@@ -16,6 +18,12 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
 }));
+// The real patches, with the star switch's one watched: the switch shows its own state, so the
+// page's patch is seen here (what it does is pinned in fightbook-patches.test.ts).
+vi.mock('./fightbook-patches', async (importOriginal) => {
+  const actual = await importOriginal<typeof Patches>();
+  return { ...actual, starsShown: vi.fn(actual.starsShown) };
+});
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
@@ -262,11 +270,51 @@ describe('FightBookClient', () => {
 
     it('shows no own line before the first review', async () => {
       serve({
-        'GET /api/v1/me/fightbook/settings': { ok: true, data: { ...SETTINGS, stars: null } },
+        'GET /api/v1/me/fightbook/settings': {
+          ok: true,
+          data: { ...SETTINGS, sparred: 0, stars: null },
+        },
         ...ON,
       });
       await open();
       expect(container.textContent).not.toContain('Your stars');
+      expect(container.textContent).not.toContain('Sparred');
+    });
+
+    it('shows how many times I sparred beside my stars', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': { ok: true, data: { ...SETTINGS, sparred: 12 } },
+        ...ON,
+      });
+      await open();
+      expect(container.textContent).toContain('Sparred 12 times · Your stars: ★ 4.3 (7)');
+    });
+
+    it('a line the API could not read: the page renders, with no own line', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': {
+          ok: true,
+          data: { ...SETTINGS, sparred: null, stars: null },
+        },
+        ...ON,
+      });
+      await open();
+      expect(container.textContent).toContain('Blocked fighters');
+      expect(starSwitch()).not.toBeNull();
+      expect(container.textContent).not.toContain('Sparred');
+      expect(container.textContent).not.toContain('Your stars');
+    });
+
+    it('a saved star switch patches the page’s settings', async () => {
+      serve({
+        'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS },
+        'PATCH /api/v1/me/fightbook/settings': { ok: true, data: { ...SETTINGS, showStars: true } },
+        ...ON,
+      });
+      await open();
+      await act(async () => starSwitch()!.click());
+      await settled();
+      expect(vi.mocked(starsShown)).toHaveBeenCalledWith(true);
     });
   });
 

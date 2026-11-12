@@ -146,10 +146,19 @@ describe('readPublicSparLine', () => {
       },
     );
 
-    it('the own line still throws', async () => {
-      await expect(readOwnSparLine(failing('star').service as never, MARC, NOW)).rejects.toThrow(
-        /boom/u,
-      );
+    it.each([
+      ['count', 'sparred count failed'],
+      ['star', 'star line read failed'],
+    ] as const)('the own line answers no line on a failed %s read', async (failure, step) => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      expect(await readOwnSparLine(failing(failure).service as never, MARC, NOW)).toEqual({
+        sparred: null,
+        stars: null,
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]![0])).toContain(step);
+      expect(String(warn.mock.calls[0]![0])).not.toContain(MARC);
+      warn.mockRestore();
     });
   });
 });

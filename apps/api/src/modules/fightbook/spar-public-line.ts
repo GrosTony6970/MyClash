@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PublicSparLine, SparStars } from '@myclash/types';
+import type { FightBookSettings, PublicSparLine, SparStars } from '@myclash/types';
 import { MARK_GRACE_MS } from './spar-windows';
 
 const logger = new Logger('FightBookPublicLine');
@@ -38,8 +38,7 @@ async function countSparred(db: Db, person: string, now: Date): Promise<number> 
  * stars show only when they switched them on and have a review (a count of 1 is enough, ruling
  * 689). Reads its own two switches: the public columns are shared with the directory and are not
  * widened, and neither switch leaves this function. FightBook is an add-on to a core page: a
- * failed read logs a warning and answers null, so the profile still renders. The own line does
- * not degrade.
+ * failed read logs a warning and answers null, so the profile still renders.
  */
 export async function readPublicSparLine(
   db: Db,
@@ -73,12 +72,21 @@ async function publicLine(
   return { sparred, stars };
 }
 
-/** The caller's own line in settings: the stars whenever there is a review, whatever the switch. */
+/**
+ * The caller's own line in settings: the stars whenever there is a review, whatever the switch.
+ * It degrades like the public line: a failed read logs one warning and answers no line (both
+ * null), so the rest of the FightBook page still loads.
+ */
 export async function readOwnSparLine(
   db: Db,
   me: string,
   now: Date = new Date(),
-): Promise<PublicSparLine> {
-  const [sparred, stars] = await Promise.all([countSparred(db, me, now), readStars(db, me)]);
-  return { sparred, stars };
+): Promise<Pick<FightBookSettings, 'sparred' | 'stars'>> {
+  try {
+    const [sparred, stars] = await Promise.all([countSparred(db, me, now), readStars(db, me)]);
+    return { sparred, stars };
+  } catch (error) {
+    logger.warn(`Own FightBook line left out: ${(error as Error).message}`);
+    return { sparred: null, stars: null };
+  }
 }

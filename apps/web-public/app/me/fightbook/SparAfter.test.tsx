@@ -297,6 +297,29 @@ describe('the private note', () => {
     expect(handlers.onNoted).toHaveBeenLastCalledWith('s-1', null);
   });
 
+  it('says Saved after a save and shows the text as saved, trimmed; an empty save too', async () => {
+    const saved = () => container.querySelector('[role="status"]')?.textContent ?? null;
+    await show(spar({ status: 'done' }), AFTER_CANCEL);
+    expect(saved()).toBeNull();
+    await type(container.querySelector('textarea')!, '  Watch the feint  ');
+    await click('Save');
+    expect(container.querySelector('textarea')!.value).toBe('Watch the feint');
+    expect(saved()).toBe('Saved');
+    // Typing again: no longer what was saved.
+    await type(container.querySelector('textarea')!, 'Watch the feint, low');
+    expect(saved()).toBeNull();
+    await type(container.querySelector('textarea')!, '');
+    await click('Save');
+    expect(saved()).toBe('Saved');
+    // A refused save of the same text says the refusal, and no longer Saved.
+    vi.mocked(apiRequest).mockResolvedValue(NOT_OPEN as never);
+    await click('Save');
+    expect(saved()).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      'This request is no longer open.',
+    );
+  });
+
   it('is not offered on an agreed spar, nor a cancelled one', async () => {
     await show(spar(), SPAR_DAY);
     expect(container.querySelector('textarea')).toBeNull();

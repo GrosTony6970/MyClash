@@ -89,10 +89,26 @@ function ReviewForm(props: { busy: boolean; onSend: (review: ReviewInput) => voi
   );
 }
 
-/** The private note: saved on "Save", cleared by saving it empty. */
-function NoteBox(props: { saved: string | null; busy: boolean; onSave: (text: string) => void }) {
+/**
+ * The private note: saved on "Save", cleared by saving it empty. A save that won shows the text as
+ * stored (trimmed) and says "Saved" while the box holds just that. Typing while the save runs
+ * keeps what was typed: the answer re-syncs the box only when it still holds what was sent.
+ */
+function NoteBox(props: {
+  saved: string | null;
+  busy: boolean;
+  onSave: (text: string) => Promise<boolean>;
+}) {
   const { t } = useI18n();
   const [text, setText] = useState(props.saved ?? '');
+  const [stored, setStored] = useState<string | null>(null);
+  const save = async () => {
+    const sent = text;
+    setStored(null);
+    if (!(await props.onSave(sent))) return;
+    setText((current) => (current === sent ? sent.trim() : current));
+    setStored(sent.trim());
+  };
   return (
     <div className="mt-2 flex flex-col gap-2">
       <label className="text-foreground">
@@ -104,15 +120,15 @@ function NoteBox(props: { saved: string | null; busy: boolean; onSave: (text: st
           className={TEXT_BOX}
         />
       </label>
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={props.busy}
-          onClick={() => props.onSave(text)}
-        >
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" disabled={props.busy} onClick={() => void save()}>
           {t('publicApp.fightBook.after.noteSave')}
         </Button>
+        {stored !== null && text === stored ? (
+          <p role="status" className="text-muted">
+            {t('publicApp.fightBook.after.noteSaved')}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -195,7 +211,7 @@ export function SparAfter(props: { apiUrl: string; spar: AgreedSpar } & AfterHan
           {closed && !spar.myReview ? (
             <ReviewForm busy={after.busy} onSend={(review) => void after.review(review)} />
           ) : null}
-          <NoteBox saved={spar.note} busy={after.busy} onSave={(text) => void after.note(text)} />
+          <NoteBox saved={spar.note} busy={after.busy} onSave={after.note} />
         </>
       ) : null}
     </div>

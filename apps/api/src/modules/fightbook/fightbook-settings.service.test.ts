@@ -1,5 +1,5 @@
-import { ForbiddenException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { ForbiddenException, Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
   mockSupabase,
@@ -55,6 +55,35 @@ describe('FightBookSettingsService', () => {
     expect(filtersFor(supabase.from, 'spar_requests', 'or')).toEqual([
       [`asker_global_person_id.eq.${MARC},receiver_global_person_id.eq.${MARC}`],
     ]);
+  });
+
+  describe('when the own line cannot be read, the rest of the settings still answers', () => {
+    const boom = { data: null, error: { message: 'boom' } };
+    it.each([
+      ['count', 'sparred count failed'],
+      ['star', 'star line read failed'],
+    ] as const)('a failed %s read answers no line and logs one warning', async (failure, step) => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const supabase = mockSupabase(
+        {
+          global_persons: { data: { fightbook_show_stars: true }, error: null },
+          spar_requests: failure === 'count' ? boom : { data: [], error: null, count: 3 },
+        },
+        { fightbook_star_line: () => (failure === 'star' ? boom : { data: STARS, error: null }) },
+      );
+      const settings = new FightBookSettingsService(supabase as never);
+      expect(await settings.get(live(true))).toEqual({
+        hasProfile: true,
+        enabled: true,
+        showStars: true,
+        sparred: null,
+        stars: null,
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]![0])).toContain(step);
+      expect(String(warn.mock.calls[0]![0])).not.toContain(MARC);
+      warn.mockRestore();
+    });
   });
 
   it('answers a caller with no profile with no read', async () => {

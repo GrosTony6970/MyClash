@@ -1658,6 +1658,7 @@ export const publicApp = {
       theirThanks: '{name} vous a remercié ★ {stars}',
       noteLabel: 'Note privée (vous seul la lisez)',
       noteSave: 'Enregistrer',
+      noteSaved: 'Enregistrée',
     },
     favourites: {
       add: 'Ajouter {name} aux favoris',

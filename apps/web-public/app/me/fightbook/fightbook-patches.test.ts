@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingSparRequest } from '@myclash/types';
-import { answered, blocked, markedDone, noted, reviewed, undone } from './fightbook-patches';
+import {
+  answered,
+  blocked,
+  markedDone,
+  noted,
+  reviewed,
+  starsShown,
+  undone,
+} from './fightbook-patches';
 import type { FightBookData } from './use-fightbook';
 
 /**
@@ -76,6 +84,13 @@ describe('the list patches', () => {
       apply(done, reviewed('r-1', { stars: 3, text: null, anonymous: true })).spars.spars[0],
     ).toMatchObject({ myReview: { stars: 3 } });
     expect(apply(done, undone('r-1')).spars.spars[0]?.status).toBe('agreed');
+  });
+
+  it('a saved star switch sets showStars and leaves the rest of the settings', () => {
+    const settings = { ...empty.settings, showStars: false, sparred: 3, stars: null };
+    const on = apply({ ...empty, settings }, starsShown(true));
+    expect(on.settings).toEqual({ ...settings, showStars: true });
+    expect(on.inbox).toBe(empty.inbox);
   });
 
   it('a block the page already read back is not listed twice', () => {

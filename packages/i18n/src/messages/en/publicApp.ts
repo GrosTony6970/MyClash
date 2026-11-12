@@ -1649,6 +1649,7 @@ export const publicApp = {
       theirThanks: '{name} thanked you ★ {stars}',
       noteLabel: 'Private note (only you can read it)',
       noteSave: 'Save',
+      noteSaved: 'Saved',
     },
     favourites: {
       add: 'Add {name} to favourites',
