@@ -69,6 +69,20 @@ describe('ProfileAskToSpar', () => {
     expect(askableReads()).toHaveLength(1);
   });
 
+  it('draws the heart beside the button, as the same read says', async () => {
+    signedAs('claimed');
+    vi.mocked(apiRequest).mockResolvedValue({
+      ok: true,
+      data: { askable: true, favourite: true },
+    } as never);
+    await show();
+    const heart = container.querySelector('button[aria-pressed]');
+    expect(heart?.getAttribute('aria-pressed')).toBe('true');
+    expect(heart?.getAttribute('aria-label')).toBe('Remove Marc Probe from favourites');
+    expect(container.querySelectorAll('button')).toHaveLength(2);
+    expect(vi.mocked(apiRequest)).toHaveBeenCalledTimes(1);
+  });
+
   it('draws nothing before the read answers', async () => {
     signedAs('claimed');
     vi.mocked(apiRequest).mockReturnValue(new Promise(() => undefined) as never);

@@ -3,20 +3,22 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { SegmentedTabs } from '@myclash/ui';
-import { answered, blocked, cancelled, withdrawn } from './fightbook-patches';
+import { answered, blocked, cancelled, hearted, withdrawn } from './fightbook-patches';
+import { FavouritesTab } from './FavouritesTab';
 import { FindTab } from './FindTab';
 import { InboxTab } from './InboxTab';
 import { MySparsTab } from './MySparsTab';
 import type { FightBookData } from './use-fightbook';
 import { afterHandlers } from './use-spar-after';
 
-type Tab = 'inbox' | 'spars' | 'find';
+type Tab = 'inbox' | 'spars' | 'favourites' | 'find';
 
 /** The tab in the URL (`?tab=`), as the People hub's. */
 function useTab(): [Tab, (next: Tab) => void] {
   const router = useRouter();
   const asked = useSearchParams().get('tab');
-  const tab: Tab = asked === 'spars' || asked === 'find' ? asked : 'inbox';
+  const tab: Tab =
+    asked === 'spars' || asked === 'favourites' || asked === 'find' ? asked : 'inbox';
   const setTab = (next: Tab) =>
     router.replace(next === 'inbox' ? '/me/fightbook' : `/me/fightbook?tab=${next}`, {
       scroll: false,
@@ -24,9 +26,30 @@ function useTab(): [Tab, (next: Tab) => void] {
   return [tab, setTab];
 }
 
+function TabBar(props: { tab: Tab; onChange: (next: Tab) => void; inboxCount: number }) {
+  const { t } = useI18n();
+  const inboxLabel =
+    props.inboxCount > 0
+      ? t('publicApp.fightBook.tabs.inboxCount', { count: String(props.inboxCount) })
+      : t('publicApp.fightBook.tabs.inbox');
+  return (
+    <SegmentedTabs<Tab>
+      aria-label={t('publicApp.fightBook.tabs.label')}
+      value={props.tab}
+      onChange={props.onChange}
+      tabs={[
+        { value: 'inbox', label: inboxLabel },
+        { value: 'spars', label: t('publicApp.fightBook.tabs.spars') },
+        { value: 'favourites', label: t('publicApp.fightBook.tabs.favourites') },
+        { value: 'find', label: t('publicApp.fightBook.tabs.find') },
+      ]}
+    />
+  );
+}
+
 /**
- * The Inbox, My spars and Find a partner (slice 2; ruling 664: Favourites arrives with its
- * slice). The tab lives in the URL (`?tab=`), as the People hub's does. Every write patches the
+ * The Inbox, My spars, Favourites (ruling 679) and Find a partner. The tab lives in the URL
+ * (`?tab=`), as the People hub's does. Every write patches the
  * page's data from its own answer (`fightbook-patches.ts`); an ask sent from Find reads the page
  * again behind it, so My spars shows the new request.
  */
@@ -37,26 +60,11 @@ export function FightBookTabs(props: {
   /** A write found the page stale (`not_open`): read it again behind the page. */
   refresh: () => void;
 }) {
-  const { t } = useI18n();
   const [tab, setTab] = useTab();
-  const count = props.data.inbox.length;
-  const inboxLabel =
-    count > 0
-      ? t('publicApp.fightBook.tabs.inboxCount', { count: String(count) })
-      : t('publicApp.fightBook.tabs.inbox');
-
+  const onHearted = (id: string, favourite: boolean) => props.update(hearted(id, favourite));
   return (
     <div className="flex flex-col gap-4">
-      <SegmentedTabs<Tab>
-        aria-label={t('publicApp.fightBook.tabs.label')}
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: 'inbox', label: inboxLabel },
-          { value: 'spars', label: t('publicApp.fightBook.tabs.spars') },
-          { value: 'find', label: t('publicApp.fightBook.tabs.find') },
-        ]}
-      />
+      <TabBar tab={tab} onChange={setTab} inboxCount={props.data.inbox.length} />
       {tab === 'inbox' ? (
         <InboxTab
           apiUrl={props.apiUrl}
@@ -72,10 +80,16 @@ export function FightBookTabs(props: {
           spars={props.data.spars}
           onWithdrawn={(id) => props.update(withdrawn(id))}
           onCancelled={(id, message) => props.update(cancelled(id, message))}
+          onHearted={onHearted}
           {...afterHandlers(props.update, props.refresh)}
         />
       ) : null}
-      {tab === 'find' ? <FindTab apiUrl={props.apiUrl} onSent={props.refresh} /> : null}
+      {tab === 'favourites' ? (
+        <FavouritesTab apiUrl={props.apiUrl} onSent={props.refresh} onHearted={onHearted} />
+      ) : null}
+      {tab === 'find' ? (
+        <FindTab apiUrl={props.apiUrl} onSent={props.refresh} onHearted={onHearted} />
+      ) : null}
     </div>
   );
 }

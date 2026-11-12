@@ -1581,6 +1581,7 @@ export const publicApp = {
       inbox: 'Inbox',
       inboxCount: 'Inbox ({count})',
       spars: 'My spars',
+      favourites: 'Favourites',
       find: 'Find a partner',
     },
     card: {
@@ -1640,6 +1641,14 @@ export const publicApp = {
       theirThanks: '{name} thanked you ★ {stars}',
       noteLabel: 'Private note (only you can read it)',
       noteSave: 'Save',
+    },
+    favourites: {
+      add: 'Add {name} to favourites',
+      remove: 'Remove {name} from favourites',
+      empty: 'No favourites yet',
+      emptyDescription:
+        'Tap the heart on a fighter to keep them here. Nobody is told. A favourite who turns FightBook off, or whom you block, is not listed.',
+      failed: 'Your favourites could not be loaded.',
     },
     thanks: {
       heading: 'Thank-yous you received',

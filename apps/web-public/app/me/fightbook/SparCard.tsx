@@ -22,12 +22,15 @@ export function SparCard({
   when,
   message,
   note,
+  heart,
   children,
 }: {
   fighter: SparFighter;
   when: SparWhenView;
   message: string | null;
   note?: ReactNode;
+  /** The partner's heart, beside the name; none where the page may not offer one. */
+  heart?: ReactNode;
   children?: ReactNode;
 }) {
   const { t } = useI18n();
@@ -44,11 +47,12 @@ export function SparCard({
     <li data-spar-card className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div className="flex items-center gap-3">
         <Avatar name={name} src={fighter.photoUrl ?? undefined} size="md" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">{name}</p>
           {fighter.club ? <p className="truncate text-xs text-muted">{fighter.club}</p> : null}
           <p className="text-xs text-muted">{`${dayLabel(when.day)}${time} · ${where}`}</p>
         </div>
+        {heart}
       </div>
       <p className="mt-2 text-sm text-foreground">
         {t('publicApp.fightBook.card.weapons', { weapons: when.weapons.join(', ') })}

@@ -86,6 +86,7 @@ function EventBlock(props: {
   weapon: string;
   apiUrl: string;
   onSent: () => void;
+  onHearted?: (globalPersonId: string, favourite: boolean) => void;
 }) {
   const { t } = useI18n();
   const id = useId();
@@ -119,6 +120,7 @@ function EventBlock(props: {
         weapon={props.weapon}
         apiUrl={props.apiUrl}
         onSent={props.onSent}
+        onHearted={props.onHearted}
       />
     </section>
   );
@@ -129,6 +131,7 @@ function EventFighters(props: {
   weapon: string;
   apiUrl: string;
   onSent: () => void;
+  onHearted?: (globalPersonId: string, favourite: boolean) => void;
 }) {
   const { t } = useI18n();
   const { cards, retry } = useEventFighters(props.apiUrl, props.eventId, props.weapon);
@@ -140,7 +143,13 @@ function EventFighters(props: {
     return <p className="text-sm text-muted">{t('publicApp.fightBook.find.eventEmpty')}</p>;
   }
   return (
-    <FindCards cards={cards} eventId={props.eventId} apiUrl={props.apiUrl} onSent={props.onSent} />
+    <FindCards
+      cards={cards}
+      eventId={props.eventId}
+      apiUrl={props.apiUrl}
+      onSent={props.onSent}
+      onHearted={props.onHearted}
+    />
   );
 }
 
@@ -171,7 +180,11 @@ function WeaponSelect(props: { catalog: Weapon[]; value: string; onChange: (id: 
  * users at my Event; then All of FightBook. An ask sent from a card tells the page (`onSent`), so
  * My spars shows the new request.
  */
-export function FindTab(props: { apiUrl: string; onSent: () => void }) {
+export function FindTab(props: {
+  apiUrl: string;
+  onSent: () => void;
+  onHearted?: (globalPersonId: string, favourite: boolean) => void;
+}) {
   const { t } = useI18n();
   const { setup, retry } = useFindSetup(props.apiUrl);
   // A catalog weapon id; '' = any weapon.
@@ -190,10 +203,16 @@ export function FindTab(props: { apiUrl: string; onSent: () => void }) {
             weapon={weapon}
             apiUrl={props.apiUrl}
             onSent={props.onSent}
+            onHearted={props.onHearted}
           />
         </>
       ) : null}
-      <AllOfFightBook apiUrl={props.apiUrl} weapon={weapon} onSent={props.onSent} />
+      <AllOfFightBook
+        apiUrl={props.apiUrl}
+        weapon={weapon}
+        onSent={props.onSent}
+        onHearted={props.onHearted}
+      />
     </div>
   );
 }

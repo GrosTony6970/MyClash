@@ -97,6 +97,20 @@ export const reviewed = (id: string, review: SparReview) =>
 
 export const noted = (id: string, note: string | null) => patchSpar(id, 'done', { note });
 
+/** A heart set from My spars: every spar with that partner shows it (null stays: no heart there). */
+export const hearted =
+  (globalPersonId: string, favourite: boolean): Patch =>
+  (d) => ({
+    spars: {
+      ...d.spars,
+      spars: d.spars.spars.map((s) =>
+        s.partner.globalPersonId === globalPersonId && s.partnerFavourite !== null
+          ? { ...s, partnerFavourite: favourite }
+          : s,
+      ),
+    },
+  });
+
 export const unblocked =
   (id: string): Patch =>
   (d) => ({ blocks: d.blocks.filter((b) => b.fighter.globalPersonId !== id) });

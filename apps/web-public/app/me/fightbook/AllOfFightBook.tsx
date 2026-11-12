@@ -12,6 +12,7 @@ interface BrowseProps {
   apiUrl: string;
   weapon: string;
   onSent: () => void;
+  onHearted?: (globalPersonId: string, favourite: boolean) => void;
 }
 
 /**
@@ -52,7 +53,12 @@ function BrowsePages(props: BrowseProps & { name: string }) {
         <p className="text-sm text-muted">{t('publicApp.fightBook.find.browseEmpty')}</p>
       ) : null}
       {browse.items ? (
-        <FindCards cards={browse.items} apiUrl={props.apiUrl} onSent={props.onSent} />
+        <FindCards
+          cards={browse.items}
+          apiUrl={props.apiUrl}
+          onSent={props.onSent}
+          onHearted={props.onHearted}
+        />
       ) : null}
       {browse.failed ? (
         <ReadFailed title={t('publicApp.fightBook.find.browseFailed')} onRetry={browse.retry} />

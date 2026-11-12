@@ -7,12 +7,15 @@ import { Button, EmptyState, usePrompt } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { useDayLabel } from '@/components/fightbook/day-label';
+import { FavouriteHeart } from '@/components/fightbook/FavouriteHeart';
 import { SparAfter } from './SparAfter';
 import { SparCard } from './SparCard';
 import { ThanksList } from './ThanksList';
 import { useInFlight } from './use-in-flight';
 import { useNow } from './use-now';
 import type { AfterHandlers } from './use-spar-after';
+
+type Hearted = (globalPersonId: string, favourite: boolean) => void;
 
 /** The spars of each day, in day order (the list arrives sorted by day, then time). */
 function byDay(spars: AgreedSpar[]): Array<[string, AgreedSpar[]]> {
@@ -123,6 +126,20 @@ const pickAfter = (p: AfterHandlers): AfterHandlers => ({
   onStale: p.onStale,
 });
 
+/** My spars looks back 30 days only; thank-yous have no such bound, so they still show. */
+function NoSpars({ apiUrl }: { apiUrl: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col gap-4">
+      <EmptyState
+        title={t('publicApp.fightBook.spars.empty')}
+        description={t('publicApp.fightBook.spars.emptyDescription')}
+      />
+      <ThanksList apiUrl={apiUrl} />
+    </div>
+  );
+}
+
 /** My agreed spars, by day, then the requests I sent and their answer so far. */
 export function MySparsTab(
   props: {
@@ -130,23 +147,13 @@ export function MySparsTab(
     spars: MySpars;
     onCancelled: (id: string, message: string | null) => void;
     onWithdrawn: (id: string) => void;
+    /** A heart on a partner was set or removed (absent where FightBook is off: no hearts). */
+    onHearted?: Hearted;
   } & AfterHandlers,
 ) {
-  const { t } = useI18n();
   const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn, props.onStale);
   const { spars, sent } = props.spars;
-  if (spars.length === 0 && sent.length === 0) {
-    // My spars looks back 30 days only; thank-yous have no such bound, so they still show.
-    return (
-      <div className="flex flex-col gap-4">
-        <EmptyState
-          title={t('publicApp.fightBook.spars.empty')}
-          description={t('publicApp.fightBook.spars.emptyDescription')}
-        />
-        <ThanksList apiUrl={props.apiUrl} />
-      </div>
-    );
-  }
+  if (spars.length === 0 && sent.length === 0) return <NoSpars apiUrl={props.apiUrl} />;
   return (
     <div className="flex flex-col gap-4">
       {actions.refusal ? (
@@ -158,6 +165,7 @@ export function MySparsTab(
         {...pickAfter(props)}
         apiUrl={props.apiUrl}
         spars={spars}
+        onHearted={props.onHearted}
         busy={actions.inFlight}
         onCancel={(spar) => void actions.cancel(spar)}
       />
@@ -181,6 +189,7 @@ function SparDays(
     spars: AgreedSpar[];
     busy: (id: string) => boolean;
     onCancel: (spar: AgreedSpar) => void;
+    onHearted?: Hearted;
   } & AfterHandlers,
 ) {
   const dayLabel = useDayLabel();
@@ -201,6 +210,7 @@ function SparDays(
             canCancel={spar.status === 'agreed' && now < Date.parse(spar.cancelUntil)}
             busy={props.busy(spar.id)}
             onCancel={() => props.onCancel(spar)}
+            onHearted={props.onHearted}
           />
         ))}
       </ul>
@@ -216,6 +226,7 @@ function AgreedCard(
     canCancel: boolean;
     busy: boolean;
     onCancel: () => void;
+    onHearted?: Hearted;
   } & AfterHandlers,
 ) {
   const { t } = useI18n();
@@ -225,6 +236,17 @@ function AgreedCard(
       fighter={spar.partner}
       when={spar}
       message={spar.message}
+      heart={
+        spar.partnerFavourite === null ? null : (
+          <FavouriteHeart
+            apiUrl={props.apiUrl}
+            globalPersonId={spar.partner.globalPersonId}
+            name={spar.partner.name || t('publicApp.fightBook.unknownFighter')}
+            favourite={spar.partnerFavourite}
+            onChanged={(next) => props.onHearted?.(spar.partner.globalPersonId, next)}
+          />
+        )
+      }
       note={
         <>
           <AgreedNote spar={spar} />

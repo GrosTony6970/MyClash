@@ -1589,6 +1589,7 @@ export const publicApp = {
       inbox: 'Demandes reçues',
       inboxCount: 'Demandes reçues ({count})',
       spars: 'Mes spars',
+      favourites: 'Favoris',
       find: 'Trouver un partenaire',
     },
     card: {
@@ -1649,6 +1650,14 @@ export const publicApp = {
       theirThanks: '{name} vous a remercié ★ {stars}',
       noteLabel: 'Note privée (vous seul la lisez)',
       noteSave: 'Enregistrer',
+    },
+    favourites: {
+      add: 'Ajouter {name} aux favoris',
+      remove: 'Retirer {name} des favoris',
+      empty: 'Aucun favori pour l’instant',
+      emptyDescription:
+        'Touchez le cœur d’un combattant pour le garder ici. Personne n’est prévenu. Un favori qui désactive FightBook, ou que vous bloquez, n’apparaît pas.',
+      failed: 'Vos favoris n’ont pas pu être chargés.',
     },
     thanks: {
       heading: 'Les remerciements reçus',

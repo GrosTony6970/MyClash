@@ -161,6 +161,15 @@ export const readThanks = (apiUrl: string, page: number, signal?: AbortSignal) =
     signal,
   );
 
+/** My favourites who can still be asked, by name (ruling 679). */
+export const readFavourites = (apiUrl: string, signal?: AbortSignal) =>
+  read<FindCard[]>(
+    apiUrl,
+    '/api/v1/me/fightbook/favourites',
+    (v) => Array.isArray(v) && v.every(isCard),
+    signal,
+  );
+
 /** The active weapon catalog (public): ids for the Find filter, names for an ask. */
 export const readWeaponCatalog = (apiUrl: string, signal?: AbortSignal) =>
   read<Array<{ id: string; name: string }>>(
