@@ -6,7 +6,7 @@ import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from '../fighters/fighter-weapon-names';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { IN_LIST_MAX, inListChunks } from '../../common/postgrest-in-list';
+import { IN_LIST_MAX, inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 import { addDays, zonedDay } from '@myclash/time';
 import type {
   FightBookEvent,
@@ -49,6 +49,13 @@ function browseNameFilter(q: string | undefined): string | null {
   if (term.length < 2) return null;
   return `given_name.ilike.%${term}%,family_name.ilike.%${term}%,display_name.ilike.%${term}%`;
 }
+
+type RosterRow = { id: string; global_person_id: string | null };
+type ProfileRosterRow = { id: string; global_person_id: string };
+
+/** The roster rows that name a fighter profile. */
+const withProfile = (rows: RosterRow[]): ProfileRosterRow[] =>
+  rows.filter((row): row is ProfileRosterRow => row.global_person_id !== null);
 
 /** The columns `myEvents` selects, no more. */
 type MyEventRow = {
@@ -131,7 +138,7 @@ export class SparFindService {
         message: 'Find lists the people of a public Event you are at',
       });
     }
-    const rows = await this.rosterRows(eventId);
+    const rows = await this.wholeRoster(eventId);
     const [hidden, askable] = await Promise.all([
       hiddenEntrantIds({ supabase: this.supabase, orgs: this.orgs }, event, reader),
       askableFighters(
@@ -252,19 +259,36 @@ export class SparFindService {
     return event && isPublicEvent(event) ? event : null;
   }
 
-  /** These roster rows (all of them when none are named), of this Event only, that name a profile. */
-  private async rosterRows(
-    eventId: string,
-    personIds?: string[],
-  ): Promise<Array<{ id: string; global_person_id: string }>> {
-    const roster = this.supabase.service
+  /** These roster rows, of this Event only, that name a fighter profile. */
+  private async rosterRows(eventId: string, personIds: string[]): Promise<ProfileRosterRow[]> {
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, global_person_id')
-      .eq('event_id', eventId);
-    const { data, error } = await (personIds ? roster.in('id', [...new Set(personIds)]) : roster);
+      .eq('event_id', eventId)
+      .in('id', [...new Set(personIds)]);
     if (error) throw new Error(`FightBook roster read failed: ${error.message}`);
-    return ((data ?? []) as Array<{ id: string; global_person_id: string | null }>).filter(
-      (row): row is { id: string; global_person_id: string } => row.global_person_id !== null,
-    );
+    return withProfile((data ?? []) as RosterRow[]);
+  }
+
+  /**
+   * The Event's whole roster, rows that name a profile. Read page by page after the last id until
+   * a page comes back empty (`READ_PAGE`): PostgREST cuts one read at its max rows without a word.
+   */
+  private async wholeRoster(eventId: string): Promise<ProfileRosterRow[]> {
+    const rows: RosterRow[] = [];
+    for (;;) {
+      let query = this.supabase.service
+        .from('persons')
+        .select('id, global_person_id')
+        .eq('event_id', eventId)
+        .order('id');
+      const last = rows.at(-1);
+      if (last) query = query.gt('id', last.id);
+      const { data, error } = await query.limit(READ_PAGE);
+      if (error) throw new Error(`FightBook roster read failed: ${error.message}`);
+      const page = (data ?? []) as RosterRow[];
+      if (page.length === 0) return withProfile(rows);
+      rows.push(...page);
+    }
   }
 }

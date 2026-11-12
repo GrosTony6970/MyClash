@@ -1,7 +1,7 @@
 import { ForbiddenException, type HttpException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { PublicReader } from '../../common/auth/competition-visibility';
-import { IN_LIST_MAX } from '../../common/postgrest-in-list';
+import { IN_LIST_MAX, READ_PAGE } from '../../common/postgrest-in-list';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { SparFindService } from './spar-find.service';
 
@@ -234,5 +234,39 @@ describe('SparFindService.atEvent, a large Event', () => {
     for (const [, values] of inCalls) {
       expect((values as unknown[]).length).toBeLessThanOrEqual(IN_LIST_MAX);
     }
+  });
+});
+
+// PostgREST cuts a read at its max rows without a word: the roster is read page by page by id.
+describe('SparFindService.atEvent, a roster longer than one read', () => {
+  // 1000 rows with no fighter on FightBook sort first by id; Julie's row is on the second page.
+  const fillers = Array.from({ length: READ_PAGE }, (_, n) =>
+    roster(`p-${String(n).padStart(4, '0')}`, EVENT, `gp-${n}`),
+  );
+
+  it('reads every page until an empty one, so the fighter on page two is listed', async () => {
+    const supabase = mockSupabase({
+      global_persons: { rows: fighters },
+      fightbook_blocks: { rows: [] },
+      events: { rows: [event(EVENT)] },
+      persons: { rows: [...fillers, roster('p-julie', EVENT, JULIE), roster('p-me', EVENT, MARC)] },
+      fighter_weapons: { rows: [] },
+      tournaments: { rows: [] },
+    });
+    const find = new SparFindService(supabase as never, {} as never);
+    const cards = await find.atEvent(MARC, EVENT, undefined, reader);
+    expect(cards.map((card) => card.fighter.globalPersonId)).toEqual([JULIE]);
+    const rosterReads = selectsFor(supabase.from, 'persons').filter(
+      (select) => select === 'id, global_person_id',
+    );
+    expect(rosterReads).toHaveLength(3);
+    expect(filtersFor(supabase.from, 'persons', 'order')).toEqual([['id'], ['id'], ['id']]);
+    expect(filtersFor(supabase.from, 'persons', 'gt')).toEqual([
+      ['id', 'p-0999'],
+      ['id', 'p-me'],
+    ]);
+    expect(
+      filtersFor(supabase.from, 'persons', 'limit').filter(([count]) => count === READ_PAGE),
+    ).toHaveLength(3);
   });
 });
