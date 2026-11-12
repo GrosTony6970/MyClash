@@ -12,8 +12,8 @@ export const DIRECTORY_WEAPONS_SHOWN = 3;
 
 /**
  * global_person_id → weapon names, favourites first, then `sort_order`. One read loop per id
- * chunk, not one per fighter (`getFighterWeaponLinks` is the per-fighter read for a profile). `cap` undefined keeps every weapon. The one owner, for the directory and FightBook's
- * Find cards. A failed read throws: showing a fighter with no weapons would be a lie.
+ * chunk, not one per fighter (`getFighterWeaponLinks` is the per-fighter read for a profile).
+ * `cap` undefined keeps every weapon. The one owner, for the directory and FightBook's Find cards. A failed read throws: showing a fighter with no weapons would be a lie.
  *
  * A chunk is read in `READ_PAGE` pages in a stable total order, until a page comes back empty:
  * PostgREST cuts a read at its row cap without a word, so the loop never trusts a short page.

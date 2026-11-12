@@ -49,8 +49,9 @@ export function parseWeaponsCell(raw: string | null | undefined): ParsedImportWe
         : null;
       out.push({ weaponName: namePart, level, favorite: index === 0 });
     });
-  // The cell's order is the fighter's order: entries past the cap are dropped. The import reports
-  // counts only, with no per-row warning channel for a cell.
+  // The cell's order is the fighter's order: entries past the cap are dropped. The imports report
+  // only rows that were not saved; a shortened cell still saves its row, so the extra entries are
+  // dropped without a report.
   return out.slice(0, MAX_FIGHTER_WEAPONS);
 }
 
