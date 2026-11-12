@@ -782,7 +782,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
 
   constructor(
     private readonly supabase: SupabaseService,
-    _config: ConfigService,
+    private readonly config: ConfigService,
     private readonly sender: WebPushSender,
     private readonly mail: MailService,
   ) {
@@ -888,13 +888,14 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
 
   private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {
     if (!job.email) return;
+    const actionUrl = this.emailLink(job.url);
     if (job.kind === 'organizer_broadcast') {
       await this.mail.sendBroadcastNotification({
         to: job.email,
         subject: job.emailSubject ?? job.title,
         title: job.title,
         body: job.body,
-        actionUrl: job.url,
+        actionUrl,
         severity: job.severity ?? 'info',
       });
       return;
@@ -904,8 +905,18 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       subject: job.emailSubject ?? job.title,
       title: job.title,
       body: job.body,
-      actionUrl: job.url,
+      actionUrl,
     });
+  }
+
+  /**
+   * A notice's `url` is a path on the public app, which the phone's service worker opens on its
+   * own site. An email has no site, so its button needs the whole address: `app.${DOMAIN}`, the
+   * shape of every other mailed link (`pass-email.service.ts`). A whole address stays as it is.
+   */
+  private emailLink(url: string): string {
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    return new URL(url, `https://app.${domain}`).toString();
   }
 
   private async markRecipient(

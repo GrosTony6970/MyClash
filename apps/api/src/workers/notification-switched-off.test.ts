@@ -214,7 +214,7 @@ describe('a notice Léa left on', () => {
       subject: 'A subject',
       title: 'A title',
       body: 'A body.',
-      actionUrl: '/notifications',
+      actionUrl: 'https://app.myclash.localhost/notifications',
     });
   });
 });
