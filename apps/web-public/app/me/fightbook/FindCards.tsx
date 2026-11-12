@@ -28,7 +28,7 @@ export function FindCards(props: {
             className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <Avatar name={name} src={fighter.photoUrl ?? undefined} size="md" />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 basis-40">
               <p className="truncate text-sm font-semibold text-foreground">{name}</p>
               {fighter.club ? <p className="truncate text-xs text-muted">{fighter.club}</p> : null}
               {weapons.length > 0 ? (
