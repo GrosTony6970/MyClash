@@ -176,9 +176,10 @@ export default function PeoplePage() {
             return (
               <li
                 key={p.id}
-                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors"
+                className="flex items-stretch bg-surface border border-border rounded-xl hover:border-muted transition-colors"
               >
-                <Link href={`/e/${eventSlug}/people/${p.id}`} className="min-w-0 flex-1">
+                {/* The link fills the row but the button's column: a tap anywhere else opens it. */}
+                <Link href={`/e/${eventSlug}/people/${p.id}`} className="min-w-0 flex-1 px-4 py-3">
                   <p className="font-semibold text-foreground">
                     {p.given_name} {p.family_name}
                   </p>
@@ -198,12 +199,14 @@ export default function PeoplePage() {
                 </Link>
                 {/* Beside the link, never in it: a button inside an anchor is invalid. */}
                 {receiver && eventId && (
-                  <AskToSpar
-                    receiverGlobalPersonId={receiver}
-                    name={`${p.given_name} ${p.family_name}`}
-                    eventId={eventId}
-                    apiUrl={apiUrl}
-                  />
+                  <div className="flex items-center pr-3">
+                    <AskToSpar
+                      receiverGlobalPersonId={receiver}
+                      name={`${p.given_name} ${p.family_name}`}
+                      eventId={eventId}
+                      apiUrl={apiUrl}
+                    />
+                  </div>
                 )}
               </li>
             );

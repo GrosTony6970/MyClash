@@ -15,8 +15,10 @@ import PeoplePage from './page';
  */
 vi.mock('next/navigation', () => ({ useParams: () => ({ eventSlug: 'open-2027' }) }));
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children?: ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: (props: { href: string; className?: string; children?: ReactNode }) => (
+    <a href={props.href} className={props.className}>
+      {props.children}
+    </a>
   ),
 }));
 vi.mock('../_components/EventHeader', () => ({
@@ -166,6 +168,23 @@ describe('"Ask to spar" on the people search', () => {
     const [button] = askButtons();
     expect(button?.closest('li')?.textContent).toContain('Paul Probe');
     expect(button?.closest('a')).toBeNull();
+  });
+
+  it('opens the person on a tap anywhere in the row but the button', async () => {
+    signedAs('claimed');
+    await show();
+    await search('Pau', [PAUL]);
+    await act(async () =>
+      askables.get(askPath(['p-paul']))?.({ ok: true, data: { 'p-paul': 'g-paul' } }),
+    );
+    const row = rows()[0];
+    const link = row?.querySelector('a');
+    // The padding is the link's, not the row's: the row's padded bands are part of the link.
+    expect(link?.className.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'px-4', 'py-3']));
+    expect(row?.className).not.toMatch(/\b(p|px|py)-\d/);
+    expect(row?.className.split(' ')).toContain('items-stretch');
+    expect(link?.textContent).toContain('Paul Probe');
+    expect(askButtons()[0]?.closest('a')).toBeNull();
   });
 
   it('paints no button from the answer for "Pa" once the rows show "Pau"', async () => {
