@@ -120,7 +120,8 @@ const updateMyFighterProfileSchema = updateFighterSchema
     mainClub: fighterClubInputSchema.optional(),
     secondaryClubs: z.array(fighterClubInputSchema).optional(),
     previousClubs: z.array(fighterClubInputSchema).optional(),
-    weapons: z.array(fighterWeaponInputSchema).optional(),
+    // At most 20: the directory and Find reads page through every declared weapon.
+    weapons: z.array(fighterWeaponInputSchema).max(20).optional(),
     medals: z.array(fighterMedalInputSchema).optional(),
   })
   .strict();

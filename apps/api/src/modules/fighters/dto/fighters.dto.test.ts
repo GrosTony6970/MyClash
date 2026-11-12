@@ -143,3 +143,17 @@ describe('PublicFighterQueryDto', () => {
     expect(parse({ evil: 'x' }).success).toBe(false);
   });
 });
+
+/** A fighter declares at most 20 weapons: every directory and Find read pages through them. */
+describe("a fighter's weapons list", () => {
+  const FIGHTER = '00000000-0000-4000-8000-000000000000';
+  const weapons = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({ weaponName: `Weapon ${i}` }));
+  const parse = (count: number) =>
+    UpdateMyFighterProfileDto.schema.safeParse({ fighterId: FIGHTER, weapons: weapons(count) });
+
+  it('takes 20 weapons and refuses 21', () => {
+    expect(parse(20).success).toBe(true);
+    expect(parse(21).success).toBe(false);
+  });
+});
