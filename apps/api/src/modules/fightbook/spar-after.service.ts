@@ -17,6 +17,7 @@ export interface SparReviewInput {
  * After the spar (FightBook slice 3): "We sparred" and its undo. Each is one conditional update,
  * judged on the API's `now` (one clock), so a mark racing a cancel has one winner and the loser
  * gets 409 `not_open`; a spar is never both cancelled and done (the table's CHECK holds it too).
+ * Two fighters making the same move both get 204 (`move`).
  */
 @Injectable()
 export class SparAfterService {
@@ -35,8 +36,8 @@ export class SparAfterService {
   async markDone(me: string, requestId: string, now = new Date()): Promise<void> {
     const { row, side, other } = await readMySide(this.supabase.service, me, requestId);
     if (now < sparWindows(row).markFrom) throw notOpen();
-    await this.move(requestId, side, me, 'agreed', 'done', now);
-    void notifySparMarkedDone(this.noticeDeps(), requestId, other);
+    const moved = await this.move(requestId, side, me, 'agreed', 'done', now);
+    if (moved) void notifySparMarkedDone(this.noticeDeps(), requestId, other);
   }
 
   /** Put a done spar back to agreed, either fighter, until two days past its end. No notice. */
@@ -97,6 +98,14 @@ export class SparAfterService {
     if (error) throw new Error(`spar note failed: ${error.message}`);
   }
 
+  /**
+   * Move the caller's spar from `from` to `to`, while the window is open. Answers whether THIS
+   * call moved it. The race it names: both fighters tap "We sparred" (or Undo) seconds apart. The
+   * first update wins; the second matches no row, although what its fighter asked for happened.
+   * So a miss reads the row again, on the caller's side: already at `to` with the window still
+   * open answers false (204, and the caller sends no notice: the first tap sent it). Any other
+   * miss (a cancel won, the window shut, the partner undid in between) is 409 `not_open`.
+   */
   private async move(
     requestId: string,
     side: 'asker' | 'receiver',
@@ -104,7 +113,7 @@ export class SparAfterService {
     from: 'agreed' | 'done',
     to: 'agreed' | 'done',
     now: Date,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .update({ status: to })
@@ -114,7 +123,29 @@ export class SparAfterService {
       .gt('expires_at', new Date(now.getTime() - MARK_GRACE_MS).toISOString())
       .select('id');
     if (error) throw new Error(`spar ${to} failed: ${error.message}`);
-    if ((data ?? []).length === 0) throw notOpen();
+    if ((data ?? []).length > 0) return true;
+    if (await this.alreadyAt(requestId, side, me, to, now)) return false;
+    throw notOpen();
+  }
+
+  /** Is the caller's spar already at `status`, with "We sparred" and its undo still open? */
+  private async alreadyAt(
+    requestId: string,
+    side: 'asker' | 'receiver',
+    me: string,
+    status: 'agreed' | 'done',
+    now: Date,
+  ): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('spar_requests')
+      .select('status, expires_at')
+      .eq('id', requestId)
+      .eq(`${side}_global_person_id`, me)
+      .maybeSingle();
+    if (error) throw new Error(`spar ${status} re-read failed: ${error.message}`);
+    const row = data as { status: string; expires_at: string } | null;
+    if (row?.status !== status) return false;
+    return now.getTime() < new Date(row.expires_at).getTime() + MARK_GRACE_MS;
   }
 
   private noticeDeps(): SparNoticeDeps {

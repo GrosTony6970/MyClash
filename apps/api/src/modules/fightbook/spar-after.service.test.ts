@@ -31,9 +31,10 @@ function setup(
   update: ChainResult = { data: [{ id: REQUEST }], error: null },
   row: Record<string, unknown> | null = PARIS_ROW,
   send = vi.fn(async () => undefined),
+  reread?: ChainResult,
 ) {
   const supabase = mockSupabase({
-    spar_requests: [{ data: row, error: null }, update],
+    spar_requests: [{ data: row, error: null }, update, ...(reread ? [reread] : [])],
     global_persons: {
       rows: [
         { id: MARC, claimed_by_user_id: 'acc-m' },
@@ -135,5 +136,52 @@ describe('SparAfterService.undo', () => {
     await expect(stranger.service.undo(PAUL, REQUEST)).rejects.toBeInstanceOf(NotFoundException);
     const late = setup({ data: [], error: null });
     expect(await codeOf(late.service.undo(MARC, REQUEST))).toEqual([409, 'not_open']);
+  });
+});
+
+/**
+ * Marc and Julie both tap "We sparred" seconds apart: Marc's update wins, Julie's matches no row.
+ * What she asked for happened, so she gets no refusal: the row is read again on her side.
+ */
+describe('a tap the partner already made', () => {
+  const MISSED = { data: [], error: null };
+  const now = (status: string) => ({ data: { ...PARIS_ROW, status }, error: null });
+  const SUNDAY = new Date('2026-05-24T12:00:00Z');
+  const MARK_UNTIL = new Date('2026-05-26T04:00:00Z');
+
+  it('a mark on a spar already done, window open, answers 204 and tells nobody again', async () => {
+    const { service, supabase, send } = setup(MISSED, PARIS_ROW, undefined, now('done'));
+    await expect(service.markDone(JULIE, REQUEST, SUNDAY)).resolves.toBeUndefined();
+    await settle();
+    expect(send).not.toHaveBeenCalled();
+    expect(writesTo(supabase, 'spar_requests')).toHaveLength(1);
+    expect(selectsFor(supabase.from, 'spar_requests')).toEqual([
+      SELECT,
+      'id',
+      'status, expires_at',
+    ]);
+    // The re-read is the third query on the table: the caller's own spar, on the caller's side.
+    const reread = supabase.from.mock.results[2]!.value as { eq: { mock: { calls: unknown[] } } };
+    expect(reread.eq.mock.calls).toEqual([
+      ['id', REQUEST],
+      ['receiver_global_person_id', JULIE],
+    ]);
+  });
+
+  it('an undo on a spar already agreed, window open, answers 204', async () => {
+    const { service } = setup(MISSED, { ...PARIS_ROW, status: 'done' }, undefined, now('agreed'));
+    await expect(service.undo(MARC, REQUEST, SUNDAY)).resolves.toBeUndefined();
+  });
+
+  it('a mark on a spar already done once the window shut answers not_open', async () => {
+    const { service } = setup(MISSED, PARIS_ROW, undefined, now('done'));
+    expect(await codeOf(service.markDone(JULIE, REQUEST, MARK_UNTIL))).toEqual([409, 'not_open']);
+  });
+
+  it('a mark on a spar the partner cancelled answers not_open', async () => {
+    const { service, send } = setup(MISSED, PARIS_ROW, undefined, now('cancelled'));
+    expect(await codeOf(service.markDone(JULIE, REQUEST, SUNDAY))).toEqual([409, 'not_open']);
+    await settle();
+    expect(send).not.toHaveBeenCalled();
   });
 });
