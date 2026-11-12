@@ -67,12 +67,19 @@ export const flag = (
 /** A flag row written straight, as the function would (the account that held the subject, unless given). */
 export async function rawFlag(
   q,
-  { subject, reporter = subject === F.julie ? F.marc : F.julie, org = ORG, at = NOW, holder },
+  {
+    subject,
+    reporter = subject === F.julie ? F.marc : F.julie,
+    org = ORG,
+    at = NOW,
+    holder,
+    request = null,
+  },
 ) {
   const [{ id: flagId }] = await q`INSERT INTO spar_flags
-      (reporter_global_person_id, subject_global_person_id, kind, organization_id, spar_day,
+      (spar_request_id, reporter_global_person_id, subject_global_person_id, kind, organization_id, spar_day,
        weapons, reason, body, created_at)
-    VALUES (${reporter}, ${subject}, 'event', ${org}, '2026-05-22', ARRAY['Longsword'],
+    VALUES (${request}, ${reporter}, ${subject}, 'event', ${org}, '2026-05-22', ARRAY['Longsword'],
       'too_hard', 'It hurt', ${at}::timestamptz) RETURNING id`;
   await q`INSERT INTO spar_flag_admin (flag_id, subject_user_id) VALUES (${flagId},
     ${holder === undefined ? q`(SELECT claimed_by_user_id FROM global_persons WHERE id = ${subject})` : holder})`;
@@ -139,6 +146,7 @@ export async function flagWrites(tx) {
   await freeDateFlag(tx);
   await flagRefusals(tx);
   await flagTwice(tx);
+  await flagByMergedProfile(tx);
 }
 
 async function freeDateFlag(tx) {
@@ -201,6 +209,20 @@ async function flagTwice(tx) {
       'the partner flags the same spar: its own row, about the first reporter',
       [partners !== first, await flagRows(q, request), subject],
       [true, 2, F.julie],
+    );
+  });
+}
+
+/** A profile merged into the reporter flagged this spar before the merge: the reporter's own flag is the second. */
+async function flagByMergedProfile(tx) {
+  await scenario(tx, async (q) => {
+    const request = await eventSpar(q, F.marc, F.julie);
+    await rawFlag(q, { subject: F.marc, reporter: G.s, request });
+    await mergeInto(q, G.s, F.julie);
+    check(
+      'a flag by the reporter after a profile merged into hers flagged it: null, one row',
+      [await flag(q, request, F.julie), await flagRows(q, request)],
+      [null, 1],
     );
   });
 }

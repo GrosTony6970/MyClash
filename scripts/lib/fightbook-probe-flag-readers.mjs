@@ -38,6 +38,8 @@ export async function flagsPage(tx) {
       inClub.push(await rawFlag(q, { subject: mine.has(i) ? F.paul : F.julie, at: minute(i) }));
     for (let i = 20; i < 23; i += 1)
       await rawFlag(q, { subject: F.julie, org: ORG2, at: minute(i) });
+    // Newest of all, about a profile no account holds: the club list leaves it out (ruling 696).
+    const unheld = await rawFlag(q, { subject: G.x, holder: null, at: minute(30) });
     const visible = inClub.filter((_, i) => !mine.has(i)).reverse();
 
     const first = await page(q, A.adminOne, ORG, 0, 5);
@@ -61,9 +63,18 @@ export async function flagsPage(tx) {
     check(
       'the platform scope lists every club, still without the caller’s own',
       [platform.length, platform.some((row) => inClub[2] === row.id)],
-      [12, false],
+      [13, false],
     );
-    check('a super admin reads all fourteen', (await page(q, A.root, null, 0, 100)).length, 14);
+    const everything = await page(q, A.root, null, 0, 100);
+    check('a super admin reads all fifteen, the unheld one first', ids(everything).slice(0, 1), [
+      unheld,
+    ]);
+    check('and counts them', everything.length, 15);
+    check(
+      'the club scope leaves a flag about an unheld profile out, on every page',
+      ids(await page(q, A.adminOne, ORG, 0, 100)).includes(unheld),
+      false,
+    );
   });
 }
 
@@ -115,6 +126,12 @@ export async function flagMark(tx) {
       [await mark(q, A.adminOne, ORG, own, true, t1), await handledAt(q, own)],
       [false, null],
     );
+    const unheld = await rawFlag(q, { subject: G.x, holder: null });
+    check(
+      'a flag about an unheld profile, club scope: false, nothing written',
+      [await mark(q, A.adminOne, ORG, unheld, true, t1), await handledAt(q, unheld)],
+      [false, null],
+    );
   });
 }
 
@@ -147,6 +164,44 @@ export async function flagRecipients(tx) {
     check('no club: the super admins', await recipients(q, free), [
       { user_id: A.root, audience: 'platform', org_slug: null },
     ]);
+  });
+  await recipientScopes(tx);
+}
+
+/** Who is left out: the flagged fighter and the reporter, also as a super admin, and the reporter's family. */
+async function recipientScopes(tx) {
+  const slug = 'fightbook-probe';
+  await scenario(tx, async (q) => {
+    await claim(q, G.x, A.root);
+    const free = await rawFlag(q, { subject: G.x, reporter: F.julie, org: null });
+    check('a super admin who is the flagged fighter is not told', await recipients(q, free), []);
+  });
+  await scenario(tx, async (q) => {
+    await claim(q, G.t, A.root);
+    const free = await rawFlag(q, { subject: F.marc, reporter: G.t, org: null });
+    check('a super admin who is the reporter is not told', await recipients(q, free), []);
+  });
+  await scenario(tx, async (q) => {
+    await q`INSERT INTO organization_members (organization_id, user_id, role)
+      VALUES (${ORG}, ${A.adminOne}, 'admin'), (${ORG}, ${A.owner}, 'owner')`;
+    await mergeInto(q, G.s, F.julie);
+    await claim(q, G.s, A.adminOne);
+    const flagId = await rawFlag(q, { subject: F.marc, reporter: F.julie });
+    check(
+      'a club admin who holds a profile merged into the reporter’s is not told',
+      await recipients(q, flagId),
+      [{ user_id: A.owner, audience: 'club', org_slug: slug }],
+    );
+  });
+  await scenario(tx, async (q) => {
+    await q`INSERT INTO organization_members (organization_id, user_id, role)
+      VALUES (${ORG}, ${A.adminOne}, 'admin')`;
+    const flagId = await rawFlag(q, { subject: G.x, holder: null });
+    check(
+      'a club flag about an unheld profile goes to the super admins, not the club admins',
+      await recipients(q, flagId),
+      [{ user_id: A.root, audience: 'platform', org_slug: null }],
+    );
   });
 }
 
