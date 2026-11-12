@@ -23,7 +23,7 @@ import {
   type SupabaseRow,
   type WriteSink,
 } from './supabase-chain-internals';
-import { parseOr, type OrTerm } from './supabase-chain-or';
+import { inRange, likeRow, notInRow, orPredicate } from './supabase-chain-predicates';
 
 /**
  * Compare two PRESENT cells for `order`. Nulls never reach here — where they
@@ -81,131 +81,13 @@ function orderRows(rows: SupabaseRow[], keys: readonly Ordering[]): SupabaseRow[
 }
 
 /**
- * Order two cells for a RANGE filter, or report that they cannot be ordered.
- *
- * Deliberately not `compareCells`, which throws on null. The two nulls mean
- * different things: a null in a sort column is a fixture that cannot express an
- * order, while a null in a filtered column is a row Postgres simply excludes —
- * `scheduled_at >= x` over NULL evaluates to NULL, which is not TRUE, so the row
- * does not come back. `MatchPlacementService.readOccupants` writing `.not('scheduled_at','is',null)`
- * immediately before its window is the code saying it knows those rows exist.
- *
- * An ABSENT column reads the same as a null one, matching `is` above.
- *
- * Plain relational operators rather than `localeCompare`: the values reaching a
- * range filter here are ISO-8601 instants and numbers, where byte order is the
- * intended order and a locale-sensitive collation could only disagree.
- */
-function rangeOrder(cell: unknown, value: unknown): number | null {
-  if (cell === null || cell === undefined || value === null || value === undefined) return null;
-  if (typeof cell === 'number' && typeof value === 'number') return cell - value;
-  const [a, b] = [String(cell), String(value)];
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/**
- * `ilike` as Postgres means it.
- *
- * The pattern is a LIKE pattern, not a substring: `%` matches any run of
- * characters, `_` matches exactly one, the comparison is case-insensitive, and
- * it is anchored at BOTH ends. Callers use all three shapes — an exact value
- * (`ilike('email', normalized)`), a prefix (`slug%`) and a contains (`%term%`)
- * — so treating this as a plain substring test would quietly widen every exact
- * one and let those tests assert less than they appear to.
- *
- * Regex metacharacters are escaped FIRST, so the dots in an email match dots
- * rather than any character.
- *
- * A non-string cell never matches. `col ILIKE x` over NULL evaluates to NULL,
- * which is not TRUE, so Postgres does not return the row.
- */
-function likeMatcher(pattern: string): (cell: unknown) => boolean {
-  const source = pattern
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/%/g, '.*')
-    .replace(/_/g, '.');
-  const expression = new RegExp(`^${source}$`, 'i');
-  return (cell) => typeof cell === 'string' && expression.test(cell);
-}
-
-/** `ilike` as a row predicate, compiled once per call — the shape `inRange` uses. */
-const likeRow = (column: string, pattern: string) => {
-  const matches = likeMatcher(pattern);
-  return (row: SupabaseRow): boolean => matches(row[column]);
-};
-
-/**
- * One sibling of an `.or()` string, as a row predicate.
- *
- * `eq`, `neq` and `in` compare the cell's TEXT, because that is what an `.or`
- * carries: PostgREST puts the value in a URL and Postgres casts it to the
- * column's type, so `id.eq.7` matches a numeric 7 the same way `.eq('id', 7)`
- * does. The chain methods keep strict equality — there the caller passed a real
- * JS value and a type mismatch is a fixture bug worth surfacing.
- *
- * An absent or null cell matches none of them. `col = 'x'` over NULL evaluates
- * to NULL, which is not TRUE, and so does `col <> 'x'` — a null row is excluded
- * by `neq` as well, which is the half people expect to be symmetric and is not.
- * `is` is the exception: it is the operator that can see a null.
- */
-function orRow(term: OrTerm): (row: SupabaseRow) => boolean {
-  const { column, operator, negated, value } = term;
-  if (operator === 'is') {
-    return (row) => ((row[column] ?? null) === value) !== negated;
-  }
-  if (operator === 'ilike') return likeRow(column, value as string);
-  const present = (row: SupabaseRow) => (row[column] ?? null) !== null;
-  if (operator === 'in') {
-    const wanted = value as string[];
-    return (row) => present(row) && wanted.includes(String(row[column]));
-  }
-  const matches = (row: SupabaseRow) => String(row[column]) === value;
-  return operator === 'eq'
-    ? (row) => present(row) && matches(row)
-    : (row) => present(row) && !matches(row);
-}
-
-/**
- * A whole `.or()` string as one predicate.
- *
- * Siblings are ORed, so a row survives if ANY term matches. That makes this the
- * one filter that WIDENS, and the reason a seeded table cannot approximate `or`
- * by ignoring it: every other unmodelled filter left out returns too many rows,
- * and so does this one.
- */
-function orPredicate(source: string): (row: SupabaseRow) => boolean {
-  const terms = parseOr(source).map((term) => orRow(term));
-  return (row) => terms.some((matches) => matches(row));
-}
-
-/**
- * The four range comparisons as a row predicate.
- *
- * A cell that cannot be ordered against the value is EXCLUDED rather than
- * guessed at, which is also how a NULL behaves in Postgres: every comparison
- * against NULL is NULL, and a WHERE that is NULL does not select the row.
- */
-const inRange =
-  (operator: RangeOperator, column: string, value: unknown) =>
-  (row: SupabaseRow): boolean => {
-    const order = rangeOrder(row[column], value);
-    if (order === null) return false;
-    if (operator === 'gte') return order >= 0;
-    if (operator === 'gt') return order > 0;
-    if (operator === 'lte') return order <= 0;
-    return order < 0;
-  };
-
-type RangeOperator = 'gte' | 'gt' | 'lte' | 'lt';
-
-/**
  * A builder over a seeded table.
  *
  * Filters narrow a PER-CALL copy: `from()` hands out a fresh chain each time, so
- * one query's `.eq()` can never shrink the next one's result. Order and limit
- * are recorded and applied at resolution, which is the order PostgREST applies
- * them in — filters, then sort, then truncate. Applying `limit` early would take
- * the first rows seeded rather than the first rows wanted.
+ * one query's `.eq()` can never shrink the next one's result. Order, limit and
+ * range are recorded and applied at resolution, which is the order PostgREST
+ * applies them in — filters, then sort, then the page. Applying `limit` early
+ * would take the first rows seeded rather than the first rows wanted.
  */
 interface Ordering {
   column: string;
@@ -218,24 +100,34 @@ interface RowSet {
   /** What survived, sorted and truncated — computed fresh on every read. */
   current(): SupabaseRow[];
   /**
-   * How many rows the filters left, IGNORING limit. PostgREST's `count: 'exact'`
-   * reports the size of the match, not the size of the page it returned.
+   * How many rows the filters left, IGNORING limit and range. PostgREST's
+   * `count: 'exact'` reports the size of the match, not the size of the page it returned.
    */
   total(): number;
   narrow(predicate: (row: SupabaseRow) => boolean): void;
   /** Appends a sort key. Each `.order()` call is a further tiebreaker. */
   orderBy(ordering: Ordering): void;
   limitTo(count: number): void;
+  /**
+   * `range(from, to)` as postgrest-js sends it: `offset=from` and `limit=to-from+1`.
+   * `limit(n)` sets the limit only, so whichever of the two came LAST sets the
+   * page size, and a range's offset stays under a later limit.
+   */
+  skip(offset: number): void;
 }
 
 function rowSet(seed: readonly SupabaseRow[]): RowSet {
   let working: SupabaseRow[] = [...seed];
   const orderings: Ordering[] = [];
   let cap: number | null = null;
+  let offset = 0;
   return {
     current: () => {
       const out = orderings.length > 0 ? orderRows([...working], orderings) : [...working];
-      return cap === null ? out : out.slice(0, cap);
+      return out.slice(offset, cap === null ? undefined : offset + cap);
+    },
+    skip: (from) => {
+      offset = from;
     },
     total: () => working.length,
     narrow: (predicate) => {
@@ -304,13 +196,18 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet, mode
   );
   chain.not = vi.fn((c: string, operator: string, v: unknown) => {
     if (operator === 'is') return narrow('not', [c, operator, v], (r) => (r[c] ?? null) !== v);
+    if (operator === 'in') return narrow('not', [c, operator, v], notInRow(c, v));
     if (operator !== 'eq') throw unsupported('not', `operator "${operator}"`);
     return narrow('not', [c, operator, v], (row) => row[c] !== v);
   });
   chain.ilike = vi.fn((c: string, p: string) => narrow('ilike', [c, p], likeRow(c, p)));
   chain.or = vi.fn((source: string) => narrow('or', [source], orPredicate(source)));
   installRanges(chain, narrow, mode);
+  installPaging(chain, log, set);
+}
 
+/** `order`, `limit` and `range`: recorded now, applied at resolution after every filter. */
+function installPaging(chain: SupabaseChain, log: QueryLog, set: RowSet): void {
   chain.order = vi.fn((column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
     const known = ['ascending', 'nullsFirst'];
     const extra = Object.keys(options ?? {}).filter((key) => !known.includes(key));
@@ -326,6 +223,12 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet, mode
   chain.limit = vi.fn((count: number) => {
     log.note('limit', [count]);
     set.limitTo(count);
+    return chain;
+  });
+  chain.range = vi.fn((from: number, to: number) => {
+    log.note('range', [from, to]);
+    set.skip(from);
+    set.limitTo(to - from + 1);
     return chain;
   });
 }

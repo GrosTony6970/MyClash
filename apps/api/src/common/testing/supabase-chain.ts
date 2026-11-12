@@ -253,6 +253,7 @@ export function filtersFor(
     | 'lte'
     | 'lt'
     | 'limit'
+    | 'range'
     | 'order'
     | 'maybeSingle',
 ): unknown[][] {

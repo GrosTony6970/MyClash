@@ -2,7 +2,7 @@
  * The `.or()` filter string, parsed.
  *
  * A separate file from the row narrowing on purpose: this one is a GRAMMAR and
- * holds no row logic, supabase-chain-seeded.ts holds the predicates and no
+ * holds no row logic, supabase-chain-predicates.ts holds the predicates and no
  * syntax. That seam is worth having — unlike the internals split, which exists
  * only to stay inside the line budget.
  *
@@ -96,8 +96,11 @@ function isKeyword(term: string, raw: string): boolean | null {
   throw refuse(term, `is."${raw}"`);
 }
 
-/** `in.(a,b,c)` — the parentheses are part of the syntax, not the values. */
-function inList(term: string, raw: string): string[] {
+/**
+ * `in.(a,b,c)` — the parentheses are part of the syntax, not the values. Also the
+ * list of a `.not(column, 'in', '(a,b)')` (supabase-chain-predicates.ts).
+ */
+export function inList(term: string, raw: string): string[] {
   if (!raw.startsWith('(') || !raw.endsWith(')')) throw refuse(term, `in without a (list)`);
   const body = raw.slice(1, -1);
   if (body.includes('"')) throw refuse(term, 'a quoted value in a list');

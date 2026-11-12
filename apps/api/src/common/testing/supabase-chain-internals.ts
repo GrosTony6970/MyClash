@@ -64,6 +64,7 @@ const NARROWING = [
   'or',
   'order',
   'limit',
+  'range',
 ] as const;
 
 /** Chain methods that describe the query without changing which rows come back. */
@@ -84,7 +85,7 @@ const WRITES = ['insert', 'update', 'upsert', 'delete'] as const;
  * unconfigured table throw rather than resolve to null. Implement one when a
  * caller needs it; do not make it quietly pass.
  */
-export const UNSIMULATED = ['like', 'contains', 'overlaps', 'filter', 'match', 'range'] as const;
+export const UNSIMULATED = ['like', 'contains', 'overlaps', 'filter', 'match'] as const;
 
 /** Filters and modifiers — each returns the builder, so chains nest freely. */
 const CHAINABLE = [...PASS_THROUGH, ...WRITES, ...NARROWING, ...UNSIMULATED] as const;

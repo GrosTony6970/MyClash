@@ -337,10 +337,10 @@ describe('a seeded table refuses what it cannot model', () => {
     expect(filtersFor(supabase.from, 'matches', 'lte')).toEqual([['seq', 5]]);
   });
 
-  it('throws on a not() operator other than eq', () => {
+  it('throws on a not() operator other than eq, is and in', () => {
     const chain = supabaseFrom({ matches: { rows: ROWS } })('matches');
     expect(() => chain.not('status', 'eq', 'voided')).not.toThrow();
-    expect(() => chain.not('status', 'in', ['voided'])).toThrow(/operator "in"/);
+    expect(() => chain.not('status', 'like', 'v%')).toThrow(/operator "like"/);
   });
 
   /**
@@ -801,6 +801,72 @@ describe('not(column, is, value)', () => {
   it('still refuses an operator it does not model', () => {
     const chain = supabaseFrom({ matches: { rows: DAY_ROWS } })('matches');
     expect(() => chain.not('scheduled_at', 'gt', 1)).toThrow(/operator "gt"/);
+  });
+});
+
+// postgrest-js sends `not.in.${value}` as given: the list must be the string "(a,b)".
+describe('not(column, in, list)', () => {
+  const ROSTER = { persons: { rows: [...ROWS, { id: null, status: 'x', seq: 4 }] } };
+
+  it('drops the listed rows, and a null cell too, as NOT IN over NULL is not TRUE', async () => {
+    const { data } = await supabaseFrom(ROSTER)('persons').select().not('id', 'in', '(a,c)');
+    expect(idsOf(data)).toEqual(['b']);
+  });
+
+  it('reads an empty list as excluding nothing but nulls', async () => {
+    const { data } = await supabaseFrom(ROSTER)('persons').select().not('id', 'in', '()');
+    expect(idsOf(data)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('records the filter as it was called', async () => {
+    const supabase = mockSupabase(ROSTER);
+    await supabase.service.from('persons').select().not('id', 'in', '(a)');
+    expect(filtersFor(supabase.from, 'persons', 'not')).toEqual([['id', 'in', '(a)']]);
+  });
+
+  // An array reaches PostgREST as `not.in.a,c`, which it refuses: the double refuses it too.
+  it('throws on an array, and on a list without its brackets', () => {
+    const chain = supabaseFrom(ROSTER)('persons');
+    expect(() => chain.not('id', 'in', ['a', 'c'])).toThrow(/takes the string "\(a,b\)"/);
+    expect(() => chain.not('id', 'in', 'a,c')).toThrow(/in without a \(list\)/);
+  });
+});
+
+// postgrest-js: `range(from, to)` sets offset=from and limit=to-from+1; `limit(n)` sets limit only.
+describe('range(from, to)', () => {
+  const seqs = (data: unknown) => (data as Array<{ seq: number }>).map((row) => row.seq);
+  const TABLE = { matches: { rows: [...ROWS, { id: 'd', seq: 4 }, { id: 'e', seq: 5 }] } };
+  const sorted = () => supabaseFrom(TABLE)('matches').select('*', { count: 'exact' }).order('seq');
+
+  it('pages AFTER the sort, with an inclusive end', async () => {
+    expect(seqs((await sorted().range(1, 3)).data)).toEqual([2, 3, 4]);
+    expect(seqs((await sorted().range(4, 10)).data)).toEqual([5]);
+    expect(seqs((await sorted().range(5, 9)).data)).toEqual([]);
+  });
+
+  it('lets a later limit cut the page a range started', async () => {
+    expect(seqs((await sorted().range(1, 3).limit(1)).data)).toEqual([2]);
+  });
+
+  it('lets a later range replace a limit', async () => {
+    expect(seqs((await sorted().limit(1).range(1, 3)).data)).toEqual([2, 3, 4]);
+  });
+
+  it('counts every match, not the page', async () => {
+    expect((await sorted().range(0, 1)).count).toBe(5);
+  });
+
+  it('records the page asked for', async () => {
+    const supabase = mockSupabase(TABLE);
+    await supabase.service.from('matches').select().order('seq').range(20, 40);
+    expect(filtersFor(supabase.from, 'matches', 'range')).toEqual([[20, 40]]);
+  });
+
+  it('lets a CANNED table answer as given, the page unapplied', async () => {
+    const supabase = mockSupabase({ matches: { data: ROWS, error: null } });
+    const { data } = await supabase.service.from('matches').select().range(0, 0);
+    expect(data).toEqual(ROWS);
+    expect(filtersFor(supabase.from, 'matches', 'range')).toEqual([[0, 0]]);
   });
 });
 
