@@ -384,7 +384,7 @@ weapon_catalog(name)'`, the `.in('global_person_id', ids)` filter, cap 3 keeps 3
       `supabase-chain-seeded.ts:361-367`) and `.not` accepts only `is` and `eq` (`:305-308`), so
       every `browse` test would throw before asserting. First move the filter evaluation out of
       `supabase-chain-seeded.ts` into its own file (the cap is 400 lines), then add `range(from,
-  to)` (applied after `order`, inclusive `to`, as PostgREST) and `.not(col, 'in', '(a,b)')`
+to)` (applied after `order`, inclusive `to`, as PostgREST) and `.not(col, 'in', '(a,b)')`
       (parses the parenthesised list; an array or a string without brackets THROWS, because
       PostgREST refuses it). Tests in `supabase-chain.test.ts` for both, including the throw.
       Rules: `range` and `limit` together → the one called LAST wins (PostgREST), tested both
@@ -416,7 +416,7 @@ Promise<FindPage>`.
       users by name; `q` `' a '`, `'%%'` and `'(('` → no `or` filter either; `q` `'Ma,rc'` reaches
       the `or` filter sanitized (assert the string); the three `order` calls, `.neq('id', me)` and
       `range(20, 40)` for page 1 asserted; 21 rows answered → 20 items and `more: true`, 20 → `more:
-  false`; only FightBook users (the `applyFightBookOn` filters asserted, with an off, an
+false`; only FightBook users (the `applyFightBookOn` filters asserted, with an off, an
       unclaimed and a merged fixture row that must be excluded); blocked-by-me out via the
       `not in` filter, value exactly `(${ids.join(',')})` (asserted, and absent when I blocked
       nobody; 201 blocks → one `not in` of 200 ids, and the 201st blocked fighter, seeded on the
@@ -430,7 +430,7 @@ Promise<FindPage>`.
 - [ ] **Step 3: Implement** with `askableFighters(db, me, ids, weaponId)`, `readSparFighters`,
       `readFighterWeaponNames` (cap `DIRECTORY_WEAPONS_SHOWN`: it only feeds the cards now). Routes `GET me/fightbook/events/:eventId/find` (query
       `{ weapon?: uuid }`) and `GET me/fightbook/find` (query `{ q?: string ≤ 80, weapon?: uuid,
-  page?: int 0-500 }`). Regenerate the client. Green, including `pnpm quality:complexity`.
+page?: int 0-500 }`). Regenerate the client. Green, including `pnpm quality:complexity`.
 - [ ] **Step 4: Commit** `feat(fightbook): find a partner at your Event or in all of FightBook`.
 
 ### Task 7: The ask dialog and its button
