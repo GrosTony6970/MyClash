@@ -54,7 +54,18 @@ describe('openEventDays: the days of an Event not yet ended, and today on its cl
 
   it('reads an unknown zone on the default clock', () => {
     const odd = { ...paris, timezone: 'Mars/Olympus' };
-    expect(openEventDays(odd, new Date('2026-05-24T03:59:00Z')).today).toBe('2026-05-24');
+    // 06:30 Sunday in Paris, 04:30 on the UTC clock: Saturday ended in Paris, not yet in UTC.
+    expect(openEventDays(odd, new Date('2026-05-24T04:30:00Z'))).toEqual({
+      days: ['2026-05-24'],
+      today: '2026-05-24',
+    });
+  });
+
+  it('stops at 31 days when a stored end date is decades away', () => {
+    const wrong = { start_date: '2026-01-01', end_date: '2099-12-31', timezone: 'Europe/Paris' };
+    const { days } = openEventDays(wrong, new Date('2026-01-01T10:00:00Z'));
+    expect(days).toHaveLength(31);
+    expect(days.at(-1)).toBe('2026-01-31');
   });
 
   it('answers nothing for dates that are not dates', () => {

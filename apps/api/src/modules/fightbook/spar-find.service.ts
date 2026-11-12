@@ -10,8 +10,12 @@ import type { FightBookEvent } from '@myclash/types';
 import { askableFighters } from './spar-askable';
 import { openEventDays } from './spar-ask-rules';
 
-type MyEventRow = CompetitionEvent & {
+/** The columns `myEvents` selects, no more. */
+type MyEventRow = {
+  id: string;
   name: string;
+  status: string;
+  event_kind: string | null;
   start_date: string;
   end_date: string;
   timezone: unknown;
