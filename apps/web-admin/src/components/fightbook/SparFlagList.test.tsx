@@ -133,6 +133,20 @@ describe('a safety report row', () => {
     expect(box().checked).toBe(false);
   });
 
+  it("dates a report in the viewer's zone, not UTC", async () => {
+    const before = process.env.TZ;
+    process.env.TZ = 'Pacific/Auckland';
+    try {
+      const late = flag({ createdAt: '2026-11-10T23:30:00.000Z', day: '2026-11-08' });
+      await open(CLUB, { [CLUB_PAGE(0)]: { items: [late], more: false } });
+      expect(text()).toContain('11 Nov 2026');
+      expect(text()).toContain('8 Nov 2026');
+    } finally {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    }
+  });
+
   it('names the place of a free spar', async () => {
     const free = flag({ kind: 'free', eventName: null, place: 'Salle Voltaire' });
     await open(CLUB, { [CLUB_PAGE(0)]: { items: [free], more: false } });
@@ -219,6 +233,24 @@ describe('the list around the rows', () => {
     expect(text()).toContain('The mask strap tore in the second bout.');
     expect(text()).toContain('Second report.');
     expect(showMore()).toBeUndefined();
+  });
+
+  it('does not re-read page 0 over the appended pages when the language changes', async () => {
+    await open(CLUB, {
+      [CLUB_PAGE(0)]: { items: [flag()], more: true },
+      [CLUB_PAGE(1)]: { items: [flag({ id: 'f2', text: 'Second report.' })], more: false },
+    });
+    await click(showMore()!);
+    await act(async () => {
+      root!.render(
+        <I18nProvider locale="fr">
+          <SparFlagList scope={CLUB} />
+        </I18nProvider>,
+      );
+    });
+    await settle();
+    expect(calls().filter((c) => c === `GET ${CLUB_PAGE(0)}`)).toHaveLength(1);
+    expect(text()).toContain('Second report.');
   });
 
   it('has no "Show more" when the page is the last', async () => {

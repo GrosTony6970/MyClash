@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SparFlagListItem, SparFlagPage } from '@myclash/types';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -24,6 +24,15 @@ function refusalText(
   );
 }
 
+/** The newest value of `value`, readable from an effect that must not re-run when it changes. */
+function useLatest<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref;
+}
+
 /**
  * The safety reports of one scope: the first page, "Show more", and the Handled mark (see
  * `useHandledMarks` for its race). "Show more" appends by id and keeps a row already held, so a
@@ -38,11 +47,14 @@ export function useSparFlags(scope: FlagScope) {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   const refuse = useCallback(
-    (r: ApiFailure, fallback: string) =>
-      setOutcome(errorOutcome(refusalText(scope.kind, r, t, fallback))),
+    (r: ApiFailure) =>
+      setOutcome(errorOutcome(refusalText(scope.kind, r, t, t('admin.fightBookFlags.loadFailed')))),
     [scope.kind, t],
   );
 
+  // The first read depends on the scope only: a language switch must not refetch page 0 over the
+  // appended pages and a tick in flight.
+  const latest = useLatest(refuse);
   const orgId = scope.kind === 'club' ? scope.orgId : null;
   useEffect(() => {
     const controller = new AbortController();
@@ -51,25 +63,25 @@ export function useSparFlags(scope: FlagScope) {
       signal: controller.signal,
     }).then((r) => {
       if (controller.signal.aborted) return;
-      if (!r.ok) return refuse(r, t('admin.fightBookFlags.loadFailed'));
+      if (!r.ok) return latest.current(r);
       setItems(r.data.items);
       setMore(r.data.more);
     });
     return () => controller.abort();
-  }, [orgId, refuse, t]);
+  }, [orgId, latest]);
 
   const showMore = useCallback(async () => {
     setLoadingMore(true);
     const r = await apiRequest<SparFlagPage>(getPublicApiUrl(), flagsPagePath(scope, nextPage));
     setLoadingMore(false);
-    if (!r.ok) return refuse(r, t('admin.fightBookFlags.loadFailed'));
+    if (!r.ok) return refuse(r);
     setItems((held) => {
       const have = new Set((held ?? []).map((i) => i.id));
       return [...(held ?? []), ...r.data.items.filter((i) => !have.has(i.id))];
     });
     setMore(r.data.more);
     setNextPage(nextPage + 1);
-  }, [scope, nextPage, refuse, t]);
+  }, [scope, nextPage, refuse]);
 
   const { marking, setHandled } = useHandledMarks(scope, setItems, setOutcome);
 

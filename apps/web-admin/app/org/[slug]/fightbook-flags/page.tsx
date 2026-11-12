@@ -16,8 +16,16 @@ import { errorOutcome, PageAlert, type Outcome } from '@/components/PageAlert';
 export default function ClubFightBookFlagsPage() {
   const { slug } = useParams<{ slug: string }>();
   const { t } = useI18n();
-  const [orgId, setOrgId] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // The answer carries the slug it was asked for: after a switch to another club the old club's
+  // id and refusal read as "no answer yet" until the new lookup lands, so nothing of A reaches B.
+  const [lookup, setLookup] = useState<{
+    slug: string;
+    orgId: string | null;
+    outcome: Outcome | null;
+  } | null>(null);
+  const answer = lookup?.slug === slug ? lookup : null;
+  const orgId = answer?.orgId ?? null;
+  const outcome = answer?.outcome ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -27,9 +35,11 @@ export default function ClubFightBookFlagsPage() {
       { signal: controller.signal },
     ).then((r) => {
       if (controller.signal.aborted) return;
-      if (r.ok) setOrgId(r.data.id);
-      else
-        setOutcome(errorOutcome(failureMessage(r, t, t('admin.fightBookFlags.loadFailed')) ?? ''));
+      if (r.ok) setLookup({ slug, orgId: r.data.id, outcome: null });
+      else {
+        const text = failureMessage(r, t, t('admin.fightBookFlags.loadFailed')) ?? '';
+        setLookup({ slug, orgId: null, outcome: errorOutcome(text) });
+      }
     });
     return () => controller.abort();
   }, [slug, t]);
@@ -43,7 +53,7 @@ export default function ClubFightBookFlagsPage() {
         subtitle={t('admin.fightBookFlags.description')}
       />
       <PageAlert outcome={outcome} className="mb-6" />
-      {scope && <SparFlagList scope={scope} />}
+      {scope && <SparFlagList key={scope.orgId} scope={scope} />}
     </main>
   );
 }

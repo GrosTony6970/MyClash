@@ -2,7 +2,7 @@
 
 import type { SparFlagListItem } from '@myclash/types';
 import { Button } from '@myclash/ui';
-import { localeToBcp47 } from '@myclash/time';
+import { formatDate, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PageAlert } from '@/components/PageAlert';
 import type { FlagScope } from './spar-flag-paths';
@@ -18,13 +18,12 @@ const REASON_KEYS: Record<SparFlagListItem['reason'], string> = {
   other: 'common.fightBookFlagReason.other',
 };
 
-/** A calendar date or an instant as the reader writes it, read in UTC so every machine agrees. */
-function dateLabel(value: string, locale: Locale): string {
-  const date = value.length === 10 ? new Date(`${value}T00:00:00Z`) : new Date(value);
+/** A spar's calendar day (`YYYY-MM-DD`) as the reader writes it: zone-free, so read in UTC. */
+function dayLabel(day: string, locale: Locale): string {
   return new Intl.DateTimeFormat(localeToBcp47(locale), {
     dateStyle: 'medium',
     timeZone: 'UTC',
-  }).format(date);
+  }).format(new Date(`${day}T00:00:00Z`));
 }
 
 /**
@@ -93,7 +92,7 @@ function SparFlagRow({
     <li className="rounded-md border border-border bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium text-foreground">{t(REASON_KEYS[item.reason])}</p>
-        <p className="text-xs text-muted">{dateLabel(item.createdAt, locale)}</p>
+        <p className="text-xs text-muted">{formatDate(item.createdAt, locale)}</p>
       </div>
       <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{item.text}</p>
       <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -101,7 +100,7 @@ function SparFlagRow({
           {item.reporter?.name ?? t('admin.fightBookFlags.erasedAccount')}
         </Detail>
         <Detail label={t('admin.fightBookFlags.flagged')}>{item.flagged.name}</Detail>
-        <Detail label={t('admin.fightBookFlags.sparDay')}>{dateLabel(item.day, locale)}</Detail>
+        <Detail label={t('admin.fightBookFlags.sparDay')}>{dayLabel(item.day, locale)}</Detail>
         {where && <Detail label={t('admin.fightBookFlags.where')}>{where}</Detail>}
         {item.weapons.length > 0 && (
           <Detail label={t('admin.fightBookFlags.weapons')}>{item.weapons.join(', ')}</Detail>
