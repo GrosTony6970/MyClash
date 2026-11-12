@@ -186,3 +186,14 @@ INSERT INTO spar_private_notes (id, spar_request_id, author_global_person_id, bo
 INSERT INTO fightbook_blocks (id, blocker_global_person_id, blocked_global_person_id) VALUES
   ('5d000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000b',
    '9e000000-0000-4000-8000-00000000000a');
+-- FightBook after the spar (0267): a thank-you, an anonymous review and a favourite. The request
+-- above is still `free` and pending; the rows hang from it (the CHECKs do not test the status).
+INSERT INTO spar_thanks (id, spar_request_id, author_global_person_id, subject_global_person_id, stars, body) VALUES
+  ('5e000000-0000-4000-8000-00000000000a', '5b000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000b', 5, 'Probe thanks');
+INSERT INTO spar_anonymous_reviews (id, spar_request_id, author_global_person_id, subject_global_person_id, stars) VALUES
+  ('5f000000-0000-4000-8000-00000000000a', '5b000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000b', '9e000000-0000-4000-8000-00000000000a', 4);
+INSERT INTO fightbook_favourites (id, owner_global_person_id, favourite_global_person_id) VALUES
+  ('5a000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000b');

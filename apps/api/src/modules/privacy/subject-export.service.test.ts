@@ -248,6 +248,19 @@ describe('subject table census', () => {
     expect(notes).toEqual(['author_global_person_id']);
   });
 
+  it('exports a FightBook review only to its writer, a thank-you to both, a favourite to its owner', () => {
+    // An anonymous review is a row ABOUT the subject that names its writer (Art. 15(4)); a signed
+    // thank-you shows its writer in the app, so both ends read it.
+    const cols = (table: string) =>
+      SUBJECT_EXPORT_TABLES[table]?.reaches.map((r) => r.column) ?? [];
+    expect(cols('spar_anonymous_reviews')).toEqual(['author_global_person_id']);
+    expect(cols('spar_thanks').sort()).toEqual([
+      'author_global_person_id',
+      'subject_global_person_id',
+    ]);
+    expect(cols('fightbook_favourites')).toEqual(['owner_global_person_id']);
+  });
+
   it('exports the subject’s league standing even though the archive excludes it', () => {
     // Different question, different answer: cross-event and recomputed for an
     // event archive, but unambiguously about the person for a subject request.

@@ -657,6 +657,9 @@ export const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'spar_requests',
   'spar_private_notes',
   'fightbook_blocks',
+  'spar_thanks',
+  'spar_anonymous_reviews',
+  'fightbook_favourites',
   'club_review_requests', // club-verification workflow, not event data
   'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
 ]);

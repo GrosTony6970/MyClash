@@ -284,6 +284,26 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'blocker_global_person_id', reach: 'global_person' }],
     file: 'fightbook.csv',
   },
+  // Both ends: the subject reads the same stars, text and writer in the app.
+  spar_thanks: {
+    reaches: [
+      { column: 'author_global_person_id', reach: 'global_person' },
+      { column: 'subject_global_person_id', reach: 'global_person' },
+    ],
+    file: 'fightbook.csv',
+    note: 'Thank-yous the subject wrote or received; a received one names its signed writer.',
+  },
+  // Writer only: a row ABOUT the subject names its writer (Art. 15(4)).
+  spar_anonymous_reviews: {
+    reaches: [{ column: 'author_global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+    note: 'Only the anonymous reviews the subject wrote, never those about them.',
+  },
+  // Owner only, as blocks: who favourited the subject is someone else's private choice.
+  fightbook_favourites: {
+    reaches: [{ column: 'owner_global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+  },
 
   // ── Notifications ───────────────────────────────────────────────────────────
   notification_preferences: {

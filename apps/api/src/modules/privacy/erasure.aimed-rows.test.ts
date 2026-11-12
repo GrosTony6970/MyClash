@@ -73,6 +73,9 @@ function tables(): Record<string, TableSeed> {
     spar_requests: { rows: [] },
     spar_private_notes: { rows: [] },
     fightbook_blocks: { rows: [] },
+    spar_thanks: { rows: [] },
+    spar_anonymous_reviews: { rows: [] },
+    fightbook_favourites: { rows: [] },
     // Canned: its read filters with `contains`, which the seeded double does not model.
     audit_log: { data: [], error: null },
   };

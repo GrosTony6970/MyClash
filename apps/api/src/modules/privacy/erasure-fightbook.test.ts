@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { mockSupabase, type ChainResult } from '../../common/testing/supabase-chain';
-import { eraseFightBookRows } from './erasure-fightbook';
+import { buildMigrationSchema } from '../../common/testing/migration-schema';
+import { eraseFightBookRows, FIGHTBOOK_ROWS } from './erasure-fightbook';
 
 const MARIE = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const LUC = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
@@ -33,6 +34,26 @@ function seeded() {
         { id: 'b-3', blocker_global_person_id: LUC, blocked_global_person_id: PAUL },
       ],
     },
+    spar_thanks: {
+      rows: [
+        { id: 't-1', author_global_person_id: MARIE, subject_global_person_id: LUC },
+        { id: 't-2', author_global_person_id: LUC, subject_global_person_id: MARIE },
+        { id: 't-3', author_global_person_id: LUC, subject_global_person_id: PAUL },
+      ],
+    },
+    spar_anonymous_reviews: {
+      rows: [
+        { id: 'a-1', author_global_person_id: MARIE, subject_global_person_id: LUC },
+        { id: 'a-2', author_global_person_id: PAUL, subject_global_person_id: LUC },
+      ],
+    },
+    fightbook_favourites: {
+      rows: [
+        { id: 'f-1', owner_global_person_id: MARIE, favourite_global_person_id: LUC },
+        { id: 'f-2', owner_global_person_id: LUC, favourite_global_person_id: MARIE },
+        { id: 'f-3', owner_global_person_id: LUC, favourite_global_person_id: PAUL },
+      ],
+    },
   });
 }
 
@@ -50,6 +71,12 @@ describe('eraseFightBookRows', () => {
     ['spar_private_notes', 'author_global_person_id'],
     ['fightbook_blocks', 'blocker_global_person_id'],
     ['fightbook_blocks', 'blocked_global_person_id'],
+    ['spar_thanks', 'author_global_person_id'],
+    ['spar_thanks', 'subject_global_person_id'],
+    ['spar_anonymous_reviews', 'author_global_person_id'],
+    ['spar_anonymous_reviews', 'subject_global_person_id'],
+    ['fightbook_favourites', 'owner_global_person_id'],
+    ['fightbook_favourites', 'favourite_global_person_id'],
   ])('deletes %s by %s', async (table, column) => {
     const supabase = seeded();
     await eraseFightBookRows(supabase.service as never, [MARIE]);
@@ -59,7 +86,34 @@ describe('eraseFightBookRows', () => {
   it('adds the counts of the two deletes on one table, never keeps only the last', async () => {
     const supabase = seeded();
     const counts = await eraseFightBookRows(supabase.service as never, [MARIE]);
-    expect(counts).toEqual({ spar_requests: 2, spar_private_notes: 1, fightbook_blocks: 2 });
+    expect(counts).toEqual({
+      spar_requests: 2,
+      spar_private_notes: 1,
+      fightbook_blocks: 2,
+      spar_thanks: 2,
+      spar_anonymous_reviews: 1,
+      fightbook_favourites: 2,
+    });
+  });
+
+  it('deletes the reviews and favourites before the requests they hang from', async () => {
+    const supabase = seeded();
+    await eraseFightBookRows(supabase.service as never, [MARIE]);
+    const order = supabase.writes.filter((w) => w.op === 'delete').map((w) => w.table);
+    const firstRequest = order.indexOf('spar_requests');
+    for (const table of ['spar_thanks', 'spar_anonymous_reviews', 'fightbook_favourites']) {
+      expect(order.indexOf(table), table).toBeGreaterThanOrEqual(0);
+      expect(order.indexOf(table), table).toBeLessThan(firstRequest);
+    }
+  });
+
+  it('names a real id column and a real person column on every table it deletes from', () => {
+    const schema = buildMigrationSchema();
+    for (const [table, column] of FIGHTBOOK_ROWS) {
+      const columns = schema.columns.get(table);
+      expect(columns?.has('id'), `${table}.id`).toBe(true);
+      expect(columns?.has(column), `${table}.${column}`).toBe(true);
+    }
   });
 
   it('touches nothing when the account held no profile', async () => {
@@ -72,6 +126,9 @@ describe('eraseFightBookRows', () => {
     const failed: ChainResult = { data: null, error: { message: 'boom' } };
     const supabase = mockSupabase({
       spar_private_notes: { data: [], error: null },
+      spar_thanks: { data: [], error: null },
+      spar_anonymous_reviews: { data: [], error: null },
+      fightbook_favourites: { data: [], error: null },
       spar_requests: failed,
       fightbook_blocks: { data: [], error: null },
     });

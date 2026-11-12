@@ -20,11 +20,19 @@ interface DeleteChain {
 
 /**
  * Every FightBook row of an erased profile, both ways: the requests they sent and received, their
- * private notes, the blocks they made and the blocks aimed at them. Notes first: deleting a
- * request takes the notes on it by cascade, and these counts say what each delete found.
+ * private notes, the thank-yous and anonymous reviews they wrote and received, the blocks they
+ * made and the blocks aimed at them, the favourites they chose and the ones naming them. Notes,
+ * reviews and favourites come before the requests: deleting a request takes the notes and
+ * reviews on it by cascade, and these counts say what each delete found.
  */
-const FIGHTBOOK_ROWS: readonly [table: string, column: string][] = [
+export const FIGHTBOOK_ROWS: readonly [table: string, column: string][] = [
   ['spar_private_notes', 'author_global_person_id'],
+  ['spar_thanks', 'author_global_person_id'],
+  ['spar_thanks', 'subject_global_person_id'],
+  ['spar_anonymous_reviews', 'author_global_person_id'],
+  ['spar_anonymous_reviews', 'subject_global_person_id'],
+  ['fightbook_favourites', 'owner_global_person_id'],
+  ['fightbook_favourites', 'favourite_global_person_id'],
   ['spar_requests', 'asker_global_person_id'],
   ['spar_requests', 'receiver_global_person_id'],
   ['fightbook_blocks', 'blocker_global_person_id'],

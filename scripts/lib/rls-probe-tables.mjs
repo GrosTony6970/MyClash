@@ -129,6 +129,25 @@ export const VERDICTS = [
     visible: [],
     hidden: ['5d000000-0000-4000-8000-00000000000a'],
   },
+  // FightBook after the spar (0267): deny-all too.
+  {
+    table: 'spar_thanks',
+    key: 'id',
+    visible: [],
+    hidden: ['5e000000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'spar_anonymous_reviews',
+    key: 'id',
+    visible: [],
+    hidden: ['5f000000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'fightbook_favourites',
+    key: 'id',
+    visible: [],
+    hidden: ['5a000000-0000-4000-8000-00000000000a'],
+  },
 ];
 
 /**

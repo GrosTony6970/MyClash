@@ -170,7 +170,14 @@ describe('ErasureService.redactSubject', () => {
     const { supabase, log } = makeSupabase({ global_persons: [{ id: 'g1' }] });
     await new ErasureService(supabase).redactSubject('u1');
 
-    for (const table of ['spar_requests', 'spar_private_notes', 'fightbook_blocks']) {
+    for (const table of [
+      'spar_requests',
+      'spar_private_notes',
+      'fightbook_blocks',
+      'spar_thanks',
+      'spar_anonymous_reviews',
+      'fightbook_favourites',
+    ]) {
       expect(log[table]?.deletes, table).toBeGreaterThan(0);
       expect(log[table]!.ins.every(([, ids]) => JSON.stringify(ids) === '["g1"]')).toBe(true);
     }
@@ -284,7 +291,14 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     const { supabase, log } = makeSupabase();
     await new ErasureService(supabase).anonymiseGlobalPerson('g1');
 
-    for (const table of ['spar_requests', 'spar_private_notes', 'fightbook_blocks']) {
+    for (const table of [
+      'spar_requests',
+      'spar_private_notes',
+      'fightbook_blocks',
+      'spar_thanks',
+      'spar_anonymous_reviews',
+      'fightbook_favourites',
+    ]) {
       expect(log[table], table).toBeUndefined();
     }
   });
