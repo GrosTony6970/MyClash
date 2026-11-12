@@ -121,13 +121,14 @@ describe('the Workshops-only sidebar', () => {
   const layout = (groups: typeof workshops.groups) =>
     groups.map((g) => [g.key, g.items.map((i) => i.href)] as const);
 
-  it('keeps exactly Overview, Events, Org members, AI settings and Venues in the organisation', () => {
+  it('keeps exactly Overview, Events, Org members, AI settings, Venues and Safety reports in the organisation', () => {
     expect(workshops.orgItems.map((i) => i.href)).toEqual([
       '',
       'events',
       'settings',
       'settings/ai',
       'venues',
+      'fightbook-flags',
     ]);
   });
 

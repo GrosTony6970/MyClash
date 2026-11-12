@@ -700,6 +700,7 @@ export const admin = {
       dataQuality: 'Qualité des données',
       hemaRatings: 'HEMA Ratings',
       photos: 'Photos',
+      fightBookFlags: 'Signalements de sécurité',
     },
   },
   workspaceSwitcher: {
@@ -1782,6 +1783,26 @@ export const admin = {
     created: 'Arme ajoutée.',
     updated: 'Arme mise à jour.',
     deleted: 'Arme supprimée.',
+  },
+  // Les signalements de sécurité qu'un combattant envoie sur un spar (FightBook) : la page du club
+  // et celle de la plateforme partagent cette liste. Les motifs sont dans `common.fightBookFlagReason`.
+  fightBookFlags: {
+    title: 'Signalements de sécurité',
+    description:
+      'Les problèmes que des combattants ont signalés sur un spar, du plus récent au plus ancien. Cochez Traité une fois le signalement réglé.',
+    empty: 'Aucun signalement de sécurité',
+    loadFailed: 'Les signalements de sécurité n’ont pas pu être chargés.',
+    clubAdminsOnly: 'Seuls les admins du club peuvent lire les signalements de sécurité',
+    showMore: 'Afficher plus',
+    handled: 'Traité',
+    handledFailed: 'La coche Traité n’a pas pu être enregistrée. Elle a été remise.',
+    erasedAccount: 'Un compte effacé',
+    reportedBy: 'Signalé par',
+    flagged: 'À propos de',
+    sparDay: 'Jour du spar',
+    where: 'Lieu',
+    weapons: 'Armes',
+    club: 'Club',
   },
   // La page Photos de la plateforme (décision 493) : la liste, puis la file d'un événement.
   photos: {

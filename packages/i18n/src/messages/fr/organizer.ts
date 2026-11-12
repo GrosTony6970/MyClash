@@ -283,6 +283,7 @@ export const organizer = {
       orgSettings: "Membres de l'organisation",
       aiSettings: 'Paramètres IA',
       venues: 'Lieux',
+      fightBookFlags: 'Signalements de sécurité',
       eventOverview: 'Vue événement',
       tournaments: 'Tournois',
       clubs: 'Clubs',

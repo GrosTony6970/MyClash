@@ -289,6 +289,7 @@ export const organizer = {
       orgSettings: 'Org Members',
       aiSettings: 'AI settings',
       venues: 'Venues',
+      fightBookFlags: 'Safety reports',
       eventOverview: 'Event overview',
       tournaments: 'Tournaments',
       clubs: 'Clubs',

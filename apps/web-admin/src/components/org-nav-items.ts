@@ -69,4 +69,11 @@ export const ORG_NAV_ITEMS = [
   // workshop + session venue pickers consume the org catalogue
   // directly.
   { href: 'venues', labelKey: 'organizer.shell.nav.venues', icon: 'venues', inWorkshops: true },
+  // The safety reports fighters send about a spar; the page itself is for the club's admins.
+  {
+    href: 'fightbook-flags',
+    labelKey: 'organizer.shell.nav.fightBookFlags',
+    icon: 'safetyReports',
+    inWorkshops: true,
+  },
 ] as const satisfies readonly OrgNavItem[];

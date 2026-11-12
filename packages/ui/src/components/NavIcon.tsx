@@ -80,6 +80,7 @@ export const NAV_ICON_NAMES = [
   'dataQuality',
   'dataRetention',
   'featureFlags',
+  'safetyReports',
   // Organiser workspace
   'events',
   'members',
@@ -143,6 +144,7 @@ export const NAV_ICON_GLYPHS: Record<NavIconName, GlyphName> = {
   dataQuality: 'scan-search',
   dataRetention: 'shield-check',
   featureFlags: 'flag',
+  safetyReports: 'shield-alert',
   events: 'calendar-days',
   members: 'users',
   venues: 'map-pin',

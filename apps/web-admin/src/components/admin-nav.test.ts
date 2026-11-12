@@ -10,6 +10,7 @@ import { visibleNavSections } from './admin-nav';
 /** Pages whose read only a super admin may make: hidden from the two lower tiers. */
 const RESERVED = [
   '/admin/photos',
+  '/admin/fightbook-flags',
   '/admin/backups',
   '/admin/ai/keys',
   '/admin/ai/budget',
@@ -30,6 +31,7 @@ const EVERY_ENTRY = [
   '/admin/exchange-edit-requests',
   '/admin/global-persons/pending-claims',
   '/admin/photos',
+  '/admin/fightbook-flags',
   '/admin/hema-ratings',
   '/admin/system-versions',
   '/admin/backups',

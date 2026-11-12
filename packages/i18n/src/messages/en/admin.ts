@@ -694,6 +694,7 @@ export const admin = {
       dataQuality: 'Data Quality',
       hemaRatings: 'HEMA Ratings',
       photos: 'Photos',
+      fightBookFlags: 'Safety reports',
     },
   },
   // The gold line under the sidebar logo in BOTH admin shells, so it lives
@@ -1777,6 +1778,26 @@ export const admin = {
     created: 'Weapon added.',
     updated: 'Weapon updated.',
     deleted: 'Weapon deleted.',
+  },
+  // The safety reports a fighter sends about a spar (FightBook): the club page and the platform page
+  // share this list. The reason labels live in `common.fightBookFlagReason`.
+  fightBookFlags: {
+    title: 'Safety reports',
+    description:
+      'Problems fighters reported about a spar, newest first. Tick Handled once you have dealt with one.',
+    empty: 'No safety reports',
+    loadFailed: 'The safety reports could not be loaded.',
+    clubAdminsOnly: "Only the club's admins can read safety reports",
+    showMore: 'Show more',
+    handled: 'Handled',
+    handledFailed: 'The Handled mark could not be saved. It was put back.',
+    erasedAccount: 'An erased account',
+    reportedBy: 'Reported by',
+    flagged: 'About',
+    sparDay: 'Spar day',
+    where: 'Where',
+    weapons: 'Weapons',
+    club: 'Club',
   },
   // The platform's Photos page (ruling 493): the list, then one Event's queue.
   photos: {

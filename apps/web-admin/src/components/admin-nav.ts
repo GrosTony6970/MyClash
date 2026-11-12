@@ -94,6 +94,13 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.photos',
         icon: 'photos',
       },
+      // The safety reports fighters send about a spar, for the platform when no club holds them.
+      {
+        href: '/admin/fightbook-flags',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.fightBookFlags',
+        icon: 'safetyReports',
+      },
       // Ratings sits with Operations, not Platform health: syncing HEMA
       // Ratings is a recurring operator chore, not a signal about whether
       // the platform itself is healthy.
