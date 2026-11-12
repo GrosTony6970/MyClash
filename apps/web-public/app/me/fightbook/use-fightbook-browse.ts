@@ -40,9 +40,10 @@ const fresh = (search: string): View => ({
 });
 
 /**
- * One answer folded into the view. An answer for any other key (`q|weapon|page`) than the one the
- * view is waiting on is dropped: a page of an older search, or of an older visit to this search,
- * never lands. A later page appends only the cards not already shown: someone who switches
+ * One answer folded into the view. The key check (`q|weapon|page`) drops an answer for another
+ * search or another page. It cannot tell two visits of the same search waiting on the same page
+ * apart: the abort guard drops a late answer of the earlier visit. The two together keep any old
+ * page out. A later page appends only the cards not already shown: someone who switches
  * FightBook on between two reads shifts the pages by one, and the next page would repeat a card
  * (and its React key).
  */
@@ -64,7 +65,7 @@ function withAnswer(view: View, search: string, page: number, answer: FindPage |
  * view (React's "state from the previous render" pattern; that render is redone before anything
  * shows or reads). The race: Hugo taps "Show more", then types a name before that page answers.
  * Two guards: the new search aborts the read, and an aborted read writes nothing; an answer that
- * still lands is checked against the view's own key and dropped.
+ * still lands for another search or page is checked against the view's own key and dropped.
  */
 export function useFightBookBrowse(apiUrl: string, name: string, weapon: string) {
   const search = searchKey(name, weapon);
