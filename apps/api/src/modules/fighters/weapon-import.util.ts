@@ -11,6 +11,8 @@
  * "no level" rather than failing the row.
  */
 
+import { MAX_FIGHTER_WEAPONS } from './fighter-weapon-names';
+
 export const WEAPON_LEVELS = ['just_for_fun', 'beginner', 'intermediate', 'advanced'] as const;
 export type WeaponLevel = (typeof WEAPON_LEVELS)[number];
 
@@ -47,7 +49,9 @@ export function parseWeaponsCell(raw: string | null | undefined): ParsedImportWe
         : null;
       out.push({ weaponName: namePart, level, favorite: index === 0 });
     });
-  return out;
+  // The cell's order is the fighter's order: entries past the cap are dropped. The import reports
+  // counts only, with no per-row warning channel for a cell.
+  return out.slice(0, MAX_FIGHTER_WEAPONS);
 }
 
 type WeaponDbClient = {

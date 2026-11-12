@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_FIGHTER_WEAPONS } from './fighter-weapon-names';
 import { parseWeaponsCell, replaceFighterWeaponsFromCell } from './weapon-import.util';
 
 describe('parseWeaponsCell', () => {
+  it('keeps the first 20 entries of a longer cell, the first still the favourite', () => {
+    const cell = Array.from({ length: MAX_FIGHTER_WEAPONS + 1 }, (_, i) => `Weapon ${i}`).join('|');
+    const parsed = parseWeaponsCell(cell);
+    expect(parsed).toHaveLength(MAX_FIGHTER_WEAPONS);
+    expect(parsed[0]).toMatchObject({ weaponName: 'Weapon 0', favorite: true });
+    expect(parsed.at(-1)?.weaponName).toBe('Weapon 19');
+  });
+
   it('returns [] for blank input', () => {
     expect(parseWeaponsCell('')).toEqual([]);
     expect(parseWeaponsCell(null)).toEqual([]);

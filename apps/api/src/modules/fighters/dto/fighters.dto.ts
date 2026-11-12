@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { MAX_FIGHTER_WEAPONS } from '../fighter-weapon-names';
 
 const createFighterSchema = z
   .object({
@@ -120,8 +121,8 @@ const updateMyFighterProfileSchema = updateFighterSchema
     mainClub: fighterClubInputSchema.optional(),
     secondaryClubs: z.array(fighterClubInputSchema).optional(),
     previousClubs: z.array(fighterClubInputSchema).optional(),
-    // At most 20: the directory and Find reads page through every declared weapon.
-    weapons: z.array(fighterWeaponInputSchema).max(20).optional(),
+    // The directory and Find reads page through every declared weapon.
+    weapons: z.array(fighterWeaponInputSchema).max(MAX_FIGHTER_WEAPONS).optional(),
     medals: z.array(fighterMedalInputSchema).optional(),
   })
   .strict();

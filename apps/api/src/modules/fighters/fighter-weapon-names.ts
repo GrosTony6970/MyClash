@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 
+/**
+ * The most weapons a fighter declares. The one cap, held by both writers: the profile update
+ * (`updateMyFighterProfileSchema`) and the CSV import (`parseWeaponsCell`, which drops the rest).
+ */
+export const MAX_FIGHTER_WEAPONS = 20;
+
 /** Weapons shown per directory row before the column stops being scannable. */
 export const DIRECTORY_WEAPONS_SHOWN = 3;
 
@@ -11,8 +17,8 @@ export const DIRECTORY_WEAPONS_SHOWN = 3;
  *
  * A chunk is read in `READ_PAGE` pages in a stable total order, until a page comes back empty:
  * PostgREST cuts a read at its row cap without a word, so the loop never trusts a short page.
- * The rows of one chunk are bounded by 200 ids x the 20 weapons `updateMyFighterProfileSchema`
- * (`dto/fighters.dto.ts`) lets a profile declare.
+ * The rows of one chunk are bounded by 200 ids x `MAX_FIGHTER_WEAPONS`, which both writers hold:
+ * `updateMyFighterProfileSchema` (`dto/fighters.dto.ts`) and the CSV import (`parseWeaponsCell`).
  * Each fighter sits in exactly one chunk, so the order inside a chunk is the order per fighter.
  */
 export async function readFighterWeaponNames(
