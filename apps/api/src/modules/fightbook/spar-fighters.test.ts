@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import { IN_LIST_MAX } from '../../common/postgrest-in-list';
+import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { readSparFighters, unknownSparFighter } from './spar-fighters';
 
 const A = '11111111-1111-4111-8111-111111111111';
@@ -25,6 +26,23 @@ describe('readSparFighters', () => {
     expect(selectsFor(supabase.from, 'global_persons')).toEqual([
       'id, display_name, given_name, family_name, photo_url, clubs(name)',
     ]);
+  });
+
+  it('reads only the fighters asked for', async () => {
+    const supabase = mockSupabase({
+      global_persons: { rows: [person(A, null), person(B, null)] },
+    });
+    expect([...(await readSparFighters(supabase as never, [A])).keys()]).toEqual([A]);
+    expect(filtersFor(supabase.from, 'global_persons', 'in')).toEqual([['id', [A]]]);
+  });
+
+  it('reads 250 fighters in pieces a request line can carry', async () => {
+    const ids = Array.from({ length: 250 }, (_, n) => `id-${n}`);
+    const supabase = mockSupabase({ global_persons: { rows: ids.map((id) => person(id, null)) } });
+    expect((await readSparFighters(supabase as never, ids)).size).toBe(250);
+    expect(
+      filtersFor(supabase.from, 'global_persons', 'in').map((f) => (f[1] as string[]).length),
+    ).toEqual([IN_LIST_MAX, 250 - IN_LIST_MAX]);
   });
 
   it('names the club, and reads no club as null, a wrong shape too', async () => {

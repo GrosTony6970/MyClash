@@ -34,30 +34,70 @@ export function applyFightBookOn<
   return live.eq('fightbook_enabled', true).not('claimed_by_user_id', 'is', null);
 }
 
-/** Of these profiles, those on FightBook. Read in pieces: an Event of 300 must not 5xx. */
-export async function fightBookOnFighters(db: Db, ids: string[]): Promise<Set<string>> {
+/** A builder's `eq` on a text value, through the same view as `BooleanFilter`. */
+interface TextFilter<T> {
+  eq(column: string, value: string): T;
+}
+
+/**
+ * The `global_persons` columns to select, with the embed `applyWeapon` filters on when a weapon is
+ * set. `!inner` makes the filter drop the fighter, not only the embedded rows; the embed answers
+ * the matching weapon only, so a fighter who declared several still comes back once (probed on
+ * PostgREST v14.16, the task 6 report). Without a weapon there is no embed: an inner join would
+ * drop every fighter who declared none.
+ */
+export const weaponColumns = (columns: string, weaponId: string | undefined): string =>
+  weaponId ? `${columns}, fighter_weapons!inner(weapon_id)` : columns;
+
+/**
+ * Only fighters who declared this catalog weapon, any of theirs (not only the ones a card shows).
+ * The one owner of the weapon filter: the query must select `weaponColumns(…, weaponId)`.
+ */
+export function applyWeapon<T>(query: T, weaponId: string | undefined): T {
+  if (!weaponId) return query;
+  return (query as unknown as TextFilter<T>).eq('fighter_weapons.weapon_id', weaponId);
+}
+
+/**
+ * Of these profiles, those on FightBook (and declaring `weaponId`, when set). Read in pieces: an
+ * Event of 300 must not 5xx.
+ */
+export async function fightBookOnFighters(
+  db: Db,
+  ids: string[],
+  weaponId?: string,
+): Promise<Set<string>> {
   const on = new Set<string>();
   for (const piece of inListChunks([...new Set(ids)])) {
-    const { data, error } = await applyFightBookOn(db.from('global_persons').select('id')).in(
-      'id',
-      piece,
-    );
+    const query = applyFightBookOn(db.from('global_persons').select(weaponColumns('id', weaponId)));
+    const { data, error } = await applyWeapon(query, weaponId).in('id', piece);
     if (error) throw new Error(`FightBook fighters read failed: ${error.message}`);
-    for (const row of (data ?? []) as Array<{ id: string }>) on.add(row.id);
+    for (const row of (data ?? []) as unknown as Array<{ id: string }>) on.add(row.id);
   }
   return on;
 }
 
-/** Of these profiles, those `me` may ask: on FightBook, not `me`, not blocked by `me`. */
-export async function askableFighters(db: Db, me: string, ids: string[]): Promise<Set<string>> {
+/**
+ * Of these profiles, those `me` may ask: on FightBook, not `me`, not blocked by `me` (and
+ * declaring `weaponId`, when set).
+ */
+export async function askableFighters(
+  db: Db,
+  me: string,
+  ids: string[],
+  weaponId?: string,
+): Promise<Set<string>> {
   const others = ids.filter((id) => id !== me);
   if (others.length === 0) return new Set();
-  const [on, blocked] = await Promise.all([fightBookOnFighters(db, others), blockedBy(db, me)]);
+  const [on, blocked] = await Promise.all([
+    fightBookOnFighters(db, others, weaponId),
+    blockedBy(db, me),
+  ]);
   return new Set([...on].filter((id) => !blocked.has(id)));
 }
 
 /** The fighters `me` blocked. Names `me` as the blocker only: never the blocks naming `me`. */
-async function blockedBy(db: Db, me: string): Promise<Set<string>> {
+export async function blockedBy(db: Db, me: string): Promise<Set<string>> {
   const { data, error } = await db
     .from('fightbook_blocks')
     .select('blocked_global_person_id')

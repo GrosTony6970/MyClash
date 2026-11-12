@@ -4,7 +4,12 @@ import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
 import { mockSupabase } from '../../common/testing/supabase-chain';
-import { askableQuerySchema, FightBookController } from './fightbook.controller';
+import {
+  askableQuerySchema,
+  browseQuerySchema,
+  FightBookController,
+  findQuerySchema,
+} from './fightbook.controller';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -35,7 +40,12 @@ function controller() {
     answer: vi.fn(),
     withdraw: vi.fn(),
   };
-  const find = { askableFighter: vi.fn(), askableAtEvent: vi.fn() };
+  const find = {
+    askableFighter: vi.fn(),
+    askableAtEvent: vi.fn(),
+    atEvent: vi.fn(),
+    browse: vi.fn(),
+  };
   const ctl = new FightBookController(
     supabase as never,
     {} as never,
@@ -89,6 +99,36 @@ describe('FightBookController, a fighter who switched FightBook off', () => {
     );
     expect([find.askableFighter, find.askableAtEvent].flatMap((f) => f.mock.calls)).toEqual([]);
   });
+
+  it('may not find a partner, at an Event or in all of FightBook', async () => {
+    const { ctl, find } = controller();
+    expect(await code(ctl.findAtEvent(SPAR, {} as never, req))).toBe('fightbook_off');
+    expect(await code(ctl.browse({ page: 0 } as never, req))).toBe('fightbook_off');
+    expect([find.atEvent, find.browse].flatMap((f) => f.mock.calls)).toEqual([]);
+  });
+});
+
+describe('FightBookController, the find routes', () => {
+  it('takes an optional weapon, a catalog uuid', () => {
+    expect(findQuerySchema.safeParse({}).data).toEqual({});
+    expect(findQuerySchema.safeParse({ weapon: SPAR }).data).toEqual({ weapon: SPAR });
+    expect(findQuerySchema.safeParse({ weapon: 'Longsword' }).success).toBe(false);
+  });
+
+  it('takes a name of up to 80, a weapon uuid and a page from 0 to 500', () => {
+    const parse = (query: Record<string, string>) => browseQuerySchema.safeParse(query);
+    expect(parse({}).data).toEqual({ page: 0 });
+    expect(parse({ q: 'Marc', weapon: SPAR, page: '500' }).data).toEqual({
+      q: 'Marc',
+      weapon: SPAR,
+      page: 500,
+    });
+    expect(parse({ page: '-1' }).success).toBe(false);
+    expect(parse({ page: '501' }).success).toBe(false);
+    expect(parse({ page: '1.5' }).success).toBe(false);
+    expect(parse({ weapon: 'not-a-uuid' }).success).toBe(false);
+    expect(parse({ q: 'x'.repeat(81) }).success).toBe(false);
+  });
 });
 
 describe('FightBookController, the askable routes', () => {
@@ -107,6 +147,7 @@ describe('FightBookController, the askable routes', () => {
   it.each([
     ['askableFighter', 'globalPersonId'],
     ['askableAtEvent', 'eventId'],
+    ['findAtEvent', 'eventId'],
   ])('%s parses its %s as a uuid', (handler, name) => {
     const args = Object.values(
       Reflect.getMetadata(ROUTE_ARGS_METADATA, FightBookController, handler) as Record<

@@ -1,14 +1,54 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { CompetitionEvent, PublicReader } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
+import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from '../fighters/fighter-weapon-names';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { inListChunks } from '../../common/postgrest-in-list';
+import { IN_LIST_MAX, inListChunks } from '../../common/postgrest-in-list';
 import { addDays, zonedDay } from '@myclash/time';
-import type { FightBookEvent } from '@myclash/types';
-import { askableFighters } from './spar-askable';
+import type {
+  FightBookEvent,
+  FindCard,
+  FindPage,
+  SparFighter,
+  SparRefusalCode,
+} from '@myclash/types';
+import {
+  applyFightBookOn,
+  applyWeapon,
+  askableFighters,
+  blockedBy,
+  isOnEventRoster,
+  weaponColumns,
+} from './spar-askable';
 import { openEventDays } from './spar-ask-rules';
+import { readSparFighters } from './spar-fighters';
+
+/** Cards per page of all of FightBook (ruling 675). */
+const FIND_PAGE_SIZE = 20;
+
+/** The most fighters Find's Event block lists. */
+const AT_EVENT_MAX = 200;
+
+/** By name, ignoring case and accents; the id breaks a tie, so the order never wobbles. */
+const byName = (a: SparFighter, b: SparFighter): number =>
+  a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) ||
+  a.globalPersonId.localeCompare(b.globalPersonId);
+
+/**
+ * The browse's name filter: the `or` of three `ilike` (given, family, display name), or null to
+ * list everyone. What was typed loses PostgREST's meta-characters (`sanitizePostgrestFilterValue`)
+ * and the `ilike` wildcards `%` and `_`; under 2 characters left, there is no name filter.
+ */
+function browseNameFilter(q: string | undefined): string | null {
+  const term = sanitizePostgrestFilterValue(q ?? '')
+    .replace(/[%_]/g, '')
+    .trim();
+  if (term.length < 2) return null;
+  return `given_name.ilike.%${term}%,family_name.ilike.%${term}%,display_name.ilike.%${term}%`;
+}
 
 /** The columns `myEvents` selects, no more. */
 type MyEventRow = {
@@ -22,7 +62,8 @@ type MyEventRow = {
 };
 
 /**
- * Who the caller may ask for a spar, for the pages that show an Ask button (FightBook slice 2).
+ * Who the caller may ask for a spar, for the pages that show an Ask button and the Find tab
+ * (FightBook slice 2).
  * Every answer leaves out a fighter the caller blocked and never reads who blocked the caller
  * (ruling 672, `spar-askable.ts`).
  */
@@ -71,6 +112,84 @@ export class SparFindService {
   }
 
   /**
+   * The fighters `me` may ask among this Event's roster (Find's Event block), by name, at most
+   * 200, those who declared `weaponId` only when it is set. Someone entered only in a Tournament
+   * hidden from `reader` is left out, as the people lookup leaves them out. 400 `bad_event`
+   * unless the Event is public and `me` is on its roster (as an ask names it, ruling 665).
+   */
+  async atEvent(
+    me: string,
+    eventId: string,
+    weaponId: string | undefined,
+    reader: PublicReader,
+  ): Promise<FindCard[]> {
+    const db = this.supabase.service;
+    const event = await this.publicEvent(eventId);
+    if (!event || !(await isOnEventRoster(db, me, eventId))) {
+      throw new BadRequestException({
+        code: 'bad_event' satisfies SparRefusalCode,
+        message: 'Find lists the people of a public Event you are at',
+      });
+    }
+    const rows = await this.rosterRows(eventId);
+    const [hidden, askable] = await Promise.all([
+      hiddenEntrantIds({ supabase: this.supabase, orgs: this.orgs }, event, reader),
+      askableFighters(
+        db,
+        me,
+        rows.map((row) => row.global_person_id),
+        weaponId,
+      ),
+    ]);
+    const ids = rows
+      .filter((row) => !hidden.has(row.id) && askable.has(row.global_person_id))
+      .map((row) => row.global_person_id);
+    const fighters = [...(await readSparFighters(db, ids)).values()];
+    return this.withWeapons(fighters.sort(byName).slice(0, AT_EVENT_MAX));
+  }
+
+  /**
+   * One page of all of FightBook (ruling 675): every user `me` may ask, by family name, given
+   * name, then id, narrowed by name (`browseNameFilter`) and weapon when set. One read of 21
+   * rows: the 21st only says there is more. The blocks `me` made go in the query, so pages stay
+   * full; past `IN_LIST_MAX` blocks the rest are dropped here, and such a page may run short.
+   * Whether someone blocked `me` is never read (ruling 672).
+   */
+  async browse(
+    me: string,
+    q: string | undefined,
+    weaponId: string | undefined,
+    page: number,
+  ): Promise<FindPage> {
+    const db = this.supabase.service;
+    const blocked = [...(await blockedBy(db, me))];
+    const listed = blocked.slice(0, IN_LIST_MAX);
+    let query = applyWeapon(
+      applyFightBookOn(db.from('global_persons').select(weaponColumns('id', weaponId))),
+      weaponId,
+    ).neq('id', me);
+    const name = browseNameFilter(q);
+    if (name) query = query.or(name);
+    if (listed.length > 0) query = query.not('id', 'in', `(${listed.join(',')})`);
+    const from = page * FIND_PAGE_SIZE;
+    const { data, error } = await query
+      .order('family_name')
+      .order('given_name')
+      .order('id')
+      .range(from, from + FIND_PAGE_SIZE);
+    if (error) throw new Error(`FightBook browse read failed: ${error.message}`);
+    const rows = (data ?? []) as unknown as Array<{ id: string }>;
+    const dropped = new Set(blocked.slice(IN_LIST_MAX));
+    const ids = rows
+      .slice(0, FIND_PAGE_SIZE)
+      .map((row) => row.id)
+      .filter((id) => !dropped.has(id));
+    const fighters = await readSparFighters(db, ids);
+    const items = await this.withWeapons(ids.flatMap((id) => fighters.get(id) ?? []));
+    return { items, more: rows.length > FIND_PAGE_SIZE };
+  }
+
+  /**
    * The published Events `me` is on whose days have not all ended, soonest first day first, then
    * by name. Each carries its open days and today on its own clock (`openEventDays`).
    */
@@ -98,6 +217,19 @@ export class SparFindService {
       .map(({ row, days, today }) => ({ id: row.id, name: row.name, days, today }));
   }
 
+  /** These fighters as Find cards, each with up to three declared weapons, favourites first. */
+  private async withWeapons(fighters: SparFighter[]): Promise<FindCard[]> {
+    const weapons = await readFighterWeaponNames(
+      this.supabase.service,
+      fighters.map((fighter) => fighter.globalPersonId),
+      DIRECTORY_WEAPONS_SHOWN,
+    );
+    return fighters.map((fighter) => ({
+      fighter,
+      weapons: weapons.get(fighter.globalPersonId) ?? [],
+    }));
+  }
+
   /** The Events where `me` has a roster row. */
   private async myEventIds(me: string): Promise<string[]> {
     const { data, error } = await this.supabase.service
@@ -120,16 +252,16 @@ export class SparFindService {
     return event && isPublicEvent(event) ? event : null;
   }
 
-  /** These roster rows, of this Event only, that name a fighter profile. */
+  /** These roster rows (all of them when none are named), of this Event only, that name a profile. */
   private async rosterRows(
     eventId: string,
-    personIds: string[],
+    personIds?: string[],
   ): Promise<Array<{ id: string; global_person_id: string }>> {
-    const { data, error } = await this.supabase.service
+    const roster = this.supabase.service
       .from('persons')
       .select('id, global_person_id')
-      .eq('event_id', eventId)
-      .in('id', [...new Set(personIds)]);
+      .eq('event_id', eventId);
+    const { data, error } = await (personIds ? roster.in('id', [...new Set(personIds)]) : roster);
     if (error) throw new Error(`FightBook roster read failed: ${error.message}`);
     return ((data ?? []) as Array<{ id: string; global_person_id: string | null }>).filter(
       (row): row is { id: string; global_person_id: string } => row.global_person_id !== null,

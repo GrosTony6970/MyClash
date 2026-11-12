@@ -83,6 +83,19 @@ export interface FightBookBlock {
   fighter: SparFighter;
 }
 
+/** A fighter the caller may ask, on the Find tab: who, and up to three declared weapons. */
+export interface FindCard {
+  fighter: SparFighter;
+  /** Weapon names, favourites first, at most 3. */
+  weapons: string[];
+}
+
+/** One page of all of FightBook; `more` when a further page has someone on it. */
+export interface FindPage {
+  items: FindCard[];
+  more: boolean;
+}
+
 /** The `code` of every FightBook refusal; the web turns each into its own sentence. */
 export const SPAR_REFUSAL_CODES = [
   'no_profile',

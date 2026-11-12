@@ -15,6 +15,8 @@
  * GET   /me/fightbook/fighters/:globalPersonId/askable — may I ask this fighter
  * GET   /me/fightbook/events    — the Events I am on, with the days still open to ask for
  * GET   /me/fightbook/events/:eventId/askable?persons= — which of these people of an Event I may ask
+ * GET   /me/fightbook/events/:eventId/find?weapon= — the fighters I may ask at an Event I am at
+ * GET   /me/fightbook/find?q=&weapon=&page= — one page of all of FightBook I may ask
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
  * starts with `caller()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
@@ -110,6 +112,20 @@ export const askableQuerySchema = z
   })
   .strict();
 class AskableQueryDto extends createZodDto(askableQuerySchema) {}
+
+/** Find's weapon filter: a catalog weapon id, as `GET /weapons?active=true` lists them. */
+export const findQuerySchema = z.object({ weapon: z.uuid().optional() }).strict();
+class FindQueryDto extends createZodDto(findQuerySchema) {}
+
+/** All of FightBook (ruling 675): a name, a weapon, and a 0-based page of 20. */
+export const browseQuerySchema = z
+  .object({
+    q: z.string().max(80).optional(),
+    weapon: z.uuid().optional(),
+    page: z.coerce.number().int().min(0).max(500).default(0),
+  })
+  .strict();
+class BrowseQueryDto extends createZodDto(browseQuerySchema) {}
 
 @ApiTags('fightbook')
 @Controller('me/fightbook')
@@ -243,6 +259,25 @@ export class FightBookController {
   ) {
     const me = requireFightBookOn(await this.caller(req));
     return this.find.askableAtEvent(me, eventId, query.persons, publicReader(req));
+  }
+
+  @Get('events/:eventId/find')
+  @ApiOperation({ summary: 'The fighters I may ask at an Event I am at' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async findAtEvent(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: FindQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const me = requireFightBookOn(await this.caller(req));
+    return this.find.atEvent(me, eventId, query.weapon, publicReader(req));
+  }
+
+  @Get('find')
+  @ApiOperation({ summary: 'One page of the FightBook users I may ask' })
+  async browse(@Query() query: BrowseQueryDto, @Req() req: FastifyRequest) {
+    const me = requireFightBookOn(await this.caller(req));
+    return this.find.browse(me, query.q, query.weapon, query.page);
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

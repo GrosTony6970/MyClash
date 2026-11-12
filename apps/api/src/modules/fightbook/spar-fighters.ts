@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SparFighter } from '@myclash/types';
+import { inListChunks } from '../../common/postgrest-in-list';
 
 type FighterRow = {
   id: string;
@@ -19,30 +20,31 @@ function clubName(clubs: unknown): string | null {
 
 /**
  * The other fighter on a FightBook card, for each profile id: a name and a photo, nothing more
- * (a photo has no visibility switch, fighters/public-visibility.ts) and their club's name. One read for all. The one
- * owner, for the Inbox, My spars and the blocked list.
+ * (a photo has no visibility switch, fighters/public-visibility.ts) and their club's name. One read
+ * per 200 ids (an Event of 300 must not 5xx). The one owner, for the Inbox, My spars, the blocked
+ * list and the Find cards.
  */
 export async function readSparFighters(
   db: Pick<SupabaseClient, 'from'>,
   ids: string[],
 ): Promise<Map<string, SparFighter>> {
-  if (ids.length === 0) return new Map();
-  const { data, error } = await db
-    .from('global_persons')
-    .select('id, display_name, given_name, family_name, photo_url, clubs(name)')
-    .in('id', ids);
-  if (error) throw new Error(`FightBook fighters read failed: ${error.message}`);
-  return new Map(
-    ((data ?? []) as FighterRow[]).map((p) => [
-      p.id,
-      {
+  const fighters = new Map<string, SparFighter>();
+  for (const piece of inListChunks([...new Set(ids)])) {
+    const { data, error } = await db
+      .from('global_persons')
+      .select('id, display_name, given_name, family_name, photo_url, clubs(name)')
+      .in('id', piece);
+    if (error) throw new Error(`FightBook fighters read failed: ${error.message}`);
+    for (const p of (data ?? []) as FighterRow[]) {
+      fighters.set(p.id, {
         globalPersonId: p.id,
         name: p.display_name?.trim() || `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim(),
         photoUrl: p.photo_url || null,
         club: clubName(p.clubs),
-      },
-    ]),
-  );
+      });
+    }
+  }
+  return fighters;
 }
 
 /** A profile the read did not find (deleted since): its id, and no name for the web to fill. */
