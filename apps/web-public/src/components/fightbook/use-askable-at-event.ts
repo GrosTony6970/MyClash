@@ -11,6 +11,10 @@ import { readAskableAtEvent } from '@/lib/fightbook/read-fightbook';
  * one, an aborted read writes nothing, and each answer is stored with the list it answers. The hook
  * returns it only while that list is still the one shown, so an older answer never paints a button
  * on a newer row. Any answer that is not data (a 401, a 403, a failure, a bad shape) returns `{}`.
+ *
+ * Coming back to an earlier list (same Event, same rows) shows that list's last answer while its
+ * re-read runs. That is harmless: the buttons sit on the rows the answer was for, and the API
+ * refuses an ask that has gone stale.
  */
 export function useAskableAtEvent(
   apiUrl: string,

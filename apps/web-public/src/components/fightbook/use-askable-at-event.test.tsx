@@ -19,10 +19,11 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const EVENT = '5d0c1f0e-3f7b-4a39-9a4e-2b8e9c7d1a10';
+const OTHER_EVENT = '9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d';
 const PA = ['p-pablo', 'p-paul'];
 const PAU = ['p-paul'];
-const pathFor = (ids: string[]) =>
-  `/api/v1/me/fightbook/events/${EVENT}/askable?${new URLSearchParams({ persons: ids.join(',') })}`;
+const pathFor = (ids: string[], eventId = EVENT) =>
+  `/api/v1/me/fightbook/events/${eventId}/askable?${new URLSearchParams({ persons: ids.join(',') })}`;
 
 /** Each read waits until the test answers it. */
 type Answer = (result: unknown) => void;
@@ -58,8 +59,8 @@ async function show(ids: string[], eventId: string | null = EVENT, signedIn = tr
   );
 }
 
-async function answer(ids: string[], result: unknown) {
-  await act(async () => answers.get(pathFor(ids))?.(result));
+async function answer(ids: string[], result: unknown, eventId = EVENT) {
+  await act(async () => answers.get(pathFor(ids, eventId))?.(result));
 }
 
 const reads = () => vi.mocked(apiRequest).mock.calls.map(([, path]) => path);
@@ -94,6 +95,15 @@ describe('useAskableAtEvent', () => {
     expect(shown).toEqual({});
     await answer(PAU, { ok: true, data: { 'p-paul': 'g-paul' } });
     expect(shown).toEqual({ 'p-paul': 'g-paul' });
+  });
+
+  it('shows nothing for the same rows at another Event until that Event answers', async () => {
+    await show(PAU);
+    await answer(PAU, { ok: true, data: { 'p-paul': 'g-paul' } });
+    await show(PAU, OTHER_EVENT);
+    expect(shown).toEqual({});
+    await answer(PAU, { ok: true, data: { 'p-paul': 'g-paul-2' } }, OTHER_EVENT);
+    expect(shown).toEqual({ 'p-paul': 'g-paul-2' });
   });
 
   it('aborts the read for the old rows when the rows change', async () => {
