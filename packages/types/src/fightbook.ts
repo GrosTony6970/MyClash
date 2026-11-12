@@ -29,8 +29,21 @@ interface SparWhen {
   weapons: string[];
 }
 
+/**
+ * When each after-the-spar action is open, as ISO instants from the request's own columns. The web
+ * compares them with its clock to show or hide a button; the API enforces them on its own.
+ */
+interface SparWindows {
+  /** 00:00 of the spar day on the spar's own clock: "We sparred" opens. */
+  markFrom: string;
+  /** Two days after the day ends: "We sparred" and its undo close, a thank-you opens. */
+  markUntil: string;
+  /** The day's end: a cancel closes. */
+  cancelUntil: string;
+}
+
 /** A request waiting for the caller's answer. */
-export interface IncomingSparRequest extends SparWhen {
+export interface IncomingSparRequest extends SparWhen, SparWindows {
   id: string;
   asker: SparFighter;
   message: string | null;
@@ -48,16 +61,45 @@ export interface SentSparRequest extends SparWhen {
   comment: string | null;
 }
 
-/** A spar both fighters agreed to, or one either of them cancelled since. */
-export interface AgreedSpar extends SparWhen {
+/** What the caller wrote about a spar. An anonymous review carries no text. */
+export interface SparReview {
+  stars: number;
+  text: string | null;
+  anonymous: boolean;
+}
+
+/** A spar both fighters agreed to, one either of them cancelled since, or one they marked done. */
+export interface AgreedSpar extends SparWhen, SparWindows {
   id: string;
   partner: SparFighter;
   iAsked: boolean;
   message: string | null;
-  status: 'agreed' | 'cancelled';
-  /** Null while agreed. */
+  status: 'agreed' | 'cancelled' | 'done';
+  /** Null unless cancelled. */
   cancelledByMe: boolean | null;
   cancelMessage: string | null;
+  /** The caller's own thank-you or anonymous review; null before they write one. */
+  myReview: SparReview | null;
+  /** The partner's SIGNED thank-you to the caller. An anonymous review is never here. */
+  theirThanks: { stars: number; text: string | null } | null;
+  /** The caller's private note; only its writer reads it. */
+  note: string | null;
+  /** Null when no heart shows: the caller has FightBook off, or may not ask the partner. */
+  partnerFavourite: boolean | null;
+}
+
+/** A signed thank-you the caller received, with who wrote it and the spar's when and where. */
+export interface ThankYou extends SparWhen {
+  id: string;
+  from: SparFighter;
+  stars: number;
+  text: string | null;
+}
+
+/** One page of the thank-yous the caller received, newest first; `more` when a further page has one. */
+export interface ThanksPage {
+  items: ThankYou[];
+  more: boolean;
 }
 
 export interface MySpars {

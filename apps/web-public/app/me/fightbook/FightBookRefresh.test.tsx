@@ -56,6 +56,13 @@ const spar = (id: string, over: Partial<AgreedSpar>): AgreedSpar => ({
   status: 'agreed',
   cancelledByMe: null,
   cancelMessage: null,
+  markFrom: '2026-05-22T22:00:00.000Z',
+  markUntil: '2026-05-26T04:00:00.000Z',
+  cancelUntil: '2026-05-24T04:00:00.000Z',
+  myReview: null,
+  theirThanks: null,
+  note: null,
+  partnerFavourite: null,
   ...over,
 });
 const waiting: SentSparRequest = {

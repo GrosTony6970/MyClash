@@ -4,8 +4,10 @@ import type {
   SentSparRequest,
   SparFighter,
   SparKind,
+  SparReview,
   SparStatus,
 } from '@myclash/types';
+import { sparWindows } from './spar-after.service';
 
 /** The `spar_requests` columns the FightBook reads select (`spar-reads.service.ts`). */
 export interface SparRow {
@@ -15,6 +17,7 @@ export interface SparRow {
   kind: SparKind;
   event_id: string | null;
   spar_day: string;
+  zone: string;
   spar_time: string | null;
   place: string | null;
   weapons: string[];
@@ -40,8 +43,25 @@ export function effectiveSparStatus(
   return row.status;
 }
 
+/**
+ * What a spar card shows of what was written after the spar (`SparThanksService.cardExtras`).
+ * `theirThanks` is the partner's SIGNED thank-you only: an anonymous review never reaches its
+ * subject's card.
+ */
+export interface SparCardExtras {
+  myReview: SparReview | null;
+  theirThanks: { stars: number; text: string | null } | null;
+  note: string | null;
+}
+
+/** A card nothing was written on yet, and the card a Yes builds. */
+export const NO_EXTRAS: SparCardExtras = { myReview: null, theirThanks: null, note: null };
+
 /** When and where, as a card says it. A time is wall clock, HH:MM. */
-function when(row: SparRow, eventName: string | null) {
+export function sparWhen(
+  row: Pick<SparRow, 'kind' | 'event_id' | 'spar_day' | 'spar_time' | 'place' | 'weapons'>,
+  eventName: string | null,
+) {
   return {
     kind: row.kind,
     eventName: row.event_id ? eventName : null,
@@ -52,13 +72,29 @@ function when(row: SparRow, eventName: string | null) {
   };
 }
 
-/** A request waiting for the caller's answer. */
+/** The after-the-spar windows (`sparWindows`), as the ISO instants a card carries. */
+function windows(row: SparRow) {
+  const { markFrom, markUntil, cancelUntil } = sparWindows(row);
+  return {
+    markFrom: markFrom.toISOString(),
+    markUntil: markUntil.toISOString(),
+    cancelUntil: cancelUntil.toISOString(),
+  };
+}
+
+/** A request waiting for the caller's answer, with the windows a Yes turns into a spar card. */
 export function toIncoming(
   row: SparRow,
   asker: SparFighter,
   eventName: string | null,
 ): IncomingSparRequest {
-  return { id: row.id, asker, ...when(row, eventName), message: row.message };
+  return {
+    id: row.id,
+    asker,
+    ...sparWhen(row, eventName),
+    message: row.message,
+    ...windows(row),
+  };
 }
 
 /**
@@ -76,19 +112,23 @@ export function toSent(
   return {
     id: row.id,
     receiver,
-    ...when(row, eventName),
+    ...sparWhen(row, eventName),
     message: row.message,
     status,
     comment: status === 'not_this_time' ? row.shared_comment : null,
   };
 }
 
-/** A spar both fighters agreed to, or one either of them cancelled since. */
+/**
+ * A spar both fighters agreed to, one either of them cancelled since, or one they marked done,
+ * with what was written on it. The heart (`partnerFavourite`) is filled by the favourites read.
+ */
 export function toAgreed(
   row: SparRow,
   me: string,
   partner: SparFighter,
   eventName: string | null,
+  extras: SparCardExtras,
 ): AgreedSpar {
   const iAsked = row.asker_global_person_id === me;
   const cancelled = row.status === 'cancelled';
@@ -96,10 +136,15 @@ export function toAgreed(
     id: row.id,
     partner,
     iAsked,
-    ...when(row, eventName),
+    ...sparWhen(row, eventName),
     message: row.message,
-    status: cancelled ? 'cancelled' : 'agreed',
+    status: row.status === 'cancelled' || row.status === 'done' ? row.status : 'agreed',
     cancelledByMe: cancelled ? row.cancelled_by === (iAsked ? 'asker' : 'receiver') : null,
     cancelMessage: cancelled ? row.cancel_message : null,
+    ...windows(row),
+    myReview: extras.myReview,
+    theirThanks: extras.theirThanks,
+    note: extras.note,
+    partnerFavourite: null,
   };
 }

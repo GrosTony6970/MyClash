@@ -10,16 +10,22 @@ type Patch = (data: FightBookData) => Partial<FightBookData>;
 const bySpar = (a: AgreedSpar, b: AgreedSpar) =>
   a.day.localeCompare(b.day) || (a.time ?? '').localeCompare(b.time ?? '');
 
-/** A request she said yes to, as My spars shows it. */
+/** A request she said yes to, as My spars shows it: nothing written on it yet. */
 function agreedFrom(request: IncomingSparRequest): AgreedSpar {
   const { asker, id, kind, eventName, day, time, place, weapons, message } = request;
+  const { markFrom, markUntil, cancelUntil } = request;
   return {
     ...{ id, kind, eventName, day, time, place, weapons, message },
+    ...{ markFrom, markUntil, cancelUntil },
     partner: asker,
     iAsked: false,
     status: 'agreed',
     cancelledByMe: null,
     cancelMessage: null,
+    myReview: null,
+    theirThanks: null,
+    note: null,
+    partnerFavourite: null,
   };
 }
 

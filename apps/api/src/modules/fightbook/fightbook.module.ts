@@ -9,6 +9,7 @@ import { SparAfterService } from './spar-after.service';
 import { SparFindService } from './spar-find.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
+import { SparThanksService } from './spar-thanks.service';
 
 /**
  * FightBook. NotificationSchedulingModule is a leaf (it imports only its own queue), and
@@ -26,6 +27,7 @@ import { SparRequestsService } from './spar-requests.service';
     FightBookBlocksService,
     SparFindService,
     SparAfterService,
+    SparThanksService,
   ],
 })
 export class FightBookModule {}

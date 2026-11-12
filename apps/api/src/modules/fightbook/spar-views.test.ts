@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SparFighter } from '@myclash/types';
-import { effectiveSparStatus, toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
+import {
+  effectiveSparStatus,
+  NO_EXTRAS,
+  toAgreed,
+  toIncoming,
+  toSent,
+  type SparRow,
+} from './spar-views';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const JULIE = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
@@ -25,6 +32,7 @@ const row = (over: Partial<SparRow> = {}): SparRow => ({
   kind: 'event',
   event_id: 'e-1',
   spar_day: '2026-05-23',
+  zone: 'Europe/Paris',
   spar_time: '18:30:00',
   place: null,
   weapons: ['Longsword'],
@@ -88,8 +96,15 @@ describe('toSent: what the asker sees', () => {
   });
 });
 
+// Saturday 23 May 2026 in Paris: the day opens Friday 22:00Z and ends Sunday 04:00Z.
+const PARIS_WINDOWS = {
+  markFrom: '2026-05-22T22:00:00.000Z',
+  markUntil: '2026-05-26T04:00:00.000Z',
+  cancelUntil: '2026-05-24T04:00:00.000Z',
+};
+
 describe('toIncoming: what the fighter asked sees', () => {
-  it('carries the asker, the day and the message, with an Event since deleted read as none', () => {
+  it('carries the asker, the day, the message and the windows a Yes makes a spar card of', () => {
     expect(toIncoming(row({ event_id: null }), marc, null)).toEqual({
       id: 'r-1',
       asker: marc,
@@ -100,6 +115,7 @@ describe('toIncoming: what the fighter asked sees', () => {
       place: null,
       weapons: ['Longsword'],
       message: 'After the Pools?',
+      ...PARIS_WINDOWS,
     });
   });
 });
@@ -111,20 +127,46 @@ describe('toAgreed: a spar both said yes to', () => {
       cancelled_by: 'receiver',
       cancel_message: 'Injured, sorry',
     });
-    expect(toAgreed(cancelled, MARC, julie, null)).toMatchObject({
+    expect(toAgreed(cancelled, MARC, julie, null, NO_EXTRAS)).toMatchObject({
       partner: julie,
       iAsked: true,
       status: 'cancelled',
       cancelledByMe: false,
       cancelMessage: 'Injured, sorry',
     });
-    expect(toAgreed(cancelled, JULIE, marc, null)).toMatchObject({
+    expect(toAgreed(cancelled, JULIE, marc, null, NO_EXTRAS)).toMatchObject({
       iAsked: false,
       cancelledByMe: true,
     });
-    expect(toAgreed(row({ status: 'agreed' }), MARC, julie, null)).toMatchObject({
+    expect(toAgreed(row({ status: 'agreed' }), MARC, julie, null, NO_EXTRAS)).toMatchObject({
       status: 'agreed',
       cancelledByMe: null,
+    });
+  });
+
+  it('carries a done spar, its windows, what was written on it, and no heart yet', () => {
+    const extras = {
+      myReview: { stars: 5, text: 'Great bout', anonymous: false },
+      theirThanks: { stars: 4, text: null },
+      note: 'Guard up',
+    };
+    expect(toAgreed(row({ status: 'done' }), MARC, julie, 'Probe Open', extras)).toEqual({
+      id: 'r-1',
+      partner: julie,
+      iAsked: true,
+      kind: 'event',
+      eventName: 'Probe Open',
+      day: '2026-05-23',
+      time: '18:30',
+      place: null,
+      weapons: ['Longsword'],
+      message: 'After the Pools?',
+      status: 'done',
+      cancelledByMe: null,
+      cancelMessage: null,
+      ...PARIS_WINDOWS,
+      ...extras,
+      partnerFavourite: null,
     });
   });
 });

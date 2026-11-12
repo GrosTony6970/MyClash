@@ -47,6 +47,17 @@ export async function readSparFighters(
   return fighters;
 }
 
+/** The names of the Events spar cards name, one read (My spars and the thank-yous list). */
+export async function readSparEventNames(
+  db: Pick<SupabaseClient, 'from'>,
+  ids: string[],
+): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db.from('events').select('id, name').in('id', ids);
+  if (error) throw new Error(`FightBook Event names read failed: ${error.message}`);
+  return new Map(((data ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]));
+}
+
 /** A profile the read did not find (deleted since): its id, and no name for the web to fill. */
 export const unknownSparFighter = (id: string): SparFighter => ({
   globalPersonId: id,

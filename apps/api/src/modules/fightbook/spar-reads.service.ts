@@ -3,8 +3,9 @@ import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { fightBookOnFighters } from './spar-askable';
-import { readSparFighters, unknownSparFighter } from './spar-fighters';
-import { toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
+import { readSparEventNames, readSparFighters, unknownSparFighter } from './spar-fighters';
+import { SparThanksService } from './spar-thanks.service';
+import { NO_EXTRAS, toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
 
 /** How far back My spars looks, in days, and how many rows each list holds (Decision 12). */
 const LOOK_BACK_DAYS = 30;
@@ -20,7 +21,10 @@ const byDayThenTime = (a: SparRow, b: SparRow) =>
  */
 @Injectable()
 export class SparReadsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly thanks: SparThanksService,
+  ) {}
 
   /**
    * Requests waiting for my answer, still open, soonest day first. Only those `fightbook_answer`
@@ -31,7 +35,7 @@ export class SparReadsService {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .select(
-        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
+        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, zone, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
       )
       .eq('receiver_global_person_id', me)
       .eq('status', 'pending')
@@ -51,7 +55,10 @@ export class SparReadsService {
     );
   }
 
-  /** My agreed and cancelled spars, both ways, then the requests I sent and their answer. */
+  /**
+   * My agreed, cancelled and done spars, both ways, each with what was written on it, then the
+   * requests I sent and their answer.
+   */
   async mySpars(me: string, now = new Date()): Promise<MySpars> {
     const since = addDays(now.toISOString().slice(0, 10), -LOOK_BACK_DAYS) ?? '';
     const [asked, wasAsked, sent] = await Promise.all([
@@ -60,13 +67,27 @@ export class SparReadsService {
       this.sentBy(me, since),
     ]);
     const spars = [...asked, ...wasAsked].sort(byDayThenTime);
-    const { fighters, events } = await this.cards([...spars, ...sent]);
+    const [{ fighters, events }, extras] = await Promise.all([
+      this.cards([...spars, ...sent]),
+      this.thanks.cardExtras(
+        me,
+        spars.map((row) => row.id),
+      ),
+    ]);
     const partner = (row: SparRow) =>
       row.asker_global_person_id === me
         ? row.receiver_global_person_id
         : row.asker_global_person_id;
+    const card = (row: SparRow) =>
+      toAgreed(
+        row,
+        me,
+        fighters(partner(row)),
+        events(row.event_id),
+        extras.get(row.id) ?? NO_EXTRAS,
+      );
     return {
-      spars: spars.map((row) => toAgreed(row, me, fighters(partner(row)), events(row.event_id))),
+      spars: spars.map(card),
       sent: sent.map((row) =>
         toSent(row, fighters(row.receiver_global_person_id), events(row.event_id), now),
       ),
@@ -81,10 +102,10 @@ export class SparReadsService {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .select(
-        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
+        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, zone, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
       )
       .eq(side, me)
-      .in('status', ['agreed', 'cancelled'])
+      .in('status', ['agreed', 'cancelled', 'done'])
       .gte('spar_day', since)
       .order('spar_day', { ascending: true })
       .limit(LIST_CAP);
@@ -101,7 +122,7 @@ export class SparReadsService {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .select(
-        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
+        'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, zone, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
       )
       .eq('asker_global_person_id', me)
       .in('status', ['pending', 'not_this_time'])
@@ -120,23 +141,11 @@ export class SparReadsService {
     const eventIds = [...new Set(rows.map((r) => r.event_id).filter((id): id is string => !!id))];
     const [people, eventNames] = await Promise.all([
       readSparFighters(this.supabase.service, fighterIds),
-      this.eventNames(eventIds),
+      readSparEventNames(this.supabase.service, eventIds),
     ]);
     return {
       fighters: (id: string): SparFighter => people.get(id) ?? unknownSparFighter(id),
       events: (id: string | null) => (id ? (eventNames.get(id) ?? null) : null),
     };
-  }
-
-  private async eventNames(ids: string[]): Promise<Map<string, string>> {
-    if (ids.length === 0) return new Map();
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .select('id, name')
-      .in('id', ids);
-    if (error) throw new Error(`FightBook Event names read failed: ${error.message}`);
-    return new Map(
-      ((data ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]),
-    );
   }
 }

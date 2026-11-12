@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { SparReadsService } from './spar-reads.service';
+import { SparThanksService } from './spar-thanks.service';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const JULIE = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
@@ -9,7 +10,7 @@ const EVENT = 'eeeeeeee-0000-4000-8000-00000000000a';
 const NOW = new Date('2026-05-22T12:00:00Z');
 
 const SPAR_SELECT =
-  'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message';
+  'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, zone, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message';
 
 const request = (id: string, over: Record<string, unknown>) => ({
   id,
@@ -18,6 +19,7 @@ const request = (id: string, over: Record<string, unknown>) => ({
   kind: 'event',
   event_id: EVENT,
   spar_day: '2026-05-23',
+  zone: 'Europe/Paris',
   spar_time: null,
   place: null,
   weapons: ['Longsword'],
@@ -74,8 +76,12 @@ function service(
       ],
     },
     events: { rows: [{ id: EVENT, name: 'Probe Open' }] },
+    spar_thanks: { rows: [] },
+    spar_anonymous_reviews: { rows: [] },
+    spar_private_notes: { rows: [] },
   });
-  return { reads: new SparReadsService(supabase as never), supabase };
+  const thanks = new SparThanksService(supabase as never);
+  return { reads: new SparReadsService(supabase as never, thanks), supabase };
 }
 
 describe('SparReadsService.inbox', () => {
@@ -167,9 +173,10 @@ describe('SparReadsService.mySpars', () => {
     ]);
   });
 
-  it('lists my agreed spars both ways, and leaves withdrawn requests out', async () => {
+  it('lists my agreed and done spars both ways, and leaves withdrawn requests out', async () => {
     const { reads, supabase } = service([
       request('mine', { status: 'agreed', spar_day: '2026-05-24' }),
+      request('sparred', { status: 'done', spar_day: '2026-05-25' }),
       request('theirs', {
         asker_global_person_id: PAUL,
         receiver_global_person_id: MARC,
@@ -188,20 +195,30 @@ describe('SparReadsService.mySpars', () => {
       request('to-marc', { asker_global_person_id: JULIE, receiver_global_person_id: MARC }),
     ]);
     const { spars, sent } = await reads.mySpars(MARC, NOW);
-    expect(spars.map((s) => [s.id, s.partner.name, s.iAsked, s.cancelledByMe])).toEqual([
-      ['theirs', 'Paul Probe', false, false],
-      ['mine', 'Julie P.', true, null],
+    expect(spars.map((s) => [s.id, s.partner.name, s.iAsked, s.status, s.cancelledByMe])).toEqual([
+      ['theirs', 'Paul Probe', false, 'cancelled', false],
+      ['mine', 'Julie P.', true, 'agreed', null],
+      ['sparred', 'Julie P.', true, 'done', null],
     ]);
     expect(sent).toEqual([]);
+    expect(selectsFor(supabase.from, 'spar_requests')).toEqual([
+      SPAR_SELECT,
+      SPAR_SELECT,
+      SPAR_SELECT,
+    ]);
     expect(filtersFor(supabase.from, 'spar_requests', 'eq')).toEqual([
       ['asker_global_person_id', MARC],
       ['receiver_global_person_id', MARC],
       ['asker_global_person_id', MARC],
     ]);
     expect(filtersFor(supabase.from, 'spar_requests', 'in')).toEqual([
-      ['status', ['agreed', 'cancelled']],
-      ['status', ['agreed', 'cancelled']],
+      ['status', ['agreed', 'cancelled', 'done']],
+      ['status', ['agreed', 'cancelled', 'done']],
       ['status', ['pending', 'not_this_time']],
+    ]);
+    // What was written on them is read for exactly these three spars, in day order.
+    expect(filtersFor(supabase.from, 'spar_private_notes', 'in')).toEqual([
+      ['spar_request_id', ['theirs', 'mine', 'sparred']],
     ]);
   });
 });

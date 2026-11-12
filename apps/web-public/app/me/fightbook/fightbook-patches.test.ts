@@ -24,6 +24,9 @@ const request: IncomingSparRequest = {
   place: 'Salle',
   weapons: ['Longsword'],
   message: null,
+  markFrom: '2026-05-22T22:00:00.000Z',
+  markUntil: '2026-05-26T04:00:00.000Z',
+  cancelUntil: '2026-05-24T04:00:00.000Z',
 };
 const empty: FightBookData = {
   settings: { hasProfile: true, enabled: true },
@@ -42,6 +45,19 @@ describe('the list patches', () => {
     const twice = apply(once, answered(request, 'agreed'));
     expect(twice.spars.spars.map((s) => s.id)).toEqual(['r-1']);
     expect(twice.inbox).toEqual([]);
+  });
+
+  it('a Yes makes a card with the request’s windows and nothing written on it yet', () => {
+    const [card] = apply(empty, answered(request, 'agreed')).spars.spars;
+    expect(card).toMatchObject({
+      markFrom: request.markFrom,
+      markUntil: request.markUntil,
+      cancelUntil: request.cancelUntil,
+      myReview: null,
+      theirThanks: null,
+      note: null,
+      partnerFavourite: null,
+    });
   });
 
   it('a block the page already read back is not listed twice', () => {
