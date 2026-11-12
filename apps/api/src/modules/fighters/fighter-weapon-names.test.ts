@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { IN_LIST_MAX } from '../../common/postgrest-in-list';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
-import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from './fighter-weapon-names';
+import {
+  DIRECTORY_WEAPONS_SHOWN,
+  readFighterWeaponNames,
+  WEAPON_IDS_PER_READ,
+} from './fighter-weapon-names';
 
 const A = 'gp-a';
 const B = 'gp-b';
@@ -44,8 +48,8 @@ describe('readFighterWeaponNames', () => {
     expect(capped.get(A)).toEqual(['Longsword', 'Sabre', 'Rapier']);
   });
 
-  it('reads in pieces no longer than a .in() list may be, and answers for all fighters', async () => {
-    const many = Array.from({ length: IN_LIST_MAX + 5 }, (_, index) => `gp-${index}`);
+  it('reads 50 fighters at a time, so 1000 weapon rows are never cut, and answers for all', async () => {
+    const many = Array.from({ length: 2 * WEAPON_IDS_PER_READ + 5 }, (_, index) => `gp-${index}`);
     const first = many[0]!;
     const last = many[many.length - 1]!;
     const db = mockSupabase({
@@ -54,7 +58,8 @@ describe('readFighterWeaponNames', () => {
     const names = await readFighterWeaponNames(db as never, many);
 
     const lists = filtersFor(db.from, 'fighter_weapons', 'in').map(([, list]) => list as string[]);
-    expect(lists.map((list) => list.length)).toEqual([IN_LIST_MAX, 5]);
+    expect(lists.map((list) => list.length)).toEqual([50, 50, 5]);
+    expect(WEAPON_IDS_PER_READ).toBeLessThanOrEqual(IN_LIST_MAX);
     expect(names.get(first)).toEqual(['Rapier']);
     expect(names.get(last)).toEqual(['Sabre']);
   });

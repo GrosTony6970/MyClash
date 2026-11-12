@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { inListChunks } from '../../common/postgrest-in-list';
+/**
+ * Fighters per weapon read. PostgREST cuts a read at 1000 rows without a word; 50 fighters x up to
+ * 20 weapons stays under that cap, which a 200-id piece could pass.
+ */
+export const WEAPON_IDS_PER_READ = 50;
 
 /** Weapons shown per directory row before the column stops being scannable. */
 export const DIRECTORY_WEAPONS_SHOWN = 3;
@@ -18,7 +22,8 @@ export async function readFighterWeaponNames(
   cap?: number,
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
-  for (const chunk of inListChunks(ids)) {
+  for (let from = 0; from < ids.length; from += WEAPON_IDS_PER_READ) {
+    const chunk = ids.slice(from, from + WEAPON_IDS_PER_READ);
     const { data, error } = await db
       .from('fighter_weapons')
       .select('global_person_id, favorite, sort_order, weapon_catalog(name)')
