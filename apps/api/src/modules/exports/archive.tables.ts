@@ -660,6 +660,7 @@ export const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'spar_thanks',
   'spar_anonymous_reviews',
   'fightbook_favourites',
+  'spar_flags', // a safety flag names its writer and its subject: never in an Event archive
   'club_review_requests', // club-verification workflow, not event data
   'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
 ]);

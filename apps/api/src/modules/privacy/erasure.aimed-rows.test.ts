@@ -14,8 +14,10 @@ import { describe, expect, it } from 'vitest';
 import {
   mockSupabase,
   type ChainResult,
+  type RpcAnswer,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
+import { lastFunctionParams } from '../../common/testing/migration-function';
 import { ErasureService } from './erasure.service';
 
 const SUBJECT = '5d1c0f7e-2a8b-4c3d-9e6f-0a1b2c3d4e5f';
@@ -81,8 +83,11 @@ function tables(): Record<string, TableSeed> {
   };
 }
 
-function erasureWith(seed: Record<string, TableSeed>) {
-  const supabase = mockSupabase(seed);
+const FLAGS_ERASED = { deleted: 3, cleared: 2 };
+const FLAGS_ANSWER: RpcAnswer = () => ({ data: FLAGS_ERASED, error: null });
+
+function erasureWith(seed: Record<string, TableSeed>, flagsErase: RpcAnswer = FLAGS_ANSWER) {
+  const supabase = mockSupabase(seed, { fightbook_flags_erase: flagsErase });
   return { erasure: new ErasureService(supabase as never), supabase };
 }
 
@@ -144,6 +149,64 @@ describe('erasure removes rows other people aimed at the erased profile (rulings
     await erasure.redactSubject(SUBJECT);
 
     for (const [table, column] of AIMED) expect(deletesBy(supabase, table, column)).toEqual([]);
+  });
+
+  it('erases the safety flags with the migration’s parameter names, and reports both counts', async () => {
+    const { erasure, supabase } = erasureWith(tables());
+
+    const counts = await erasure.redactSubject(SUBJECT);
+
+    const [name, payload] = supabase.rpc.mock.calls[0] ?? [];
+    expect(name).toBe('fightbook_flags_erase');
+    expect(Object.keys(payload ?? {}).sort()).toEqual(
+      [...lastFunctionParams('fightbook_flags_erase')].sort(),
+    );
+    expect(payload).toEqual({ p_uid: SUBJECT, p_ids: [MARIE] });
+    expect(counts['spar_flags']).toBe(FLAGS_ERASED.deleted);
+    expect(counts['spar_flags.reporter']).toBe(FLAGS_ERASED.cleared);
+  });
+
+  it('erases the safety flags even when the account claims no profile', async () => {
+    // An account that unlinked its profile is still the subject of flags (`subject_user_id`).
+    const { erasure, supabase } = erasureWith({ ...tables(), global_persons: { rows: [] } });
+
+    await erasure.redactSubject(SUBJECT);
+
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['fightbook_flags_erase', { p_uid: SUBJECT, p_ids: [] }],
+    ]);
+  });
+
+  it('erases the safety flags while the profile still names its account', async () => {
+    // The function reads `claimed_by_user_id`, which the profile update clears.
+    let ownerAlreadyCleared: boolean | undefined;
+    const holder: { supabase?: ReturnType<typeof mockSupabase> } = {};
+    const { erasure, supabase } = erasureWith(tables(), () => {
+      ownerAlreadyCleared = holder.supabase?.writes.some(
+        (w) => w.table === 'global_persons' && w.op === 'update',
+      );
+      return { data: FLAGS_ERASED, error: null };
+    });
+    holder.supabase = supabase;
+
+    await erasure.redactSubject(SUBJECT);
+
+    expect(ownerAlreadyCleared).toBe(false);
+  });
+
+  it('fails the erasure loudly when the safety flag erasure is refused', async () => {
+    const { erasure, supabase } = erasureWith(tables(), () => FAILED);
+
+    await expect(erasure.redactSubject(SUBJECT)).rejects.toThrow('fightbook_flags_erase: boom');
+    expect(supabase.writes.some((w) => w.table === 'global_persons')).toBe(false);
+  });
+
+  it('anonymising a profile does not touch the safety flags: the account stays', async () => {
+    const { erasure, supabase } = erasureWith(tables());
+
+    await erasure.anonymiseGlobalPerson(MARIE);
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it.each(AIMED)('anonymising a profile deletes the %s aimed at it', async (table, column) => {

@@ -58,6 +58,10 @@ export const SUBJECT_EXPORT_EXCLUDED_TABLES = new Set<string>([
   'ai_data_quality_scans', // super-admin data-quality operations
   'ai_data_quality_findings',
 
+  // FightBook safety flags: what only admins know. To the flagged subject it would reveal the
+  // flag (Art. 15(4)); to the reporter, the handled mark and another person's account id.
+  'spar_flag_admin',
+
   // renamed away — the name survives only in pre-rename migration text
   'fighters', // renamed to global_persons in 0023, which IS exported
 

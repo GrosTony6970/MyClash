@@ -18,6 +18,36 @@ interface DeleteChain {
   };
 }
 
+/** The service-role client's `rpc`, as far as the flag erasure uses it. */
+export interface FightBookRpcClient {
+  rpc: (
+    name: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+}
+
+/**
+ * Account erasure's safety-flag step: `fightbook_flags_erase` deletes the flags about the erased
+ * account's profiles and clears the reporter on the flags they wrote (the flag stays, with its
+ * spar snapshot). It runs EVEN WITH NO CLAIMED PROFILE: its `subject_user_id` clause still finds
+ * flags about an account that unlinked its profile. The function reads `claimed_by_user_id`, so it
+ * runs before the profile update clears it. Counts: `spar_flags` and `spar_flags.reporter`. A
+ * refusal throws, as the other steps do.
+ */
+export async function eraseFightBookFlags(
+  db: FightBookRpcClient,
+  uid: string,
+  globalPersonIds: string[],
+): Promise<RedactionCounts> {
+  const { data, error } = await db.rpc('fightbook_flags_erase', {
+    p_uid: uid,
+    p_ids: globalPersonIds,
+  });
+  if (error) throw new Error(`fightbook_flags_erase: ${error.message}`);
+  const answer = (data ?? {}) as { deleted?: number; cleared?: number };
+  return { spar_flags: answer.deleted ?? 0, 'spar_flags.reporter': answer.cleared ?? 0 };
+}
+
 /**
  * Every FightBook row of an erased profile, both ways: the requests they sent and received, their
  * private notes, the thank-yous and anonymous reviews they wrote and received, the blocks they

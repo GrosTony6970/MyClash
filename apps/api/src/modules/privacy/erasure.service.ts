@@ -23,7 +23,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { deleteInstructorPhotoFolder } from '../workshops/workshop-instructor-photo';
-import { eraseFightBookRows } from './erasure-fightbook';
+import { eraseFightBookFlags, eraseFightBookRows } from './erasure-fightbook';
 import {
   GLOBAL_PERSON_NULLED,
   PERSON_NULLED,
@@ -74,7 +74,11 @@ export class ErasureService {
     // Before the profile update for the same reason.
     const workshopLines = await this.redactWorkshopLines(globalPersonIds);
     // Before it too. Not in deleteRowsAimedAt: the anonymisation runs that list, and keeps these.
-    const fightBook = await eraseFightBookRows(this.supabase.service, globalPersonIds);
+    const fightBook = addCounts(
+      await eraseFightBookRows(this.supabase.service, globalPersonIds),
+      // Even with no claimed profile: the flags an unlinked account is the subject of.
+      await eraseFightBookFlags(this.supabase.service, uid, globalPersonIds),
+    );
 
     return {
       // Profile: strip the private individual, keep the competitor.

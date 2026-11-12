@@ -305,6 +305,13 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'fightbook.csv',
     note: 'The fighters the subject favourited, never who favourited them.',
   },
+  // Reporter only. A spar has one partner, so a flag ABOUT the subject names its writer
+  // (Art. 15(4)); gear-check notes differ, their subject receives them.
+  spar_flags: {
+    reaches: [{ column: 'reporter_global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+    note: 'Only the safety flags the subject wrote, never those about them.',
+  },
 
   // ── Notifications ───────────────────────────────────────────────────────────
   notification_preferences: {

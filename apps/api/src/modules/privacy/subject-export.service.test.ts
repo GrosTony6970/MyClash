@@ -261,6 +261,15 @@ describe('subject table census', () => {
     expect(cols('fightbook_favourites')).toEqual(['owner_global_person_id']);
   });
 
+  it('exports a safety flag only to its reporter, and never the admin side table', () => {
+    // A flag ABOUT the subject names its writer (Art. 15(4)); spar_flag_admin holds the handled
+    // mark and the flagged account's id.
+    const cols = SUBJECT_EXPORT_TABLES['spar_flags']?.reaches.map((r) => r.column);
+    expect(cols).toEqual(['reporter_global_person_id']);
+    expect(SUBJECT_EXPORT_EXCLUDED_TABLES.has('spar_flag_admin')).toBe(true);
+    expect(SUBJECT_EXPORT_TABLES['spar_flag_admin']).toBeUndefined();
+  });
+
   it('exports the subject’s league standing even though the archive excludes it', () => {
     // Different question, different answer: cross-event and recomputed for an
     // event archive, but unambiguously about the person for a subject request.

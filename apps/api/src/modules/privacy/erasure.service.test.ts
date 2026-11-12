@@ -58,6 +58,8 @@ function makeSupabase(
       };
       return chain;
     },
+    // The flag erasure; its payload and counts are held in erasure.aimed-rows.test.ts.
+    rpc: async () => ({ data: { deleted: 0, cleared: 0 }, error: null }),
     storage,
   };
   return { supabase: { service } as never, log };
