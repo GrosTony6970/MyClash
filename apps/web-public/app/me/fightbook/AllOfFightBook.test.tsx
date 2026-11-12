@@ -8,6 +8,7 @@ import type { FindCard, FindPage } from '@myclash/types';
 // Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
 import { I18nProvider } from '../../../src/i18n/I18nProvider';
 import { AllOfFightBook } from './AllOfFightBook';
+import { useFightBookBrowse } from './use-fightbook-browse';
 
 /**
  * Hugo looks through all of FightBook, 20 fighters a page. "Show more" adds the next page; a name
@@ -40,10 +41,12 @@ const page = (items: FindCard[], more: boolean): Answer => ({
 
 let container: HTMLDivElement;
 let root: Root;
+let onSent: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
+  onSent = vi.fn();
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -73,7 +76,7 @@ async function open(weapon = '') {
   await act(async () =>
     root.render(
       <I18nProvider locale="en">
-        <AllOfFightBook apiUrl="http://api.test" weapon={weapon} onSent={() => {}} />
+        <AllOfFightBook apiUrl="http://api.test" weapon={weapon} onSent={onSent} />
       </I18nProvider>,
     ),
   );
@@ -209,5 +212,85 @@ describe('All of FightBook', () => {
     await settled();
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(names()).toEqual(['Probe Fighter 1']);
+  });
+
+  it('an ask sent from a card tells the page', async () => {
+    serve({
+      [P0]: page([card(1)], false),
+      '/api/v1/me/fightbook/events': { ok: true, data: [] },
+      '/api/v1/weapons?active=true': { ok: true, data: [{ id: 'w1', name: 'Longsword' }] },
+      '/api/v1/me/fightbook/requests': { ok: true, data: { id: 'r-1' } },
+    });
+    await open();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-find-card] button')!.click(),
+    );
+    await settled();
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    // At no Event: a free date, which needs a place.
+    const place = dialog.querySelector<HTMLInputElement>('input[type="text"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        place,
+        'Salle',
+      );
+      place.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
+    );
+    await act(async () =>
+      [...dialog.querySelectorAll('button')]
+        .find((b) => b.textContent === 'Send the request')!
+        .click(),
+    );
+    await settled();
+    expect(onSent).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** The hook alone, with no `key` from its caller: it owns the restart at page 0 itself. */
+function Probe({ name }: { name: string }) {
+  const browse = useFightBookBrowse('http://api.test', name, '');
+  return (
+    <>
+      <ul>
+        {browse.items?.map((c) => (
+          <li key={c.fighter.globalPersonId} data-find-card>
+            <p>{c.fighter.name}</p>
+          </li>
+        ))}
+      </ul>
+      {browse.more ? (
+        <button type="button" onClick={browse.showMore}>
+          Show more
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+describe('useFightBookBrowse', () => {
+  it('a new name, without a remount, reads page 0 of the new search only', async () => {
+    serve({
+      [P0]: page([card(1), card(2)], true),
+      [P1]: page([card(3)], false),
+      '/api/v1/me/fightbook/find?q=Hugo&page=0': page([card(5)], false),
+    });
+    const probe = (name: string) => act(async () => root.render(<Probe name={name} />));
+    await probe('');
+    await settled();
+    await act(async () => showMore()!.click());
+    await settled();
+    expect(names()).toHaveLength(3);
+    await probe('Hugo');
+    await settled();
+    expect(reads().at(-1)).toBe('/api/v1/me/fightbook/find?q=Hugo&page=0');
+    expect(names()).toEqual(['Probe Fighter 5']);
+    // Back to everyone: page 0 again, not the page 1 that search had reached.
+    await probe('');
+    await settled();
+    expect(reads().at(-1)).toBe(P0);
+    expect(names()).toEqual(['Probe Fighter 1', 'Probe Fighter 2']);
   });
 });

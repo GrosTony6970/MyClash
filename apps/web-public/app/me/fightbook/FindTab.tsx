@@ -51,8 +51,10 @@ function useFindSetup(apiUrl: string) {
  * answers, and a switch aborts the read for the old pair, so an older answer never shows under a
  * newer heading. `null` while reading.
  */
+const fightersKey = (eventId: string, weapon: string) => `${eventId}|${weapon}`;
+
 function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
-  const key = `${eventId}|${weapon}`;
+  const key = fightersKey(eventId, weapon);
   const [answer, setAnswer] = useState<{ key: string; cards: FindCard[] | 'failed' } | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -61,7 +63,7 @@ function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
       if (controller.signal.aborted || read.kind === 'aborted') return;
       if (read.kind === 'signin') return signInAgainHere();
       setAnswer({
-        key: `${eventId}|${weapon}`,
+        key: fightersKey(eventId, weapon),
         cards: read.kind === 'data' ? read.data : 'failed',
       });
     });

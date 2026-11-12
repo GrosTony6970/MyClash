@@ -37,8 +37,7 @@ export function AllOfFightBook(props: BrowseProps) {
           onChange={(e) => setText(e.target.value)}
         />
       </Field>
-      {/* One mount per search: a new name or weapon starts at page 0 and drops the old reads. */}
-      <BrowsePages key={`${name}|${props.weapon}`} {...props} name={name} />
+      <BrowsePages {...props} name={name} />
     </section>
   );
 }
