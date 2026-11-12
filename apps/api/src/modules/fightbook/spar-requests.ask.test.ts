@@ -158,23 +158,36 @@ describe('SparRequestsService.ask', () => {
     ]);
   });
 
+  it('refuses a free date a day more than a year ahead: bad_day', async () => {
+    const { service } = setup();
+    expect(await codeOf(service.ask(MARC, { ...free, day: '2027-05-22' }, NOW))).toEqual([
+      400,
+      'bad_day',
+    ]);
+  });
+
   it.each<[string, Partial<AskSparInput>]>([
     ['an unknown zone', { zone: 'Mars/Olympus' }],
     ['no zone', { zone: undefined }],
-    ['a day more than a year ahead', { day: '2027-05-22' }],
-  ])('refuses a free date with %s: bad_day', async (_, change) => {
+  ])('refuses a free date with %s: bad_zone', async (_, change) => {
     const { service } = setup();
-    expect(await codeOf(service.ask(MARC, { ...free, ...change }, NOW))).toEqual([400, 'bad_day']);
+    expect(await codeOf(service.ask(MARC, { ...free, ...change }, NOW))).toEqual([400, 'bad_zone']);
   });
 
-  it('refuses a free date with no place, and a weapon off the catalog', async () => {
+  it('refuses a free date with no place: bad_place', async () => {
     const { service } = setup();
-    await expect(service.ask(MARC, { ...free, place: undefined }, NOW)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    await expect(service.ask(MARC, { ...free, weapons: ['Rapier'] }, NOW)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    expect(await codeOf(service.ask(MARC, { ...free, place: undefined }, NOW))).toEqual([
+      400,
+      'bad_place',
+    ]);
+  });
+
+  it('refuses a weapon off the catalog: bad_weapon', async () => {
+    const { service } = setup();
+    expect(await codeOf(service.ask(MARC, { ...free, weapons: ['Rapier'] }, NOW))).toEqual([
+      400,
+      'bad_weapon',
+    ]);
   });
 
   it.each([

@@ -239,9 +239,9 @@ export class SparRequestsService {
   /** A free date: its place, and the asker's own clock. */
   private onFreeDate(input: AskSparInput): Where {
     if (!input.zone || !isIanaZone(input.zone)) {
-      throw badRequest('bad_day', 'A free date needs a time zone');
+      throw badRequest('bad_zone', 'A free date needs a time zone');
     }
-    if (!input.place) throw new BadRequestException('A free date needs a place');
+    if (!input.place) throw badRequest('bad_place', 'A free date needs a place');
     return { eventId: null, zone: input.zone, place: input.place };
   }
 
@@ -256,7 +256,7 @@ export class SparRequestsService {
     const resolved = names.map((name) => {
       const wanted = name.trim().toLowerCase();
       const match = catalog.find((w) => w.name.trim().toLowerCase() === wanted);
-      if (!match) throw new BadRequestException(`Weapon "${name}" is not an active catalog entry`);
+      if (!match) throw badRequest('bad_weapon', `Weapon "${name}" is not an active catalog entry`);
       return match.name;
     });
     return [...new Set(resolved)];
