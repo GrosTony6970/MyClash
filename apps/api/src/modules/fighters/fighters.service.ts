@@ -17,6 +17,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { GLOBAL_IMPORT_COLUMNS } from '../persons/csv-columns';
+import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from './fighter-weapon-names';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
 import { isFieldPublic, VISIBILITY_FIELDS, type VisibilityField } from './public-visibility';
 import {
@@ -140,8 +141,6 @@ const MAX_FIGHTER_PAGE = 50;
 
 /** Trigram floor for the directory search. Matches lookup_global_persons. */
 const DIRECTORY_SIMILARITY_THRESHOLD = 0.2;
-/** Weapons shown per directory row before the column stops being scannable. */
-const DIRECTORY_WEAPONS_SHOWN = 3;
 
 /**
  * The columns a directory-listing change writes (0187), or nothing.
@@ -489,7 +488,11 @@ export class FightersService {
     const byId = new Map(
       ((rows ?? []) as unknown as Row[]).map((row) => [row['id'] as string, row]),
     );
-    const weaponsById = await this.getFavoriteWeaponNames(ids);
+    const weaponsById = await readFighterWeaponNames(
+      this.supabase.service,
+      ids,
+      DIRECTORY_WEAPONS_SHOWN,
+    );
 
     const items: PublicDirectoryFighter[] = [];
     for (const id of ids) {
@@ -513,34 +516,6 @@ export class FightersService {
       });
     }
     return items;
-  }
-
-  /**
-   * global_person_id → weapon names, favourites first. ONE query for the page.
-   *
-   * `getFighterWeaponLinks` is the per-fighter equivalent and is right for a
-   * profile; using it here would be an N+1 across the directory.
-   */
-  private async getFavoriteWeaponNames(ids: string[]): Promise<Map<string, string[]>> {
-    const out = new Map<string, string[]>();
-    if (ids.length === 0) return out;
-
-    const { data } = await this.supabase.service
-      .from('fighter_weapons')
-      .select('global_person_id, favorite, sort_order, weapon_catalog(name)')
-      .in('global_person_id', ids)
-      .order('favorite', { ascending: false })
-      .order('sort_order', { ascending: true });
-
-    for (const raw of (data ?? []) as Array<Record<string, unknown>>) {
-      const gp = raw['global_person_id'] as string;
-      const name = (raw['weapon_catalog'] as { name?: string | null } | null)?.name;
-      if (!name) continue;
-      const list = out.get(gp) ?? [];
-      if (list.length < DIRECTORY_WEAPONS_SHOWN && !list.includes(name)) list.push(name);
-      out.set(gp, list);
-    }
-    return out;
   }
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())
