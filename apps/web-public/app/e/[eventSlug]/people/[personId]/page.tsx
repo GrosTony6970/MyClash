@@ -69,7 +69,7 @@ export default function PersonProfilePage() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  // Its own flag, not `viewerType`: that starts 'claimed' and stays so when /me fails.
+  // A claimed /me, for a person found here. Not `viewerType`: it stays 'claimed' when /me fails.
   const [askerSignedIn, setAskerSignedIn] = useState(false);
   const askReceiver = useAskableAtEvent(apiUrl, eventId, [personId], askerSignedIn)[personId];
 
@@ -108,7 +108,7 @@ export default function PersonProfilePage() {
                 ? 'anonymous'
                 : 'claimed',
           );
-          setAskerSignedIn(me.data.type === 'claimed');
+          setAskerSignedIn(profileRes.ok && me.data.type === 'claimed');
         }
       } catch {
         setLoadFailed(true);

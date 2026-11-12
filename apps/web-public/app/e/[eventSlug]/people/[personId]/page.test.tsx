@@ -166,4 +166,18 @@ describe('"Ask to spar" on an Event person page', () => {
     expect(askableReads()).toHaveLength(1);
     expect(button('Ask to spar')).toBeUndefined();
   });
+
+  it('reads nothing for a person who is not found at this Event', async () => {
+    api();
+    signedAs('claimed');
+    const answer = vi.mocked(apiRequest).getMockImplementation();
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) =>
+      path === PEOPLE
+        ? ({ ok: false, kind: 'http', status: 404 } as never)
+        : answer?.(base, path, init),
+    );
+    await show();
+    expect(container.textContent).toContain(en.publicApp.following.personNotFound);
+    expect(askableReads()).toHaveLength(0);
+  });
 });
