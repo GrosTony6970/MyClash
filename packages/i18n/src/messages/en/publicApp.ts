@@ -889,7 +889,8 @@ export const publicApp = {
         'Get notified when an organiser you follow publishes a new event.',
       swissRoundPublished: 'Swiss round paired',
       fightbook: 'FightBook',
-      fightbookDescription: 'New spar requests, a yes to your request, and cancelled spars.',
+      fightbookDescription:
+        'New spar requests, a yes to your request, cancelled spars, and spars marked as done.',
       swissRoundPublishedDescription:
         'Get notified the moment the next Swiss round is drawn, with your opponent and piste.',
       decrease: 'Decrease lead time',

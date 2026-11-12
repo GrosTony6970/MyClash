@@ -125,7 +125,7 @@ describe('SparRequestsService.cancel', () => {
     const { service, supabase, send } = setup();
     await service.cancel(JULIE, REQUEST, 'Injured, sorry', NOW);
     expect(selectsFor(supabase.from, 'spar_requests')[0]).toBe(
-      'id, asker_global_person_id, receiver_global_person_id, status',
+      'id, asker_global_person_id, receiver_global_person_id, status, spar_day, zone, expires_at',
     );
     const [write] = writesTo(supabase, 'spar_requests');
     expect(write?.row).toEqual({

@@ -64,7 +64,8 @@ export type ImmediateNotificationKind =
   // 'Not this time' sends nothing (ruling 663).
   | 'spar_request_received'
   | 'spar_agreed'
-  | 'spar_cancelled';
+  | 'spar_cancelled'
+  | 'spar_marked_done';
 
 export type FollowNotificationKind =
   'follow_match_starting' | 'follow_referee_starting' | 'follow_workshop_starting';

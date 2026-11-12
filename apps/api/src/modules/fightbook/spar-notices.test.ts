@@ -3,6 +3,7 @@ import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import {
   notifySparAgreed,
   notifySparCancelled,
+  notifySparMarkedDone,
   notifySparRequestReceived,
   type SparNoticeDeps,
 } from './spar-notices';
@@ -40,6 +41,7 @@ describe('the three FightBook notices', () => {
     ],
     [notifySparAgreed, 'spar_agreed', '/me/fightbook?tab=spars', 'Spar agreed'],
     [notifySparCancelled, 'spar_cancelled', '/me/fightbook?tab=spars', 'Spar cancelled'],
+    [notifySparMarkedDone, 'spar_marked_done', '/me/fightbook?tab=spars', 'marked as done'],
   ] as const)('%o goes to the account that holds the profile', async (notify, kind, url, title) => {
     const { d, db, send } = deps();
     await notify(d, REQUEST, JULIE);

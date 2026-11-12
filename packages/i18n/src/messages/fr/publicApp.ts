@@ -892,7 +892,7 @@ export const publicApp = {
       swissRoundPublished: 'Ronde suisse appariée',
       fightbook: 'FightBook',
       fightbookDescription:
-        'Nouvelles demandes de spar, un oui à votre demande, et les spars annulés.',
+        'Nouvelles demandes de spar, un oui à votre demande, les spars annulés et les spars marqués comme faits.',
       swissRoundPublishedDescription:
         'Être notifié dès que la prochaine ronde suisse est tirée, avec votre adversaire et votre piste.',
       decrease: 'Réduire le délai',

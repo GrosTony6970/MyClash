@@ -331,6 +331,7 @@ describe('what the check reads', () => {
     ['spar_request_received'],
     ['spar_agreed'],
     ['spar_cancelled'],
+    ['spar_marked_done'],
   ])('%s is not checked: nothing is read', async (kind) => {
     const { db, answer } = wanted(kind, 'x', 'u-lea');
 

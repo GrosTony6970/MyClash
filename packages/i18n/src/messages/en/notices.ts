@@ -112,4 +112,8 @@ export const notices = {
     title: 'Spar cancelled',
     body: 'A spar you agreed to was cancelled.',
   },
+  sparMarkedDone: {
+    title: 'A spar was marked as done',
+    body: 'You can undo it until two days after the spar day.',
+  },
 } as const satisfies MessageTree;

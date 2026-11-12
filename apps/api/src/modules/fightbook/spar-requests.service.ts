@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   type HttpException,
 } from '@nestjs/common';
 import { addDays, isIanaZone } from '@myclash/time';
@@ -15,6 +14,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { refusal } from './fightbook-caller';
 import { SPAR_MAX_DAYS_AHEAD, eventDayRefusal, sparExpiresAt } from './spar-ask-rules';
 import { isOnEventRoster } from './spar-askable';
+import { notOpen, readMySide } from './spar-side';
 import {
   notifySparAgreed,
   notifySparCancelled,
@@ -47,9 +47,6 @@ interface Where {
   zone: string;
   place: string | null;
 }
-
-const notOpen = () =>
-  new ConflictException({ code: 'not_open', message: 'This request is no longer open' });
 
 const badRequest = (code: SparRefusalCode, message: string) =>
   new BadRequestException({ code, message });
@@ -168,20 +165,7 @@ export class SparRequestsService {
     message: string | undefined,
     now = new Date(),
   ): Promise<void> {
-    const { data, error } = await this.supabase.service
-      .from('spar_requests')
-      .select('id, asker_global_person_id, receiver_global_person_id, status')
-      .eq('id', requestId)
-      .maybeSingle();
-    if (error) throw new Error(`spar read failed: ${error.message}`);
-    const row = data as {
-      asker_global_person_id: string;
-      receiver_global_person_id: string;
-    } | null;
-    const side = row?.asker_global_person_id === me ? 'asker' : 'receiver';
-    if (!row || (side === 'receiver' && row.receiver_global_person_id !== me)) {
-      throw new NotFoundException('Spar not found');
-    }
+    const { side, other } = await readMySide(this.supabase.service, me, requestId);
     const { data: won, error: writeError } = await this.supabase.service
       .from('spar_requests')
       .update({ status: 'cancelled', cancelled_by: side, cancel_message: message ?? null })
@@ -192,7 +176,6 @@ export class SparRequestsService {
       .select('id');
     if (writeError) throw new Error(`spar cancel failed: ${writeError.message}`);
     if ((won ?? []).length === 0) throw notOpen();
-    const other = side === 'asker' ? row.receiver_global_person_id : row.asker_global_person_id;
     void notifySparCancelled(this.noticeDeps(), requestId, other);
   }
 

@@ -283,3 +283,11 @@ export function sparCancelled(): NoticeEmailText {
     body: bilingual('notices.sparCancelled.body'),
   });
 }
+
+/** FightBook: the other fighter marked an agreed spar as done. No name. */
+export function sparMarkedDone(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparMarkedDone.title'),
+    body: bilingual('notices.sparMarkedDone.body'),
+  });
+}

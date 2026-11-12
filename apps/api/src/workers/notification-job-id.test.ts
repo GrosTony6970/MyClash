@@ -53,6 +53,7 @@ const KINDS: NotificationKind[] = [
   'spar_request_received',
   'spar_agreed',
   'spar_cancelled',
+  'spar_marked_done',
 ];
 
 describe('BullMQ job ids', () => {

@@ -108,4 +108,8 @@ export const notices = {
     title: 'Spar annulé',
     body: 'Un spar que vous aviez accepté a été annulé.',
   },
+  sparMarkedDone: {
+    title: 'Un spar a été marqué comme fait',
+    body: "Vous pouvez l'annuler jusqu'à deux jours après le jour du spar.",
+  },
 } as const satisfies DeepString<typeof enNotices>;

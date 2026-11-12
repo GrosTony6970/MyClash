@@ -6,7 +6,8 @@
 export type SparKind = 'event' | 'free';
 
 /** The words stored in `spar_requests.status`. */
-export type SparStatus = 'pending' | 'agreed' | 'not_this_time' | 'withdrawn' | 'cancelled';
+export type SparStatus =
+  'pending' | 'agreed' | 'done' | 'not_this_time' | 'withdrawn' | 'cancelled';
 
 /** The other fighter on a card: no profile link, an unlisted fighter's page may not exist. */
 export interface SparFighter {

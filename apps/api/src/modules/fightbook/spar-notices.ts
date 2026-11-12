@@ -8,6 +8,7 @@ import type {
 import {
   sparAgreed,
   sparCancelled,
+  sparMarkedDone,
   sparRequestReceived,
   type NoticeEmailText,
 } from '../notifications/notice-texts/notice-texts';
@@ -33,6 +34,10 @@ export const notifySparAgreed = (d: SparNoticeDeps, requestId: string, asker: st
 /** A cancelled spar, to the other fighter. */
 export const notifySparCancelled = (d: SparNoticeDeps, requestId: string, other: string) =>
   notify(d, 'spar_cancelled', requestId, other, sparCancelled(), SPARS);
+
+/** "We sparred", to the other fighter. Undo sends nothing. */
+export const notifySparMarkedDone = (d: SparNoticeDeps, requestId: string, other: string) =>
+  notify(d, 'spar_marked_done', requestId, other, sparMarkedDone(), SPARS);
 
 /**
  * One FightBook notice to the account that holds `profileId`, with that account's own address
