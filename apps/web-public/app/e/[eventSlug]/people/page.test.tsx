@@ -151,6 +151,30 @@ describe('the people search', () => {
     expect(rows()).toHaveLength(0);
   });
 
+  it('keeps the spinner until the newest search answers, not the aborted one', async () => {
+    await show();
+    await type('Pau');
+    await wait(300);
+    await type('Paul');
+    await wait(300);
+    // "Pau" is aborted and its rejection lands now; "Paul" is still waiting.
+    await wait(0);
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    await act(async () => lookups.at(-1)?.answer([PAUL]));
+    await wait(0);
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('stops the spinner the moment the search drops under 2 letters', async () => {
+    await show();
+    await type('Pau');
+    await wait(300);
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    await type('P');
+    await wait(0);
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
   it('clears the rows the moment the search drops under 2 letters', async () => {
     await show();
     await search('Pau', [PAUL]);

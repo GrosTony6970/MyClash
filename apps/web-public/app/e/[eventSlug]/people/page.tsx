@@ -86,15 +86,19 @@ export default function PeoplePage() {
       abortRef.current?.abort();
       if (q.trim().length < 2 || !eventId) {
         setResults([]);
+        setLoading(false);
         return;
       }
-      abortRef.current = new AbortController();
+      // The race: an aborted search finishes after the newer one started. Only the search that is
+      // still current may switch the spinner off.
+      const controller = new AbortController();
+      abortRef.current = controller;
       setLoading(true);
       try {
         // With the login: a club member searches her own draft Event.
         const res = await fetch(
           `${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(q)}`,
-          { signal: abortRef.current.signal, credentials: 'include' },
+          { signal: controller.signal, credentials: 'include' },
         );
         if (!res.ok) throw new Error(`lookup ${res.status}`);
         setResults((await res.json()) as PersonResult[]);
@@ -103,7 +107,7 @@ export default function PeoplePage() {
         setResults([]);
         setSearchFailed(true);
       } finally {
-        setLoading(false);
+        if (abortRef.current === controller) setLoading(false);
       }
     },
     [eventId, apiUrl],
@@ -127,6 +131,7 @@ export default function PeoplePage() {
     if (value.trim().length >= 2) return;
     abortRef.current?.abort();
     setResults([]);
+    setLoading(false);
   };
   const tryAgain = () => {
     if (event.kind !== 'failed') return void search(query);
