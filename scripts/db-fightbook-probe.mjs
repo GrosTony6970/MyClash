@@ -20,8 +20,10 @@
  * request; only the service role may call the three functions.
  * Slice 3 (lib/fightbook-probe-reviews.mjs, migration 0267): a review only on a `done` spar, by
  * one of its two fighters, once, after the API's clock passes 48 h after the end; an anonymous
- * review in its own table and a signed one with a blank text keeping none; the star line over
- * both tables, moving at once; the new CHECKs; only the service role may call the two functions.
+ * review in its own table and a signed one with a blank text keeping none, a text kept trimmed; a
+ * merged, deleted or erased author writing nothing; the window exact to the millisecond on the
+ * API's clock; the star line over both tables, per subject, moving at once; the new CHECKs, named;
+ * only the service role may call the two functions.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -54,7 +56,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 68;
+const EXPECTED_CHECKS = 76;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
