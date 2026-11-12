@@ -303,6 +303,7 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   fightbook_favourites: {
     reaches: [{ column: 'owner_global_person_id', reach: 'global_person' }],
     file: 'fightbook.csv',
+    note: 'The fighters the subject favourited, never who favourited them.',
   },
 
   // ── Notifications ───────────────────────────────────────────────────────────
