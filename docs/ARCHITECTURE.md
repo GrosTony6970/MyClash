@@ -2581,6 +2581,61 @@ blocks must hold. A fighter merge (0265) moves requests, blocks and notes to the
 request between the two merged profiles and a waiting request that would double the survivor's; a
 block it moves ends what waits between the pair, and the survivor keeps the stricter switch.
 
+### 11septies.6 Finding and asking
+
+A fighter asks from three places (ruling 674): the fighter's public page, the Event people page and
+each row of the people search, and the Find tab (`/me/fightbook?tab=find`). Five reads decide what
+each place shows. All are `GET` routes of `modules/fightbook/fightbook.controller.ts`, and all use
+`requireFightBookOn`: 401 signed out, 403 for a staff login, a guest, a caller with no profile, or
+FightBook off. No new table and no migration: the reads use existing tables.
+
+| Route                                           | Answer                                      |
+| ----------------------------------------------- | ------------------------------------------- |
+| `me/fightbook/fighters/:globalPersonId/askable` | `{ askable }` for the fighter's public page |
+| `me/fightbook/events`                           | The Events the caller is on, with open days |
+| `me/fightbook/events/:eventId/askable?persons=` | Roster id to profile id, askable rows only  |
+| `me/fightbook/events/:eventId/find?weapon=`     | `FindCard[]`: the Event block of Find       |
+| `me/fightbook/find?q=&weapon=&page=`            | `FindPage`: `{ items, more }`, 20 per page  |
+
+**May be asked.** One predicate owns it (`modules/fightbook/spar-askable.ts`). The fighter is
+live, has claimed the profile, has FightBook on, is not the caller, and the caller has not blocked
+the fighter. The filter `applyFightBookOn` carries the first three conditions. Both
+`fightBookOnFighters` (the Event reads, and the Inbox, which lists only askers still on FightBook) and the browse read use it. The
+weapon filter has one owner too (`applyWeapon`): it filters inside the same query, so a page is
+never cut short after it was read. Reads over a list of ids run in chunks of 200
+(`common/postgrest-in-list.ts`), so an Event of 300 people does not fail.
+
+**The block is one-way (ruling 672).** The reads never look at who blocked the caller. A fighter who
+blocked Julie stays in Julie's Find and still shows her "Ask to spar". Her ask ends as "Not this
+time" (§11septies.2). Julie's own Find and buttons hide the fighters she blocked. A page that
+showed less to the blocked fighter would tell her about the block.
+
+**Events.** `me/fightbook/events` lists the published Events where the caller has a roster row and
+at least one day is still open, by first open day, then by name. Each Event carries its open days
+and `today`, the latest open day that has started on the Event clock, or null. The people-page
+read answers `{}` for an Event the public cannot see, for ids of another Event's roster and for
+entrants hidden from the caller. The caller need not be on that Event, because the people lookup
+already shows each row's profile id to everyone. The Event block of Find answers 400 `bad_event`
+unless the Event is public and the caller is on its roster (ruling 665). It lists at most 200
+fighters, by name.
+
+**All of FightBook (rulings 673, 675).** Below the Event block, Find browses all fighters who may
+be asked. It sorts by family name, given name, then id. An optional name narrows the list when it
+has 2 letters or more, after the search characters are stripped. An optional weapon (a catalog
+weapon id) narrows it too. One read fetches 21 rows: the 21st only sets `more`. The caller's blocks
+go into the query, up to 200; past that, the rest are dropped from the page and a page may run
+short. Find ignores `listed_in_directory`: the FightBook switch is the one control. Every card
+shows the fighter's photo, club and up to 3 declared weapons, favourites first
+(`modules/fighters/fighter-weapon-names.ts`, which throws when its read fails).
+
+**The button never sits in public page data.** The public fighter page and the people lookup are
+open to signed-out visitors, so they carry no FightBook state: `fighters.service.test.ts` pins the
+public keys. The browser loads the button after the page (`ProfileAskToSpar.tsx`,
+`use-askable-at-event.ts`, `AskToSpar.tsx` in `apps/web-public/src/components/fightbook/`). It asks
+`/me` first and reads `askable` only for a signed-in fighter. Any other answer renders nothing, not
+even a sentence. On the people search, an answer for an older list of ids is dropped, so a button
+never lands on a row it did not cover.
+
 ---
 
 ## 12. Authentication & Identity

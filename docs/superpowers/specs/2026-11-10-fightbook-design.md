@@ -80,7 +80,9 @@ have asked for in person.
 - **"Same Event"** = has a `persons` row for that Event (any role — fighters, staff, Workshop-only
   attendees all spar). **Current Event** in Find = the Event the fighter has a `persons` row for
   that is running today (Event clock); if several, a picker; if none, the next upcoming; if none,
-  Find shows everyone without the same-Event block.
+  Find has no Event block. Below the Event block (or alone), Find browses **all FightBook users**
+  (rulings 673, 675): by name, 20 per page with "Show more", narrowed by an optional name and an
+  optional weapon, and every Find card shows the fighter's photo.
 
 - **Find ignores the directory opt-out** (`listed_in_directory`, 0187): Find lists only FightBook
   users, to signed-in FightBook users, so the FightBook switch is the one control (_my call_).
@@ -124,8 +126,10 @@ have asked for in person.
 - **Block** (reworked in review pass 1 — the first version leaked): the blocked fighter is not
   told and **sees nothing change**. They still see your profile and "Ask to spar" button; any
   request they send lands nowhere and ends as "Not this time" on the common rule above. You
-  disappear from _their_ Find and open-call lists only where absence is normal (Find is a ranked
-  subset, never a full roster). Blocking never touches an already agreed spar — you cancel it the
+  stay listed in _their_ Find and still show them "Ask to spar"; their asks end "Not this time"
+  (ruling 672). Your own Find and buttons hide the fighters you blocked. Open-call lists (slice 5)
+  keep the first design: you disappear from _their_ open-call lists only where absence is normal.
+  Blocking never touches an already agreed spar — you cancel it the
   ordinary way if you want to. Pending requests between you end as "Not this time" on the common
   rule. Unblock from a list in FightBook settings.
 - **Reminder**: push 10 minutes before an agreed spar's time, to both fighters (only when a time
