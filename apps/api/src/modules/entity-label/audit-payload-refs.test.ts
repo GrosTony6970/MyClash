@@ -69,6 +69,10 @@ describe('collectPayloadRefs', () => {
         blockBlockerIds: [C],
         blockBlockedIds: [A],
         sparNoteIds: [B],
+        sparThanksIds: [C],
+        sparAnonymousReviewIds: [A],
+        favouriteOwnerIds: [B],
+        favouriteTargetIds: [C],
       },
     });
     expect(refs).toEqual([
@@ -77,6 +81,10 @@ describe('collectPayloadRefs', () => {
       { pointer: '/moved/blockBlockerIds/0', kind: 'fightbook_block', id: C },
       { pointer: '/moved/blockBlockedIds/0', kind: 'fightbook_block', id: A },
       { pointer: '/moved/sparNoteIds/0', kind: 'spar_private_note', id: B },
+      { pointer: '/moved/sparThanksIds/0', kind: 'spar_thanks', id: C },
+      { pointer: '/moved/sparAnonymousReviewIds/0', kind: 'spar_anonymous_review', id: A },
+      { pointer: '/moved/favouriteOwnerIds/0', kind: 'fightbook_favourite', id: B },
+      { pointer: '/moved/favouriteTargetIds/0', kind: 'fightbook_favourite', id: C },
     ]);
   });
 

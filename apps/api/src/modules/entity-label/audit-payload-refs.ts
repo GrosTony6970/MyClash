@@ -95,6 +95,10 @@ export const REF_RULES: readonly RefRule[] = [
   { suffix: ['blockBlockerIds'], kind: 'fightbook_block' },
   { suffix: ['blockBlockedIds'], kind: 'fightbook_block' },
   { suffix: ['sparNoteIds'], kind: 'spar_private_note' },
+  { suffix: ['sparThanksIds'], kind: 'spar_thanks' },
+  { suffix: ['sparAnonymousReviewIds'], kind: 'spar_anonymous_review' },
+  { suffix: ['favouriteOwnerIds'], kind: 'fightbook_favourite' },
+  { suffix: ['favouriteTargetIds'], kind: 'fightbook_favourite' },
   // ── `id` inside a row snapshot — meaningless as a bare leaf name ────────────
   { suffix: ['source', 'id'], kind: 'global_person' },
   { suffix: ['target', 'id'], kind: 'global_person' },

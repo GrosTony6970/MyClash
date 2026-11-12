@@ -34,7 +34,10 @@ export type EntityKind =
   | 'audit_log'
   | 'spar_request'
   | 'fightbook_block'
-  | 'spar_private_note';
+  | 'spar_private_note'
+  | 'spar_thanks'
+  | 'spar_anonymous_review'
+  | 'fightbook_favourite';
 
 type Row = Record<string, unknown>;
 
@@ -205,6 +208,22 @@ export const LABEL_SPECS: Record<Exclude<EntityKind, 'user'>, EntityLabelSpec> =
   },
   spar_private_note: {
     table: 'spar_private_notes',
+    columns: 'id, created_at',
+    label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
+  },
+  // After the spar (0268): a day only, never the stars, a text or who wrote about whom.
+  spar_thanks: {
+    table: 'spar_thanks',
+    columns: 'id, created_at',
+    label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
+  },
+  spar_anonymous_review: {
+    table: 'spar_anonymous_reviews',
+    columns: 'id, created_at',
+    label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
+  },
+  fightbook_favourite: {
+    table: 'fightbook_favourites',
     columns: 'id, created_at',
     label: (r) => nonEmpty(text(r, 'created_at').slice(0, 10)),
   },

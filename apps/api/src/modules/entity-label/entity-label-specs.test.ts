@@ -71,6 +71,10 @@ const EXPECTED: Record<Exclude<EntityKind, 'user'>, { table: string; columns: st
   spar_request: { table: 'spar_requests', columns: 'id, spar_day, status' },
   fightbook_block: { table: 'fightbook_blocks', columns: 'id, created_at' },
   spar_private_note: { table: 'spar_private_notes', columns: 'id, created_at' },
+  // After the spar: a day only, never the stars, a text or a name.
+  spar_thanks: { table: 'spar_thanks', columns: 'id, created_at' },
+  spar_anonymous_review: { table: 'spar_anonymous_reviews', columns: 'id, created_at' },
+  fightbook_favourite: { table: 'fightbook_favourites', columns: 'id, created_at' },
 };
 
 describe('the query each spec sends', () => {
@@ -207,6 +211,14 @@ describe('what a spec makes of a row', () => {
         created_at: '2026-08-19T10:11:12.000Z',
       }),
     ).toBe('match.void · 2026-08-19');
+  });
+
+  it('dates a thank-you, an anonymous review and a favourite to the day, nothing more', () => {
+    const row = { id: 'fb-1', created_at: '2026-11-12T08:09:10.000Z', stars: 5, body: 'Thanks' };
+
+    expect(LABEL_SPECS.spar_thanks.label(row)).toBe('2026-11-12');
+    expect(LABEL_SPECS.spar_anonymous_review.label(row)).toBe('2026-11-12');
+    expect(LABEL_SPECS.fightbook_favourite.label(row)).toBe('2026-11-12');
   });
 });
 
