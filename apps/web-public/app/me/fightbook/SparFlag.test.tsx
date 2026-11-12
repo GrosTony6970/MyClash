@@ -165,6 +165,10 @@ describe('the form', () => {
     await show(spar(), SPAR_DAY);
     await click(LINK);
     expect(button('Send report')!.disabled).toBe(true);
+    // Words with no reason picked: still off.
+    await type(box(), 'Blade was bent');
+    expect(button('Send report')!.disabled).toBe(true);
+    await type(box(), '');
     await act(async () => radios()[1]!.click());
     expect(button('Send report')!.disabled).toBe(true);
     await type(box(), '   ');
