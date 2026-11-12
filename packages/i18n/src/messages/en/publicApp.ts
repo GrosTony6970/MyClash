@@ -1658,6 +1658,7 @@ export const publicApp = {
       close: 'Close',
       sent: 'Request sent',
       seeSpars: 'See my spars',
+      loading: 'Loading…',
     },
   },
   myPhotos: {

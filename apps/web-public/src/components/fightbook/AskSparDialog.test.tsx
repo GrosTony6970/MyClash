@@ -35,13 +35,16 @@ type Answer = { ok: boolean; data?: unknown; kind?: string; status?: number; cod
 let container: HTMLDivElement;
 let root: Root;
 let onSent: ReturnType<typeof vi.fn>;
+let weaponRows = WEAPONS;
 beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   onSent = vi.fn();
+  weaponRows = WEAPONS;
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
   vi.mocked(apiRequest).mockReset();
@@ -51,7 +54,7 @@ function serve(events: unknown, post: Answer = { ok: true, data: { id: 'r-1' } }
   vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {
     if (init?.method === 'POST') return post as never;
     if (path === '/api/v1/me/fightbook/events') return { ok: true, data: events } as never;
-    if (path === '/api/v1/weapons?active=true') return { ok: true, data: WEAPONS } as never;
+    if (path === '/api/v1/weapons?active=true') return { ok: true, data: weaponRows } as never;
     throw new Error(`unexpected request ${path}`);
   });
 }
@@ -196,5 +199,72 @@ describe('AskSparDialog', () => {
     expect(dialog().textContent).not.toContain('Request sent');
     expect((submit() as HTMLButtonElement).disabled).toBe(false);
     expect(onSent).not.toHaveBeenCalled();
+  });
+
+  it('defaults to the Event day that has started when the Event has one', async () => {
+    serve([{ ...EVENTS[0]!, today: '2026-11-15' }]);
+    await openDialog();
+    expect(dialog().querySelectorAll('select')[1]!.value).toBe('2026-11-15');
+    await tick('Longsword');
+    await act(async () => submit().click());
+    await settled();
+    expect(posted()).toMatchObject({ day: '2026-11-15' });
+  });
+
+  it('preselects the first Event when the one she looks at is not hers', async () => {
+    serve(EVENTS);
+    await openDialog('33333333-3333-4333-8333-333333333333');
+    expect(dialog().querySelectorAll('select')[0]!.value).toBe(EVENT_A);
+  });
+
+  it('keeps Send disabled on a free date with no place', async () => {
+    serve([]);
+    await openDialog();
+    await tick('Longsword');
+    expect((submit() as HTMLButtonElement).disabled).toBe(true);
+    await type(dialog().querySelector('input[type="text"]')!, '  ');
+    expect((submit() as HTMLButtonElement).disabled).toBe(true);
+    await type(dialog().querySelector('input[type="text"]')!, 'Salle Voltaire');
+    expect((submit() as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('lets her tick five weapons and no sixth', async () => {
+    weaponRows = ['A', 'B', 'C', 'D', 'E', 'F'].map((name) => ({ id: name, name }));
+    serve([]);
+    await openDialog();
+    for (const name of ['A', 'B', 'C', 'D', 'E']) await tick(name);
+    const sixth = [...dialog().querySelectorAll('label')]
+      .find((l) => l.textContent === 'F')!
+      .querySelector('input')!;
+    expect(sixth.disabled).toBe(true);
+    const fifth = [...dialog().querySelectorAll('label')]
+      .find((l) => l.textContent === 'E')!
+      .querySelector('input')!;
+    expect(fifth.disabled).toBe(false);
+  });
+
+  it('says it is loading while the Events and the weapons are read', async () => {
+    vi.mocked(apiRequest).mockImplementation(() => new Promise(() => undefined));
+    await openDialog();
+    expect(dialog().textContent).toContain('Loading…');
+    expect(dialog().querySelector('input')).toBeNull();
+    expect((submit() as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('starts a free date on her local day, not the UTC day', async () => {
+    const zone = process.env.TZ;
+    process.env.TZ = 'Pacific/Auckland';
+    try {
+      // 11:30 UTC on the 12th is 00:30 on the 13th in Auckland.
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-12T11:30:00Z') });
+      serve([]);
+      await openDialog();
+      const date = dialog().querySelector<HTMLInputElement>('input[type="date"]')!;
+      expect(date.value).toBe('2026-11-13');
+      expect(date.min).toBe('2026-11-13');
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
   });
 });

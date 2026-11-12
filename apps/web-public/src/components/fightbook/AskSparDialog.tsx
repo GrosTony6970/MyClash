@@ -281,7 +281,11 @@ export function AskSparDialog(props: AskSparDialogProps) {
         </p>
       ) : ready ? (
         <AskFields id={id} events={events} catalog={catalog} v={v} />
-      ) : null}
+      ) : (
+        <p role="status" className="text-sm text-muted">
+          {t('publicApp.fightBook.ask.loading')}
+        </p>
+      )}
       {refusal ? (
         <p role="alert" className="mt-3 text-sm text-danger">
           {refusal}
