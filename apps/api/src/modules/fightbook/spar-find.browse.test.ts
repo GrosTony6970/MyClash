@@ -143,11 +143,18 @@ describe('SparFindService.browse', () => {
 });
 
 describe('SparFindService.browse, a name', () => {
-  it.each([undefined, ' a ', '%%', '(('])('reads everyone for %j: no name filter', async (q) => {
-    const { find, supabase } = service();
-    expect(names(await find.browse(MARC, q, undefined, 0))).toEqual(['Julie Alpha', 'Hugo Bravo']);
-    expect(filtersFor(supabase.from, 'global_persons', 'or')).toEqual([]);
-  });
+  // '% a %' is one letter once the wildcards are gone: the trim after stripping them decides it.
+  it.each([undefined, ' a ', '%%', '((', '% a %'])(
+    'reads everyone for %j: no name filter',
+    async (q) => {
+      const { find, supabase } = service();
+      expect(names(await find.browse(MARC, q, undefined, 0))).toEqual([
+        'Julie Alpha',
+        'Hugo Bravo',
+      ]);
+      expect(filtersFor(supabase.from, 'global_persons', 'or')).toEqual([]);
+    },
+  );
 
   it('narrows by given, family or display name, the value sanitized', async () => {
     const { find, supabase } = service();
@@ -177,6 +184,13 @@ describe('SparFindService.browse, a weapon', () => {
     expect(filtersFor(withWeapon.supabase.from, 'global_persons', 'eq')).toContainEqual([
       'fighter_weapons.weapon_id',
       WEAPON,
+    ]);
+
+    const without = service();
+    await without.find.browse(MARC, undefined, undefined, 0);
+    expect(selectsFor(without.supabase.from, 'global_persons')[0]).toBe('id');
+    expect(filtersFor(without.supabase.from, 'global_persons', 'eq')).toEqual([
+      ['fightbook_enabled', true],
     ]);
   });
 });

@@ -14,18 +14,19 @@ import {
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
 const SPAR = '5d0c1f6e-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
+const WEAPON = 'a1000000-0000-4000-8000-000000000001';
 const claimed: Identity = { kind: 'claimed', userId: ACCOUNT, email: null };
 const req = { identity: claimed } as unknown as FastifyRequest;
 
-/** Marc's live profile, FightBook switched OFF. */
-function controller() {
+/** Marc's live profile, FightBook switched OFF unless `on`. */
+function controller({ on = false } = {}) {
   const supabase = mockSupabase({
     global_persons: {
       rows: [
         {
           id: MARC,
           claimed_by_user_id: ACCOUNT,
-          fightbook_enabled: false,
+          fightbook_enabled: on,
           deleted_at: null,
           merged_into_id: null,
           account_deleted_at: null,
@@ -113,6 +114,7 @@ describe('FightBookController, the find routes', () => {
     expect(findQuerySchema.safeParse({}).data).toEqual({});
     expect(findQuerySchema.safeParse({ weapon: SPAR }).data).toEqual({ weapon: SPAR });
     expect(findQuerySchema.safeParse({ weapon: 'Longsword' }).success).toBe(false);
+    expect(findQuerySchema.safeParse({ foo: 'x' }).success).toBe(false);
   });
 
   it('takes a name of up to 80, a weapon uuid and a page from 0 to 500', () => {
@@ -128,6 +130,23 @@ describe('FightBookController, the find routes', () => {
     expect(parse({ page: '1.5' }).success).toBe(false);
     expect(parse({ weapon: 'not-a-uuid' }).success).toBe(false);
     expect(parse({ q: 'x'.repeat(81) }).success).toBe(false);
+    expect(parse({ foo: 'x' }).success).toBe(false);
+  });
+
+  // q and weapon are both optional strings: a swap would still type-check.
+  it('hands the Event block my profile, the Event, the weapon and who reads', async () => {
+    const { ctl, find } = controller({ on: true });
+    await ctl.findAtEvent(SPAR, { weapon: WEAPON } as never, req);
+    expect(find.atEvent).toHaveBeenCalledWith(MARC, SPAR, WEAPON, {
+      userId: ACCOUNT,
+      staff: null,
+    });
+  });
+
+  it('hands the browse my profile, the name, the weapon and the page, in that order', async () => {
+    const { ctl, find } = controller({ on: true });
+    await ctl.browse({ q: 'Julie', weapon: WEAPON, page: 2 } as never, req);
+    expect(find.browse).toHaveBeenCalledWith(MARC, 'Julie', WEAPON, 2);
   });
 });
 
