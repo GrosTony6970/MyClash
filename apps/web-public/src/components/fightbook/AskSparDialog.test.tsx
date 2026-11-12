@@ -168,6 +168,13 @@ describe('AskSparDialog', () => {
     expect(dialog().querySelector('input[type="date"]')).not.toBeNull();
   });
 
+  it('labels the Event select "Event", not the radio\'s "At an Event"', async () => {
+    serve(EVENTS);
+    await openDialog();
+    const select = dialog().querySelector('select')!;
+    expect(dialog().querySelector(`label[for="${select.id}"]`)!.textContent).toBe('Event');
+  });
+
   it('says nothing about Events when she is simply on none', async () => {
     serve([]);
     await openDialog();

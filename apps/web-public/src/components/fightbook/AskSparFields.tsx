@@ -66,7 +66,7 @@ export function EventFields(props: {
   const dayLabel = useDayLabel();
   return (
     <>
-      <Field label={t('publicApp.fightBook.ask.event')} htmlFor={`${props.id}-event`}>
+      <Field label={t('publicApp.fightBook.find.event')} htmlFor={`${props.id}-event`}>
         <select
           id={`${props.id}-event`}
           className={INPUT}
