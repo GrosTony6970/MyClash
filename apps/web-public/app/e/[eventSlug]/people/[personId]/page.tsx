@@ -27,7 +27,10 @@ import { boutPageHref } from '@/lib/bout-page';
 import { personRoleWord, type PersonRole } from '@/lib/person-roles';
 import type { PersonSchedule, ScheduleMatch } from '@/components/me/types';
 import { refereeRoleLabel } from '@/components/me/referee-role';
+import { AskToSpar } from '@/components/fightbook/AskToSpar';
+import { useAskableAtEvent } from '@/components/fightbook/use-askable-at-event';
 import { followRefusal } from './follow-answer';
+import { FollowRow } from './FollowRow';
 import { ThisIsMeCard } from './ThisIsMeCard';
 
 interface PersonProfile {
@@ -66,6 +69,9 @@ export default function PersonProfilePage() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  // Its own flag, not `viewerType`: that starts 'claimed' and stays so when /me fails.
+  const [askerSignedIn, setAskerSignedIn] = useState(false);
+  const askReceiver = useAskableAtEvent(apiUrl, eventId, [personId], askerSignedIn)[personId];
 
   useEffect(() => {
     async function load() {
@@ -102,6 +108,7 @@ export default function PersonProfilePage() {
                 ? 'anonymous'
                 : 'claimed',
           );
+          setAskerSignedIn(me.data.type === 'claimed');
         }
       } catch {
         setLoadFailed(true);
@@ -228,28 +235,21 @@ export default function PersonProfilePage() {
           )}
         </div>
 
-        {/* Follow button */}
-        {profile.allowBeingFollowed ? (
-          <button
-            onClick={() => void handleFollow()}
-            disabled={followLoading}
-            className={[
-              'flex-shrink-0 px-4 py-2 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50',
-              following
-                ? 'bg-surface border border-border text-foreground-secondary hover:border-danger hover:text-danger'
-                : 'text-white',
-            ].join(' ')}
-            style={!following ? { backgroundColor: 'var(--color-accent)' } : {}}
-          >
-            {following
-              ? t('publicApp.following.followingButton')
-              : t('publicApp.following.followButton')}
-          </button>
-        ) : (
-          <p className="text-xs text-muted flex-shrink-0 max-w-[120px] text-right">
-            {t('publicApp.following.prefersNotFollowed')}
-          </p>
-        )}
+        <FollowRow
+          allowBeingFollowed={profile.allowBeingFollowed}
+          following={following}
+          busy={followLoading}
+          onFollow={() => void handleFollow()}
+        >
+          {askReceiver && eventId && (
+            <AskToSpar
+              receiverGlobalPersonId={askReceiver}
+              name={`${profile.givenName} ${profile.familyName}`}
+              eventId={eventId}
+              apiUrl={apiUrl}
+            />
+          )}
+        </FollowRow>
       </div>
 
       {/* "This is me" — entry points into the event-scoped claim flow (the

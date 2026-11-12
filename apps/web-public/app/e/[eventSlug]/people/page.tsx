@@ -12,11 +12,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { NotFoundCard } from '@/components/NotFoundCard';
+import { AskToSpar } from '@/components/fightbook/AskToSpar';
+import { useAskableAtEvent } from '@/components/fightbook/use-askable-at-event';
 import { personRoleWord, type PersonRole } from '@/lib/person-roles';
 import { fetchEventInfo } from '../_components/EventHeader';
 
@@ -53,12 +56,28 @@ export default function PeoplePage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const eventId = event.kind === 'found' ? event.id : null;
+  // "Ask to spar" is read only for a signed-in fighter; a failed /me draws nothing.
+  const [signedIn, setSignedIn] = useState(false);
+  const askable = useAskableAtEvent(
+    apiUrl,
+    eventId,
+    results.map((p) => p.id),
+    signedIn,
+  );
 
   useEffect(() => {
     void fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' }).then((read) =>
       setEvent(read.kind === 'found' ? { kind: 'found', id: read.event.id } : { kind: read.kind }),
     );
   }, [eventSlug, apiUrl, eventAsked]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchMe(apiUrl, { signal: controller.signal }).then((me) =>
+      setSignedIn(me.ok && me.data.type === 'claimed'),
+    );
+    return () => controller.abort();
+  }, [apiUrl]);
 
   const search = useCallback(
     async (q: string) => {
@@ -152,10 +171,14 @@ export default function PeoplePage() {
       {/* Results */}
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
-          {results.map((p) => (
-            <li key={p.id}>
-              <Link href={`/e/${eventSlug}/people/${p.id}`}>
-                <div className="bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
+          {results.map((p) => {
+            const receiver = askable[p.id];
+            return (
+              <li
+                key={p.id}
+                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors"
+              >
+                <Link href={`/e/${eventSlug}/people/${p.id}`} className="min-w-0 flex-1">
                   <p className="font-semibold text-foreground">
                     {p.given_name} {p.family_name}
                   </p>
@@ -172,10 +195,19 @@ export default function PeoplePage() {
                       ))}
                     </div>
                   )}
-                </div>
-              </Link>
-            </li>
-          ))}
+                </Link>
+                {/* Beside the link, never in it: a button inside an anchor is invalid. */}
+                {receiver && eventId && (
+                  <AskToSpar
+                    receiverGlobalPersonId={receiver}
+                    name={`${p.given_name} ${p.family_name}`}
+                    eventId={eventId}
+                    apiUrl={apiUrl}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
