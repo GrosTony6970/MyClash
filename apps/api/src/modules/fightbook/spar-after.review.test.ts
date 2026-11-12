@@ -27,13 +27,15 @@ const row = (status: string) => ({
   expires_at: '2026-05-24T04:00:00+00:00',
 });
 
-function setup(options: { status?: string; review?: ChainResult; note?: ChainResult } = {}) {
+/** `status: null` is a spar id that names no request. */
+function setup(options: { status?: string | null; review?: ChainResult; note?: ChainResult } = {}) {
   const answer = vi.fn(
     (_args: Record<string, unknown>) => options.review ?? { data: null, error: null },
   );
+  const found = options.status === null ? null : row(options.status ?? 'done');
   const supabase = mockSupabase(
     {
-      spar_requests: { data: row(options.status ?? 'done'), error: null },
+      spar_requests: { data: found, error: null },
       spar_private_notes: options.note ?? { data: null, error: null },
     },
     { fightbook_review: answer },
@@ -80,6 +82,20 @@ describe('SparAfterService.review', () => {
     const { service, supabase } = setup();
     await service.review(JULIE, REQUEST, { stars: 5, anonymous: false }, TUESDAY);
     expect(supabase.rpc.mock.calls[0]![1]).toMatchObject({ p_body: null });
+  });
+
+  it('answers 404 to a stranger, or a spar that does not exist, and calls nothing', async () => {
+    const stranger = setup();
+    await expect(
+      stranger.service.review(PAUL, REQUEST, { stars: 3, anonymous: false }, TUESDAY),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(selectsFor(stranger.supabase.from, 'spar_requests')).toEqual([SELECT]);
+    expect(stranger.supabase.rpc).not.toHaveBeenCalled();
+    const missing = setup({ status: null });
+    await expect(
+      missing.service.review(JULIE, REQUEST, { stars: 3, anonymous: false }, TUESDAY),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(missing.supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('answers 409 not_open when the database refuses', async () => {

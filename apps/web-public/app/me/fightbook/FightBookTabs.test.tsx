@@ -276,6 +276,17 @@ describe('My spars', () => {
     expect(container.textContent).toContain('Injured');
   });
 
+  it('never reads a done spar as cancelled, and offers no Cancel on it', async () => {
+    search = new URLSearchParams('tab=spars');
+    serve([], { spars: [spar('s-1', { status: 'done' })], sent: [] });
+    await open();
+    expect(container.textContent).toContain('Marc Probe');
+    expect(container.textContent).not.toContain('Spar cancelled');
+    expect(container.textContent).not.toContain('cancelled this spar');
+    const buttons = [...container.querySelectorAll('button')].map((b) => b.textContent);
+    expect(buttons).not.toContain('Cancel the spar');
+  });
+
   it('shows a sent "Not this time" the same way, with a comment only when shown', async () => {
     search = new URLSearchParams('tab=spars');
     const base = {

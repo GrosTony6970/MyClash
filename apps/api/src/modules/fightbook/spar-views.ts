@@ -7,7 +7,7 @@ import type {
   SparReview,
   SparStatus,
 } from '@myclash/types';
-import { sparWindows } from './spar-after.service';
+import { sparWindows } from './spar-windows';
 
 /** The `spar_requests` columns the FightBook reads select (`spar-reads.service.ts`). */
 export interface SparRow {

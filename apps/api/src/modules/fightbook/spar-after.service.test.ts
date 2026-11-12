@@ -6,7 +6,7 @@ import {
   writesTo,
   type ChainResult,
 } from '../../common/testing/supabase-chain';
-import { SparAfterService, sparWindows } from './spar-after.service';
+import { SparAfterService } from './spar-after.service';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const JULIE = '1c8d4b63-8e6a-4b68-8a66-2c2a4a6d3b12';
@@ -59,26 +59,6 @@ async function codeOf(promise: Promise<unknown>): Promise<[number, string | unde
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-describe('sparWindows', () => {
-  it('opens at the Event day start, cancels until the day ends, marks two days longer', () => {
-    expect(sparWindows(PARIS_ROW)).toEqual({
-      markFrom: new Date('2026-05-22T22:00:00Z'),
-      cancelUntil: new Date('2026-05-24T04:00:00Z'),
-      markUntil: new Date('2026-05-26T04:00:00Z'),
-    });
-  });
-
-  it('opens a free-date spar at the midnight of its own place, not the asker’s', () => {
-    const montreal = {
-      spar_day: '2026-05-23',
-      zone: 'America/Montreal',
-      expires_at: '2026-05-24T04:00:00+00:00',
-    };
-    expect(sparWindows(montreal).markFrom).toEqual(new Date('2026-05-23T04:00:00Z'));
-    expect(sparWindows(montreal).markFrom).not.toEqual(SATURDAY_MIDNIGHT);
-  });
-});
 
 describe('SparAfterService.markDone', () => {
   it('answers not_open before the spar day starts, and writes nothing', async () => {

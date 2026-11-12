@@ -1,45 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { dayStartUtcIso } from '@myclash/time';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { notOpen, readMySide } from './spar-side';
 import { notifySparMarkedDone, type SparNoticeDeps } from './spar-notices';
 import { databaseRefusal } from './spar-requests.service';
+import { MARK_GRACE_MS, sparWindows } from './spar-windows';
 
 /** A thank-you or an anonymous review, as the route's body carries it (validated there). */
 export interface SparReviewInput {
   stars: number;
   text?: string;
   anonymous: boolean;
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** "We sparred" and its undo stay open this long after the spar day ends (rulings 680, 681). */
-export const MARK_GRACE_MS = 2 * DAY_MS;
-
-/** What a spar request's own columns say about when each after-the-spar action is open. */
-export interface SparWindows {
-  /** 00:00 of the spar day on the spar's own clock: "We sparred" opens. */
-  markFrom: Date;
-  /** Two days after the day ends: "We sparred" and its undo close; a review opens. */
-  markUntil: Date;
-  /** The day's end: a cancel closes. */
-  cancelUntil: Date;
-}
-
-/** The windows, from the row alone, on the row's own `zone` (a free-date spar keeps its place's clock). */
-export function sparWindows(row: {
-  spar_day: string;
-  zone: string;
-  expires_at: string;
-}): SparWindows {
-  const ends = new Date(row.expires_at);
-  const from = dayStartUtcIso(row.spar_day, row.zone, 0);
-  return {
-    markFrom: from ? new Date(from) : ends,
-    markUntil: new Date(ends.getTime() + MARK_GRACE_MS),
-    cancelUntil: ends,
-  };
 }
 
 /**
@@ -76,10 +47,10 @@ export class SparAfterService {
 
   /**
    * A signed thank-you, or an anonymous review (stars only: its text is never sent), on a done
-   * spar from two days after its end (rulings 683, 690). One database call, judged on the API's
-   * `now`: `fightbook_review` (0267) checks the side, the status, the window and the one review
-   * per writer, and answers `not_open` for each, a stranger included (it says nothing of whether
-   * the spar exists).
+   * spar from two days after its end (rulings 683, 690). A stranger, or an id that names no
+   * spar, gets 404 like every spar route. Then one database call, judged on the API's `now`:
+   * `fightbook_review` (0267) re-checks the side under its lock and checks the status, the window
+   * and the one review per writer, answering `not_open` for each.
    */
   async review(
     me: string,
@@ -87,6 +58,7 @@ export class SparAfterService {
     input: SparReviewInput,
     now = new Date(),
   ): Promise<void> {
+    await readMySide(this.supabase.service, me, requestId);
     const { error } = await this.supabase.service.rpc('fightbook_review', {
       p_request: requestId,
       p_author: me,

@@ -17,28 +17,37 @@ function byDay(spars: AgreedSpar[]): Array<[string, AgreedSpar[]]> {
   return [...days.entries()];
 }
 
+/** One case per status, no default: a new status fails the build here, not on screen. */
 function AgreedNote({ spar }: { spar: AgreedSpar }) {
   const { t } = useI18n();
-  if (spar.status === 'agreed') {
-    return (
-      <p className="text-muted">
-        {spar.iAsked
-          ? t('publicApp.fightBook.spars.youAsked')
-          : t('publicApp.fightBook.spars.theyAsked')}
-      </p>
-    );
+  const status = spar.status;
+  switch (status) {
+    case 'agreed':
+      return (
+        <p className="text-muted">
+          {spar.iAsked
+            ? t('publicApp.fightBook.spars.youAsked')
+            : t('publicApp.fightBook.spars.theyAsked')}
+        </p>
+      );
+    case 'done':
+      // The after-the-spar block comes with its own surface (slice 3, Task 8).
+      return null;
+    case 'cancelled':
+      return (
+        <>
+          <p className="font-semibold text-danger">{t('publicApp.fightBook.spars.cancelled')}</p>
+          <p className="text-muted">
+            {spar.cancelledByMe
+              ? t('publicApp.fightBook.spars.cancelledByYou')
+              : t('publicApp.fightBook.spars.cancelledByThem')}
+          </p>
+          {spar.cancelMessage ? <p className="italic text-muted">{spar.cancelMessage}</p> : null}
+        </>
+      );
   }
-  return (
-    <>
-      <p className="font-semibold text-danger">{t('publicApp.fightBook.spars.cancelled')}</p>
-      <p className="text-muted">
-        {spar.cancelledByMe
-          ? t('publicApp.fightBook.spars.cancelledByYou')
-          : t('publicApp.fightBook.spars.cancelledByThem')}
-      </p>
-      {spar.cancelMessage ? <p className="italic text-muted">{spar.cancelMessage}</p> : null}
-    </>
-  );
+  const unknown: never = status;
+  return unknown;
 }
 
 function SentNote({ request }: { request: SentSparRequest }) {
