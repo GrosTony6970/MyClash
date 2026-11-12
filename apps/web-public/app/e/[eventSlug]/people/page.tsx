@@ -120,6 +120,14 @@ export default function PeoplePage() {
   // An Event the visitor may not read, or none: the site's "not found", which renews a lapsed login.
   if (event.kind === 'notFound') return <NotFoundCard renewLogin />;
   const failed = event.kind === 'failed' || searchFailed;
+  // Under 2 letters the rows go at once, and the search in flight with them: waiting for the
+  // debounce left 250 ms in which its answer could paint the old rows.
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    if (value.trim().length >= 2) return;
+    abortRef.current?.abort();
+    setResults([]);
+  };
   const tryAgain = () => {
     if (event.kind !== 'failed') return void search(query);
     setEvent({ kind: 'loading' });
@@ -141,7 +149,7 @@ export default function PeoplePage() {
           aria-label={t('publicApp.people.searchPlaceholder')}
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => changeQuery(e.target.value)}
           placeholder={t('publicApp.people.searchPlaceholder')}
           className="w-full bg-surface border border-border text-foreground placeholder:text-muted
                      px-4 py-3 text-base rounded-xl

@@ -150,6 +150,24 @@ describe('the people search', () => {
     await wait(0);
     expect(rows()).toHaveLength(0);
   });
+
+  it('clears the rows the moment the search drops under 2 letters', async () => {
+    await show();
+    await search('Pau', [PAUL]);
+    expect(rows()).toHaveLength(1);
+    await type('P');
+    expect(rows()).toHaveLength(0);
+  });
+
+  it('paints nothing from an answer that lands inside the debounce after a clear', async () => {
+    await show();
+    await type('Pau');
+    await wait(300);
+    await type('P');
+    await act(async () => lookups[0]?.answer([PAUL]));
+    await wait(0);
+    expect(rows()).toHaveLength(0);
+  });
 });
 
 describe('"Ask to spar" on the people search', () => {
