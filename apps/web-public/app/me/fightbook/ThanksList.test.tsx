@@ -7,6 +7,7 @@ import type * as ApiClient from '@myclash/api-client';
 import type { ThankYou, ThanksPage } from '@myclash/types';
 // Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
 import { I18nProvider } from '../../../src/i18n/I18nProvider';
+import { MySparsTab } from './MySparsTab';
 import { ThanksList } from './ThanksList';
 
 /** The thank-yous Hugo received, newest first, 20 a page with "Show more" (the Find pattern). */
@@ -178,6 +179,31 @@ describe('The thank-yous you received', () => {
     );
     await settled();
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(names()).toEqual(['Probe Fighter 1']);
+  });
+
+  it('with no spar in the last 30 days, My spars says so and still lists the thank-yous', async () => {
+    serve({ [P0]: page([thank(1)], false) });
+    const noop = vi.fn();
+    await act(async () =>
+      root.render(
+        <I18nProvider locale="en">
+          <MySparsTab
+            apiUrl="http://api.test"
+            spars={{ spars: [], sent: [] }}
+            onCancelled={noop}
+            onWithdrawn={noop}
+            onMarked={noop}
+            onUndone={noop}
+            onReviewed={noop}
+            onNoted={noop}
+            onStale={noop}
+          />
+        </I18nProvider>,
+      ),
+    );
+    await settled();
+    expect(container.textContent).toContain('No spar yet');
     expect(names()).toEqual(['Probe Fighter 1']);
   });
 });

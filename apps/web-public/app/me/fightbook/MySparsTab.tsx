@@ -136,11 +136,15 @@ export function MySparsTab(
   const actions = useSparActions(props.apiUrl, props.onCancelled, props.onWithdrawn, props.onStale);
   const { spars, sent } = props.spars;
   if (spars.length === 0 && sent.length === 0) {
+    // My spars looks back 30 days only; thank-yous have no such bound, so they still show.
     return (
-      <EmptyState
-        title={t('publicApp.fightBook.spars.empty')}
-        description={t('publicApp.fightBook.spars.emptyDescription')}
-      />
+      <div className="flex flex-col gap-4">
+        <EmptyState
+          title={t('publicApp.fightBook.spars.empty')}
+          description={t('publicApp.fightBook.spars.emptyDescription')}
+        />
+        <ThanksList apiUrl={props.apiUrl} />
+      </div>
     );
   }
   return (

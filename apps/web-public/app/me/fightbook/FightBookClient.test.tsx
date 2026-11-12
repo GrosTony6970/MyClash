@@ -94,6 +94,7 @@ describe('FightBookClient', () => {
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: { hasProfile: true, enabled: false } },
       'GET /api/v1/me/fightbook/spars': { ok: true, data: { spars: [], sent: [] } },
+      'GET /api/v1/me/fightbook/thanks?page=0': ON['GET /api/v1/me/fightbook/thanks?page=0'],
     });
     await open();
     expect(container.textContent).toContain('FightBook is off');
