@@ -85,6 +85,13 @@ function service({ insider = false } = {}) {
     global_persons: { rows: fighters },
     // I blocked Charlie; Bravo blocked me, which must change nothing I see (ruling 672).
     fightbook_blocks: { rows: [block(MARC, BLOCKED), block(BLOCKER, MARC)] },
+    // Marc hearted Julie; Julie hearted Bravo, which Marc must not see.
+    fightbook_favourites: {
+      rows: [
+        { owner_global_person_id: MARC, favourite_global_person_id: JULIE },
+        { owner_global_person_id: JULIE, favourite_global_person_id: BLOCKER },
+      ],
+    },
     events: { rows: [event(EVENT), event(OTHER_EVENT), event(DRAFT_EVENT, { status: 'draft' })] },
     persons: { rows: persons },
     fighter_weapons: {
@@ -132,10 +139,12 @@ describe('SparFindService.atEvent', () => {
       {
         fighter: { globalPersonId: JULIE, name: 'alpha Fighter', photoUrl: null, club: 'Club A' },
         weapons: ['Longsword', 'Sabre', 'Rapier'],
+        favourite: true,
       },
       {
         fighter: { globalPersonId: BLOCKER, name: 'Bravo Fighter', photoUrl: null, club: null },
         weapons: [],
+        favourite: false,
       },
     ]);
   });
@@ -213,6 +222,7 @@ describe('SparFindService.atEvent, a large Event', () => {
         ),
       },
       fightbook_blocks: { rows: [] },
+      fightbook_favourites: { rows: [] },
       events: { rows: [event(EVENT)] },
       persons: { rows: [roster('p-me', EVENT, MARC), ...big.map((gp) => roster(gp, EVENT, gp))] },
       fighter_weapons: { rows: [] },
@@ -248,6 +258,7 @@ describe('SparFindService.atEvent, a roster longer than one read', () => {
     const supabase = mockSupabase({
       global_persons: { rows: fighters },
       fightbook_blocks: { rows: [] },
+      fightbook_favourites: { rows: [] },
       events: { rows: [event(EVENT)] },
       persons: { rows: [...fillers, roster('p-julie', EVENT, JULIE), roster('p-me', EVENT, MARC)] },
       fighter_weapons: { rows: [] },

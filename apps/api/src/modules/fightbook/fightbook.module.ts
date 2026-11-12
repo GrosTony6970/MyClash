@@ -3,6 +3,7 @@ import { NotificationSchedulingModule } from '../notifications/notification-sche
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { FightBookBlocksService } from './fightbook-blocks.service';
 import { FightBookAfterController } from './fightbook-after.controller';
+import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { FightBookController } from './fightbook.controller';
 import { FightBookSettingsService } from './fightbook-settings.service';
 import { SparAfterService } from './spar-after.service';
@@ -28,6 +29,7 @@ import { SparThanksService } from './spar-thanks.service';
     SparFindService,
     SparAfterService,
     SparThanksService,
+    FightBookFavouritesService,
   ],
 })
 export class FightBookModule {}

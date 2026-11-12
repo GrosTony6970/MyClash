@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
-import { fightBookOnFighters } from './spar-askable';
+import { askableFighters, favouritesOf, fightBookOnFighters } from './spar-askable';
 import { readSparEventNames, readSparFighters, unknownSparFighter } from './spar-fighters';
 import { SparThanksService } from './spar-thanks.service';
 import { NO_EXTRAS, toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
@@ -59,7 +59,7 @@ export class SparReadsService {
    * My agreed, cancelled and done spars, both ways, each with what was written on it, then the
    * requests I sent and their answer.
    */
-  async mySpars(me: string, now = new Date()): Promise<MySpars> {
+  async mySpars(me: string, enabled: boolean, now = new Date()): Promise<MySpars> {
     const since = addDays(now.toISOString().slice(0, 10), -LOOK_BACK_DAYS) ?? '';
     const [asked, wasAsked, sent] = await Promise.all([
       this.sparsOf('asker_global_person_id', me, since),
@@ -67,17 +67,18 @@ export class SparReadsService {
       this.sentBy(me, since),
     ]);
     const spars = [...asked, ...wasAsked].sort(byDayThenTime);
-    const [{ fighters, events }, extras] = await Promise.all([
+    const partner = (row: SparRow) =>
+      row.asker_global_person_id === me
+        ? row.receiver_global_person_id
+        : row.asker_global_person_id;
+    const [{ fighters, events }, extras, hearts] = await Promise.all([
       this.cards([...spars, ...sent]),
       this.thanks.cardExtras(
         me,
         spars.map((row) => row.id),
       ),
+      this.hearts(me, enabled, spars.map(partner)),
     ]);
-    const partner = (row: SparRow) =>
-      row.asker_global_person_id === me
-        ? row.receiver_global_person_id
-        : row.asker_global_person_id;
     const card = (row: SparRow) =>
       toAgreed(
         row,
@@ -85,6 +86,7 @@ export class SparReadsService {
         fighters(partner(row)),
         events(row.event_id),
         extras.get(row.id) ?? NO_EXTRAS,
+        hearts(partner(row)),
       );
     return {
       spars: spars.map(card),
@@ -92,6 +94,24 @@ export class SparReadsService {
         toSent(row, fighters(row.receiver_global_person_id), events(row.event_id), now),
       ),
     };
+  }
+
+  /**
+   * Is each partner in my favourites? Null (no heart) when I have FightBook off, or the partner
+   * is not someone I may ask (off, gone or blocked by me). Two reads, none when off.
+   */
+  private async hearts(
+    me: string,
+    enabled: boolean,
+    partners: string[],
+  ): Promise<(partner: string) => boolean | null> {
+    if (!enabled || partners.length === 0) return () => null;
+    const db = this.supabase.service;
+    const [askable, favourites] = await Promise.all([
+      askableFighters(db, me, partners),
+      favouritesOf(db, me),
+    ]);
+    return (partner) => (askable.has(partner) ? favourites.has(partner) : null);
   }
 
   private async sparsOf(

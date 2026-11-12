@@ -59,6 +59,13 @@ function service({
   const supabase = mockSupabase({
     global_persons: { rows },
     fightbook_blocks: { rows: blocks },
+    // Marc hearted Julie; Julie hearted Bravo, which Marc must not see.
+    fightbook_favourites: {
+      rows: [
+        { owner_global_person_id: MARC, favourite_global_person_id: JULIE },
+        { owner_global_person_id: JULIE, favourite_global_person_id: BLOCKER },
+      ],
+    },
     fighter_weapons: {
       rows: [
         {
@@ -85,10 +92,12 @@ describe('SparFindService.browse', () => {
         {
           fighter: { globalPersonId: JULIE, name: 'Julie Alpha', photoUrl: null, club: null },
           weapons: ['Sabre'],
+          favourite: true,
         },
         {
           fighter: { globalPersonId: BLOCKER, name: 'Hugo Bravo', photoUrl: null, club: null },
           weapons: [],
+          favourite: false,
         },
       ],
       more: false,

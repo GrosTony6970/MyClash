@@ -204,7 +204,8 @@ export class FightBookController {
   @Get('spars')
   @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
   async spars(@Req() req: FastifyRequest) {
-    return this.reads.mySpars(requireProfile(await this.caller(req)));
+    const caller = await this.caller(req);
+    return this.reads.mySpars(requireProfile(caller), caller.enabled);
   }
 
   // Blocks need a profile, not the switch: a fighter who turned FightBook off still manages them.

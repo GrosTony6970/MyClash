@@ -151,7 +151,7 @@ describe('SparReadsService.mySpars', () => {
       request('swept', { status: 'not_this_time', expires_at: '2026-05-21T04:00:00Z' }),
       request('unswept', { status: 'pending', expires_at: '2026-05-21T04:00:00Z' }),
     ]);
-    const { sent } = await reads.mySpars(MARC, NOW);
+    const { sent } = await reads.mySpars(MARC, false, NOW);
     expect(sent).toHaveLength(4);
     const bodies = sent.map(({ id: _id, ...rest }) => JSON.stringify(rest));
     expect(new Set(bodies).size).toBe(1);
@@ -164,7 +164,7 @@ describe('SparReadsService.mySpars', () => {
       request('far', { spar_day: '2026-06-12', created_at: '2026-04-12T10:00:00Z' }),
       request('old', { status: 'not_this_time', spar_day: '2026-04-10' }),
     ]);
-    const { sent } = await reads.mySpars(MARC, NOW);
+    const { sent } = await reads.mySpars(MARC, false, NOW);
     expect(sent.map((s) => s.id)).toEqual(['far']);
     expect(filtersFor(supabase.from, 'spar_requests', 'gte')).toEqual([
       ['spar_day', '2026-04-22'],
@@ -194,7 +194,7 @@ describe('SparReadsService.mySpars', () => {
       }),
       request('to-marc', { asker_global_person_id: JULIE, receiver_global_person_id: MARC }),
     ]);
-    const { spars, sent } = await reads.mySpars(MARC, NOW);
+    const { spars, sent } = await reads.mySpars(MARC, false, NOW);
     expect(spars.map((s) => [s.id, s.partner.name, s.iAsked, s.status, s.cancelledByMe])).toEqual([
       ['theirs', 'Paul Probe', false, 'cancelled', false],
       ['mine', 'Julie P.', true, 'agreed', null],

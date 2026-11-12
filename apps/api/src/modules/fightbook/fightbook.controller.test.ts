@@ -68,7 +68,7 @@ describe('FightBookController, a fighter who switched FightBook off', () => {
   it('still reads My spars (ruling 666: Julie keeps the Saturday she agreed)', async () => {
     const { ctl, reads } = controller();
     await ctl.spars(req);
-    expect(reads.mySpars).toHaveBeenCalledWith(MARC);
+    expect(reads.mySpars).toHaveBeenCalledWith(MARC, false);
   });
 
   it('still cancels an agreed spar', async () => {

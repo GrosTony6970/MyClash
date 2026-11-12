@@ -1,6 +1,7 @@
 import { apiRequest, failureCode } from '@myclash/api-client';
 import type {
   FightBookBlock,
+  FightBookAskable,
   FightBookEvent,
   FightBookSettings,
   FindCard,
@@ -70,10 +71,10 @@ const isCard = (v: unknown) => isObject(v) && isObject(v['fighter']) && Array.is
 
 /** Slice 2: may I ask this fighter? Anything but `{ askable: true }` draws no button. */
 export const readAskableFighter = (apiUrl: string, globalPersonId: string, signal?: AbortSignal) =>
-  read<{ askable: boolean }>(
+  read<FightBookAskable>(
     apiUrl,
     `/api/v1/me/fightbook/fighters/${encodeURIComponent(globalPersonId)}/askable`,
-    (v) => isObject(v) && typeof v['askable'] === 'boolean',
+    (v) => isObject(v) && typeof v['askable'] === 'boolean' && typeof v['favourite'] === 'boolean',
     signal,
   );
 

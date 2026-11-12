@@ -38,7 +38,12 @@ function controller(profile = true) {
   };
   const thanks = { received: vi.fn(async () => ({ items: [], more: false })) };
   return {
-    ctl: new FightBookAfterController(supabase as never, after as never, thanks as never),
+    ctl: new FightBookAfterController(
+      supabase as never,
+      after as never,
+      thanks as never,
+      {} as never,
+    ),
     after,
     thanks,
   };

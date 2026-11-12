@@ -6,6 +6,7 @@
  * POST /me/fightbook/requests/:id/review — a thank-you, or an anonymous review, on a done spar
  * PUT  /me/fightbook/requests/:id/note — my private note on a done spar; null deletes it
  * GET  /me/fightbook/thanks?page= — the signed thank-yous I received, newest first
+ * GET|PUT|DELETE /me/fightbook/favourites[/:globalPersonId] — my private hearts (FightBook on)
  *
  * Each handler starts with `caller()`, as the first FightBook controller does. A profile is enough,
  * not the switch (ruling 666): a fighter who switched off still finishes the spars they agreed.
@@ -13,6 +14,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -28,7 +30,13 @@ import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { SupabaseService } from '../supabase/supabase.service';
-import { fightBookCaller, requireProfile, type FightBookCaller } from './fightbook-caller';
+import {
+  fightBookCaller,
+  requireFightBookOn,
+  requireProfile,
+  type FightBookCaller,
+} from './fightbook-caller';
+import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { SparAfterService } from './spar-after.service';
 import { SparThanksService } from './spar-thanks.service';
 
@@ -62,6 +70,7 @@ export class FightBookAfterController {
     private readonly supabase: SupabaseService,
     private readonly after: SparAfterService,
     private readonly thanks: SparThanksService,
+    private readonly favouritesService: FightBookFavouritesService,
   ) {}
 
   @Post('requests/:id/done')
@@ -108,6 +117,35 @@ export class FightBookAfterController {
   @ApiOperation({ summary: 'The thank-yous I received, newest first, 20 a page' })
   async receivedThanks(@Query() query: ThanksQueryDto, @Req() req: FastifyRequest) {
     return this.thanks.received(requireProfile(await this.caller(req)), query.page);
+  }
+
+  // Favourites need the switch on (ruling 679): a private heart on someone you can ask.
+  @Get('favourites')
+  @ApiOperation({ summary: 'My favourite FightBook users, by name' })
+  async favourites(@Req() req: FastifyRequest) {
+    return this.favouritesService.list(requireFightBookOn(await this.caller(req)));
+  }
+
+  @Put('favourites/:globalPersonId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Heart a FightBook user' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async addFavourite(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.favouritesService.add(requireFightBookOn(await this.caller(req)), globalPersonId);
+  }
+
+  @Delete('favourites/:globalPersonId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Take the heart off a FightBook user' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async removeFavourite(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.favouritesService.remove(requireFightBookOn(await this.caller(req)), globalPersonId);
   }
 
   /** The caller: 401 signed out, 403 not a personal account (fightbook-caller.ts). */

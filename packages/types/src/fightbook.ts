@@ -131,6 +131,14 @@ export interface FindCard {
   fighter: SparFighter;
   /** Weapon names, favourites first, at most 3. */
   weapons: string[];
+  /** Is this fighter in the caller's favourites (a private heart, ruling 679)? */
+  favourite: boolean;
+}
+
+/** May the caller ask this fighter for a spar, and have they hearted them (profile page)? */
+export interface FightBookAskable {
+  askable: boolean;
+  favourite: boolean;
 }
 
 /** One page of all of FightBook; `more` when a further page has someone on it. */
@@ -155,6 +163,7 @@ export const SPAR_REFUSAL_CODES = [
   'bad_event',
   'bad_answer',
   'self',
+  'favourites_full',
 ] as const;
 
 export type SparRefusalCode = (typeof SPAR_REFUSAL_CODES)[number];

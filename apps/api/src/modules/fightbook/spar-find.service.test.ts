@@ -86,6 +86,7 @@ function service({ theyBlockedMe = true, insider = false } = {}) {
   });
   const supabase = mockSupabase({
     global_persons: { rows: fighters },
+    fightbook_favourites: { rows: [] },
     fightbook_blocks: {
       rows: [block(MARC, BLOCKED), ...(theyBlockedMe ? [block(BLOCKER, MARC)] : [])],
     },
@@ -121,7 +122,7 @@ const askable = async (target: string, theyBlockedMe = true) =>
 describe('SparFindService.askableFighter', () => {
   it('says yes for a live, claimed fighter with FightBook on', async () => {
     const { find, supabase } = service();
-    expect(await find.askableFighter(MARC, JULIE)).toEqual({ askable: true });
+    expect(await find.askableFighter(MARC, JULIE)).toEqual({ askable: true, favourite: false });
     expect(selectsFor(supabase.from, 'global_persons')).toEqual(['id']);
     expect(filtersFor(supabase.from, 'global_persons', 'in')).toEqual([['id', [JULIE]]]);
     expect(filtersFor(supabase.from, 'global_persons', 'eq')).toEqual([

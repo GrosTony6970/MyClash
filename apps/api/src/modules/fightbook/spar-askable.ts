@@ -110,6 +110,30 @@ export async function blockedBy(db: Db, me: string): Promise<Set<string>> {
   );
 }
 
+/** The most favourites a fighter keeps: the PUT's cap, and what one read of them returns. */
+export const FAVOURITES_MAX = 200;
+
+/**
+ * The fighters `me` hearted: one read, `me` as the owner only, at most `FAVOURITES_MAX`. Callers
+ * must not assume fewer rows exist than the read returns. The WRITE side is bounded by the PUT's
+ * count check (`FightBookFavouritesService.add`); two racing PUTs may land 201, and a fighter
+ * merge moves favourites over (0268) and may push someone past the cap. Both are accepted: a
+ * reader sees the first 200 and nothing breaks.
+ */
+export async function favouritesOf(db: Db, me: string): Promise<Set<string>> {
+  const { data, error } = await db
+    .from('fightbook_favourites')
+    .select('favourite_global_person_id')
+    .eq('owner_global_person_id', me)
+    .limit(FAVOURITES_MAX);
+  if (error) throw new Error(`FightBook favourites read failed: ${error.message}`);
+  return new Set(
+    ((data ?? []) as Array<{ favourite_global_person_id: string }>).map(
+      (row) => row.favourite_global_person_id,
+    ),
+  );
+}
+
 /** Is `me` on this Event's roster (a `persons` row of theirs there)? */
 export async function isOnEventRoster(db: Db, me: string, eventId: string): Promise<boolean> {
   const { data, error } = await db

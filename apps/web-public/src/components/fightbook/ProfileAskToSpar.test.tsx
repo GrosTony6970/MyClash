@@ -60,7 +60,10 @@ async function show(fighterId = MARC) {
 describe('ProfileAskToSpar', () => {
   it('draws the button for a signed-in fighter who may be asked', async () => {
     signedAs('claimed');
-    vi.mocked(apiRequest).mockResolvedValue({ ok: true, data: { askable: true } } as never);
+    vi.mocked(apiRequest).mockResolvedValue({
+      ok: true,
+      data: { askable: true, favourite: false },
+    } as never);
     await show();
     expect(container.querySelector('button')).not.toBeNull();
     expect(askableReads()).toHaveLength(1);
@@ -78,7 +81,7 @@ describe('ProfileAskToSpar', () => {
     ['a 403', { ok: false, kind: 'unauthenticated', status: 403 }],
     ['a failure', { ok: false, kind: 'network' }],
     ['an empty body', { ok: true, data: {} }],
-    ['askable false', { ok: true, data: { askable: false } }],
+    ['askable false', { ok: true, data: { askable: false, favourite: false } }],
   ])('draws nothing for %s', async (_label, answer) => {
     signedAs('claimed');
     vi.mocked(apiRequest).mockResolvedValue(answer as never);

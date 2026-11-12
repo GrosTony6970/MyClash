@@ -136,11 +136,11 @@ describe('SparThanksService.cardExtras', () => {
   it('an anonymous review by the partner about me leaves my card deep-equal to the card without it', async () => {
     // Julie reviews Marc anonymously: his card must not change by one byte, or it names her.
     const spars = [spar(WITH_JULIE)];
-    const without = await setup({ spars }).reads.mySpars(MARC, NOW);
+    const without = await setup({ spars }).reads.mySpars(MARC, false, NOW);
     const withIt = await setup({
       spars,
       anonymous: [review(WITH_JULIE, JULIE, MARC, 1)],
-    }).reads.mySpars(MARC, NOW);
+    }).reads.mySpars(MARC, false, NOW);
     expect(withIt).toEqual(without);
     expect(withIt.spars[0]).toMatchObject({ status: 'done', theirThanks: null, myReview: null });
   });
@@ -151,7 +151,7 @@ describe('SparThanksService.cardExtras', () => {
       thanks: [review(WITH_JULIE, JULIE, MARC, 4, 'Thanks!')],
       notes: [{ spar_request_id: WITH_JULIE, author_global_person_id: MARC, body: 'Guard' }],
     });
-    const { spars } = await reads.mySpars(MARC, NOW);
+    const { spars } = await reads.mySpars(MARC, false, NOW);
     expect(spars[0]).toMatchObject({
       status: 'done',
       markFrom: '2026-05-22T22:00:00.000Z',

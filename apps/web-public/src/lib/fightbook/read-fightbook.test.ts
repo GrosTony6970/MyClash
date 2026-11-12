@@ -56,12 +56,16 @@ describe('the slice 2 reads', () => {
   const card = {
     fighter: { globalPersonId: 'g', name: 'N', photoUrl: null, club: null },
     weapons: [],
+    favourite: false,
   };
   const path = () => vi.mocked(apiRequest).mock.calls[0]?.[1];
 
   it('readAskableFighter needs a boolean askable', async () => {
-    answer({ ok: true, data: { askable: false } });
-    expect(await readAskableFighter(B, 'g-1')).toEqual({ kind: 'data', data: { askable: false } });
+    answer({ ok: true, data: { askable: false, favourite: false } });
+    expect(await readAskableFighter(B, 'g-1')).toEqual({
+      kind: 'data',
+      data: { askable: false, favourite: false },
+    });
     expect(path()).toBe('/api/v1/me/fightbook/fighters/g-1/askable');
     answer({ ok: true, data: { askable: 'yes' } });
     expect(await readAskableFighter(B, 'g-1')).toEqual({ kind: 'failed' });

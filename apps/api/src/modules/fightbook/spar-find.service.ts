@@ -9,6 +9,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { IN_LIST_MAX, inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 import { addDays, zonedDay } from '@myclash/time';
 import type {
+  FightBookAskable,
   FightBookEvent,
   FindCard,
   FindPage,
@@ -20,6 +21,7 @@ import {
   applyWeapon,
   askableFighters,
   blockedBy,
+  favouritesOf,
   isOnEventRoster,
   weaponColumns,
 } from './spar-askable';
@@ -33,7 +35,7 @@ const FIND_PAGE_SIZE = 20;
 const AT_EVENT_MAX = 200;
 
 /** By name, ignoring case and accents; the id breaks a tie, so the order never wobbles. */
-const byName = (a: SparFighter, b: SparFighter): number =>
+export const byName = (a: SparFighter, b: SparFighter): number =>
   a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) ||
   a.globalPersonId.localeCompare(b.globalPersonId);
 
@@ -82,9 +84,13 @@ export class SparFindService {
   ) {}
 
   /** May `me` ask this fighter (the profile page)? */
-  async askableFighter(me: string, globalPersonId: string): Promise<{ askable: boolean }> {
-    const askable = await askableFighters(this.supabase.service, me, [globalPersonId]);
-    return { askable: askable.has(globalPersonId) };
+  async askableFighter(me: string, globalPersonId: string): Promise<FightBookAskable> {
+    const db = this.supabase.service;
+    const [askable, favourites] = await Promise.all([
+      askableFighters(db, me, [globalPersonId]),
+      favouritesOf(db, me),
+    ]);
+    return { askable: askable.has(globalPersonId), favourite: favourites.has(globalPersonId) };
   }
 
   /**
@@ -139,7 +145,7 @@ export class SparFindService {
       });
     }
     const rows = await this.wholeRoster(eventId);
-    const [hidden, askable] = await Promise.all([
+    const [hidden, askable, favourites] = await Promise.all([
       hiddenEntrantIds({ supabase: this.supabase, orgs: this.orgs }, event, reader),
       askableFighters(
         db,
@@ -147,12 +153,13 @@ export class SparFindService {
         rows.map((row) => row.global_person_id),
         weaponId,
       ),
+      favouritesOf(db, me),
     ]);
     const ids = rows
       .filter((row) => !hidden.has(row.id) && askable.has(row.global_person_id))
       .map((row) => row.global_person_id);
     const fighters = [...(await readSparFighters(db, ids)).values()];
-    return this.withWeapons(fighters.sort(byName).slice(0, AT_EVENT_MAX));
+    return this.withWeapons(fighters.sort(byName).slice(0, AT_EVENT_MAX), favourites);
   }
 
   /**
@@ -191,8 +198,14 @@ export class SparFindService {
       .slice(0, FIND_PAGE_SIZE)
       .map((row) => row.id)
       .filter((id) => !dropped.has(id));
-    const fighters = await readSparFighters(db, ids);
-    const items = await this.withWeapons(ids.flatMap((id) => fighters.get(id) ?? []));
+    const [fighters, favourites] = await Promise.all([
+      readSparFighters(db, ids),
+      favouritesOf(db, me),
+    ]);
+    const items = await this.withWeapons(
+      ids.flatMap((id) => fighters.get(id) ?? []),
+      favourites,
+    );
     return { items, more: rows.length > FIND_PAGE_SIZE };
   }
 
@@ -224,8 +237,12 @@ export class SparFindService {
       .map(({ row, days, today }) => ({ id: row.id, name: row.name, days, today }));
   }
 
-  /** These fighters as Find cards, each with up to three declared weapons, favourites first. */
-  private async withWeapons(fighters: SparFighter[]): Promise<FindCard[]> {
+  /**
+   * These fighters as Find cards, each with up to three declared weapons (the declared favourite
+   * weapons first) and whether the caller hearted them. The one card builder: the Favourites
+   * list calls it too. `favourites` is the caller's, read once by the caller of this method.
+   */
+  async withWeapons(fighters: SparFighter[], favourites: ReadonlySet<string>): Promise<FindCard[]> {
     const weapons = await readFighterWeaponNames(
       this.supabase.service,
       fighters.map((fighter) => fighter.globalPersonId),
@@ -234,6 +251,7 @@ export class SparFindService {
     return fighters.map((fighter) => ({
       fighter,
       weapons: weapons.get(fighter.globalPersonId) ?? [],
+      favourite: favourites.has(fighter.globalPersonId),
     }));
   }
 

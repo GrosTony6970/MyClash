@@ -210,6 +210,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
   // an archived one; and the archive excludes every FightBook table.
   "FightBook: a fighter's own spar requests, answers and blocks, not the Event record.": [
     'DELETE me/fightbook/blocks/:globalPersonId',
+    'DELETE me/fightbook/favourites/:globalPersonId',
     'PATCH me/fightbook/settings',
     'POST me/fightbook/blocks',
     'POST me/fightbook/requests',
@@ -219,6 +220,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'POST me/fightbook/requests/:id/review',
     'POST me/fightbook/requests/:id/undo',
     'POST me/fightbook/requests/:id/withdraw',
+    'PUT me/fightbook/favourites/:globalPersonId',
     'PUT me/fightbook/requests/:id/note',
   ],
 };

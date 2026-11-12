@@ -121,7 +121,8 @@ export function toSent(
 
 /**
  * A spar both fighters agreed to, one either of them cancelled since, or one they marked done,
- * with what was written on it. The heart (`partnerFavourite`) is filled by the favourites read.
+ * with what was written on it. `partnerFavourite` is null when the card has no heart: the caller
+ * has FightBook off, or the partner is not someone they may ask (`SparReadsService.mySpars`).
  */
 export function toAgreed(
   row: SparRow,
@@ -129,6 +130,7 @@ export function toAgreed(
   partner: SparFighter,
   eventName: string | null,
   extras: SparCardExtras,
+  partnerFavourite: boolean | null = null,
 ): AgreedSpar {
   const iAsked = row.asker_global_person_id === me;
   const cancelled = row.status === 'cancelled';
@@ -145,6 +147,6 @@ export function toAgreed(
     myReview: extras.myReview,
     theirThanks: extras.theirThanks,
     note: extras.note,
-    partnerFavourite: null,
+    partnerFavourite,
   };
 }
