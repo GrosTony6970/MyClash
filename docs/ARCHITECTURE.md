@@ -2137,25 +2137,26 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 
 ### 11ter.2 Triggers
 
-| Event                               | Default lead time | Toggleable |
-| ----------------------------------- | ----------------- | ---------- |
-| Your match starts                   | 10 min before     | main only  |
-| Your refereeing slot starts         | 10 min before     | main only  |
-| Your workshop starts                | 15 min before     | main only  |
-| Your referee assignment changed     | immediate         | yes        |
-| Your exchange correction refused    | immediate         | yes        |
-| Workshop you enrolled in cancelled  | immediate         | main only  |
-| Workshop you enrolled in moved      | 10 min after      | yes        |
-| Promoted from waitlist to confirmed | immediate         | main only  |
-| Final results published             | immediate         | yes        |
-| Next Swiss round paired             | immediate         | yes        |
-| New Event of a followed organiser   | immediate         | yes        |
-| Organizer or instructor broadcast   | immediate         | push only  |
-| A fighter asks you for a spar       | immediate         | yes        |
-| A fighter said yes to your spar     | immediate         | yes        |
-| A spar you agreed to was cancelled  | immediate         | yes        |
+| Event                                 | Default lead time | Toggleable |
+| ------------------------------------- | ----------------- | ---------- |
+| Your match starts                     | 10 min before     | main only  |
+| Your refereeing slot starts           | 10 min before     | main only  |
+| Your workshop starts                  | 15 min before     | main only  |
+| Your referee assignment changed       | immediate         | yes        |
+| Your exchange correction refused      | immediate         | yes        |
+| Workshop you enrolled in cancelled    | immediate         | main only  |
+| Workshop you enrolled in moved        | 10 min after      | yes        |
+| Promoted from waitlist to confirmed   | immediate         | main only  |
+| Final results published               | immediate         | yes        |
+| Next Swiss round paired               | immediate         | yes        |
+| New Event of a followed organiser     | immediate         | yes        |
+| Organizer or instructor broadcast     | immediate         | push only  |
+| A fighter asks you for a spar         | immediate         | yes        |
+| A fighter said yes to your spar       | immediate         | yes        |
+| A spar you agreed to was cancelled    | immediate         | yes        |
+| The other fighter marked "we sparred" | immediate         | yes        |
 
-"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the three FightBook rows share "FightBook")
+"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the four FightBook rows share "FightBook")
 and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
 not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
 
@@ -2526,7 +2527,7 @@ any follow is removed, so that no alert is set back while the follows go.
 
 A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERARCHY.md`): weapons,
 a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
-rulings 642-665: `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
+rulings 642-665 (slice 3, after the spar: 677-690): `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
 `docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
 `@myclash/rulesets`, Matches or the scoring app.
 
@@ -2535,10 +2536,13 @@ rulings 642-665: `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 
 Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
 profile is the switch, off by default; off means nobody may ask them and they may ask nobody, yet
 they still see and cancel the spars they agreed (ruling 666), take back a request still waiting,
-and manage their blocks. Three
-tables, RLS on and no policy, read and written by the API only (0263): `spar_requests` (one row is
+and manage their blocks. Six
+tables, RLS on and no policy, read and written by the API only (0263, 0267): `spar_requests` (one row is
 one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
-`fightbook_blocks`. A request names a public Event the asker is on and one of its days (ruling 665),
+`fightbook_blocks`, and from slice 3 `spar_thanks`, `spar_anonymous_reviews` and
+`fightbook_favourites` (§11septies.7). A request's `status` is `pending`, `agreed`, `done`,
+`not_this_time`, `withdrawn` or `cancelled`; `done` is "we sparred" and goes back to `agreed` on
+undo. A request names a public Event the asker is on and one of its days (ruling 665),
 or a free date, a place and the asker's time zone; the zone is copied into the row.
 
 ### 11septies.2 Every "no" is the same
@@ -2574,12 +2578,16 @@ answers just as fast. Notices (§11ter.2) carry no names: they show on a locked 
 ### 11septies.5 Privacy registries
 
 The data download carries the requests a fighter sent or received, their own notes and the blocks
-they made, never a block aimed at them (Art. 15(4)). The Event archive excludes all three tables.
+they made, never a block aimed at them (Art. 15(4)). Slice 3 adds: the thank-yous they wrote or
+received, the anonymous reviews they **wrote** (never one about them: the row names its writer,
+Art. 15(4)) and their favourites (never a favourite aimed at them). The Event archive excludes all
+six tables.
 Account erasure deletes every FightBook row of the profile (`modules/privacy/erasure-fightbook.ts`)
 and switches FightBook off; anonymisation keeps them, because the account stays signed in and its
 blocks must hold. A fighter merge (0265) moves requests, blocks and notes to the survivor, except a
 request between the two merged profiles and a waiting request that would double the survivor's; a
 block it moves ends what waits between the pair, and the survivor keeps the stricter switch.
+Merge 0268 adds the three new tables and the stars switch (§11septies.7).
 
 ### 11septies.6 Finding and asking
 
@@ -2635,6 +2643,76 @@ public keys. The browser loads the button after the page (`ProfileAskToSpar.tsx`
 `/me` first and reads `askable` only for a signed-in fighter. Any other answer renders nothing, not
 even a sentence. On the people search, an answer for an older list of ids is dropped, so a button
 never lands on a row it did not cover.
+
+### 11septies.7 After the spar
+
+Rulings 677-690 (plan: `docs/superpowers/plans/2026-11-12-fightbook-slice3-after.md`). Migrations
+0267 (tables, `fightbook_review`, `fightbook_star_line`) and 0268 (merge). Routes sit in
+`modules/fightbook/fightbook-after.controller.ts`; the rest of §11septies.4 holds: every route acts
+on the caller's own profile, a stranger's or missing spar id answers 404 (never 403), and an
+off fighter still finishes their spars (ruling 666).
+
+**Windows.** All come from the request row: `markFrom` is 00:00 of `spar_day` on the row's own
+`zone`, `cancelUntil` is `expires_at`, `markUntil` is 48 h after `expires_at`. One owner computes
+them (`modules/fightbook/spar-windows.ts`); the web only compares them with its clock. "We sparred":
+status `agreed`, `markFrom` <= now < `markUntil`. Undo: status `done`, now before `markUntil`. Cancel:
+status `agreed`, now before `cancelUntil`. A review: status `done`, now at or after `markUntil`,
+no end. Either fighter may mark or undo. Each is one conditional update on the API's clock; a lost
+race or a closed window answers 409 `not_open`, one wording. `done` is a status, not a column: no
+"marked by", no "marked at". The status CHECK refuses a spar that is both done and cancelled.
+A review only opens when undo has closed, so no review can sit on a spar that is undone (this
+replaces the first design, which closed undo at the first review).
+A private note can be written or deleted on a `done` spar only; the web shows the note box on done
+cards only. Marking sends the other fighter a notice (§11ter.2), started not awaited; undo sends
+none. `sendImmediate` dedupes per kind, spar and account for 24 h, so a mark and undo ping-pong
+buzzes once a day.
+
+**Two review tables, and why.** `spar_thanks` is a signed thank-you: 1-5 stars and an optional text
+of up to 500 characters; its subject sees who wrote it (ruling 690). `spar_anonymous_reviews` is the
+same without a text, and the writer is never named to the subject, in a payload, on a card, in a
+list or in the data download. It is its own table so the export can leave it out whole (the export
+reaches tables by column, `subject-export.reach.ts`). One review per author per spar across both
+tables. `fightbook_review` writes it in one transaction, in the 0264 lock order (both profiles KEY
+SHARE in id order, then the request row FOR UPDATE, so an undo waits). It judges the window on the
+API's `p_now`, and every refusal, a double write included, is `not_open`. Accepted residual: an undo
+sent a few milliseconds before `markUntil` that reaches the row after a review locked it re-checks
+its own clock and lands; the spar returns to `agreed` with a review on it. Its stars count, the spar
+does not. A fighter merge (0268) moves reviews with their spar. The revert moves back every review
+on a spar it moves back, on the survivor's side, including one written after the merge (a review
+must follow its spar); favourites go back by recorded id.
+
+**The star line is live (rulings 688, 689).** The design's batch rule ("refresh after 3 new
+reviews") and "from 5 reviews" are overturned: the average moves after each review and shows from
+the first. `fightbook_star_line(p_subject)` returns `{ average, count }` over both tables in one SQL
+call (PostgREST aggregates are off, and a row read would stop at the 1000-row page). The fighter
+sees their own line whatever the switch says (`GET me/fightbook/settings`: `showStars`, `sparred`,
+`stars`). `fightbook_show_stars` on the profile (default off, ruling 682) decides the public line;
+like `fightbook_enabled`, only the switch is public, never the number.
+
+**The public line.** `PublicSparLine = { sparred, stars }` is the only FightBook data in the public
+fighter projection (`modules/fightbook/spar-public-line.ts`), `null` unless the fighter has
+FightBook on. `sparred` counts spars with status `done` and `expires_at` at least 48 h past, either
+side. `stars` appears only when the switch is on and there is one review. A line with no spars and
+no stars draws nothing. It degrades alone: a failed read logs a warning and answers
+`fightbook: null`, so the profile still renders. The own line in settings throws.
+
+**Lists.** My spars looks back 30 days. `GET me/fightbook/thanks?page=` lists the thank-yous the
+caller received, 20 per page, newest first; it is unbounded in time and shows even when My spars is
+empty. A spar card carries the caller's own review, the partner's signed thank-you only, the
+caller's note and `partnerFavourite`.
+
+**Favourites (ruling 679).** `PUT` and `DELETE me/fightbook/favourites/:globalPersonId` (204,
+idempotent). PUT answers 404 unless the fighter may be asked and is not the caller, and 409
+`favourites_full` at 200 (a race may land one more; a merge can also push a fighter past 200,
+accepted). `GET me/fightbook/favourites` returns `FindCard[]` through `askableFighters`; a favourite
+who blocked the caller stays (ruling 672). `favouritesOf` (one read, at most 200) lives in
+`spar-askable.ts`. The favourite is never told. Favourites are the fourth tab
+(`?tab=favourites`); the heart sits on Find cards, spar cards, Favourites cards and the profile.
+
+**Privacy registries.** All three tables are in `SUBJECT_EXPORT_TABLES` (thanks reach author and
+subject; anonymous reviews the author only; favourites the owner only), in
+`ARCHIVE_EXCLUDED_TABLES`, in `eraseFightBookRows` and in the RLS probe. The 0266 comment is
+unchanged (pushed).
 
 ---
 

@@ -163,9 +163,17 @@ have asked for in person.
 
 ### After the spar
 
+> **Built in slice 3 (rulings 677-690), where it differs from the lines below.** "We sparred"
+> opens at 00:00 of the spar day and, with its undo, closes 48 h after the day ends; a review opens
+> when that closes, so no review ever sits on an undoable spar. The review is a signed thank-you
+> (stars, optional text) or an anonymous review (stars only); the private note is separate. The
+> safety flag is slice 4. The star average is live, not batched, and shows from the first review
+> when the fighter switches it on. Details: `docs/ARCHITECTURE.md` §11septies.7.
+
 - **"We sparred"** — either fighter marks an agreed spar done; the other can undo **until either
   fighter has written a review** (review pass 1: otherwise the flagged fighter could undo the spar
   out from under a flag). After that, undo is refused with one wording that does not say why.
+  _Built: undo closes at 48 h after the spar day; reviews open then._
   Only done spars count anywhere (public count, reviews, favourites list context).
 - **Review** (one per fighter per spar, on a done spar only), one form with three parts, each
   optional:
@@ -205,10 +213,14 @@ have asked for in person.
 - **Public profile** shows: "Sparred N times" — **always**, for anyone with FightBook on — and
   "★ x.x (k reviews)" only if the fighter allows it **and** k ≥ 5 (_my guess, confirmed in
   playback_). No review text is ever public.
+  _Overturned (ruling 689): the stars show from the first review, when the fighter allows it. "Sparred N" counts spars done and settled (48 h past the day)._
 - **The star average and k refresh in batches** (review pass 1): only once at least 3 new reviews
   have arrived since the last refresh. Otherwise the partner subtracts the named stars they can see
   from average × k and reads an anonymous review's stars, and the moment k moved names the spar.
   The partner's own view of their average follows the same refresh.
+  _Overturned (ruling 688): the average moves after each review. The batch rule was dropped; an
+  anonymous writer stays unnamed (no card, list or download names them), and the guess from timing
+  is accepted._
 - **Favourites**: a heart on a partner. Private; the partner is never told (same rule as Follows,
   ARCHITECTURE §11quinquies).
 
@@ -291,8 +303,9 @@ Estimate: **~75 commits (60–90)** at this repo's one-concern-per-commit pace �
    anti-harassment floor and must ship with the first way to ask.)
 2. **Asking surfaces**: "Ask to spar" on profile and Event people page; Find a partner tab with
    same-Event priority.
-3. **After the spar**: "We sparred" + undo; reviews (thank-you, private note); public count +
-   optional star average; favourites.
+3. **After the spar** (built, rulings 677-690): "We sparred" + undo; reviews (signed thank-you,
+   anonymous review, private note); public count + optional live star average from the first
+   review (the batch rule and "from 5 reviews" are overturned); favourites.
 4. **Safety flags**: flag form, organiser/admin alert, web-admin flag list with "handled".
 5. **Floor tools**: Free to spar now, open call, FightBook QR log.
 6. **Comfort**: daily limit, 10-minute reminder.
