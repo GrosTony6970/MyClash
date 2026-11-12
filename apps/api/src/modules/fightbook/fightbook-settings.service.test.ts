@@ -6,6 +6,7 @@ import {
   selectsFor,
   writesTo,
 } from '../../common/testing/supabase-chain';
+import { settingsSchema } from './fightbook.controller';
 import { FightBookSettingsService } from './fightbook-settings.service';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
@@ -27,6 +28,15 @@ function service(saved: boolean, showStars = false) {
   );
   return { settings: new FightBookSettingsService(supabase as never), supabase };
 }
+
+describe('settingsSchema', () => {
+  it('takes either switch or both, and refuses an empty body or a stray key', () => {
+    expect(settingsSchema.safeParse({ showStars: true }).success).toBe(true);
+    expect(settingsSchema.safeParse({ enabled: false, showStars: false }).success).toBe(true);
+    expect(settingsSchema.safeParse({}).success).toBe(false);
+    expect(settingsSchema.safeParse({ fightbook_show_stars: true }).success).toBe(false);
+  });
+});
 
 describe('FightBookSettingsService', () => {
   it('answers the switches and the caller’s own line, stars shown whatever the switch', async () => {

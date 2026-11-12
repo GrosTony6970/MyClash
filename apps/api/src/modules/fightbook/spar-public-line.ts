@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PublicSparLine, SparStars } from '@myclash/types';
 import { MARK_GRACE_MS } from './spar-windows';
+
+const logger = new Logger('FightBookPublicLine');
 
 type Db = Pick<SupabaseClient, 'from' | 'rpc'>;
 
@@ -34,12 +37,27 @@ async function countSparred(db: Db, person: string, now: Date): Promise<number> 
  * The line under a fighter's name on the public page. Null unless FightBook is on for them. The
  * stars show only when they switched them on and have a review (a count of 1 is enough, ruling
  * 689). Reads its own two switches: the public columns are shared with the directory and are not
- * widened, and neither switch leaves this function.
+ * widened, and neither switch leaves this function. FightBook is an add-on to a core page: a
+ * failed read logs a warning and answers null, so the profile still renders. The own line does
+ * not degrade.
  */
 export async function readPublicSparLine(
   db: Db,
   globalPersonId: string,
   now: Date = new Date(),
+): Promise<PublicSparLine | null> {
+  try {
+    return await publicLine(db, globalPersonId, now);
+  } catch (error) {
+    logger.warn(`Public FightBook line left out: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+async function publicLine(
+  db: Db,
+  globalPersonId: string,
+  now: Date,
 ): Promise<PublicSparLine | null> {
   const { data, error } = await db
     .from('global_persons')

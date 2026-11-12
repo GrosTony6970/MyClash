@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
   mockSupabase,
@@ -111,9 +112,45 @@ describe('readPublicSparLine', () => {
     });
   });
 
-  it('throws when a read fails', async () => {
-    const db = setup({ star: { data: null, error: { message: 'boom' } } });
-    await expect(readPublicSparLine(db.service as never, MARC, NOW)).rejects.toThrow(/boom/u);
+  describe('when a read fails, the profile still renders', () => {
+    const boom = { data: null, error: { message: 'boom' } };
+    const failing = (failure: 'switch' | 'count' | 'star') =>
+      mockSupabase(
+        {
+          global_persons:
+            failure === 'switch'
+              ? boom
+              : { data: { fightbook_enabled: true, fightbook_show_stars: true }, error: null },
+          spar_requests: failure === 'count' ? boom : { data: [], error: null, count: 2 },
+        },
+        { fightbook_star_line: () => (failure === 'star' ? boom : { data: null, error: null }) },
+      );
+
+    it.each([
+      ['switch', 'switch read failed', ['global_persons'], 0],
+      ['count', 'sparred count failed', ['global_persons', 'spar_requests'], 0],
+      ['star', 'star line read failed', ['global_persons', 'spar_requests'], 1],
+    ] as const)(
+      'a failed %s read answers null and logs a warning',
+      async (failure, message, tables, rpcCalls) => {
+        const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        const db = failing(failure);
+        expect(await readPublicSparLine(db.service as never, MARC, NOW)).toBeNull();
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0]![0])).toContain(message);
+        expect(String(warn.mock.calls[0]![0])).not.toContain(MARC);
+        // Nothing after the failed step is attempted.
+        expect(db.from.mock.calls.map(([table]) => table)).toEqual(tables);
+        expect(db.rpc.mock.calls.length).toBe(rpcCalls);
+        warn.mockRestore();
+      },
+    );
+
+    it('the own line still throws', async () => {
+      await expect(readOwnSparLine(failing('star').service as never, MARC, NOW)).rejects.toThrow(
+        /boom/u,
+      );
+    });
   });
 });
 

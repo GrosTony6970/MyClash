@@ -55,7 +55,7 @@ import { SparFindService } from './spar-find.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
-const settingsSchema = z
+export const settingsSchema = z
   .object({ enabled: z.boolean().optional(), showStars: z.boolean().optional() })
   .strict()
   .refine((body) => body.enabled !== undefined || body.showStars !== undefined, {
