@@ -1580,6 +1580,7 @@ export const publicApp = {
       inbox: 'Inbox',
       inboxCount: 'Inbox ({count})',
       spars: 'My spars',
+      find: 'Find a partner',
     },
     card: {
       weapons: 'Weapons: {weapons}',
@@ -1659,6 +1660,20 @@ export const publicApp = {
       sent: 'Request sent',
       seeSpars: 'See my spars',
       loading: 'Loading…',
+    },
+    find: {
+      loadFailed: 'Find a partner could not be loaded.',
+      weapon: 'Weapon',
+      anyWeapon: 'Any weapon',
+      event: 'Event',
+      atEvent: 'FightBook users at {event}',
+      eventEmpty: 'No one to show at this Event.',
+      eventFailed: 'The fighters at this Event could not be loaded.',
+      all: 'All of FightBook',
+      name: 'Name',
+      browseEmpty: 'No fighter found.',
+      browseFailed: 'The fighters could not be loaded.',
+      more: 'Show more',
     },
   },
   myPhotos: {

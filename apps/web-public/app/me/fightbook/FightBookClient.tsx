@@ -16,7 +16,8 @@ import { useFightBook, type FightBookState } from './use-fightbook';
 /**
  * `/me/fightbook` — FightBook (slice 1). A fighter with no profile is sent to claim one; while
  * FightBook is off, the page says what it is and shows the switch, and My spars; once on, the
- * settings panel and the fighters they blocked. The Inbox and My spars tabs sit above the panel.
+ * settings panel and the fighters they blocked. The Inbox, My spars and Find a partner tabs sit
+ * above the panel.
  */
 export function FightBookClient() {
   const { t } = useI18n();

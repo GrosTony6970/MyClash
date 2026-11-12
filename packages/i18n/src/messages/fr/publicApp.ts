@@ -1589,6 +1589,7 @@ export const publicApp = {
       inbox: 'Demandes reçues',
       inboxCount: 'Demandes reçues ({count})',
       spars: 'Mes spars',
+      find: 'Trouver un partenaire',
     },
     card: {
       weapons: 'Armes : {weapons}',
@@ -1670,6 +1671,20 @@ export const publicApp = {
       sent: 'Demande envoyée',
       seeSpars: 'Voir mes spars',
       loading: 'Chargement…',
+    },
+    find: {
+      loadFailed: 'La recherche de partenaires n’a pas pu être chargée.',
+      weapon: 'Arme',
+      anyWeapon: 'Toutes les armes',
+      event: 'Événement',
+      atEvent: 'Utilisateurs de FightBook à {event}',
+      eventEmpty: 'Personne à afficher pour cet événement.',
+      eventFailed: 'Les combattants de cet événement n’ont pas pu être chargés.',
+      all: 'Tout FightBook',
+      name: 'Nom',
+      browseEmpty: 'Aucun combattant trouvé.',
+      browseFailed: 'Les combattants n’ont pas pu être chargés.',
+      more: 'Voir plus',
     },
   },
   myPhotos: {

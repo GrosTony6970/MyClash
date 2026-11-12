@@ -4,27 +4,30 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { SegmentedTabs } from '@myclash/ui';
 import { answered, blocked, cancelled, withdrawn } from './fightbook-patches';
+import { FindTab } from './FindTab';
 import { InboxTab } from './InboxTab';
 import { MySparsTab } from './MySparsTab';
 import type { FightBookData } from './use-fightbook';
 
-type Tab = 'inbox' | 'spars';
+type Tab = 'inbox' | 'spars' | 'find';
 
 /** The tab in the URL (`?tab=`), as the People hub's. */
 function useTab(): [Tab, (next: Tab) => void] {
   const router = useRouter();
-  const tab: Tab = useSearchParams().get('tab') === 'spars' ? 'spars' : 'inbox';
+  const asked = useSearchParams().get('tab');
+  const tab: Tab = asked === 'spars' || asked === 'find' ? asked : 'inbox';
   const setTab = (next: Tab) =>
-    router.replace(next === 'inbox' ? '/me/fightbook' : '/me/fightbook?tab=spars', {
+    router.replace(next === 'inbox' ? '/me/fightbook' : `/me/fightbook?tab=${next}`, {
       scroll: false,
     });
   return [tab, setTab];
 }
 
 /**
- * The two tabs of slice 1 (ruling 664: Favourites and Find a partner arrive with their slices).
- * The tab lives in the URL (`?tab=`), as the People hub's does. Every write patches the page's
- * data from its own answer (`fightbook-patches.ts`).
+ * The Inbox, My spars and Find a partner (slice 2; ruling 664: Favourites arrives with its
+ * slice). The tab lives in the URL (`?tab=`), as the People hub's does. Every write patches the
+ * page's data from its own answer (`fightbook-patches.ts`); an ask sent from Find reads the page
+ * again behind it, so My spars shows the new request.
  */
 export function FightBookTabs(props: {
   apiUrl: string;
@@ -50,6 +53,7 @@ export function FightBookTabs(props: {
         tabs={[
           { value: 'inbox', label: inboxLabel },
           { value: 'spars', label: t('publicApp.fightBook.tabs.spars') },
+          { value: 'find', label: t('publicApp.fightBook.tabs.find') },
         ]}
       />
       {tab === 'inbox' ? (
@@ -60,7 +64,8 @@ export function FightBookTabs(props: {
           onBlocked={(asker) => props.update(blocked(asker))}
           onStale={props.refresh}
         />
-      ) : (
+      ) : null}
+      {tab === 'spars' ? (
         <MySparsTab
           apiUrl={props.apiUrl}
           spars={props.data.spars}
@@ -68,7 +73,8 @@ export function FightBookTabs(props: {
           onCancelled={(id, message) => props.update(cancelled(id, message))}
           onStale={props.refresh}
         />
-      )}
+      ) : null}
+      {tab === 'find' ? <FindTab apiUrl={props.apiUrl} onSent={props.refresh} /> : null}
     </div>
   );
 }
