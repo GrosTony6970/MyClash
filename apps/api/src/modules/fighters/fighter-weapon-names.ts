@@ -1,9 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-/**
- * Fighters per weapon read. PostgREST cuts a read at 1000 rows without a word; 50 fighters x up to
- * 20 weapons stays under that cap, which a 200-id piece could pass.
- */
-export const WEAPON_IDS_PER_READ = 50;
+import { inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 
 /** Weapons shown per directory row before the column stops being scannable. */
 export const DIRECTORY_WEAPONS_SHOWN = 3;
@@ -14,6 +10,8 @@ export const DIRECTORY_WEAPONS_SHOWN = 3;
  * a profile). `cap` undefined keeps every weapon. The one owner, for the directory and FightBook's
  * Find cards. A failed read throws: showing a fighter with no weapons would be a lie.
  *
+ * A chunk is read in `READ_PAGE` pages in a stable total order, until a page comes back empty:
+ * PostgREST cuts a read at its row cap without a word, so the loop never trusts a short page.
  * Each fighter sits in exactly one chunk, so the order inside a chunk is the order per fighter.
  */
 export async function readFighterWeaponNames(
@@ -22,17 +20,25 @@ export async function readFighterWeaponNames(
   cap?: number,
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
-  for (let from = 0; from < ids.length; from += WEAPON_IDS_PER_READ) {
-    const chunk = ids.slice(from, from + WEAPON_IDS_PER_READ);
-    const { data, error } = await db
-      .from('fighter_weapons')
-      .select('global_person_id, favorite, sort_order, weapon_catalog(name)')
-      .in('global_person_id', chunk)
-      .order('favorite', { ascending: false })
-      .order('sort_order', { ascending: true });
-    if (error) throw new Error(`Fighter weapons read failed: ${error.message}`);
+  for (const chunk of inListChunks(ids)) {
+    const rows: Array<Record<string, unknown>> = [];
+    for (;;) {
+      const { data, error } = await db
+        .from('fighter_weapons')
+        .select('global_person_id, favorite, sort_order, weapon_catalog(name)')
+        .in('global_person_id', chunk)
+        .order('global_person_id', { ascending: true })
+        .order('favorite', { ascending: false })
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(rows.length, rows.length + READ_PAGE - 1);
+      if (error) throw new Error(`Fighter weapons read failed: ${error.message}`);
+      const page = (data ?? []) as Array<Record<string, unknown>>;
+      if (page.length === 0) break;
+      rows.push(...page);
+    }
 
-    for (const raw of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const raw of rows) {
       const gp = raw['global_person_id'] as string;
       const name = (raw['weapon_catalog'] as { name?: string | null } | null)?.name;
       if (!name) continue;

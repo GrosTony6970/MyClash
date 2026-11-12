@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { IN_LIST_MAX } from '../../common/postgrest-in-list';
+import { IN_LIST_MAX, READ_PAGE } from '../../common/postgrest-in-list';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
-import {
-  DIRECTORY_WEAPONS_SHOWN,
-  readFighterWeaponNames,
-  WEAPON_IDS_PER_READ,
-} from './fighter-weapon-names';
+import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from './fighter-weapon-names';
 
 const A = 'gp-a';
 const B = 'gp-b';
@@ -32,10 +28,18 @@ describe('readFighterWeaponNames', () => {
     const db = mockSupabase({ fighter_weapons: { rows: weaponRows } });
     const names = await readFighterWeaponNames(db as never, [A, B]);
 
-    expect(selectsFor(db.from, 'fighter_weapons')).toEqual([
-      'global_person_id, favorite, sort_order, weapon_catalog(name)',
-    ]);
-    expect(filtersFor(db.from, 'fighter_weapons', 'in')).toEqual([['global_person_id', [A, B]]]);
+    // Two reads: the page with the rows, then the empty page that ends the loop.
+    const select = 'global_person_id, favorite, sort_order, weapon_catalog(name)';
+    expect(selectsFor(db.from, 'fighter_weapons')).toEqual([select, select]);
+    const asked = ['global_person_id', [A, B]];
+    expect(filtersFor(db.from, 'fighter_weapons', 'in')).toEqual([asked, asked]);
+    const order = [
+      ['global_person_id', { ascending: true }],
+      ['favorite', { ascending: false }],
+      ['sort_order', { ascending: true }],
+      ['id', { ascending: true }],
+    ];
+    expect(filtersFor(db.from, 'fighter_weapons', 'order')).toEqual([...order, ...order]);
     expect(names.get(A)).toEqual(['Longsword', 'Sabre', 'Rapier', 'Dagger']);
     expect(names.get(B)).toEqual(['Messer']);
     expect(names.has(STRANGER)).toBe(false);
@@ -48,8 +52,25 @@ describe('readFighterWeaponNames', () => {
     expect(capped.get(A)).toEqual(['Longsword', 'Sabre', 'Rapier']);
   });
 
-  it('reads 50 fighters at a time, so 1000 weapon rows are never cut, and answers for all', async () => {
-    const many = Array.from({ length: 2 * WEAPON_IDS_PER_READ + 5 }, (_, index) => `gp-${index}`);
+  it('reads one piece in pages until an empty page, so a 1000-row cut loses no weapon', async () => {
+    const rows = Array.from({ length: READ_PAGE + 3 }, (_, i) => link(A, `Weapon ${i}`, false, i));
+    const db = mockSupabase({ fighter_weapons: { rows: [...rows, link(B, 'Messer', false, 0)] } });
+    const names = await readFighterWeaponNames(db as never, [A, B]);
+
+    expect(filtersFor(db.from, 'fighter_weapons', 'range')).toEqual([
+      [0, READ_PAGE - 1],
+      [READ_PAGE, 2 * READ_PAGE - 1],
+      // The third read starts after the 1004 rows held, and answers empty.
+      [READ_PAGE + 4, 2 * READ_PAGE + 3],
+    ]);
+    expect(names.get(A)).toHaveLength(READ_PAGE + 3);
+    expect(names.get(A)?.[0]).toBe('Weapon 0');
+    expect(names.get(A)?.at(-1)).toBe(`Weapon ${READ_PAGE + 2}`);
+    expect(names.get(B)).toEqual(['Messer']);
+  });
+
+  it('reads in pieces no longer than a .in() list may be, and answers for all fighters', async () => {
+    const many = Array.from({ length: IN_LIST_MAX + 5 }, (_, index) => `gp-${index}`);
     const first = many[0]!;
     const last = many[many.length - 1]!;
     const db = mockSupabase({
@@ -58,8 +79,7 @@ describe('readFighterWeaponNames', () => {
     const names = await readFighterWeaponNames(db as never, many);
 
     const lists = filtersFor(db.from, 'fighter_weapons', 'in').map(([, list]) => list as string[]);
-    expect(lists.map((list) => list.length)).toEqual([50, 50, 5]);
-    expect(WEAPON_IDS_PER_READ).toBeLessThanOrEqual(IN_LIST_MAX);
+    expect(lists.map((list) => list.length)).toEqual([IN_LIST_MAX, IN_LIST_MAX, 5, 5]);
     expect(names.get(first)).toEqual(['Rapier']);
     expect(names.get(last)).toEqual(['Sabre']);
   });

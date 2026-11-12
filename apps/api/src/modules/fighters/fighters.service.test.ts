@@ -1123,9 +1123,12 @@ describe('listPublicDirectory', () => {
       .fn()
       .mockResolvedValue(opts.rpc ?? { data: [{ id: 'a', total: 2 }], error: null });
 
+    // The weapons are read in pages until an empty one: the first page holds them, the next is empty.
+    let weaponReads = 0;
     fromMock.mockImplementation((table: string) => {
       if (table === 'fighter_weapons') {
-        return makeAwaitableChain({ data: opts.weapons ?? [], error: null });
+        const data = weaponReads++ === 0 ? (opts.weapons ?? []) : [];
+        return makeAwaitableChain({ data, error: null });
       }
       return makeAwaitableChain({ data: opts.rows ?? [ROW('a')], error: null });
     });
@@ -1262,7 +1265,8 @@ describe('listPublicDirectory', () => {
     expect(items[1]?.weapons).toEqual(['Sabre']);
 
     const weaponQueries = fromMock.mock.calls.filter((c) => c[0] === 'fighter_weapons');
-    expect(weaponQueries).toHaveLength(1);
+    // One page of weapons for the whole directory page, then the empty page that ends the read.
+    expect(weaponQueries).toHaveLength(2);
   });
 });
 
