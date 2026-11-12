@@ -2702,12 +2702,13 @@ empty. A spar card carries the caller's own review, the partner's signed thank-y
 caller's note and `partnerFavourite`.
 
 **Favourites (ruling 679).** `PUT` and `DELETE me/fightbook/favourites/:globalPersonId` (204,
-idempotent). PUT answers 404 unless the fighter may be asked and is not the caller, and 409
+idempotent). PUT answers 404 unless the fighter is live, has claimed the profile, has FightBook on and is not the
+caller (the caller's blocks are not checked: a blocked fighter can be hearted), and 409
 `favourites_full` at 200 (a race may land one more; a merge can also push a fighter past 200,
-accepted). `GET me/fightbook/favourites` returns `FindCard[]` through `askableFighters`; a favourite
-who blocked the caller stays (ruling 672). `favouritesOf` (one read, at most 200) lives in
-`spar-askable.ts`. The favourite is never told. Favourites are the fourth tab
-(`?tab=favourites`); the heart sits on Find cards, spar cards, Favourites cards and the profile.
+accepted). `GET me/fightbook/favourites` returns `FindCard[]` through `askableFighters`, so it hides
+a fighter the caller blocked; a favourite who blocked the caller stays (ruling 672). `favouritesOf` (one read, at most 200) lives in
+`spar-askable.ts`. The favourite is never told. Favourites is a tab between My
+spars and Find (`?tab=favourites`); the heart sits on Find cards, spar cards, Favourites cards and the profile.
 
 **Privacy registries.** All three tables are in `SUBJECT_EXPORT_TABLES` (thanks reach author and
 subject; anonymous reviews the author only; favourites the owner only), in
