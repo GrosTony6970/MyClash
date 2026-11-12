@@ -216,7 +216,7 @@ export default function PersonProfilePage() {
       />
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
+        <div className="min-w-0">
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {profile.givenName} {profile.familyName}
           </h1>

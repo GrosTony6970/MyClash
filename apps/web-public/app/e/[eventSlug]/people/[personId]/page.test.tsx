@@ -108,6 +108,17 @@ describe('"Ask to spar" on an Event person page', () => {
     expect(ask?.parentElement).toBe(button('Follow')?.parentElement);
   });
 
+  it('lets the buttons wrap and the name shrink, so a long name fits a phone', async () => {
+    api();
+    signedAs('claimed');
+    await show();
+    // A box that may not shrink takes its full width and never wraps its buttons.
+    const buttons = button('Follow')?.parentElement?.className.split(' ');
+    expect(buttons).toContain('flex-wrap');
+    expect(buttons).not.toContain('flex-shrink-0');
+    expect(container.querySelector('h1')?.parentElement?.className.split(' ')).toContain('min-w-0');
+  });
+
   it('draws the button under the sentence when Marc prefers not to be followed', async () => {
     api(false);
     signedAs('claimed');

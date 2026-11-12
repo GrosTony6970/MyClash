@@ -27,7 +27,8 @@ export function FollowRow(props: {
     );
   }
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+    // Shrinks, so the two buttons wrap on a phone: a non-shrinking box never wraps.
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <button
         onClick={props.onFollow}
         disabled={props.busy}
