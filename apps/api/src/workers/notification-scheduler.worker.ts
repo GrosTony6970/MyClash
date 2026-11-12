@@ -66,8 +66,8 @@ export type ImmediateNotificationKind =
   | 'spar_agreed'
   | 'spar_cancelled'
   | 'spar_marked_done'
-  // FightBook (slice 4): a safety flag, to the club's admins or the super admins. Passes the main
-  // switch by email (PASSES_MAIN_SWITCH, ruling 698).
+  // FightBook (slice 4): a safety flag, to the club's admins or the super admins. Goes like any
+  // notice, and passes the main switch: switched off, it still comes by email (ruling 698).
   | 'spar_flag_raised';
 
 export type FollowNotificationKind =
@@ -77,8 +77,9 @@ export type NotificationKind =
   ScheduledNotificationKind | ImmediateNotificationKind | FollowNotificationKind;
 
 /**
- * The notices the main switch does not stop: they go by email only. An organiser's announcement
- * ("the venue changed" is not a reminder) and a safety flag to the club's admins (ruling 698).
+ * The notices the main switch does not stop: with it off they still come, by email. An organiser's
+ * announcement ("the venue changed" is not a reminder) and a safety flag to the club's admins
+ * (ruling 698).
  * Only `isSwitchedOff` reads this: the email template stays the broadcast's own.
  */
 const PASSES_MAIN_SWITCH: ReadonlySet<NotificationKind> = new Set<NotificationKind>([

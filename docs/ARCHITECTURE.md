@@ -2155,14 +2155,15 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | A fighter said yes to your spar       | immediate         | yes        |
 | A spar you agreed to was cancelled    | immediate         | yes        |
 | The other fighter marked "we sparred" | immediate         | yes        |
-| A fighter sent a safety report        | immediate         | email only |
+| A fighter sent a safety report        | immediate         | none       |
 
 "yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the four FightBook rows share "FightBook")
 and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
 not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
-"email only" = the safety report goes to the club's admins, or to the super admins, and passes the
-main switch by email (`PASSES_MAIN_SWITCH`, ruling 698); it has no switch of its own and no names or
-reason in its text (§11septies.8).
+"none" = the safety report goes to the club's admins, or to the super admins, like any notice: a push
+to a phone that is set up, else an email. It passes the main switch (`PASSES_MAIN_SWITCH`, ruling
+698): an admin whose main switch is off still gets it, by email, without a buzz. It has no switch of
+its own and no names or reason in its text (§11septies.8).
 
 ### 11ter.3 Implementation
 
@@ -2594,7 +2595,7 @@ block it moves ends what waits between the pair, and the survivor keeps the stri
 Merge 0268 adds the three new tables and the stars switch (§11septies.7).
 Slice 4 adds the safety flags (§11septies.8). The data download carries the flags the fighter
 **wrote**, never one about them (Art. 15(4)); the admin table `spar_flag_admin` is in no download.
-Both flag tables are out of the Event archive. Account erasure deletes the flags about the erased
+`spar_flags` is out of the Event archive. Account erasure deletes the flags about the erased
 profiles and clears the reporter on the flags they wrote; anonymisation keeps them. A fighter merge
 moves no flag: the rules follow the merged profiles instead.
 
@@ -2798,10 +2799,11 @@ unique violation, returns null: two taps on Send write one flag, start one alert
 `fightbook_flag_shown` is true. When none are left, or the flag has no club, it picks the super
 admins instead. The reporter's own accounts, across the family, are never picked
 (`modules/fightbook/spar-flag-notice.ts`). Each recipient gets one `sendImmediate` of kind
-`spar_flag_raised`, to the account's email. The text carries no name and no reason: it can show on a
+`spar_flag_raised`, with the account's email as the fallback. The text carries no name and no reason: it can show on a
 locked phone (§11ter.2). The link is absolute on web-admin: `/org/<slug>/fightbook-flags` for a club,
-`/admin/fightbook-flags` for the platform. The alert passes the main notification switch, by email
-and without a buzz: the worker's one exception became a set,
+`/admin/fightbook-flags` for the platform. The alert goes like any notice (a push to a phone that
+is set up, else an email). It also passes the main notification switch: a reader whose main switch is
+off gets it by email, without a buzz. The worker's one exception became a set,
 `PASSES_MAIN_SWITCH = { organizer_broadcast, spar_flag_raised }`
 (`workers/notification-scheduler.worker.ts:84`). Only the "is it switched off" check reads that set;
 the email template stays the broadcast's own. The notice has no `preference`, because the
