@@ -4,7 +4,18 @@ import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { inListChunks } from '../../common/postgrest-in-list';
+import { addDays, zonedDay } from '@myclash/time';
+import type { FightBookEvent } from '@myclash/types';
 import { askableFighters } from './spar-askable';
+import { openEventDays } from './spar-ask-rules';
+
+type MyEventRow = CompetitionEvent & {
+  name: string;
+  start_date: string;
+  end_date: string;
+  timezone: unknown;
+};
 
 /**
  * Who the caller may ask for a spar, for the pages that show an Ask button (FightBook slice 2).
@@ -53,6 +64,44 @@ export class SparFindService {
         .filter((row) => !hidden.has(row.id) && askable.has(row.global_person_id))
         .map((row) => [row.id, row.global_person_id]),
     );
+  }
+
+  /**
+   * The published Events `me` is on whose days have not all ended, soonest first day first, then
+   * by name. Each carries its open days and today on its own clock (`openEventDays`).
+   */
+  async myEvents(me: string, now = new Date()): Promise<FightBookEvent[]> {
+    const eventIds = await this.myEventIds(me);
+    // A day stays open until 06:00 the next morning on the Event's clock, and that clock's date
+    // is at most one day behind UTC's: an Event ending two days before the UTC date is over
+    // everywhere. This only narrows the read; `openEventDays` decides.
+    const since = addDays(zonedDay(now.toISOString(), 'UTC'), -2);
+    const rows: MyEventRow[] = [];
+    for (const piece of inListChunks(eventIds)) {
+      const { data, error } = await this.supabase.service
+        .from('events')
+        .select('id, name, status, event_kind, start_date, end_date, timezone')
+        .in('id', piece)
+        .gte('end_date', since);
+      if (error) throw new Error(`FightBook Events read failed: ${error.message}`);
+      rows.push(...((data ?? []) as MyEventRow[]));
+    }
+    return rows
+      .filter(isPublicEvent)
+      .map((row) => ({ row, ...openEventDays(row, now) }))
+      .filter((open) => open.days.length > 0)
+      .sort((a, b) => a.days[0]!.localeCompare(b.days[0]!) || a.row.name.localeCompare(b.row.name))
+      .map(({ row, days, today }) => ({ id: row.id, name: row.name, days, today }));
+  }
+
+  /** The Events where `me` has a roster row. */
+  private async myEventIds(me: string): Promise<string[]> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('event_id')
+      .eq('global_person_id', me);
+    if (error) throw new Error(`FightBook roster read failed: ${error.message}`);
+    return [...new Set(((data ?? []) as Array<{ event_id: string }>).map((row) => row.event_id))];
   }
 
   /** The Event, when the public may see it; null for a draft, a test or an unknown one. */

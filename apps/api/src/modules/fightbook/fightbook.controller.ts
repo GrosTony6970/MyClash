@@ -13,6 +13,7 @@
  * DELETE /me/fightbook/blocks/:globalPersonId — unblock
  * GET   /me/fightbook/spars     — my agreed spars, and the requests I sent
  * GET   /me/fightbook/fighters/:globalPersonId/askable — may I ask this fighter
+ * GET   /me/fightbook/events    — the Events I am on, with the days still open to ask for
  * GET   /me/fightbook/events/:eventId/askable?persons= — which of these people of an Event I may ask
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
@@ -224,6 +225,12 @@ export class FightBookController {
   ) {
     const me = requireFightBookOn(await this.caller(req));
     return this.find.askableFighter(me, globalPersonId);
+  }
+
+  @Get('events')
+  @ApiOperation({ summary: 'The published Events I am on, with the days still open to ask for' })
+  async myEvents(@Req() req: FastifyRequest) {
+    return this.find.myEvents(requireFightBookOn(await this.caller(req)));
   }
 
   @Get('events/:eventId/askable')

@@ -1,5 +1,69 @@
 import { describe, expect, it } from 'vitest';
-import { eventDayRefusal, sparExpiresAt } from './spar-ask-rules';
+import { eventDayRefusal, openEventDays, sparExpiresAt } from './spar-ask-rules';
+
+describe('openEventDays: the days of an Event not yet ended, and today on its clock', () => {
+  const paris = { start_date: '2026-05-23', end_date: '2026-05-24', timezone: 'Europe/Paris' };
+
+  it('lists both days on the first morning, and today is the first', () => {
+    expect(openEventDays(paris, new Date('2026-05-23T08:00:00Z'))).toEqual({
+      days: ['2026-05-23', '2026-05-24'],
+      today: '2026-05-23',
+    });
+  });
+
+  it('keeps Saturday listed until 06:00 Sunday; today is Sunday from 00:00', () => {
+    // 05:59 in Paris on Sunday.
+    expect(openEventDays(paris, new Date('2026-05-24T03:59:00Z'))).toEqual({
+      days: ['2026-05-23', '2026-05-24'],
+      today: '2026-05-24',
+    });
+  });
+
+  it('lists nothing from 06:00 the morning after the last day', () => {
+    expect(openEventDays(paris, new Date('2026-05-25T04:00:00Z'))).toEqual({
+      days: [],
+      today: null,
+    });
+  });
+
+  it('has no today before the first day starts', () => {
+    expect(openEventDays(paris, new Date('2026-05-20T10:00:00Z'))).toEqual({
+      days: ['2026-05-23', '2026-05-24'],
+      today: null,
+    });
+  });
+
+  it('reads an America/New_York Event on its own clock, not the UTC one', () => {
+    const ny = { start_date: '2026-05-23', end_date: '2026-05-24', timezone: 'America/New_York' };
+    // Friday 22:00 in New York: no day has started.
+    expect(openEventDays(ny, new Date('2026-05-23T02:00:00Z'))).toEqual({
+      days: ['2026-05-23', '2026-05-24'],
+      today: null,
+    });
+    // Sunday 04:00 in New York: Saturday still open, Sunday started (UTC is already 08:00).
+    expect(openEventDays(ny, new Date('2026-05-24T08:00:00Z'))).toEqual({
+      days: ['2026-05-23', '2026-05-24'],
+      today: '2026-05-24',
+    });
+    // Sunday 06:00 in New York: Saturday has ended.
+    expect(openEventDays(ny, new Date('2026-05-24T10:00:00Z'))).toEqual({
+      days: ['2026-05-24'],
+      today: '2026-05-24',
+    });
+  });
+
+  it('reads an unknown zone on the default clock', () => {
+    const odd = { ...paris, timezone: 'Mars/Olympus' };
+    expect(openEventDays(odd, new Date('2026-05-24T03:59:00Z')).today).toBe('2026-05-24');
+  });
+
+  it('answers nothing for dates that are not dates', () => {
+    expect(openEventDays({ ...paris, start_date: 'soon' }, new Date())).toEqual({
+      days: [],
+      today: null,
+    });
+  });
+});
 
 describe('sparExpiresAt: a request ends at the end of its day', () => {
   it('ends an Event day at 06:00 the next morning, on the Event clock (ruling 154)', () => {

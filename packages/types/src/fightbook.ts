@@ -69,6 +69,16 @@ export interface FightBookSettings {
   enabled: boolean;
 }
 
+/** A published Event the fighter is on, with the days still open to ask for, on the Event's clock. */
+export interface FightBookEvent {
+  id: string;
+  name: string;
+  /** `YYYY-MM-DD`, oldest first. */
+  days: string[];
+  /** The latest open day that has started; null before the first day starts. */
+  today: string | null;
+}
+
 export interface FightBookBlock {
   fighter: SparFighter;
 }
