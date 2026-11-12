@@ -1569,7 +1569,7 @@ export const publicApp = {
     },
     off: {
       title: 'FightBook est désactivé',
-      body: 'Ici, les combattants se proposent des spars amicaux, avant un événement ou le jour même. Chaque réponse reste privée : oui, ou « pas cette fois ». Tant qu’il est désactivé, personne ne peut vous solliciter et vous ne pouvez solliciter personne.',
+      body: 'Ici, les combattants se proposent des spars amicaux, avant un événement ou le jour même. Chaque réponse reste privée : oui, ou « pas cette fois ». Tant qu’il est désactivé, personne ne peut vous solliciter et vous ne pouvez solliciter personne. Une fois activé, les autres utilisateurs de FightBook peuvent vous trouver dans Trouver un partenaire, avec votre photo, votre club et vos armes.',
     },
     settings: {
       heading: 'Réglages FightBook',

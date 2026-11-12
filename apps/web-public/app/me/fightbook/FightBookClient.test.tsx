@@ -94,6 +94,9 @@ describe('FightBookClient', () => {
     });
     await open();
     expect(container.textContent).toContain('FightBook is off');
+    expect(container.textContent).toContain(
+      'When it is on, other FightBook users can find you in Find a partner, with your photo, club and weapons.',
+    );
     expect(theSwitch()?.getAttribute('aria-checked')).toBe('false');
     expect(container.textContent).not.toContain('Blocked fighters');
     // No agreed spar: no list, and no "nothing yet" either.

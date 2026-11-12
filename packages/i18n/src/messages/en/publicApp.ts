@@ -1561,7 +1561,7 @@ export const publicApp = {
     },
     off: {
       title: 'FightBook is off',
-      body: 'Here, fighters ask each other for a friendly spar, before an Event or on the day. Every answer stays private: yes, or "not this time". Until you switch it on, nobody can ask you and you cannot ask anyone.',
+      body: 'Here, fighters ask each other for a friendly spar, before an Event or on the day. Every answer stays private: yes, or "not this time". Until you switch it on, nobody can ask you and you cannot ask anyone. When it is on, other FightBook users can find you in Find a partner, with your photo, club and weapons.',
     },
     settings: {
       heading: 'FightBook settings',
