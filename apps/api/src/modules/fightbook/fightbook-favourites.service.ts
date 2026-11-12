@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { FindCard, SparRefusalCode } from '@myclash/types';
+import { FAVOURITES_MAX, type FindCard, type SparRefusalCode } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
-import { askableFighters, FAVOURITES_MAX, favouritesOf, fightBookOnFighters } from './spar-askable';
+import { askableFighters, favouritesOf, fightBookOnFighters } from './spar-askable';
 import { readSparFighters } from './spar-fighters';
 import { byName, SparFindService } from './spar-find.service';
 

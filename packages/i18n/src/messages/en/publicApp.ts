@@ -1680,7 +1680,7 @@ export const publicApp = {
       bad_event: 'A spar can only name a public Event you are at.',
       bad_answer: 'That answer is not possible.',
       self: 'You cannot ask yourself.',
-      favourites_full: 'You have 200 favourites. Remove one to add another.',
+      favourites_full: 'You have {max} favourites. Remove one to add another.',
       unknown: 'Something went wrong. Try again.',
     },
     ask: {

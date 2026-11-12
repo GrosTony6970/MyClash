@@ -144,6 +144,17 @@ describe('toAgreed: a spar both said yes to', () => {
     });
   });
 
+  it('maps the three statuses My spars reads, and throws on any other', () => {
+    for (const status of ['agreed', 'cancelled', 'done'] as const) {
+      expect(toAgreed(row({ status }), MARC, julie, null, NO_EXTRAS).status).toBe(status);
+    }
+    for (const status of ['pending', 'not_this_time', 'withdrawn'] as const) {
+      expect(() => toAgreed(row({ status }), MARC, julie, null, NO_EXTRAS)).toThrow(
+        `spar card built from a ${status} request`,
+      );
+    }
+  });
+
   it('carries a done spar, its windows, what was written on it, and no heart yet', () => {
     const extras = {
       myReview: { stars: 5, text: 'Great bout', anonymous: false },

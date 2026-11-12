@@ -120,6 +120,27 @@ export function toSent(
 }
 
 /**
+ * A card's status: the three My spars reads (`SparReadsService.sparsOf`). Any other is a request
+ * no card is built from, and throws; a status added to `SparStatus` fails the typecheck here.
+ */
+function cardStatus(status: SparStatus): AgreedSpar['status'] {
+  switch (status) {
+    case 'agreed':
+    case 'cancelled':
+    case 'done':
+      return status;
+    case 'pending':
+    case 'not_this_time':
+    case 'withdrawn':
+      throw new Error(`spar card built from a ${status} request`);
+    default: {
+      const unread: never = status;
+      throw new Error(`spar card built from an unknown status ${String(unread)}`);
+    }
+  }
+}
+
+/**
  * A spar both fighters agreed to, one either of them cancelled since, or one they marked done,
  * with what was written on it. `partnerFavourite` is null when the card has no heart: the caller
  * has FightBook off, or the partner is not someone they may ask (`SparReadsService.mySpars`).
@@ -140,7 +161,7 @@ export function toAgreed(
     iAsked,
     ...sparWhen(row, eventName),
     message: row.message,
-    status: row.status === 'cancelled' || row.status === 'done' ? row.status : 'agreed',
+    status: cardStatus(row.status),
     cancelledByMe: cancelled ? row.cancelled_by === (iAsked ? 'asker' : 'receiver') : null,
     cancelMessage: cancelled ? row.cancel_message : null,
     ...windows(row),

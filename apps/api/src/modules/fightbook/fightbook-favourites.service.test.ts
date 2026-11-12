@@ -93,6 +93,10 @@ describe('FightBookFavouritesService.add', () => {
     expect(filtersFor(supabase.from, 'fightbook_favourites', 'eq')).toEqual([
       ['owner_global_person_id', MARC],
     ]);
+    // Oldest first, so the first 200 are always the same 200.
+    expect(filtersFor(supabase.from, 'fightbook_favourites', 'order')).toEqual([
+      ['created_at', { ascending: true }],
+    ]);
     expect(filtersFor(supabase.from, 'fightbook_favourites', 'limit')).toEqual([[200]]);
   });
 

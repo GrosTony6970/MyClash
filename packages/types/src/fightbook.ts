@@ -162,6 +162,12 @@ export interface FightBookAskable {
   favourite: boolean;
 }
 
+/**
+ * The most favourites a fighter keeps: the API's cap on adding one, the most one read returns,
+ * and the number the web's `favourites_full` sentence says. One owner for all three.
+ */
+export const FAVOURITES_MAX = 200;
+
 /** One page of all of FightBook; `more` when a further page has someone on it. */
 export interface FindPage {
   items: FindCard[];

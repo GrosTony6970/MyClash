@@ -1690,7 +1690,7 @@ export const publicApp = {
       bad_event: 'Un spar ne peut nommer qu’un événement public auquel vous participez.',
       bad_answer: 'Cette réponse n’est pas possible.',
       self: 'Vous ne pouvez pas vous solliciter vous-même.',
-      favourites_full: 'Vous avez 200 favoris. Retirez-en un pour en ajouter un autre.',
+      favourites_full: 'Vous avez {max} favoris. Retirez-en un pour en ajouter un autre.',
       unknown: 'Une erreur est survenue. Réessayez.',
     },
     ask: {

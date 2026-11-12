@@ -5,6 +5,7 @@
  * time" (`fightbook_ask`), so no answer of this module may differ because of it.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { FAVOURITES_MAX } from '@myclash/types';
 import { inListChunks } from '../../common/postgrest-in-list';
 import { applyReachable } from '../fighters/directory-predicate';
 
@@ -110,11 +111,10 @@ export async function blockedBy(db: Db, me: string): Promise<Set<string>> {
   );
 }
 
-/** The most favourites a fighter keeps: the PUT's cap, and what one read of them returns. */
-export const FAVOURITES_MAX = 200;
-
 /**
- * The fighters `me` hearted: one read, `me` as the owner only, at most `FAVOURITES_MAX`. Callers
+ * The fighters `me` hearted: one read, `me` as the owner only, at most `FAVOURITES_MAX` (the
+ * PUT's cap, from `@myclash/types`: the web's "full" sentence says the same number), oldest
+ * first so the same ones come back every time. Callers
  * must not assume fewer rows exist than the read returns. The WRITE side is bounded by the PUT's
  * count check (`FightBookFavouritesService.add`); two racing PUTs may land 201, and a fighter
  * merge moves favourites over (0268) and may push someone past the cap. Both are accepted: a
@@ -125,6 +125,7 @@ export async function favouritesOf(db: Db, me: string): Promise<Set<string>> {
     .from('fightbook_favourites')
     .select('favourite_global_person_id')
     .eq('owner_global_person_id', me)
+    .order('created_at', { ascending: true })
     .limit(FAVOURITES_MAX);
   if (error) throw new Error(`FightBook favourites read failed: ${error.message}`);
   return new Set(

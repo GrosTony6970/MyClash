@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { FAVOURITES_MAX } from '@myclash/types';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 
@@ -43,7 +44,8 @@ function useHeart(props: HeartProps) {
       props.onChanged?.(next);
     } else {
       setShown(!next);
-      setRefusal(t(sparRefusalKey(res.code)));
+      // `max` fills the favourites_full sentence; every other refusal has no placeholder.
+      setRefusal(t(sparRefusalKey(res.code), { max: FAVOURITES_MAX }));
     }
   };
   return { shown, busy, refusal, toggle };
