@@ -240,6 +240,12 @@ describe('All of FightBook', () => {
     expect(withPhoto!.querySelector('button')?.textContent).toBe('Ask to spar');
   });
 
+  it('the name box takes at most 80 letters, the most the API reads', async () => {
+    serve({ [P0]: page([], false) });
+    await open();
+    expect(container.querySelector('input[type="search"]')!.getAttribute('maxlength')).toBe('80');
+  });
+
   it('a failed read says so and reads again on "Try again"', async () => {
     let fails = true;
     serve({

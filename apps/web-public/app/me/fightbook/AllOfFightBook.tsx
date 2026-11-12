@@ -32,6 +32,7 @@ export function AllOfFightBook(props: BrowseProps) {
         <input
           id={`${id}-name`}
           type="search"
+          maxLength={80}
           className={inputClass}
           value={text}
           onChange={(e) => setText(e.target.value)}
