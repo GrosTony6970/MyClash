@@ -63,11 +63,12 @@ export default function PeoplePage() {
   const search = useCallback(
     async (q: string) => {
       setSearchFailed(false);
+      // A cleared search also stops the one in flight: its answer would bring the old rows back.
+      abortRef.current?.abort();
       if (q.trim().length < 2 || !eventId) {
         setResults([]);
         return;
       }
-      abortRef.current?.abort();
       abortRef.current = new AbortController();
       setLoading(true);
       try {
