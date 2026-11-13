@@ -94,7 +94,8 @@ export async function scenario(tx, run) {
 export async function scenarioCheck(tx, label, expected, run) {
   let actual;
   await scenario(tx, async (q) => {
-    actual = await run(q).catch((error) => `raised ${error.code}: ${error.message}`);
+    // A database error names its SQLSTATE; any other names its kind (TypeError, Error…).
+    actual = await run(q).catch((error) => `raised ${error.code ?? error.name}: ${error.message}`);
   });
   check(label, actual, expected);
 }

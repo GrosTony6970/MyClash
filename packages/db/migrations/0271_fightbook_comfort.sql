@@ -16,7 +16,9 @@
 --    are `agreed` or `done`, an Event spar and a free-date spar alike. A cancelled one does not
 --    count, so a cancel frees a place for the asks that come after it. The block and the limit are
 --    each worked out into a variable first, then the status decided: a blocked ask does the same
---    work as any other. The clause runs after not_again and already_asked, as the block does, so
+--    work as any other. Her count runs whether or not she has a limit, so an ask to a fighter
+--    with no limit takes the same work as one to a fighter with one: its time cannot tell an
+--    asker "no limit", and so cannot turn an instant no into a block. The clause runs after not_again and already_asked, as the block does, so
 --    a limit-stopped ask is the same row as a declined one, answered the same `{ id }` (ruling
 --    672), and the no-asking-twice rule follows it: the asker the limit stopped cannot ask her
 --    again at that Event, any day of it, even after a cancel frees a place (ruling 747). The limit
@@ -75,6 +77,7 @@ declare
   v_status text;
   v_id     uuid;
   v_blocked boolean;
+  v_day_count bigint;
   v_full    boolean;
 begin
   if p_asker = p_receiver then
@@ -139,16 +142,19 @@ begin
      where b.blocker_global_person_id = p_receiver and b.blocked_global_person_id = p_asker
   );
 
-  -- Her live spars that day, either side (never both: spar_requests_two_fighters), against her
-  -- limit. No row, no limit. The (asker|receiver, status, spar_day) indexes serve each count.
+  -- Her live spars that day, either side (never both: spar_requests_two_fighters), counted
+  -- whether or not she has a limit: the ask does the same work either way, so its time never
+  -- tells an asker she has none. The (asker|receiver, status, spar_day) indexes serve each count.
+  v_day_count := (select count(*) from public.spar_requests r
+                   where r.asker_global_person_id = p_receiver
+                     and r.status in ('agreed', 'done') and r.spar_day = p_spar_day)
+               + (select count(*) from public.spar_requests r
+                   where r.receiver_global_person_id = p_receiver
+                     and r.status in ('agreed', 'done') and r.spar_day = p_spar_day);
+
+  -- No row, no limit.
   v_full := coalesce((
-    select l.daily_limit <= (
-             (select count(*) from public.spar_requests r
-               where r.asker_global_person_id = p_receiver
-                 and r.status in ('agreed', 'done') and r.spar_day = p_spar_day)
-           + (select count(*) from public.spar_requests r
-               where r.receiver_global_person_id = p_receiver
-                 and r.status in ('agreed', 'done') and r.spar_day = p_spar_day))
+    select l.daily_limit <= v_day_count
       from public.fightbook_daily_limits l
      where l.global_person_id = p_receiver
   ), false);
