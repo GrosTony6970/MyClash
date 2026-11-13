@@ -6,13 +6,43 @@ import { Avatar } from '@myclash/ui';
 import { AskToSpar } from '@/components/fightbook/AskToSpar';
 import { FavouriteHeart } from '@/components/fightbook/FavouriteHeart';
 
+/** A card's text block: name, club, weapons and, in the Event block, the "free now" badge. */
+function CardText(props: {
+  name: string;
+  club: string | null;
+  weapons: string[];
+  freeNow?: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="min-w-0 flex-1 basis-40">
+      <p className="truncate text-sm font-semibold text-foreground">{props.name}</p>
+      {props.club ? <p className="truncate text-xs text-muted">{props.club}</p> : null}
+      {props.weapons.length > 0 ? (
+        <p className="text-xs text-muted">
+          {t('publicApp.fightBook.card.weapons', { weapons: props.weapons.join(', ') })}
+        </p>
+      ) : null}
+      {props.freeNow ? (
+        <span
+          data-free-now
+          className="mt-1 inline-block rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success"
+        >
+          {t('publicApp.fightBook.floor.freeBadge')}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Find a partner's cards, for the Event block and All of FightBook: the fighter's photo (initials
  * when there is none), name, club and weapons, and "Ask to spar". `eventId` names the Event the
  * ask preselects; a sent ask tells the page (`onSent`).
  */
 export function FindCards(props: {
-  cards: FindCard[];
+  /** `freeNow` rides only on the Event block's cards (ruling 708); the others have none. */
+  cards: Array<FindCard & { freeNow?: boolean }>;
   eventId?: string;
   apiUrl: string;
   onSent: () => void;
@@ -22,7 +52,7 @@ export function FindCards(props: {
   const { t } = useI18n();
   return (
     <ul className="flex flex-col gap-3">
-      {props.cards.map(({ fighter, weapons, favourite }) => {
+      {props.cards.map(({ fighter, weapons, favourite, freeNow }) => {
         const name = fighter.name || t('publicApp.fightBook.unknownFighter');
         return (
           <li
@@ -31,15 +61,7 @@ export function FindCards(props: {
             className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <Avatar name={name} src={fighter.photoUrl ?? undefined} size="md" />
-            <div className="min-w-0 flex-1 basis-40">
-              <p className="truncate text-sm font-semibold text-foreground">{name}</p>
-              {fighter.club ? <p className="truncate text-xs text-muted">{fighter.club}</p> : null}
-              {weapons.length > 0 ? (
-                <p className="text-xs text-muted">
-                  {t('publicApp.fightBook.card.weapons', { weapons: weapons.join(', ') })}
-                </p>
-              ) : null}
-            </div>
+            <CardText name={name} club={fighter.club} weapons={weapons} freeNow={freeNow} />
             <AskToSpar
               receiverGlobalPersonId={fighter.globalPersonId}
               name={name}

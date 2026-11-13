@@ -33,7 +33,7 @@ type Route = Answer | (() => Answer);
 const EVENT_A = '11111111-1111-4111-8111-111111111111';
 const EVENT_B = '22222222-2222-4222-8222-222222222222';
 const event = (id: string, name: string, days: string[], today: string | null) =>
-  ({ id, name, days, today }) satisfies FightBookEvent;
+  ({ id, name, days, today, freeUntil: null }) satisfies FightBookEvent;
 const card = (n: number): FindCard => ({
   fighter: {
     globalPersonId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
@@ -71,6 +71,13 @@ function serve(events: FightBookEvent[], routes: Record<string, Route> = {}) {
       { id: 'w2', name: 'Sabre' },
     ]),
     [BROWSE]: ok({ items: [], more: false }),
+    // The floor tools read the open calls of any Event with an open day; these tests are not about them.
+    ...Object.fromEntries(
+      events.map((e) => [
+        `/api/v1/me/fightbook/events/${e.id}/calls`,
+        ok({ mine: [], others: [] }),
+      ]),
+    ),
     ...routes,
   };
   vi.mocked(apiRequest).mockImplementation(async (_base, path, init) => {

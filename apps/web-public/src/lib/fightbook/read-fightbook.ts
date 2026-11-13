@@ -3,11 +3,13 @@ import type {
   FightBookBlock,
   FightBookAskable,
   FightBookEvent,
+  EventFindCard,
   FightBookSettings,
   FindCard,
   FindPage,
   IncomingSparRequest,
   MySpars,
+  OpenCallsAtEvent,
   ThanksPage,
 } from '@myclash/types';
 
@@ -22,7 +24,8 @@ import type {
 export type FightBookRead<T> =
   { kind: 'data'; data: T } | { kind: 'signin' } | { kind: 'failed' } | { kind: 'aborted' };
 
-export type FightBookWrite<T> = { ok: true; data: T } | { ok: false; code: string | null };
+export type FightBookWrite<T> =
+  { ok: true; data: T } | { ok: false; code: string | null; status: number | null };
 
 async function read<T>(
   apiUrl: string,
@@ -112,13 +115,22 @@ export const readFindAtEvent = (
   signal?: AbortSignal,
 ) => {
   const query = new URLSearchParams(weapon ? { weapon } : {}).toString();
-  return read<FindCard[]>(
+  return read<EventFindCard[]>(
     apiUrl,
     `/api/v1/me/fightbook/events/${encodeURIComponent(eventId)}/find${query ? `?${query}` : ''}`,
     (v) => Array.isArray(v) && v.every(isCard),
     signal,
   );
 };
+
+/** Today's open calls at an Event: mine, and the others I may see. */
+export const readOpenCalls = (apiUrl: string, eventId: string, signal?: AbortSignal) =>
+  read<OpenCallsAtEvent>(
+    apiUrl,
+    `/api/v1/me/fightbook/events/${encodeURIComponent(eventId)}/calls`,
+    (v) => isObject(v) && Array.isArray(v['mine']) && Array.isArray(v['others']),
+    signal,
+  );
 
 /** One page of all of FightBook; `q` narrows by name, `weapon` is a catalog weapon id. */
 export const readFindBrowse = (
@@ -189,5 +201,6 @@ export async function writeFightBook<T>(
   body?: unknown,
 ): Promise<FightBookWrite<T>> {
   const res = await apiRequest<T>(apiUrl, path, { method, body });
-  return res.ok ? { ok: true, data: res.data } : { ok: false, code: failureCode(res) };
+  if (res.ok) return { ok: true, data: res.data };
+  return { ok: false, code: failureCode(res), status: res.kind === 'http' ? res.status : null };
 }

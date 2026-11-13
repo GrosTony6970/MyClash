@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import type { FightBookEvent, FindCard } from '@myclash/types';
+import type { EventFindCard, FightBookEvent } from '@myclash/types';
 import { Spinner } from '@myclash/ui';
 import { Field, inputClass } from '@/components/fightbook/AskSparFields';
 import { ReadFailed } from '@/components/me/ReadFailed';
@@ -14,6 +14,8 @@ import {
 import { signInAgainHere } from '@/lib/sign-in-return';
 import { AllOfFightBook } from './AllOfFightBook';
 import { FindCards } from './FindCards';
+import { FreeNowSwitch } from './FreeNowSwitch';
+import { OpenCalls } from './OpenCalls';
 
 type Weapon = { id: string; name: string };
 type Setup =
@@ -55,7 +57,9 @@ const fightersKey = (eventId: string, weapon: string) => `${eventId}|${weapon}`;
  */
 function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
   const key = fightersKey(eventId, weapon);
-  const [answer, setAnswer] = useState<{ key: string; cards: FindCard[] | 'failed' } | null>(null);
+  const [answer, setAnswer] = useState<{ key: string; cards: EventFindCard[] | 'failed' } | null>(
+    null,
+  );
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -76,6 +80,55 @@ function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
   return { cards: answer?.key === key ? answer.cards : null, retry };
 }
 
+function EventPicker(props: {
+  events: FightBookEvent[];
+  value: string;
+  onChange: (eventId: string) => void;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  return (
+    <Field label={t('publicApp.fightBook.find.event')} htmlFor={`${id}-event`}>
+      <select
+        id={`${id}-event`}
+        className={inputClass}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+      >
+        {props.events.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+/** The floor tools of an Event with an open day. The caller keys it by Event: no state carries over. */
+function EventFloor(props: {
+  event: FightBookEvent;
+  catalog: string[];
+  apiUrl: string;
+  onSent: () => void;
+}) {
+  return (
+    <>
+      <FreeNowSwitch
+        apiUrl={props.apiUrl}
+        eventId={props.event.id}
+        freeUntil={props.event.freeUntil}
+      />
+      <OpenCalls
+        apiUrl={props.apiUrl}
+        eventId={props.event.id}
+        catalog={props.catalog}
+        onSent={props.onSent}
+      />
+    </>
+  );
+}
+
 /**
  * The Event block (design "Current Event"): the Event running today; a picker when several run
  * today (the first by day, then name, as `me/fightbook/events` orders them); none today, the
@@ -84,12 +137,12 @@ function useEventFighters(apiUrl: string, eventId: string, weapon: string) {
 function EventBlock(props: {
   events: FightBookEvent[];
   weapon: string;
+  catalog: string[];
   apiUrl: string;
   onSent: () => void;
   onHearted?: (globalPersonId: string, favourite: boolean) => void;
 }) {
   const { t } = useI18n();
-  const id = useId();
   const today = props.events.filter((e) => e.today !== null);
   const [picked, setPicked] = useState<string | null>(null);
   const event = today.find((e) => e.id === picked) ?? today[0] ?? props.events[0];
@@ -97,24 +150,20 @@ function EventBlock(props: {
   return (
     <section className="flex flex-col gap-3">
       {today.length > 1 ? (
-        <Field label={t('publicApp.fightBook.find.event')} htmlFor={`${id}-event`}>
-          <select
-            id={`${id}-event`}
-            className={inputClass}
-            value={event.id}
-            onChange={(e) => setPicked(e.target.value)}
-          >
-            {today.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <EventPicker events={today} value={event.id} onChange={setPicked} />
       ) : null}
       <h2 className="font-display text-lg font-semibold text-foreground">
         {t('publicApp.fightBook.find.atEvent', { event: event.name })}
       </h2>
+      {event.today !== null ? (
+        <EventFloor
+          key={event.id}
+          event={event}
+          catalog={props.catalog}
+          apiUrl={props.apiUrl}
+          onSent={props.onSent}
+        />
+      ) : null}
       <EventFighters
         eventId={event.id}
         weapon={props.weapon}
@@ -201,6 +250,7 @@ export function FindTab(props: {
           <EventBlock
             events={setup.events}
             weapon={weapon}
+            catalog={setup.catalog.map((w) => w.name)}
             apiUrl={props.apiUrl}
             onSent={props.onSent}
             onHearted={props.onHearted}

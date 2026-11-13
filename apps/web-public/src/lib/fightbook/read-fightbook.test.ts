@@ -138,7 +138,7 @@ describe('writeFightBook', () => {
       await writeFightBook('http://api.test', '/api/v1/me/fightbook/requests/r-1/answer', 'POST', {
         answer: 'yes',
       }),
-    ).toEqual({ ok: false, code: 'not_open' });
+    ).toEqual({ ok: false, code: 'not_open', status: 409 });
     expect(vi.mocked(apiRequest).mock.calls[0]?.[2]).toMatchObject({
       method: 'POST',
       body: { answer: 'yes' },
