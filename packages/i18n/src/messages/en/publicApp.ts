@@ -1583,6 +1583,10 @@ export const publicApp = {
         'Off by default. When on, your average shows under your name on your public page.',
       myStars: 'Your stars: {stars}',
       myStarsNote: 'Shown on your public page only when switched on.',
+      dailyLimit: 'At most … spars a day',
+      dailyLimitNone: 'No limit',
+      dailyLimitDescription:
+        'When a day already has this many spars, new asks for it get "Not this time". Your own asks, QR scans and open calls are never stopped.',
     },
     tabs: {
       label: 'FightBook',

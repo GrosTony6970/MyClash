@@ -9,7 +9,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { ReadFailed } from '@/components/me/ReadFailed';
 import { FightBookSettingsPanel, FightBookSwitch } from './FightBookSettingsPanel';
 import { FightBookTabs } from './FightBookTabs';
-import { cancelled, starsShown, unblocked, withdrawn } from './fightbook-patches';
+import { cancelled, limitSaved, starsShown, unblocked, withdrawn } from './fightbook-patches';
 import { MySparsTab } from './MySparsTab';
 import { useFightBook, type FightBookState } from './use-fightbook';
 import { afterHandlers } from './use-spar-after';
@@ -138,6 +138,7 @@ function Body({
         blocks={state.blocks}
         onSwitched={reload}
         onStarsSaved={(showStars) => update(starsShown(showStars))}
+        onLimitSaved={(dailyLimit) => update(limitSaved(dailyLimit))}
         onUnblocked={(id) => update(unblocked(id))}
       />
     </>

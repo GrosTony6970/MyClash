@@ -1591,6 +1591,10 @@ export const publicApp = {
         'Désactivé par défaut. Activé, votre moyenne s’affiche sous votre nom sur votre page publique.',
       myStars: 'Vos étoiles : {stars}',
       myStarsNote: 'Affichées sur votre page publique seulement si vous l’activez.',
+      dailyLimit: 'Au plus … spars par jour',
+      dailyLimitNone: 'Pas de limite',
+      dailyLimitDescription:
+        'Quand un jour compte déjà ce nombre de spars, les nouvelles demandes pour ce jour reçoivent « Pas cette fois ». Vos propres demandes, les scans QR et les appels ouverts ne sont jamais bloqués.',
     },
     tabs: {
       label: 'FightBook',

@@ -127,6 +127,11 @@ export const starsShown =
   (showStars: boolean): Patch =>
   (d) => ({ settings: { ...d.settings, showStars } });
 
+/** The daily limit saved: the page's settings say what was saved. */
+export const limitSaved =
+  (dailyLimit: number | null): Patch =>
+  (d) => ({ settings: { ...d.settings, dailyLimit } });
+
 export const unblocked =
   (id: string): Patch =>
   (d) => ({ blocks: d.blocks.filter((b) => b.fighter.globalPersonId !== id) });

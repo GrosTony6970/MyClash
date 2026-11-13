@@ -135,6 +135,89 @@ function StarsSettings(props: {
   );
 }
 
+const LIMIT_CHOICES = Array.from({ length: 20 }, (_, i) => i + 1);
+const SELECT_CLS =
+  'border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40';
+
+/**
+ * The daily limit's save: the pick shows at once and is put back when the save fails; `saving`
+ * disables the select while a save is in flight, so two picks never race.
+ */
+function useLimitSave(
+  apiUrl: string,
+  dailyLimit: number | null,
+  onSaved: (dailyLimit: number | null) => void,
+) {
+  const [shown, setShown] = useState(dailyLimit);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const save = async (next: number | null) => {
+    const before = shown;
+    setShown(next);
+    setSaving(true);
+    setFailed(false);
+    const res = await writeFightBook<{ dailyLimit: number | null }>(
+      apiUrl,
+      '/api/v1/me/fightbook/settings',
+      'PATCH',
+      { dailyLimit: next },
+    );
+    setSaving(false);
+    if (res.ok) {
+      setShown(res.data.dailyLimit);
+      onSaved(res.data.dailyLimit);
+      return;
+    }
+    setShown(before);
+    setFailed(true);
+  };
+  return { shown, saving, failed, save };
+}
+
+/** The daily limit: "No limit" and 1 to 20, saved at once. */
+function DailyLimitSetting(props: {
+  apiUrl: string;
+  dailyLimit: number | null;
+  onSaved: (dailyLimit: number | null) => void;
+}) {
+  const { t } = useI18n();
+  const { shown, saving, failed, save } = useLimitSave(
+    props.apiUrl,
+    props.dailyLimit,
+    props.onSaved,
+  );
+  const label = t('publicApp.fightBook.settings.dailyLimit');
+  return (
+    <div>
+      <SettingRow
+        label={label}
+        description={t('publicApp.fightBook.settings.dailyLimitDescription')}
+        control={
+          <select
+            aria-label={label}
+            className={SELECT_CLS}
+            value={shown === null ? '' : String(shown)}
+            disabled={saving}
+            onChange={(e) => void save(e.target.value === '' ? null : Number(e.target.value))}
+          >
+            <option value="">{t('publicApp.fightBook.settings.dailyLimitNone')}</option>
+            {LIMIT_CHOICES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        }
+      />
+      {failed ? (
+        <p role="alert" className="text-sm text-danger">
+          {t('publicApp.fightBook.settings.saveFailed')}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function BlockedRow({ fighter, onUnblock }: { fighter: SparFighter; onUnblock: () => void }) {
   const { t } = useI18n();
   const name = fighter.name || t('publicApp.fightBook.unknownFighter');
@@ -200,6 +283,7 @@ export function FightBookSettingsPanel(props: {
   blocks: FightBookBlock[];
   onSwitched: () => void;
   onStarsSaved: (showStars: boolean) => void;
+  onLimitSaved: (dailyLimit: number | null) => void;
   onUnblocked: (globalPersonId: string) => void;
 }) {
   const { t } = useI18n();
@@ -210,6 +294,11 @@ export function FightBookSettingsPanel(props: {
       </h2>
       <FightBookSwitch apiUrl={props.apiUrl} enabled onSaved={props.onSwitched} />
       <StarsSettings apiUrl={props.apiUrl} settings={props.settings} onSaved={props.onStarsSaved} />
+      <DailyLimitSetting
+        apiUrl={props.apiUrl}
+        dailyLimit={props.settings.dailyLimit ?? null}
+        onSaved={props.onLimitSaved}
+      />
       <BlockedFighters
         apiUrl={props.apiUrl}
         blocks={props.blocks}

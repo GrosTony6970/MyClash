@@ -8,6 +8,7 @@ import {
   markedDone,
   noted,
   reviewed,
+  limitSaved,
   starsShown,
   undone,
 } from './fightbook-patches';
@@ -107,6 +108,13 @@ describe('the list patches', () => {
     const on = apply({ ...empty, settings }, starsShown(true));
     expect(on.settings).toEqual({ ...settings, showStars: true });
     expect(on.inbox).toBe(empty.inbox);
+  });
+
+  it('a saved daily limit sets dailyLimit and leaves the rest of the settings', () => {
+    const settings = { ...empty.settings, showStars: true, dailyLimit: null };
+    const set = apply({ ...empty, settings }, limitSaved(4));
+    expect(set.settings).toEqual({ ...settings, dailyLimit: 4 });
+    expect(apply(set, limitSaved(null)).settings.dailyLimit).toBeNull();
   });
 
   it('a block the page already read back is not listed twice', () => {
