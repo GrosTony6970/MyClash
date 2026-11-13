@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookBlock, FightBookSettings, SparFighter } from '@myclash/types';
 import { Avatar, Button, Switch } from '@myclash/ui';
+import { inputClass } from '@/components/fightbook/AskSparFields';
 import { formatStars, sparredText } from '@/components/fightbook/SparredLine';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { SettingRow } from '../settings/controls';
@@ -136,8 +137,6 @@ function StarsSettings(props: {
 }
 
 const LIMIT_CHOICES = Array.from({ length: 20 }, (_, i) => i + 1);
-const SELECT_CLS =
-  'border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40';
 
 /**
  * The daily limit's save: the pick shows at once and is put back when the save fails; `saving`
@@ -193,20 +192,22 @@ function DailyLimitSetting(props: {
         label={label}
         description={t('publicApp.fightBook.settings.dailyLimitDescription')}
         control={
-          <select
-            aria-label={label}
-            className={SELECT_CLS}
-            value={shown === null ? '' : String(shown)}
-            disabled={saving}
-            onChange={(e) => void save(e.target.value === '' ? null : Number(e.target.value))}
-          >
-            <option value="">{t('publicApp.fightBook.settings.dailyLimitNone')}</option>
-            {LIMIT_CHOICES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+          <div className="w-44">
+            <select
+              aria-label={label}
+              className={`${inputClass} min-h-11`}
+              value={shown === null ? '' : String(shown)}
+              disabled={saving}
+              onChange={(e) => void save(e.target.value === '' ? null : Number(e.target.value))}
+            >
+              <option value="">{t('publicApp.fightBook.settings.dailyLimitNone')}</option>
+              {LIMIT_CHOICES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
         }
       />
       {failed ? (
@@ -296,7 +297,7 @@ export function FightBookSettingsPanel(props: {
       <StarsSettings apiUrl={props.apiUrl} settings={props.settings} onSaved={props.onStarsSaved} />
       <DailyLimitSetting
         apiUrl={props.apiUrl}
-        dailyLimit={props.settings.dailyLimit ?? null}
+        dailyLimit={props.settings.dailyLimit}
         onSaved={props.onLimitSaved}
       />
       <BlockedFighters
