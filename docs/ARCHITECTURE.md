@@ -3105,7 +3105,9 @@ profiles are `FIGHTBOOK_ASK_THROTTLE`, `FIGHTBOOK_CALL_THROTTLE`, `FIGHTBOOK_SCA
 `bad_code`. `bad_code` and `bad_event` answer 400, so the status never tells which side refused;
 `not_open` stays 409 (on the pick and on an answer to a call no longer open). The refusals
 `fightbook_off`, `not_on_fightbook` and `you_blocked` answer 403 on a scan, as on an ask
-(`databaseRefusal`, `spar-requests.service.ts`).
+(`databaseRefusal`, `spar-requests.service.ts`). Each word the database raises answers one fixed
+English sentence as its `message` (`SPAR_REFUSAL_SENTENCES`, `spar-refusal-sentences.ts`); the web
+keys on the `code` and shows its own.
 
 **Notices.** Two kinds, preference `fightbook`, no names (they show on a locked phone):
 `spar_call_answered` to the poster, one per call (its job id is the kind, call and poster, so later

@@ -1,9 +1,10 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { SPAR_REFUSAL_SENTENCES } from './spar-refusal-sentences';
 
 /** One word for every lost race or closed window of the agreed-spar routes: 409 `not_open`. */
 export const notOpen = () =>
-  new ConflictException({ code: 'not_open', message: 'This request is no longer open' });
+  new ConflictException({ code: 'not_open', message: SPAR_REFUSAL_SENTENCES.not_open });
 
 /** The columns of a spar request every agreed-spar route reads first. */
 export const SIDE_SELECT =

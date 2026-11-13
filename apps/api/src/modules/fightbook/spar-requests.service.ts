@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, Logger, type HttpException } from '@nestjs/common';
 import { addDays } from '@myclash/time';
-import type { SparKind, SparRefusalCode } from '@myclash/types';
+import { SPAR_REFUSAL_CODES, type SparKind, type SparRefusalCode } from '@myclash/types';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { eventZone } from '../../common/event-clock';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
@@ -16,6 +16,7 @@ import {
   type SparWhere,
 } from './spar-ask-rules';
 import { isOnEventRoster } from './spar-askable';
+import { SPAR_REFUSAL_SENTENCES } from './spar-refusal-sentences';
 import { notOpen, readMySide } from './spar-side';
 import {
   notifySparAgreed,
@@ -79,16 +80,18 @@ function refusalStatus(word: SparRefusalCode): 400 | 403 | 409 {
 }
 
 /**
- * A database refusal word (P0001) as the API answers it; anything else is a 5xx. A word no code
- * names answers 403, as it always did.
+ * A database refusal word (P0001) as the API answers it, with its sentence as the message; anything
+ * else is a 5xx. A word no code names answers 403 with the word itself, as it always did.
  */
 export function databaseRefusal(error: { code?: string; message: string }, what: string): Error {
   if (error.code !== 'P0001') return new Error(`${what} failed: ${error.message}`);
+  const named = (SPAR_REFUSAL_CODES as readonly string[]).includes(error.message);
   const word = error.message as SparRefusalCode;
+  const sentence = named ? SPAR_REFUSAL_SENTENCES[word] : error.message;
   const status = refusalStatus(word);
-  if (status === 409) return new ConflictException({ code: word, message: word });
-  if (status === 400) return badRequest(word, word);
-  return refusal(word, word) as HttpException;
+  if (status === 409) return new ConflictException({ code: word, message: sentence });
+  if (status === 400) return badRequest(word, sentence);
+  return refusal(word, sentence) as HttpException;
 }
 
 /**

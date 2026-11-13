@@ -247,6 +247,14 @@ describe('OpenCallsService.takeBack', () => {
     expect(await codeOf(open.takeBack(MARC, CALL))).toEqual(answer);
   });
 
+  it('answers a refused take-back with a sentence, not the database word', async () => {
+    const { open } = world({ calls: [callRow()], answers: [MINE], dbNow: LATE });
+    expect(await refusalOf(open.takeBack(MARC, CALL))).toEqual([
+      409,
+      { code: 'not_open', message: 'This request is no longer open' },
+    ]);
+  });
+
   it('turns any other database error into a 5xx', async () => {
     const { open, supabase } = world({ calls: [callRow()], answers: [MINE] });
     supabase.rpc.mockResolvedValueOnce({ data: null, error: { code: 'XX000', message: 'boom' } });
