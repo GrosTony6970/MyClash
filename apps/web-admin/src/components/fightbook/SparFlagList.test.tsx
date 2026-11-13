@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -134,16 +135,19 @@ describe('a safety report row', () => {
   });
 
   it("dates a report in the viewer's zone, not UTC", async () => {
-    const before = process.env.TZ;
-    process.env.TZ = 'Pacific/Auckland';
+    // luxon reads its own default zone and ignores a runtime change of process.env.TZ, so pin
+    // the zone luxon reads. web-admin does not depend on luxon: take the copy @myclash/time uses.
+    const timeRequire = createRequire(createRequire(import.meta.url).resolve('@myclash/time'));
+    const { Settings } = timeRequire('luxon') as { Settings: { defaultZone: unknown } };
+    const before = Settings.defaultZone;
+    Settings.defaultZone = 'Pacific/Auckland';
     try {
       const late = flag({ createdAt: '2026-11-10T23:30:00.000Z', day: '2026-11-08' });
       await open(CLUB, { [CLUB_PAGE(0)]: { items: [late], more: false } });
       expect(text()).toContain('11 Nov 2026');
       expect(text()).toContain('8 Nov 2026');
     } finally {
-      if (before === undefined) delete process.env.TZ;
-      else process.env.TZ = before;
+      Settings.defaultZone = before;
     }
   });
 
