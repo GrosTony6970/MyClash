@@ -61,6 +61,7 @@ USE_DEV_CERTS=0
 SKIP_BACKUP=0
 SKIP_MIGRATIONS=0
 CREATE_DEMO_ORG=0
+CREATE_E2E_SUPER_ADMIN=0
 
 # Outcome of the super admin bootstrap step, rendered in the credentials box at
 # the very end: created | synced | existing | failed | unknown.
@@ -72,6 +73,7 @@ while [[ $# -gt 0 ]]; do
     --skip-backup)      SKIP_BACKUP=1; shift ;;        # for fast iterating; never in prod
     --skip-migrations)  SKIP_MIGRATIONS=1; shift ;;    # for fast iterating; never in prod
     --create-demo-org)  CREATE_DEMO_ORG=1; shift ;;    # provision the E2E sandbox org from .env.e2e
+    --create-e2e-super-admin) CREATE_E2E_SUPER_ADMIN=1; shift ;;  # provision the E2E super admin from .env.e2e
     -h|--help)
       cat <<EOF
 Usage: infra/scripts/deploy.sh [options]
@@ -82,6 +84,10 @@ Usage: infra/scripts/deploy.sh [options]
   --create-demo-org    After deploy, provision the E2E sandbox org "test ai org"
                        from .env.e2e (E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD/E2E_ORG_SLUG).
                        Idempotent. Requires .env.e2e at the repo root.
+  --create-e2e-super-admin
+                       After deploy, provision the E2E super admin account from
+                       .env.e2e (E2E_SUPERADMIN_EMAIL/E2E_SUPERADMIN_PASSWORD).
+                       Idempotent: re-syncs the password. Requires .env.e2e.
   -h, --help           Show this help.
 
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
@@ -759,13 +765,11 @@ else
   ok "Super admin account already exists — bootstrap roles verified"
 fi
 
-# ── Demo / E2E sandbox org (opt-in) ──────────────────────────────
-if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
-  hdr "Creating demo organization"
-
+# Loads .env.e2e for the opt-in E2E steps below. $1 names the flag that needs it.
+load_env_e2e() {
   if [[ ! -f .env.e2e ]]; then
-    err ".env.e2e not found at repo root — required for --create-demo-org"
-    err "Copy .env.e2e.example to .env.e2e and set E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD / E2E_ORG_SLUG"
+    err ".env.e2e not found at repo root — required for $1"
+    err "Copy .env.e2e.example to .env.e2e and fill in the keys $1 reads (see --help)"
     exit 1
   fi
 
@@ -775,6 +779,13 @@ if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
   # shellcheck source=/dev/null
   source ./.env.e2e
   set +a
+}
+
+# ── Demo / E2E sandbox org (opt-in) ──────────────────────────────
+if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
+  hdr "Creating demo organization"
+
+  load_env_e2e --create-demo-org
   : "${E2E_ADMIN_EMAIL:?Missing E2E_ADMIN_EMAIL in .env.e2e}"
   : "${E2E_ADMIN_PASSWORD:?Missing E2E_ADMIN_PASSWORD in .env.e2e}"
   : "${E2E_ORG_SLUG:?Missing E2E_ORG_SLUG in .env.e2e}"
@@ -798,6 +809,39 @@ if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
     warn "You can run it manually — see: infra/scripts/deploy.sh --help"
   else
     ok "Demo organization 'test ai org' (${E2E_ORG_SLUG}) ready; owner ${E2E_ADMIN_EMAIL}"
+  fi
+fi
+
+# ── E2E super admin (opt-in) ─────────────────────────────────────
+# A second super admin for the platform-console specs (27, 30). It must stay a
+# separate account from E2E_ADMIN_EMAIL — see .env.e2e.example. The same
+# idempotent seeder as the main super admin, fed the E2E credentials: the env
+# prefix overrides SEED_ADMIN_* for this one command, and the password goes in
+# by name (ruling 425).
+if [[ "$CREATE_E2E_SUPER_ADMIN" -eq 1 ]]; then
+  hdr "Creating E2E super admin"
+
+  load_env_e2e --create-e2e-super-admin
+  : "${E2E_SUPERADMIN_EMAIL:?Missing E2E_SUPERADMIN_EMAIL in .env.e2e}"
+  : "${E2E_SUPERADMIN_PASSWORD:?Missing E2E_SUPERADMIN_PASSWORD in .env.e2e}"
+
+  E2E_SUPER_RESULT=$(SEED_ADMIN_EMAIL="$E2E_SUPERADMIN_EMAIL" SEED_ADMIN_PASSWORD="$E2E_SUPERADMIN_PASSWORD" \
+    "${COMPOSE[@]}" \
+    run --rm \
+    -e SUPABASE_URL="http://supabase-auth:9999" \
+    -e DATABASE_URL \
+    -e SEED_ADMIN_EMAIL \
+    -e SEED_ADMIN_PASSWORD \
+    api node /app/scripts/bootstrap-super-admin.mjs || echo '{"error":"e2e super admin bootstrap failed"}')
+
+  E2E_SUPER_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$E2E_SUPER_RESULT")
+  E2E_SUPER_DETAIL=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.detail?JSON.stringify(r.detail):'')}catch{console.log('')}" "$E2E_SUPER_RESULT")
+
+  if [[ -n "$E2E_SUPER_ERROR" ]]; then
+    warn "E2E super admin creation reported an issue: $E2E_SUPER_ERROR"
+    [[ -n "$E2E_SUPER_DETAIL" ]] && warn "Bootstrap detail: $E2E_SUPER_DETAIL"
+  else
+    ok "E2E super admin ${E2E_SUPERADMIN_EMAIL} ready; password synced from .env.e2e"
   fi
 fi
 
