@@ -2155,15 +2155,20 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | A fighter said yes to your spar       | immediate         | yes        |
 | A spar you agreed to was cancelled    | immediate         | yes        |
 | The other fighter marked "we sparred" | immediate         | yes        |
+| Your spar starts                      | 10 min before     | yes        |
 | A fighter sent a safety report        | immediate         | none       |
 
-"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the four FightBook rows share "FightBook")
+"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes", the five FightBook rows share "FightBook")
 and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
 not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
 "none" = the safety report goes to the club's admins, or to the super admins, like any notice: a push
 to a phone that is set up, else an email. It passes the main switch (`PASSES_MAIN_SWITCH`, ruling
 698): an admin whose main switch is off still gets it, by email, without a buzz. It has no switch of
 its own and no names or reason in its text (§11septies.8).
+"Your spar starts" (`spar_starting`) is a scheduled notice with preference `fightbook`, by push only
+(no email fallback, ruling 746). It is set once, when a Spar with a time becomes agreed, and
+re-checked when it fires: a cancelled or finished Spar, or an account that no longer holds the
+fighter, drops it (§11septies.10).
 
 ### 11ter.3 Implementation
 
@@ -2532,7 +2537,9 @@ any follow is removed, so that no alert is set back while the follows go.
 
 A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERARCHY.md`): weapons,
 a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
-rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701; slice 5, floor tools: 705-714): `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 1 plan:
+rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701; slice 5, floor tools: 705-714; slice 6, comfort: 741-747):
+`docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 6 plan:
+`docs/superpowers/plans/2026-11-13-fightbook-slice6-comfort.md`; slice 1 plan:
 `docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
 `@myclash/rulesets`, Matches or the scoring app.
 
@@ -2541,28 +2548,31 @@ rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-70
 Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
 profile is the switch, off by default; off means nobody may ask them and they may ask nobody, yet
 they still see and cancel the spars they agreed (ruling 666), take back a request still waiting,
-and manage their blocks. Twelve
-tables, RLS on and no policy, read and written by the API only (0263, 0267, 0269, 0270): `spar_requests` (one row is
+and manage their blocks. Thirteen
+tables, RLS on and no policy, read and written by the API only (0263, 0267, 0269, 0270, 0271): `spar_requests` (one row is
 one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
 `fightbook_blocks`, and from slice 3 `spar_thanks`, `spar_anonymous_reviews` and
 `fightbook_favourites` (§11septies.7); slice 4 adds `spar_flags` and `spar_flag_admin` (§11septies.8);
 slice 5 adds `fightbook_free_now`, `spar_open_calls`, `spar_open_call_answers` and
-`fightbook_qr_codes` (§11septies.9). A request's `status` is `pending`, `agreed`, `done`,
+`fightbook_qr_codes` (§11septies.9); slice 6 adds `fightbook_daily_limits` (§11septies.10). A
+request's `status` is `pending`, `agreed`, `done`,
 `not_this_time`, `withdrawn` or `cancelled`; `done` is "we sparred" and goes back to `agreed` on
 undo. A request names a public Event the asker is on and one of its days (ruling 665),
 or a free date, a place and the asker's time zone; the zone is copied into the row.
 
 ### 11septies.2 Every "no" is the same
 
-Four ways end a request as "Not this time": the fighter asked declines, the request runs out at the
+Five ways end a request as "Not this time": the fighter asked declines, the request runs out at the
 end of its day (06:00 the next morning on an Event's clock, midnight on a free date's), the fighter
-asked had blocked the asker, and a request still waiting in the database past its end (every read
+asked had blocked the asker, the fighter asked has a daily limit and that day is full (slice 6,
+§11septies.10), and a request still waiting in the database past its end (every read
 shows it as a no; the hourly `spar-request-expiry` job then stores it so). The row stores no reason
 and no decline time, the asker's payload is built from nothing that differs
 (`modules/fightbook/spar-views.ts`), and a "no" never buzzes (ruling 663). A comment the decliner
 keeps private goes to `spar_private_notes`, never on the row the asker's data download carries.
 What a fighter may still guess, accepted by ruling 660: an instant no may be automatic, and a
-blocked asker never meets "already asked" (their requests are stored ended at once).
+blocked asker never meets "already asked" (their requests are stored ended at once). The same
+holds for an ask the limit stopped: it is stored ended at once.
 
 ### 11septies.3 Races
 
@@ -2574,7 +2584,8 @@ receiver's own request, still waiting and open, from an asker still on FightBook
 spar stays). Withdraw and cancel are one conditional update each. The loser of any race gets 409
 `not_open`. Slice 5 adds three more calls that two taps can race, `fightbook_call_pick`,
 `fightbook_call_take_back` and `fightbook_qr_log`, and re-defines `fightbook_block` and
-`fightbook_answer` (0270; §11septies.9). `pnpm db:fightbook-probe` runs every FightBook function
+`fightbook_answer` (0270; §11septies.9). Slice 6 re-defines `fightbook_ask` (0271): the daily limit
+takes no lock on the answerer's day (§11septies.10). `pnpm db:fightbook-probe` runs every FightBook function
 (ask, answer, block, review, flag, pick, take back, scan) on the replayed database in CI, each rule
 in one transaction, one call after another.
 `pnpm db:fightbook-race-probe` (`RACE_PROBE_DISPOSABLE=1`, it commits rows) runs the overlaps that
@@ -2633,6 +2644,10 @@ profiles and clears the reporter on the flags they wrote; anonymisation keeps th
 moves no flag: the rules follow the merged profiles instead.
 Slice 5's rows (free now, open calls and their answers, QR codes) are in §11septies.9, "Switch-off,
 sweep, privacy".
+Slice 6 adds the daily limit. The data download carries the fighter's own limit and no one else's
+(`subject-export.fightbook.ts`). Account erasure deletes the row (`erasure-fightbook.ts`);
+anonymisation keeps it, as it keeps the switch. A fighter merge (0271) keeps the stricter limit on
+the survivor (§11septies.10). The Event archive needs no entry: the row names no Event.
 
 ### 11septies.6 Finding and asking
 
@@ -3132,6 +3147,97 @@ reuses `spar_request_received`.
 - `SparFindService.atEvent` keeps its own Event read: it needs the whole Event row for
   `hiddenEntrantIds` (the Tournament-hidden filter), and `floorEvent` returns only `{ today, zone }`.
   The predicates `isPublicEvent` and `isOnEventRoster` are shared (Ruling R).
+
+### 11septies.10 Comfort
+
+Rulings 741-747 (plan: `docs/superpowers/plans/2026-11-13-fightbook-slice6-comfort.md`). One
+migration, 0271. Two comforts: a **daily limit** ("At most N spars a day") and a **spar reminder**
+(10 minutes before an agreed Spar that has a time).
+
+**The limit is a table, not a profile column (Decision 1).** `fightbook_daily_limits` has an `id
+uuid` primary key, `global_person_id` (UNIQUE, constraint `fightbook_daily_limits_person_uk`, ON
+DELETE CASCADE), `daily_limit smallint` and `updated_at`. RLS is on and no policy. The CHECK
+`fightbook_daily_limits_range` says 1 to 20, as a `CASE … ELSE false END`. 20 matches the ask
+throttle, and 0 is FightBook off, which already exists. No row means no limit. Policy 0187 lets
+anyone read a listed fighter's profile row. A limit on that row would turn ruling 660's "an instant
+no may be automatic" into "an instant no from a fighter with no limit is a block". So the limit
+lives where only the API reads it.
+
+**Where it bites (Decisions 2, 3; rulings 741, 744, 747).** Only in `fightbook_ask` (0271), and
+only on a NEW ask to her. The function counts her live Spars on the asked `spar_day`, as asker or
+receiver, `agreed` or `done`. An Event Spar and a free-date Spar on the same date both count. A
+cancelled Spar does not count, so a cancel frees a place for the asks that come after it. The ask
+then stores `not_this_time` when she blocked the asker OR she has a row and the count has reached it;
+else `pending`. The clause runs after `not_again` and `already_asked`, like the block. So a
+limit-stopped ask is the same row as a declined one: same columns, no reason, no notice, the same
+`{ id }` and the same speed (ruling 672). The no-asking-twice rule follows it (ruling 747): the
+asker cannot ask her again at that Event, on any day of it, even after a cancel frees a place. He
+cannot tell the limit from a decline or a block. She can still ask him. The count runs for every
+ask, whether she has a limit or not. A count that ran only for fighters with a limit would give an
+instant no a timing face, and that face would say "this is a block". The SQL does the same work in
+both cases.
+
+**What the limit never stops (rulings 742, 743).** Her own Yes on a waiting ask goes through, and a
+waiting ask stays until she answers it. A QR scan, a pick (it follows her own "I'm in") and her own
+asks never read the limit. `fightbook_answer`, `fightbook_call_pick` and `fightbook_qr_log` are
+not touched. A stray limit check copied into one of them is the regression to watch for.
+
+**The race it leaves, accepted (Decision 4).** An ask that counts while one of her Yes taps commits
+can land pending past her limit. She answers that ask herself, and ruling 742 lets every Yes
+through. So the limit takes no lock on her day. The spec's "the daily limit counts under a lock on
+the answerer's day" is moot: no Yes is ever capped.
+
+**The settings route (Decision 7).** `GET` and `PATCH me/fightbook/settings` carry
+`dailyLimit: number | null`. A number upserts her row on `global_person_id` and sets `updated_at`;
+null deletes it; a missing key leaves it. Setting it needs only a profile (`requireProfile`), like
+`showStars`. The patch schema's "say what to change" check accepts a limit alone. A save that sets
+only the limit has no switch to write, so `FightBookSettingsService.saveSwitches` READS the switches
+instead of updating them. An update with no column would skip the write and the answer would say
+`enabled: false`, which the panel takes as the truth. In the web, `FightBookSettingsPanel.tsx` shows
+a select: "No limit" or 1 to 20. A failed save shows an alert and keeps the old value.
+
+**Merge and erasure (Decisions 5, 6).** `merge_fighters` (0271) inserts the merged profile's limit
+onto the survivor; on a conflict the lower number wins, as the two switches keep the stricter value
+(0265, 0268). The merged profile's own row stays where nothing reads it. Nothing moved, so the merge
+record holds no key. `revert_fighter_merge` is not touched: a reverted survivor keeps the stricter
+limit. Erasure and the data download are in §11septies.5.
+
+**The spar reminder (Decisions 8-11; rulings 745, 746).** The scheduled notice kind is
+`spar_starting`: preference `fightbook`, push only, no names ("Your spar starts in 10 minutes"), and
+it opens My spars. `scheduleSparReminders` (`modules/fightbook/spar-reminder.ts`) sets it once, when
+a Spar becomes agreed: after an ask's Yes or a QR request's Yes (`spar-requests.service.ts`) and
+after a pick (`open-calls.service.ts`). It is started, not awaited, and never throws: a failure is
+logged with the request id. It reads the Spar, and skips one that is not `agreed` or has no time
+(most QR Spars). It reads the start with `zonedToUtcIso(spar_day, spar_time.slice(0, 5), zone)` on
+the row's own zone, so the time reads on the day's own date, as an open call does. The slice is
+load-bearing: PostgREST returns a `TIME` as `15:00:00` and `zonedToUtcIso` takes only `HH:MM`. The
+lead is fixed at 10 minutes (`SPAR_REMINDER_LEAD_MINUTES`); the fight reminder's per-account lead
+setting is not reused. A Spar agreed inside its last 10 minutes gets no reminder (ruling 745). Both
+fighters get one, one job per account.
+
+**The re-check when it fires (Decision 10).** Nothing removes the job when a Spar is cancelled,
+marked done or merged. `WANTED.spar_starting` (`workers/alert-still-wanted.ts`) asks again when the
+job fires: the Spar is still `agreed`, AND the job's account still holds the asker's or receiver's
+profile (`claimed_by_user_id`). If not, the job is dropped and logged as "no longer wanted". An undo
+of "We sparred" before the minute needs nothing: the job is still queued and the Spar is `agreed`
+again. `CHECKS.spar_starting` is null: a Spar is never public.
+
+**Switches, and phone only (Decision 11, ruling 746).** The job carries `preference: 'fightbook'`.
+`toJobData` in `notification-scheduler.worker.ts` carries it as a conditional spread, so the other
+scheduled kinds queue the same data as before. The main switch is read at delivery, as for every
+notice. The job carries no `email`, so `sendEmailFallback` returns without sending: a fighter with
+no phone alert set up gets nothing.
+
+**Accepted residuals (Decision 12).**
+
+- A merge that moves a Spar to a profile held by ANOTHER account drops the old account's reminder
+  when it fires, and nothing sets one for the new account. The referee alert has the same gap
+  (`alert-still-wanted.ts`).
+- A fighter who switched FightBook off keeps her agreed Spars (ruling 666) and still gets their
+  reminder. The FightBook notices switch is what stops it.
+- A time on an Event day reads on the day's own date. "Saturday 01:00" rings Saturday 01:00, as open
+  calls already read it (Ruling F).
+- The limit-stopped ask race above.
 - A free-date scan at 23:59 in the scanner's zone expires at the day's end, so the shower has a
   minute to answer. A QR spar is confirmed face to face, on the spot (Ruling S).
 - The viewfinder markup is copied between `QrScan.tsx` (web-public) and `ScanOverlay.tsx`
