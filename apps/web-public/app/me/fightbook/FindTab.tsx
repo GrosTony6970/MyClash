@@ -16,6 +16,7 @@ import { AllOfFightBook } from './AllOfFightBook';
 import { FindCards } from './FindCards';
 import { FreeNowSwitch } from './FreeNowSwitch';
 import { OpenCalls } from './OpenCalls';
+import { QrTools } from './QrTools';
 
 type Weapon = { id: string; name: string };
 type Setup =
@@ -247,6 +248,12 @@ export function FindTab(props: {
       {setup.status === 'ready' ? (
         <>
           <WeaponSelect catalog={setup.catalog} value={weapon} onChange={setWeapon} />
+          <QrTools
+            apiUrl={props.apiUrl}
+            events={setup.events}
+            catalog={setup.catalog.map((w) => w.name)}
+            onSent={props.onSent}
+          />
           <EventBlock
             events={setup.events}
             weapon={weapon}

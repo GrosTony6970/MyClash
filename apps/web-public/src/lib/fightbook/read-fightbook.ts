@@ -202,5 +202,6 @@ export async function writeFightBook<T>(
 ): Promise<FightBookWrite<T>> {
   const res = await apiRequest<T>(apiUrl, path, { method, body });
   if (res.ok) return { ok: true, data: res.data };
-  return { ok: false, code: failureCode(res), status: res.kind === 'http' ? res.status : null };
+  const status = res.kind === 'http' || res.kind === 'unauthenticated' ? res.status : null;
+  return { ok: false, code: failureCode(res), status };
 }

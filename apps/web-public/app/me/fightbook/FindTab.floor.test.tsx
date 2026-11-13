@@ -354,3 +354,13 @@ describe('My open calls', () => {
     expect(text()).toContain('Closed');
   });
 });
+
+describe('The FightBook QR', () => {
+  it('offers both buttons whether or not an Event has an open day, and reads nothing until used', async () => {
+    serve(eventOf(null));
+    await open();
+    expect(button('My FightBook QR')).toBeDefined();
+    expect(button('Scan a FightBook QR')).toBeDefined();
+    expect(sent.filter((k) => k.includes('/qr'))).toEqual([]);
+  });
+});
