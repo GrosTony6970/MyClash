@@ -11,8 +11,8 @@ import { QrTools } from './QrTools';
 
 /**
  * Guards of the "My FightBook QR" panel that QrPanel.test.tsx does not hold: an ended login on the
- * mint, a dead code that must leave the screen the moment the phone wakes, and a late answer of a
- * mint that a newer one replaced.
+ * mint, and a dead code that must leave the screen the moment the phone wakes. One mint out at a
+ * time is QrPanel.flight.test.tsx.
  */
 vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
@@ -108,21 +108,5 @@ describe('After the phone slept', () => {
     vi.mocked(apiRequest).mockImplementation((() => new Promise(() => undefined)) as never);
     await wake();
     expect(shown()).toBeNull();
-  });
-});
-
-describe('Two mints that overlap', () => {
-  it('shows the code of the newer one when the older answers last', async () => {
-    const answers: Array<(value: unknown) => void> = [];
-    vi.mocked(apiRequest).mockImplementation(
-      (() => new Promise((resolve) => answers.push(resolve))) as never,
-    );
-    await open();
-    await wake();
-    expect(answers).toHaveLength(2);
-    await act(async () => answers[1]?.(code(2)));
-    await act(async () => answers[0]?.(code(1)));
-    await wait(0);
-    expect(shown()).toBe('fb:CODE2');
   });
 });
