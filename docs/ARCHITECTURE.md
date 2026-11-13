@@ -2537,7 +2537,8 @@ any follow is removed, so that no alert is set back while the follows go.
 
 A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERARCHY.md`): weapons,
 a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
-rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701; slice 5, floor tools: 705-714; slice 6, comfort: 741-747):
+rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701; slice 5, floor
+tools: 705-714; slice 6, comfort: 741-747):
 `docs/superpowers/specs/2026-11-10-fightbook-design.md`; slice 6 plan:
 `docs/superpowers/plans/2026-11-13-fightbook-slice6-comfort.md`; slice 1 plan:
 `docs/superpowers/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
@@ -2548,16 +2549,15 @@ rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-70
 Keyed on the fighter profile (`global_persons`), never on the account. `fightbook_enabled` on the
 profile is the switch, off by default; off means nobody may ask them and they may ask nobody, yet
 they still see and cancel the spars they agreed (ruling 666), take back a request still waiting,
-and manage their blocks. Thirteen
-tables, RLS on and no policy, read and written by the API only (0263, 0267, 0269, 0270, 0271): `spar_requests` (one row is
-one request; agreed means the spar), `spar_private_notes` (a fighter's private note on a request),
+and manage their blocks. Thirteen tables, RLS on and no policy, read and written by the API only
+(0263, 0267, 0269, 0270, 0271): `spar_requests` (one row is one request; agreed means the spar),
+`spar_private_notes` (a fighter's private note on a request),
 `fightbook_blocks`, and from slice 3 `spar_thanks`, `spar_anonymous_reviews` and
 `fightbook_favourites` (§11septies.7); slice 4 adds `spar_flags` and `spar_flag_admin` (§11septies.8);
 slice 5 adds `fightbook_free_now`, `spar_open_calls`, `spar_open_call_answers` and
 `fightbook_qr_codes` (§11septies.9); slice 6 adds `fightbook_daily_limits` (§11septies.10). A
-request's `status` is `pending`, `agreed`, `done`,
-`not_this_time`, `withdrawn` or `cancelled`; `done` is "we sparred" and goes back to `agreed` on
-undo. A request names a public Event the asker is on and one of its days (ruling 665),
+request's `status` is `pending`, `agreed`, `done`, `not_this_time`, `withdrawn` or `cancelled`;
+`done` is "we sparred" and goes back to `agreed` on undo. A request names a public Event the asker is on and one of its days (ruling 665),
 or a free date, a place and the asker's time zone; the zone is copied into the row.
 
 ### 11septies.2 Every "no" is the same
@@ -2578,16 +2578,17 @@ holds for an ask the limit stopped: it is stored ended at once.
 
 Each change that two taps can race is one call, one transaction (0264): `fightbook_ask` (one
 waiting request per pair; no asking again for the same Event, nor for a free date until 7 days after
-the refused request was asked, ruling 667; a pair lock serialises an ask and a block), `fightbook_answer` (lands only on the
-receiver's own request, still waiting and open, from an asker still on FightBook), `fightbook_block`
+the refused request was asked, ruling 667; a pair lock serialises an ask and a block),
+`fightbook_answer` (lands only on the receiver's own request, still waiting and open, from an asker
+still on FightBook), `fightbook_block`
 (the blocked fighter's waiting requests end as a no, the blocker's own are withdrawn, an agreed
 spar stays). Withdraw and cancel are one conditional update each. The loser of any race gets 409
 `not_open`. Slice 5 adds three more calls that two taps can race, `fightbook_call_pick`,
 `fightbook_call_take_back` and `fightbook_qr_log`, and re-defines `fightbook_block` and
 `fightbook_answer` (0270; §11septies.9). Slice 6 re-defines `fightbook_ask` (0271): the daily limit
-takes no lock on the answerer's day (§11septies.10). `pnpm db:fightbook-probe` runs every FightBook function
-(ask, answer, block, review, flag, pick, take back, scan) on the replayed database in CI, each rule
-in one transaction, one call after another.
+takes no lock on the answerer's day (§11septies.10). `pnpm db:fightbook-probe` runs every FightBook
+function (ask, answer, block, review, flag, pick, take back, scan) on the replayed database in CI,
+each rule in one transaction, one call after another.
 `pnpm db:fightbook-race-probe` (`RACE_PROBE_DISPOSABLE=1`, it commits rows) runs the overlaps that
 probe cannot show, on two connections with the overlap forced, never left to chance (the first
 connection holds its call open, the probe reads `pg_blocking_pids` to see the second is waiting,
@@ -3147,6 +3148,16 @@ reuses `spar_request_received`.
 - `SparFindService.atEvent` keeps its own Event read: it needs the whole Event row for
   `hiddenEntrantIds` (the Tournament-hidden filter), and `floorEvent` returns only `{ today, zone }`.
   The predicates `isPublicEvent` and `isOnEventRoster` are shared (Ruling R).
+- A free-date scan at 23:59 in the scanner's zone expires at the day's end, so the shower has a
+  minute to answer. A QR spar is confirmed face to face, on the spot (Ruling S).
+- The viewfinder markup is copied between `QrScan.tsx` (web-public) and `ScanOverlay.tsx`
+  (web-staff); left for now.
+
+**Offline (hard rule 3).** Slice 5 touched web-staff only through the scanner move. The evidence
+(Ruling N): the local E2E harness that CI's E2E job runs, before the commit (522 passed, with
+`pad-offline-drill`, `pad-no-network-launch` and `pad-countdown-no-network`). The production
+offline specs (`tests/e2e/06-offline-sync*`, `tests/e2e/40-offline-bout*`) run in `e2e-prod.yml`
+after a deploy.
 
 ### 11septies.10 Comfort
 
@@ -3185,7 +3196,8 @@ not touched. A stray limit check copied into one of them is the regression to wa
 **The race it leaves, accepted (Decision 4).** An ask that counts while one of her Yes taps commits
 can land pending past her limit. She answers that ask herself, and ruling 742 lets every Yes
 through. So the limit takes no lock on her day. The spec's "the daily limit counts under a lock on
-the answerer's day" is moot: no Yes is ever capped.
+the answerer's day" (`docs/superpowers/specs/2026-11-10-fightbook-design.md`, "Constraints") is
+moot: no Yes is ever capped.
 
 **The settings route (Decision 7).** `GET` and `PATCH me/fightbook/settings` carry
 `dailyLimit: number | null`. A number upserts her row on `global_person_id` and sets `updated_at`;
@@ -3238,16 +3250,6 @@ no phone alert set up gets nothing.
 - A time on an Event day reads on the day's own date. "Saturday 01:00" rings Saturday 01:00, as open
   calls already read it (Ruling F).
 - The limit-stopped ask race above.
-- A free-date scan at 23:59 in the scanner's zone expires at the day's end, so the shower has a
-  minute to answer. A QR spar is confirmed face to face, on the spot (Ruling S).
-- The viewfinder markup is copied between `QrScan.tsx` (web-public) and `ScanOverlay.tsx`
-  (web-staff); left for now.
-
-**Offline (hard rule 3).** Slice 5 touched web-staff only through the scanner move. The evidence
-(Ruling N): the local E2E harness that CI's E2E job runs, before the commit (522 passed, with
-`pad-offline-drill`, `pad-no-network-launch` and `pad-countdown-no-network`). The production
-offline specs (`tests/e2e/06-offline-sync*`, `tests/e2e/40-offline-bout*`) run in `e2e-prod.yml`
-after a deploy.
 
 ---
 
