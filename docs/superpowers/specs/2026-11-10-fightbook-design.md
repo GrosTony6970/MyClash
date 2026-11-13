@@ -128,7 +128,11 @@ have asked for in person.
   request they send lands nowhere and ends as "Not this time" on the common rule above. You
   stay listed in _their_ Find and still show them "Ask to spar"; their asks end "Not this time"
   (ruling 672). Your own Find and buttons hide the fighters you blocked. Open-call lists (slice 5)
-  keep the first design: you disappear from _their_ open-call lists only where absence is normal.
+  ~~keep the first design: you disappear from _their_ open-call lists only where absence is normal.~~
+  _Overturned in slice 5 (ruling 706): the blocked fighter still sees the blocker's open calls and
+  may answer "I'm in"; the poster never sees that answer, and the fighter gets "Not this time" when
+  the call closes or another is picked. The poster's own lists hide the calls of fighters she
+  blocked._
   Blocking never touches an already agreed spar — you cancel it the
   ordinary way if you want to. Pending requests between you end as "Not this time" on the common
   rule. Unblock from a list in FightBook settings.
@@ -147,6 +151,13 @@ have asked for in person.
 - **"Free now" and open calls are seen only by people at that Event** (review pass 1): the viewer
   must have FightBook on **and** a `persons` row for that Event. Otherwise any account could switch
   FightBook on and learn who is at the venue right now (anti-goal 5).
+
+> **Built in slice 5 (rulings 705-714), where it differs from the three lines below.** "Free now"
+> shows only in Find's Event block (708). An open call is for today at a time, a fighter may hold
+> up to 5 at once (710), and others see just the call, never who answered (712). A QR code lasts 5
+> minutes and works for one scan (711). A scan works anywhere: at an Event day both are on, or at a
+> place the scanner types (709). Details: `docs/ARCHITECTURE.md` §11septies.9.
+
 - **"Free to spar now"** — a switch scoped to one Event; shows the fighter with a "free now" badge
   in Find and the Event people list. Turns itself off after **1 hour** (_my guess, confirmed in
   playback_) or when switched off.
@@ -154,8 +165,11 @@ have asked for in person.
   that Event see it in Find and can answer "I'm in". The poster picks one; the pick becomes an
   agreed spar; others see "Not this time". Closes at its time or end of the Event day.
 - **Log by QR scan** — two fighters who agreed face to face: one shows a **FightBook QR**, the
-  other scans it, picks weapons, and the spar goes into both FightBooks as agreed (or straight to
-  done — builder's call). The FightBook QR is **separate from the Event pass QR** (`event_passes`)
+  other scans it, picks weapons, and ~~the spar goes into both FightBooks as agreed (or straight to
+  done — builder's call)~~ _the scan sends the shower a spar request (Yes / "Not this time"); the
+  spar is agreed on her Yes (rulings 707, 713). A scan by a fighter she blocked never reaches her
+  Inbox, sends no notice, and waits as "sent" until its day ends, then reads "Not this time", exactly
+  as a request she ignored (ruling 714)_. The FightBook QR is **separate from the Event pass QR** (`event_passes`)
   so a scan can never check anyone in. The QR must be short-lived or one-time so a screenshot can't
   be reused to add spars to someone's book (_my call_). A scan requires both sides to have
   FightBook on and is refused by a block (same "nothing happens" face as an ask); it skips the
@@ -315,7 +329,9 @@ Estimate: **~75 commits (60–90)** at this repo's one-concern-per-commit pace �
    review (the batch rule and "from 5 reviews" are overturned); favourites.
 4. **Safety flags** (built, rulings 691-701): flag form, organiser/admin alert, web-admin flag list
    with "handled".
-5. **Floor tools**: Free to spar now, open call, FightBook QR log.
+5. **Floor tools** (built, rulings 705-714): Free to spar now, open call, FightBook QR log. Two
+   lines overturned: the blocker is not hidden from open-call lists (706), and a QR spar is not
+   agreed on the scan (713, 714).
 6. **Comfort**: daily limit, 10-minute reminder.
 
 ## Left to the builder
