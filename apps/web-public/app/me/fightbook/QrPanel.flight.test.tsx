@@ -145,6 +145,14 @@ describe('A wake while a code request is out', () => {
     expect(alerted()).toBeNull();
   });
 
+  it('B13c a wall clock set back does not stretch the 10 s', async () => {
+    await open();
+    vi.setSystemTime(Date.now() - 60_000);
+    await wake();
+    await wait(10_100);
+    expect(alerted()).toContain('could not be made');
+  });
+
   it('B7 leaves the 10 s timer running', async () => {
     await open();
     await wake();

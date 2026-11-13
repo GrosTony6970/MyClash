@@ -95,7 +95,8 @@ function useMintFlight(apiUrl: string, open: boolean, setHeld: SetHeld, setFailu
 
   /**
    * At a wake, by the wall clock (timers stop while a phone sleeps): a mint out 10 s is given up,
-   * and a younger one gets its timer re-armed for what is left of its 10 s.
+   * and a younger one gets its timer re-armed for what is left of its 10 s, never more than 10 s
+   * (a wall clock set back must not stretch the limit).
    */
   const recheck = useCallback(() => {
     const out = flight.current;
@@ -103,7 +104,7 @@ function useMintFlight(apiUrl: string, open: boolean, setHeld: SetHeld, setFailu
     const rest = MINT_GIVE_UP_MS - (Date.now() - out.startedWall);
     if (rest <= 0) return giveUp();
     clearTimeout(out.timer);
-    out.timer = setTimeout(giveUp, rest);
+    out.timer = setTimeout(giveUp, Math.min(rest, MINT_GIVE_UP_MS));
   }, [giveUp]);
 
   /**
