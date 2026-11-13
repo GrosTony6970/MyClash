@@ -33,10 +33,11 @@
  * seven functions.
  * Slice 5 (lib/fightbook-probe-floor.mjs and lib/fightbook-probe-qr.mjs, migration 0270): a pick
  * agreeing one spar, and each refusal as `not_open`; a block withdrawing the blocker's answers on
- * the blocked fighter's calls only; a QR scan sending a request and burning its code, and every
- * refusal after the claim leaving the code scannable; a scan by a fighter the shower blocked
- * stored pending with no notice, which she cannot agree; the new CHECKs, named; only the service
- * role may call the two new functions. Two picks or two scans AT ONCE: db-fightbook-race-probe.mjs.
+ * the blocked fighter's calls only; a QR scan sending a request and burning its code, and the word
+ * of every refusal; a scan by a fighter the shower blocked stored pending with no notice, which she
+ * cannot agree; the new CHECKs, named; only the service role may call the two new functions. On
+ * committed connections (db-fightbook-race-probe.mjs): two picks or two scans AT ONCE, a take-back
+ * during a pick, and a refused scan leaving its code scannable.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -78,6 +79,7 @@ import {
 } from './lib/fightbook-probe-floor.mjs';
 import {
   scanBlockedByShower,
+  scanEndsStale,
   scanRefusals,
   scanShapes,
   scanning,
@@ -92,7 +94,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 205;
+const EXPECTED_CHECKS = 206;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -144,6 +146,7 @@ try {
       await blockingCalls(tx);
       await floorTableShape(tx);
       await scanning(tx);
+      await scanEndsStale(tx);
       await scanRefusals(tx);
       await scanShapes(tx);
       await scanBlockedByShower(tx);

@@ -245,8 +245,9 @@ begin
   -- Lock order: the code row is locked BEFORE the pair lock's KEY SHARE on the two profiles. Its
   -- one partner in the other order is a hard DELETE FROM global_persons of the shower, whose
   -- cascade into fightbook_qr_codes can deadlock with a scan (40P01, one side aborted). Decision
-  -- 12 mandates delete-first, and erasure deletes the QR codes before the profile, in this order.
-  -- Do not add a second partner: whatever locks a profile and then a code row is one.
+  -- 12 mandates delete-first, and erasure must delete the QR codes before the profile, in this
+  -- order (Decision 18). Do not add a second partner: whatever locks a profile and then a code row
+  -- is one.
   delete from public.fightbook_qr_codes q
    where q.token_hash = p_token_hash and q.expires_at > now()
   returning q.global_person_id into v_shower;

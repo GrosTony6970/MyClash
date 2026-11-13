@@ -21,7 +21,13 @@
  *     code. A refusal cannot be held open, so here A is held MID-CALL, after its claim, by a gate
  *     connection holding A's profile (`refusedThenScan`).
  * And the pair lock (0264's, taken by both functions): a block committed while a pick or a scan
- * waits on it is seen by that pick or scan, which refuses (`not_open`, `you_blocked`).
+ * waits on it is seen by that pick or scan, which refuses (`not_open`, `you_blocked`). And the
+ * pick's FOR SHARE on the answer (Decision 10): a take-back during a pick waits, then lands.
+ *
+ * Not a race, but committed for the same reason (lib/fightbook-race-refusals.mjs): a refused scan
+ * (`already_asked`, `bad_event`, `not_on_fightbook`) in a transaction of its own leaves its code,
+ * and the same scanner then scans that same code. In the FightBook probe a refusal's savepoint
+ * rolls back, which would restore a burnt code, so only committed transactions show this.
  *
  * Run it after `pnpm db:migrations:replay`, on the same disposable database. It COMMITS rows (its
  * fixture, deleted at its end whatever happened), so it runs only when told the database is
@@ -33,6 +39,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import postgres from 'postgres';
+
+import { refusedScansLeaveTheCode } from './lib/fightbook-race-refusals.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -53,20 +61,21 @@ const connA = postgres(databaseUrl, options);
 const connB = postgres(databaseUrl, options);
 const watch = postgres(databaseUrl, options);
 const gate = postgres(databaseUrl, options);
-const EXPECTED_CHECKS = 17;
+const EXPECTED_CHECKS = 23;
 const WAIT_MS = 500;
 
 const fixture = (n) => `fb5a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const CLUB = fixture(1);
 const EVENT = fixture(2);
 /**
- * Accounts and their profiles: Julie posts two calls, Marc and Paul answer the first, Paul the
- * second; Paul shows codes; Lea blocked Paul.
+ * Accounts and their profiles: Julie posts three calls, Marc and Paul answer the first, Paul the
+ * second, Marc the third; Paul shows codes; Lea blocked Paul.
  */
 const U = { julie: fixture(11), marc: fixture(12), paul: fixture(13), lea: fixture(14) };
 const F = { julie: fixture(21), marc: fixture(22), paul: fixture(23), lea: fixture(24) };
 const CALL = fixture(31);
 const SECOND_CALL = fixture(32);
+const THIRD_CALL = fixture(33);
 
 let checks = 0;
 const failures = [];
@@ -93,13 +102,14 @@ async function seedCommitted() {
       await tx`INSERT INTO global_persons
           (id, slug, display_name, given_name, family_name, claimed_by_user_id, fightbook_enabled)
         VALUES (${F[who]}, ${`fb-race-${who}`}, ${who}, ${who}, 'Race', ${U[who]}, true)`;
-    for (const call of [CALL, SECOND_CALL])
+    for (const call of [CALL, SECOND_CALL, THIRD_CALL])
       await tx`INSERT INTO spar_open_calls
           (id, poster_global_person_id, event_id, spar_day, zone, spar_time, weapons, closes_at)
         VALUES (${call}, ${F.julie}, ${EVENT}, current_date, 'Europe/Paris', '23:00',
           ARRAY['Longsword'], now() + interval '1 hour')`;
     await tx`INSERT INTO spar_open_call_answers (call_id, answerer_global_person_id)
-      VALUES (${CALL}, ${F.marc}), (${CALL}, ${F.paul}), (${SECOND_CALL}, ${F.paul})`;
+      VALUES (${CALL}, ${F.marc}), (${CALL}, ${F.paul}), (${SECOND_CALL}, ${F.paul}),
+        (${THIRD_CALL}, ${F.marc})`;
     await tx`INSERT INTO fightbook_blocks (blocker_global_person_id, blocked_global_person_id)
       VALUES (${F.lea}, ${F.paul})`;
   });
@@ -130,9 +140,14 @@ const pick = (q, answerer, call = CALL) =>
     (rows) => rows[0].r,
   );
 
-const scan = (q, hash, scanner) =>
-  q`SELECT public.fightbook_qr_log(${hash}, ${scanner}, 'free', NULL, current_date, 'Europe/Paris',
-      'Salle', ARRAY['Longsword'], ${HOURS_6()}::timestamptz) AS r`.then((rows) => rows[0].r);
+/** A free-date scan at "Salle", or with `atEvent` an Event scan at the fixture's Event. */
+const scan = (q, hash, scanner, atEvent = false) =>
+  q`SELECT public.fightbook_qr_log(${hash}, ${scanner}, ${atEvent ? 'event' : 'free'},
+      ${atEvent ? EVENT : null}, current_date, 'Europe/Paris', ${atEvent ? null : 'Salle'},
+      ARRAY['Longsword'], ${HOURS_6()}::timestamptz) AS r`.then((rows) => rows[0].r);
+
+const codeLeft = async (hash) =>
+  (await watch`SELECT count(*)::int AS n FROM fightbook_qr_codes WHERE token_hash = ${hash}`)[0].n;
 
 async function showCode(shower) {
   const hash = createHash('sha256').update(randomBytes(16)).digest('hex');
@@ -256,14 +271,43 @@ async function refusedThenScan() {
   check('a refused scan: the second waits on the claim', pending.waited, true);
   check('a refused scan: the first', await a, { refused: 'you_blocked' });
   const b = await pending.b;
-  const [{ n }] =
-    await watch`SELECT count(*)::int AS n FROM fightbook_qr_codes WHERE token_hash = ${hash}`;
   check(
     'a refused scan: the second goes through with the same code, and burns it',
-    [b.value?.notify, n, await requestsTo(F.paul)],
+    [b.value?.notify, await codeLeft(hash), await requestsTo(F.paul)],
     [true, 0, [F.julie, F.marc].sort()],
   );
 }
+
+/** Decision 10: the pick holds the answer FOR SHARE, so a take-back during it waits, then lands. */
+async function takeBackDuringPick() {
+  const { a, b, waited } = await race(
+    (tx) => pick(tx, F.marc, THIRD_CALL),
+    (sp) =>
+      sp`DELETE FROM spar_open_call_answers
+          WHERE call_id = ${THIRD_CALL} AND answerer_global_person_id = ${F.marc}`.then(
+        (result) => result.count,
+      ),
+  );
+  check('a take-back during a pick: it waits on the pick', waited, true);
+  const [row] = await watch`SELECT r.status FROM spar_open_calls c
+      JOIN spar_requests r ON r.id = c.spar_request_id WHERE c.id = ${THIRD_CALL}`;
+  check(
+    'a take-back during a pick: the pick agrees its spar',
+    [typeof a.value, row?.status],
+    ['string', 'agreed'],
+  );
+  check('a take-back during a pick: it then takes the answer back', b, { value: 1 });
+}
+
+const committedKit = () => ({
+  check,
+  watch,
+  scanCommitted: (hash, scanner, atEvent) => asApi(connA, (tx) => scan(tx, hash, scanner, atEvent)),
+  showCode,
+  codeLeft,
+  F,
+  EVENT,
+});
 
 const block = (q, blocker, blocked) => q`SELECT public.fightbook_block(${blocker}, ${blocked})`;
 
@@ -284,18 +328,22 @@ async function scanAgainstBlock() {
     (tx) => block(tx, F.marc, F.paul),
     (sp) => scan(sp, hash, F.marc),
   );
-  const [{ n }] =
-    await watch`SELECT count(*)::int AS n FROM fightbook_qr_codes WHERE token_hash = ${hash}`;
   check('a scan during a block: it waits on the pair lock', waited, true);
-  check('a scan during a block, and the code it leaves', [b, n], [{ refused: 'you_blocked' }, 1]);
+  check(
+    'a scan during a block, and the code it leaves',
+    [b, await codeLeft(hash)],
+    [{ refused: 'you_blocked' }, 1],
+  );
 }
 
 try {
   await seedCommitted();
   try {
     await twoPicks();
+    await takeBackDuringPick();
     await twoScans();
     await refusedThenScan();
+    await refusedScansLeaveTheCode(committedKit());
     await pickAgainstBlock();
     await scanAgainstBlock();
   } finally {
@@ -313,7 +361,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, and a pick or a scan waiting on a block sees it.`,
+      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, a refused scan leaves its code, a take-back during a pick waits, and a pick or a scan waiting on a block sees it.`,
     );
   }
 } catch (error) {

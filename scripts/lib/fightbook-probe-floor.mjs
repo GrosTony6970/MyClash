@@ -85,13 +85,14 @@ async function answeredCall(q, more) {
 // ── The pick ────────────────────────────────────────────────────────────────
 export async function picking(tx) {
   await scenario(tx, async (q) => {
-    const call = await answeredCall(q);
+    const call = await answeredCall(q, { spar_day: '2026-05-23', zone: 'America/New_York' });
     await imIn(q, call, F.paul);
     const expires = at(6 * HOUR);
     const spar = await pick(q, call, F.julie, F.marc, expires);
     const [s] = await q`SELECT status, asker_global_person_id AS asker,
-        receiver_global_person_id AS receiver, kind, event_id, spar_time::text AS time, weapons,
-        agreed_at IS NOT NULL AS agreed, expires_at = ${expires}::timestamptz AS ends
+        receiver_global_person_id AS receiver, kind, event_id, spar_day::text AS day, zone,
+        spar_time::text AS time, weapons, agreed_at IS NOT NULL AS agreed,
+        expires_at = ${expires}::timestamptz AS ends
       FROM spar_requests WHERE id = ${spar}`;
     check(
       'a pick agrees a spar the poster asked, on the call',
@@ -101,12 +102,26 @@ export async function picking(tx) {
         s?.receiver,
         s?.kind,
         s?.event_id,
+        s?.day,
+        s?.zone,
         s?.time,
         s?.weapons,
         s?.agreed,
         s?.ends,
       ],
-      ['agreed', F.julie, F.marc, 'event', EVENT, '14:00:00', ['Longsword'], true, true],
+      [
+        'agreed',
+        F.julie,
+        F.marc,
+        'event',
+        EVENT,
+        '2026-05-23',
+        'America/New_York',
+        '14:00:00',
+        ['Longsword'],
+        true,
+        true,
+      ],
     );
     const [c] = await q`SELECT status, picked_global_person_id AS picked, spar_request_id AS spar
       FROM spar_open_calls WHERE id = ${call}`;
