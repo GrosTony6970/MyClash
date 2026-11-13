@@ -62,6 +62,7 @@ SKIP_BACKUP=0
 SKIP_MIGRATIONS=0
 CREATE_DEMO_ORG=0
 CREATE_E2E_SUPER_ADMIN=0
+INSTALL_E2E_AI_KEY=0
 
 # Outcome of the super admin bootstrap step, rendered in the credentials box at
 # the very end: created | synced | existing | failed | unknown.
@@ -74,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --skip-migrations)  SKIP_MIGRATIONS=1; shift ;;    # for fast iterating; never in prod
     --create-demo-org)  CREATE_DEMO_ORG=1; shift ;;    # provision the E2E sandbox org from .env.e2e
     --create-e2e-super-admin) CREATE_E2E_SUPER_ADMIN=1; shift ;;  # provision the E2E super admin from .env.e2e
+    --install-e2e-ai-key) INSTALL_E2E_AI_KEY=1; shift ;;  # install the E2E AI key from .env.e2e
     -h|--help)
       cat <<EOF
 Usage: infra/scripts/deploy.sh [options]
@@ -88,6 +90,11 @@ Usage: infra/scripts/deploy.sh [options]
                        After deploy, provision the E2E super admin account from
                        .env.e2e (E2E_SUPERADMIN_EMAIL/E2E_SUPERADMIN_PASSWORD).
                        Idempotent: re-syncs the password. Requires .env.e2e.
+  --install-e2e-ai-key After deploy, install E2E_AI_PROVIDER/E2E_AI_KEY from
+                       .env.e2e as the ACTIVE AI key of the platform (as the E2E
+                       super admin) and of the E2E sandbox org (as its organiser).
+                       Switches off any other key active there. Idempotent.
+                       Needs both accounts: combine with the two flags above.
   -h, --help           Show this help.
 
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
@@ -842,6 +849,35 @@ if [[ "$CREATE_E2E_SUPER_ADMIN" -eq 1 ]]; then
     [[ -n "$E2E_SUPER_DETAIL" ]] && warn "Bootstrap detail: $E2E_SUPER_DETAIL"
   else
     ok "E2E super admin ${E2E_SUPERADMIN_EMAIL} ready; password synced from .env.e2e"
+  fi
+fi
+
+# ── E2E AI key (opt-in) ──────────────────────────────────────────
+# After the two account steps above: it signs in as both accounts. It writes
+# through the running api (the key store encrypts and activates), reached on
+# the internal network. Secrets go in by name (ruling 425).
+if [[ "$INSTALL_E2E_AI_KEY" -eq 1 ]]; then
+  hdr "Installing E2E AI key"
+
+  load_env_e2e --install-e2e-ai-key
+  : "${E2E_AI_PROVIDER:?Missing E2E_AI_PROVIDER in .env.e2e}"
+  : "${E2E_AI_KEY:?Missing E2E_AI_KEY in .env.e2e}"
+
+  E2E_AI_RESULT=$("${COMPOSE[@]}" \
+    run --rm \
+    -e SUPABASE_URL="http://supabase-auth:9999" \
+    -e API_URL="http://api:4000/api/v1" \
+    -e E2E_AI_PROVIDER -e E2E_AI_KEY -e E2E_AI_MODEL -e E2E_AI_BUDGET_EUR \
+    -e E2E_SUPERADMIN_EMAIL -e E2E_SUPERADMIN_PASSWORD \
+    -e E2E_ADMIN_EMAIL -e E2E_ADMIN_PASSWORD -e E2E_ORG_SLUG \
+    api node /app/scripts/install-e2e-ai-key.mjs || echo '{"error":"install-e2e-ai-key failed"}')
+
+  E2E_AI_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$E2E_AI_RESULT")
+
+  if [[ -n "$E2E_AI_ERROR" ]]; then
+    warn "E2E AI key install reported an issue: $E2E_AI_ERROR (the cause is printed above)"
+  else
+    ok "E2E AI key (${E2E_AI_PROVIDER}) active in the platform slot and in ${E2E_ORG_SLUG}"
   fi
 fi
 
