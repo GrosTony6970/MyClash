@@ -3038,8 +3038,11 @@ is stale when EITHER clock says less than 30 s remain: a wall clock set forward 
 mint, one set back is covered by the monotonic clock. The panel looks again when the page becomes
 visible (a wake drops a stale code at once) and when it opens (the held code shows until the new
 one answers). A failed mint stops the renewals until "Try again" or the next opening. One mint is
-out at a time (ruling 754): a wake, a renewal or an opening while one is out sends nothing, and a
-mint with no answer after 10 s on either clock counts as failed and its late answer is dropped.
+out at a time (ruling 754): a wake, a renewal or an opening while one is out sends nothing. A mint
+with no answer after 10 s counts as failed and its late answer is dropped: a timer gives it up
+while the phone is awake, and a wake reads the wall clock, giving up a mint out 10 s and re-arming
+the timer of a younger one for what is left. An opening that finds a mint out 10 s (the phone slept
+while the panel was closed) drops it with no failure and mints again.
 
 `POST me/fightbook/qr/scan` takes `{ code, weapons, eventId | place + zone }`. A scan works anywhere
 (ruling 709): at an Event day that both fighters are on, the Spar is that Event's, today; elsewhere

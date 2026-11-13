@@ -52,20 +52,39 @@ async function mint(
   };
 }
 
-/** The one mint out and its four writers (see `useQrCode`). */
-function useMintFlight(
-  apiUrl: string,
-  open: boolean,
-  setHeld: Dispatch<SetStateAction<Held | null>>,
-  setFailure: Dispatch<SetStateAction<QrCodeState['failure']>>,
-) {
-  const flight = useRef<Flight | null>(null);
-  const lastId = useRef(0);
+type SetHeld = Dispatch<SetStateAction<Held | null>>;
+type SetFailure = Dispatch<SetStateAction<QrCodeState['failure']>>;
+
+/** Is the panel up? Read by a mint's answer, which can land after a closing or an unmount. */
+function usePanelUp(open: boolean) {
   const panelUp = useRef(false);
   useEffect(() => {
     panelUp.current = open;
-    return () => void (panelUp.current = false); // unmounted, the panel is gone too
+    return () => void (panelUp.current = false); // at each opening, closing and unmount
   }, [open]);
+  return panelUp;
+}
+
+/** The answer of the mint out: the code to hold, the failure, or a sign-in while the panel is up. */
+function land(
+  answer: Awaited<ReturnType<typeof mint>>,
+  panelUp: boolean,
+  setHeld: SetHeld,
+  setFailure: SetFailure,
+) {
+  if (answer === 'sign-in') {
+    if (panelUp) signInAgainHere();
+    return;
+  }
+  setHeld('held' in answer ? answer.held : null);
+  if ('failure' in answer) setFailure(answer.failure);
+}
+
+/** The one mint out and its four writers (see `useQrCode`). */
+function useMintFlight(apiUrl: string, open: boolean, setHeld: SetHeld, setFailure: SetFailure) {
+  const flight = useRef<Flight | null>(null);
+  const lastId = useRef(0);
+  const panelUp = usePanelUp(open);
 
   const giveUp = useCallback(() => {
     clearTimeout(flight.current?.timer);
@@ -74,13 +93,24 @@ function useMintFlight(
     setHeld(null);
   }, [setFailure, setHeld]);
 
-  /** At a wake: a mint out 10 s by the wall clock is given up (timers stop while a phone sleeps). */
-  const giveUpStale = useCallback(() => {
+  /**
+   * At a wake, by the wall clock (timers stop while a phone sleeps): a mint out 10 s is given up,
+   * and a younger one gets its timer re-armed for what is left of its 10 s.
+   */
+  const recheck = useCallback(() => {
     const out = flight.current;
-    if (out && Date.now() - out.startedWall >= MINT_GIVE_UP_MS) giveUp();
+    if (!out) return;
+    const rest = MINT_GIVE_UP_MS - (Date.now() - out.startedWall);
+    if (rest <= 0) return giveUp();
+    clearTimeout(out.timer);
+    out.timer = setTimeout(giveUp, rest);
   }, [giveUp]);
 
-  /** Mints unless one is out. Only an opening after a sleep finds one out 10 s: it is dropped. */
+  /**
+   * Mints unless one is out. One out 10 s by the wall clock is dropped with no failure: an opening
+   * after a sleep finds one, and so would a re-run after an `apiUrl` change or a wall clock set
+   * forward.
+   */
   const send = useCallback(() => {
     const out = flight.current;
     if (out && Date.now() - out.startedWall < MINT_GIVE_UP_MS) return;
@@ -91,15 +121,10 @@ function useMintFlight(
       if (flight.current?.id !== id) return;
       clearTimeout(flight.current.timer);
       flight.current = null;
-      if (answer === 'sign-in') {
-        if (panelUp.current) signInAgainHere();
-        return;
-      }
-      setHeld('held' in answer ? answer.held : null);
-      if ('failure' in answer) setFailure(answer.failure);
+      land(answer, panelUp.current, setHeld, setFailure);
     });
-  }, [apiUrl, giveUp, setHeld, setFailure]);
-  return { send, giveUpStale };
+  }, [apiUrl, giveUp, panelUp, setHeld, setFailure]);
+  return { send, recheck };
 }
 
 /**
@@ -121,12 +146,14 @@ function useMintFlight(
  * mint's answer acts only while `flight` still holds its id, so a given-up mint's late answer shows
  * nothing and frees nothing; it clears its own timer. A 401 sends to sign in only while the panel
  * is up. (2) The 10 s timer gives the mint up: the failure shows and the held code goes, because
- * the panel shows a code before a failure. (3) A wake gives up a mint out 10 s by the wall clock
- * (timers stop while a phone sleeps); its renewal then finds any other mint out and sends nothing.
- * (4) An opening sends nothing while a mint is out and drops, without a failure, one out 10 s by
- * the wall clock, then mints; a closing keeps the mint, so its answer is the held code. `send` is
- * the one owner of "nothing while a mint is out". Every give-up clears that mint's timer: that is
- * the timer's one guard.
+ * the panel shows a code before a failure. (3) A wake reads the wall clock, because timers stop
+ * while a phone sleeps: a mint out 10 s is given up there, and the effect then stops on the
+ * failure; a younger mint gets its timer re-armed for what is left of its 10 s, and the wake's
+ * renewal finds it out and sends nothing. (4) An opening sends nothing while a mint is out and
+ * drops, without a failure, one out 10 s by the wall clock, then mints; a closing keeps the mint,
+ * so its answer is the held code. `send` is the one owner of "nothing while a mint is out". Every
+ * give-up clears that mint's timer, and a re-arm clears the one it replaces: that is the timer's
+ * one guard.
  */
 export function useQrCode(apiUrl: string, open: boolean): QrCodeState {
   const [held, setHeld] = useState<Held | null>(null);
@@ -137,19 +164,19 @@ export function useQrCode(apiUrl: string, open: boolean): QrCodeState {
     setWasOpen(open);
     setFailure(null);
   }
-  const { send, giveUpStale } = useMintFlight(apiUrl, open, setHeld, setFailure);
+  const { send, recheck } = useMintFlight(apiUrl, open, setHeld, setFailure);
 
   useEffect(() => {
     if (!open) return;
     const wake = () => {
       if (document.visibilityState !== 'visible') return;
-      giveUpStale();
+      recheck();
       setHeld((h) => (h && left(h) > RENEW_MARGIN_MS ? h : null));
       setRound((n) => n + 1);
     };
     document.addEventListener('visibilitychange', wake);
     return () => document.removeEventListener('visibilitychange', wake);
-  }, [open, giveUpStale]);
+  }, [open, recheck]);
 
   useEffect(() => {
     if (!open || failure) return;

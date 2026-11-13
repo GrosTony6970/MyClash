@@ -82,11 +82,11 @@ const reply = async (n: number, value: unknown) => {
   await act(async () => answers[n]?.(value));
   await wait(0);
 };
+/** A wake fires no timer: what it does, it does at once (a 0 ms timer would race the renewal). */
 const wake = () =>
   act(async () => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
-    await vi.advanceTimersByTimeAsync(0);
   });
 /** A sleep: `performance.now` frozen, no timer fired, the wall clock moved on. */
 const sleep = (ms: number) => {
@@ -121,6 +121,28 @@ describe('A wake while a code request is out', () => {
     await wake();
     expect(alerted()).toContain('could not be made');
     expect(requests()).toBe(1);
+  });
+
+  it('B13 re-arms the timer for what is left after a short sleep', async () => {
+    await open();
+    await wait(1_000);
+    sleep(8_000);
+    await wake();
+    expect(requests()).toBe(1);
+    expect(alerted()).toBeNull();
+    await wait(1_100);
+    expect(alerted()).toContain('could not be made');
+  });
+
+  it('B13b the re-arm clears the timer it replaces', async () => {
+    await open();
+    await wait(1_000);
+    sleep(8_000);
+    await wake();
+    await reply(0, code(1));
+    await wait(10_000);
+    expect(shown()).toBe('fb:CODE1');
+    expect(alerted()).toBeNull();
   });
 
   it('B7 leaves the 10 s timer running', async () => {
