@@ -25,7 +25,7 @@ function deps(rows: Row[] | null, error: { message: string } | null = null) {
     logger,
     domain: 'example.test',
   } as never;
-  return { d, db, send, logger };
+  return { d, db, send, logger, getAuthAdminUser };
 }
 
 describe('the safety flag alert', () => {
@@ -41,12 +41,13 @@ describe('the safety flag alert', () => {
   });
 
   it('sends one notice per recipient, to the right page, with no name, no reason, no switch', async () => {
-    const { d, send } = deps([
+    const { d, send, logger } = deps([
       { user_id: CLUB_ADMIN, audience: 'club', org_slug: 'club-slug' },
       { user_id: SUPER_ADMIN, audience: 'platform', org_slug: null },
     ]);
     await notifySparFlagRaised(d, FLAG);
 
+    expect(logger.warn).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledTimes(2);
     const jobs = send.mock.calls as unknown as Array<[Record<string, unknown>]>;
     expect(jobs[0]![0]).toMatchObject({
@@ -68,6 +69,29 @@ describe('the safety flag alert', () => {
         'Un combattant a signalé un problème de sécurité sur un spar. / A fighter reported a safety problem on a spar.',
       );
     }
+  });
+
+  it('no recipient: warns with the flag id, sends nothing', async () => {
+    const { d, send, logger } = deps([]);
+    await notifySparFlagRaised(d, FLAG);
+    expect(send).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(`FightBook flag ${FLAG}: the alert has no recipient`);
+  });
+
+  it('a recipient with no email: warns with the flag id, still sends (push only)', async () => {
+    const { d, send, logger, getAuthAdminUser } = deps([
+      { user_id: CLUB_ADMIN, audience: 'club', org_slug: 'club-slug' },
+    ]);
+    getAuthAdminUser.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { id: CLUB_ADMIN, email: null as unknown as string },
+    });
+    await notifySparFlagRaised(d, FLAG);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `FightBook flag ${FLAG}: a recipient has no email, push only`,
+    );
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ userId: CLUB_ADMIN, email: null }));
   });
 
   it('a failed read logs the flag id and resolves', async () => {

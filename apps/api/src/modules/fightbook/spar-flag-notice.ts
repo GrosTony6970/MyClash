@@ -19,11 +19,14 @@ interface Recipient {
  * The alert of a new safety flag (rulings 692, 698): to the club's admins and owners, or to the
  * super admins when the flag has no club. `fightbook_flag_recipients` picks them and never picks
  * the reporter's own accounts or the fighter flagged. The notice names no one and no reason: it
- * can show on a locked phone. It passes the main switch, by email only (`PASSES_MAIN_SWITCH`);
- * no `preference`, since the `fightbook` switch is the fighter's own.
+ * can show on a locked phone. It goes like any notice: a push to a phone that is set up, else an
+ * email. It also passes the main switch (`PASSES_MAIN_SWITCH`): a reader whose main switch is off
+ * gets it by email, without a buzz. No `preference`, since the `fightbook` switch is the fighter's
+ * own.
  *
  * Never throws: the flag is saved before this is called and the caller does not wait for it. A
- * failed read or send is logged with the flag id, never a name.
+ * failed read or send is logged with the flag id, never a name. So is an alert that reaches no one
+ * (no recipient) or may not (an account with no email address).
  */
 export async function notifySparFlagRaised(d: FlagNoticeDeps, flagId: string): Promise<void> {
   try {
@@ -32,7 +35,9 @@ export async function notifySparFlagRaised(d: FlagNoticeDeps, flagId: string): P
       p_roles: rolesAtLeast('admin'),
     });
     if (error) throw new Error(`recipients unreadable: ${error.message}`);
-    for (const row of (data ?? []) as Recipient[]) await alertOne(d, flagId, row);
+    const rows = (data ?? []) as Recipient[];
+    if (rows.length === 0) d.logger.warn(`FightBook flag ${flagId}: the alert has no recipient`);
+    for (const row of rows) await alertOne(d, flagId, row);
   } catch (cause) {
     logFailure(d, flagId, cause);
   }
@@ -43,6 +48,8 @@ async function alertOne(d: FlagNoticeDeps, flagId: string, row: Recipient): Prom
   try {
     const { status, data: account } = await d.supabase.getAuthAdminUser(row.user_id);
     if (!account) d.logger.warn(`FightBook flag ${flagId}: account unreadable: ${status}`);
+    else if (!account.email)
+      d.logger.warn(`FightBook flag ${flagId}: a recipient has no email, push only`);
     await d.notifications.sendImmediate({
       kind: 'spar_flag_raised',
       entityId: flagId,
