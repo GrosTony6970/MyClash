@@ -8848,6 +8848,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/fightbook/qr': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** A new code for my FightBook QR: five minutes, one scan */
+    post: operations['FightBookFloorController_mintQr'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/qr/scan': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Scan a fighter's FightBook QR: a spar request to them, today */
+    post: operations['FightBookFloorController_scanQr'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/fightbook/requests/{id}/done': {
     parameters: {
       query?: never;
@@ -12858,6 +12892,14 @@ export interface components {
     PickDto: {
       /** Format: uuid */
       globalPersonId: string;
+    };
+    ScanDto: {
+      code: string;
+      weapons: string[];
+      /** Format: uuid */
+      eventId?: string;
+      place?: string;
+      zone?: string;
     };
     ReviewDto: {
       stars: number;
@@ -26269,6 +26311,44 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['PickDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_mintQr: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_scanQr: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScanDto'];
       };
     };
     responses: {

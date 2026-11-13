@@ -5,7 +5,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MyOpenCall, OpenCallView, OpenCallsAtEvent, SparFighter } from '@myclash/types';
-import { IN_LIST_MAX } from '../../common/postgrest-in-list';
 import {
   OPEN_CALL_COLUMNS,
   callIsOpen,
@@ -14,7 +13,7 @@ import {
   myAnswerOn,
   type OpenCallRow,
 } from './open-call-views';
-import { blockedBy, fightBookOnFighters } from './spar-askable';
+import { blockedBy, fightBookOnFighters, withoutBlocked } from './spar-askable';
 import { readSparFighters, unknownSparFighter } from './spar-fighters';
 
 type Db = Pick<SupabaseClient, 'from'>;
@@ -29,18 +28,6 @@ type Db = Pick<SupabaseClient, 'from'>;
 export const OTHERS_MAX = 100;
 export const ANSWERS_MAX = 50;
 export const MINE_MAX = 20;
-
-/** A builder's `not … in`, through a view (the TS2589 note in `spar-askable.ts`). */
-interface NotInFilter<T> {
-  not(column: string, operator: 'in', value: string): T;
-}
-
-/** Leave out rows naming the fighters the caller blocked, in the query, so a cap stays full. */
-function withoutBlocked<T>(query: T, column: string, blocked: Set<string>): T {
-  const listed = [...blocked].slice(0, IN_LIST_MAX);
-  if (listed.length === 0) return query;
-  return (query as unknown as NotInFilter<T>).not(column, 'in', `(${listed.join(',')})`);
-}
 
 const bySoonest = (a: OpenCallRow, b: OpenCallRow) =>
   a.closes_at.localeCompare(b.closes_at) || a.id.localeCompare(b.id);

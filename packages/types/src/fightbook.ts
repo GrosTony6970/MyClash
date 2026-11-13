@@ -256,6 +256,16 @@ export interface OpenCallsAtEvent {
   others: OpenCallView[];
 }
 
+/**
+ * "My FightBook QR" (ruling 711): a code that works for one scan until `expiresAt` (five minutes,
+ * by the server's clock). `code` is what the QR encodes, `fb:` and the raw secret; only its hash
+ * is stored.
+ */
+export interface FightBookQrCode {
+  code: string;
+  expiresAt: string;
+}
+
 /** The `code` of every FightBook refusal; the web turns each into its own sentence. */
 export const SPAR_REFUSAL_CODES = [
   'no_profile',

@@ -10,9 +10,11 @@
  * PUT    /me/fightbook/calls/:id/answer      — "I'm in"
  * DELETE /me/fightbook/calls/:id/answer      — take my "I'm in" back
  * POST   /me/fightbook/calls/:id/pick        — pick an answer of my call: the spar is agreed
+ * POST   /me/fightbook/qr                    — a new code for my FightBook QR (five minutes)
+ * POST   /me/fightbook/qr/scan               — scan a fighter's QR: a spar request to them, today
  *
  * Every route acts on the caller's own fighter profile. A route that adds presence (switching
- * on, reading or posting calls, answering, picking) needs FightBook on; one that removes it
+ * on, reading or posting calls, answering, picking, showing or scanning a QR) needs FightBook on; one that removes it
  * (switching off, closing, taking back) needs a profile only, so an off fighter can always
  * withdraw.
  */
@@ -34,10 +36,13 @@ import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { ThrottleFightBookCall } from '../../common/throttling/throttle-fightbook-call';
+import { ThrottleFightBookQrMint } from '../../common/throttling/throttle-fightbook-qr-mint';
+import { ThrottleFightBookScan } from '../../common/throttling/throttle-fightbook-scan';
 import { SupabaseService } from '../supabase/supabase.service';
 import { fightBookCaller, requireFightBookOn, requireProfile } from './fightbook-caller';
 import { FreeNowService } from './free-now.service';
 import { OpenCallsService } from './open-calls.service';
+import { SparQrService } from './spar-qr.service';
 
 /** An open call: 1 to 5 catalog weapons and a time today, `HH:MM` on the Event's clock. */
 export const postCallSchema = z
@@ -52,6 +57,25 @@ class PostCallDto extends createZodDto(postCallSchema) {}
 export const pickSchema = z.object({ globalPersonId: z.uuid() }).strict();
 class PickDto extends createZodDto(pickSchema) {}
 
+/**
+ * A scan (ruling 709): the code the camera read, 1 to 5 catalog weapons, and the Event both are
+ * at, or a place and the phone's zone. Any text is a code here: one that is not ours is the
+ * service's 400 `bad_code`.
+ */
+export const scanSchema = z
+  .object({
+    code: z.string().trim().min(1).max(200),
+    weapons: z.array(z.string().trim().min(1).max(80)).min(1).max(5),
+    eventId: z.uuid().optional(),
+    place: z.string().trim().min(1).max(200).optional(),
+    zone: z.string().min(1).max(64).optional(),
+  })
+  .strict()
+  .refine((scan) => scan.eventId === undefined || scan.place === undefined, {
+    message: 'An Event spar names its Event and no place',
+  });
+class ScanDto extends createZodDto(scanSchema) {}
+
 @ApiTags('fightbook')
 @Controller('me/fightbook')
 export class FightBookFloorController {
@@ -59,6 +83,7 @@ export class FightBookFloorController {
     private readonly supabase: SupabaseService,
     private readonly freeNow: FreeNowService,
     private readonly calls: OpenCallsService,
+    private readonly qr: SparQrService,
   ) {}
 
   @Put('events/:eventId/free')
@@ -141,5 +166,24 @@ export class FightBookFloorController {
   ) {
     const caller = await fightBookCaller(req, this.supabase.service);
     return this.calls.pick(requireFightBookOn(caller), id, dto.globalPersonId);
+  }
+
+  // Each in its own bucket, apart from the asks (Ruling L): sixty codes and twenty scans an hour.
+  @Post('qr')
+  @HttpCode(HttpStatus.CREATED)
+  @ThrottleFightBookQrMint()
+  @ApiOperation({ summary: 'A new code for my FightBook QR: five minutes, one scan' })
+  async mintQr(@Req() req: FastifyRequest) {
+    const caller = await fightBookCaller(req, this.supabase.service);
+    return this.qr.mint(requireFightBookOn(caller));
+  }
+
+  @Post('qr/scan')
+  @HttpCode(HttpStatus.CREATED)
+  @ThrottleFightBookScan()
+  @ApiOperation({ summary: "Scan a fighter's FightBook QR: a spar request to them, today" })
+  async scanQr(@Body() dto: ScanDto, @Req() req: FastifyRequest) {
+    const caller = await fightBookCaller(req, this.supabase.service);
+    return this.qr.scan(requireFightBookOn(caller), dto);
   }
 }

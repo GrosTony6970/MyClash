@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { IN_LIST_MAX } from '../../common/postgrest-in-list';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { SparReadsService } from './spar-reads.service';
 import { SparThanksService } from './spar-thanks.service';
@@ -33,48 +34,58 @@ const request = (id: string, over: Record<string, unknown>) => ({
   ...over,
 });
 
-/** Every profile live, claimed and on, unless `changed` says otherwise. */
-function service(
-  rows: Record<string, unknown>[],
-  changed: Record<string, Record<string, unknown>> = {},
-) {
-  const live = {
-    claimed_by_user_id: '9a8b7c6d-1111-4222-8333-944455566677',
-    fightbook_enabled: true,
-    deleted_at: null,
-    merged_into_id: null,
-    account_deleted_at: null,
+const block = (blocker: string, blocked: string) => ({
+  id: `${blocker}-${blocked}`,
+  blocker_global_person_id: blocker,
+  blocked_global_person_id: blocked,
+});
+
+/** The one query builder `table` was asked for. */
+function chainOf(supabase: ReturnType<typeof service>['supabase'], table: string) {
+  const index = supabase.from.mock.calls.findIndex(([queried]) => queried === table);
+  return supabase.from.mock.results[index]!.value as {
+    not: { mock: { invocationCallOrder: number[] } };
+    limit: { mock: { invocationCallOrder: number[] } };
   };
+}
+
+const LIVE = {
+  claimed_by_user_id: '9a8b7c6d-1111-4222-8333-944455566677',
+  fightbook_enabled: true,
+  deleted_at: null,
+  merged_into_id: null,
+  account_deleted_at: null,
+};
+
+/** Marc, Julie and Paul: every profile live, claimed and on, unless `changed` says otherwise. */
+function people(changed: Record<string, Record<string, unknown>>) {
   const person = (id: string, names: Record<string, unknown>) => ({
     id,
-    ...live,
+    ...LIVE,
     ...names,
     ...changed[id],
   });
+  return [
+    person(MARC, { display_name: null, given_name: 'Marc', family_name: 'Probe', photo_url: null }),
+    person(JULIE, {
+      display_name: 'Julie P.',
+      given_name: 'Julie',
+      family_name: 'Probe',
+      photo_url: 'j.jpg',
+    }),
+    person(PAUL, { display_name: null, given_name: 'Paul', family_name: 'Probe', photo_url: null }),
+  ];
+}
+
+function service(
+  rows: Record<string, unknown>[],
+  changed: Record<string, Record<string, unknown>> = {},
+  blocks: Record<string, unknown>[] = [],
+) {
   const supabase = mockSupabase({
     spar_requests: { rows },
-    global_persons: {
-      rows: [
-        person(MARC, {
-          display_name: null,
-          given_name: 'Marc',
-          family_name: 'Probe',
-          photo_url: null,
-        }),
-        person(JULIE, {
-          display_name: 'Julie P.',
-          given_name: 'Julie',
-          family_name: 'Probe',
-          photo_url: 'j.jpg',
-        }),
-        person(PAUL, {
-          display_name: null,
-          given_name: 'Paul',
-          family_name: 'Probe',
-          photo_url: null,
-        }),
-      ],
-    },
+    fightbook_blocks: { rows: blocks },
+    global_persons: { rows: people(changed) },
     events: { rows: [{ id: EVENT, name: 'Probe Open' }] },
     spar_thanks: { rows: [] },
     spar_anonymous_reviews: { rows: [] },
@@ -134,6 +145,49 @@ describe('SparReadsService.inbox', () => {
       ['deleted_at', null],
       ['merged_into_id', null],
       ['account_deleted_at', null],
+    ]);
+  });
+
+  it('leaves out, in its query, a request whose asker I blocked; keeps one whose asker blocked me', async () => {
+    // Marc blocked Paul: Paul's scan or ask never reaches him (ruling 714). Julie blocked Marc:
+    // her request to him still shows, for only the blocks the caller made are read (ruling 672).
+    const { reads, supabase } = service(
+      [
+        request('from-paul', { asker_global_person_id: PAUL, receiver_global_person_id: MARC }),
+        request('from-julie', { asker_global_person_id: JULIE, receiver_global_person_id: MARC }),
+      ],
+      {},
+      [block(MARC, PAUL), block(JULIE, MARC)],
+    );
+    const inbox = await reads.inbox(MARC, NOW);
+    expect(inbox.map((r) => r.id)).toEqual(['from-julie']);
+    expect(selectsFor(supabase.from, 'fightbook_blocks')).toEqual(['blocked_global_person_id']);
+    expect(filtersFor(supabase.from, 'fightbook_blocks', 'eq')).toEqual([
+      ['blocker_global_person_id', MARC],
+    ]);
+    expect(filtersFor(supabase.from, 'spar_requests', 'not')).toEqual([
+      ['asker_global_person_id', 'in', `(${PAUL})`],
+    ]);
+    // In the query before its cap, so 200 requests from blocked askers cannot fill it.
+    const query = chainOf(supabase, 'spar_requests');
+    expect(query.not.mock.invocationCallOrder[0]).toBeLessThan(
+      query.limit.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('past the in-list limit of blocks, still leaves out an asker I blocked', async () => {
+    const others = Array.from(
+      { length: IN_LIST_MAX },
+      (_, i) => `b1000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    );
+    const { reads, supabase } = service(
+      [request('from-paul', { asker_global_person_id: PAUL, receiver_global_person_id: MARC })],
+      {},
+      [...others.map((id) => block(MARC, id)), block(MARC, PAUL)],
+    );
+    expect(await reads.inbox(MARC, NOW)).toEqual([]);
+    expect(filtersFor(supabase.from, 'spar_requests', 'not')).toEqual([
+      ['asker_global_person_id', 'in', `(${others.join(',')})`],
     ]);
   });
 

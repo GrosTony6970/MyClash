@@ -35,7 +35,12 @@ function controller({ on = false, hasProfile = true } = {}) {
     switchOff: vi.fn(async () => undefined),
   };
   return {
-    ctl: new FightBookFloorController(supabase as never, freeNow as never, {} as never),
+    ctl: new FightBookFloorController(
+      supabase as never,
+      freeNow as never,
+      {} as never,
+      {} as never,
+    ),
     freeNow,
   };
 }

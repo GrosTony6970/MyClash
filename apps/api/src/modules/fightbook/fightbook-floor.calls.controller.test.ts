@@ -42,7 +42,12 @@ function controller({ on = false, hasProfile = true } = {}) {
     takeBack: vi.fn(async () => undefined),
     pick: vi.fn(async () => ({ requestId: 'spar-1' })),
   };
-  const ctl = new FightBookFloorController(supabase as never, {} as never, open as never);
+  const ctl = new FightBookFloorController(
+    supabase as never,
+    {} as never,
+    open as never,
+    {} as never,
+  );
   return { ctl, open };
 }
 

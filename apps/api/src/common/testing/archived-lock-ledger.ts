@@ -232,6 +232,12 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'POST me/fightbook/calls/:id/pick',
     'PUT me/fightbook/calls/:id/answer',
   ],
+  // A code is the fighter's own; a scan writes a spar request at a public Event on a day it runs
+  // (never an archived one) or at a place. A code names no Event; the archive excludes requests.
+  "FightBook QR: a fighter's own code and the spar request a scan writes, not the Event record.": [
+    'POST me/fightbook/qr',
+    'POST me/fightbook/qr/scan',
+  ],
   // A safety report is a snapshot of a spar, written once and read by the club's or the platform's
   // admins; marking it handled changes no Event row.
   'FightBook safety reports: the handled mark on a report, not the Event record.': [

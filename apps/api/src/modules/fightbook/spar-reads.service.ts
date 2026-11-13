@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import type { IncomingSparRequest, MySpars, SparFighter } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
-import { askableFighters, favouritesOf, fightBookOnFighters } from './spar-askable';
+import {
+  askableFighters,
+  blockedBy,
+  favouritesOf,
+  fightBookOnFighters,
+  withoutBlocked,
+} from './spar-askable';
 import { readSparEventNames, readSparFighters, unknownSparFighter } from './spar-fighters';
 import { SparThanksService } from './spar-thanks.service';
 import { NO_EXTRAS, toAgreed, toIncoming, toSent, type SparRow } from './spar-views';
@@ -29,23 +35,31 @@ export class SparReadsService {
   /**
    * Requests waiting for my answer, still open, soonest day first. Only those `fightbook_answer`
    * (0264) would take: the asker still live, claimed and on. A merge, a deleted profile or a late
-   * switch can leave a request waiting from someone nobody may answer any more.
+   * switch can leave a request waiting from someone nobody may answer any more. Never one from a
+   * fighter I blocked (a QR scan, ruling 714; the 0270 `fightbook_answer` refuses it too): left
+   * out in the query, before the cap, and again here past the in-list limit. Only my own blocks
+   * are read (ruling 672). If I unblock, the request shows again while it is open.
    */
   async inbox(me: string, now = new Date()): Promise<IncomingSparRequest[]> {
-    const { data, error } = await this.supabase.service
+    const db = this.supabase.service;
+    const blocked = await blockedBy(db, me);
+    const query = db
       .from('spar_requests')
       .select(
         'id, asker_global_person_id, receiver_global_person_id, kind, event_id, spar_day, zone, spar_time, place, weapons, message, status, expires_at, shared_comment, cancelled_by, cancel_message',
       )
       .eq('receiver_global_person_id', me)
       .eq('status', 'pending')
-      .gt('expires_at', now.toISOString())
+      .gt('expires_at', now.toISOString());
+    const { data, error } = await withoutBlocked(query, 'asker_global_person_id', blocked)
       .order('spar_day', { ascending: true })
       .limit(LIST_CAP);
     if (error) throw new Error(`FightBook inbox read failed: ${error.message}`);
-    const waiting = (data ?? []) as SparRow[];
+    const waiting = ((data ?? []) as SparRow[]).filter(
+      (r) => !blocked.has(r.asker_global_person_id),
+    );
     const open = await fightBookOnFighters(
-      this.supabase.service,
+      db,
       waiting.map((r) => r.asker_global_person_id),
     );
     const rows = waiting.filter((r) => open.has(r.asker_global_person_id)).sort(byDayThenTime);

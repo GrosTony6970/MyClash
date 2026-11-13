@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { FAVOURITES_MAX } from '@myclash/types';
-import { inListChunks } from '../../common/postgrest-in-list';
+import { IN_LIST_MAX, inListChunks } from '../../common/postgrest-in-list';
 import { applyReachable } from '../fighters/directory-predicate';
 
 type Db = Pick<SupabaseClient, 'from'>;
@@ -95,6 +95,22 @@ export async function askableFighters(
     blockedBy(db, me),
   ]);
   return new Set([...on].filter((id) => !blocked.has(id)));
+}
+
+/** A builder's `not … in`, through a view (the TS2589 note on `BooleanFilter`). */
+interface NotInFilter<T> {
+  not(column: string, operator: 'in', value: string): T;
+}
+
+/**
+ * Leave out rows naming the fighters the caller blocked (`blockedBy`), in the query, so a cap
+ * stays full. Names the first `IN_LIST_MAX` blocks only: past them the caller filters again
+ * after the read, and such a list may run short.
+ */
+export function withoutBlocked<T>(query: T, column: string, blocked: Set<string>): T {
+  const listed = [...blocked].slice(0, IN_LIST_MAX);
+  if (listed.length === 0) return query;
+  return (query as unknown as NotInFilter<T>).not(column, 'in', `(${listed.join(',')})`);
 }
 
 /** The fighters `me` blocked. Names `me` as the blocker only: never the blocks naming `me`. */

@@ -138,6 +138,9 @@
     // The open-call world (FightBook slice 5), shared by the open calls' four test files. It
     // imports vitest.
     "src/modules/fightbook/open-calls.fixtures.ts",
+    // The QR world (FightBook slice 5, Task 6), shared by the QR's three test files. It imports
+    // vitest.
+    "src/modules/fightbook/spar-qr.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

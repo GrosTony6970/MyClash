@@ -14,6 +14,7 @@ import { ClubSparFlagsController, PlatformSparFlagsController } from './spar-fla
 import { SparFlagAdminService } from './spar-flag-admin.service';
 import { SparFlagService } from './spar-flag.service';
 import { SparFindService } from './spar-find.service';
+import { SparQrService } from './spar-qr.service';
 import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 import { SparThanksService } from './spar-thanks.service';
@@ -46,6 +47,7 @@ import { SparThanksService } from './spar-thanks.service';
     FightBookFavouritesService,
     FreeNowService,
     OpenCallsService,
+    SparQrService,
   ],
 })
 export class FightBookModule {}
