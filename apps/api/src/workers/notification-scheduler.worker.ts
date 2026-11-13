@@ -40,7 +40,9 @@ export type ScheduledNotificationKind =
   | 'workshop_starting'
   | 'referee_starting'
   // Sent once the moves stop, not at a start: `workshop-move-notice.ts`.
-  | 'workshop_moved';
+  | 'workshop_moved'
+  // FightBook (slice 6): both fighters of an agreed spar with a time, 10 minutes before it.
+  | 'spar_starting';
 
 export type ImmediateNotificationKind =
   | 'assignment_changed'
@@ -789,6 +791,7 @@ export class NotificationSchedulerService {
       body: input.body,
       url: input.url,
       startsAt: input.startsAt,
+      ...(input.preference ? { preference: input.preference } : {}),
     };
   }
 }

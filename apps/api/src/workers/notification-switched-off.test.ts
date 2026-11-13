@@ -114,6 +114,7 @@ const SWITCHED: Array<[string, NotificationKind, NotificationPreferenceToggle]> 
   ['a spar marked as done', 'spar_marked_done', 'fightbook'],
   ['someone in for her open call', 'spar_call_answered', 'fightbook'],
   ['being picked on an open call', 'spar_call_picked', 'fightbook'],
+  ['the reminder of a spar', 'spar_starting', 'fightbook'],
 ];
 
 /** The notices with no switch of their own: only the main switch stops them. */

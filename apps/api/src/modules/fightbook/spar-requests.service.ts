@@ -23,6 +23,7 @@ import {
   notifySparRequestReceived,
   type SparNoticeDeps,
 } from './spar-notices';
+import { scheduleSparReminders, type SparReminderDeps } from './spar-reminder';
 
 /** An ask, as the route's body carries it. */
 export interface AskSparInput {
@@ -157,6 +158,7 @@ export class SparRequestsService {
     const answered = data as { asker: string; status: 'agreed' | 'not_this_time' };
     if (answered.status === 'agreed') {
       void notifySparAgreed(this.noticeDeps(), requestId, answered.asker);
+      void scheduleSparReminders(this.noticeDeps(), requestId);
     }
     return { status: answered.status };
   }
@@ -206,8 +208,8 @@ export class SparRequestsService {
     void notifySparCancelled(this.noticeDeps(), requestId, other);
   }
 
-  /** The deps every FightBook notice of this service uses. */
-  protected noticeDeps(): SparNoticeDeps {
+  /** The deps every FightBook notice of this service uses, and the reminder of an agreed spar. */
+  protected noticeDeps(): SparNoticeDeps & SparReminderDeps {
     return {
       db: this.supabase.service,
       notifications: this.notifications,

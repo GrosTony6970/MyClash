@@ -108,6 +108,10 @@ export const notices = {
     title: 'Spar agreed',
     body: 'Your spar request was accepted. It is in My spars.',
   },
+  sparStarting: {
+    title: 'Spar soon',
+    body: 'Your spar starts in 10 minutes.',
+  },
   sparCancelled: {
     title: 'Spar cancelled',
     body: 'A spar you agreed to was cancelled.',

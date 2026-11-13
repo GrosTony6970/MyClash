@@ -12,6 +12,7 @@ import {
   type SupabaseRow,
 } from '../common/testing/supabase-chain';
 import { isStillWanted } from './alert-still-wanted';
+import { isPublicAlert } from './alert-visibility';
 
 const CALL = 'call-1';
 const SPAR = 'spar-1';
@@ -66,12 +67,71 @@ describe('"you were picked" rings only while the spar is agreed', () => {
   });
 });
 
-describe('a failed read fails the job, it does not say "not wanted"', () => {
-  it.each(['spar_call_answered', 'spar_call_picked'] as const)('%s', async (kind) => {
-    const failed = { data: null, error: { message: 'boom' } };
-    const db = mockSupabase({ spar_open_calls: failed, spar_requests: failed });
-    await expect(isStillWanted(db as never, { kind, entityId: 'x', userId: 'u' })).rejects.toThrow(
-      'boom',
-    );
+const MARC_PROFILE = 'gp-marc';
+const JULIE_PROFILE = 'gp-julie';
+const AGREED = {
+  id: SPAR,
+  status: 'agreed',
+  asker_global_person_id: MARC_PROFILE,
+  receiver_global_person_id: JULIE_PROFILE,
+};
+
+function starting(spar: SupabaseRow | null, userId: string) {
+  const db = mockSupabase({
+    spar_requests: { rows: spar ? [spar] : [] },
+    global_persons: {
+      rows: [
+        { id: MARC_PROFILE, claimed_by_user_id: 'u-marc' },
+        { id: JULIE_PROFILE, claimed_by_user_id: 'u-julie' },
+        { id: 'gp-other', claimed_by_user_id: 'u-other' },
+      ],
+    },
   });
+  const job = { kind: 'spar_starting', entityId: SPAR, userId } as const;
+  return { db, answer: isStillWanted(db as never, job) };
+}
+
+describe('"your spar starts in 10 minutes" rings only for an agreed spar the account holds', () => {
+  it.each(['u-marc', 'u-julie'])('rings for %s, the holder of one fighter', async (userId) => {
+    const { db, answer } = starting(AGREED, userId);
+    await expect(answer).resolves.toBe(true);
+    expect(selectsFor(db.from, 'spar_requests')).toEqual([
+      'status, asker_global_person_id, receiver_global_person_id',
+    ]);
+    expect(filtersFor(db.from, 'spar_requests', 'eq')).toEqual([['id', SPAR]]);
+    expect(selectsFor(db.from, 'global_persons')).toEqual(['id']);
+    expect(filtersFor(db.from, 'global_persons', 'in')).toEqual([
+      ['id', [MARC_PROFILE, JULIE_PROFILE]],
+    ]);
+    expect(filtersFor(db.from, 'global_persons', 'eq')).toEqual([['claimed_by_user_id', userId]]);
+  });
+
+  it.each<[string, SupabaseRow | null, string]>([
+    ['it was cancelled', { ...AGREED, status: 'cancelled' }, 'u-marc'],
+    ['it is done', { ...AGREED, status: 'done' }, 'u-marc'],
+    ['the spar is gone', null, 'u-marc'],
+    ['no profile of it is held by the account (a merge or an unclaim)', AGREED, 'u-other'],
+  ])('stays silent when %s', async (_, spar, userId) => {
+    await expect(starting(spar, userId).answer).resolves.toBe(false);
+  });
+
+  it('is not checked for being public: a spar never is, and the check reads nothing', async () => {
+    const db = mockSupabase({});
+    const job = { kind: 'spar_starting', entityId: SPAR, userId: 'u-marc' } as const;
+    await expect(isPublicAlert(db as never, job)).resolves.toBe(true);
+    expect(queriedTables(db.from)).toEqual([]);
+  });
+});
+
+describe('a failed read fails the job, it does not say "not wanted"', () => {
+  it.each(['spar_call_answered', 'spar_call_picked', 'spar_starting'] as const)(
+    '%s',
+    async (kind) => {
+      const failed = { data: null, error: { message: 'boom' } };
+      const db = mockSupabase({ spar_open_calls: failed, spar_requests: failed });
+      await expect(
+        isStillWanted(db as never, { kind, entityId: 'x', userId: 'u' }),
+      ).rejects.toThrow('boom');
+    },
+  );
 });

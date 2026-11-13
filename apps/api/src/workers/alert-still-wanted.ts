@@ -226,6 +226,35 @@ const sparStillAgreed: Wanted = async (db, requestId) => {
 };
 
 /**
+ * "Your spar starts in 10 minutes": the spar is still agreed (not cancelled, not done) AND the
+ * job's account still holds the asker's or the receiver's profile (a merge or an unclaim moves it).
+ */
+const sparStillAgreedAndHeld: Wanted = async (db, requestId, userId) => {
+  const spar = read<{
+    status: string;
+    asker_global_person_id: string;
+    receiver_global_person_id: string;
+  } | null>(
+    'alert spar',
+    await db
+      .from('spar_requests')
+      .select('status, asker_global_person_id, receiver_global_person_id')
+      .eq('id', requestId)
+      .maybeSingle(),
+  );
+  if (spar?.status !== 'agreed') return false;
+  const held = read<unknown[] | null>(
+    'alert spar fighters',
+    await db
+      .from('global_persons')
+      .select('id')
+      .in('id', [spar.asker_global_person_id, spar.receiver_global_person_id])
+      .eq('claimed_by_user_id', userId),
+  );
+  return (held ?? []).length > 0;
+};
+
+/**
  * What each kind is checked against when it fires; null = not checked here. Every kind is named:
  * a new one fails the typecheck until it is placed.
  */
@@ -261,6 +290,8 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   // FightBook open calls (slice 5, Decision 15).
   spar_call_answered: callStillOpen,
   spar_call_picked: sparStillAgreed,
+  // FightBook (slice 6): set when the spar became agreed; nothing removes it on a cancel.
+  spar_starting: sparStillAgreedAndHeld,
 };
 
 export async function isStillWanted(

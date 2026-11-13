@@ -9,6 +9,7 @@ import { readOpenCalls } from './open-call-reads';
 import { badRequest, catalogWeapons, sparExpiresAt } from './spar-ask-rules';
 import { blockedBy, fightBookOnFighters, isOnEventRoster } from './spar-askable';
 import { notifySparCallAnswered, notifySparCallPicked, type SparNoticeDeps } from './spar-notices';
+import { scheduleSparReminders, type SparReminderDeps } from './spar-reminder';
 import { databaseRefusal } from './spar-requests.service';
 import { notOpen } from './spar-side';
 
@@ -201,11 +202,12 @@ export class OpenCallsService {
     if (error) throw databaseRefusal(error, 'open call pick');
     const requestId = data as string;
     void notifySparCallPicked(this.noticeDeps(), requestId, answerer);
+    void scheduleSparReminders(this.noticeDeps(), requestId);
     return { requestId };
   }
 
-  /** The deps the open-call notices use. */
-  protected noticeDeps(): SparNoticeDeps {
+  /** The deps the open-call notices use, and the reminder of the spar a pick agrees. */
+  protected noticeDeps(): SparNoticeDeps & SparReminderDeps {
     return {
       db: this.supabase.service,
       notifications: this.notifications,

@@ -276,6 +276,14 @@ export function sparAgreed(): NoticeEmailText {
   });
 }
 
+/** FightBook: an agreed spar starts in 10 minutes. No name: it shows on a locked phone. */
+export function sparStarting(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparStarting.title'),
+    body: bilingual('notices.sparStarting.body'),
+  });
+}
+
 /** FightBook: the other fighter cancelled an agreed spar. No name, no message. */
 export function sparCancelled(): NoticeEmailText {
   return withSubject({
