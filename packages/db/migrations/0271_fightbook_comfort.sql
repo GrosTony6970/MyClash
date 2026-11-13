@@ -18,7 +18,8 @@
 --    each worked out into a variable first, then the status decided: a blocked ask does the same
 --    work as any other. Her count runs whether or not she has a limit, so an ask to a fighter
 --    with no limit takes the same work as one to a fighter with one: its time cannot tell an
---    asker "no limit", and so cannot turn an instant no into a block. The clause runs after not_again and already_asked, as the block does, so
+--    asker "no limit", and so cannot turn an instant no into a block. The clause runs after
+--    not_again and already_asked, as the block does, so
 --    a limit-stopped ask is the same row as a declined one, answered the same `{ id }` (ruling
 --    672), and the no-asking-twice rule follows it: the asker the limit stopped cannot ask her
 --    again at that Event, any day of it, even after a cancel frees a place (ruling 747). The limit
