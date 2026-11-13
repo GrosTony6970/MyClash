@@ -34,6 +34,15 @@ const roster = (id: string, eventId: string, globalPersonId: string) => ({
 // Sunday 2026-05-24, 05:59 in Paris: Saturday's day has one minute left.
 const NOW = new Date('2026-05-24T03:59:00Z');
 
+// Marc is free at Zeta Open until 06:30 Paris time, his row for Beta Cup ended at 05:58 (past
+// at NOW), and Julie's row at Alpha Cup is not his.
+const FREE_UNTIL = '2026-05-24T04:30:00.000Z';
+const freeRows = [
+  { global_person_id: MARC, event_id: SOON, until: FREE_UNTIL },
+  { global_person_id: MARC, event_id: SAME_B, until: '2026-05-24T03:58:00.000Z' },
+  { global_person_id: JULIE, event_id: SAME_A, until: FREE_UNTIL },
+];
+
 function service(rows = defaultEvents) {
   const supabase = mockSupabase({
     persons: {
@@ -50,6 +59,7 @@ function service(rows = defaultEvents) {
       ],
     },
     events: { rows },
+    fightbook_free_now: { rows: freeRows },
   });
   return { find: new SparFindService(supabase as never, {} as never), supabase };
 }
@@ -81,15 +91,17 @@ describe('SparFindService.myEvents', () => {
         name: 'Hudson Open',
         days: ['2026-05-23'],
         today: '2026-05-23',
+        freeUntil: null,
       },
       {
         id: SOON,
         name: 'Zeta Open',
         days: ['2026-05-23', '2026-05-24'],
         today: '2026-05-24',
+        freeUntil: '2026-05-24T04:30:00.000Z',
       },
-      { id: SAME_A, name: 'Alpha Cup', days: ['2026-05-24'], today: '2026-05-24' },
-      { id: SAME_B, name: 'Beta Cup', days: ['2026-05-24'], today: '2026-05-24' },
+      { id: SAME_A, name: 'Alpha Cup', days: ['2026-05-24'], today: '2026-05-24', freeUntil: null },
+      { id: SAME_B, name: 'Beta Cup', days: ['2026-05-24'], today: '2026-05-24', freeUntil: null },
     ]);
   });
 
@@ -109,6 +121,26 @@ describe('SparFindService.myEvents', () => {
     const asked = filtersFor(supabase.from, 'events', 'in')[0]![1] as string[];
     expect(asked).not.toContain(NOT_MINE);
     expect(filtersFor(supabase.from, 'events', 'gte')).toEqual([['end_date', '2026-05-22']]);
+  });
+
+  it('reads my own free-now row, live only, and keeps the Events when that read fails', async () => {
+    const { find, supabase } = service();
+    await find.myEvents(MARC, NOW);
+    expect(selectsFor(supabase.from, 'fightbook_free_now')).toEqual(['event_id, until']);
+    expect(filtersFor(supabase.from, 'fightbook_free_now', 'eq')).toEqual([
+      ['global_person_id', MARC],
+    ]);
+    expect(filtersFor(supabase.from, 'fightbook_free_now', 'gt')).toEqual([
+      ['until', NOW.toISOString()],
+    ]);
+    const original = supabase.from.getMockImplementation()!;
+    supabase.from.mockImplementation((table: string) => {
+      if (table === 'fightbook_free_now') throw new Error('table unreachable');
+      return original(table);
+    });
+    const events = await find.myEvents(MARC, NOW);
+    expect(events).toHaveLength(4);
+    expect(events.map((e) => e.freeUntil)).toEqual([null, null, null, null]);
   });
 
   it('lists nothing for a fighter on no Event, without reading Events', async () => {

@@ -174,6 +174,8 @@ export interface FightBookEvent {
   days: string[];
   /** The latest open day that has started; null before the first day starts. */
   today: string | null;
+  /** Until when the caller is free to spar now at this Event (ISO); null when not, or past. */
+  freeUntil: string | null;
 }
 
 export interface FightBookBlock {
@@ -187,6 +189,14 @@ export interface FindCard {
   weapons: string[];
   /** Is this fighter in the caller's favourites (a private heart, ruling 679)? */
   favourite: boolean;
+}
+
+/**
+ * A card in Find's Event block: free-to-spar-now fighters come first. The badge shows nowhere
+ * else (ruling 708).
+ */
+export interface EventFindCard extends FindCard {
+  freeNow: boolean;
 }
 
 /** May the caller ask this fighter for a spar, and have they hearted them (profile page)? */

@@ -5,6 +5,8 @@ import { FightBookBlocksService } from './fightbook-blocks.service';
 import { FightBookAfterController } from './fightbook-after.controller';
 import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { FightBookController } from './fightbook.controller';
+import { FightBookFloorController } from './fightbook-floor.controller';
+import { FreeNowService } from './free-now.service';
 import { FightBookSettingsService } from './fightbook-settings.service';
 import { SparAfterService } from './spar-after.service';
 import { ClubSparFlagsController, PlatformSparFlagsController } from './spar-flag-admin.controller';
@@ -25,6 +27,7 @@ import { SparThanksService } from './spar-thanks.service';
   imports: [NotificationSchedulingModule, OrganizationsModule],
   controllers: [
     FightBookController,
+    FightBookFloorController,
     FightBookAfterController,
     ClubSparFlagsController,
     PlatformSparFlagsController,
@@ -40,6 +43,7 @@ import { SparThanksService } from './spar-thanks.service';
     SparFlagAdminService,
     SparThanksService,
     FightBookFavouritesService,
+    FreeNowService,
   ],
 })
 export class FightBookModule {}

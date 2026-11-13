@@ -80,6 +80,19 @@ const persons = [
   roster('p-draft-julie', DRAFT_EVENT, JULIE),
 ];
 
+const NOW = new Date('2026-05-23T14:00:00Z');
+const freeRow = (gp: string, eventId: string, until: string) => ({
+  global_person_id: gp,
+  event_id: eventId,
+  until,
+});
+const freeNowRows = [
+  freeRow(BLOCKER, EVENT, '2026-05-23T14:30:00.000Z'),
+  freeRow(JULIE, OTHER_EVENT, '2026-05-23T14:30:00.000Z'),
+  freeRow(JULIE, EVENT, '2026-05-23T13:59:00.000Z'),
+  freeRow(BLOCKED, EVENT, '2026-05-23T14:30:00.000Z'),
+];
+
 function service({ insider = false } = {}) {
   const supabase = mockSupabase({
     global_persons: { rows: fighters },
@@ -118,6 +131,9 @@ function service({ insider = false } = {}) {
     },
     event_referees: { rows: [] },
     event_instructors: { rows: [] },
+    // Bravo is free here until 14:30. Julie's rows must not count: one is another Event's, one is
+    // past its time. Charlie is free here too, but Marc blocked him.
+    fightbook_free_now: { rows: freeNowRows },
   });
   const orgs = {
     assertOrgRole: async () => {
@@ -133,19 +149,51 @@ async function codeOf(promise: Promise<unknown>): Promise<[number, string | unde
 }
 
 describe('SparFindService.atEvent', () => {
-  it('lists the askable fighters on that Event, by name ignoring case, with their cards', async () => {
+  it('lists the askable fighters on that Event, the free ones first, then by name ignoring case', async () => {
     const { find } = service();
-    expect(await find.atEvent(MARC, EVENT, undefined, reader)).toEqual([
-      {
-        fighter: { globalPersonId: JULIE, name: 'alpha Fighter', photoUrl: null, club: 'Club A' },
-        weapons: ['Longsword', 'Sabre', 'Rapier'],
-        favourite: true,
-      },
+    expect(await find.atEvent(MARC, EVENT, undefined, reader, NOW)).toEqual([
       {
         fighter: { globalPersonId: BLOCKER, name: 'Bravo Fighter', photoUrl: null, club: null },
         weapons: [],
         favourite: false,
+        freeNow: true,
       },
+      {
+        fighter: { globalPersonId: JULIE, name: 'alpha Fighter', photoUrl: null, club: 'Club A' },
+        weapons: ['Longsword', 'Sabre', 'Rapier'],
+        favourite: true,
+        freeNow: false,
+      },
+    ]);
+  });
+
+  it('reads the free-now rows of the listed fighters at this Event, still running', async () => {
+    const { find, supabase } = service();
+    await find.atEvent(MARC, EVENT, undefined, reader, NOW);
+    expect(selectsFor(supabase.from, 'fightbook_free_now')).toEqual(['global_person_id']);
+    expect(filtersFor(supabase.from, 'fightbook_free_now', 'eq')).toEqual([['event_id', EVENT]]);
+    expect(filtersFor(supabase.from, 'fightbook_free_now', 'gt')).toEqual([
+      ['until', NOW.toISOString()],
+    ]);
+    // Only the fighters the roster, the blocks and the switch left in: never Charlie (blocked).
+    const [[, asked]] = filtersFor(supabase.from, 'fightbook_free_now', 'in') as [
+      [string, string[]],
+    ];
+    expect([...asked].sort()).toEqual([BLOCKER, JULIE].sort());
+  });
+
+  // The badge is an add-on to a page the fighter needs: lose the badge, keep the list.
+  it('still lists the fighters, with no badge, when the free-now read fails', async () => {
+    const { find, supabase } = service();
+    const original = supabase.from.getMockImplementation()!;
+    supabase.from.mockImplementation((table: string) => {
+      if (table === 'fightbook_free_now') throw new Error('table unreachable');
+      return original(table);
+    });
+    const cards = await find.atEvent(MARC, EVENT, undefined, reader, NOW);
+    expect(cards.map((card) => [card.fighter.name, card.freeNow])).toEqual([
+      ['alpha Fighter', false],
+      ['Bravo Fighter', false],
     ]);
   });
 
@@ -227,6 +275,7 @@ describe('SparFindService.atEvent, a large Event', () => {
       persons: { rows: [roster('p-me', EVENT, MARC), ...big.map((gp) => roster(gp, EVENT, gp))] },
       fighter_weapons: { rows: [] },
       tournaments: { rows: [] },
+      fightbook_free_now: { rows: [] },
     });
     return { find: new SparFindService(supabase as never, {} as never), supabase };
   }
@@ -263,6 +312,7 @@ describe('SparFindService.atEvent, a roster longer than one read', () => {
       persons: { rows: [...fillers, roster('p-julie', EVENT, JULIE), roster('p-me', EVENT, MARC)] },
       fighter_weapons: { rows: [] },
       tournaments: { rows: [] },
+      fightbook_free_now: { rows: [] },
     });
     const find = new SparFindService(supabase as never, {} as never);
     const cards = await find.atEvent(MARC, EVENT, undefined, reader);

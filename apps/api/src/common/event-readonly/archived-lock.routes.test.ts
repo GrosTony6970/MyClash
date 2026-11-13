@@ -161,7 +161,10 @@ describe('the archived-Event lock, API-wide', () => {
     // 197: its `POST …/details/photo` and `DELETE …/details/photo`, placed alike.
     // 198: `POST me/events/:eventId/join` (568), placed by its Event: nobody joins an archived
     // Event (nor a completed one, 573).
-    expect(placed).toHaveLength(198);
+    // 200: FightBook's `PUT`/`DELETE me/fightbook/events/:eventId/free` (slice 5 floor tools),
+    // placed by their Event: nobody is free to spar at an archived Event (Task 5's `POST
+    // …/events/:eventId/calls` will make it 201).
+    expect(placed).toHaveLength(200);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { CompetitionEvent, PublicReader } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
@@ -9,6 +9,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { IN_LIST_MAX, inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 import { addDays, zonedDay } from '@myclash/time';
 import type {
+  EventFindCard,
   FightBookAskable,
   FightBookEvent,
   FindCard,
@@ -25,6 +26,7 @@ import {
   isOnEventRoster,
   weaponColumns,
 } from './spar-askable';
+import { freeAt, ownFreeUntil } from './free-now.service';
 import { openEventDays } from './spar-ask-rules';
 import { readSparFighters } from './spar-fighters';
 
@@ -32,7 +34,7 @@ import { readSparFighters } from './spar-fighters';
 const FIND_PAGE_SIZE = 20;
 
 /** The most fighters Find's Event block lists. */
-const AT_EVENT_MAX = 200;
+export const AT_EVENT_MAX = 200;
 
 /** By name, ignoring case and accents; the id breaks a tie, so the order never wobbles. */
 export const byName = (a: SparFighter, b: SparFighter): number =>
@@ -78,6 +80,8 @@ type MyEventRow = {
  */
 @Injectable()
 export class SparFindService {
+  private readonly logger = new Logger(SparFindService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -125,17 +129,20 @@ export class SparFindService {
   }
 
   /**
-   * The fighters `me` may ask among this Event's roster (Find's Event block), by name, at most
-   * 200, those who declared `weaponId` only when it is set. Someone entered only in a Tournament
-   * hidden from `reader` is left out, as the people lookup leaves them out. 400 `bad_event`
-   * unless the Event is public and `me` is on its roster (as an ask names it, ruling 665).
+   * The fighters `me` may ask among this Event's roster (Find's Event block), those free to spar
+   * now first, then by name, at most `AT_EVENT_MAX`, those who declared `weaponId` only when it
+   * is set. Someone entered only in a Tournament hidden from `reader` is left out, as the people
+   * lookup leaves them out. 400 `bad_event` unless the Event is public and `me` is on its roster
+   * (as an ask names it, ruling 665). The free-now badge is an add-on to this page: if its read
+   * fails the list still comes, with no badge, and the failure is logged.
    */
   async atEvent(
     me: string,
     eventId: string,
     weaponId: string | undefined,
     reader: PublicReader,
-  ): Promise<FindCard[]> {
+    now = new Date(),
+  ): Promise<EventFindCard[]> {
     const db = this.supabase.service;
     const event = await this.publicEvent(eventId);
     if (!event || !(await isOnEventRoster(db, me, eventId))) {
@@ -158,8 +165,19 @@ export class SparFindService {
     const ids = rows
       .filter((row) => !hidden.has(row.id) && askable.has(row.global_person_id))
       .map((row) => row.global_person_id);
-    const fighters = [...(await readSparFighters(db, ids)).values()];
-    return this.withWeapons(fighters.sort(byName).slice(0, AT_EVENT_MAX), favourites);
+    const [read, free] = await Promise.all([
+      readSparFighters(db, ids),
+      freeAt(db, eventId, ids, now).catch((error: unknown) => {
+        this.logger.error(`Free-now badge left off: ${String(error)}`);
+        return new Set<string>();
+      }),
+    ]);
+    const fighters = [...read.values()].sort(
+      (a, b) =>
+        Number(free.has(b.globalPersonId)) - Number(free.has(a.globalPersonId)) || byName(a, b),
+    );
+    const cards = await this.withWeapons(fighters.slice(0, AT_EVENT_MAX), favourites);
+    return cards.map((card) => ({ ...card, freeNow: free.has(card.fighter.globalPersonId) }));
   }
 
   /**
@@ -229,12 +247,24 @@ export class SparFindService {
       if (error) throw new Error(`FightBook Events read failed: ${error.message}`);
       rows.push(...((data ?? []) as MyEventRow[]));
     }
+    // The caller's own free-now time is an add-on to this page: if its read fails the Events still
+    // come, with `freeUntil` null, and the failure is logged.
+    const own = await ownFreeUntil(this.supabase.service, me, now).catch((error: unknown) => {
+      this.logger.error(`Free-now time left off: ${String(error)}`);
+      return new Map<string, string>();
+    });
     return rows
       .filter(isPublicEvent)
       .map((row) => ({ row, ...openEventDays(row, now) }))
       .filter((open) => open.days.length > 0)
       .sort((a, b) => a.days[0]!.localeCompare(b.days[0]!) || a.row.name.localeCompare(b.row.name))
-      .map(({ row, days, today }) => ({ id: row.id, name: row.name, days, today }));
+      .map(({ row, days, today }) => ({
+        id: row.id,
+        name: row.name,
+        days,
+        today,
+        freeUntil: own.get(row.id) ?? null,
+      }));
   }
 
   /**
