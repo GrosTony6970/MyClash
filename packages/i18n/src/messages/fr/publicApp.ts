@@ -1670,8 +1670,9 @@ export const publicApp = {
         'Votre nom accompagne ce signalement. L’équipe MyClash le lira. {partner} ne le voit jamais.',
       send: 'Envoyer le signalement',
       cancel: 'Annuler',
-      doneEvent: 'Vous avez signalé ce spar — les organisateurs de l’événement l’ont reçu.',
-      doneFree: 'Vous avez signalé ce spar — l’équipe MyClash l’a reçu.',
+      doneEvent:
+        'Vous avez signalé ce spar — les organisateurs de l’événement ont reçu votre signalement.',
+      doneFree: 'Vous avez signalé ce spar — l’équipe MyClash a reçu votre signalement.',
     },
     favourites: {
       add: 'Ajouter {name} aux favoris',
