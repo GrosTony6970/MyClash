@@ -101,13 +101,16 @@ describe('RetentionService.runSweep', () => {
     const { supabase, deletions } = makeSupabase(BASE);
     const before = Date.now();
     await new RetentionService(supabase).runSweep();
+    const after = Date.now();
 
     const flags = deletions.filter((d) => d.table === 'spar_flags');
     expect(flags).toHaveLength(1);
     expect(flags[0]!.column).toBe('created_at');
-    const ageDays = (before - new Date(flags[0]!.cutoff).getTime()) / (24 * 60 * 60 * 1000);
-    expect(ageDays).toBeGreaterThanOrEqual(730);
-    expect(ageDays).toBeLessThan(730.01);
+    // The sweep reads its own clock between `before` and `after`, so its cutoff lies in that bracket.
+    const day = 24 * 60 * 60 * 1000;
+    const cutoff = new Date(flags[0]!.cutoff).getTime();
+    expect(cutoff).toBeGreaterThanOrEqual(before - 730 * day);
+    expect(cutoff).toBeLessThanOrEqual(after - 730 * day);
   });
 
   it('keeps safety flags when the horizon is 0', async () => {
