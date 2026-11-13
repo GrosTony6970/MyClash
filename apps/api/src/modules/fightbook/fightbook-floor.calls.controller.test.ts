@@ -4,6 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
 import { mockSupabase } from '../../common/testing/supabase-chain';
+import { FightBookController } from './fightbook.controller';
 import { FightBookFloorController, pickSchema, postCallSchema } from './fightbook-floor.controller';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
@@ -162,6 +163,19 @@ describe('FightBookFloorController, open-call routes', () => {
   ] as const)('%s answers %s', (name, status) => {
     const handler = FightBookFloorController.prototype[name];
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(status);
+  });
+
+  it('throttles posting as an ask is (Decision 6: post-then-close must not insert unbounded)', () => {
+    // The marker the ask route carries, read off the ask handler itself: one owner of its name.
+    const marker = Reflect.getMetadataKeys(FightBookController.prototype.ask).filter((key) =>
+      String(key).includes('fightbook-ask'),
+    );
+    expect(marker).toHaveLength(1);
+    const marked = (name: keyof FightBookFloorController) =>
+      Reflect.getMetadata(marker[0], FightBookFloorController.prototype[name]) === true;
+    expect(marked('postCall')).toBe(true);
+    // Answers and picks need no throttle of their own: one per call, and calls are capped.
+    expect(marked('answerCall')).toBe(false);
   });
 
   it('takes a post of 1-5 weapons and a time HH:MM, nothing else', () => {

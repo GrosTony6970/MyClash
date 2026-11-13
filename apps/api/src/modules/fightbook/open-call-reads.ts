@@ -179,7 +179,7 @@ export async function readOpenCalls(
     .slice(0, OTHERS_MAX)
     .map((call) => toOther(call, card(call.poster_global_person_id), me, answered, now));
   return {
-    mine: mine.map((call) => toMine(call, answers.get(call.id) ?? [], on, card, now)),
+    mine: mine.map((call) => toMine(call, answers.get(call.id) ?? [], on, blocked, card, now)),
     others,
   };
 }
@@ -201,10 +201,15 @@ function toOther(
   };
 }
 
+/**
+ * My call as I see it. The answerers I blocked are dropped here too: the query names only the
+ * first `IN_LIST_MAX` of my blocks (`withoutBlocked`), so past them this is the only filter.
+ */
 function toMine(
   call: OpenCallRow,
   answerers: readonly string[],
   on: Set<string>,
+  blocked: Set<string>,
   card: (id: string) => SparFighter,
   now: Date,
 ): MyOpenCall {
@@ -214,6 +219,6 @@ function toMine(
     time: callTime(call.spar_time),
     state: callState(call, now),
     picked: call.picked_global_person_id ? card(call.picked_global_person_id) : null,
-    answers: answerers.filter((id) => on.has(id)).map(card),
+    answers: answerers.filter((id) => on.has(id) && !blocked.has(id)).map(card),
   };
 }

@@ -1,3 +1,4 @@
+import type { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
@@ -9,6 +10,7 @@ import {
 } from '../../common/testing/supabase-chain';
 import {
   ACCOUNT_OF,
+  DRAFT_EVENT,
   JULIE,
   MARC,
   NOW,
@@ -27,6 +29,12 @@ import type { SparNoticeDeps } from './spar-notices';
 
 const CALL = callRow().id as string;
 const LATE = new Date('2026-05-23T19:00:00Z'); // the call's own time: no longer open
+
+/** A refusal's whole face: its status and its body. */
+async function refusalOf(promise: Promise<unknown>) {
+  const error = (await promise.catch((e: unknown) => e)) as HttpException;
+  return [error.getStatus(), error.getResponse()];
+}
 
 /** The options the answer's upsert was sent with (the double records the row, not these). */
 function upsertOptions(supabase: ReturnType<typeof world>['supabase']) {
@@ -69,9 +77,16 @@ describe('OpenCallsService.answer: "I\'m in"', () => {
       [404, undefined],
     ],
     ['my own call', { calls: [callRow({ poster_global_person_id: MARC })] }, [400, 'self']],
+    // Decision 7: a call the caller cannot see answers 404, as an unknown one does.
     [
       'a call of an Event I am not on',
       { calls: [callRow()], rosterOf: [JULIE, PAUL] },
+      [404, undefined],
+    ],
+    // The read refuses an Event no longer public: so does an answer from an old screen.
+    [
+      'a call of an Event turned draft',
+      { calls: [callRow({ event_id: DRAFT_EVENT })] },
       [400, 'bad_event'],
     ],
     ['a closed call', { calls: [callRow({ status: 'closed' })] }, [409, 'not_open']],
@@ -92,6 +107,17 @@ describe('OpenCallsService.answer: "I\'m in"', () => {
     const { open } = world({ calls: [callRow()] });
     expect(await codeOf(open.answer(MARC, CALL, LATE))).toEqual([409, 'not_open']);
   });
+
+  it.each(['answer', 'takeBack'] as const)(
+    '%s off the roster answers exactly as an unknown call: nothing says the call exists',
+    async (route) => {
+      const offRoster = world({ calls: [callRow()], rosterOf: [JULIE, PAUL] });
+      const unknown = world({ calls: [] });
+      expect(await refusalOf(offRoster.open[route](MARC, CALL, NOW))).toEqual(
+        await refusalOf(unknown.open[route](MARC, CALL, NOW)),
+      );
+    },
+  );
 
   it('tells the poster "someone is in", about the call', async () => {
     const { open, send } = world({ calls: [callRow()] });
@@ -205,5 +231,20 @@ describe('OpenCallsService.takeBack', () => {
     const { open, supabase } = world(w);
     expect(await codeOf(open.takeBack(MARC, CALL, now))).toEqual(answer);
     expect(writesTo(supabase, 'spar_open_call_answers')).toEqual([]);
+  });
+
+  it('ruling 672: Marc takes back the same way whether Julie blocked him or not', async () => {
+    const base: World = { calls: [callRow()], answers: [answerRow(CALL, MARC)] };
+    const outcome = async (w: World) => {
+      const { open, supabase } = world(w);
+      const taken = await open.takeBack(MARC, CALL, NOW).then(
+        (value) => ({ ok: value }),
+        (error: unknown) => ({ error }),
+      );
+      return { taken, writes: writesTo(supabase, 'spar_open_call_answers') };
+    };
+    const plain = await outcome(base);
+    expect(await outcome({ ...base, blocks: [blockRow(JULIE, MARC)] })).toEqual(plain);
+    expect(plain.writes).toHaveLength(1);
   });
 });

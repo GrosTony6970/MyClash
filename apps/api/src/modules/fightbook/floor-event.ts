@@ -28,6 +28,21 @@ export async function floorEvent(
   eventId: string,
   now: Date,
 ): Promise<FloorEvent> {
+  const event = await publicFloorEvent(db, eventId, now);
+  if (!event || !(await isOnEventRoster(db, me, eventId))) throw offTheFloor();
+  return event;
+}
+
+/**
+ * The gate's public half: the Event's `today` and zone while it is public, else null. For a write
+ * on a call (answer, pick) whose roster check is made where the call is read: an Event turned
+ * draft or test mid-day refuses an old screen as the read does.
+ */
+export async function publicFloorEvent(
+  db: Db,
+  eventId: string,
+  now: Date,
+): Promise<FloorEvent | null> {
   const { data, error } = await db
     .from('events')
     .select('id, status, organization_id, event_kind, start_date, end_date, timezone')
@@ -41,8 +56,6 @@ export async function floorEvent(
     end_date: string;
     timezone: unknown;
   } | null;
-  if (!event || !isPublicEvent(event) || !(await isOnEventRoster(db, me, eventId))) {
-    throw offTheFloor();
-  }
+  if (!event || !isPublicEvent(event)) return null;
   return { today: openEventDays(event, now).today, zone: eventZone(event.timezone).zone };
 }

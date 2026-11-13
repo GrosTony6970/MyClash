@@ -4,6 +4,7 @@ import { lastFunctionParams } from '../../common/testing/migration-function';
 import { filtersFor, selectsFor } from '../../common/testing/supabase-chain';
 import {
   ACCOUNT_OF,
+  DRAFT_EVENT,
   MARC,
   PAUL,
   SPAR,
@@ -37,7 +38,7 @@ describe('OpenCallsService.pick', () => {
       // 06:00 the next morning in New York (ruling 154).
       p_expires_at: '2026-05-24T10:00:00.000Z',
     });
-    expect(selectsFor(supabase.from, 'spar_open_calls')).toEqual(['spar_day, zone']);
+    expect(selectsFor(supabase.from, 'spar_open_calls')).toEqual(['event_id, spar_day, zone']);
     expect(filtersFor(supabase.from, 'spar_open_calls', 'eq')).toEqual([
       ['id', CALL],
       ['poster_global_person_id', MARC],
@@ -62,6 +63,12 @@ describe('OpenCallsService.pick', () => {
   it('answers 404 for a call that is not mine, and calls nothing', async () => {
     const { open, supabase } = world({ calls: [callRow()] });
     expect((await codeOf(open.pick(MARC, callRow().id as string, PAUL)))[0]).toBe(404);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pick at an Event turned draft, as the read does: bad_event, and calls nothing', async () => {
+    const { open, supabase } = world({ calls: [{ ...MINE, event_id: DRAFT_EVENT }] });
+    expect(await codeOf(open.pick(MARC, CALL, PAUL))).toEqual([400, 'bad_event']);
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 

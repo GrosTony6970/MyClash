@@ -33,6 +33,7 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
 import { SupabaseService } from '../supabase/supabase.service';
 import { fightBookCaller, requireFightBookOn, requireProfile } from './fightbook-caller';
 import { FreeNowService } from './free-now.service';
@@ -86,8 +87,11 @@ export class FightBookFloorController {
     return this.calls.read(requireFightBookOn(caller), eventId);
   }
 
+  // Throttled as an ask (its own bucket, Nest keys it by handler): the cap bounds OPEN calls only,
+  // so without it a post-then-close loop would insert rows without a bound (Decision 6).
   @Post('events/:eventId/calls')
   @HttpCode(HttpStatus.CREATED)
+  @ThrottleFightBookAsk()
   @ApiOperation({ summary: 'Post an open call for a spar today at an Event I am at' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async postCall(

@@ -79,7 +79,7 @@ export async function notifySparCallAnswered(
 /**
  * One FightBook notice to the account that holds `profileId`, with that account's own address
  * for the email fallback (the referee lock message's rule, rulings 201, 201a). The FightBook
- * switch turns all three off (`preference: 'fightbook'`). A "Not this time" never comes here
+ * switch turns every one off (`preference: 'fightbook'`). A "Not this time" never comes here
  * (ruling 663).
  *
  * Never throws: the change it reports is saved before it is called, and the caller does not wait

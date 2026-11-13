@@ -71,6 +71,9 @@ const ANSWERS = [
   answerRow(id(3), LEA, '2026-05-23T17:20:00+00:00'),
   answerRow(id(4), MARC),
   answerRow(id(5), MARC),
+  // Marc's answers on another Event's call and on yesterday's: the answered read must drop both.
+  answerRow(id(6), MARC),
+  answerRow(id(7), MARC),
 ];
 const read = (w: World = {}) => {
   const built = world({ calls: CALLS, answers: ANSWERS, ...w });
@@ -163,6 +166,24 @@ describe('OpenCallsService.read (Decision 8)', () => {
     expect(filtersFor(supabase.from, 'spar_open_call_answers', 'not')).toEqual([
       ['answerer_global_person_id', 'in', `(${PAUL})`],
     ]);
+  });
+
+  it('leaves out a blocked answerer the query could not name: past 200 blocks (ruling 706)', async () => {
+    const filler = Array.from({ length: 200 }, (_, n) =>
+      blockRow(MARC, `f0000000-0000-4000-8000-${String(n).padStart(12, '0')}`),
+    );
+    const { result, supabase } = read({ blocks: [...filler, blockRow(MARC, PAUL)] });
+    const { mine } = await result;
+    // The query names the first 200 blocks only: Paul is past them, so only the TS filter drops him.
+    const [notIn] = filtersFor(supabase.from, 'spar_open_call_answers', 'not');
+    expect(String(notIn?.[2])).not.toContain(PAUL);
+    expect(mine[0]?.answers.map((f) => f.globalPersonId)).toEqual([JULIE, LEA]);
+  });
+
+  it('never lists a call of another Event or of another day that I answered', async () => {
+    const { others } = await read().result;
+    expect(others.map((call) => call.id)).not.toContain(id(6));
+    expect(others.map((call) => call.id)).not.toContain(id(7));
   });
 
   it('leaves out a poster and an answerer who switched FightBook off', async () => {

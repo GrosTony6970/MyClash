@@ -3,7 +3,7 @@ import { zonedToUtcIso } from '@myclash/time';
 import type { OpenCallsAtEvent } from '@myclash/types';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
-import { floorEvent, offTheFloor } from './floor-event';
+import { floorEvent, offTheFloor, publicFloorEvent } from './floor-event';
 import { callIsOpen, type OpenCallStatus } from './open-call-views';
 import { readOpenCalls } from './open-call-reads';
 import { badRequest, catalogWeapons, sparExpiresAt } from './spar-ask-rules';
@@ -128,14 +128,15 @@ export class OpenCallsService {
 
   /**
    * "I'm in" on someone else's open call: one answer however many taps (Decision 7). 404 for a
-   * call I cannot see; 400 `self` on my own; 400 `bad_event` off its Event's roster; 409
-   * `not_open` once it closed or was picked. The poster's notice is started, not awaited.
+   * call I cannot see (off its Event's roster included); 400 `self` on my own; 400 `bad_event`
+   * once its Event is no longer public, as the read; 409 `not_open` once it closed or was picked.
+   * The poster's notice is started, not awaited.
    */
   async answer(me: string, callId: string, now = new Date()): Promise<void> {
     const db = this.supabase.service;
     const call = await this.visibleCall(me, callId);
     if (call.poster_global_person_id === me) throw badRequest('self', 'This is your own call');
-    if (!(await isOnEventRoster(db, me, call.event_id))) throw offTheFloor();
+    if (!(await publicFloorEvent(db, call.event_id, now))) throw offTheFloor();
     if (!callIsOpen(call, now)) throw notOpen();
     const { error } = await db
       .from('spar_open_call_answers')
@@ -147,7 +148,12 @@ export class OpenCallsService {
     void notifySparCallAnswered(this.noticeDeps(), callId, call.poster_global_person_id, me);
   }
 
-  /** Take back my "I'm in" while the call is open. 404 for a call I cannot see; quiet if none. */
+  /**
+   * Take back my "I'm in" while the call is open. 404 for a call I cannot see, off its Event's
+   * roster included (Decision 7: only a fighter on that roster answers or takes back, and an off
+   * fighter's 404 must equal an unknown call's); quiet if there is no answer. No public check: it
+   * removes presence.
+   */
   async takeBack(me: string, callId: string, now = new Date()): Promise<void> {
     const call = await this.visibleCall(me, callId);
     if (!callIsOpen(call, now)) throw notOpen();
@@ -162,20 +168,26 @@ export class OpenCallsService {
   /**
    * Pick one answer of my open call: one database call (`fightbook_call_pick`, 0270) agrees the
    * spar and answers its id, or refuses `not_open` (409): the call is no longer open, the answer
-   * was taken back, or either fighter blocked the other or is off FightBook. Not mine: 404. The
-   * fighter picked is told; nobody else is.
+   * was taken back, or either fighter blocked the other or is off FightBook. Not mine: 404. An
+   * Event no longer public: 400 `bad_event`, as the read. The fighter picked is told; nobody else.
    */
-  async pick(me: string, callId: string, answerer: string): Promise<{ requestId: string }> {
+  async pick(
+    me: string,
+    callId: string,
+    answerer: string,
+    now = new Date(),
+  ): Promise<{ requestId: string }> {
     const db = this.supabase.service;
     const { data: row, error: readError } = await db
       .from('spar_open_calls')
-      .select('spar_day, zone')
+      .select('event_id, spar_day, zone')
       .eq('id', callId)
       .eq('poster_global_person_id', me)
       .maybeSingle();
     if (readError) throw new Error(`open call read failed: ${readError.message}`);
     if (!row) throw notFound();
-    const call = row as { spar_day: string; zone: string };
+    const call = row as { event_id: string; spar_day: string; zone: string };
+    if (!(await publicFloorEvent(db, call.event_id, now))) throw offTheFloor();
     const expires = sparExpiresAt('event', call.spar_day, call.zone);
     if (!expires) throw new Error(`open call ${callId} has no readable day`);
     const { data, error } = await db.rpc('fightbook_call_pick', {
@@ -201,8 +213,9 @@ export class OpenCallsService {
   }
 
   /**
-   * A call the caller may see (Decision 8), or 404: it exists, its poster is on FightBook, and
-   * the caller did not block its poster. Only the caller's own blocks are read.
+   * A call the caller may see (Decisions 7 and 8), or 404 with the face of an unknown id: it
+   * exists, the caller is on its Event's roster, its poster is on FightBook, and the caller did
+   * not block its poster. Only the caller's own blocks are read.
    */
   private async visibleCall(me: string, callId: string): Promise<CallGate> {
     const db = this.supabase.service;
@@ -215,8 +228,12 @@ export class OpenCallsService {
     const call = data as CallGate | null;
     if (!call) throw notFound();
     const poster = call.poster_global_person_id;
-    const [blocked, on] = await Promise.all([blockedBy(db, me), fightBookOnFighters(db, [poster])]);
-    if (blocked.has(poster) || !on.has(poster)) throw notFound();
+    const [onRoster, blocked, on] = await Promise.all([
+      isOnEventRoster(db, me, call.event_id),
+      blockedBy(db, me),
+      fightBookOnFighters(db, [poster]),
+    ]);
+    if (!onRoster || blocked.has(poster) || !on.has(poster)) throw notFound();
     return call;
   }
 
