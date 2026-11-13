@@ -158,6 +158,13 @@ describe('a safety report row', () => {
     expect(text()).toContain('An erased account');
   });
 
+  it('says "A fighter" for a reporter or a flagged fighter with no name, never an empty cell', async () => {
+    const nameless = flag({ reporter: fighter(''), flagged: fighter('') });
+    await open(CLUB, { [CLUB_PAGE(0)]: { items: [nameless], more: false } });
+    const cells = [...document.body.querySelectorAll('dd')].map((dd) => dd.textContent);
+    expect(cells.slice(0, 2)).toEqual(['A fighter', 'A fighter']);
+  });
+
   it('shows the club on the platform list only', async () => {
     await open(PLATFORM, { [PLATFORM_PAGE(0)]: { items: [flag()], more: false } });
     expect(text()).toContain('Lyon AMHE');

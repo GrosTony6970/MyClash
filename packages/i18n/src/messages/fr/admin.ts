@@ -1797,6 +1797,7 @@ export const admin = {
     handled: 'Traité',
     handledFailed: 'La coche Traité n’a pas pu être enregistrée. Elle a été remise.',
     erasedAccount: 'Un compte effacé',
+    unknownFighter: 'Un combattant',
     reportedBy: 'Signalé par',
     flagged: 'À propos de',
     sparDay: 'Jour du spar',

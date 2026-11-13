@@ -88,6 +88,8 @@ function SparFlagRow({
 }) {
   const { t, locale } = useI18n();
   const where = item.eventName ?? item.place;
+  // A profile the API could not name comes with a blank name (`unknownSparFighter`): never an empty cell.
+  const unknown = t('admin.fightBookFlags.unknownFighter');
   return (
     <li className="rounded-md border border-border bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -97,9 +99,9 @@ function SparFlagRow({
       <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{item.text}</p>
       <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Detail label={t('admin.fightBookFlags.reportedBy')}>
-          {item.reporter?.name ?? t('admin.fightBookFlags.erasedAccount')}
+          {item.reporter ? item.reporter.name || unknown : t('admin.fightBookFlags.erasedAccount')}
         </Detail>
-        <Detail label={t('admin.fightBookFlags.flagged')}>{item.flagged.name}</Detail>
+        <Detail label={t('admin.fightBookFlags.flagged')}>{item.flagged.name || unknown}</Detail>
         <Detail label={t('admin.fightBookFlags.sparDay')}>{dayLabel(item.day, locale)}</Detail>
         {where && <Detail label={t('admin.fightBookFlags.where')}>{where}</Detail>}
         {item.weapons.length > 0 && (

@@ -1792,6 +1792,7 @@ export const admin = {
     handled: 'Handled',
     handledFailed: 'The Handled mark could not be saved. It was put back.',
     erasedAccount: 'An erased account',
+    unknownFighter: 'A fighter',
     reportedBy: 'Reported by',
     flagged: 'About',
     sparDay: 'Spar day',
