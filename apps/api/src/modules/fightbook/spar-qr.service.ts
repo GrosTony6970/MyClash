@@ -39,7 +39,10 @@ interface ScanWhere extends SparWhere {
 /** Elsewhere (ruling 709): today on the phone's clock, at the place typed. */
 function freeToday(input: QrScanInput, now: Date): ScanWhere {
   const where = onFreeDate(input);
-  return { ...where, kind: 'free', day: zonedDay(now.toISOString(), where.zone) ?? '' };
+  // `onFreeDate` refused a zone with no day (`bad_zone`), so a null here is a broken invariant.
+  const day = zonedDay(now.toISOString(), where.zone);
+  if (!day) throw new Error(`QR scan zone ${where.zone} has no readable day`);
+  return { ...where, kind: 'free', day };
 }
 
 /**

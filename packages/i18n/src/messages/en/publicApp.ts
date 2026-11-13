@@ -1696,7 +1696,7 @@ export const publicApp = {
       favourites_full: 'You have {max} favourites. Remove one to add another.',
       too_many_calls: 'You have the most open calls you can have today. Close one to post another.',
       bad_time: 'Choose a time later today, before the Event day ends.',
-      bad_code: 'This code has expired or was already used — ask them to show it again',
+      bad_code: 'This code has expired or was already used — ask them to show it again.',
       unknown: 'Something went wrong. Try again.',
     },
     ask: {
@@ -1737,7 +1737,7 @@ export const publicApp = {
     },
     floor: {
       freeNow: 'Free to spar now',
-      freeNowHint: 'Others at this Event see you are free for the next hour.',
+      freeNowHint: 'Others at this Event see you are free for up to an hour.',
       freeUntil: 'Free until {time}',
       freeBadge: 'Free now',
       freeFailed: 'Your status could not be changed. Try again.',

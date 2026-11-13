@@ -85,6 +85,9 @@ describe('the archived-Event lock, API-wide', () => {
       'DELETE events/:id',
       // Event photos (slice 6a): she may ask for a photo she sent from her personal space to go.
       'DELETE me/events/:eventId/photos/:photoId',
+      // FightBook (slice 5 fold): switching "free to spar now" off removes presence, which is
+      // always allowed, even at an Event archived mid-day.
+      'DELETE me/fightbook/events/:eventId/free',
       'PATCH admin/events/:eventId/league-tournament-links/:linkId',
       'PATCH deletion-requests/:id/cancel',
       'PATCH exchanges/:id/edit',
@@ -162,7 +165,9 @@ describe('the archived-Event lock, API-wide', () => {
     // 198: `POST me/events/:eventId/join` (568), placed by its Event: nobody joins an archived
     // Event (nor a completed one, 573).
     // 200: FightBook's `PUT`/`DELETE me/fightbook/events/:eventId/free` (slice 5 floor tools),
-    // placed by their Event: nobody is free to spar at an archived Event.
+    // placed by their Event: nobody is free to spar at an archived Event. The `DELETE` (switch
+    // off) is opted out (a write that removes presence) and still placed: the count reads the
+    // path, not the mark.
     // 201: FightBook's `POST me/fightbook/events/:eventId/calls` (slice 5 floor tools), placed
     // by its Event: nobody posts an open call at an archived Event.
     expect(placed).toHaveLength(201);

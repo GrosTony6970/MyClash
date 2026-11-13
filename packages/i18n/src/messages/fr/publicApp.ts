@@ -1709,7 +1709,7 @@ export const publicApp = {
         'Vous avez le nombre maximal d’appels ouverts pour aujourd’hui. Fermez-en un pour en publier un autre.',
       bad_time:
         'Choisissez une heure plus tard aujourd’hui, avant la fin de la journée de l’événement.',
-      bad_code: 'Ce code a expiré ou a déjà servi — demandez-lui de le montrer à nouveau',
+      bad_code: 'Ce code a expiré ou a déjà servi — demandez-lui de le montrer à nouveau.',
       unknown: 'Une erreur est survenue. Réessayez.',
     },
     ask: {
@@ -1751,7 +1751,7 @@ export const publicApp = {
     floor: {
       freeNow: 'Disponible pour combattre maintenant',
       freeNowHint:
-        'Les autres à cet événement voient que vous êtes disponible pour l’heure à venir.',
+        'Les autres à cet événement voient que vous êtes disponible pendant une heure au plus.',
       freeUntil: 'Disponible jusqu’à {time}',
       freeBadge: 'Disponible',
       freeFailed: 'Votre statut n’a pas pu être modifié. Réessayez.',

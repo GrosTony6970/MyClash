@@ -35,6 +35,7 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { ThrottleFightBookCall } from '../../common/throttling/throttle-fightbook-call';
 import { ThrottleFightBookQrMint } from '../../common/throttling/throttle-fightbook-qr-mint';
 import { ThrottleFightBookScan } from '../../common/throttling/throttle-fightbook-scan';
@@ -97,6 +98,9 @@ export class FightBookFloorController {
 
   @Delete('events/:eventId/free')
   @HttpCode(HttpStatus.NO_CONTENT)
+  // Removes presence, which is always allowed: an Event archived mid-day must not keep a
+  // fighter "free" until the hour ends. Still placed by its path (the archived-lock pin).
+  @AllowOnArchivedEvent()
   @ApiOperation({ summary: 'Stop being free to spar now at an Event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async switchOff(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {

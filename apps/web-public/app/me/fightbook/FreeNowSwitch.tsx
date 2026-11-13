@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Switch } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
+import { signInAgainHere } from '@/lib/sign-in-return';
 import { useInFlight } from './use-in-flight';
 import { useNow } from './use-now';
 
@@ -36,8 +37,15 @@ function useFreeNow(apiUrl: string, eventId: string, freeUntil: string | null) {
             'DELETE',
           ),
     );
-    if (!res.ok) return setFailed(true);
-    setUntil(next ? (res.data as { until: string }).until : null);
+    if (!res.ok) {
+      // A 403 reaches here as `unauthenticated` too: only a 401 means the login ended.
+      if (res.status === 401) return signInAgainHere();
+      return setFailed(true);
+    }
+    if (!next) return setUntil(null);
+    const end = (res.data as { until?: unknown } | null)?.until;
+    if (typeof end !== 'string') return setFailed(true);
+    setUntil(end);
   };
   return { until: on ? until : null, failed, busy: inFlight(eventId), change };
 }

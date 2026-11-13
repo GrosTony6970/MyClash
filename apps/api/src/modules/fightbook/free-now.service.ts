@@ -14,7 +14,8 @@ const FREE_NOW_MS = 60 * 60 * 1000;
  * Which of these fighters are free to spar now at this Event (Find's Event block, ruling 708).
  * `ids` are fighters the caller already listed (live, claimed, FightBook on, on the roster):
  * this marks them, it does not list anyone. A row of another Event or past its `until` is not
- * free here. At most `AT_EVENT_MAX` ids, so one read per `IN_LIST_MAX`.
+ * free here. `atEvent` passes the whole askable roster (before its `AT_EVENT_MAX` cut, so the
+ * free-now fighters sort first), so the ids are read in `IN_LIST_MAX` chunks, one read each.
  */
 export async function freeAt(
   db: Db,
@@ -70,7 +71,8 @@ export class FreeNowService {
     const { today, zone } = await floorEvent(db, me, eventId, now);
     if (!today) throw offTheFloor();
     const dayEnds = sparExpiresAt('event', today, zone);
-    const until = new Date(Math.min(now.getTime() + FREE_NOW_MS, dayEnds?.getTime() ?? Infinity));
+    if (!dayEnds) throw new Error(`free-now: Event ${eventId} day ${today} has no readable end`);
+    const until = new Date(Math.min(now.getTime() + FREE_NOW_MS, dayEnds.getTime()));
     const { error: writeError } = await db
       .from('fightbook_free_now')
       .upsert(

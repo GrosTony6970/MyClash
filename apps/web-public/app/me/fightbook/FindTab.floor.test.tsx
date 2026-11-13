@@ -7,6 +7,7 @@ import type * as ApiClient from '@myclash/api-client';
 import type { FightBookEvent, OpenCallsAtEvent, SparFighter } from '@myclash/types';
 // Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
 import { I18nProvider } from '../../../src/i18n/I18nProvider';
+import { signInAgainHere } from '../../../src/lib/sign-in-return';
 import { FindTab } from './FindTab';
 
 /**
@@ -16,6 +17,10 @@ import { FindTab } from './FindTab';
 vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
+}));
+vi.mock('../../../src/lib/sign-in-return', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  signInAgainHere: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -148,8 +153,11 @@ describe('Free to spar now', () => {
     expect(text()).toContain('Free until 09:05');
   });
 
-  it('says so when the switch could not change, and stays off', async () => {
-    serve(eventOf('2026-11-13'), { [`PUT ${FREE}`]: refused(400, 'bad_event') });
+  it.each([
+    ['refused', refused(400, 'bad_event')],
+    ['answered with no end', ok({})],
+  ])('says so when the switch was %s, and stays off', async (_, answer) => {
+    serve(eventOf('2026-11-13'), { [`PUT ${FREE}`]: answer });
     await open();
     await click(theSwitch() ?? undefined);
     expect(theSwitch()?.getAttribute('aria-checked')).toBe('false');
@@ -362,5 +370,24 @@ describe('The FightBook QR', () => {
     expect(button('My FightBook QR')).toBeDefined();
     expect(button('Scan a FightBook QR')).toBeDefined();
     expect(sent.filter((k) => k.includes('/qr'))).toEqual([]);
+  });
+});
+
+describe('A login that ended, on a floor write', () => {
+  // A 403 reaches the web as `unauthenticated` too: only a 401 sends anyone to sign in.
+  it.each([
+    ['the switch', `PUT ${FREE}`, () => theSwitch() ?? undefined],
+    ['an "I’m in"', 'PUT /api/v1/me/fightbook/calls/call-none/answer', () => button('I’m in')],
+  ])('%s answering 401 goes to sign in again; a 403 does not', async (_, key, target) => {
+    for (const status of [403, 401]) {
+      vi.mocked(signInAgainHere).mockReset();
+      serve(eventOf('2026-11-13'), {
+        [`GET ${CALLS}`]: ok({ mine: [], others: [other('none')] }),
+        [key]: { ok: false, kind: 'unauthenticated', status },
+      });
+      await open();
+      await click(target());
+      expect(signInAgainHere).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+    }
   });
 });

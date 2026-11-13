@@ -6,6 +6,7 @@ import {
   scopedTo,
   selectsFor,
   writesTo,
+  type SupabaseChain,
 } from '../../common/testing/supabase-chain';
 import { freeAt, FreeNowService, ownFreeUntil } from './free-now.service';
 
@@ -98,6 +99,10 @@ describe('FreeNowService.switchOn', () => {
   it('upserts on the profile, so a fighter is free at one Event at a time', async () => {
     const { free, supabase } = service();
     await free.switchOn(MARC, EVENT, new Date('2026-05-23T18:00:00Z'));
+    // The double records the row, not the options: read them off the upsert's own call.
+    const index = supabase.from.mock.calls.findIndex(([t]) => t === 'fightbook_free_now');
+    const chain = supabase.from.mock.results[index]?.value as SupabaseChain;
+    expect(chain.upsert.mock.calls[0]?.[1]).toEqual({ onConflict: 'global_person_id' });
     expect(selectsFor(supabase.from, 'events')).toEqual([
       'id, status, organization_id, event_kind, start_date, end_date, timezone',
     ]);

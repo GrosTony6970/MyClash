@@ -51,6 +51,44 @@ function useCallsRead(apiUrl: string, eventId: string) {
   return { calls: loaded?.eventId === eventId ? loaded.calls : null, reload, retry };
 }
 
+type WriteDeps = {
+  apiUrl: string;
+  run: ReturnType<typeof useInFlight>['run'];
+  reload: () => void;
+  say: (sentence: string | null) => void;
+  t: ReturnType<typeof useI18n>['t'];
+};
+/** A write's id (for `useInFlight`), path, method, body, and `gone`: a 404 is a call gone. */
+type WriteArgs = [
+  id: string,
+  path: string,
+  method: 'POST' | 'PUT' | 'DELETE',
+  body?: unknown,
+  gone?: boolean,
+];
+
+/** One write; true when it went through. */
+async function sendWrite(deps: WriteDeps, ...[id, path, method, body, gone = true]: WriteArgs) {
+  deps.say(null);
+  const res = await deps.run(id, () => writeFightBook<unknown>(deps.apiUrl, path, method, body));
+  if (res.ok) {
+    deps.reload();
+    return true;
+  }
+  // A 403 reaches here as `unauthenticated` too: only a 401 means the login ended.
+  if (res.status === 401) {
+    signInAgainHere();
+    return false;
+  }
+  if (gone && res.status === 404) {
+    deps.reload();
+    return false;
+  }
+  if (res.code === 'not_open') deps.reload();
+  deps.say(deps.t(callRefusalKey(res.code)));
+  return false;
+}
+
 /**
  * Today's open calls at one Event, and the writes on them. Two taps on one button send one write
  * (`useInFlight`). A 404 on a write to a call id means the call vanished for me (or my "I'm in"
@@ -62,29 +100,8 @@ export function useOpenCalls(apiUrl: string, eventId: string) {
   const { calls, reload, retry } = useCallsRead(apiUrl, eventId);
   const [refusal, setRefusal] = useState<string | null>(null);
   const { inFlight, run } = useInFlight();
-
-  /** One write; true when it went through. `gone`: a 404 means the call is gone, not an error. */
-  async function send(
-    id: string,
-    path: string,
-    method: 'POST' | 'PUT' | 'DELETE',
-    body?: unknown,
-    gone = true,
-  ): Promise<boolean> {
-    setRefusal(null);
-    const res = await run(id, () => writeFightBook<unknown>(apiUrl, path, method, body));
-    if (res.ok) {
-      reload();
-      return true;
-    }
-    if (gone && res.status === 404) {
-      reload();
-      return false;
-    }
-    if (res.code === 'not_open') reload();
-    setRefusal(t(callRefusalKey(res.code)));
-    return false;
-  }
+  const deps: WriteDeps = { apiUrl, run, reload, say: setRefusal, t };
+  const send = (...args: WriteArgs) => sendWrite(deps, ...args);
 
   return {
     calls,
