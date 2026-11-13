@@ -191,7 +191,10 @@ describe('FightBookSettingsService', () => {
       });
       const [write] = writesTo(supabase, 'fightbook_daily_limits');
       expect(write?.op).toBe('delete');
-      expect(limitFilters(supabase).slice(0, 1)).toEqual([['global_person_id', MARC]]);
+      // The delete's OWN filters (the read-back adds the same eq on a later chain): without
+      // the owner filter a delete would wipe every fighter's limit, LEA's row included.
+      expect(write?.filters).toEqual([{ method: 'eq', args: ['global_person_id', MARC] }]);
+      expect(write?.filters).not.toContainEqual({ method: 'eq', args: ['global_person_id', LEA] });
       expect(writesTo(supabase, 'global_persons')).toEqual([]);
     });
 
