@@ -112,7 +112,7 @@ describe('the reminder of an agreed spar', () => {
   it.each([
     ['no time', spar({ spar_time: null })],
     ['a cancelled spar', spar({ status: 'cancelled' })],
-    ['a done spar', spar({ status: 'done' })],
+    ['a not-this-time spar', spar({ status: 'not_this_time' })],
     ['a pending ask', spar({ status: 'pending' })],
     ['an unreadable time', spar({ spar_time: 'soon' })],
     ['no such spar', null],
@@ -122,8 +122,16 @@ describe('the reminder of an agreed spar', () => {
     expect(scheduleReminder).not.toHaveBeenCalled();
   });
 
+  it('sets both when the spar was marked done between the Yes and the read', async () => {
+    // "We sparred" opens at 00:00 of the spar day; an undo later leaves no other chance to set
+    // the reminders. The job is re-checked when it fires (WANTED.spar_starting drops a done spar).
+    const { d, scheduleReminder } = world(spar({ status: 'done' }));
+    await scheduleSparReminders(d, REQUEST, at('2026-11-14T10:00:00Z'));
+    expect(scheduleReminder).toHaveBeenCalledTimes(2);
+  });
+
   it('sets one for the other fighter when a profile is held by no account', async () => {
-    const { d, scheduleReminder } = world(spar(), [
+    const { d, scheduleReminder, logger } = world(spar(), [
       { id: JULIE, claimed_by_user_id: null as unknown as string },
       { id: MARC, claimed_by_user_id: ACCOUNT_MARC },
     ]);
@@ -131,6 +139,9 @@ describe('the reminder of an agreed spar', () => {
     expect(scheduleReminder).toHaveBeenCalledTimes(1);
     expect(scheduleReminder).toHaveBeenCalledWith(
       expect.objectContaining({ userId: ACCOUNT_MARC }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      `FightBook spar_starting of ${REQUEST}: one profile has no account; the other fighter's reminder is set`,
     );
   });
 

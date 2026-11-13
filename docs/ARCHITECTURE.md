@@ -3219,8 +3219,10 @@ limit. Erasure and the data download are in §11septies.5.
 it opens My spars. `scheduleSparReminders` (`modules/fightbook/spar-reminder.ts`) sets it once, when
 a Spar becomes agreed: after an ask's Yes or a QR request's Yes (`spar-requests.service.ts`) and
 after a pick (`open-calls.service.ts`). It is started, not awaited, and never throws: a failure is
-logged with the request id. It reads the Spar, and skips one that is not `agreed` or has no time
-(most QR Spars). It reads the start with `zonedToUtcIso(spar_day, spar_time.slice(0, 5), zone)` on
+logged with the request id. It reads the Spar, and skips one that is neither `agreed` nor `done` or
+has no time (every QR Spar: a scan stores no time, `fightbook_qr_log` in 0270 inserts none). `done`
+counts because "We sparred" opens at 00:00 of the Spar day and can land between the Yes and the
+read; the job is re-checked when it fires. It reads the start with `zonedToUtcIso(spar_day, spar_time.slice(0, 5), zone)` on
 the row's own zone, so the time reads on the day's own date, as an open call does. The slice is
 load-bearing: PostgREST returns a `TIME` as `15:00:00` and `zonedToUtcIso` takes only `HH:MM`. The
 lead is fixed at 10 minutes (`SPAR_REMINDER_LEAD_MINUTES`); the fight reminder's per-account lead

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { zonedToUtcIso } from '@myclash/time';
 import type { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { sparStarting } from '../notifications/notice-texts/notice-texts';
+import { SPARS } from './spar-notices';
 
 export const SPAR_REMINDER_LEAD_MINUTES = 10;
 
@@ -20,8 +21,6 @@ interface SparRow {
   asker_global_person_id: string;
   receiver_global_person_id: string;
 }
-
-const SPARS = '/me/fightbook?tab=spars';
 
 /**
  * The phone reminder of an agreed spar that has a time, to both fighters, 10 minutes before it
@@ -45,7 +44,9 @@ export async function scheduleSparReminders(
       .maybeSingle();
     if (error) throw new Error(`spar unreadable: ${error.message}`);
     const spar = data as SparRow | null;
-    if (spar?.status !== 'agreed' || !spar.spar_time) return;
+    // `done` too: "We sparred" opens at 00:00 of the spar day, so it can land between the Yes and
+    // this read, and an undo later would find no job. The job is re-checked when it fires.
+    if ((spar?.status !== 'agreed' && spar?.status !== 'done') || !spar.spar_time) return;
     // PostgREST returns a TIME as '15:00:00'; `zonedToUtcIso` takes only 'HH:MM'.
     const startsAt = zonedToUtcIso(spar.spar_day, spar.spar_time.slice(0, 5), spar.zone);
     if (!startsAt) return;
@@ -76,7 +77,9 @@ async function ring(
     .map((profile) => profile.claimed_by_user_id)
     .filter((userId): userId is string => Boolean(userId));
   if (accounts.length < profiles.length) {
-    d.logger.warn(`FightBook spar_starting of ${requestId}: a profile has no account; not set`);
+    d.logger.warn(
+      `FightBook spar_starting of ${requestId}: one profile has no account; the other fighter's reminder is set`,
+    );
   }
   const { title, body } = sparStarting();
   for (const userId of new Set(accounts)) {

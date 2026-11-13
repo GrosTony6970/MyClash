@@ -23,7 +23,7 @@ export interface SparNoticeDeps {
 }
 
 const INBOX = '/me/fightbook?tab=inbox';
-const SPARS = '/me/fightbook?tab=spars';
+export const SPARS = '/me/fightbook?tab=spars';
 const FIND = '/me/fightbook?tab=find';
 
 /** A new request, to the fighter asked. */
