@@ -1,6 +1,7 @@
 /**
  * The scenarios of `scripts/db-fightbook-probe.mjs` for slice 5 (migration 0270), part one: open
- * calls. `fightbook_call_pick` (the pick and each refusal), `fightbook_block`'s new withdrawal from
+ * calls. `fightbook_call_pick` (the pick and each refusal), `fightbook_call_take_back` (by the
+ * answer row; `not_open` once the call is not open; `not_found` with no row), `fightbook_block`'s new withdrawal from
  * the blocked fighter's calls, and the CHECKs of the new tables. The QR scans are in
  * fightbook-probe-qr.mjs. Same transaction, same savepoints, same service role as the slice 1
  * scenarios. Two picks AT ONCE are the race probe's (`scripts/db-fightbook-race-probe.mjs`).
@@ -190,6 +191,57 @@ export async function pickBlockedOrNotLive(tx) {
   });
 }
 
+// ── Take back ───────────────────────────────────────────────────────────────
+const takeBack = (q, call, answerer) =>
+  q`SELECT public.fightbook_call_take_back(${call}, ${answerer})`;
+
+/**
+ * The word a take-back raised, or null, in a savepoint KEPT when it lands (unlike `word`, which
+ * always rolls back): what it deleted stays deleted, so the answers read after it are real.
+ */
+const takeBackWord = (q, call, answerer) =>
+  q
+    .savepoint((sp) => takeBack(sp, call, answerer))
+    .then(
+      () => null,
+      (error) => error.message,
+    );
+
+/** Ruling M: a take-back by the answer row; `not_open` once the call is not OPEN, row kept. */
+export async function takingBack(tx) {
+  await scenario(tx, async (q) => {
+    const open = await answeredCall(q);
+    await imIn(q, open, F.paul);
+    await takeBack(q, open, F.marc);
+    check(
+      'a take-back on an open call deletes my answer only',
+      [await hasAnswered(q, open, F.marc), await hasAnswered(q, open, F.paul)],
+      [false, true],
+    );
+    const picked = await answeredCall(q);
+    await pick(q, picked, F.julie, F.marc);
+    const calls = [
+      await answeredCall(q, { status: 'closed' }),
+      await answeredCall(q, { closes: at(-60_000) }),
+      picked,
+    ];
+    const words = [];
+    for (const call of calls) words.push(await takeBackWord(q, call, F.marc));
+    const kept = [];
+    for (const call of calls) kept.push(await hasAnswered(q, call, F.marc));
+    check(
+      'a take-back on a closed, a past and a picked call, and the answers it keeps',
+      [words, kept],
+      [Array(3).fill('not_open'), [true, true, true]],
+    );
+    check(
+      'a take-back with no answer of mine',
+      await word(q, (sp) => takeBack(sp, open, F.marc)),
+      'not_found',
+    );
+  });
+}
+
 // ── A block withdraws the blocker from the blocked fighter's calls ──────────
 export async function blockingCalls(tx) {
   await scenario(tx, async (q) => {
@@ -250,5 +302,6 @@ export async function floorTableShape(tx) {
 
 export const FLOOR_FUNCTIONS = [
   'public.fightbook_call_pick(uuid, uuid, uuid, timestamp with time zone)',
+  'public.fightbook_call_take_back(uuid, uuid)',
   'public.fightbook_qr_log(text, uuid, text, uuid, date, text, text, text[], timestamp with time zone)',
 ];

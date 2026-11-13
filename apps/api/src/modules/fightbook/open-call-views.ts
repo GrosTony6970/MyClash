@@ -23,8 +23,8 @@ export const OPEN_CALL_COLUMNS =
 
 /**
  * OPEN: `status = 'open' AND closes_at > now()`. Nothing flips the status at `closes_at`, so every
- * read uses this and the SQL clause (the reads' filters, `fightbook_call_pick`'s UPDATE) is the
- * same one. The TypeScript owner of it.
+ * read uses this and the SQL clause (the reads' filters, `fightbook_call_pick`'s UPDATE,
+ * `fightbook_call_take_back`'s re-read) is the same one. The TypeScript owner of it.
  */
 export function callIsOpen(call: Pick<OpenCallRow, 'status' | 'closes_at'>, now: Date): boolean {
   return call.status === 'open' && new Date(call.closes_at).getTime() > now.getTime();

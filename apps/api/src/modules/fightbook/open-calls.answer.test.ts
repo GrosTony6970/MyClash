@@ -1,9 +1,9 @@
 import type { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { lastFunctionParams } from '../../common/testing/migration-function';
 import {
   filtersFor,
   mockSupabase,
-  scopedTo,
   selectsFor,
   writesTo,
   type SupabaseChain,
@@ -113,9 +113,9 @@ describe('OpenCallsService.answer: "I\'m in"', () => {
     async (route) => {
       const offRoster = world({ calls: [callRow()], rosterOf: [JULIE, PAUL] });
       const unknown = world({ calls: [] });
-      expect(await refusalOf(offRoster.open[route](MARC, CALL, NOW))).toEqual(
-        await refusalOf(unknown.open[route](MARC, CALL, NOW)),
-      );
+      const run = (w: typeof unknown) =>
+        route === 'answer' ? w.open.answer(MARC, CALL, NOW) : w.open.takeBack(MARC, CALL);
+      expect(await refusalOf(run(offRoster))).toEqual(await refusalOf(run(unknown)));
     },
   );
 
@@ -202,75 +202,69 @@ describe('OpenCallsService.answer: ruling 672, the poster blocked the answerer',
 describe('OpenCallsService.takeBack', () => {
   const MINE = answerRow(CALL, MARC);
 
-  it('deletes my answer on an open call, and no one else’s', async () => {
-    const { open, supabase } = world({
-      calls: [callRow()],
-      answers: [
-        MINE,
-        answerRow(CALL, PAUL),
-        answerRow('ca000000-0000-4000-8000-000000000002', MARC),
-      ],
-    });
-    await open.takeBack(MARC, CALL, NOW);
-    const [write] = writesTo(supabase, 'spar_open_call_answers');
-    expect(write?.op).toBe('delete');
-    expect(scopedTo(write, 'call_id')).toBe(CALL);
-    expect(scopedTo(write, 'answerer_global_person_id')).toBe(MARC);
-    expect(selectsFor(supabase.from, 'spar_open_call_answers')).toEqual(['id']);
-    expect(filtersFor(supabase.from, 'spar_open_call_answers', 'eq')).toEqual([
-      ['call_id', CALL],
-      ['answerer_global_person_id', MARC],
-      ['call_id', CALL],
-      ['answerer_global_person_id', MARC],
-    ]);
+  it('takes back my answer in one database call, which reads the call after it locks the answer', async () => {
+    const { open, supabase } = world({ calls: [callRow()], answers: [MINE] });
+    await expect(open.takeBack(MARC, CALL)).resolves.toBeUndefined();
+    expect(supabase.rpc.mock.calls.map(([name]) => name)).toEqual(['fightbook_call_take_back']);
+    const args = supabase.rpc.mock.calls[0]?.[1];
+    expect(Object.keys(args ?? {})).toEqual(lastFunctionParams('fightbook_call_take_back'));
+    expect(args).toEqual({ p_call: CALL, p_answerer: MARC });
+    // The SQL decides the call's state: no read or write of the API's own can race a pick.
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it('works for an answerer taken off the roster: removing presence is always allowed', async () => {
-    const { open, supabase } = world({ calls: [callRow()], answers: [MINE], rosterOf: [JULIE] });
-    await expect(open.takeBack(MARC, CALL, NOW)).resolves.toBeUndefined();
-    expect(writesTo(supabase, 'spar_open_call_answers').map((w) => w.op)).toEqual(['delete']);
+    const { open } = world({ calls: [callRow()], answers: [MINE], rosterOf: [JULIE] });
+    await expect(open.takeBack(MARC, CALL)).resolves.toBeUndefined();
   });
 
   it('with no answer of mine on a real call, reads exactly as an unknown call', async () => {
     const real = world({ calls: [callRow()], answers: [answerRow(CALL, PAUL)] });
     const unknown = world({ calls: [] });
-    expect(await refusalOf(real.open.takeBack(MARC, CALL, NOW))).toEqual(
-      await refusalOf(unknown.open.takeBack(MARC, CALL, NOW)),
+    expect(await refusalOf(real.open.takeBack(MARC, CALL))).toEqual(
+      await refusalOf(unknown.open.takeBack(MARC, CALL)),
     );
-    expect(writesTo(real.supabase, 'spar_open_call_answers')).toEqual([]);
   });
 
-  it.each<[string, World, Date, [number, string | undefined]]>([
-    ['an unknown call', { calls: [] }, NOW, [404, undefined]],
-    ['a call I never answered (a second tap)', { calls: [callRow()] }, NOW, [404, undefined]],
-    ['a call past its time', { calls: [callRow()], answers: [MINE] }, LATE, [409, 'not_open']],
+  it.each<[string, World, [number, string | undefined]]>([
+    ['an unknown call', { calls: [] }, [404, undefined]],
+    ['a call I never answered (a second tap)', { calls: [callRow()] }, [404, undefined]],
     [
-      'a picked call',
-      {
-        calls: [callRow({ status: 'picked', picked_global_person_id: PAUL })],
-        answers: [MINE],
-      },
-      NOW,
+      'a call past its time',
+      { calls: [callRow()], answers: [MINE], dbNow: LATE },
       [409, 'not_open'],
     ],
-  ])('refuses %s, and deletes nothing', async (_, w, now, answer) => {
-    const { open, supabase } = world(w);
-    expect(await codeOf(open.takeBack(MARC, CALL, now))).toEqual(answer);
-    expect(writesTo(supabase, 'spar_open_call_answers')).toEqual([]);
+    [
+      'a picked call (a pick that won the race included)',
+      {
+        calls: [callRow({ status: 'picked', picked_global_person_id: MARC })],
+        answers: [MINE],
+      },
+      [409, 'not_open'],
+    ],
+  ])('refuses %s', async (_, w, answer) => {
+    const { open } = world(w);
+    expect(await codeOf(open.takeBack(MARC, CALL))).toEqual(answer);
+  });
+
+  it('turns any other database error into a 5xx', async () => {
+    const { open, supabase } = world({ calls: [callRow()], answers: [MINE] });
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: { code: 'XX000', message: 'boom' } });
+    await expect(open.takeBack(MARC, CALL)).rejects.toThrow('boom');
   });
 
   it('ruling 672: Marc takes back the same way whether Julie blocked him or not', async () => {
     const base: World = { calls: [callRow()], answers: [answerRow(CALL, MARC)] };
     const outcome = async (w: World) => {
       const { open, supabase } = world(w);
-      const taken = await open.takeBack(MARC, CALL, NOW).then(
+      const taken = await open.takeBack(MARC, CALL).then(
         (value) => ({ ok: value }),
         (error: unknown) => ({ error }),
       );
-      return { taken, writes: writesTo(supabase, 'spar_open_call_answers') };
+      return { taken, calls: supabase.rpc.mock.calls };
     };
     const plain = await outcome(base);
     expect(await outcome({ ...base, blocks: [blockRow(JULIE, MARC)] })).toEqual(plain);
-    expect(plain.writes).toHaveLength(1);
+    expect(plain.taken).toEqual({ ok: undefined });
   });
 });

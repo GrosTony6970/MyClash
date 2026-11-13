@@ -155,31 +155,16 @@ export class OpenCallsService {
    * No row of mine (an unknown call, a stranger's, a second tap): 404, the unknown call's face.
    * A row on a call no longer open: 409 `not_open`, which tells me nothing I did not know. No
    * block, roster or public check: whoever blocked whom, the answer is the same (ruling 672).
+   * One database call (`fightbook_call_take_back`, 0270): it locks my answer before it reads the
+   * call, so a take-back during a pick waits and answers `not_open`, never a take-back AND a spar.
    */
-  async takeBack(me: string, callId: string, now = new Date()): Promise<void> {
-    const db = this.supabase.service;
-    const { data: mine, error: mineError } = await db
-      .from('spar_open_call_answers')
-      .select('id')
-      .eq('call_id', callId)
-      .eq('answerer_global_person_id', me)
-      .maybeSingle();
-    if (mineError) throw new Error(`open call answer read failed: ${mineError.message}`);
-    if (!mine) throw notFound();
-    // The answer row's call exists (ON DELETE CASCADE), so exactly one row comes back.
-    const { data: call, error: callError } = await db
-      .from('spar_open_calls')
-      .select('status, closes_at')
-      .eq('id', callId)
-      .single();
-    if (callError) throw new Error(`open call read failed: ${callError.message}`);
-    if (!callIsOpen(call as Pick<CallGate, 'status' | 'closes_at'>, now)) throw notOpen();
-    const { error } = await db
-      .from('spar_open_call_answers')
-      .delete()
-      .eq('call_id', callId)
-      .eq('answerer_global_person_id', me);
-    if (error) throw new Error(`open call take-back failed: ${error.message}`);
+  async takeBack(me: string, callId: string): Promise<void> {
+    const { error } = await this.supabase.service.rpc('fightbook_call_take_back', {
+      p_call: callId,
+      p_answerer: me,
+    });
+    if (error?.code === 'P0002') throw notFound();
+    if (error) throw databaseRefusal(error, 'open call take-back');
   }
 
   /**

@@ -22,7 +22,7 @@
  *     connection holding A's profile (`refusedThenScan`).
  * And the pair lock (0264's, taken by both functions): a block committed while a pick or a scan
  * waits on it is seen by that pick or scan, which refuses (`not_open`, `you_blocked`). And the
- * pick's FOR SHARE on the answer (Decision 10): a take-back during a pick waits, then lands. And
+ * pick's FOR SHARE on the answer (Decision 10): a take-back during a pick waits, then loses. And
  * the pick's KEY SHARE on the profiles: a pick during a merge waits, then sees it.
  *
  * Not a race, but committed for the same reason (lib/fightbook-race-refusals.mjs): a refused scan
@@ -277,25 +277,27 @@ async function refusedThenScan() {
   );
 }
 
-/** Decision 10: the pick holds the answer FOR SHARE, so a take-back during it waits, then lands. */
+/** Decision 10: a take-back during a pick waits on its FOR SHARE, then reads the call picked. */
 async function takeBackDuringPick() {
   const { a, b, waited } = await race(
     (tx) => pick(tx, F.marc, THIRD_CALL),
-    (sp) =>
-      sp`DELETE FROM spar_open_call_answers
-          WHERE call_id = ${THIRD_CALL} AND answerer_global_person_id = ${F.marc}`.then(
-        (result) => result.count,
-      ),
+    (sp) => sp`SELECT public.fightbook_call_take_back(${THIRD_CALL}, ${F.marc})`,
   );
   check('a take-back during a pick: it waits on the pick', waited, true);
-  const [row] = await watch`SELECT r.status FROM spar_open_calls c
-      JOIN spar_requests r ON r.id = c.spar_request_id WHERE c.id = ${THIRD_CALL}`;
+  const [row] = await watch`SELECT r.status, (SELECT count(*)::int FROM spar_open_call_answers a
+        WHERE a.call_id = c.id AND a.answerer_global_person_id = ${F.marc}) AS kept
+      FROM spar_open_calls c JOIN spar_requests r ON r.id = c.spar_request_id
+      WHERE c.id = ${THIRD_CALL}`;
   check(
     'a take-back during a pick: the pick agrees its spar',
     [typeof a.value, row?.status],
     ['string', 'agreed'],
   );
-  check('a take-back during a pick: it then takes the answer back', b, { value: 1 });
+  check(
+    'a take-back during a pick: it then sees the call picked, and the answer stays',
+    [b, row?.kept],
+    [{ refused: 'not_open' }, 1],
+  );
 }
 
 const committedKit = () => ({
@@ -386,7 +388,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, a refused scan leaves its code, a take-back during a pick waits, a pick or a scan waiting on a block sees it, and a pick during a merge sees it.`,
+      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, a refused scan leaves its code, a take-back during a pick waits and loses, a pick or a scan waiting on a block sees it, and a pick during a merge sees it.`,
     );
   }
 } catch (error) {

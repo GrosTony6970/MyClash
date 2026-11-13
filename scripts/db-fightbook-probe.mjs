@@ -32,10 +32,11 @@
  * further than the erased account; the foreign-key actions; only the service role may call the
  * seven functions.
  * Slice 5 (lib/fightbook-probe-floor.mjs and lib/fightbook-probe-qr.mjs, migration 0270): a pick
- * agreeing one spar, and each refusal as `not_open`; a block withdrawing the blocker's answers on
+ * agreeing one spar, and each refusal as `not_open`; a take-back by the answer row, refused
+ * `not_open` on a call no longer open (the answer kept) and `not_found` with no row; a block withdrawing the blocker's answers on
  * the blocked fighter's calls only; a QR scan sending a request and burning its code, and the word
  * of every refusal; a scan by a fighter the shower blocked stored pending with no notice, which she
- * cannot agree; the new CHECKs, named; only the service role may call the two new functions. On
+ * cannot agree; the new CHECKs, named; only the service role may call the three new functions. On
  * committed connections (db-fightbook-race-probe.mjs): two picks or two scans AT ONCE, a take-back
  * during a pick, and a refused scan leaving its code scannable.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
@@ -76,6 +77,7 @@ import {
   pickBlockedOrNotLive,
   pickRefusals,
   picking,
+  takingBack,
 } from './lib/fightbook-probe-floor.mjs';
 import {
   scanBlockedByShower,
@@ -94,7 +96,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 206;
+const EXPECTED_CHECKS = 212;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -143,6 +145,7 @@ try {
       await picking(tx);
       await pickRefusals(tx);
       await pickBlockedOrNotLive(tx);
+      await takingBack(tx);
       await blockingCalls(tx);
       await floorTableShape(tx);
       await scanning(tx);
@@ -164,7 +167,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line, the seven safety flag functions, _call_pick and _qr_log.`,
+      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line, the seven safety flag functions, _call_pick, _call_take_back and _qr_log.`,
     );
   }
 } catch (error) {

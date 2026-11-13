@@ -105,6 +105,26 @@ export interface World {
   rosterOf?: string[];
   /** What `fightbook_call_pick` answers; the spar's id unless told. */
   pick?: { data: unknown; error: unknown };
+  /** The database's clock for `fightbook_call_take_back`; NOW unless told. */
+  dbNow?: Date;
+}
+
+/**
+ * `fightbook_call_take_back` (0270) over this world's rows: no answer of the caller's on the call
+ * is `not_found` (P0002); a call not OPEN on the database's clock is `not_open`; else it lands.
+ * It reads no block, no roster and no profile, as the SQL does not.
+ */
+function takeBackIn(w: World) {
+  return (args: Record<string, unknown>) => {
+    const refused = (code: string, message: string) => ({ data: null, error: { code, message } });
+    const mine = (w.answers ?? []).some(
+      (a) => a.call_id === args.p_call && a.answerer_global_person_id === args.p_answerer,
+    );
+    if (!mine) return refused('P0002', 'not_found') as never;
+    const call = (w.calls ?? []).find((c) => c.id === args.p_call);
+    const open = call?.status === 'open' && new Date(String(call.closes_at)) > (w.dbNow ?? NOW);
+    return (open ? { data: null, error: null } : refused('P0001', 'not_open')) as never;
+  };
 }
 
 /** The tables of this world. */
@@ -149,6 +169,7 @@ function tables(w: World): Record<string, TableSeed> {
 export function world(w: World = {}) {
   const supabase = mockSupabase(tables(w), {
     fightbook_call_pick: () => (w.pick ?? { data: SPAR, error: null }) as never,
+    fightbook_call_take_back: takeBackIn(w),
   });
   const send: Send = vi.fn(async () => undefined);
   const getAuthAdminUser = vi.fn(async (userId: string) => ({

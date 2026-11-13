@@ -25,6 +25,11 @@
 --     back waits or loses); both profiles live with FightBook on and no block either way, else
 --     `not_open`. Then ONE conditional update is the only gate on the call's state: zero rows is
 --     `not_open`, so two picks at once make one spar. The spar is stored agreed, asker = poster.
+--   - fightbook_call_take_back: an answerer takes back "I'm in". It locks the answer row FOR
+--     UPDATE first, so it waits on a pick's FOR SHARE, then reads the call in a new statement: a
+--     pick that committed meanwhile makes it `not_open`, never a take-back AND a spar. No answer
+--     row is `not_found` (P0002; the API answers it as an unknown call). Takes no pair lock: it
+--     reads no profile and no block (ruling 672).
 --   - fightbook_qr_log: the scanner asks the shower (rulings 707, 713). The code row is deleted
 --     FIRST: of two scans at once one finds it, the other answers `bad_code`. Every later refusal
 --     raises, which undoes the delete, so a refused scan leaves the code usable. Then 0264's ask
@@ -218,6 +223,43 @@ $$;
 revoke all on function public.fightbook_call_pick(uuid, uuid, uuid, timestamptz) from public;
 revoke execute on function public.fightbook_call_pick(uuid, uuid, uuid, timestamptz) from anon, authenticated;
 grant execute on function public.fightbook_call_pick(uuid, uuid, uuid, timestamptz) to service_role;
+
+create or replace function public.fightbook_call_take_back(
+  p_call     uuid,
+  p_answerer uuid
+)
+returns void
+language plpgsql
+volatile
+set search_path = public, pg_catalog
+as $$
+begin
+  -- The answer row first, FOR UPDATE: a pick holding it FOR SHARE makes this wait until the pick
+  -- ends (the pick's order: the answer, then the call). A take-back that locked it first deletes
+  -- it, and the pick then finds no answer and refuses.
+  perform 1 from public.spar_open_call_answers a
+   where a.call_id = p_call and a.answerer_global_person_id = p_answerer
+   for update;
+  if not found then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+
+  -- A new statement, so a new snapshot: it reads the call as a pick that just committed left it.
+  if not exists (
+    select 1 from public.spar_open_calls c
+     where c.id = p_call and c.status = 'open' and c.closes_at > now()
+  ) then
+    raise exception 'not_open' using errcode = 'P0001';
+  end if;
+
+  delete from public.spar_open_call_answers a
+   where a.call_id = p_call and a.answerer_global_person_id = p_answerer;
+end;
+$$;
+
+revoke all on function public.fightbook_call_take_back(uuid, uuid) from public;
+revoke execute on function public.fightbook_call_take_back(uuid, uuid) from anon, authenticated;
+grant execute on function public.fightbook_call_take_back(uuid, uuid) to service_role;
 
 create or replace function public.fightbook_qr_log(
   p_token_hash text,
