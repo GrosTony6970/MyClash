@@ -15,12 +15,21 @@ const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
 const live = (enabled: boolean) => ({ userId: ACCOUNT, globalPersonId: MARC, enabled });
 const STARS = { average: 4.5, count: 2 };
 
-function service(saved: boolean, showStars = false) {
+/** Another profile's limit: the read must never return it. */
+const LEA_LIMIT_ROW = { id: 'l-2', global_person_id: LEA, daily_limit: 7 };
+
+function service(saved: boolean, showStars = false, limit: number | null = null) {
   const supabase = mockSupabase(
     {
       global_persons: {
         data: { fightbook_enabled: saved, fightbook_show_stars: showStars },
         error: null,
+      },
+      fightbook_daily_limits: {
+        rows:
+          limit === null
+            ? [LEA_LIMIT_ROW]
+            : [LEA_LIMIT_ROW, { id: 'l-1', global_person_id: MARC, daily_limit: limit }],
       },
       spar_requests: { data: [], error: null, count: 3 },
       fightbook_free_now: { rows: [] },
@@ -40,6 +49,16 @@ describe('settingsSchema', () => {
     expect(settingsSchema.safeParse({}).success).toBe(false);
     expect(settingsSchema.safeParse({ fightbook_show_stars: true }).success).toBe(false);
   });
+
+  it('takes a whole daily limit from 1 to 20, or null, and refuses the rest', () => {
+    for (const ok of [null, 1, 20, 3]) {
+      expect(settingsSchema.safeParse({ dailyLimit: ok }).success, String(ok)).toBe(true);
+    }
+    for (const bad of [0, 21, 2.5, '3']) {
+      expect(settingsSchema.safeParse({ dailyLimit: bad }).success, String(bad)).toBe(false);
+    }
+    expect(settingsSchema.safeParse({}).success).toBe(false);
+  });
 });
 
 describe('FightBookSettingsService', () => {
@@ -49,6 +68,7 @@ describe('FightBookSettingsService', () => {
       hasProfile: true,
       enabled: true,
       showStars: false,
+      dailyLimit: null,
       sparred: 3,
       stars: STARS,
     });
@@ -71,6 +91,7 @@ describe('FightBookSettingsService', () => {
       const supabase = mockSupabase(
         {
           global_persons: { data: { fightbook_show_stars: true }, error: null },
+          fightbook_daily_limits: { rows: [] },
           spar_requests: failure === 'count' ? boom : { data: [], error: null, count: 3 },
         },
         { fightbook_star_line: () => (failure === 'star' ? boom : { data: STARS, error: null }) },
@@ -80,6 +101,7 @@ describe('FightBookSettingsService', () => {
         hasProfile: true,
         enabled: true,
         showStars: true,
+        dailyLimit: null,
         sparred: null,
         stars: null,
       });
@@ -96,11 +118,104 @@ describe('FightBookSettingsService', () => {
       hasProfile: false,
       enabled: false,
       showStars: false,
+      dailyLimit: null,
       sparred: 0,
       stars: null,
     });
     expect(supabase.from).not.toHaveBeenCalled();
     expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  describe('the daily limit', () => {
+    const limitFilters = (supabase: ReturnType<typeof service>['supabase']) =>
+      filtersFor(supabase.from, 'fightbook_daily_limits', 'eq');
+
+    it("reads the caller's own limit, never another profile's", async () => {
+      const { settings, supabase } = service(true, false, 3);
+      expect(await settings.get(live(true))).toMatchObject({ dailyLimit: 3 });
+      expect(selectsFor(supabase.from, 'fightbook_daily_limits')).toEqual(['daily_limit']);
+      expect(limitFilters(supabase)).toEqual([['global_person_id', MARC]]);
+    });
+
+    it('answers null when no row is stored', async () => {
+      const { settings } = service(true, false, null);
+      expect(await settings.get(live(true))).toMatchObject({ dailyLimit: null });
+    });
+
+    it('throws when the limit read fails, as the stars read does', async () => {
+      const supabase = mockSupabase({
+        global_persons: { data: { fightbook_show_stars: false }, error: null },
+        fightbook_daily_limits: { data: null, error: { message: 'boom' } },
+      });
+      await expect(new FightBookSettingsService(supabase as never).get(live(true))).rejects.toThrow(
+        'FightBook daily limit read failed: boom',
+      );
+    });
+
+    it('upserts the limit on the profile column, and writes nothing to global_persons', async () => {
+      const { settings, supabase } = service(true, false, 4);
+      expect(await settings.set(live(true), { dailyLimit: 4 })).toMatchObject({
+        enabled: true,
+        dailyLimit: 4,
+      });
+      const [write] = writesTo(supabase, 'fightbook_daily_limits');
+      expect(write?.op).toBe('upsert');
+      expect(write?.row).toEqual({
+        global_person_id: MARC,
+        daily_limit: 4,
+        updated_at: expect.any(String),
+      });
+      const call = supabase.from.mock.results
+        .map((r, i) => ({ r, table: supabase.from.mock.calls[i]![0] }))
+        .find(({ table }) => table === 'fightbook_daily_limits')!;
+      expect(call.r.value.upsert.mock.calls[0]![1]).toEqual({ onConflict: 'global_person_id' });
+      expect(writesTo(supabase, 'global_persons')).toEqual([]);
+    });
+
+    it('answers the stored switches on a limit-only save', async () => {
+      const { settings, supabase } = service(true, true, 4);
+      expect(await settings.set(live(true), { dailyLimit: 4 })).toMatchObject({
+        enabled: true,
+        showStars: true,
+      });
+      expect(selectsFor(supabase.from, 'global_persons')).toEqual([
+        'fightbook_enabled, fightbook_show_stars',
+      ]);
+      expect(filtersFor(supabase.from, 'global_persons', 'eq')).toEqual([['id', MARC]]);
+    });
+
+    it('deletes the caller’s row on null, and only theirs', async () => {
+      const { settings, supabase } = service(true, false, null);
+      expect(await settings.set(live(true), { dailyLimit: null })).toMatchObject({
+        dailyLimit: null,
+      });
+      const [write] = writesTo(supabase, 'fightbook_daily_limits');
+      expect(write?.op).toBe('delete');
+      expect(limitFilters(supabase).slice(0, 1)).toEqual([['global_person_id', MARC]]);
+      expect(writesTo(supabase, 'global_persons')).toEqual([]);
+    });
+
+    it('a switch-only save touches no limit row and answers the stored limit', async () => {
+      const { settings, supabase } = service(true, false, 3);
+      expect(await settings.set(live(false), { enabled: true })).toMatchObject({ dailyLimit: 3 });
+      expect(writesTo(supabase, 'fightbook_daily_limits')).toEqual([]);
+    });
+
+    it.each([
+      ['an upsert', 4],
+      ['a delete', null],
+    ])('a failed limit write throws (%s)', async (_label, dailyLimit) => {
+      const supabase = mockSupabase({
+        global_persons: {
+          data: { fightbook_enabled: true, fightbook_show_stars: false },
+          error: null,
+        },
+        fightbook_daily_limits: { data: null, error: { message: 'boom' } },
+      });
+      await expect(
+        new FightBookSettingsService(supabase as never).set(live(true), { dailyLimit }),
+      ).rejects.toThrow('FightBook daily limit write failed: boom');
+    });
   });
 
   it('saves the switch on the caller’s own profile and answers what was saved', async () => {
@@ -161,6 +276,7 @@ describe('FightBookSettingsService', () => {
           error: null,
         },
         spar_requests: { data: [], error: null, count: 3 },
+        fightbook_daily_limits: { rows: [] },
         fightbook_free_now: {
           rows: [
             { id: 'fn-1', global_person_id: MARC },

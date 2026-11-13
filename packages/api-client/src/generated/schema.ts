@@ -12857,6 +12857,7 @@ export interface components {
     FightBookSettingsDto: {
       enabled?: boolean;
       showStars?: boolean;
+      dailyLimit?: number | null;
     };
     AskSparDto: {
       /** Format: uuid */

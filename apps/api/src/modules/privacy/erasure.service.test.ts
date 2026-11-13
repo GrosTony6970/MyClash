@@ -183,6 +183,7 @@ describe('ErasureService.redactSubject', () => {
       'spar_open_call_answers',
       'spar_open_calls',
       'fightbook_free_now',
+      'fightbook_daily_limits',
     ]) {
       expect(log[table]?.deletes, table).toBeGreaterThan(0);
       expect(log[table]!.ins.every(([, ids]) => JSON.stringify(ids) === '["g1"]')).toBe(true);
@@ -308,6 +309,7 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
       'spar_open_call_answers',
       'spar_open_calls',
       'fightbook_free_now',
+      'fightbook_daily_limits',
     ]) {
       expect(log[table], table).toBeUndefined();
     }

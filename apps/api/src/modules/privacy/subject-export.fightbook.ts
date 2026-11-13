@@ -64,6 +64,12 @@ export const FIGHTBOOK_SUBJECT_TABLES: Readonly<Record<string, SubjectTableSpec>
     file: 'fightbook.csv',
     note: 'The Event and time the subject marked themselves free to spar.',
   },
+  // Her own row only: no other fighter's row ever names her.
+  fightbook_daily_limits: {
+    reaches: [{ column: 'global_person_id', reach: 'global_person' }],
+    file: 'fightbook.csv',
+    note: 'The most spars a day the subject chose to take, when they set one.',
+  },
   // Poster only. The whole row goes: zone, day, time, weapons and the fighter the subject picked
   // (they chose that fighter and were told who it was).
   spar_open_calls: {

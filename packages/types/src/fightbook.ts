@@ -160,6 +160,8 @@ export interface FightBookSettings {
   enabled: boolean;
   /** Whether the stars show on the public page (off by default). */
   showStars: boolean;
+  /** The most spars a day the caller takes from new asks, 1 to 20; null is no limit. */
+  dailyLimit: number | null;
   /** Spars done, as the public page counts them; null when the count could not be read. */
   sparred: number | null;
   /** The caller's own average, whatever the switch; null before the first review, or unread. */

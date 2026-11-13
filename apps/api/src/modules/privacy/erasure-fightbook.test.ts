@@ -40,6 +40,12 @@ const FLOOR_ROWS = {
       { id: 'q-3', global_person_id: LUC },
     ],
   },
+  fightbook_daily_limits: {
+    rows: [
+      { id: 'dl-1', global_person_id: MARIE, daily_limit: 3 },
+      { id: 'dl-2', global_person_id: LUC, daily_limit: 5 },
+    ],
+  },
 };
 
 function seeded() {
@@ -113,6 +119,7 @@ describe('eraseFightBookRows', () => {
     ['spar_open_calls', 'poster_global_person_id'],
     ['fightbook_free_now', 'global_person_id'],
     ['fightbook_qr_codes', 'global_person_id'],
+    ['fightbook_daily_limits', 'global_person_id'],
   ])('deletes %s by %s', async (table, column) => {
     const supabase = seeded();
     await eraseFightBookRows(supabase.service as never, [MARIE]);
@@ -143,6 +150,7 @@ describe('eraseFightBookRows', () => {
       spar_open_call_answers: 1,
       fightbook_free_now: 1,
       fightbook_qr_codes: 2,
+      fightbook_daily_limits: 1,
     });
   });
 
@@ -188,6 +196,7 @@ describe('eraseFightBookRows', () => {
     const supabase = mockSupabase({
       fightbook_qr_codes: { data: [], error: null },
       fightbook_free_now: { data: [], error: null },
+      fightbook_daily_limits: { data: [], error: null },
       spar_open_call_answers: { data: [], error: null },
       spar_open_calls: { data: [], error: null },
       spar_private_notes: { data: [], error: null },

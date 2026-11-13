@@ -44,6 +44,7 @@ const EMPTY_FIGHTBOOK_TABLES: Record<string, TableSeed> = {
   spar_open_call_answers: { rows: [] },
   spar_open_calls: { rows: [] },
   fightbook_free_now: { rows: [] },
+  fightbook_daily_limits: { rows: [] },
 };
 
 function tables(): Record<string, TableSeed> {

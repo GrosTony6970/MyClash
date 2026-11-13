@@ -8,6 +8,8 @@ import { readOwnSparLine } from './spar-public-line';
 export interface FightBookSettingsPatch {
   enabled?: boolean;
   showStars?: boolean;
+  /** 1 to 20 sets the limit, null removes it, a missing key leaves it. */
+  dailyLimit?: number | null;
 }
 
 /**
@@ -23,14 +25,17 @@ export class FightBookSettingsService {
   async get(caller: FightBookCaller): Promise<FightBookSettings> {
     const me = caller.globalPersonId;
     if (me === null) return emptySettings(false, false);
+    return this.answer(me, caller.enabled, await this.readShowStars(me));
+  }
+
+  private async readShowStars(me: string): Promise<boolean> {
     const { data, error } = await this.supabase.service
       .from('global_persons')
       .select('fightbook_show_stars')
       .eq('id', me)
       .maybeSingle();
     if (error) throw new Error(`FightBook stars switch read failed: ${error.message}`);
-    const showStars = (data as { fightbook_show_stars: boolean } | null)?.fightbook_show_stars;
-    return this.answer(me, caller.enabled, showStars === true);
+    return (data as { fightbook_show_stars: boolean } | null)?.fightbook_show_stars === true;
   }
 
   /**
@@ -42,17 +47,8 @@ export class FightBookSettingsService {
    */
   async set(caller: FightBookCaller, patch: FightBookSettingsPatch): Promise<FightBookSettings> {
     const profile = requireProfile(caller);
-    const row: Record<string, boolean> = {};
-    if (patch.enabled !== undefined) row['fightbook_enabled'] = patch.enabled;
-    if (patch.showStars !== undefined) row['fightbook_show_stars'] = patch.showStars;
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .update(row)
-      .eq('id', profile)
-      .select('fightbook_enabled, fightbook_show_stars')
-      .maybeSingle();
-    if (error) throw new Error(`FightBook switch write failed: ${error.message}`);
-    const saved = data as { fightbook_enabled: boolean; fightbook_show_stars: boolean } | null;
+    const saved = await this.saveSwitches(profile, patch);
+    await this.saveLimit(profile, patch.dailyLimit);
 
     if (patch.enabled === false) {
       const { error: withdrawError } = await this.supabase.service
@@ -71,6 +67,58 @@ export class FightBookSettingsService {
       saved?.fightbook_enabled === true,
       saved?.fightbook_show_stars === true,
     );
+  }
+
+  /**
+   * Write the switch keys the patch sets and answer the stored row. A limit-only save has no
+   * switch to write, so it READS the row instead: the answer is built from it, and a skipped
+   * update would answer `enabled: false`, which the panel takes as the truth.
+   */
+  private async saveSwitches(profile: string, patch: FightBookSettingsPatch) {
+    const row: Record<string, boolean> = {};
+    if (patch.enabled !== undefined) row['fightbook_enabled'] = patch.enabled;
+    if (patch.showStars !== undefined) row['fightbook_show_stars'] = patch.showStars;
+    const columns = 'fightbook_enabled, fightbook_show_stars';
+    const table = this.supabase.service.from('global_persons');
+    const query =
+      Object.keys(row).length > 0
+        ? table.update(row).eq('id', profile).select(columns)
+        : table.select(columns).eq('id', profile);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw new Error(`FightBook switch write failed: ${error.message}`);
+    return data as { fightbook_enabled: boolean; fightbook_show_stars: boolean } | null;
+  }
+
+  /**
+   * A number upserts the caller's own row (the column names the conflict; `updated_at` moves on
+   * every write), null deletes it, a missing key leaves it. The limit lives in a deny-all table
+   * of its own: never on `global_persons`, which a listed fighter's profile page reads.
+   */
+  private async saveLimit(profile: string, limit: number | null | undefined): Promise<void> {
+    if (limit === undefined) return;
+    const table = this.supabase.service.from('fightbook_daily_limits');
+    const { error } =
+      limit === null
+        ? await table.delete().eq('global_person_id', profile)
+        : await table.upsert(
+            {
+              global_person_id: profile,
+              daily_limit: limit,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'global_person_id' },
+          );
+    if (error) throw new Error(`FightBook daily limit write failed: ${error.message}`);
+  }
+
+  private async readLimit(me: string): Promise<number | null> {
+    const { data, error } = await this.supabase.service
+      .from('fightbook_daily_limits')
+      .select('daily_limit')
+      .eq('global_person_id', me)
+      .maybeSingle();
+    if (error) throw new Error(`FightBook daily limit read failed: ${error.message}`);
+    return (data as { daily_limit: number } | null)?.daily_limit ?? null;
   }
 
   /**
@@ -102,11 +150,12 @@ export class FightBookSettingsService {
   }
 
   private async answer(me: string, enabled: boolean, showStars: boolean) {
+    const dailyLimit = await this.readLimit(me);
     const own = await readOwnSparLine(this.supabase.service, me);
-    return { hasProfile: true, enabled, showStars, ...own };
+    return { hasProfile: true, enabled, showStars, dailyLimit, ...own };
   }
 }
 
 function emptySettings(enabled: boolean, showStars: boolean): FightBookSettings {
-  return { hasProfile: false, enabled, showStars, sparred: 0, stars: null };
+  return { hasProfile: false, enabled, showStars, dailyLimit: null, sparred: 0, stars: null };
 }

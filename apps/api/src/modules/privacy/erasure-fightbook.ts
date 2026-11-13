@@ -65,6 +65,7 @@ export const FIGHTBOOK_ROWS: readonly [table: string, column: string][] = [
   ['spar_open_calls', 'picked_global_person_id'],
   ['spar_open_calls', 'poster_global_person_id'],
   ['fightbook_free_now', 'global_person_id'],
+  ['fightbook_daily_limits', 'global_person_id'],
   ['spar_private_notes', 'author_global_person_id'],
   ['spar_thanks', 'author_global_person_id'],
   ['spar_thanks', 'subject_global_person_id'],

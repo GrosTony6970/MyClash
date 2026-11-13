@@ -56,11 +56,17 @@ import { SparReadsService } from './spar-reads.service';
 import { SparRequestsService } from './spar-requests.service';
 
 export const settingsSchema = z
-  .object({ enabled: z.boolean().optional(), showStars: z.boolean().optional() })
+  .object({
+    enabled: z.boolean().optional(),
+    showStars: z.boolean().optional(),
+    dailyLimit: z.number().int().min(1).max(20).nullable().optional(),
+  })
   .strict()
-  .refine((body) => body.enabled !== undefined || body.showStars !== undefined, {
-    message: 'Say what to change',
-  });
+  .refine(
+    (body) =>
+      body.enabled !== undefined || body.showStars !== undefined || body.dailyLimit !== undefined,
+    { message: 'Say what to change' },
+  );
 class FightBookSettingsDto extends createZodDto(settingsSchema) {}
 
 const text = (max: number) => z.string().trim().min(1).max(max);
