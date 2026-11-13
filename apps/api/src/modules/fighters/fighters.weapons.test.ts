@@ -15,7 +15,7 @@ import { FightersService } from './fighters.service';
 
 const PAUL = '6a1f0c3e-2b4d-4e8f-9a7b-5c6d7e8f9a01';
 const LONGSWORD = '1b2c3d4e-5f60-4a71-8b92-a3b4c5d6e7f8';
-const RAPIER = '2c3d4e5f-6071-4b82-9ca3-b4c5d6e7f809';
+const SABRE = '2c3d4e5f-6071-4b82-9ca3-b4c5d6e7f809';
 const GONE = '3d4e5f60-7182-4c93-8db4-c5d6e7f8091a';
 
 function profileSave() {
@@ -25,7 +25,7 @@ function profileSave() {
     weapon_catalog: {
       rows: [
         { id: LONGSWORD, name: 'Longsword', active: true },
-        { id: RAPIER, name: 'Rapier', active: false },
+        { id: SABRE, name: 'Sabre', active: false },
       ],
     },
     fighter_weapons: { rows: [] },
@@ -51,14 +51,14 @@ function profileSave() {
 describe("a fighter's weapons come from the catalog (ruling 695)", () => {
   it('saves catalog weapons, hidden ones included, in the order given', async () => {
     const { db, save } = profileSave();
-    await save([RAPIER, LONGSWORD]);
+    await save([SABRE, LONGSWORD]);
 
     expect(selectsFor(db.from, 'weapon_catalog')).toEqual(['id']);
-    expect(filtersFor(db.from, 'weapon_catalog', 'in')).toEqual([['id', [RAPIER, LONGSWORD]]]);
+    expect(filtersFor(db.from, 'weapon_catalog', 'in')).toEqual([['id', [SABRE, LONGSWORD]]]);
     const writes = writesTo(db, 'fighter_weapons');
     expect(writes.map((w) => w.op)).toEqual(['delete', 'insert']);
     expect(writes[1]?.row).toEqual([
-      expect.objectContaining({ weapon_id: RAPIER, favorite: true, sort_order: 0 }),
+      expect.objectContaining({ weapon_id: SABRE, favorite: true, sort_order: 0 }),
       expect.objectContaining({ weapon_id: LONGSWORD, favorite: false, sort_order: 1 }),
     ]);
   });
