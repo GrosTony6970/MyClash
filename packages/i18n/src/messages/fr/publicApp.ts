@@ -1665,7 +1665,7 @@ export const publicApp = {
       reasonLabel: 'Quel était le problème ?',
       textLabel: 'Dites-nous ce qui s’est passé',
       whoReadsEvent:
-        'Votre nom accompagne ce signalement. Les organisateurs de l’événement le liront. {partner} ne le voit jamais.',
+        'Votre nom accompagne ce signalement. Les organisateurs de l’événement et l’équipe MyClash le liront. {partner} ne le voit jamais.',
       whoReadsFree:
         'Votre nom accompagne ce signalement. L’équipe MyClash le lira. {partner} ne le voit jamais.',
       send: 'Envoyer le signalement',

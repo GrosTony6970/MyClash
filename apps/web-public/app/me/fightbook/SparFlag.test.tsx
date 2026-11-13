@@ -157,7 +157,7 @@ describe('the form', () => {
     await show(spar({ kind: 'event', eventName: 'Open', place: null }), SPAR_DAY);
     await click(LINK);
     expect(text()).toContain(
-      'Your name goes with this report. The Event’s organisers will read it. Marc Probe never sees it.',
+      'Your name goes with this report. The Event’s organisers and the MyClash team will read it. Marc Probe never sees it.',
     );
   });
 

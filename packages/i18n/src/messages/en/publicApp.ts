@@ -1656,7 +1656,7 @@ export const publicApp = {
       reasonLabel: 'What was the problem?',
       textLabel: 'Tell us what happened',
       whoReadsEvent:
-        'Your name goes with this report. The Event’s organisers will read it. {partner} never sees it.',
+        'Your name goes with this report. The Event’s organisers and the MyClash team will read it. {partner} never sees it.',
       whoReadsFree:
         'Your name goes with this report. The MyClash team will read it. {partner} never sees it.',
       send: 'Send report',
