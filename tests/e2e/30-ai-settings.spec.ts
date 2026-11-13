@@ -62,7 +62,7 @@ test.describe('AI settings', () => {
           data: {
             label: label('key A'),
             provider: 'mistral',
-            model: 'open-mistral-7b',
+            model: 'ministral-8b-2512',
             apiKey: FAKE_KEY,
             monthlyBudgetEur: 1,
             isActive: true,
@@ -89,7 +89,7 @@ test.describe('AI settings', () => {
           data: {
             label: label('key B'),
             provider: 'mistral',
-            model: 'mistral-small-4',
+            model: 'mistral-small-2603',
             apiKey: `${FAKE_KEY}-b`,
           },
         }),
@@ -328,7 +328,7 @@ test.describe('AI settings', () => {
           data: {
             label: label('platform key'),
             provider: 'mistral',
-            model: 'open-mistral-7b',
+            model: 'ministral-8b-2512',
             apiKey: FAKE_KEY,
           },
         }),

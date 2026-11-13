@@ -101,7 +101,7 @@ describe('AnthropicAdapter', () => {
   });
 
   // Anthropic API 2026-10-21 answers 400 to `temperature` on every model.
-  it.each(['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-unknown-model'])(
+  it.each(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-unknown-model'])(
     'never sends temperature, whatever the model (%s)',
     async (model) => {
       mockCreate.mockResolvedValue({
@@ -128,7 +128,7 @@ describe('AnthropicAdapter', () => {
     });
     const result = await adapter.generate('key-123', {
       system: 'sys',
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       maxTokens: 100,
       temperature: 0.5,
       tools: [{ name: 'list_pools', description: 'x', parameters: {} }],

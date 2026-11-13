@@ -119,14 +119,14 @@ describe('AIProvidersService', () => {
     // decrypted key + provider default model (no stored model)
     expect(mockGenerate).toHaveBeenCalledWith(
       originalKey,
-      expect.objectContaining({ model: 'claude-opus-4-8', user: 'u' }),
+      expect.objectContaining({ model: 'claude-sonnet-5-5', user: 'u' }),
     );
   });
 
   it('generate honors the stored model for the "default" sentinel', async () => {
     fromMock.mockImplementation((table: string) =>
       table === 'organization_ai_keys'
-        ? chain({ data: activeKeyRow('sk-key', { model: 'claude-sonnet-5' }), error: null })
+        ? chain({ data: activeKeyRow('sk-key', { model: 'claude-opus-5-5' }), error: null })
         : chain({ data: null, error: null }),
     );
     mockGenerate.mockResolvedValue({ text: 'ok', inputTokens: 1, outputTokens: 1, costEur: 0 });
@@ -140,7 +140,7 @@ describe('AIProvidersService', () => {
     });
     expect(mockGenerate).toHaveBeenCalledWith(
       'sk-key',
-      expect.objectContaining({ model: 'claude-sonnet-5' }),
+      expect.objectContaining({ model: 'claude-opus-5-5' }),
     );
   });
 

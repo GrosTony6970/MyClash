@@ -56,10 +56,10 @@ export const AI_PROVIDERS: readonly AiProvider[] = ['anthropic', 'openai', 'mist
  * back to the provider default would bill Opus prices for a test run.
  */
 export const CHEAPEST_MODEL: Record<AiProvider, string> = {
-  anthropic: 'claude-haiku-4-5',
-  openai: 'gpt-5.6-luna',
-  mistral: 'open-mistral-7b',
-  google: 'gemini-3.1-flash-lite',
+  anthropic: 'claude-haiku-5-5',
+  openai: 'gpt-6-luna',
+  mistral: 'mistral-small-2603',
+  google: 'gemini-3.5-flash-lite',
 };
 
 /** Key-scope base paths. All three expose list/create/patch/delete/:id/activate. */

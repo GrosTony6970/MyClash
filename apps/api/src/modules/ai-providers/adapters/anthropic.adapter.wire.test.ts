@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AnthropicAdapter } from './anthropic.adapter';
+import { ALWAYS_ON_THINKING_HEADROOM, AnthropicAdapter } from './anthropic.adapter';
 import {
   anthropicMessagesRoute,
   recordFetch,
@@ -31,7 +31,7 @@ const textAnswer = {
   id: 'msg_wire_1',
   type: 'message',
   role: 'assistant',
-  model: 'claude-haiku-4-5',
+  model: 'claude-haiku-5-5',
   content: [{ type: 'text', text: 'Pool A has four fighters.' }],
   stop_reason: 'end_turn',
   stop_sequence: null,
@@ -41,7 +41,7 @@ const textAnswer = {
 const toolAnswer = {
   ...textAnswer,
   id: 'msg_wire_2',
-  model: 'claude-sonnet-5',
+  model: 'claude-sonnet-5-5',
   content: [
     { type: 'text', text: 'Looking it up.' },
     { type: 'tool_use', id: 'tu_1', name: 'list_pools', input: { tournamentId: 't1' } },
@@ -81,10 +81,26 @@ afterEach(() => {
 });
 
 describe('AnthropicAdapter on the wire', () => {
+  // Each registry row keeps thinking out of the reply's `max_tokens` its own way (see
+  // `ModelInfo.anthropicThinking`); a model id outside the registry gets no thinking field.
   it.each([
-    ['Haiku 4.5, which took temperature before API 2026-10-21', 'claude-haiku-4-5'],
-    ['a model id the registry does not know', 'claude-wire-unknown'],
-  ])('sends a single-turn request for %s', async (_case, model) => {
+    [
+      'Haiku 5.5, which can disable thinking',
+      'claude-haiku-5-5',
+      { thinking: { type: 'disabled' } },
+    ],
+    [
+      'Sonnet 5.5, which answers 400 to a disabled thinking',
+      'claude-sonnet-5-5',
+      { thinking: { type: 'between_tools' } },
+    ],
+    [
+      'Opus 5.5, which cannot turn thinking off',
+      'claude-opus-5-5',
+      { output_config: { effort: 'low' }, max_tokens: 256 + ALWAYS_ON_THINKING_HEADROOM },
+    ],
+    ['a model id the registry does not know', 'claude-wire-unknown', {}],
+  ])('sends a single-turn request for %s', async (_case, model, thinking) => {
     useWire({ 'POST /v1/messages': anthropicMessagesRoute(textAnswer) });
 
     const result = await new AnthropicAdapter().generate(KEY, {
@@ -111,18 +127,20 @@ describe('AnthropicAdapter on the wire', () => {
       max_tokens: 256,
       system: 'You answer questions about one tournament.',
       messages: [{ role: 'user', content: 'How many fighters are in Pool A?' }],
+      ...thinking,
     });
     expect(result.text).toBe('Pool A has four fighters.');
     expect(result.stopReason).toBe('end_turn');
     expect([result.inputTokens, result.outputTokens]).toEqual([12, 7]);
   });
 
+  // Sonnet 5.5 answers 400 to a forced tool_choice: `required` goes out as `auto`.
   it('sends a multi-turn transcript with tools and parses every tool call', async () => {
     useWire({ 'POST /v1/messages': anthropicMessagesRoute(toolAnswer) });
 
     const result = await new AnthropicAdapter().generate(KEY, {
       system: 'sys',
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       maxTokens: 100,
       temperature: 0.5,
       tools: [
@@ -141,8 +159,9 @@ describe('AnthropicAdapter on the wire', () => {
     });
 
     expect(wire.requests[0]?.body).toEqual({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 100,
+      thinking: { type: 'between_tools' },
       system: 'sys',
       messages: [
         { role: 'user', content: 'set up pools' },
@@ -162,7 +181,7 @@ describe('AnthropicAdapter on the wire', () => {
           input_schema: { type: 'object', properties: { tournamentId: { type: 'string' } } },
         },
       ],
-      tool_choice: { type: 'any' },
+      tool_choice: { type: 'auto' },
     });
     expect(result).toMatchObject({
       text: 'Looking it up.',
@@ -175,6 +194,25 @@ describe('AnthropicAdapter on the wire', () => {
       inputTokens: 30,
       outputTokens: 12,
     });
+  });
+
+  it.each([
+    ['Haiku 5.5, which takes a forced tool_choice', 'claude-haiku-5-5', { type: 'any' }],
+    ['Opus 5.5, which answers 400 to one', 'claude-opus-5-5', { type: 'auto' }],
+  ])('sends a required tool choice on %s', async (_case, model, toolChoice) => {
+    useWire({ 'POST /v1/messages': anthropicMessagesRoute(toolAnswer) });
+
+    await new AnthropicAdapter().generate(KEY, {
+      system: 'sys',
+      user: 'u',
+      model,
+      maxTokens: 100,
+      temperature: 0,
+      tools: [{ name: 'list_pools', description: 'List the pools', parameters: {} }],
+      toolChoice: 'required',
+    });
+
+    expect(wire.requests[0]?.body).toMatchObject({ tool_choice: toolChoice });
   });
 
   it('lists the models of every page', async () => {
@@ -205,7 +243,7 @@ describe('AnthropicAdapter on the wire', () => {
       .generate(KEY, {
         system: 's',
         user: 'u',
-        model: 'claude-opus-4-8',
+        model: 'claude-sonnet-5-5',
         maxTokens: 10,
         temperature: 0,
       })

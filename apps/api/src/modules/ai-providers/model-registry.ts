@@ -25,109 +25,139 @@ export interface ModelInfo {
    * adapter never sends it.
    */
   supportsTemperature: boolean;
+  /**
+   * Anthropic only: how the adapter keeps thinking out of the reply's `max_tokens`. These
+   * models think before they answer when a request leaves `thinking` out, and the thinking
+   * counts against `max_tokens`; MyClash's limits are sized for the answer alone (80 tokens on
+   * one route). `disabled` and `between_tools` name the request field that turns thinking off
+   * on that model; `always_on` is a model that cannot turn it off, so the adapter asks for
+   * `low` effort and adds headroom to `max_tokens`. A model id outside the registry sends none.
+   */
+  anthropicThinking?: 'disabled' | 'between_tools' | 'always_on';
+  /**
+   * Anthropic only: the model answers 400 to a forced `tool_choice` (`any` / `tool`), so a
+   * `required` request is sent as `auto`. Its callers already handle an answer with no tool call.
+   */
+  rejectsForcedToolChoice?: boolean;
   pricing: { input: number; output: number };
 }
 
 /** USD-per-million → EUR-per-token, matching the adapters' prior 0.92 factor. */
 const eur = (usdPerMillion: number): number => (usdPerMillion / 1_000_000) * 0.92;
 
+// Model ids and USD prices as the providers published them on 2026-11-13. Where a provider
+// has announced a price rise, the row carries the NEW price: the registry prices the per-key
+// budget ceilings, and an under-priced row lets a key spend past its ceiling. A model whose
+// `temperature` support the provider does not document is `false`: omitting it is always
+// accepted, and sending it to a model that rejects it is a 400.
 export const MODEL_REGISTRY: Record<AIProvider, ModelInfo[]> = {
   anthropic: [
     {
-      id: 'claude-opus-4-8',
-      label: 'Claude Opus 4.8',
+      id: 'claude-sonnet-5-5',
+      label: 'Claude Sonnet 5.5',
       isDefault: true,
       recommendedForToolUse: true,
       supportsTemperature: false,
-      pricing: { input: eur(5), output: eur(25) },
+      anthropicThinking: 'between_tools',
+      rejectsForcedToolChoice: true,
+      pricing: { input: eur(2), output: eur(10) },
     },
     {
-      id: 'claude-sonnet-5',
-      label: 'Claude Sonnet 5',
+      id: 'claude-opus-5-5',
+      label: 'Claude Opus 5.5',
       supportsTemperature: false,
-      pricing: { input: eur(3), output: eur(15) },
+      anthropicThinking: 'always_on',
+      rejectsForcedToolChoice: true,
+      pricing: { input: eur(4), output: eur(20) },
     },
     {
-      id: 'claude-haiku-4-5',
-      label: 'Claude Haiku 4.5',
+      id: 'claude-haiku-5-5',
+      label: 'Claude Haiku 5.5',
       supportsTemperature: false,
-      pricing: { input: eur(1), output: eur(5) },
+      anthropicThinking: 'disabled',
+      // The ≤100K-token prompt rate; longer prompts cost $0.50 / $2.50.
+      pricing: { input: eur(0.1), output: eur(0.5) },
     },
   ],
   openai: [
     {
-      id: 'gpt-5.5',
-      label: 'GPT-5.5',
+      id: 'gpt-6.1-sol',
+      label: 'GPT-6.1 Sol',
       isDefault: true,
       recommendedForToolUse: true,
-      // 5.5 re-enabled `temperature` (unlike the GPT-5 reasoning family).
-      supportsTemperature: true,
-      pricing: { input: eur(5), output: eur(30) },
+      supportsTemperature: false,
+      pricing: { input: eur(2), output: eur(10) },
     },
     {
-      id: 'gpt-5.6-sol',
-      label: 'GPT-5.6 Sol',
-      // 5.6 family: omit `temperature` unless confirmed accepted (omitting is
-      // always safe; sending it to a model that rejects it is a 400).
+      id: 'gpt-6-astra',
+      label: 'GPT-6 Astra',
       supportsTemperature: false,
-      pricing: { input: eur(5), output: eur(30) },
+      pricing: { input: eur(10), output: eur(50) },
     },
     {
-      id: 'gpt-5.6-terra',
-      label: 'GPT-5.6 Terra',
+      id: 'gpt-6.1-terra',
+      label: 'GPT-6.1 Terra',
       supportsTemperature: false,
-      pricing: { input: eur(2.5), output: eur(15) },
+      pricing: { input: eur(1), output: eur(5) },
     },
     {
-      id: 'gpt-5.6-luna',
-      label: 'GPT-5.6 Luna',
+      id: 'gpt-6-luna',
+      label: 'GPT-6 Luna',
       supportsTemperature: false,
-      pricing: { input: eur(1), output: eur(6) },
+      pricing: { input: eur(0.1), output: eur(0.5) },
     },
   ],
   mistral: [
     {
-      id: 'mistral-medium-3.5',
-      label: 'Mistral Medium 3.5',
+      // Public preview.
+      id: 'mistral-large-4',
+      label: 'Mistral Large 4',
       isDefault: true,
       recommendedForToolUse: true,
       supportsTemperature: true,
-      pricing: { input: eur(1.5), output: eur(7.5) },
+      pricing: { input: eur(0.7), output: eur(2.1) },
     },
     {
-      id: 'mistral-small-4',
+      id: 'mistral-small-2603',
       label: 'Mistral Small 4',
       supportsTemperature: true,
       pricing: { input: eur(0.15), output: eur(0.6) },
     },
     {
-      id: 'open-mistral-7b',
-      label: 'Open Mistral 7B',
+      id: 'ministral-8b-2512',
+      label: 'Ministral 3 8B',
       supportsTemperature: true,
-      pricing: { input: eur(0.025), output: eur(0.025) },
+      pricing: { input: eur(0.15), output: eur(0.15) },
     },
   ],
   google: [
     {
-      id: 'gemini-3.5-flash',
-      label: 'Gemini 3.5 Flash',
+      id: 'gemini-4-carbon',
+      label: 'Gemini 4 Carbon',
       isDefault: true,
       recommendedForToolUse: true,
-      supportsTemperature: true,
-      pricing: { input: eur(1.5), output: eur(9) },
+      supportsTemperature: false,
+      // $2 / $10 until 2026-12-01.
+      pricing: { input: eur(4), output: eur(20) },
     },
     {
-      id: 'gemini-3.1-pro-preview',
-      label: 'Gemini 3.1 Pro',
-      supportsTemperature: true,
-      // Base (≤200K context) tier; the registry stores flat pricing.
-      pricing: { input: eur(2), output: eur(12) },
+      id: 'gemini-4-hydrogen',
+      label: 'Gemini 4 Hydrogen',
+      supportsTemperature: false,
+      pricing: { input: eur(1.5), output: eur(7.5) },
     },
     {
-      id: 'gemini-3.1-flash-lite',
-      label: 'Gemini 3.1 Flash-Lite',
+      id: 'gemini-3.8-flash',
+      label: 'Gemini 3.8 Flash',
       supportsTemperature: true,
-      pricing: { input: eur(0.25), output: eur(1.5) },
+      // $0.75 / $3.75 until 2027-01-01.
+      pricing: { input: eur(1.5), output: eur(7.5) },
+    },
+    {
+      id: 'gemini-3.5-flash-lite',
+      label: 'Gemini 3.5 Flash-Lite',
+      supportsTemperature: true,
+      pricing: { input: eur(0.3), output: eur(2.5) },
     },
   ],
 };
