@@ -197,33 +197,59 @@ describe('OpenCallsService.answer: ruling 672, the poster blocked the answerer',
   });
 });
 
+// Ruling M: a take-back is authorized by the caller's own answer row. A row proves he already
+// knew the call, so nothing he is told is new; no row reads exactly as an unknown call.
 describe('OpenCallsService.takeBack', () => {
+  const MINE = answerRow(CALL, MARC);
+
   it('deletes my answer on an open call, and no one else’s', async () => {
-    const { open, supabase } = world({ calls: [callRow()], answers: [answerRow(CALL, MARC)] });
+    const { open, supabase } = world({
+      calls: [callRow()],
+      answers: [
+        MINE,
+        answerRow(CALL, PAUL),
+        answerRow('ca000000-0000-4000-8000-000000000002', MARC),
+      ],
+    });
     await open.takeBack(MARC, CALL, NOW);
     const [write] = writesTo(supabase, 'spar_open_call_answers');
     expect(write?.op).toBe('delete');
     expect(scopedTo(write, 'call_id')).toBe(CALL);
     expect(scopedTo(write, 'answerer_global_person_id')).toBe(MARC);
+    expect(selectsFor(supabase.from, 'spar_open_call_answers')).toEqual(['id']);
+    expect(filtersFor(supabase.from, 'spar_open_call_answers', 'eq')).toEqual([
+      ['call_id', CALL],
+      ['answerer_global_person_id', MARC],
+      ['call_id', CALL],
+      ['answerer_global_person_id', MARC],
+    ]);
   });
 
-  it('is quiet when there is no answer to take back (two taps)', async () => {
-    const { open } = world({ calls: [callRow()] });
+  it('works for an answerer taken off the roster: removing presence is always allowed', async () => {
+    const { open, supabase } = world({ calls: [callRow()], answers: [MINE], rosterOf: [JULIE] });
     await expect(open.takeBack(MARC, CALL, NOW)).resolves.toBeUndefined();
+    expect(writesTo(supabase, 'spar_open_call_answers').map((w) => w.op)).toEqual(['delete']);
+  });
+
+  it('with no answer of mine on a real call, reads exactly as an unknown call', async () => {
+    const real = world({ calls: [callRow()], answers: [answerRow(CALL, PAUL)] });
+    const unknown = world({ calls: [] });
+    expect(await refusalOf(real.open.takeBack(MARC, CALL, NOW))).toEqual(
+      await refusalOf(unknown.open.takeBack(MARC, CALL, NOW)),
+    );
+    expect(writesTo(real.supabase, 'spar_open_call_answers')).toEqual([]);
   });
 
   it.each<[string, World, Date, [number, string | undefined]]>([
     ['an unknown call', { calls: [] }, NOW, [404, undefined]],
-    [
-      'a call whose poster I blocked',
-      { calls: [callRow()], blocks: [blockRow(MARC, JULIE)] },
-      NOW,
-      [404, undefined],
-    ],
-    ['a call past its time', { calls: [callRow()] }, LATE, [409, 'not_open']],
+    ['a call I never answered (a second tap)', { calls: [callRow()] }, NOW, [404, undefined]],
+    ['a call past its time', { calls: [callRow()], answers: [MINE] }, LATE, [409, 'not_open']],
     [
       'a picked call',
-      { calls: [callRow({ status: 'picked', picked_global_person_id: PAUL })] },
+      {
+        calls: [callRow({ status: 'picked', picked_global_person_id: PAUL })],
+        answers: [MINE],
+      },
       NOW,
       [409, 'not_open'],
     ],

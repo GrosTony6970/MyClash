@@ -94,6 +94,16 @@ export const FIGHTBOOK_ASK_THROTTLE = {
   ttl: 3_600_000,
 } as const;
 
+/**
+ * Open calls posted per hour per signed-in account (FightBook slice 5; see ThrottleFightBookCall).
+ * The cap of 5 OPEN calls a day bounds what others see; this bounds the rows a post-then-close
+ * loop can write.
+ */
+export const FIGHTBOOK_CALL_THROTTLE = {
+  limit: 20,
+  ttl: 3_600_000,
+} as const;
+
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;

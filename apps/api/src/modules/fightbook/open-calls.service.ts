@@ -149,15 +149,32 @@ export class OpenCallsService {
   }
 
   /**
-   * Take back my "I'm in" while the call is open. 404 for a call I cannot see, off its Event's
-   * roster included (Decision 7: only a fighter on that roster answers or takes back, and an off
-   * fighter's 404 must equal an unknown call's); quiet if there is no answer. No public check: it
-   * removes presence.
+   * Take back my "I'm in" while the call is open (Ruling M). Authorized by my own answer row, not
+   * by seeing the call: a row proves I already knew the call, so a fighter taken off the roster or
+   * whose poster switched off can still withdraw (a write that removes presence is always allowed).
+   * No row of mine (an unknown call, a stranger's, a second tap): 404, the unknown call's face.
+   * A row on a call no longer open: 409 `not_open`, which tells me nothing I did not know. No
+   * block, roster or public check: whoever blocked whom, the answer is the same (ruling 672).
    */
   async takeBack(me: string, callId: string, now = new Date()): Promise<void> {
-    const call = await this.visibleCall(me, callId);
-    if (!callIsOpen(call, now)) throw notOpen();
-    const { error } = await this.supabase.service
+    const db = this.supabase.service;
+    const { data: mine, error: mineError } = await db
+      .from('spar_open_call_answers')
+      .select('id')
+      .eq('call_id', callId)
+      .eq('answerer_global_person_id', me)
+      .maybeSingle();
+    if (mineError) throw new Error(`open call answer read failed: ${mineError.message}`);
+    if (!mine) throw notFound();
+    // The answer row's call exists (ON DELETE CASCADE), so exactly one row comes back.
+    const { data: call, error: callError } = await db
+      .from('spar_open_calls')
+      .select('status, closes_at')
+      .eq('id', callId)
+      .single();
+    if (callError) throw new Error(`open call read failed: ${callError.message}`);
+    if (!callIsOpen(call as Pick<CallGate, 'status' | 'closes_at'>, now)) throw notOpen();
+    const { error } = await db
       .from('spar_open_call_answers')
       .delete()
       .eq('call_id', callId)
