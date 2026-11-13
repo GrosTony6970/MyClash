@@ -22,7 +22,8 @@
  *     connection holding A's profile (`refusedThenScan`).
  * And the pair lock (0264's, taken by both functions): a block committed while a pick or a scan
  * waits on it is seen by that pick or scan, which refuses (`not_open`, `you_blocked`). And the
- * pick's FOR SHARE on the answer (Decision 10): a take-back during a pick waits, then lands.
+ * pick's FOR SHARE on the answer (Decision 10): a take-back during a pick waits, then lands. And
+ * the pick's KEY SHARE on the profiles: a pick during a merge waits, then sees it.
  *
  * Not a race, but committed for the same reason (lib/fightbook-race-refusals.mjs): a refused scan
  * (`already_asked`, `bad_event`, `not_on_fightbook`) in a transaction of its own leaves its code,
@@ -61,21 +62,19 @@ const connA = postgres(databaseUrl, options);
 const connB = postgres(databaseUrl, options);
 const watch = postgres(databaseUrl, options);
 const gate = postgres(databaseUrl, options);
-const EXPECTED_CHECKS = 23;
+const EXPECTED_CHECKS = 25;
 const WAIT_MS = 500;
 
 const fixture = (n) => `fb5a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const CLUB = fixture(1);
 const EVENT = fixture(2);
 /**
- * Accounts and their profiles: Julie posts three calls, Marc and Paul answer the first, Paul the
- * second, Marc the third; Paul shows codes; Lea blocked Paul.
+ * Accounts and their profiles: Julie posts four calls, Marc and Paul answer the first, Paul the
+ * second, Marc the third, Lea the fourth; Paul shows codes; Lea blocked Paul.
  */
 const U = { julie: fixture(11), marc: fixture(12), paul: fixture(13), lea: fixture(14) };
 const F = { julie: fixture(21), marc: fixture(22), paul: fixture(23), lea: fixture(24) };
-const CALL = fixture(31);
-const SECOND_CALL = fixture(32);
-const THIRD_CALL = fixture(33);
+const [CALL, SECOND_CALL, THIRD_CALL, FOURTH_CALL] = [31, 32, 33, 34].map(fixture);
 
 let checks = 0;
 const failures = [];
@@ -102,14 +101,14 @@ async function seedCommitted() {
       await tx`INSERT INTO global_persons
           (id, slug, display_name, given_name, family_name, claimed_by_user_id, fightbook_enabled)
         VALUES (${F[who]}, ${`fb-race-${who}`}, ${who}, ${who}, 'Race', ${U[who]}, true)`;
-    for (const call of [CALL, SECOND_CALL, THIRD_CALL])
+    for (const call of [CALL, SECOND_CALL, THIRD_CALL, FOURTH_CALL])
       await tx`INSERT INTO spar_open_calls
           (id, poster_global_person_id, event_id, spar_day, zone, spar_time, weapons, closes_at)
         VALUES (${call}, ${F.julie}, ${EVENT}, current_date, 'Europe/Paris', '23:00',
           ARRAY['Longsword'], now() + interval '1 hour')`;
     await tx`INSERT INTO spar_open_call_answers (call_id, answerer_global_person_id)
       VALUES (${CALL}, ${F.marc}), (${CALL}, ${F.paul}), (${SECOND_CALL}, ${F.paul}),
-        (${THIRD_CALL}, ${F.marc})`;
+        (${THIRD_CALL}, ${F.marc}), (${FOURTH_CALL}, ${F.lea})`;
     await tx`INSERT INTO fightbook_blocks (blocker_global_person_id, blocked_global_person_id)
       VALUES (${F.lea}, ${F.paul})`;
   });
@@ -336,6 +335,31 @@ async function scanAgainstBlock() {
   );
 }
 
+/**
+ * 0264's KEY SHARE, the half of the pair lock a merge meets: a merge takes FOR UPDATE on both
+ * profiles (0268), then writes `merged_into_id`. The gate does that to Lea, uncommitted, while
+ * Julie picks her: the pick must wait BEFORE it reads liveness, then see the merge (`not_open`).
+ * Without its KEY SHARE the pick reads the old row and waits only at the spar's foreign key, then
+ * agrees a spar with a merged-away profile. Last: Lea stays merged into Marc.
+ */
+async function pickDuringMerge() {
+  const aPid = await pidOf(connA);
+  let a;
+  let held = false;
+  await gate.begin(async (tx) => {
+    const gatePid = await pidOf(tx);
+    await tx`SELECT 1 FROM global_persons WHERE id IN (${F.marc}, ${F.lea}) ORDER BY id FOR UPDATE`;
+    await tx`UPDATE global_persons SET merged_into_id = ${F.marc} WHERE id = ${F.lea}`;
+    a = asApi(connA, (sp) => pick(sp, F.lea, FOURTH_CALL));
+    held = await blockedBy(aPid, gatePid);
+  });
+  const outcome = await a;
+  const [{ n }] = await watch`SELECT count(*)::int AS n FROM spar_requests
+      WHERE receiver_global_person_id = ${F.lea}`;
+  check('a pick during a merge: it waits on the merge', held, true);
+  check('a pick during a merge, and the spars it made', [outcome, n], [{ refused: 'not_open' }, 0]);
+}
+
 try {
   await seedCommitted();
   try {
@@ -346,6 +370,7 @@ try {
     await refusedScansLeaveTheCode(committedKit());
     await pickAgainstBlock();
     await scanAgainstBlock();
+    await pickDuringMerge();
   } finally {
     await fixtureDeleted();
   }
@@ -361,7 +386,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, a refused scan leaves its code, a take-back during a pick waits, and a pick or a scan waiting on a block sees it.`,
+      `FightBook race probe passed: ${checks} checks; two picks of one call make one spar, two scans of one code make one request, a scan refused after its claim leaves the code to the scan waiting on it, a refused scan leaves its code, a take-back during a pick waits, a pick or a scan waiting on a block sees it, and a pick during a merge sees it.`,
     );
   }
 } catch (error) {

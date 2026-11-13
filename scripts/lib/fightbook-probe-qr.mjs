@@ -6,7 +6,8 @@
  * Every refusal here is read in a savepoint that is ROLLED BACK, which would restore a code the
  * refused scan burnt: so these checks read the refusal word only. That a refused scan leaves its
  * code scannable is proved on committed connections by the race probe
- * (`scripts/db-fightbook-race-probe.mjs`: `refusedThenSameCode` for `already_asked`, `bad_event`
+ * (`scripts/db-fightbook-race-probe.mjs`, with `refusedThenSameCode` in
+ * `scripts/lib/fightbook-race-refusals.mjs` for `already_asked`, `bad_event`
  * and `not_on_fightbook`, `scanAgainstBlock` for `you_blocked`), as are two scans AT ONCE.
  */
 import { createHash, randomBytes } from 'node:crypto';
