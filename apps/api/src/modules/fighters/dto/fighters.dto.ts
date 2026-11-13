@@ -85,8 +85,8 @@ export class FighterClubInputDto extends createZodDto(fighterClubInputSchema) {}
 
 const fighterWeaponInputSchema = z
   .object({
-    weaponId: z.uuid().optional(),
-    weaponName: z.string().max(100).optional(),
+    // A catalog id from the list: only super admins add catalog weapons (ruling 695).
+    weaponId: z.uuid(),
     favorite: z.boolean().optional(),
     // `.nullable()` so the FE can send `null` to clear a previously set level
     // (a plain `.optional()` would reject it — see project_zod_null_to_clear).

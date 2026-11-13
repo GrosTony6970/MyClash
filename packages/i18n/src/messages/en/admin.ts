@@ -42,6 +42,7 @@ export const admin = {
     abvPlaceholder: 'Abv',
     optionalPlaceholder: 'optional',
     duplicateOfPrefix: 'Duplicate of',
+    unknownWeapons: 'Not on the weapon list: {names}',
     doneSummary: 'Imported {created} new, updated {updated}.',
     nothingImportedTitle: 'Nothing was imported.',
     nothingImportedBody: 'No rows were created or updated. See per-row reasons below.',

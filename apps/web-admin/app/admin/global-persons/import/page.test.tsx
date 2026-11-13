@@ -50,12 +50,21 @@ const PREVIEW = {
   summary: { total: 2, ok: 1, invalid: 1, duplicate: 0 },
   unknownColumns: ['notes'],
   rows: [
-    { index: 3, status: 'ok', problem: null, duplicate: null, raw: '', fields: FIELDS },
+    {
+      index: 3,
+      status: 'ok',
+      problem: null,
+      duplicate: null,
+      unknownWeapons: ['Longsowrd', 'Sabre'],
+      raw: '',
+      fields: FIELDS,
+    },
     {
       index: 5,
       status: 'invalid',
       problem: { reason: 'invalid_email', value: 'bob@' },
       duplicate: null,
+      unknownWeapons: [],
       raw: 'Bob,Jones,bob@',
       fields: { ...FIELDS, givenName: '', familyName: '', displayName: '' },
     },
@@ -104,5 +113,22 @@ describe('the Global Profiles import', () => {
 
     await press('Commit');
     expect(text()).toContain('Line 3: Not saved: the server refused this row.');
+  });
+
+  // Ruling 703: a weapon not on the list is named on its row before the commit skips it.
+  it("names a row's weapons that are not on the list, and only on that row", async () => {
+    page = await openEventPage(
+      <GlobalPersonsImportPage />,
+      {},
+      { 'POST /api/v1/global-persons/import/preview': PREVIEW },
+    );
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File(['given_name\n'], 'people.csv', { type: 'text/csv' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
+    await press('Preview');
+    const lines = text().split('Not on the weapon list:');
+    expect(lines).toHaveLength(2);
+    expect(text()).toContain('Not on the weapon list: Longsowrd, Sabre');
   });
 });

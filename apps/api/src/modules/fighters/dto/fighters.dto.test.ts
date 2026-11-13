@@ -148,12 +148,24 @@ describe('PublicFighterQueryDto', () => {
 describe("a fighter's weapons list", () => {
   const FIGHTER = '00000000-0000-4000-8000-000000000000';
   const weapons = (count: number) =>
-    Array.from({ length: count }, (_, i) => ({ weaponName: `Weapon ${i}` }));
+    Array.from({ length: count }, (_, i) => ({
+      weaponId: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    }));
   const parse = (count: number) =>
     UpdateMyFighterProfileDto.schema.safeParse({ fighterId: FIGHTER, weapons: weapons(count) });
+  const parseOne = (weapon: Record<string, unknown>) =>
+    UpdateMyFighterProfileDto.schema.safeParse({ fighterId: FIGHTER, weapons: [weapon] });
 
   it('takes 20 weapons and refuses 21', () => {
     expect(parse(20).success).toBe(true);
     expect(parse(21).success).toBe(false);
+  });
+
+  // Ruling 695: a fighter picks a weapon from the list by its id; a name never makes a weapon.
+  it('refuses a weapon given by name, and one with no id', () => {
+    expect(parseOne({ weaponName: 'Longsowrd' }).success).toBe(false);
+    expect(parseOne({ weaponId: FIGHTER, weaponName: 'Longsword' }).success).toBe(false);
+    expect(parseOne({ favorite: true }).success).toBe(false);
+    expect(parseOne({ weaponId: FIGHTER, favorite: true }).success).toBe(true);
   });
 });

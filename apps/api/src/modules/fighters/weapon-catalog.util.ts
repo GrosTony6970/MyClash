@@ -29,8 +29,8 @@ interface CatalogWeaponQuery {
  * tournament/workshop pickers submit an exact catalog name and renamed
  * entries keep a non-matching slug (e.g. 'Sword & Buckler' → slug
  * 'sword-and-buckler'). Returns the catalog's canonical casing so storage is
- * consistent. Never creates rows (unlike the fighter-import
- * `resolveWeaponCatalogId`, which upserts by slug).
+ * consistent. Never creates rows; nothing outside the super admins' weapons
+ * page does (ruling 695).
  */
 export async function resolveCatalogWeapon(
   client: CatalogWeaponClient,

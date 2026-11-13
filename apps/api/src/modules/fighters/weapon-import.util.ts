@@ -55,57 +55,66 @@ export function parseWeaponsCell(raw: string | null | undefined): ParsedImportWe
   return out.slice(0, MAX_FIGHTER_WEAPONS);
 }
 
-type WeaponDbClient = {
-  from: (table: string) => {
-    select: (columns?: string) => {
-      eq: (
-        column: string,
-        value: unknown,
-      ) => {
-        maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-      };
-    };
-    insert: (payload: Record<string, unknown> | Record<string, unknown>[]) => {
-      select: (columns?: string) => {
-        single: () => Promise<{ data: unknown; error: { message: string } | null }>;
-      };
-    } & Promise<{ error: { message: string } | null }>;
-    delete: () => { eq: (column: string, value: unknown) => Promise<{ error: unknown }> };
-  };
-};
+/** The service client; `from` is `unknown` for the TS2589 reason in `weapon-catalog.util.ts`. */
+export interface WeaponDbClient {
+  from: (table: string) => unknown;
+}
 
-/** Resolve a weapon name to a weapon_catalog id, creating the catalog row if new. */
-async function resolveWeaponCatalogId(
-  service: WeaponDbClient,
-  name: string,
-): Promise<string | null> {
+interface WeaponDbTable {
+  select: (columns: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  insert: (rows: Record<string, unknown>[]) => PromiseLike<{ error: { message: string } | null }>;
+  delete: () => { eq: (column: string, value: unknown) => PromiseLike<{ error: unknown }> };
+}
+
+const table = (service: WeaponDbClient, name: string) => service.from(name) as WeaponDbTable;
+
+export interface CatalogWeaponRow {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/**
+ * The whole weapon catalog, hidden weapons included (ruling 702), in ONE read. It stays small:
+ * only super admins add to it (ruling 695).
+ */
+export async function readWeaponCatalog(service: WeaponDbClient): Promise<CatalogWeaponRow[]> {
+  const { data, error } = await table(service, 'weapon_catalog').select('id, name, slug');
+  if (error) throw new Error(`weapon catalogue read failed: ${error.message}`);
+  return (data ?? []) as CatalogWeaponRow[];
+}
+
+/**
+ * The catalog weapon a CSV name means: its name first (case and outer spaces aside), then its
+ * slug, which catches the old spelling of a renamed weapon (a rename keeps the slug). The name
+ * wins when one weapon has the name and another the slug. Never creates one.
+ */
+export function matchCatalogWeapon(catalog: CatalogWeaponRow[], name: string): string | null {
+  const wanted = name.trim().toLowerCase();
   const slug = slugify(name);
   if (!slug) return null;
-  const { data: existing } = await service
-    .from('weapon_catalog')
-    .select('id')
-    .eq('slug', slug)
-    .maybeSingle();
-  if (existing) return String((existing as { id: unknown }).id);
-  // Import-created rows land INACTIVE: fighter imports run on the service client
-  // (no web role may write weapon_catalog since 0247), so an unvetted name
-  // must not silently appear in the strict tournament/workshop picker
-  // (GET /weapons?active=true). A super-admin promotes it via /admin/weapons.
-  // active=false does not gate the fighter_weapons FK, so the link still works
-  // and the weapon still shows on the (non-strict) fighter profile picker.
-  const { data, error } = await service
-    .from('weapon_catalog')
-    .insert({ name, slug, active: false })
-    .select('id')
-    .single();
-  if (error) throw new Error(error.message);
-  return data ? String((data as { id: unknown }).id) : null;
+  const hit =
+    catalog.find((w) => w.name.trim().toLowerCase() === wanted) ??
+    catalog.find((w) => w.slug === slug);
+  return hit ? hit.id : null;
+}
+
+/** The cell's names that match no catalog weapon, in cell order (ruling 703's preview line). */
+export function unknownWeaponNames(
+  catalog: CatalogWeaponRow[],
+  raw: string | null | undefined,
+): string[] {
+  return parseWeaponsCell(raw)
+    .map((weapon) => weapon.weaponName)
+    .filter((name) => matchCatalogWeapon(catalog, name) === null);
 }
 
 /**
  * Replace a global person's weapons from a CSV cell. A blank/empty cell is a
  * no-op (it does NOT wipe existing weapons) so importing a roster that omits
- * the column never destroys profile data.
+ * the column never destroys profile data. A name not in the catalog is skipped
+ * (ruling 703): an import never creates a catalog weapon (ruling 695), and a
+ * cell whose every name is skipped is a no-op too.
  */
 export async function replaceFighterWeaponsFromCell(
   service: WeaponDbClient,
@@ -115,10 +124,14 @@ export async function replaceFighterWeaponsFromCell(
   const weapons = parseWeaponsCell(raw);
   if (weapons.length === 0) return;
 
+  const catalog = await readWeaponCatalog(service);
   const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
   for (const [index, weapon] of weapons.entries()) {
-    const weaponId = await resolveWeaponCatalogId(service, weapon.weaponName);
-    if (!weaponId) continue;
+    const weaponId = matchCatalogWeapon(catalog, weapon.weaponName);
+    // Two spellings of one weapon (its name and its old slug) would break the unique pair.
+    if (!weaponId || seen.has(weaponId)) continue;
+    seen.add(weaponId);
     rows.push({
       global_person_id: globalPersonId,
       weapon_id: weaponId,
@@ -129,7 +142,7 @@ export async function replaceFighterWeaponsFromCell(
   }
   if (rows.length === 0) return;
 
-  await service.from('fighter_weapons').delete().eq('global_person_id', globalPersonId);
-  const { error } = await service.from('fighter_weapons').insert(rows);
+  await table(service, 'fighter_weapons').delete().eq('global_person_id', globalPersonId);
+  const { error } = await table(service, 'fighter_weapons').insert(rows);
   if (error) throw new Error(error.message);
 }

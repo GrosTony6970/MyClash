@@ -24,6 +24,8 @@ interface PreviewRow {
   /** Why an invalid row is refused; null on the others. */
   problem: ImportRowProblem | null;
   duplicate: { id: string; displayName: string } | null;
+  /** The row's weapons that are not on the list; the commit skips them (ruling 703). */
+  unknownWeapons: string[];
   raw: string;
   fields: {
     givenName: string;
@@ -515,6 +517,13 @@ export default function GlobalPersonsImportPage() {
                           </span>
                         )}
                         {row.status === 'ok' && <span className="text-success">OK</span>}
+                        {row.unknownWeapons.length > 0 && (
+                          <span className="block text-warning">
+                            {t('admin.globalPersonsImport.unknownWeapons', {
+                              names: row.unknownWeapons.join(', '),
+                            })}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

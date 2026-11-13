@@ -18,7 +18,12 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { GLOBAL_IMPORT_COLUMNS } from '../persons/csv-columns';
 import { DIRECTORY_WEAPONS_SHOWN, readFighterWeaponNames } from './fighter-weapon-names';
-import { replaceFighterWeaponsFromCell } from './weapon-import.util';
+import {
+  readWeaponCatalog,
+  replaceFighterWeaponsFromCell,
+  unknownWeaponNames,
+  type CatalogWeaponRow,
+} from './weapon-import.util';
 import { isFieldPublic, VISIBILITY_FIELDS, type VisibilityField } from './public-visibility';
 import {
   applyReachable,
@@ -803,6 +808,8 @@ export class FightersService {
 
   async updateMyProfile(userId: string, dto: UpdateMyFighterProfileDto) {
     await this.assertFighterOwner(dto.fighterId, userId);
+    // Before anything is written: a refused weapon refuses the whole save (ruling 695).
+    if (dto.weapons) await this.assertCatalogWeapons(dto.weapons.map((weapon) => weapon.weaponId));
 
     const mainClubId = dto.mainClub ? await this.resolveClubInput(dto.mainClub) : dto.clubId;
     const updateDto: UpdateFighterDto = {
@@ -1552,55 +1559,45 @@ export class FightersService {
     if (error) throw new BadRequestException(error.message);
   }
 
-  private async resolveWeaponInput(input: {
-    weaponId?: string;
-    weaponName?: string;
-  }): Promise<string | null> {
-    if (input.weaponId) return input.weaponId;
-    const name = input.weaponName?.trim();
-    if (!name) return null;
-
-    const slug = slugify(name);
-    const { data: existing } = await this.supabase.service
-      .from('weapon_catalog')
-      .select('id')
-      .eq('slug', slug)
-      .maybeSingle();
-    if (existing) return String((existing as Row)['id']);
-
+  /**
+   * Refuses an id that is not in the catalog (ruling 695), and one given twice (the unique pair
+   * would fail the insert after the delete).
+   */
+  private async assertCatalogWeapons(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException('Pick each weapon once');
+    }
     const { data, error } = await this.supabase.service
       .from('weapon_catalog')
-      .insert({ name, slug })
       .select('id')
-      .single();
-    if (error) throw new BadRequestException(error.message);
-    return String((data as Row)['id']);
+      .in('id', ids);
+    if (error) throw new Error(`weapon catalogue read failed: ${error.message}`);
+    const known = new Set(((data ?? []) as Row[]).map((row) => String(row['id'])));
+    if (ids.some((id) => !known.has(id))) {
+      throw new BadRequestException('Pick a weapon from the list');
+    }
   }
 
+  /** The ids were checked against the catalog before the save wrote anything (ruling 695). */
   private async replaceFighterWeapons(
     fighterId: string,
     weapons: Array<{
-      weaponId?: string;
-      weaponName?: string;
+      weaponId: string;
       favorite?: boolean;
       level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
       style?: string | null;
     }>,
   ): Promise<void> {
     await this.supabase.service.from('fighter_weapons').delete().eq('global_person_id', fighterId);
-    const rows: Row[] = [];
-    for (const [index, weapon] of weapons.entries()) {
-      const weaponId = await this.resolveWeaponInput(weapon);
-      if (!weaponId) continue;
-      rows.push({
-        global_person_id: fighterId,
-        weapon_id: weaponId,
-        favorite: Boolean(weapon.favorite),
-        level: weapon.level ?? null,
-        style: weapon.style?.trim() || null,
-        sort_order: index,
-      });
-    }
+    const rows: Row[] = weapons.map((weapon, index) => ({
+      global_person_id: fighterId,
+      weapon_id: weapon.weaponId,
+      favorite: Boolean(weapon.favorite),
+      level: weapon.level ?? null,
+      style: weapon.style?.trim() || null,
+      sort_order: index,
+    }));
     if (rows.length === 0) return;
     const { error } = await this.supabase.service.from('fighter_weapons').insert(rows);
     if (error) throw new BadRequestException(error.message);
@@ -2221,6 +2218,21 @@ export class FightersService {
     return data;
   }
 
+  /**
+   * The catalog the preview checks weapons against. An add-on to the preview: if it cannot be read,
+   * the preview still loads with no weapon marked, and the commit skips unknown names as usual.
+   */
+  private async previewWeaponCatalog(): Promise<CatalogWeaponRow[] | null> {
+    try {
+      return await readWeaponCatalog(this.supabase.service as never);
+    } catch (err) {
+      this.logger.warn(
+        `import preview: weapons not checked: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
+
   async previewGlobalPersonsImport(buffer: Buffer): Promise<{
     summary: { total: number; ok: number; invalid: number; duplicate: number };
     /** The file's headers, as written, that name no column this import reads. */
@@ -2231,6 +2243,8 @@ export class FightersService {
       /** Why an invalid row is refused; null on the others. */
       problem: ImportRowProblem | null;
       duplicate: { id: string; displayName: string } | null;
+      /** The row's weapons that are not on the list; the commit skips them (ruling 703). */
+      unknownWeapons: string[];
       raw: string;
       fields: {
         givenName: string;
@@ -2254,6 +2268,7 @@ export class FightersService {
     const parsed = this.csvImport.parse(buffer, GLOBAL_IMPORT_COLUMNS);
     const validRows = parsed.rows;
     const invalidRows = parsed.invalid;
+    const catalog = await this.previewWeaponCatalog();
 
     // Collect lookup keys for duplicate detection
     const nameKeys = new Set<string>();
@@ -2297,6 +2312,7 @@ export class FightersService {
         status: 'invalid',
         problem: { reason: inv.reason, value: inv.value },
         duplicate: null,
+        unknownWeapons: [], // an invalid row is not imported at all
         raw: inv.raw ?? '',
         fields: {
           givenName: '',
@@ -2328,6 +2344,7 @@ export class FightersService {
         status: duplicate ? 'duplicate' : 'ok',
         problem: null,
         duplicate,
+        unknownWeapons: catalog ? unknownWeaponNames(catalog, row.weapons) : [],
         raw: '',
         fields: {
           givenName: row.given_name,

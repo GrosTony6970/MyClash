@@ -2646,6 +2646,17 @@ short. Find ignores `listed_in_directory`: the FightBook switch is the one contr
 shows the fighter's photo, club and up to 3 declared weapons, favourites first
 (`modules/fighters/fighter-weapon-names.ts`, which throws when its read fails).
 
+**Only super admins add catalog weapons (rulings 695, 702, 703).** Find's filter and the ask form
+list the catalog's active weapons, so no other door may create one. A fighter declares at most 20
+weapons (`MAX_FIGHTER_WEAPONS`), each a catalog id: the profile save refuses an id that is not in
+the catalog ("Pick a weapon from the list"), or given twice, before it writes any part of the
+profile. The list a fighter picks from is the whole catalog, hidden weapons included; hiding keeps
+a weapon off Find, the ask form, Tournaments and Workshops only. Both CSV imports match each name
+to the catalog by name, then by slug (a rename keeps the slug), and skip a name that matches
+nothing (`weapon-import.util.ts`). The Global Profiles preview names the skipped weapons on their
+row; the organiser's roster import skips them silently. Super admins add, rename, hide and delete weapons on
+`/admin/weapons`.
+
 **The button never sits in public page data.** The public fighter page and the people lookup are
 open to signed-out visitors, so they carry no FightBook state: `fighters.service.test.ts` pins the
 public keys. The browser loads the button after the page (`ProfileAskToSpar.tsx`,

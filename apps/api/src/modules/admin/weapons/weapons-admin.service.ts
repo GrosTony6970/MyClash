@@ -108,8 +108,8 @@ export class WeaponsAdminService {
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    // Slug stays immutable (it's the stable key fighter imports resolve by) —
-    // only the display name and active flag are editable.
+    // Slug stays immutable (a fighter import still matches a renamed weapon's
+    // old spelling by it) — only the display name and active flag are editable.
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.active !== undefined) updates['active'] = dto.active;
 

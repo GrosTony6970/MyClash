@@ -45,6 +45,7 @@ export const admin = {
     abvPlaceholder: 'Abv',
     optionalPlaceholder: 'optionnel',
     duplicateOfPrefix: 'Doublon de',
+    unknownWeapons: 'Hors de la liste des armes : {names}',
     doneSummary: '{created} créés, {updated} mis à jour.',
     nothingImportedTitle: "Rien n'a été importé.",
     nothingImportedBody:

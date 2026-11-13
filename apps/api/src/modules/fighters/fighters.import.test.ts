@@ -5,7 +5,7 @@
  * report say which line of the file a row is and why it was refused, by a code (O17).
  */
 import { describe, expect, it } from 'vitest';
-import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { CsvImportService } from '../persons/csv-import.service';
 import { FightersService } from './fighters.service';
 
@@ -92,5 +92,35 @@ describe('the preview of a Global Profiles file', () => {
     ]);
     // O18: this import reads no notes, and says so.
     expect(preview.unknownColumns).toEqual(['notes']);
+  });
+});
+
+// Ruling 703: the preview names each row's weapons that are not on the list; the commit skips them.
+describe("the preview names a row's weapons that are not on the list", () => {
+  const file =
+    'given_name,family_name,weapons\nAda,Lovelace,Longsword|Longsowrd\nBob,Jones,Longsword\n';
+
+  it('marks the unknown names, row by row, from ONE read of the catalog', async () => {
+    const db = mockSupabase({
+      global_persons: { rows: [] },
+      weapon_catalog: { rows: [{ id: 'w-ls', name: 'Longsword', slug: 'longsword' }] },
+    });
+    const service = new FightersService(db as never, new CsvImportService());
+    const preview = await service.previewGlobalPersonsImport(Buffer.from(file));
+    expect(preview.rows.map(({ index, unknownWeapons }) => ({ index, unknownWeapons }))).toEqual([
+      { index: 2, unknownWeapons: ['Longsowrd'] },
+      { index: 3, unknownWeapons: [] },
+    ]);
+    expect(selectsFor(db.from, 'weapon_catalog')).toEqual(['id, name, slug']);
+  });
+
+  it('still loads, marking nothing, when the catalog cannot be read', async () => {
+    const db = mockSupabase({
+      global_persons: { rows: [] },
+      weapon_catalog: { error: { message: 'down' } },
+    });
+    const service = new FightersService(db as never, new CsvImportService());
+    const preview = await service.previewGlobalPersonsImport(Buffer.from(file));
+    expect(preview.rows.map((row) => row.unknownWeapons)).toEqual([[], []]);
   });
 });

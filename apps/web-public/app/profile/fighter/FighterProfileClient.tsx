@@ -27,6 +27,7 @@ import {
   profileFormProblems,
   type MedalProblem,
 } from '@/lib/fighter-profile-checks';
+import { weaponsToSave, type WeaponLevel } from '@/lib/profile-weapons';
 
 // Profile-photo upload limits. Mirrors the server cap (15 MB) and the
 // PNG/JPEG/WebP allowlist enforced by FightersService.uploadMyPhoto.
@@ -55,8 +56,6 @@ interface ClubLink {
   role?: string;
   clubs?: { id?: string | null; name?: string | null } | null;
 }
-
-type WeaponLevel = 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced';
 
 interface WeaponLink {
   favorite?: boolean;
@@ -499,14 +498,7 @@ export function FighterProfileClient({
   }, [load]);
 
   const selectedWeaponRows = useMemo(
-    () =>
-      Object.entries(form.selectedWeapons).map(([weaponId, weapon]) => ({
-        weaponId,
-        weaponName: weapon.name,
-        favorite: weapon.favorite,
-        level: weapon.level,
-        style: weapon.style.trim() || null,
-      })),
+    () => weaponsToSave(form.selectedWeapons),
     [form.selectedWeapons],
   );
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { MAX_FIGHTER_WEAPONS } from './fighter-weapon-names';
-import { parseWeaponsCell, replaceFighterWeaponsFromCell } from './weapon-import.util';
+import {
+  matchCatalogWeapon,
+  parseWeaponsCell,
+  replaceFighterWeaponsFromCell,
+  unknownWeaponNames,
+} from './weapon-import.util';
 
 describe('parseWeaponsCell', () => {
   it('keeps the first 20 entries of a longer cell, the first still the favourite', () => {
@@ -39,81 +45,105 @@ describe('parseWeaponsCell', () => {
   });
 });
 
+// A super admin renamed "Sword and Buckler" to "Sword & Buckler"; the slug stayed.
+const CATALOG = [
+  { id: 'w-ls', name: 'Longsword', slug: 'longsword', active: true },
+  { id: 'w-sb', name: 'Sword & Buckler', slug: 'sword-and-buckler', active: true },
+  { id: 'w-ra', name: 'Rapier', slug: 'rapier', active: false },
+];
+
+describe('matching a CSV name to the catalog (ruling 695)', () => {
+  it('matches the name whatever its case and spacing', () => {
+    expect(matchCatalogWeapon(CATALOG, '  LONGSWORD ')).toBe('w-ls');
+    expect(matchCatalogWeapon(CATALOG, 'sword & buckler')).toBe('w-sb');
+  });
+
+  it("matches a renamed weapon's old spelling by its slug", () => {
+    expect(matchCatalogWeapon(CATALOG, 'Sword and Buckler')).toBe('w-sb');
+  });
+
+  it("prefers a weapon's name to another weapon's old slug", () => {
+    // "Sabre" was renamed "Military Sabre" (slug kept); a later weapon was named "Sabre".
+    const renamed = [
+      { id: 'w-old', name: 'Military Sabre', slug: 'sabre' },
+      { id: 'w-new', name: 'Sabre', slug: 'hungarian-sabre' },
+    ];
+    expect(matchCatalogWeapon(renamed, 'Sabre')).toBe('w-new');
+  });
+
+  it('matches a hidden weapon: the list is the whole catalog (ruling 702)', () => {
+    expect(matchCatalogWeapon(CATALOG, 'Rapier')).toBe('w-ra');
+  });
+
+  it('matches nothing for an unknown name or a name with no letter', () => {
+    expect(matchCatalogWeapon(CATALOG, 'Longsowrd')).toBeNull();
+    expect(matchCatalogWeapon([...CATALOG, { id: 'w-x', name: '?', slug: '' }], '!!!')).toBeNull();
+  });
+
+  it('names the unknown entries of a cell, in cell order (ruling 703)', () => {
+    expect(unknownWeaponNames(CATALOG, 'Longsword|Longsowrd:beginner|Sabre')).toEqual([
+      'Longsowrd',
+      'Sabre',
+    ]);
+    expect(unknownWeaponNames(CATALOG, 'Longsword|Rapier')).toEqual([]);
+    expect(unknownWeaponNames(CATALOG, '')).toEqual([]);
+  });
+});
+
 describe('replaceFighterWeaponsFromCell', () => {
-  function makeClient(existingWeaponIds: Record<string, string> = {}) {
-    const inserts: Record<string, unknown[]> = {};
-    const deletes: string[] = [];
-    const service = {
-      from: (table: string) => ({
-        select: () => ({
-          eq: (_col: string, value: unknown) => ({
-            maybeSingle: () =>
-              Promise.resolve({
-                data: existingWeaponIds[value as string]
-                  ? { id: existingWeaponIds[value as string] }
-                  : null,
-                error: null,
-              }),
-          }),
-        }),
-        insert: (payload: Record<string, unknown> | Record<string, unknown>[]) => {
-          const items = Array.isArray(payload) ? payload : [payload];
-          inserts[table] = [...(inserts[table] ?? []), ...items];
-          const chain = {
-            select: () => ({
-              single: () =>
-                Promise.resolve({ data: { id: `new-${table}-${items.length}` }, error: null }),
-            }),
-            then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
-          };
-          return chain;
-        },
-        delete: () => ({
-          eq: (_col: string, value: unknown) => {
-            deletes.push(value as string);
-            return Promise.resolve({ error: null });
-          },
-        }),
-      }),
-    };
-    return { service, inserts, deletes };
-  }
+  const importing = () =>
+    mockSupabase({ weapon_catalog: { rows: CATALOG }, fighter_weapons: { rows: [] } });
 
   it('is a no-op for an empty cell (never wipes existing weapons)', async () => {
-    const { service, inserts, deletes } = makeClient();
-    await replaceFighterWeaponsFromCell(service as never, 'gp-1', '');
-    expect(deletes).toEqual([]);
-    expect(inserts['fighter_weapons']).toBeUndefined();
+    const db = importing();
+    await replaceFighterWeaponsFromCell(db.service as never, 'gp-1', '');
+    expect(db.writes).toEqual([]);
+    expect(selectsFor(db.from, 'weapon_catalog')).toEqual([]);
   });
 
-  it('resolves catalog ids (existing by slug) and inserts fighter_weapons', async () => {
-    const { service, inserts, deletes } = makeClient({ longsword: 'w-ls' });
-    await replaceFighterWeaponsFromCell(service as never, 'gp-1', 'Longsword:advanced');
-    // deletes existing rows first, then inserts the new set
-    expect(deletes).toEqual(['gp-1']);
-    const rows = inserts['fighter_weapons'] as Array<Record<string, unknown>>;
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      global_person_id: 'gp-1',
-      weapon_id: 'w-ls',
-      favorite: true,
-      level: 'advanced',
-      sort_order: 0,
-    });
+  it('links catalog weapons and skips an unknown one (ruling 703)', async () => {
+    const db = importing();
+    await replaceFighterWeaponsFromCell(
+      db.service as never,
+      'gp-1',
+      'Longsowrd|Longsword:advanced|Sword and Buckler',
+    );
+    expect(selectsFor(db.from, 'weapon_catalog')).toEqual(['id, name, slug']);
+    const writes = writesTo(db, 'fighter_weapons');
+    expect(writes.map((w) => w.op)).toEqual(['delete', 'insert']);
+    expect(writes[1]?.row).toEqual([
+      {
+        global_person_id: 'gp-1',
+        weapon_id: 'w-ls',
+        favorite: false,
+        level: 'advanced',
+        sort_order: 1,
+      },
+      { global_person_id: 'gp-1', weapon_id: 'w-sb', favorite: false, level: null, sort_order: 2 },
+    ]);
   });
 
-  it('creates missing weapon_catalog rows for unknown weapons', async () => {
-    const { service, inserts } = makeClient();
-    await replaceFighterWeaponsFromCell(service as never, 'gp-1', 'Obscure Weapon');
-    // a weapon_catalog insert happened for the unknown weapon
-    expect(inserts['weapon_catalog']).toHaveLength(1);
-    expect((inserts['weapon_catalog'] as Array<Record<string, unknown>>)[0]).toMatchObject({
-      name: 'Obscure Weapon',
-      slug: 'obscure-weapon',
-      // Import-created rows are inactive until a super-admin promotes them, so
-      // unvetted names never leak into the strict tournament/workshop picker.
-      active: false,
-    });
-    expect(inserts['fighter_weapons']).toHaveLength(1);
+  it('links a weapon once when the cell spells it twice', async () => {
+    const db = importing();
+    await replaceFighterWeaponsFromCell(
+      db.service as never,
+      'gp-1',
+      'Sword & Buckler|Sword and Buckler',
+    );
+    expect(writesTo(db, 'fighter_weapons')[1]?.row).toEqual([
+      expect.objectContaining({ weapon_id: 'w-sb', favorite: true }),
+    ]);
+  });
+
+  it('keeps the existing weapons when no name in the cell is on the list', async () => {
+    const db = importing();
+    await replaceFighterWeaponsFromCell(db.service as never, 'gp-1', 'Longsowrd|Obscure Weapon');
+    expect(writesTo(db, 'fighter_weapons')).toEqual([]);
+  });
+
+  it('never writes the catalog (ruling 695)', async () => {
+    const db = importing();
+    await replaceFighterWeaponsFromCell(db.service as never, 'gp-1', 'Obscure Weapon|Longsword');
+    expect(writesTo(db, 'weapon_catalog')).toEqual([]);
   });
 });

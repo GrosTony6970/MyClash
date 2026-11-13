@@ -11840,8 +11840,7 @@ export interface components {
       }[];
       weapons?: {
         /** Format: uuid */
-        weaponId?: string;
-        weaponName?: string;
+        weaponId: string;
         favorite?: boolean;
         /** @enum {string|null} */
         level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
