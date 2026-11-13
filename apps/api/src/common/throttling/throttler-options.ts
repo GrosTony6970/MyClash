@@ -14,11 +14,18 @@ import {
 import { FIGHTBOOK_ASK_THROTTLER, skipFightBookAskThrottle } from './throttle-fightbook-ask';
 import { FIGHTBOOK_CALL_THROTTLER, skipFightBookCallThrottle } from './throttle-fightbook-call';
 import {
+  FIGHTBOOK_QR_MINT_THROTTLER,
+  skipFightBookQrMintThrottle,
+} from './throttle-fightbook-qr-mint';
+import { FIGHTBOOK_SCAN_THROTTLER, skipFightBookScanThrottle } from './throttle-fightbook-scan';
+import {
   AUTH_ACCOUNT_THROTTLE,
   AUTH_EMAIL_THROTTLE,
   AUTH_MAIL_THROTTLE,
   FIGHTBOOK_ASK_THROTTLE,
   FIGHTBOOK_CALL_THROTTLE,
+  FIGHTBOOK_QR_MINT_THROTTLE,
+  FIGHTBOOK_SCAN_THROTTLE,
 } from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
@@ -40,6 +47,10 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                @ThrottleFightBookAsk; keyed as auth-account is, in its own bucket.
  * `fightbook-call` — open calls posted per hour per signed-in account, on routes marked
  *                @ThrottleFightBookCall; keyed as fightbook-ask is, in a bucket apart from it.
+ * `fightbook-scan` — QR scans per hour per signed-in account, on routes marked
+ *                @ThrottleFightBookScan; keyed as fightbook-ask is, in a bucket apart from it.
+ * `fightbook-qr-mint` — QR codes minted per hour per signed-in account, on routes
+ *                marked @ThrottleFightBookQrMint; keyed as fightbook-ask is, in its own bucket.
  * `auth-account` — checks of a current password per hour per signed-in account,
  *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
  *                account of the request's login, never on `req.ip`.
@@ -109,6 +120,24 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       getTracker: authAccountTracker,
       generateKey: (_context, tracker) => `${FIGHTBOOK_CALL_THROTTLER}:${tracker}`,
       skipIf: skipFightBookCallThrottle,
+    },
+    {
+      name: FIGHTBOOK_SCAN_THROTTLER,
+      ttl: FIGHTBOOK_SCAN_THROTTLE.ttl,
+      limit: FIGHTBOOK_SCAN_THROTTLE.limit,
+      // The account, hashed, as for fightbook-ask; its own bucket by name, apart from the asks.
+      getTracker: authAccountTracker,
+      generateKey: (_context, tracker) => `${FIGHTBOOK_SCAN_THROTTLER}:${tracker}`,
+      skipIf: skipFightBookScanThrottle,
+    },
+    {
+      name: FIGHTBOOK_QR_MINT_THROTTLER,
+      ttl: FIGHTBOOK_QR_MINT_THROTTLE.ttl,
+      limit: FIGHTBOOK_QR_MINT_THROTTLE.limit,
+      // The account, hashed, as for fightbook-ask; its own bucket by name.
+      getTracker: authAccountTracker,
+      generateKey: (_context, tracker) => `${FIGHTBOOK_QR_MINT_THROTTLER}:${tracker}`,
+      skipIf: skipFightBookQrMintThrottle,
     },
   ],
   skipIf: isThrottleWhitelisted,

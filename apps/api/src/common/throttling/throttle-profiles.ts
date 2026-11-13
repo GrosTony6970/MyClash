@@ -104,6 +104,24 @@ export const FIGHTBOOK_CALL_THROTTLE = {
   ttl: 3_600_000,
 } as const;
 
+/**
+ * QR scans per hour per signed-in account (FightBook slice 5; see ThrottleFightBookScan). A scan
+ * writes a spar request, as an ask does, in a bucket apart from the asks'.
+ */
+export const FIGHTBOOK_SCAN_THROTTLE = {
+  limit: 20,
+  ttl: 3_600_000,
+} as const;
+
+/**
+ * QR codes minted per hour per signed-in account (FightBook slice 5, Decision 11; see
+ * ThrottleFightBookQrMint). A screen re-minting every 4.5 minutes uses about thirteen.
+ */
+export const FIGHTBOOK_QR_MINT_THROTTLE = {
+  limit: 60,
+  ttl: 3_600_000,
+} as const;
+
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;
