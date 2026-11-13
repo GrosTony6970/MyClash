@@ -8778,6 +8778,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/fightbook/events/{eventId}/calls': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Today's open calls at an Event I am at: mine, and the others */
+    get: operations['FightBookFloorController_readCalls'];
+    put?: never;
+    /** Post an open call for a spar today at an Event I am at */
+    post: operations['FightBookFloorController_postCall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/calls/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Close my open call */
+    delete: operations['FightBookFloorController_closeCall'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/calls/{id}/answer': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Answer an open call: I'm in */
+    put: operations['FightBookFloorController_answerCall'];
+    post?: never;
+    /** Take back my I'm in on an open call */
+    delete: operations['FightBookFloorController_takeBackAnswer'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/fightbook/calls/{id}/pick': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pick an answer of my open call: the spar is agreed */
+    post: operations['FightBookFloorController_pickAnswer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/fightbook/requests/{id}/done': {
     parameters: {
       query?: never;
@@ -12778,6 +12848,14 @@ export interface components {
       message?: string;
     };
     BlockDto: {
+      /** Format: uuid */
+      globalPersonId: string;
+    };
+    PostCallDto: {
+      weapons: string[];
+      time: string;
+    };
+    PickDto: {
       /** Format: uuid */
       globalPersonId: string;
     };
@@ -26073,6 +26151,128 @@ export interface operations {
     requestBody?: never;
     responses: {
       204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_readCalls: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_postCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PostCallDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_closeCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_answerCall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_takeBackAnswer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightBookFloorController_pickAnswer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PickDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

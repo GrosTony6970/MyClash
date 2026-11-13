@@ -104,6 +104,17 @@ describe('the notices of the Tournament day', () => {
       emailSubject: 'Un spar a été marqué comme fait / A spar was marked as done',
       body: "Vous pouvez l'annuler jusqu'à deux jours après le jour du spar. / You can undo it until two days after the spar day.",
     });
+    expect(texts.sparCallAnswered()).toEqual({
+      title: 'Quelqu’un répond présent à votre appel ouvert / Someone is in for your open call',
+      emailSubject:
+        'Quelqu’un répond présent à votre appel ouvert / Someone is in for your open call',
+      body: 'Ouvrez FightBook pour choisir avec qui faire le spar. / Open FightBook to pick who you spar with.',
+    });
+    expect(texts.sparCallPicked()).toEqual({
+      title: 'Votre réponse a été retenue / You were picked',
+      emailSubject: 'Votre réponse a été retenue / You were picked',
+      body: 'Le spar est dans Mes spars. / The spar is in My spars.',
+    });
     expect(texts.sparFlagRaised()).toEqual({
       title: 'Un signalement de sécurité à examiner / A safety report needs a look',
       emailSubject: 'Un signalement de sécurité à examiner / A safety report needs a look',

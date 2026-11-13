@@ -19,6 +19,7 @@
  * first: a draft's alert is dropped without reading who wanted it. A wrong TIME is not this
  * check's business: the retime owns it.
  */
+import { callIsOpen, type OpenCallStatus } from '../modules/fightbook/open-call-views';
 import type { SupabaseService } from '../modules/supabase/supabase.service';
 import type { NotificationKind, ScheduledNotificationJob } from './notification-scheduler.worker';
 import { refereeAlertFollowers } from './referee-alert-followers';
@@ -206,6 +207,24 @@ const holdsAFightersRow: Wanted = async (db, boutId, userId) => {
   return (await heldRows(db, userId, fighters)).length > 0;
 };
 
+/** "Someone is in": the open call is still OPEN, so the poster can still pick (`callIsOpen`). */
+const callStillOpen: Wanted = async (db, callId) => {
+  const call = read<{ status: OpenCallStatus; closes_at: string } | null>(
+    'alert open call',
+    await db.from('spar_open_calls').select('status, closes_at').eq('id', callId).maybeSingle(),
+  );
+  return call !== null && callIsOpen(call, new Date());
+};
+
+/** "You were picked": the spar the pick agreed is still agreed (not cancelled since). */
+const sparStillAgreed: Wanted = async (db, requestId) => {
+  const spar = read<{ status: string } | null>(
+    'alert spar',
+    await db.from('spar_requests').select('status').eq('id', requestId).maybeSingle(),
+  );
+  return spar?.status === 'agreed';
+};
+
 /**
  * What each kind is checked against when it fires; null = not checked here. Every kind is named:
  * a new one fails the typecheck until it is placed.
@@ -239,6 +258,9 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   spar_cancelled: null,
   spar_marked_done: null,
   spar_flag_raised: null,
+  // FightBook open calls (slice 5, Decision 15).
+  spar_call_answered: callStillOpen,
+  spar_call_picked: sparStillAgreed,
 };
 
 export async function isStillWanted(

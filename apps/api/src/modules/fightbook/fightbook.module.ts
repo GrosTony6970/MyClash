@@ -7,6 +7,7 @@ import { FightBookFavouritesService } from './fightbook-favourites.service';
 import { FightBookController } from './fightbook.controller';
 import { FightBookFloorController } from './fightbook-floor.controller';
 import { FreeNowService } from './free-now.service';
+import { OpenCallsService } from './open-calls.service';
 import { FightBookSettingsService } from './fightbook-settings.service';
 import { SparAfterService } from './spar-after.service';
 import { ClubSparFlagsController, PlatformSparFlagsController } from './spar-flag-admin.controller';
@@ -44,6 +45,7 @@ import { SparThanksService } from './spar-thanks.service';
     SparThanksService,
     FightBookFavouritesService,
     FreeNowService,
+    OpenCallsService,
   ],
 })
 export class FightBookModule {}

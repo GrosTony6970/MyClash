@@ -194,6 +194,11 @@ describe('SparRequestsService.ask', () => {
     ['already_asked', ConflictException, 409],
     ['not_again', ConflictException, 409],
     ['self', BadRequestException, 400],
+    // Decision 14: a word the database raises about the request's own shape is a 400, so the
+    // status never tells which side refused.
+    ['bad_answer', BadRequestException, 400],
+    ['bad_code', BadRequestException, 400],
+    ['bad_event', BadRequestException, 400],
     ['fightbook_off', ForbiddenException, 403],
     ['not_on_fightbook', ForbiddenException, 403],
     ['you_blocked', ForbiddenException, 403],

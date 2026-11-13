@@ -18,6 +18,9 @@ const KEYS: Record<SparRefusalCode, KnownTranslationKey> = {
   bad_answer: 'publicApp.fightBook.refusal.bad_answer',
   self: 'publicApp.fightBook.refusal.self',
   favourites_full: 'publicApp.fightBook.refusal.favourites_full',
+  too_many_calls: 'publicApp.fightBook.refusal.too_many_calls',
+  bad_time: 'publicApp.fightBook.refusal.bad_time',
+  bad_code: 'publicApp.fightBook.refusal.bad_code',
 };
 
 /** The sentence for a FightBook refusal `code`; anything else, the general one. */

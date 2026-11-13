@@ -7,6 +7,8 @@ import type {
 } from '../../workers/notification-scheduler.worker';
 import {
   sparAgreed,
+  sparCallAnswered,
+  sparCallPicked,
   sparCancelled,
   sparMarkedDone,
   sparRequestReceived,
@@ -22,6 +24,7 @@ export interface SparNoticeDeps {
 
 const INBOX = '/me/fightbook?tab=inbox';
 const SPARS = '/me/fightbook?tab=spars';
+const FIND = '/me/fightbook?tab=find';
 
 /** A new request, to the fighter asked. */
 export const notifySparRequestReceived = (d: SparNoticeDeps, requestId: string, receiver: string) =>
@@ -38,6 +41,40 @@ export const notifySparCancelled = (d: SparNoticeDeps, requestId: string, other:
 /** "We sparred", to the other fighter. Undo sends nothing. */
 export const notifySparMarkedDone = (d: SparNoticeDeps, requestId: string, other: string) =>
   notify(d, 'spar_marked_done', requestId, other, sparMarkedDone(), SPARS);
+
+/** "You were picked", to the fighter the poster of an open call chose; about the agreed spar. */
+export const notifySparCallPicked = (d: SparNoticeDeps, requestId: string, picked: string) =>
+  notify(d, 'spar_call_picked', requestId, picked, sparCallPicked(), SPARS);
+
+/**
+ * "Someone is in", to the poster of an open call, about the call: its job id is (kind, call,
+ * poster), so a later answer does not ring again. Not sent when the poster blocked the answerer.
+ * That block is read HERE, inside the send the answer route starts and does not wait for, so the
+ * answer reaches the answerer the same way and as fast whether she blocked him or not (ruling
+ * 672). Never throws: an unreadable block is logged and nothing is sent.
+ */
+export async function notifySparCallAnswered(
+  d: SparNoticeDeps,
+  callId: string,
+  poster: string,
+  answerer: string,
+): Promise<void> {
+  try {
+    const { data, error } = await d.db
+      .from('fightbook_blocks')
+      .select('id')
+      .eq('blocker_global_person_id', poster)
+      .eq('blocked_global_person_id', answerer)
+      .limit(1);
+    if (error) throw new Error(`blocks unreadable: ${error.message}`);
+    if ((data ?? []).length > 0) return;
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    d.logger.error(`FightBook spar_call_answered of ${callId} was not sent: ${reason}`);
+    return;
+  }
+  await notify(d, 'spar_call_answered', callId, poster, sparCallAnswered(), FIND);
+}
 
 /**
  * One FightBook notice to the account that holds `profileId`, with that account's own address

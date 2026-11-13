@@ -44,14 +44,49 @@ export interface SparAnswerInput {
   showComment?: boolean;
 }
 
-/** A database refusal word (P0001) as the API answers it; anything else is a 5xx. */
+/**
+ * The status a refusal word answers, wherever it is raised (the database or the API's own checks):
+ * 409 a race lost to the other fighter or to time, 400 what the request itself says, 403 who the
+ * caller or the other fighter is. Every word is named, so a new one fails the typecheck here
+ * until it is placed. `bad_code` and `bad_event` are 400 (Decision 14): the status of a refused
+ * scan must not tell which side refused.
+ */
+function refusalStatus(word: SparRefusalCode): 400 | 403 | 409 {
+  switch (word) {
+    case 'already_asked':
+    case 'not_again':
+    case 'not_open':
+    case 'favourites_full':
+      return 409;
+    case 'self':
+    case 'bad_answer':
+    case 'bad_code':
+    case 'bad_event':
+    case 'bad_day':
+    case 'bad_zone':
+    case 'bad_place':
+    case 'bad_weapon':
+    case 'bad_time':
+    case 'too_many_calls':
+      return 400;
+    case 'no_profile':
+    case 'fightbook_off':
+    case 'not_on_fightbook':
+    case 'you_blocked':
+      return 403;
+  }
+}
+
+/**
+ * A database refusal word (P0001) as the API answers it; anything else is a 5xx. A word no code
+ * names answers 403, as it always did.
+ */
 export function databaseRefusal(error: { code?: string; message: string }, what: string): Error {
   if (error.code !== 'P0001') return new Error(`${what} failed: ${error.message}`);
   const word = error.message as SparRefusalCode;
-  if (word === 'already_asked' || word === 'not_again' || word === 'not_open') {
-    return new ConflictException({ code: word, message: word });
-  }
-  if (word === 'self' || word === 'bad_answer') return badRequest(word, word);
+  const status = refusalStatus(word);
+  if (status === 409) return new ConflictException({ code: word, message: word });
+  if (status === 400) return badRequest(word, word);
   return refusal(word, word) as HttpException;
 }
 

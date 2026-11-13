@@ -162,9 +162,10 @@ describe('the archived-Event lock, API-wide', () => {
     // 198: `POST me/events/:eventId/join` (568), placed by its Event: nobody joins an archived
     // Event (nor a completed one, 573).
     // 200: FightBook's `PUT`/`DELETE me/fightbook/events/:eventId/free` (slice 5 floor tools),
-    // placed by their Event: nobody is free to spar at an archived Event (Task 5's `POST
-    // …/events/:eventId/calls` will make it 201).
-    expect(placed).toHaveLength(200);
+    // placed by their Event: nobody is free to spar at an archived Event.
+    // 201: FightBook's `POST me/fightbook/events/:eventId/calls` (slice 5 floor tools), placed
+    // by its Event: nobody posts an open call at an archived Event.
+    expect(placed).toHaveLength(201);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

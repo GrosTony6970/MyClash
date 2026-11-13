@@ -1,12 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { SparRefusalCode } from '@myclash/types';
-import { isPublicEvent } from '../../common/auth/event-read-gate';
-import { eventZone } from '../../common/event-clock';
 import { inListChunks } from '../../common/postgrest-in-list';
 import { SupabaseService } from '../supabase/supabase.service';
-import { isOnEventRoster } from './spar-askable';
-import { openEventDays, sparExpiresAt } from './spar-ask-rules';
+import { floorEvent, offTheFloor } from './floor-event';
+import { sparExpiresAt } from './spar-ask-rules';
 
 type Db = Pick<SupabaseClient, 'from'>;
 
@@ -70,27 +67,9 @@ export class FreeNowService {
    */
   async switchOn(me: string, eventId: string, now = new Date()): Promise<{ until: string }> {
     const db = this.supabase.service;
-    const { data, error } = await db
-      .from('events')
-      .select('id, status, organization_id, event_kind, start_date, end_date, timezone')
-      .eq('id', eventId)
-      .maybeSingle();
-    if (error) throw new Error(`FightBook Event read failed: ${error.message}`);
-    const event = data as {
-      status: string;
-      event_kind: string | null;
-      start_date: string;
-      end_date: string;
-      timezone: unknown;
-    } | null;
-    const today = event && isPublicEvent(event) ? openEventDays(event, now).today : null;
-    if (!event || !today || !(await isOnEventRoster(db, me, eventId))) {
-      throw new BadRequestException({
-        code: 'bad_event' satisfies SparRefusalCode,
-        message: 'You can be free to spar at a public Event you are at, on a day it runs',
-      });
-    }
-    const dayEnds = sparExpiresAt('event', today, eventZone(event.timezone).zone);
+    const { today, zone } = await floorEvent(db, me, eventId, now);
+    if (!today) throw offTheFloor();
+    const dayEnds = sparExpiresAt('event', today, zone);
     const until = new Date(Math.min(now.getTime() + FREE_NOW_MS, dayEnds?.getTime() ?? Infinity));
     const { error: writeError } = await db
       .from('fightbook_free_now')

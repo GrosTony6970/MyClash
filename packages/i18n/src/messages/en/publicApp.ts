@@ -1694,6 +1694,9 @@ export const publicApp = {
       bad_answer: 'That answer is not possible.',
       self: 'You cannot ask yourself.',
       favourites_full: 'You have {max} favourites. Remove one to add another.',
+      too_many_calls: 'You have the most open calls you can have today. Close one to post another.',
+      bad_time: 'Choose a time later today, before the Event day ends.',
+      bad_code: 'This code does not work any more. Ask for a new one.',
       unknown: 'Something went wrong. Try again.',
     },
     ask: {

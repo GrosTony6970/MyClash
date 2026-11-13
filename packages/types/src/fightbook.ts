@@ -217,6 +217,45 @@ export interface FindPage {
   more: boolean;
 }
 
+/**
+ * Where the caller stands on someone else's open call: `none` not answered, `in` answered while
+ * it is open, `picked` chosen for the spar, `not_this_time` answered and the call closed or went
+ * to someone else (ruling 706).
+ */
+export type OpenCallAnswer = 'none' | 'in' | 'picked' | 'not_this_time';
+
+/**
+ * Someone else's open call at an Event (ruling 712): who posted it and when, never who answered
+ * nor how many did.
+ */
+export interface OpenCallView {
+  id: string;
+  poster: SparFighter;
+  weapons: string[];
+  /** `HH:MM` on the Event's clock, today. */
+  time: string;
+  open: boolean;
+  myAnswer: OpenCallAnswer;
+}
+
+/** The caller's own open call: who answered "I'm in" (only the poster sees them) and the pick. */
+export interface MyOpenCall {
+  id: string;
+  weapons: string[];
+  /** `HH:MM` on the Event's clock, today. */
+  time: string;
+  state: 'open' | 'picked' | 'closed';
+  picked: SparFighter | null;
+  /** Oldest first; on an open call only (a closed or picked one can no longer be picked). */
+  answers: SparFighter[];
+}
+
+/** The open calls of today at an Event: the caller's own, and the others they may see. */
+export interface OpenCallsAtEvent {
+  mine: MyOpenCall[];
+  others: OpenCallView[];
+}
+
 /** The `code` of every FightBook refusal; the web turns each into its own sentence. */
 export const SPAR_REFUSAL_CODES = [
   'no_profile',
@@ -234,6 +273,9 @@ export const SPAR_REFUSAL_CODES = [
   'bad_answer',
   'self',
   'favourites_full',
+  'too_many_calls',
+  'bad_time',
+  'bad_code',
 ] as const;
 
 export type SparRefusalCode = (typeof SPAR_REFUSAL_CODES)[number];

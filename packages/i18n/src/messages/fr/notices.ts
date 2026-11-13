@@ -116,4 +116,12 @@ export const notices = {
     title: 'Un spar a été marqué comme fait',
     body: "Vous pouvez l'annuler jusqu'à deux jours après le jour du spar.",
   },
+  sparCallAnswered: {
+    title: 'Quelqu’un répond présent à votre appel ouvert',
+    body: 'Ouvrez FightBook pour choisir avec qui faire le spar.',
+  },
+  sparCallPicked: {
+    title: 'Votre réponse a été retenue',
+    body: 'Le spar est dans Mes spars.',
+  },
 } as const satisfies DeepString<typeof enNotices>;

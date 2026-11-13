@@ -299,3 +299,19 @@ export function sparMarkedDone(): NoticeEmailText {
     body: bilingual('notices.sparMarkedDone.body'),
   });
 }
+
+/** FightBook: someone answered "I'm in" to the poster's open call. No name, no count. */
+export function sparCallAnswered(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparCallAnswered.title'),
+    body: bilingual('notices.sparCallAnswered.body'),
+  });
+}
+
+/** FightBook: the poster of an open call picked this fighter; the spar is agreed. No name. */
+export function sparCallPicked(): NoticeEmailText {
+  return withSubject({
+    title: bilingual('notices.sparCallPicked.title'),
+    body: bilingual('notices.sparCallPicked.body'),
+  });
+}

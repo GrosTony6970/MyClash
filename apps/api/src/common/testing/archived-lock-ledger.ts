@@ -224,6 +224,14 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'PUT me/fightbook/favourites/:globalPersonId',
     'PUT me/fightbook/requests/:id/note',
   ],
+  // A call is posted only at a public Event on a day it runs (its own route is placed by
+  // `:eventId`); closing it, answering and picking act on that call, and the archive excludes it.
+  "FightBook open calls: a fighter's own call, answer or pick, not the Event record.": [
+    'DELETE me/fightbook/calls/:id',
+    'DELETE me/fightbook/calls/:id/answer',
+    'POST me/fightbook/calls/:id/pick',
+    'PUT me/fightbook/calls/:id/answer',
+  ],
   // A safety report is a snapshot of a spar, written once and read by the club's or the platform's
   // admins; marking it handled changes no Event row.
   'FightBook safety reports: the handled mark on a report, not the Event record.': [

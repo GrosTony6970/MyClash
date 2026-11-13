@@ -34,7 +34,10 @@ function controller({ on = false, hasProfile = true } = {}) {
     switchOn: vi.fn(async () => ({ until: '2026-05-23T19:00:00.000Z' })),
     switchOff: vi.fn(async () => undefined),
   };
-  return { ctl: new FightBookFloorController(supabase as never, freeNow as never), freeNow };
+  return {
+    ctl: new FightBookFloorController(supabase as never, freeNow as never, {} as never),
+    freeNow,
+  };
 }
 
 const code = async (call: Promise<unknown>) => {

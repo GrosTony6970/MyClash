@@ -66,6 +66,10 @@ export type ImmediateNotificationKind =
   | 'spar_agreed'
   | 'spar_cancelled'
   | 'spar_marked_done'
+  // FightBook (slice 5): "someone is in" to the poster of an open call, once per call (the job id),
+  // and "you were picked" to the fighter the poster chose. Nobody not picked is told.
+  | 'spar_call_answered'
+  | 'spar_call_picked'
   // FightBook (slice 4): a safety flag, to the club's admins or the super admins. Goes like any
   // notice, and passes the main switch: switched off, it still comes by email (ruling 698).
   | 'spar_flag_raised';

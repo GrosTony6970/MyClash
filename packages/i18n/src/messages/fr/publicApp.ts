@@ -1705,6 +1705,11 @@ export const publicApp = {
       bad_answer: 'Cette réponse n’est pas possible.',
       self: 'Vous ne pouvez pas vous solliciter vous-même.',
       favourites_full: 'Vous avez {max} favoris. Retirez-en un pour en ajouter un autre.',
+      too_many_calls:
+        'Vous avez le nombre maximal d’appels ouverts pour aujourd’hui. Fermez-en un pour en publier un autre.',
+      bad_time:
+        'Choisissez une heure plus tard aujourd’hui, avant la fin de la journée de l’événement.',
+      bad_code: 'Ce code ne fonctionne plus. Demandez-en un nouveau.',
       unknown: 'Une erreur est survenue. Réessayez.',
     },
     ask: {

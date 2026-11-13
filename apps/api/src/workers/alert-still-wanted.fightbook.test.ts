@@ -1,0 +1,77 @@
+/**
+ * The open-call notices (FightBook slice 5, Decision 15) ring only while they still mean
+ * something when they fire: "someone is in" while the call is still OPEN (the poster can still
+ * pick), "you were picked" while the spar the pick agreed is still agreed.
+ */
+import { describe, expect, it } from 'vitest';
+import {
+  filtersFor,
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  type SupabaseRow,
+} from '../common/testing/supabase-chain';
+import { isStillWanted } from './alert-still-wanted';
+
+const CALL = 'call-1';
+const SPAR = 'spar-1';
+const LATER = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+const EARLIER = new Date(Date.now() - 60 * 1000).toISOString();
+
+function answered(call: SupabaseRow | null) {
+  const db = mockSupabase({ spar_open_calls: { rows: call ? [{ id: CALL, ...call }] : [] } });
+  const job = { kind: 'spar_call_answered', entityId: CALL, userId: 'u-julie' } as const;
+  return { db, answer: isStillWanted(db as never, job) };
+}
+
+function picked(spar: SupabaseRow | null) {
+  const db = mockSupabase({ spar_requests: { rows: spar ? [{ id: SPAR, ...spar }] : [] } });
+  const job = { kind: 'spar_call_picked', entityId: SPAR, userId: 'u-marc' } as const;
+  return { db, answer: isStillWanted(db as never, job) };
+}
+
+describe('"someone is in" rings only while the call is open', () => {
+  it('rings for an open call before its time', async () => {
+    const { db, answer } = answered({ status: 'open', closes_at: LATER });
+    await expect(answer).resolves.toBe(true);
+    expect(queriedTables(db.from)).toEqual(['spar_open_calls']);
+    expect(selectsFor(db.from, 'spar_open_calls')).toEqual(['status, closes_at']);
+    expect(filtersFor(db.from, 'spar_open_calls', 'eq')).toEqual([['id', CALL]]);
+  });
+
+  it.each<[string, SupabaseRow | null]>([
+    ['the call passed its time', { status: 'open', closes_at: EARLIER }],
+    ['the poster closed it', { status: 'closed', closes_at: LATER }],
+    ['the poster already picked', { status: 'picked', closes_at: LATER }],
+    ['the call is gone', null],
+  ])('stays silent when %s', async (_, call) => {
+    await expect(answered(call).answer).resolves.toBe(false);
+  });
+});
+
+describe('"you were picked" rings only while the spar is agreed', () => {
+  it('rings for an agreed spar', async () => {
+    const { db, answer } = picked({ status: 'agreed' });
+    await expect(answer).resolves.toBe(true);
+    expect(queriedTables(db.from)).toEqual(['spar_requests']);
+    expect(selectsFor(db.from, 'spar_requests')).toEqual(['status']);
+    expect(filtersFor(db.from, 'spar_requests', 'eq')).toEqual([['id', SPAR]]);
+  });
+
+  it.each<[string, SupabaseRow | null]>([
+    ['the poster cancelled it', { status: 'cancelled' }],
+    ['the spar is gone', null],
+  ])('stays silent when %s', async (_, spar) => {
+    await expect(picked(spar).answer).resolves.toBe(false);
+  });
+});
+
+describe('a failed read fails the job, it does not say "not wanted"', () => {
+  it.each(['spar_call_answered', 'spar_call_picked'] as const)('%s', async (kind) => {
+    const failed = { data: null, error: { message: 'boom' } };
+    const db = mockSupabase({ spar_open_calls: failed, spar_requests: failed });
+    await expect(isStillWanted(db as never, { kind, entityId: 'x', userId: 'u' })).rejects.toThrow(
+      'boom',
+    );
+  });
+});

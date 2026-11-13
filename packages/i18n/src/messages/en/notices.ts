@@ -120,4 +120,12 @@ export const notices = {
     title: 'A spar was marked as done',
     body: 'You can undo it until two days after the spar day.',
   },
+  sparCallAnswered: {
+    title: 'Someone is in for your open call',
+    body: 'Open FightBook to pick who you spar with.',
+  },
+  sparCallPicked: {
+    title: 'You were picked',
+    body: 'The spar is in My spars.',
+  },
 } as const satisfies MessageTree;
