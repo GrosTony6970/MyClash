@@ -18,7 +18,7 @@
     "@aws-sdk/client-s3": "3.1154.0",
     "@aws-sdk/s3-request-presigner": "3.1154.0",
     "@fastify/cookie": "^11.1.5",
-    "@fastify/multipart": "^10.1.6",
+    "@fastify/multipart": "^10.1.8",
     "@google/genai": "^2.32.0",
     "@mistralai/mistralai": "^3.4.0",
     "@myclash/feature-flags": "workspace:^",
