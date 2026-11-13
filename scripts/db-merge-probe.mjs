@@ -23,6 +23,8 @@
  *     or an instructor line the restored profile already has, the account link only if the
  *     survivor still holds it; the survivor keeps its stricter answers; a record from before
  *     ruling 116 moves no follow;
+ *   - the survivor keeps the stricter FightBook daily limit, the merged profile's row stays, and a
+ *     revert touches neither (0271; lib/merge-probe-fightbook-limit.mjs);
  *   - every refusal, in the words the API answers (P0001 = 400, P0002 = 404; 125);
  *   - a failure at the last step (the record) leaves nothing moved;
  *   - only the service role may call either function.
@@ -61,6 +63,7 @@ import {
   strictSurvivorStaysStrict,
 } from './lib/merge-probe-scenarios.mjs';
 import { fightBookMovesWithTheMerge } from './lib/merge-probe-fightbook.mjs';
+import { dailyLimitMovesWithTheMerge } from './lib/merge-probe-fightbook-limit.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -71,7 +74,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 101;
+const EXPECTED_CHECKS = 105;
 
 // ── Refusals (ruling 125) ───────────────────────────────────────────────────
 async function refusalsBeforeAnyMerge(q) {
@@ -227,6 +230,7 @@ try {
       await recordBeforeFollowsMoved(tx);
       await manyFollowsMoveInOneCall(tx);
       await fightBookMovesWithTheMerge(tx);
+      await dailyLimitMovesWithTheMerge(tx);
       await refusals(tx);
       await allOrNothing(tx);
       await onlyTheServiceRole(tx);

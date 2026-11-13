@@ -39,6 +39,13 @@
  * cannot agree; the new CHECKs, named; only the service role may call the three new functions. On
  * committed connections (db-fightbook-race-probe.mjs): two picks or two scans AT ONCE, a take-back
  * during a pick, and a refused scan leaving its code scannable.
+ * Slice 6 (lib/fightbook-probe-limit.mjs, migration 0271): the daily limit. A new ask for a day
+ * already full is stored "Not this time", the same row as a declined one; a spar counts when agreed
+ * or done, whoever asked, an Event spar and a free-date spar alike, on its own day only; a cancel
+ * frees a place, but never for the asker the limit stopped (not_again). Her Yes on an ask already
+ * waiting, a QR scan of her code, a pick from an open call and her own ask all pass her limit; the
+ * CHECK by name; one row per profile, gone with it. Each case fails its own check, so a run before
+ * 0271 names every case that needs the table.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -86,6 +93,14 @@ import {
   scanShapes,
   scanning,
 } from './lib/fightbook-probe-qr.mjs';
+import {
+  limitCounts,
+  limitNotAgain,
+  limitPassThrough,
+  limitStops,
+  limitTableShape,
+  seedLimit,
+} from './lib/fightbook-probe-limit.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -96,7 +111,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 212;
+const EXPECTED_CHECKS = 226;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -153,6 +168,12 @@ try {
       await scanRefusals(tx);
       await scanShapes(tx);
       await scanBlockedByShower(tx);
+      await seedLimit(tx);
+      await limitCounts(tx);
+      await limitStops(tx);
+      await limitNotAgain(tx);
+      await limitPassThrough(tx);
+      await limitTableShape(tx);
       await onlyTheServiceRole(tx);
       throw ROLLBACK;
     }),
@@ -167,7 +188,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line, the seven safety flag functions, _call_pick, _call_take_back and _qr_log.`,
+      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line, the seven safety flag functions, _call_pick, _call_take_back, _qr_log and the daily limit.`,
     );
   }
 } catch (error) {

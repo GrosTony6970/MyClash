@@ -221,3 +221,6 @@ INSERT INTO spar_open_call_answers (id, call_id, answerer_global_person_id) VALU
 INSERT INTO fightbook_qr_codes (id, token_hash, global_person_id, expires_at) VALUES
   ('5f500000-0000-4000-8000-00000000000a', repeat('0', 64), '9e000000-0000-4000-8000-00000000000a',
    '2026-05-22T12:05:00Z');
+-- FightBook daily limit (0271): one fighter's "at most 3 spars a day". Deny-all.
+INSERT INTO fightbook_daily_limits (id, global_person_id, daily_limit) VALUES
+  ('5f600000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a', 3);

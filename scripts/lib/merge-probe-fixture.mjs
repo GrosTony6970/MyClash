@@ -87,6 +87,18 @@ export async function scenario(tx, run) {
   );
 }
 
+/**
+ * One check over one scenario: `run`'s value, or the error it raised, against `expected`. An
+ * error fails this check only (its savepoint rolls back), so the probe goes on to the next.
+ */
+export async function scenarioCheck(tx, label, expected, run) {
+  let actual;
+  await scenario(tx, async (q) => {
+    actual = await run(q).catch((error) => `raised ${error.code}: ${error.message}`);
+  });
+  check(label, actual, expected);
+}
+
 export const merge = (q, source, target, reason = 'duplicate') =>
   q`SELECT public.merge_fighters(${source}, ${target}, ${U.actor}, ${reason},
       ${JSON.stringify(snapshot(source))}::text::jsonb,

@@ -186,6 +186,13 @@ export const VERDICTS = [
     visible: [],
     hidden: ['5f500000-0000-4000-8000-00000000000a'],
   },
+  // FightBook daily limit (0271): deny-all; only its owner (through the API) and fightbook_ask read it.
+  {
+    table: 'fightbook_daily_limits',
+    key: 'id',
+    visible: [],
+    hidden: ['5f600000-0000-4000-8000-00000000000a'],
+  },
 ];
 
 /**
