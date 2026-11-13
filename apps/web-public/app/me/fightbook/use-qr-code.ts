@@ -21,6 +21,26 @@ export type QrCodeState = {
 /** What is left of a held code: the lesser of what its two clocks say. */
 const left = (held: Held) => Math.min(held.monoEnd - performance.now(), held.wallEnd - Date.now());
 
+/** One mint: the code with both clocks read at the answer, the failure, or a 401 (sign in). */
+async function mint(
+  apiUrl: string,
+): Promise<{ held: Held } | { failure: 'failed' | 'throttled' } | 'sign-in'> {
+  const res = await writeFightBook<FightBookQrCode>(apiUrl, '/api/v1/me/fightbook/qr', 'POST');
+  if (!res.ok) {
+    if (res.status === 401) return 'sign-in';
+    return { failure: res.status === 429 ? 'throttled' : 'failed' };
+  }
+  if (typeof res.data?.code !== 'string') return { failure: 'failed' };
+  const [mono, wall] = [performance.now(), Date.now()];
+  return {
+    held: {
+      code: res.data.code,
+      monoEnd: mono + CODE_LIFETIME_MS,
+      wallEnd: wall + CODE_LIFETIME_MS,
+    },
+  };
+}
+
 /**
  * The code "My FightBook QR" shows. The API answers `expiresAt` but no server time, so
  * `expiresAt - Date.now()` would carry whatever error the phone's clock has. The lifetime is the
@@ -66,24 +86,11 @@ export function useQrCode(apiUrl: string, open: boolean): QrCodeState {
       return () => clearTimeout(timer);
     }
     let cancelled = false;
-    void writeFightBook<FightBookQrCode>(apiUrl, '/api/v1/me/fightbook/qr', 'POST').then((res) => {
+    void mint(apiUrl).then((minted) => {
       if (cancelled) return;
-      if (!res.ok) {
-        if (res.status === 401) return signInAgainHere();
-        setHeld(null);
-        return setFailure(res.status === 429 ? 'throttled' : 'failed');
-      }
-      if (typeof res.data?.code !== 'string') {
-        setHeld(null);
-        return setFailure('failed');
-      }
-      const answeredMono = performance.now();
-      const answeredWall = Date.now();
-      setHeld({
-        code: res.data.code,
-        monoEnd: answeredMono + CODE_LIFETIME_MS,
-        wallEnd: answeredWall + CODE_LIFETIME_MS,
-      });
+      if (minted === 'sign-in') return signInAgainHere();
+      setHeld('held' in minted ? minted.held : null);
+      if ('failure' in minted) setFailure(minted.failure);
     });
     return () => {
       cancelled = true;
