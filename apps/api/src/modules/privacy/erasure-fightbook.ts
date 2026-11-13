@@ -49,14 +49,22 @@ export async function eraseFightBookFlags(
 }
 
 /**
- * Every FightBook row of an erased profile, both ways: the requests they sent and received, their
+ * Every FightBook row of an erased profile, both ways: the floor tools' rows, the requests they sent and received, their
  * private notes, the thank-yous and anonymous reviews they wrote and received, the blocks they
  * made and the blocks aimed at them, the favourites they chose and the ones naming them. Notes
  * and the two review tables come before the requests: deleting a request takes the notes and
  * reviews on it by cascade, uncounted, and these counts say what each delete found. Favourites
- * hang from no request, so their place in the list is free.
+ * hang from no request, so their place in the list is free. The floor tools' rows lead the list:
+ * the QR codes first (a code delete takes the profile's key-share lock, migration 0270's lock
+ * order, before anything else deletes), then the answers, the calls (as the one picked, then as
+ * poster) and the free-now mark, all before the requests.
  */
 export const FIGHTBOOK_ROWS: readonly [table: string, column: string][] = [
+  ['fightbook_qr_codes', 'global_person_id'],
+  ['spar_open_call_answers', 'answerer_global_person_id'],
+  ['spar_open_calls', 'picked_global_person_id'],
+  ['spar_open_calls', 'poster_global_person_id'],
+  ['fightbook_free_now', 'global_person_id'],
   ['spar_private_notes', 'author_global_person_id'],
   ['spar_thanks', 'author_global_person_id'],
   ['spar_thanks', 'subject_global_person_id'],

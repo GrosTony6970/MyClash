@@ -179,6 +179,10 @@ describe('ErasureService.redactSubject', () => {
       'spar_thanks',
       'spar_anonymous_reviews',
       'fightbook_favourites',
+      'fightbook_qr_codes',
+      'spar_open_call_answers',
+      'spar_open_calls',
+      'fightbook_free_now',
     ]) {
       expect(log[table]?.deletes, table).toBeGreaterThan(0);
       expect(log[table]!.ins.every(([, ids]) => JSON.stringify(ids) === '["g1"]')).toBe(true);
@@ -300,6 +304,10 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
       'spar_thanks',
       'spar_anonymous_reviews',
       'fightbook_favourites',
+      'fightbook_qr_codes',
+      'spar_open_call_answers',
+      'spar_open_calls',
+      'fightbook_free_now',
     ]) {
       expect(log[table], table).toBeUndefined();
     }

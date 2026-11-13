@@ -64,12 +64,41 @@ export class FightBookSettingsService {
       if (withdrawError) {
         throw new Error(`FightBook is off, but its open requests stay: ${withdrawError.message}`);
       }
+      await this.clearFloorTools(profile);
     }
     return this.answer(
       profile,
       saved?.fightbook_enabled === true,
       saved?.fightbook_show_stars === true,
     );
+  }
+
+  /**
+   * Off also takes the caller off the floor: their free-now row, QR codes and answers go, and
+   * their OPEN calls close (an open call holds no pick, so the status-shape check allows it).
+   * Each write is scoped to the caller's profile. As the withdrawal above: a failure throws after
+   * the switch is already off, and the next save that says off finishes it. Meanwhile every floor
+   * read filters through `applyFightBookOn`, so a half-finished switch-off still hides the fighter.
+   */
+  private async clearFloorTools(profile: string): Promise<void> {
+    const db = this.supabase.service;
+    const failed = (step: string, message: string) =>
+      new Error(`FightBook is off, but ${step}: ${message}`);
+    const free = await db.from('fightbook_free_now').delete().eq('global_person_id', profile);
+    if (free.error) throw failed('its free-now mark stays', free.error.message);
+    const codes = await db.from('fightbook_qr_codes').delete().eq('global_person_id', profile);
+    if (codes.error) throw failed('its QR codes stay', codes.error.message);
+    const answers = await db
+      .from('spar_open_call_answers')
+      .delete()
+      .eq('answerer_global_person_id', profile);
+    if (answers.error) throw failed('its open-call answers stay', answers.error.message);
+    const calls = await db
+      .from('spar_open_calls')
+      .update({ status: 'closed' })
+      .eq('poster_global_person_id', profile)
+      .eq('status', 'open');
+    if (calls.error) throw failed('its open calls stay', calls.error.message);
   }
 
   private async answer(me: string, enabled: boolean, showStars: boolean) {

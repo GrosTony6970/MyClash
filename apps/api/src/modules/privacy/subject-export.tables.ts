@@ -24,6 +24,7 @@
 // existing importers of this module keep working unchanged.
 export type { SubjectReach, SubjectReachSpec, SubjectTableSpec } from './subject-export.reach';
 import type { SubjectTableSpec } from './subject-export.reach';
+import { FIGHTBOOK_SUBJECT_TABLES } from './subject-export.fightbook';
 
 /**
  * Inbound social edges — who follows the subject — are deliberately NOT a reach.
@@ -263,55 +264,7 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   },
 
   // ── FightBook ───────────────────────────────────────────────────────────────
-  spar_requests: {
-    reaches: [
-      { column: 'asker_global_person_id', reach: 'global_person' },
-      { column: 'receiver_global_person_id', reach: 'global_person' },
-    ],
-    file: 'fightbook.csv',
-    note:
-      'Spar requests the subject sent or received. A comment the decliner kept private is in ' +
-      'spar_private_notes, never on the row. In the hour before the expiry job a row past its ' +
-      'end still reads pending.',
-  },
-  spar_private_notes: {
-    reaches: [{ column: 'author_global_person_id', reach: 'global_person' }],
-    file: 'fightbook.csv',
-  },
-  // Outbound only, as follows above: a block AIMED at the subject names someone else and would
-  // tell the subject they were blocked (Art. 15(4)).
-  fightbook_blocks: {
-    reaches: [{ column: 'blocker_global_person_id', reach: 'global_person' }],
-    file: 'fightbook.csv',
-  },
-  // Both ends: the subject reads the same stars, text and writer in the app.
-  spar_thanks: {
-    reaches: [
-      { column: 'author_global_person_id', reach: 'global_person' },
-      { column: 'subject_global_person_id', reach: 'global_person' },
-    ],
-    file: 'fightbook.csv',
-    note: 'Thank-yous the subject wrote or received; a received one names its signed writer.',
-  },
-  // Writer only: a row ABOUT the subject names its writer (Art. 15(4)).
-  spar_anonymous_reviews: {
-    reaches: [{ column: 'author_global_person_id', reach: 'global_person' }],
-    file: 'fightbook.csv',
-    note: 'Only the anonymous reviews the subject wrote, never those about them.',
-  },
-  // Owner only, as blocks: who favourited the subject is someone else's private choice.
-  fightbook_favourites: {
-    reaches: [{ column: 'owner_global_person_id', reach: 'global_person' }],
-    file: 'fightbook.csv',
-    note: 'The fighters the subject favourited, never who favourited them.',
-  },
-  // Reporter only. A spar has one partner, so a flag ABOUT the subject names its writer
-  // (Art. 15(4)); gear-check notes differ, their subject receives them.
-  spar_flags: {
-    reaches: [{ column: 'reporter_global_person_id', reach: 'global_person' }],
-    file: 'fightbook.csv',
-    note: 'Only the safety flags the subject wrote, never those about them.',
-  },
+  ...FIGHTBOOK_SUBJECT_TABLES,
 
   // ── Notifications ───────────────────────────────────────────────────────────
   notification_preferences: {

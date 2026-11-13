@@ -32,6 +32,20 @@ const AIMED: ReadonlyArray<[table: string, column: string]> = [
   ['directory_follows', 'followed_global_person_id'],
 ];
 
+/** The FightBook tables erasure deletes from and these tests never seed. */
+const EMPTY_FIGHTBOOK_TABLES: Record<string, TableSeed> = {
+  spar_requests: { rows: [] },
+  spar_private_notes: { rows: [] },
+  fightbook_blocks: { rows: [] },
+  spar_thanks: { rows: [] },
+  spar_anonymous_reviews: { rows: [] },
+  fightbook_favourites: { rows: [] },
+  fightbook_qr_codes: { rows: [] },
+  spar_open_call_answers: { rows: [] },
+  spar_open_calls: { rows: [] },
+  fightbook_free_now: { rows: [] },
+};
+
 function tables(): Record<string, TableSeed> {
   return {
     global_persons: {
@@ -72,12 +86,7 @@ function tables(): Record<string, TableSeed> {
     push_subscriptions: { rows: [] },
     event_photos: { rows: [] },
     workshop_instructors: { rows: [] },
-    spar_requests: { rows: [] },
-    spar_private_notes: { rows: [] },
-    fightbook_blocks: { rows: [] },
-    spar_thanks: { rows: [] },
-    spar_anonymous_reviews: { rows: [] },
-    fightbook_favourites: { rows: [] },
+    ...EMPTY_FIGHTBOOK_TABLES,
     // Canned: its read filters with `contains`, which the seeded double does not model.
     audit_log: { data: [], error: null },
   };

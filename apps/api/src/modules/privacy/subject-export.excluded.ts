@@ -62,6 +62,10 @@ export const SUBJECT_EXPORT_EXCLUDED_TABLES = new Set<string>([
   // flag (Art. 15(4)); to the reporter, the handled mark and another person's account id.
   'spar_flag_admin',
 
+  // FightBook QR codes: sha256 hashes of a code shown on a phone for five minutes. The hash is
+  // credential material, it discloses nothing about the person, and the row is gone within the hour.
+  'fightbook_qr_codes',
+
   // renamed away — the name survives only in pre-rename migration text
   'fighters', // renamed to global_persons in 0023, which IS exported
 

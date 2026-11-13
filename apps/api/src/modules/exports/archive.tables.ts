@@ -661,6 +661,10 @@ export const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'spar_anonymous_reviews',
   'fightbook_favourites',
   'spar_flags', // a safety flag names its writer and its subject: never in an Event archive
+  // The floor tools name an Event but live an hour to a day (the hourly sweep deletes them).
+  // Their other two tables (answers, QR codes) name no Event, so the guard does not ask for them.
+  'fightbook_free_now',
+  'spar_open_calls',
   'club_review_requests', // club-verification workflow, not event data
   'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
 ]);
