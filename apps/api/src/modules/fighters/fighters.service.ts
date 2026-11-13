@@ -304,19 +304,6 @@ const GLOBAL_PERSON_STAFF_COLUMNS = [
   'deleted_at',
 ].join(', ');
 
-const DEFAULT_WEAPONS = [
-  'Longsword',
-  'Rapier',
-  'Sidesword',
-  'Sabre',
-  'Sword and Buckler',
-  'Messer',
-  'Dagger',
-  'Ringen',
-  'Spear',
-  'Staff',
-];
-
 @Injectable()
 export class FightersService {
   private readonly logger = new Logger(FightersService.name);
@@ -732,14 +719,6 @@ export class FightersService {
 
     if (error) throw new Error(`weapon catalogue read failed: ${error.message}`);
     return data ?? [];
-  }
-
-  async seedDefaultWeapons(): Promise<void> {
-    const rows = DEFAULT_WEAPONS.map((name) => ({
-      slug: slugify(name),
-      name,
-    }));
-    await this.supabase.service.from('weapon_catalog').upsert(rows, { onConflict: 'slug' });
   }
 
   async getMyProfile(userId: string) {
