@@ -148,6 +148,71 @@ describe('My FightBook QR', () => {
     expect(shown()).toBe('fb:CODE9');
   });
 
+  describe('after the phone slept (timers and the monotonic clock stopped, the wall clock ran)', () => {
+    /** Sleep: `performance.now` frozen where it is, the wall clock 6 minutes on, no timer fired. */
+    function sleep() {
+      const frozen = performance.now();
+      vi.spyOn(performance, 'now').mockReturnValue(frozen);
+      vi.setSystemTime(Date.now() + 6 * MIN);
+    }
+    const wake = () =>
+      act(async () => {
+        Object.defineProperty(document, 'visibilityState', {
+          value: 'visible',
+          configurable: true,
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    afterEach(() => {
+      vi.mocked(performance.now).mockRestore?.();
+    });
+
+    it('mints a new code when the phone wakes with the panel open', async () => {
+      await open();
+      sleep();
+      await wake();
+      expect(minted).toBe(2);
+      expect(shown()).toBe('fb:CODE2');
+    });
+
+    it('mints a new code when the panel is opened again after the sleep', async () => {
+      await open();
+      await act(async () => (button('Close') as HTMLElement).click());
+      sleep();
+      await act(async () => (button('My FightBook QR') as HTMLElement).click());
+      await wait(0);
+      expect(minted).toBe(2);
+      expect(shown()).toBe('fb:CODE2');
+    });
+  });
+
+  it('a failed renewal shows the failure and mints nothing more on its own', async () => {
+    await open();
+    answer = () => {
+      minted += 1;
+      return { ok: false, kind: 'http', status: 503, code: null };
+    };
+    await wait(4 * MIN + 30_000 + 100);
+    expect(minted).toBe(2);
+    await wait(5 * MIN);
+    expect(minted).toBe(2);
+    expect(shown()).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('could not be made');
+  });
+
+  it('forgets a failure on closing: the next opening tries again, with no failure shown', async () => {
+    answer = () => ({ ok: false, kind: 'http', status: 503, code: null });
+    await open();
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => (button('Close') as HTMLElement).click());
+    answer = () => new Promise(() => undefined);
+    await act(async () => (button('My FightBook QR') as HTMLElement).click());
+    await wait(0);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(vi.mocked(apiRequest)).toHaveBeenCalledTimes(2);
+  });
+
   it('says the hour is used up on a 429', async () => {
     answer = () => ({ ok: false, kind: 'http', status: 429, code: null });
     await open();

@@ -10,32 +10,59 @@ const CODE_LIFETIME_MS = 5 * 60_000;
 /** A new code is asked for when less than this remains. */
 const RENEW_MARGIN_MS = 30_000;
 
-type Held = { code: string; endsAt: number };
+/** A code and when it ends on each of the phone's two clocks, both counted from the answer. */
+type Held = { code: string; monoEnd: number; wallEnd: number };
 export type QrCodeState = {
   code: string | null;
   failure: 'failed' | 'throttled' | null;
   retry: () => void;
 };
 
+/** What is left of a held code: the lesser of what its two clocks say. */
+const left = (held: Held) => Math.min(held.monoEnd - performance.now(), held.wallEnd - Date.now());
+
 /**
  * The code "My FightBook QR" shows. The API answers `expiresAt` but no server time, so
  * `expiresAt - Date.now()` would carry whatever error the phone's clock has. The lifetime is the
- * ruling's five minutes, counted from the answer on the monotonic clock (`performance.now`) and
- * waited out with a timer: neither moves when the wall clock is set. The held code outlives the
- * panel (this hook lives in the parent), so opening and closing it reuses a code with more than
- * 30 s left and mints nothing. Two writers are named: a renewal timer and a retry tap both mint;
- * each mint is dropped when the panel closes or a newer run starts (`cancelled`).
+ * ruling's five minutes, counted from the answer on BOTH clocks (Ruling P): the monotonic one
+ * (`performance.now`) does not move when the wall clock is set, and the wall clock (`Date.now`)
+ * keeps running while the phone sleeps, when timers pause and, on WebKit and on Chromium on macOS,
+ * the monotonic clock stops too. The code is stale when EITHER says less than 30 s remain: a wall
+ * clock set forward costs one extra mint, one set back is covered by the monotonic clock. The
+ * hook looks again when the page becomes visible (a phone waking) and when the panel opens.
+ *
+ * The held code outlives the panel (this hook lives in the parent), so opening and closing it
+ * reuses a code with more than 30 s left and mints nothing. A failure belongs to the opening it
+ * happened in: it stops the minting until a tap on "Try again" or the next opening. Two writers
+ * are named: a renewal (timer, wake or opening) and a retry tap both mint; each mint is dropped
+ * when the panel closes or a newer run starts (`cancelled`).
  */
 export function useQrCode(apiUrl: string, open: boolean): QrCodeState {
   const [held, setHeld] = useState<Held | null>(null);
   const [failure, setFailure] = useState<QrCodeState['failure']>(null);
   const [round, setRound] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    setFailure(null);
+  }
 
   useEffect(() => {
     if (!open) return;
-    const left = held ? held.endsAt - performance.now() - RENEW_MARGIN_MS : 0;
-    if (held && left > 0) {
-      const timer = setTimeout(() => setRound((n) => n + 1), left);
+    const wake = () => {
+      if (document.visibilityState !== 'visible') return;
+      setHeld((h) => (h && left(h) > RENEW_MARGIN_MS ? h : null));
+      setRound((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', wake);
+    return () => document.removeEventListener('visibilitychange', wake);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || failure) return;
+    const wait = held ? left(held) - RENEW_MARGIN_MS : 0;
+    if (held && wait > 0) {
+      const timer = setTimeout(() => setRound((n) => n + 1), wait);
       return () => clearTimeout(timer);
     }
     let cancelled = false;
@@ -50,13 +77,18 @@ export function useQrCode(apiUrl: string, open: boolean): QrCodeState {
         setHeld(null);
         return setFailure('failed');
       }
-      setFailure(null);
-      setHeld({ code: res.data.code, endsAt: performance.now() + CODE_LIFETIME_MS });
+      const answeredMono = performance.now();
+      const answeredWall = Date.now();
+      setHeld({
+        code: res.data.code,
+        monoEnd: answeredMono + CODE_LIFETIME_MS,
+        wallEnd: answeredWall + CODE_LIFETIME_MS,
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [apiUrl, open, held, round]);
+  }, [apiUrl, open, held, failure, round]);
 
   const retry = () => {
     setFailure(null);
