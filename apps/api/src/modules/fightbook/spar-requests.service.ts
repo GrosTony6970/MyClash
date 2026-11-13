@@ -1,18 +1,20 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-  type HttpException,
-} from '@nestjs/common';
-import { addDays, isIanaZone } from '@myclash/time';
+import { ConflictException, Injectable, Logger, type HttpException } from '@nestjs/common';
+import { addDays } from '@myclash/time';
 import type { SparKind, SparRefusalCode } from '@myclash/types';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { eventZone } from '../../common/event-clock';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { refusal } from './fightbook-caller';
-import { SPAR_MAX_DAYS_AHEAD, eventDayRefusal, sparExpiresAt } from './spar-ask-rules';
+import {
+  SPAR_MAX_DAYS_AHEAD,
+  badRequest,
+  catalogWeapons,
+  eventDayRefusal,
+  onFreeDate,
+  sparExpiresAt,
+  type SparWhere,
+} from './spar-ask-rules';
 import { isOnEventRoster } from './spar-askable';
 import { notOpen, readMySide } from './spar-side';
 import {
@@ -41,15 +43,6 @@ export interface SparAnswerInput {
   comment?: string;
   showComment?: boolean;
 }
-
-interface Where {
-  eventId: string | null;
-  zone: string;
-  place: string | null;
-}
-
-const badRequest = (code: SparRefusalCode, message: string) =>
-  new BadRequestException({ code, message });
 
 /** A database refusal word (P0001) as the API answers it; anything else is a 5xx. */
 export function databaseRefusal(error: { code?: string; message: string }, what: string): Error {
@@ -83,14 +76,13 @@ export class SparRequestsService {
    * no faster (ruling 660 accepts that an instant no may still be guessed).
    */
   async ask(asker: string, input: AskSparInput, now = new Date()): Promise<{ id: string }> {
-    const where =
-      input.kind === 'event' ? await this.atEvent(asker, input) : this.onFreeDate(input);
+    const where = input.kind === 'event' ? await this.atEvent(asker, input) : onFreeDate(input);
     const expires = sparExpiresAt(input.kind, input.day, where.zone);
     const lastDay = addDays(now.toISOString().slice(0, 10), SPAR_MAX_DAYS_AHEAD);
     if (!expires || expires <= now || !lastDay || input.day > lastDay) {
       throw badRequest('bad_day', 'That day cannot be asked for');
     }
-    const weapons = await this.catalogWeapons(input.weapons);
+    const weapons = await catalogWeapons(this.supabase.service, input.weapons);
 
     const { data, error } = await this.supabase.service.rpc('fightbook_ask', {
       p_asker: asker,
@@ -193,7 +185,7 @@ export class SparRequestsService {
    * A published Event the asker is on (ruling 665): a draft or test Event could reveal a roster
    * nobody may see yet. The day is one of its days; the zone is its own.
    */
-  private async atEvent(asker: string, input: AskSparInput): Promise<Where> {
+  private async atEvent(asker: string, input: AskSparInput): Promise<SparWhere> {
     const eventId = input.eventId ?? '';
     const { data, error } = await this.supabase.service
       .from('events')
@@ -219,31 +211,5 @@ export class SparRequestsService {
       throw badRequest('bad_day', 'That day is not a day of the Event');
     }
     return { eventId, zone: eventZone(event.timezone).zone, place: null };
-  }
-
-  /** A free date: its place, and the asker's own clock. */
-  private onFreeDate(input: AskSparInput): Where {
-    if (!input.zone || !isIanaZone(input.zone)) {
-      throw badRequest('bad_zone', 'A free date needs a time zone');
-    }
-    if (!input.place) throw badRequest('bad_place', 'A free date needs a place');
-    return { eventId: null, zone: input.zone, place: input.place };
-  }
-
-  /** Each name as the active catalog spells it; one read for all (resolveCatalogWeapon's match). */
-  private async catalogWeapons(names: string[]): Promise<string[]> {
-    const { data, error } = await this.supabase.service
-      .from('weapon_catalog')
-      .select('name')
-      .eq('active', true);
-    if (error) throw new Error(`weapon catalog read failed: ${error.message}`);
-    const catalog = (data ?? []) as Array<{ name: string }>;
-    const resolved = names.map((name) => {
-      const wanted = name.trim().toLowerCase();
-      const match = catalog.find((w) => w.name.trim().toLowerCase() === wanted);
-      if (!match) throw badRequest('bad_weapon', `Weapon "${name}" is not an active catalog entry`);
-      return match.name;
-    });
-    return [...new Set(resolved)];
   }
 }
