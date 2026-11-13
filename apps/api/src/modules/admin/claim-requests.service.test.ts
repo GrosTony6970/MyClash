@@ -35,13 +35,14 @@ const mockMail = {
  * every later answer by one and `markDecided` was handed the sweep's chain: a
  * TypeError rather than a verdict. `supabase-chain.ts` exists for exactly this.
  */
-function seed(byTable: Record<string, TableSeed>) {
+function seed(byTable: Record<string, TableSeed>, domain?: string) {
   const db = seededSupabase(byTable);
   return {
     db,
     service: new ClaimRequestsService(
       { service: { from: db.from, auth: { admin: { getUserById: getUserByIdMock } } } } as never,
       mockMail as never,
+      { get: (_key: string, fallback?: string) => domain ?? fallback } as never,
     ),
   };
 }
@@ -131,6 +132,24 @@ describe('ClaimRequestsService.approve', () => {
     expect(decided?.row).toMatchObject({ status: 'approved', decided_by_user_id: 'admin-1' });
     expect(scopedTo(decided, 'id')).toBe('req-1');
     expect(sendNotificationMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Ruling 701: the approval email links to THIS deployment's app, not myclash.fr.
+  it('mails an actionUrl built from DOMAIN', async () => {
+    const { service } = seed(
+      {
+        global_person_claim_requests: { rows: [REQUEST] },
+        global_persons: { rows: [{ id: 'global-1', email: 'req@example.com' }] },
+        persons: { rows: [] },
+      },
+      'example.test',
+    );
+
+    await service.approve('req-1', 'admin-1');
+
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({ actionUrl: 'https://app.example.test/me' }),
+    );
   });
 
   // The ruled cost of 49(b), from the other side: approving a claim no longer

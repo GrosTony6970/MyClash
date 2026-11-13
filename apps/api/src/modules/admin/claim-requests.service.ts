@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { syncClaimedPersonRows } from '../auth/claimed-person-sync';
 import { applyReachable, isReachableEmbed } from '../fighters/directory-predicate';
 import { MailService } from '../mail/mail.service';
@@ -34,6 +35,7 @@ export class ClaimRequestsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly mail: MailService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Super-admin: every pending request across the platform. */
@@ -285,7 +287,7 @@ export class ClaimRequestsService {
           subject: 'Profil MyClash confirmé / MyClash profile confirmed',
           title: 'Profil confirmé / Profile confirmed',
           body: 'Votre demande de revendication de profil global a été approuvée. Vous pouvez maintenant le retrouver dans votre espace personnel. / Your global profile claim has been approved. You can now find it in your personal space.',
-          actionUrl: 'https://app.myclash.fr/me',
+          actionUrl: `https://app.${this.config.get<string>('DOMAIN', 'myclash.localhost')}/me`,
         });
       } else {
         await this.mail.sendNotification({
