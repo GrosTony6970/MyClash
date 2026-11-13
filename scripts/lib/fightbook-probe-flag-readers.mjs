@@ -244,6 +244,7 @@ export async function flagsErase(tx) {
     );
   });
   await erasedMergeOfTwoClaimed(tx);
+  await erasedAfterClaimMoved(tx);
   await scenario(tx, async (q) => {
     const stale = await rawFlag(q, { subject: F.paul, holder: U.marc });
     check(
@@ -277,6 +278,22 @@ async function erasedMergeOfTwoClaimed(tx) {
         [byS, null],
         [byT, G.t],
       ]),
+    );
+  });
+}
+
+/** S flagged, then S merged into an unheld T and the claim moved: S is held by no account. */
+async function erasedAfterClaimMoved(tx) {
+  await scenario(tx, async (q) => {
+    await claim(q, G.s, A.a1);
+    const byS = await rawFlag(q, { subject: F.julie, reporter: G.s });
+    await mergeInto(q, G.s, G.t);
+    await claim(q, G.s, null);
+    await claim(q, G.t, A.a1);
+    check(
+      'erasing the account the claim moved to: the reporter of the flag S wrote is cleared',
+      [await erase(q, A.a1, [G.t]), await survivors(q, [byS])],
+      [{ cleared: 1, deleted: 0 }, [[byS, null]]],
     );
   });
 }

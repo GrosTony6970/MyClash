@@ -376,7 +376,8 @@ grant execute on function public.fightbook_flag_recipients(uuid, text[]) to serv
 -- holds (in a merge of two claimed profiles, the other account's profile is not erased with this
 -- one); a flag written while `p_uid` held its subject, while that subject is unheld or still held
 -- by `p_uid` (not after a wrong autolink was undone and someone else holds it). Cleared: the
--- reporter, on the profiles `p_uid` holds; the flag stays, with its spar snapshot.
+-- reporter, on the profiles of that same family that `p_uid` holds or no account holds; the flag
+-- stays, with its spar snapshot.
 create or replace function public.fightbook_flags_erase(p_uid uuid, p_ids uuid[])
 returns jsonb
 language plpgsql
@@ -400,10 +401,15 @@ begin
               and (g.claimed_by_user_id is null or g.claimed_by_user_id = p_uid));
   get diagnostics v_deleted = row_count;
 
+  -- A merge moves the claim to the survivor and clears it on the source (0268), so a flag written
+  -- from the source names a profile no account holds: the family reaches it, the claim test keeps
+  -- another account's profile out.
   update public.spar_flags f
      set reporter_global_person_id = null
-   where f.reporter_global_person_id in (
-           select g.id from public.global_persons g where g.claimed_by_user_id = p_uid);
+    from public.global_persons g
+   where g.id = f.reporter_global_person_id
+     and g.id = any(public.fightbook_profile_family(p_ids))
+     and (g.claimed_by_user_id is null or g.claimed_by_user_id = p_uid);
   get diagnostics v_cleared = row_count;
 
   return jsonb_build_object('deleted', v_deleted, 'cleared', v_cleared);

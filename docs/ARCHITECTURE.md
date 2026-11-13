@@ -2839,8 +2839,10 @@ account. It deletes a flag about a profile of the erased profiles' family that t
 no account holds; in a merge of two claimed profiles, the other account's profile is not erased with
 this one. It deletes a flag written while this account held its subject, while that subject is still
 unheld or held by this account (not after a wrong autolink was undone and someone else holds it).
-It clears the reporter only on profiles this account holds, so the flag stays with its Spar
-snapshot and the lists show "an erased account". Counts: `spar_flags` and `spar_flags.reporter`.
+It clears the reporter on the profiles of that same family that this account holds or no account
+holds: a merge moves the claim to the survivor, so a flag written from the merged-away profile
+names a profile nobody holds. The flag stays with its Spar snapshot and the lists show "an erased
+account". Counts: `spar_flags` and `spar_flags.reporter`.
 Anonymisation keeps flags: the account stays.
 
 **Export and archive.** `spar_flags` is in `SUBJECT_EXPORT_TABLES`, reaching the reporter only
