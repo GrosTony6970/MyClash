@@ -219,6 +219,19 @@ describe('FightBookSettingsService', () => {
         new FightBookSettingsService(supabase as never).set(live(true), { dailyLimit }),
       ).rejects.toThrow('FightBook daily limit write failed: boom');
     });
+
+    it.each([
+      ['a limit-only save reads the row', { dailyLimit: 4 }, 'FightBook switch read failed: boom'],
+      ['a switch save writes the row', { enabled: true }, 'FightBook switch write failed: boom'],
+    ])('a failed profile query names its branch (%s)', async (_label, patch, message) => {
+      const supabase = mockSupabase({
+        global_persons: { data: null, error: { message: 'boom' } },
+        fightbook_daily_limits: { rows: [] },
+      });
+      await expect(
+        new FightBookSettingsService(supabase as never).set(live(true), patch),
+      ).rejects.toThrow(message);
+    });
   });
 
   it('saves the switch on the caller’s own profile and answers what was saved', async () => {

@@ -80,12 +80,14 @@ export class FightBookSettingsService {
     if (patch.showStars !== undefined) row['fightbook_show_stars'] = patch.showStars;
     const columns = 'fightbook_enabled, fightbook_show_stars';
     const table = this.supabase.service.from('global_persons');
-    const query =
-      Object.keys(row).length > 0
-        ? table.update(row).eq('id', profile).select(columns)
-        : table.select(columns).eq('id', profile);
+    const writes = Object.keys(row).length > 0;
+    const query = writes
+      ? table.update(row).eq('id', profile).select(columns)
+      : table.select(columns).eq('id', profile);
     const { data, error } = await query.maybeSingle();
-    if (error) throw new Error(`FightBook switch write failed: ${error.message}`);
+    if (error) {
+      throw new Error(`FightBook switch ${writes ? 'write' : 'read'} failed: ${error.message}`);
+    }
     return data as { fightbook_enabled: boolean; fightbook_show_stars: boolean } | null;
   }
 

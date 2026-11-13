@@ -2,7 +2,7 @@
  * fightbook.controller.ts — FightBook, slice 1 (docs/superpowers/specs/2026-11-10-fightbook-design.md)
  *
  * GET   /me/fightbook/settings  — the caller's switch, and whether they have a fighter profile
- * PATCH /me/fightbook/settings  — switch FightBook on or off
+ * PATCH /me/fightbook/settings  — save the switch, the stars, the daily limit
  * POST  /me/fightbook/requests  — ask a fighter for a spar
  * POST  /me/fightbook/requests/:id/answer   — yes, or "Not this time" with an optional comment
  * POST  /me/fightbook/requests/:id/withdraw — take back my request still waiting
