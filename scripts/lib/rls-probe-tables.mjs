@@ -161,6 +161,31 @@ export const VERDICTS = [
     visible: [],
     hidden: ['5f100000-0000-4000-8000-00000000000a'],
   },
+  // FightBook floor tools (0270): deny-all; presence and codes are read by the API only.
+  {
+    table: 'fightbook_free_now',
+    key: 'id',
+    visible: [],
+    hidden: ['5f200000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'spar_open_calls',
+    key: 'id',
+    visible: [],
+    hidden: ['5f300000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'spar_open_call_answers',
+    key: 'id',
+    visible: [],
+    hidden: ['5f400000-0000-4000-8000-00000000000a'],
+  },
+  {
+    table: 'fightbook_qr_codes',
+    key: 'id',
+    visible: [],
+    hidden: ['5f500000-0000-4000-8000-00000000000a'],
+  },
 ];
 
 /**

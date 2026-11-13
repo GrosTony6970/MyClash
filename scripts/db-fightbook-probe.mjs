@@ -31,6 +31,12 @@
  * holds the fighter); the exact page; the handled mark; the alert's recipients; erasure reaching no
  * further than the erased account; the foreign-key actions; only the service role may call the
  * seven functions.
+ * Slice 5 (lib/fightbook-probe-floor.mjs and lib/fightbook-probe-qr.mjs, migration 0270): a pick
+ * agreeing one spar, and each refusal as `not_open`; a block withdrawing the blocker's answers on
+ * the blocked fighter's calls only; a QR scan sending a request and burning its code, and every
+ * refusal after the claim leaving the code scannable; a scan by a fighter the shower blocked
+ * stored pending with no notice, which she cannot agree; the new CHECKs, named; only the service
+ * role may call the two new functions. Two picks or two scans AT ONCE: db-fightbook-race-probe.mjs.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
 import postgres from 'postgres';
@@ -62,6 +68,20 @@ import {
   flagsErase,
   flagsPage,
 } from './lib/fightbook-probe-flag-readers.mjs';
+import {
+  FLOOR_FUNCTIONS,
+  blockingCalls,
+  floorTableShape,
+  pickBlockedOrNotLive,
+  pickRefusals,
+  picking,
+} from './lib/fightbook-probe-floor.mjs';
+import {
+  scanBlockedByShower,
+  scanRefusals,
+  scanShapes,
+  scanning,
+} from './lib/fightbook-probe-qr.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -72,7 +92,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 167;
+const EXPECTED_CHECKS = 205;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
@@ -80,7 +100,12 @@ async function onlyTheServiceRole(tx) {
     ['authenticated', false],
     ['service_role', true],
   ];
-  for (const signature of [...FUNCTIONS, ...REVIEW_FUNCTIONS, ...FLAG_FUNCTIONS]) {
+  for (const signature of [
+    ...FUNCTIONS,
+    ...REVIEW_FUNCTIONS,
+    ...FLAG_FUNCTIONS,
+    ...FLOOR_FUNCTIONS,
+  ]) {
     for (const [role, allowed] of roles) {
       const [{ may }] =
         await tx`SELECT has_function_privilege(${role}, ${signature}, 'EXECUTE') AS may`;
@@ -113,6 +138,15 @@ try {
       await flagRecipients(tx);
       await flagsErase(tx);
       await flagForeignKeys(tx);
+      await picking(tx);
+      await pickRefusals(tx);
+      await pickBlockedOrNotLive(tx);
+      await blockingCalls(tx);
+      await floorTableShape(tx);
+      await scanning(tx);
+      await scanRefusals(tx);
+      await scanShapes(tx);
+      await scanBlockedByShower(tx);
       await onlyTheServiceRole(tx);
       throw ROLLBACK;
     }),
@@ -127,7 +161,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line and the seven safety flag functions.`,
+      `FightBook probe passed: ${checks} checks of fightbook_ask, _answer, _block, _review, _star_line, the seven safety flag functions, _call_pick and _qr_log.`,
     );
   }
 } catch (error) {

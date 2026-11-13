@@ -48,6 +48,7 @@
     "db:rls-probe": "node scripts/db-rls-probe.mjs",
     "db:merge-probe": "node scripts/db-merge-probe.mjs",
     "db:fightbook-probe": "node scripts/db-fightbook-probe.mjs",
+    "db:fightbook-race-probe": "node scripts/db-fightbook-race-probe.mjs",
     "db:cascade-probe": "node scripts/db-cascade-probe.mjs",
     "db:perf:fixture": "node scripts/db-synthetic-fixture.mjs --check",
     "db:perf:explain": "node scripts/db-explain-report.mjs",

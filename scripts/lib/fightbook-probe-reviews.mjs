@@ -30,7 +30,7 @@ const review = (q, request, author, stars, { body = null, anonymous = false, now
       ${now ?? new Date().toISOString()}::timestamptz)`;
 
 /** The name of the CHECK a call broke: a name, not 23514, so another CHECK cannot stand in. */
-const brokenCheck = async (q, call) => {
+export const brokenCheck = async (q, call) => {
   const raised = await refusal(q, call);
   if (!raised) return null;
   const named = /check constraint "([^"]+)"/.exec(raised.message);

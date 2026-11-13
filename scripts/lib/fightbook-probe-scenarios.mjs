@@ -34,7 +34,7 @@ export const ask = (q, asker, receiver, { event = E.a, expires = HOUR_AHEAD() } 
       ${DAY}::date, 'Europe/Paris', NULL, ${event ? null : 'Salle'}, ARRAY['Longsword'], NULL,
       ${expires}::timestamptz) AS r`.then((rows) => rows[0].r);
 
-const answer = (q, request, receiver, word, comment = null, shared = false) =>
+export const answer = (q, request, receiver, word, comment = null, shared = false) =>
   q`SELECT public.fightbook_answer(${request}, ${receiver}, ${word}, ${comment}, ${shared}) AS r`.then(
     (rows) => rows[0].r,
   );

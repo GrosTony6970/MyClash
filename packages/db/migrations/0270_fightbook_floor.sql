@@ -17,8 +17,10 @@
 -- 4. `fightbook_qr_codes`: a code shown on a phone, five minutes, one scan (ruling 711). The row
 --    holds the sha256 hex of the raw code, never the code.
 --
--- The functions, each one database call, each taking the 0264 pair lock (advisory lock on the
--- unordered pair, then KEY SHARE on both profiles in id order) before it reads:
+-- The functions, each one database call. The 0264 pair lock is an advisory lock on the unordered
+-- pair, then KEY SHARE on both profiles in id order. fightbook_call_pick and fightbook_block take
+-- it before they read. fightbook_qr_log claims the code row FIRST (the code names the shower) and
+-- takes the pair lock right after. fightbook_answer takes none, as in 0264:
 --   - fightbook_call_pick: the poster picks one answer. The answer row is held FOR SHARE (a take
 --     back waits or loses); both profiles live with FightBook on and no block either way, else
 --     `not_open`. Then ONE conditional update is the only gate on the call's state: zero rows is
@@ -26,7 +28,8 @@
 --   - fightbook_qr_log: the scanner asks the shower (rulings 707, 713). The code row is deleted
 --     FIRST: of two scans at once one finds it, the other answers `bad_code`. Every later refusal
 --     raises, which undoes the delete, so a refused scan leaves the code usable. Then 0264's ask
---     checks in 0264's order, minus the no-asking-twice rule (she is showing her code). The
+--     checks in 0264's order, minus the no-asking-twice rule (she is showing her code), with the
+--     request's shape refused as `bad_event` (a malformed call answers a word, not a 23514). The
 --     request is ALWAYS stored pending (ruling 714): a scan by a fighter the shower blocked waits
 --     as "sent" and ends "Not this time" with its day, exactly like a request she ignored.
 --     `notify` (false for that scan) tells the API whether to send the notice.
@@ -239,6 +242,11 @@ declare
 begin
   -- First: of two scans at once, one deletes the row and the other finds none. Every refusal
   -- below raises, which undoes this delete, so the code stays usable.
+  -- Lock order: the code row is locked BEFORE the pair lock's KEY SHARE on the two profiles. Its
+  -- one partner in the other order is a hard DELETE FROM global_persons of the shower, whose
+  -- cascade into fightbook_qr_codes can deadlock with a scan (40P01, one side aborted). Decision
+  -- 12 mandates delete-first, and erasure deletes the QR codes before the profile, in this order.
+  -- Do not add a second partner: whatever locks a profile and then a code row is one.
   delete from public.fightbook_qr_codes q
    where q.token_hash = p_token_hash and q.expires_at > now()
   returning q.global_person_id into v_shower;
@@ -278,11 +286,17 @@ begin
     raise exception 'you_blocked' using errcode = 'P0001';
   end if;
 
-  -- An Event spar needs the shower on that Event's roster (the API checks the scanner's).
-  if p_kind = 'event' and not exists (
-    select 1 from public.persons p
-     where p.event_id = p_event_id and p.global_person_id = v_shower
-  ) then
+  -- The request's shape (0263's spar_requests_kind_shape), refused as a word rather than a 23514.
+  -- An Event spar needs the shower on that Event's roster (the API checks the scanner's); a NULL
+  -- Event matches no roster row. A free-date spar names no Event and a place.
+  -- In parentheses: plpgsql's IF reads its condition up to the first THEN outside them.
+  if (case p_kind
+        when 'event' then p_place is not null or not exists (
+          select 1 from public.persons p
+           where p.event_id = p_event_id and p.global_person_id = v_shower)
+        when 'free' then p_event_id is not null or btrim(coalesce(p_place, '')) = ''
+        else true end)
+  then
     raise exception 'bad_event' using errcode = 'P0001';
   end if;
 

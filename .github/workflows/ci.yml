@@ -591,9 +591,19 @@ jobs:
         if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
         run: pnpm db:fightbook-probe
 
+      # FightBook floor tools (0270): two picks of one open call, two scans of one QR code, and a
+      # pick or a scan against a block, AT ONCE on two connections (one waits on the other, seen
+      # in pg_blocking_pids). It commits rows (its fixture, deleted at its end whatever happened).
+      - name: Probe FightBook races
+        if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
+        env:
+          RACE_PROBE_DISPOSABLE: '1'
+        run: pnpm db:fightbook-race-probe
+
       # 0237 (rulings 91, 92): an Event, a Tournament, a phase and a club delete whatever order
-      # their cascade's triggers fire in. LAST: it is the one probe that commits rows (its seed,
-      # deleted at its end), so a failure part-way cannot sit under the other two.
+      # their cascade's triggers fire in. LAST, after the race probe: the two probes that commit
+      # rows (each deletes its own at its end) run after the read-only ones, so a failure part-way
+      # cannot sit under them.
       - name: Probe cascade deletes
         if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
         env:

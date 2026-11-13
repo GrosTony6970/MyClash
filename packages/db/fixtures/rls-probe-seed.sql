@@ -206,3 +206,18 @@ INSERT INTO spar_flags
    '9e000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000b', 'free', '2026-05-22',
    'Salle Probe', ARRAY['Longsword'], 'too_hard', 'Probe flag', '2026-05-22T20:00:00Z');
 INSERT INTO spar_flag_admin (flag_id) VALUES ('5f100000-0000-4000-8000-00000000000a');
+-- FightBook floor tools (0270): free now, an open call and its answer, a QR code. Deny-all.
+INSERT INTO fightbook_free_now (id, global_person_id, event_id, until) VALUES
+  ('5f200000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a',
+   'eeeeeeee-0000-4000-8000-00000000000a', '2026-05-22T15:00:00Z');
+INSERT INTO spar_open_calls
+  (id, poster_global_person_id, event_id, spar_day, zone, spar_time, weapons, closes_at) VALUES
+  ('5f300000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a',
+   'eeeeeeee-0000-4000-8000-00000000000a', '2026-05-22', 'Europe/Paris', '14:00', ARRAY['Longsword'],
+   '2026-05-22T12:00:00Z');
+INSERT INTO spar_open_call_answers (id, call_id, answerer_global_person_id) VALUES
+  ('5f400000-0000-4000-8000-00000000000a', '5f300000-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000b');
+INSERT INTO fightbook_qr_codes (id, token_hash, global_person_id, expires_at) VALUES
+  ('5f500000-0000-4000-8000-00000000000a', repeat('0', 64), '9e000000-0000-4000-8000-00000000000a',
+   '2026-05-22T12:05:00Z');
