@@ -145,6 +145,7 @@ export async function flagWrites(tx) {
   }
   await freeDateFlag(tx);
   await flagRefusals(tx);
+  await flagLiveness(tx);
   await flagTwice(tx);
   await flagByMergedProfile(tx);
 }
@@ -194,6 +195,24 @@ async function flagRefusals(tx) {
       notOpen,
     );
   });
+}
+
+/** Both fighters live: a deleted or erased reporter writes nothing, and nobody flags one. */
+async function flagLiveness(tx) {
+  for (const [who, profile] of [
+    ['reporter', F.julie],
+    ['subject', F.marc],
+  ])
+    for (const column of ['deleted_at', 'account_deleted_at'])
+      await scenario(tx, async (q) => {
+        const request = await eventSpar(q, F.marc, F.julie);
+        await q.unsafe(`UPDATE global_persons SET ${column} = now() WHERE id = '${profile}'`);
+        check(
+          `a flag with the ${who}'s ${column} set`,
+          await refusal(q, (sp) => flag(sp, request, F.julie)),
+          notOpen,
+        );
+      });
 }
 
 async function flagTwice(tx) {

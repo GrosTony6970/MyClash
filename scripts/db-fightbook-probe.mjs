@@ -25,8 +25,8 @@
  * API's clock; the star line over both tables, per subject, moving at once; the new CHECKs, named;
  * only the service role may call the two functions.
  * Slice 4 (lib/fightbook-probe-flags.mjs and lib/fightbook-probe-flag-readers.mjs, migration 0269):
- * a safety flag only on an agreed, done or cancelled spar, by one of its fighters, once, the snapshot
- * of the spar and of the flagged account; the merge family; who must never read a flag (the flagged
+ * a safety flag only on an agreed, done or cancelled spar, by one of its fighters, once, neither of
+ * them merged, deleted or erased, the snapshot of the spar and of the flagged account; the merge family; who must never read a flag (the flagged
  * account, before or after an unlink, across a merge and its revert, and the club while no account
  * holds the fighter); the exact page; the handled mark; the alert's recipients; erasure reaching no
  * further than the erased account; the foreign-key actions; only the service role may call the
@@ -72,7 +72,7 @@ if (!databaseUrl) {
 }
 
 const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
-const EXPECTED_CHECKS = 163;
+const EXPECTED_CHECKS = 167;
 
 async function onlyTheServiceRole(tx) {
   const roles = [
