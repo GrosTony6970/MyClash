@@ -132,12 +132,6 @@ export const scoring = {
     viewfinderLabel: 'Viseur de la caméra',
     useSearch: 'Rechercher par nom',
     cameraFallback: 'La recherche par nom fonctionne toujours — rien ne dépend de la caméra.',
-    cameraInsecure: 'La caméra est indisponible sur cette connexion.',
-    cameraDenied:
-      'Accès à la caméra refusé. Autorisez-le dans les réglages du navigateur pour ce site.',
-    cameraMissing: 'Cet appareil n’a pas de caméra.',
-    cameraBusy: 'La caméra est utilisée par une autre application.',
-    cameraFailed: 'Impossible de démarrer la caméra.',
     errorUnknown: 'Ce pass n’est pas pour cet événement.',
     errorExpired: 'Ce pass a expiré.',
     errorForbidden: 'Ce compte ne peut pas tenir l’accueil.',

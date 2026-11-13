@@ -9,10 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./scan": {
+      "types": "./dist/scan/index.d.ts",
+      "default": "./dist/scan/index.js"
     }
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json && node scripts/check-scan-subpath.mjs",
     "lint": "eslint src --no-cache --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -20,7 +24,8 @@
   "dependencies": {
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
-    "@myclash/types": "workspace:^"
+    "@myclash/types": "workspace:^",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.118.0",

@@ -4,8 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { PersonRow } from './PersonRow';
-import { useCameraScanner } from '../lib/scan/useCameraScanner';
-import type { CameraError } from '../lib/scan/camera';
+import { cameraErrorKey, useCameraScanner, type CameraError } from '@myclash/ui/scan';
 import { classifyScanFailure, scanFailureKey, type ScanOutcome } from '../lib/scan/scan-result';
 import type { RosterEntry } from '../lib/useDesk';
 
@@ -211,20 +210,4 @@ function CameraUnavailable({ error, onClose }: { error: CameraError; onClose: ()
       </button>
     </div>
   );
-}
-
-/** Literal keys, one per state — never assembled from a template. */
-function cameraErrorKey(error: CameraError): string {
-  switch (error) {
-    case 'insecure':
-      return 'scoring.scan.cameraInsecure';
-    case 'denied':
-      return 'scoring.scan.cameraDenied';
-    case 'no_camera':
-      return 'scoring.scan.cameraMissing';
-    case 'busy':
-      return 'scoring.scan.cameraBusy';
-    case 'failed':
-      return 'scoring.scan.cameraFailed';
-  }
 }

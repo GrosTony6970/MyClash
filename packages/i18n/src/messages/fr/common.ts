@@ -55,6 +55,14 @@ export const common = {
     leave: 'Quitter',
     stay: 'Rester',
   },
+  scan: {
+    cameraInsecure: 'La caméra est indisponible sur cette connexion.',
+    cameraDenied:
+      'Accès à la caméra refusé. Autorisez-le dans les réglages du navigateur pour ce site.',
+    cameraMissing: 'Cet appareil n’a pas de caméra.',
+    cameraBusy: 'La caméra est utilisée par une autre application.',
+    cameraFailed: 'Impossible de démarrer la caméra.',
+  },
   fightBookFlagReason: {
     too_hard: 'Trop dur / dangereux',
     equipment: 'Équipement dangereux',

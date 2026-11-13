@@ -88,6 +88,15 @@ export const common = {
     leave: 'Leave',
     stay: 'Stay',
   },
+  // Why the QR viewfinder is empty (`cameraErrorKey` in @myclash/ui/scan): one owner for the
+  // scoring desk and the FightBook scan.
+  scan: {
+    cameraInsecure: 'The camera is unavailable on this connection.',
+    cameraDenied: 'Camera access was refused. Allow it in the browser settings for this site.',
+    cameraMissing: 'This device has no camera.',
+    cameraBusy: 'The camera is in use by another app.',
+    cameraFailed: 'The camera could not be started.',
+  },
   // The reasons a fighter picks when flagging a spar (FightBook safety report); one owner for the
   // fighter's form and the admins' list.
   fightBookFlagReason: {

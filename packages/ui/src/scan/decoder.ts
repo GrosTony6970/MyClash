@@ -13,6 +13,8 @@
  * scoring pad, the pistes list or the login page — none of which scan anything.
  */
 
+import type jsQRType from 'jsqr';
+
 export type Decoder = (frame: ImageData) => string | null;
 
 let cached: Promise<Decoder> | null = null;
@@ -25,7 +27,11 @@ let cached: Promise<Decoder> | null = null;
  * only costs frames on a device that is already the slow part.
  */
 export function loadDecoder(): Promise<Decoder> {
-  cached ??= import('jsqr').then(({ default: jsQR }) => {
+  cached ??= import('jsqr').then((mod) => {
+    // This package compiles as Node16 CommonJS, where TypeScript types the
+    // import's default as the module namespace (no call signature, TS2349). At
+    // runtime the default IS the function, so say so.
+    const jsQR = mod.default as unknown as typeof jsQRType;
     return (frame: ImageData) =>
       jsQR(frame.data, frame.width, frame.height, { inversionAttempts: 'dontInvert' })?.data ??
       null;
