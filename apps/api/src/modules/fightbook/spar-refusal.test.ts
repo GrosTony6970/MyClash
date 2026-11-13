@@ -1,6 +1,6 @@
-import { HttpException } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { SPAR_REFUSAL_CODES, type SparRefusalCode } from '@myclash/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { databaseRefusal } from './spar-requests.service';
 import { notOpen } from './spar-side';
 
@@ -39,10 +39,17 @@ describe('databaseRefusal', () => {
     expect(http.getResponse()).toMatchObject({ code: word, message: sentence });
   });
 
-  it('answers a word no code names as 403 with the word as its message', () => {
-    const http = databaseRefusal({ code: 'P0001', message: 'mystery' }, 'x') as HttpException;
+  it('answers a word no code names as 403 with the word as its message, and logs it', () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const http = databaseRefusal({ code: 'P0001', message: 'mystery' }, 'ask') as HttpException;
     expect(http.getStatus()).toBe(403);
     expect(http.getResponse()).toMatchObject({ code: 'mystery', message: 'mystery' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^ask: .*mystery$/);
+    warn.mockClear();
+    databaseRefusal({ code: 'P0001', message: 'not_open' }, 'ask');
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('does not index the list with an inherited name', () => {

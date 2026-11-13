@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, type HttpException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { addDays } from '@myclash/time';
 import { SPAR_REFUSAL_CODES, type SparKind, type SparRefusalCode } from '@myclash/types';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
@@ -79,19 +79,27 @@ function refusalStatus(word: SparRefusalCode): 400 | 403 | 409 {
   }
 }
 
+const isRefusalCode = (word: string): word is SparRefusalCode =>
+  (SPAR_REFUSAL_CODES as readonly string[]).includes(word);
+const refusalLog = new Logger('databaseRefusal');
+
 /**
  * A database refusal word (P0001) as the API answers it, with its sentence as the message; anything
- * else is a 5xx. A word no code names answers 403 with the word itself, as it always did.
+ * else is a 5xx. A word no code names answers 403 with the word itself, as it always did, and is
+ * logged: the database learned a word the API has no sentence for.
  */
 export function databaseRefusal(error: { code?: string; message: string }, what: string): Error {
   if (error.code !== 'P0001') return new Error(`${what} failed: ${error.message}`);
-  const named = (SPAR_REFUSAL_CODES as readonly string[]).includes(error.message);
-  const word = error.message as SparRefusalCode;
-  const sentence = named ? SPAR_REFUSAL_SENTENCES[word] : error.message;
+  const word = error.message;
+  if (!isRefusalCode(word)) {
+    refusalLog.warn(`${what}: the database refused with a word no code names: ${word}`);
+    return new ForbiddenException({ code: word, message: word });
+  }
+  const sentence = SPAR_REFUSAL_SENTENCES[word];
   const status = refusalStatus(word);
   if (status === 409) return new ConflictException({ code: word, message: sentence });
   if (status === 400) return badRequest(word, sentence);
-  return refusal(word, sentence) as HttpException;
+  return refusal(word, sentence);
 }
 
 /**
