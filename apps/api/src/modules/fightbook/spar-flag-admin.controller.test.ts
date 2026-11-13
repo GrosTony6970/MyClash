@@ -82,9 +82,9 @@ describe('PlatformSparFlagsController', () => {
   });
 
   it('sits behind the platform guard, and the read names super_admin', () => {
-    expect(Reflect.getMetadata(GUARDS_METADATA, PlatformSparFlagsController)).toContain(
+    expect(Reflect.getMetadata(GUARDS_METADATA, PlatformSparFlagsController)).toEqual([
       PlatformRoleGuard,
-    );
+    ]);
     expect(Reflect.getMetadata(PLATFORM_ROLE_KEY, controller.list)).toBe('super_admin');
   });
 });
