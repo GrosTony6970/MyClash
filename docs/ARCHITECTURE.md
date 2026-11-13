@@ -2572,19 +2572,24 @@ the refused request was asked, ruling 667; a pair lock serialises an ask and a b
 receiver's own request, still waiting and open, from an asker still on FightBook), `fightbook_block`
 (the blocked fighter's waiting requests end as a no, the blocker's own are withdrawn, an agreed
 spar stays). Withdraw and cancel are one conditional update each. The loser of any race gets 409
-`not_open`. Slice 5 adds two more calls that two taps can race, `fightbook_call_pick` and
-`fightbook_qr_log`, and re-defines `fightbook_block` and `fightbook_answer` (0270; §11septies.9).
-`pnpm db:fightbook-probe` runs every FightBook function (ask, answer, block, review, flag, pick,
-scan) on the replayed database in CI, each rule in one transaction, one call after another.
+`not_open`. Slice 5 adds three more calls that two taps can race, `fightbook_call_pick`,
+`fightbook_call_take_back` and `fightbook_qr_log`, and re-defines `fightbook_block` and
+`fightbook_answer` (0270; §11septies.9). `pnpm db:fightbook-probe` runs every FightBook function
+(ask, answer, block, review, flag, pick, take back, scan) on the replayed database in CI, each rule
+in one transaction, one call after another.
 `pnpm db:fightbook-race-probe` (`RACE_PROBE_DISPOSABLE=1`, it commits rows) runs the overlaps that
 probe cannot show, on two connections with the overlap forced, never left to chance (the first
 connection holds its call open, the probe reads `pg_blocking_pids` to see the second is waiting,
-then lets the first end): two picks of one call (one spar, the other `not_open`); two scans of one
+then lets the first end). Where the first call cannot be held open (a refusal ends its transaction
+at the error) or the lock to meet is a merge's, a third "gate" connection holds a profile row FOR
+UPDATE, so the first call stops mid-way, and the probe reads that it waits on the gate
+(`refusedThenScan`, `pickDuringMerge`). The overlaps: two picks of one call (one spar, the other `not_open`); two scans of one
 code (one request, the other `bad_code`); a scan that is refused after it claimed the code, while a
 second scan waits on that code (the claim is undone, the second scan goes through with the same
 code); a block committed while a pick or a scan waits on the pair lock (the pick refuses
-`not_open`, the scan `you_blocked`); a take-back during a pick (it waits on the pick's FOR SHARE on
-the answer, then lands); and a pick while a profile is held FOR UPDATE, as a merge holds it
+`not_open`, the scan `you_blocked`); a take-back during a pick (it locks the answer FOR UPDATE,
+so it waits on the pick's FOR SHARE, then reads the call picked and refuses `not_open`, and the
+answer stays: never a take-back AND a spar); and a pick while a profile is held FOR UPDATE, as a merge holds it
 (0268; the probe holds the lock itself, it does not run a merge): the pick waits, then sees the
 result. Scans refused for `already_asked`, `bad_event` or
 `not_on_fightbook` in a transaction of their own leave their code, and the same scanner then scans
@@ -2626,6 +2631,8 @@ Slice 4 adds the safety flags (§11septies.8). The data download carries the fla
 `spar_flags` is out of the Event archive. Account erasure deletes the flags about the erased
 profiles and clears the reporter on the flags they wrote; anonymisation keeps them. A fighter merge
 moves no flag: the rules follow the merged profiles instead.
+Slice 5's rows (free now, open calls and their answers, QR codes) are in §11septies.9, "Switch-off,
+sweep, privacy".
 
 ### 11septies.6 Finding and asking
 
@@ -2939,7 +2946,8 @@ made (`blockedBy`); the other direction is decided inside SQL, with the face an 
 if that comes first (`sparExpiresAt`: 06:00 the next morning on the Event's clock). It is allowed
 only for a public Event that the caller is on and that has a day running now (`today` not null);
 anything else answers 400 `bad_event`. Switching on at another Event moves the fighter, because the
-row is an upsert on the profile. Every read requires `until > now()`. The "free now" badge shows only in Find's Event block (`EventFindCard.freeNow`
+row is an upsert on the profile. Switching off is allowed on an archived Event
+(`@AllowOnArchivedEvent`): it removes presence, which is always allowed. Every read requires `until > now()`. The "free now" badge shows only in Find's Event block (`EventFindCard.freeNow`
 in `@myclash/types`; the free-now fighters come first, then by name); the people page shows none. The caller's own state rides on
 `me/fightbook/events` as `FightBookEvent.freeUntil`. The web shows "free until HH:MM" in the phone's
 zone, since the fighter is at the venue and reads the phone's clock (Ruling O).
@@ -2961,7 +2969,10 @@ answers 404, as if absent.
 
 - **Take-back** is authorised by the caller's own answer row (Ruling M). No row answers 404, like an
   unknown call, so no one can learn whether a call exists. A row on a call that is no longer open
-  answers 409 `not_open`.
+  answers 409 `not_open`. It is one database call, `fightbook_call_take_back(p_call, p_answerer)`
+  (0270): it locks the answer row FOR UPDATE first (no row raises `not_found`, P0002, which the
+  API answers as an unknown call), then reads the call in a new statement (not OPEN raises
+  `not_open`), then deletes the row. It reads no block, roster or profile (ruling 672).
 - **What each fighter reads** (`readOpenCalls`, `modules/fightbook/open-call-reads.ts`). `mine`:
   the caller's calls of today, whatever their state, each with `answers`; the answers are listed
   only while the call is open, and they leave out fighters the caller blocked (ruling 706).
@@ -2986,8 +2997,9 @@ answers 404, as if absent.
 
 **The pick (`fightbook_call_pick(p_call, p_poster, p_answerer, p_expires_at) → uuid`, Decision
 10).** It takes the 0264 pair lock (advisory lock on the pair, then KEY SHARE on both profiles in id
-order). It locks the answer row FOR SHARE, so a take-back waits for the pick or wins first and the
-pick loses. Both profiles must be live with FightBook on and no block either way, and the fighters
+order). It locks the answer row FOR SHARE. A take-back locks that row FOR UPDATE before it reads
+the call, so it either waits for the pick and then refuses `not_open` (the answer stays), or wins
+first and the pick, finding no answer, refuses `not_open`. Both profiles must be live with FightBook on and no block either way, and the fighters
 must differ, else `not_open`. Then one conditional `UPDATE spar_open_calls SET status = 'picked'
 … WHERE status = 'open' AND closes_at > now()` is the only gate on the call's state: zero rows is
 `not_open`, so two picks at once make one Spar. It inserts the Spar already `agreed`, asker = the
@@ -3002,9 +3014,14 @@ the caller except the newest live one, then inserts one, so a scan begun on the 
 works, and at most two codes of a fighter are live (two tabs minting in the same instant can leave
 three for a few minutes; accepted). The code is separate from the Event pass QR
 (`event_passes`), and the desk's `looksLikePassToken` refuses an `fb:` code, so a scan can never
-check anyone in. The web renews the code when less than 30 s remain, counted on `performance.now()`
-from the moment the mint answered: the answer carries no server time, and the phone's wall clock may
-be wrong (Ruling P).
+check anyone in. The web renews the code when less than 30 s remain, counted from the moment the
+mint answered on both of the phone's clocks (Ruling P; `use-qr-code.ts`): the answer carries no
+server time and the wall clock (`Date.now()`) may be wrong, while the monotonic clock
+(`performance.now()`) and the timers stop while a phone sleeps (WebKit, Chromium on macOS). The code
+is stale when EITHER clock says less than 30 s remain: a wall clock set forward costs one extra
+mint, one set back is covered by the monotonic clock. The panel looks again when the page becomes
+visible (a wake drops a stale code at once) and when it opens (the held code shows until the new
+one answers). A failed mint stops the renewals until "Try again" or the next opening.
 
 `POST me/fightbook/qr/scan` takes `{ code, weapons, eventId | place + zone }`. A scan works anywhere
 (ruling 709): at an Event day that both fighters are on, the Spar is that Event's, today; elsewhere
@@ -3033,7 +3050,9 @@ as usual. The reason is the block: a scan that agreed a Spar at once could not b
 shower who blocked the scanner. A **blocked** scan never reaches the shower. It is hidden from her
 Inbox (`SparReadsService.inbox` leaves out requests whose asker she blocked, inside the query and
 before its limit) and sends no notice (`notify` is false). It waits as "sent" until its day ends,
-then reads "Not this time": exactly a request she ignored. `fightbook_answer` is re-defined and
+then reads "Not this time": exactly a request she ignored. The hidden request does appear in the
+shower's own data download (Art. 15: it is her data); the scanner sees nothing of it, so it is no
+leak. `fightbook_answer` is re-defined and
 refuses `not_open` when the receiver blocked the asker, so no stray id can agree a Spar with a
 blocked fighter. If she unblocks the same day, the request shows in her Inbox. Asks keep their
 instant "Not this time" face (ruling 660); a scan does not. The API answers `{ id }` only and starts,
@@ -3094,7 +3113,7 @@ reuses `spar_request_received`.
   codes, the answers by answerer, the calls by picked fighter, the calls by poster and the free-now
   row. The QR codes go first for the lock order above.
 - **Event archive** (`ARCHIVE_EXCLUDED_TABLES`): `fightbook_free_now` and `spar_open_calls`. The
-  answers and the QR codes name no Event.
+  answers go with their call; the QR codes name no Event.
 - **Merge: none carried.** Each row lives an hour to a day, and every read requires a live profile
   through `applyFightBookOn`, so a merged-away profile's rows show nowhere. A merge (0265, 0268)
   moves none of the four tables. If a later change makes a merge carry them, it becomes a second
@@ -3107,6 +3126,16 @@ reuses `spar_request_received`.
 - A switch-off does not stop a pick that already read "FightBook on" (§11septies.3).
 - The 5-call cap is not atomic (Ruling G).
 - `notifySparCallAnswered` buzzes once per call.
+- An "I'm in" racing the answerer's OWN block of the poster can land after the block deleted the
+  answerer's answers. The poster then sees an answerer whose picks answer 409 until the call
+  closes. It needs the blocker's own taps at the same moment (Ruling Q).
+- `SparFindService.atEvent` keeps its own Event read: it needs the whole Event row for
+  `hiddenEntrantIds` (the Tournament-hidden filter), and `floorEvent` returns only `{ today, zone }`.
+  The predicates `isPublicEvent` and `isOnEventRoster` are shared (Ruling R).
+- A free-date scan at 23:59 in the scanner's zone expires at the day's end, so the shower has a
+  minute to answer. A QR spar is confirmed face to face, on the spot (Ruling S).
+- The viewfinder markup is copied between `QrScan.tsx` (web-public) and `ScanOverlay.tsx`
+  (web-staff); left for now.
 
 **Offline (hard rule 3).** Slice 5 touched web-staff only through the scanner move. The evidence
 (Ruling N): the local E2E harness that CI's E2E job runs, before the commit (522 passed, with
