@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookBlock, FightBookSettings, SparFighter } from '@myclash/types';
 import { Avatar, Button, Switch } from '@myclash/ui';
@@ -150,8 +150,21 @@ function useLimitSave(
   const [shown, setShown] = useState(dailyLimit);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+  const menuRef = useRef<HTMLSelectElement>(null);
+  const heldFocus = useRef(false);
+  // A disabled select drops focus. When the save ends and the menu is enabled again, give focus
+  // back only if the fighter held it at the pick and has not gone anywhere else since.
+  useEffect(() => {
+    if (saving || !heldFocus.current) return;
+    heldFocus.current = false;
+    const active = document.activeElement;
+    if (active === null || active === document.body || active === menuRef.current) {
+      menuRef.current?.focus();
+    }
+  }, [saving]);
   const save = async (next: number | null) => {
     const before = shown;
+    heldFocus.current = document.activeElement === menuRef.current;
     setShown(next);
     setSaving(true);
     setFailed(false);
@@ -170,7 +183,7 @@ function useLimitSave(
     setShown(before);
     setFailed(true);
   };
-  return { shown, saving, failed, save };
+  return { shown, saving, failed, save, menuRef };
 }
 
 /** The daily limit: "No limit" and 1 to 20, saved at once. */
@@ -180,7 +193,7 @@ function DailyLimitSetting(props: {
   onSaved: (dailyLimit: number | null) => void;
 }) {
   const { t } = useI18n();
-  const { shown, saving, failed, save } = useLimitSave(
+  const { shown, saving, failed, save, menuRef } = useLimitSave(
     props.apiUrl,
     props.dailyLimit,
     props.onSaved,
@@ -194,6 +207,7 @@ function DailyLimitSetting(props: {
         control={
           <div className="w-44">
             <select
+              ref={menuRef}
               aria-label={label}
               className={`${inputClass} min-h-11`}
               value={shown === null ? '' : String(shown)}

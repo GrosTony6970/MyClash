@@ -161,3 +161,58 @@ describe('the daily limit select', () => {
     expect(limitSelect()!.disabled).toBe(false);
   });
 });
+
+/**
+ * A disabled select drops keyboard focus in a browser. jsdom does not move focus off it, and
+ * `blur()` on a disabled select does nothing, so the loss is done the other way: focus a throwaway
+ * button, remove it, and jsdom sends focus to the body.
+ */
+describe('keyboard focus around a daily-limit save', () => {
+  async function pickHeld(answer: Answer) {
+    let release: (a: Answer) => void = () => undefined;
+    serve({
+      'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS },
+      'PATCH /api/v1/me/fightbook/settings': () => new Promise<Answer>((r) => (release = r)),
+      ...ON,
+    });
+    await open();
+    limitSelect()!.focus();
+    await pick('3');
+    return () => act(async () => release(answer));
+  }
+  const loseFocus = () => {
+    const stray = document.createElement('button');
+    document.body.append(stray);
+    stray.focus();
+    stray.remove();
+    expect(document.activeElement).toBe(document.body);
+  };
+
+  it('comes back to the menu when the fighter had it and focus went nowhere', async () => {
+    const answerSave = await pickHeld({ ok: true, data: { ...SETTINGS, dailyLimit: 3 } });
+    loseFocus();
+    await answerSave();
+    await settled();
+    expect(limitSelect()!.disabled).toBe(false);
+    expect(document.activeElement).toBe(limitSelect());
+  });
+
+  it('stays where the fighter went during the save', async () => {
+    const answerSave = await pickHeld({ ok: true, data: { ...SETTINGS, dailyLimit: 3 } });
+    const elsewhere = document.createElement('button');
+    container.append(elsewhere);
+    elsewhere.focus();
+    await answerSave();
+    await settled();
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it('comes back after a failed save too, with the old value shown', async () => {
+    const answerSave = await pickHeld({ ok: false, kind: 'network' });
+    loseFocus();
+    await answerSave();
+    await settled();
+    expect(limitSelect()!.value).toBe('5');
+    expect(document.activeElement).toBe(limitSelect());
+  });
+});
