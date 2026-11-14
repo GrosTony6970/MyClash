@@ -5,6 +5,9 @@
  *
  * The script and its libs run in a temporary root (it `cd`s two levels above itself) with a
  * `docker` stub that fails: the dump and the archive are skipped, the pruning still runs.
+ *
+ * Also how it reads `docker compose ps`: a failing `ps` (the daemon unreachable) is reported as
+ * that failure, never as a stopped database.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +34,30 @@ const skip = process.platform === 'win32' && !existsSync(BASH) ? 'needs Git Bash
 const roots = [];
 after(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
 
-function sandbox() {
+const FAILING_DOCKER = ['#!/usr/bin/env bash', 'exit 1', ''].join('\n');
+
+/** compose is installed; `ps` answers as `PS_ANSWER` says; anything else (exec, volume) fails.
+ *  Its warning names a db container, as compose's own orphan warning can: a stopped database
+ *  must not read as running because a warning line contains "db". */
+const ORPHAN_WARNING =
+  'level=warning msg=Found orphan containers ([myclash-db-1]) for this project';
+const COMPOSE_DOCKER = [
+  '#!/usr/bin/env bash',
+  'case " $* " in',
+  '  *" version "*) exit 0 ;;',
+  // Only the call backup.sh means to make: without these flags the answer would differ.
+  '  *" ps --status running --services ")',
+  '    case "$PS_ANSWER" in',
+  '      unreachable) echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" >&2; exit 1 ;;',
+  `      stopped) echo "${ORPHAN_WARNING}" >&2; exit 0 ;;`,
+  `      running) echo "${ORPHAN_WARNING}" >&2; echo db; exit 0 ;;`,
+  '    esac ;;',
+  'esac',
+  'exit 1',
+  '',
+].join('\n');
+
+function sandbox(docker = FAILING_DOCKER) {
   const root = mkdtempSync(join(tmpdir(), 'backup-sh-'));
   roots.push(root);
   const scripts = join(root, 'infra', 'scripts');
@@ -42,7 +68,7 @@ function sandbox() {
   }
   writeFileSync(join(root, '.env'), 'POSTGRES_USER=postgres\nPOSTGRES_DB=myclash\n');
   mkdirSync(join(root, 'bin'));
-  writeFileSync(join(root, 'bin', 'docker'), '#!/usr/bin/env bash\nexit 1\n', { mode: 0o755 });
+  writeFileSync(join(root, 'bin', 'docker'), docker, { mode: 0o755 });
   return root;
 }
 
@@ -57,7 +83,7 @@ function copyAged(root, name, days) {
   return file;
 }
 
-function backup(root) {
+function backup(root, psAnswer = '') {
   const result = spawnSync(
     BASH,
     [
@@ -67,7 +93,11 @@ function backup(root) {
     ],
     {
       cwd: root,
-      env: { ...process.env, STUB_BIN: join(root, 'bin').replaceAll('\\', '/') },
+      env: {
+        ...process.env,
+        STUB_BIN: join(root, 'bin').replaceAll('\\', '/'),
+        PS_ANSWER: psAnswer,
+      },
       encoding: 'utf8',
       timeout: 30_000,
     },
@@ -94,4 +124,34 @@ test('a server with no pre-deploy folder yet backs up without a word about it', 
   const output = backup(root);
   assert.equal(existsSync(join(root, 'backups', 'pre-deploy')), false, output);
   assert.doesNotMatch(output, /pre-deploy/u, output);
+});
+
+test(
+  'a compose ps that fails is reported with its reason, not as a stopped database',
+  { skip },
+  () => {
+    const output = backup(sandbox(COMPOSE_DOCKER), 'unreachable');
+    assert.match(
+      output,
+      /docker compose ps failed — cannot dump Postgres: Cannot connect to the Docker daemon/u,
+      output,
+    );
+    assert.doesNotMatch(output, /not running/u, output);
+    // The run goes on to the storage archive, and its result is a failure.
+    assert.match(output, /Storage volume archive/u, output);
+    assert.match(output, /Backup completed with errors/u, output);
+  },
+);
+
+test('a database that is not running is still reported as not running', { skip }, () => {
+  const output = backup(sandbox(COMPOSE_DOCKER), 'stopped');
+  assert.match(output, /DB container not running — skipping Postgres dump/u, output);
+  assert.doesNotMatch(output, /docker compose ps failed/u, output);
+});
+
+test('a running database is dumped, whatever compose warns about', { skip }, () => {
+  const output = backup(sandbox(COMPOSE_DOCKER), 'running');
+  // The stub's `exec` fails, so reaching pg_dump shows as its failure.
+  assert.match(output, /pg_dump failed/u, output);
+  assert.doesNotMatch(output, /not running|docker compose ps failed/u, output);
 });

@@ -27,6 +27,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/db-running.sh"
 
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
@@ -121,7 +122,12 @@ PG_FILE="$BACKUP_DIR/db-${TIMESTAMP}.sql.gz"
 if ! "${COMPOSE[@]}" version >/dev/null 2>&1; then
   log_err "docker compose unavailable in this environment — cannot dump Postgres"
   BACKUP_OK=0
-elif "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
+# A `ps` that fails is not a stopped database (lib/db-running.sh): say what
+# compose answered.
+elif mc_db_state; [[ "$MC_DB_STATE" == unknown ]]; then
+  log_err "docker compose ps failed — cannot dump Postgres: $MC_DB_PS_REASON"
+  BACKUP_OK=0
+elif [[ "$MC_DB_STATE" == running ]]; then
   # pg_dump takes a consistent MVCC snapshot by default; its stderr is
   # kept (not silenced) so failures surface in the ops-runner log tail.
   if "${COMPOSE[@]}" exec -T db \

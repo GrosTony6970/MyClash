@@ -27,6 +27,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/db-running.sh"
 
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
@@ -526,7 +527,13 @@ hdr "Pre-deploy database backup"
 
 if [[ "$SKIP_BACKUP" -eq 1 ]]; then
   warn "Skipping pre-deploy backup (--skip-backup)"
-elif ! "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
+# A `ps` that fails (the daemon unreachable) is not a first deploy
+# (lib/db-running.sh): it stops the deploy, as a failed dump does, rather than
+# going on with no backup.
+elif mc_db_state; [[ "$MC_DB_STATE" == unknown ]]; then
+  err "docker compose ps failed — cannot take the pre-deploy backup, aborting deploy: $MC_DB_PS_REASON"
+  exit 1
+elif [[ "$MC_DB_STATE" == stopped ]]; then
   warn "Database not running — skipping pre-deploy backup (likely first deploy)"
 else
   TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
