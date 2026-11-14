@@ -18,7 +18,7 @@ export const SPAR_REFUSAL_SENTENCES: Record<SparRefusalCode, string> = {
   bad_zone: 'Your time zone could not be read',
   bad_place: 'Pick a place for a free date',
   bad_weapon: 'That weapon is not on the list',
-  bad_event: 'A spar can only name a public Event you are at',
+  bad_event: 'This code works only at a public Event you are both at, on a day it runs',
   bad_answer: 'That answer is not possible',
   self: 'You cannot ask yourself',
   favourites_full: 'Your favourites list is full',

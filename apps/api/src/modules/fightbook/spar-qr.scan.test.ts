@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  type HttpException,
+} from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { lastFunctionParams } from '../../common/testing/migration-function';
 import { filtersFor, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
@@ -139,5 +144,27 @@ describe('SparQrService.scan, the database’s refusals', () => {
   it('turns any other database error into a 5xx', async () => {
     const { qr } = qrWorld({ answer: { data: null, error: { code: 'XX000', message: 'boom' } } });
     await expect(qr.scan(MARC, elsewhere, NOW)).rejects.toThrow('boom');
+  });
+});
+
+describe('SparQrService.scan, one bad_event whichever fighter is off the Event (Decision 14)', () => {
+  const answerOf = async (promise: Promise<unknown>) => {
+    const error = (await promise.catch((e: unknown) => e)) as HttpException;
+    return [error.getStatus(), error.getResponse()];
+  };
+
+  it('answers the API’s own Event check and the database’s refusal byte for byte alike', async () => {
+    const worlds: Parameters<typeof qrWorld>[0][] = [
+      { roster: false },
+      { event: null },
+      { event: { ...publicEvent, status: 'draft' } },
+      { event: { ...publicEvent, start_date: '2026-06-01', end_date: '2026-06-02' } },
+      { answer: { data: null, error: { code: 'P0001', message: 'bad_event' } } },
+    ];
+    const answers = [];
+    for (const world of worlds)
+      answers.push(await answerOf(qrWorld(world).qr.scan(MARC, atEvent, NOW)));
+    const sentence = 'This code works only at a public Event you are both at, on a day it runs';
+    expect(answers).toEqual(worlds.map(() => [400, { code: 'bad_event', message: sentence }]));
   });
 });

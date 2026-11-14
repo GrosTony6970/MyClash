@@ -3112,7 +3112,10 @@ profiles are `FIGHTBOOK_ASK_THROTTLE`, `FIGHTBOOK_CALL_THROTTLE`, `FIGHTBOOK_SCA
 `fightbook_off`, `not_on_fightbook` and `you_blocked` answer 403 on a scan, as on an ask
 (`databaseRefusal`, `spar-requests.service.ts`). Each word the database raises answers one fixed
 English sentence as its `message` (`SPAR_REFUSAL_SENTENCES`, `spar-refusal-sentences.ts`); the web
-keys on the `code` and shows its own.
+keys on the `code` and shows its own. A refused scan's `bad_event` names both fighters, on the scan
+only (`publicApp.fightBook.qr.badEvent`, ruling 760), and the scan's own Event check answers the
+database's `message` word for word (`floorEvent`'s `refuse`), so not even the raw answer tells which
+fighter is off the Event (Decision 14).
 
 **Notices.** Two kinds, preference `fightbook`, no names (they show on a locked phone):
 `spar_call_answered` to the poster, one per call (its job id is the kind, call and poster, so later

@@ -17,7 +17,7 @@ const EXPECTED: Record<SparRefusalCode, [number, string]> = {
   bad_zone: [400, 'Your time zone could not be read'],
   bad_place: [400, 'Pick a place for a free date'],
   bad_weapon: [400, 'That weapon is not on the list'],
-  bad_event: [400, 'A spar can only name a public Event you are at'],
+  bad_event: [400, 'This code works only at a public Event you are both at, on a day it runs'],
   bad_answer: [400, 'That answer is not possible'],
   self: [400, 'You cannot ask yourself'],
   favourites_full: [409, 'Your favourites list is full'],

@@ -1784,6 +1784,7 @@ export const publicApp = {
       sent: 'Sent — they confirm on their phone',
       again: 'Scan again',
       throttled: 'You scanned many codes this hour. Try again later.',
+      badEvent: 'This code works only at a public Event you are both at, on a day it runs.',
     },
   },
   myPhotos: {

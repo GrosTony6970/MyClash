@@ -1798,6 +1798,8 @@ export const publicApp = {
       sent: 'Envoyé — la personne confirme sur son téléphone',
       again: 'Scanner à nouveau',
       throttled: 'Vous avez scanné beaucoup de codes cette heure. Réessayez plus tard.',
+      badEvent:
+        'Ce code ne fonctionne que pendant un événement public auquel vous participez tous les deux, un jour où il a lieu.',
     },
   },
   myPhotos: {

@@ -1,3 +1,4 @@
+import type { HttpException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { filtersFor, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import {
@@ -99,6 +100,17 @@ describe('OpenCallsService.post', () => {
     const { open } = world();
     const after = new Date('2026-05-25T10:30:00Z'); // Monday 06:30 in New York
     expect(await codeOf(open.post(MARC, EVENT, LONGSWORD, after))).toEqual([400, 'bad_event']);
+  });
+
+  it('keeps the floor’s sentence, not the scan’s (ruling 760)', async () => {
+    const { open } = world({ rosterOf: [JULIE, PAUL] });
+    const error = (await open
+      .post(MARC, EVENT, LONGSWORD, NOW)
+      .catch((e: unknown) => e)) as HttpException;
+    expect(error.getResponse()).toEqual({
+      code: 'bad_event',
+      message: 'This works at a public Event you are at, on a day it runs',
+    });
   });
 });
 

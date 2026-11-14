@@ -232,7 +232,7 @@ describe('a refusal', () => {
     ['you_blocked', 'You blocked this fighter'],
     ['not_on_fightbook', 'This fighter does not use FightBook'],
     ['fightbook_off', 'Switch FightBook on first'],
-    ['bad_event', 'A spar can only name a public Event you are at'],
+    ['bad_event', 'This code works only at a public Event you are both at, on a day it runs.'],
     ['bad_place', 'Pick a place for a free date'],
   ])('%s shows its sentence and "Scan again"', async (code, sentence) => {
     answer = () => ({ ok: false, kind: 'http', status: 400, code });

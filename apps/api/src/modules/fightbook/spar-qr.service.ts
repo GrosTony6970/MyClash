@@ -4,7 +4,7 @@ import type { FightBookQrCode, SparKind } from '@myclash/types';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { hashPassToken, mintPassToken } from '../checkin/pass-token';
 import { SupabaseService } from '../supabase/supabase.service';
-import { floorEvent, offTheFloor } from './floor-event';
+import { floorEvent } from './floor-event';
 import {
   badRequest,
   catalogWeapons,
@@ -13,10 +13,17 @@ import {
   type SparWhere,
 } from './spar-ask-rules';
 import { notifySparRequestReceived, type SparNoticeDeps } from './spar-notices';
+import { SPAR_REFUSAL_SENTENCES } from './spar-refusal-sentences';
 import { databaseRefusal } from './spar-requests.service';
 
 /** What a FightBook QR encodes before its secret. The desk's pass reader refuses it (`:`). */
 export const QR_CODE_PREFIX = 'fb:';
+
+/**
+ * 400 `bad_event` for a scan at an Event: the database's refusal word for word (Decision 14), so
+ * not even the raw answer tells whether the scanner or the shower is off the Event.
+ */
+const offTheScanFloor = () => badRequest('bad_event', SPAR_REFUSAL_SENTENCES.bad_event);
 
 /** How long a code works (ruling 711). */
 export const QR_CODE_LIFETIME_MS = 5 * 60_000;
@@ -133,8 +140,9 @@ export class SparQrService {
 
   /** At an Event (ruling 709): public, I am on its roster, a day of it runs now; else `bad_event`. */
   private async atEvent(me: string, eventId: string, now: Date): Promise<ScanWhere> {
-    const { today, zone } = await floorEvent(this.supabase.service, me, eventId, now);
-    if (!today) throw offTheFloor();
+    const db = this.supabase.service;
+    const { today, zone } = await floorEvent(db, me, eventId, now, offTheScanFloor);
+    if (!today) throw offTheScanFloor();
     return { kind: 'event', day: today, eventId, zone, place: null };
   }
 

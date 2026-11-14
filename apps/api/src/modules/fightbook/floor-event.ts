@@ -20,16 +20,17 @@ export const offTheFloor = () =>
  * The floor tools' gate (FightBook slice 5, Decisions 2 and 8): a public Event (not a draft, not a
  * test) with the caller on its roster, else 400 `bad_event`. Answers its `today` on its own clock
  * (`openEventDays`) and its zone; a write that needs a day refuses a null `today` itself. The one
- * owner for free-now and open calls.
+ * owner for free-now, open calls and the QR scan; the scan passes its own `refuse` (Decision 14).
  */
 export async function floorEvent(
   db: Db,
   me: string,
   eventId: string,
   now: Date,
+  refuse: () => Error = offTheFloor,
 ): Promise<FloorEvent> {
   const event = await publicFloorEvent(db, eventId, now);
-  if (!event || !(await isOnEventRoster(db, me, eventId))) throw offTheFloor();
+  if (!event || !(await isOnEventRoster(db, me, eventId))) throw refuse();
   return event;
 }
 

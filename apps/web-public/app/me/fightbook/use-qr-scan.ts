@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import type { KnownTranslationKey } from '@myclash/i18n';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookEvent } from '@myclash/types';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
@@ -30,6 +31,16 @@ function useScanForm(events: FightBookEvent[], catalog: string[]) {
     return { ...common, place: place.trim(), zone };
   };
   return { weapons, where, place, ready, toggle, setWhere, setPlace, bodyFor };
+}
+
+/**
+ * A refused scan's sentence: the hour used up, or the refusal's own. `bad_event` names both
+ * fighters here (ruling 760): either one may be off the Event, and the scanner is not told which.
+ */
+function scanRefusalKey(status: number | null, code: string | null): KnownTranslationKey {
+  if (status === 429) return 'publicApp.fightBook.qr.throttled';
+  if (code === 'bad_event') return 'publicApp.fightBook.qr.badEvent';
+  return sparRefusalKey(code);
 }
 
 /**
@@ -66,9 +77,7 @@ export function useQrScan(props: {
       return props.onSent();
     }
     if (res.status === 401) return signInAgainHere();
-    const message =
-      res.status === 429 ? t('publicApp.fightBook.qr.throttled') : t(sparRefusalKey(res.code));
-    setPhase({ kind: 'refused', message });
+    setPhase({ kind: 'refused', message: t(scanRefusalKey(res.status, res.code)) });
   };
 
   const onToken = (token: string) => {

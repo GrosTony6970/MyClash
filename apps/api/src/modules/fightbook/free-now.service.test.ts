@@ -130,6 +130,17 @@ describe('FreeNowService.switchOn', () => {
     const now = new Date('2026-05-25T10:30:00Z'); // after Monday 06:00 in New York
     expect(await codeOf(free.switchOn(MARC, EVENT, now))).toEqual([400, 'bad_event']);
   });
+
+  it('keeps the floor’s sentence, not the scan’s (ruling 760)', async () => {
+    const { free } = service();
+    const error = (await free
+      .switchOn(MARC, NOT_MINE, new Date('2026-05-23T18:00:00Z'))
+      .catch((e: unknown) => e)) as HttpException;
+    expect(error.getResponse()).toEqual({
+      code: 'bad_event',
+      message: 'This works at a public Event you are at, on a day it runs',
+    });
+  });
 });
 
 describe('FreeNowService.switchOff', () => {
