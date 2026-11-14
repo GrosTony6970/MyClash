@@ -101,8 +101,10 @@ async function ring(
   );
   for (const result of results) {
     if (result.status === 'rejected') {
-      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
-      d.logger.error(`FightBook spar_starting reminder of ${requestId} was not set: ${reason}`);
+      // The error's kind, never its message: a queue error can name the job id, which holds the
+      // account id (`notification-scheduler.worker.ts`).
+      const kind = result.reason instanceof Error ? result.reason.name : typeof result.reason;
+      d.logger.error(`FightBook spar_starting reminder of ${requestId} was not set: ${kind}`);
     }
   }
 }

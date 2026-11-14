@@ -167,7 +167,7 @@ describe('the reminder of an agreed spar', () => {
       await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
       expect(scheduleReminder).toHaveBeenCalledTimes(2);
       expect(logger.error).toHaveBeenCalledTimes(1);
-      expect(logger.error).toHaveBeenCalledWith(`${LINE}queue is down`);
+      expect(logger.error).toHaveBeenCalledWith(`${LINE}Error`);
       expect(logger.error).not.toHaveBeenCalledWith(
         expect.stringContaining(`spar_starting of ${REQUEST} was not set`),
       );
@@ -175,12 +175,15 @@ describe('the reminder of an agreed spar', () => {
 
     it('logs one line per failed reminder when both fail, with no user id', async () => {
       const { d, scheduleReminder, logger } = world();
-      scheduleReminder.mockRejectedValue(new Error('queue is down'));
+      // The queue's errors can name the job id, and the job id holds the account id.
+      scheduleReminder.mockImplementation((async (job: { userId: string }) => {
+        throw new TypeError(`job spar_starting:${REQUEST}:${job.userId} could not be added`);
+      }) as never);
       await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
       expect(scheduleReminder).toHaveBeenCalledTimes(2);
       expect(logger.error).toHaveBeenCalledTimes(2);
       for (const [line] of logger.error.mock.calls as unknown as Array<[string]>) {
-        expect(line).toBe(`${LINE}queue is down`);
+        expect(line).toBe(`${LINE}TypeError`);
         expect(line).not.toContain(ACCOUNT_JULIE);
         expect(line).not.toContain(ACCOUNT_MARC);
       }
