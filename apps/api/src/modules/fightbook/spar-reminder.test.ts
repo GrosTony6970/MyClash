@@ -190,28 +190,60 @@ describe('the reminder of an agreed spar', () => {
     });
   });
 
-  it('never throws: a failed read sets nothing and logs the request id', async () => {
-    const { d, scheduleReminder, logger } = world();
-    d.db = {
-      from: () => {
-        throw new Error('database is down');
-      },
-    } as never;
-    await expect(scheduleSparReminders(d, REQUEST)).resolves.toBeUndefined();
-    expect(scheduleReminder).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(REQUEST));
-  });
+  describe('a failed read sets nothing and logs one line with no message in it', () => {
+    const NOW = at('2026-11-14T10:00:00Z');
+    const LINE = `FightBook spar_starting of ${REQUEST} was not set: `;
+    // A database message can echo the values it was given; nothing here may reach the log.
+    const answered = (code: string) => ({
+      data: null,
+      error: { code, message: `invalid input syntax for type uuid: "${ACCOUNT_JULIE}"` },
+    });
 
-  it('logs a read error answered by the database', async () => {
-    const { d, scheduleReminder, logger } = world();
-    const chain = {
-      select: () => chain,
-      eq: () => chain,
-      maybeSingle: async () => ({ data: null, error: { message: 'boom' } }),
+    const logsOnly = (logger: ReturnType<typeof world>['logger'], line: string) => {
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(line);
+      expect(logger.error.mock.calls[0]?.[0]).not.toContain(ACCOUNT_JULIE);
+      // A failed profiles read must stop there, not go on to say a profile has no account.
+      expect(logger.warn).not.toHaveBeenCalled();
     };
-    d.db = { from: () => chain } as never;
-    await scheduleSparReminders(d, REQUEST);
-    expect(scheduleReminder).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(REQUEST));
+
+    it('never throws: an unexpected throw logs its kind, never its message', async () => {
+      const { d, scheduleReminder, logger } = world();
+      d.db = {
+        from: () => {
+          throw new TypeError(`database is down for ${ACCOUNT_JULIE}`);
+        },
+      } as never;
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      expect(scheduleReminder).not.toHaveBeenCalled();
+      logsOnly(logger, `${LINE}TypeError`);
+    });
+
+    it('the spar read answered with an error logs its code', async () => {
+      const { d, scheduleReminder, logger } = world();
+      d.db = mockSupabase({ spar_requests: answered('22P02') }).service as never;
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      expect(scheduleReminder).not.toHaveBeenCalled();
+      logsOnly(logger, `${LINE}the spar is unreadable (22P02)`);
+    });
+
+    it('the profiles read answered with an error logs its code', async () => {
+      const { d, scheduleReminder, logger } = world();
+      d.db = mockSupabase({
+        spar_requests: { rows: [spar()] },
+        global_persons: answered('57014'),
+      }).service as never;
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      expect(scheduleReminder).not.toHaveBeenCalled();
+      logsOnly(logger, `${LINE}the profiles are unreadable (57014)`);
+    });
+
+    it('a read that never reached the database says it has no code', async () => {
+      // supabase-js answers a failed fetch with an empty code and the fetch error as message.
+      const { d, logger } = world();
+      d.db = mockSupabase({ spar_requests: answered('') }).service as never;
+      await scheduleSparReminders(d, REQUEST, NOW);
+      logsOnly(logger, `${LINE}the spar is unreadable (no code)`);
+    });
   });
 });
