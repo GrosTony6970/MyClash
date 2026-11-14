@@ -19,7 +19,7 @@
  * GET   /me/fightbook/find?q=&weapon=&page= — one page of all of FightBook I may ask
  *
  * Every route acts on the caller's own fighter profile, never on one a body names. Each handler
- * starts with `caller()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
+ * starts with `callerOf()`: 401 signed out, 403 a staff login or a guest token (the AuthGuard runs in
  * shadow mode, so each route refuses on its own).
  */
 import {
@@ -153,13 +153,13 @@ export class FightBookController {
   @Get('settings')
   @ApiOperation({ summary: "The caller's FightBook switch, and whether they have a profile" })
   async getSettings(@Req() req: FastifyRequest) {
-    return this.settings.get(await this.caller(req));
+    return this.settings.get(await this.callerOf(req));
   }
 
   @Patch('settings')
   @ApiOperation({ summary: 'Switch FightBook on or off' })
   async setSettings(@Body() dto: FightBookSettingsDto, @Req() req: FastifyRequest) {
-    return this.settings.set(await this.caller(req), dto);
+    return this.settings.set(await this.callerOf(req), dto);
   }
 
   @Post('requests')
@@ -167,7 +167,7 @@ export class FightBookController {
   @ThrottleFightBookAsk()
   @ApiOperation({ summary: 'Ask a fighter for a spar' })
   async ask(@Body() dto: AskSparDto, @Req() req: FastifyRequest) {
-    const caller = await this.caller(req);
+    const caller = await this.callerOf(req);
     return this.requests.ask(requireFightBookOn(caller), dto);
   }
 
@@ -180,7 +180,7 @@ export class FightBookController {
     @Body() dto: AnswerSparDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.requests.answer(requireFightBookOn(await this.caller(req)), id, dto);
+    return this.requests.answer(requireFightBookOn(await this.callerOf(req)), id, dto);
   }
 
   // Take back, My spars and cancel need a profile, not the switch (ruling 666): a fighter who
@@ -191,7 +191,7 @@ export class FightBookController {
   @ApiOperation({ summary: 'Take back my spar request still waiting' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async withdraw(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.requests.withdraw(requireProfile(await this.caller(req)), id);
+    await this.requests.withdraw(requireProfile(await this.callerOf(req)), id);
   }
 
   @Post('requests/:id/cancel')
@@ -203,19 +203,19 @@ export class FightBookController {
     @Body() dto: CancelSparDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.requests.cancel(requireProfile(await this.caller(req)), id, dto.message);
+    await this.requests.cancel(requireProfile(await this.callerOf(req)), id, dto.message);
   }
 
   @Get('inbox')
   @ApiOperation({ summary: 'Spar requests waiting for my answer' })
   async inbox(@Req() req: FastifyRequest) {
-    return this.reads.inbox(requireFightBookOn(await this.caller(req)));
+    return this.reads.inbox(requireFightBookOn(await this.callerOf(req)));
   }
 
   @Get('spars')
   @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
   async spars(@Req() req: FastifyRequest) {
-    const caller = await this.caller(req);
+    const caller = await this.callerOf(req);
     return this.reads.mySpars(requireProfile(caller), caller.enabled);
   }
 
@@ -223,14 +223,14 @@ export class FightBookController {
   @Get('blocks')
   @ApiOperation({ summary: 'The fighters I blocked in FightBook' })
   async listBlocks(@Req() req: FastifyRequest) {
-    return this.blocks.list(requireProfile(await this.caller(req)));
+    return this.blocks.list(requireProfile(await this.callerOf(req)));
   }
 
   @Post('blocks')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Block a fighter in FightBook' })
   async block(@Body() dto: BlockDto, @Req() req: FastifyRequest) {
-    await this.blocks.block(requireProfile(await this.caller(req)), dto.globalPersonId);
+    await this.blocks.block(requireProfile(await this.callerOf(req)), dto.globalPersonId);
   }
 
   @Delete('blocks/:globalPersonId')
@@ -241,7 +241,7 @@ export class FightBookController {
     @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
     @Req() req: FastifyRequest,
   ) {
-    await this.blocks.unblock(requireProfile(await this.caller(req)), globalPersonId);
+    await this.blocks.unblock(requireProfile(await this.callerOf(req)), globalPersonId);
   }
 
   @Get('fighters/:globalPersonId/askable')
@@ -251,14 +251,14 @@ export class FightBookController {
     @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
     @Req() req: FastifyRequest,
   ) {
-    const me = requireFightBookOn(await this.caller(req));
+    const me = requireFightBookOn(await this.callerOf(req));
     return this.find.askableFighter(me, globalPersonId);
   }
 
   @Get('events')
   @ApiOperation({ summary: 'The published Events I am on, with the days still open to ask for' })
   async myEvents(@Req() req: FastifyRequest) {
-    return this.find.myEvents(requireFightBookOn(await this.caller(req)));
+    return this.find.myEvents(requireFightBookOn(await this.callerOf(req)));
   }
 
   @Get('events/:eventId/askable')
@@ -269,7 +269,7 @@ export class FightBookController {
     @Query() query: AskableQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const me = requireFightBookOn(await this.caller(req));
+    const me = requireFightBookOn(await this.callerOf(req));
     return this.find.askableAtEvent(me, eventId, query.persons, publicReader(req));
   }
 
@@ -281,21 +281,21 @@ export class FightBookController {
     @Query() query: FindQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const me = requireFightBookOn(await this.caller(req));
+    const me = requireFightBookOn(await this.callerOf(req));
     return this.find.atEvent(me, eventId, query.weapon, publicReader(req));
   }
 
   @Get('find')
   @ApiOperation({ summary: 'One page of the FightBook users I may ask' })
   async browse(@Query() query: BrowseQueryDto, @Req() req: FastifyRequest) {
-    const me = requireFightBookOn(await this.caller(req));
+    const me = requireFightBookOn(await this.callerOf(req));
     return this.find.browse(me, query.q, query.weapon, query.page);
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
 
   /** The caller: 401 signed out, 403 not a personal account (fightbook-caller.ts). */
-  private caller(req: FastifyRequest): Promise<FightBookCaller> {
+  private callerOf(req: FastifyRequest): Promise<FightBookCaller> {
     return fightBookCaller(req, this.supabase.service);
   }
 }

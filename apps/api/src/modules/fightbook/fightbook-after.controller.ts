@@ -9,7 +9,7 @@
  * GET  /me/fightbook/thanks?page= — the signed thank-yous I received, newest first
  * GET|PUT|DELETE /me/fightbook/favourites[/:globalPersonId] — my private hearts (FightBook on)
  *
- * Each handler starts with `caller()`, as the first FightBook controller does. A profile is enough,
+ * Each handler starts with `callerOf()`, as the first FightBook controller does. A profile is enough,
  * not the switch (ruling 666): a fighter who switched off still finishes the spars they agreed.
  */
 import {
@@ -88,7 +88,7 @@ export class FightBookAfterController {
   @ApiOperation({ summary: 'Mark an agreed spar as done: we sparred' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async done(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.after.markDone(requireProfile(await this.caller(req)), id);
+    await this.after.markDone(requireProfile(await this.callerOf(req)), id);
   }
 
   @Post('requests/:id/undo')
@@ -96,7 +96,7 @@ export class FightBookAfterController {
   @ApiOperation({ summary: 'Undo "We sparred": the spar is agreed again' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async undo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.after.undo(requireProfile(await this.caller(req)), id);
+    await this.after.undo(requireProfile(await this.callerOf(req)), id);
   }
 
   @Post('requests/:id/review')
@@ -108,7 +108,7 @@ export class FightBookAfterController {
     @Body() dto: ReviewDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.after.review(requireProfile(await this.caller(req)), id, dto);
+    await this.after.review(requireProfile(await this.callerOf(req)), id, dto);
   }
 
   @Post('requests/:id/flag')
@@ -120,7 +120,7 @@ export class FightBookAfterController {
     @Body() dto: FlagDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.flags.raise(requireProfile(await this.caller(req)), id, dto);
+    await this.flags.raise(requireProfile(await this.callerOf(req)), id, dto);
   }
 
   @Put('requests/:id/note')
@@ -132,20 +132,20 @@ export class FightBookAfterController {
     @Body() dto: NoteDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.after.setNote(requireProfile(await this.caller(req)), id, dto.body);
+    await this.after.setNote(requireProfile(await this.callerOf(req)), id, dto.body);
   }
 
   @Get('thanks')
   @ApiOperation({ summary: 'The thank-yous I received, newest first, 20 a page' })
   async receivedThanks(@Query() query: ThanksQueryDto, @Req() req: FastifyRequest) {
-    return this.thanks.received(requireProfile(await this.caller(req)), query.page);
+    return this.thanks.received(requireProfile(await this.callerOf(req)), query.page);
   }
 
   // Favourites need the switch on (ruling 679): a private heart on someone you can ask.
   @Get('favourites')
   @ApiOperation({ summary: 'My favourite FightBook users, by name' })
   async favourites(@Req() req: FastifyRequest) {
-    return this.favouritesService.list(requireFightBookOn(await this.caller(req)));
+    return this.favouritesService.list(requireFightBookOn(await this.callerOf(req)));
   }
 
   @Put('favourites/:globalPersonId')
@@ -156,7 +156,7 @@ export class FightBookAfterController {
     @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
     @Req() req: FastifyRequest,
   ) {
-    await this.favouritesService.add(requireFightBookOn(await this.caller(req)), globalPersonId);
+    await this.favouritesService.add(requireFightBookOn(await this.callerOf(req)), globalPersonId);
   }
 
   @Delete('favourites/:globalPersonId')
@@ -167,11 +167,14 @@ export class FightBookAfterController {
     @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
     @Req() req: FastifyRequest,
   ) {
-    await this.favouritesService.remove(requireFightBookOn(await this.caller(req)), globalPersonId);
+    await this.favouritesService.remove(
+      requireFightBookOn(await this.callerOf(req)),
+      globalPersonId,
+    );
   }
 
   /** The caller: 401 signed out, 403 not a personal account (fightbook-caller.ts). */
-  private caller(req: FastifyRequest): Promise<FightBookCaller> {
+  private callerOf(req: FastifyRequest): Promise<FightBookCaller> {
     return fightBookCaller(req, this.supabase.service);
   }
 }

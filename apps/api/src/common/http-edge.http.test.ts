@@ -132,6 +132,50 @@ describe('the API edge, as configureHttpApp builds it', () => {
     }
   });
 
+  // A wildcard middleware is mounted on the routes taken out of the prefix, and Nest 12.5 also
+  // mounts it on the controller routes served there (for /health, the same path, de-duplicated).
+  // Two mounts that match one request run it twice. The probe sends no request id: a second run
+  // would write a second line and overwrite the answer's id with a new one.
+  it('case 5, twin: /health writes one request-log line, under the id it answers with', async () => {
+    const lines: string[] = [];
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        lines.push(String(chunk));
+        return true;
+      });
+    const logged = () =>
+      lines
+        .filter((line) => line.includes('"http_request"'))
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+    let get: Response;
+    let post: Response;
+    try {
+      get = await fetch(`${base}/health`);
+      await get.text();
+      post = await fetch(`${base}/health`, { method: 'POST' });
+      await post.text();
+      await vi.waitFor(() => expect(logged().length).toBeGreaterThanOrEqual(2));
+    } finally {
+      write.mockRestore();
+    }
+    expect(post.status).toBe(404);
+    expect(logged()).toEqual([
+      expect.objectContaining({
+        method: 'GET',
+        path: '/health',
+        statusCode: 200,
+        requestId: get.headers.get('x-request-id'),
+      }),
+      expect.objectContaining({
+        method: 'POST',
+        path: '/health',
+        statusCode: 404,
+        requestId: post.headers.get('x-request-id'),
+      }),
+    ]);
+  });
+
   it('case 6: a CORS preflight from an app is allowed; one from elsewhere is not', async () => {
     const preflight = (origin: string) =>
       fetch(`${base}/api/v1/edge/echo`, {

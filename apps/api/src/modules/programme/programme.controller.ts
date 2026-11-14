@@ -49,7 +49,7 @@ export class ProgrammeController {
     private readonly supabase: SupabaseService,
   ) {}
 
-  private caller(req: FastifyRequest): Promise<string> {
+  private callerOf(req: FastifyRequest): Promise<string> {
     return resolveRequestUserId(req, this.supabase);
   }
 
@@ -80,7 +80,7 @@ export class ProgrammeController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.getPlannerBlocks(eventId, await this.caller(req));
+    return this.programme.getPlannerBlocks(eventId, await this.callerOf(req));
   }
 
   /** GET /api/v1/events/:eventId/programme/planner/sheet */
@@ -95,7 +95,7 @@ export class ProgrammeController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.getPlannerSheet(eventId, await this.caller(req));
+    return this.programme.getPlannerSheet(eventId, await this.callerOf(req));
   }
 
   /** PUT /api/v1/events/:eventId/programme */
@@ -108,7 +108,7 @@ export class ProgrammeController {
     @Body() dto: SaveProgrammeDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.saveBlocks(eventId, dto, await this.caller(req));
+    return this.programme.saveBlocks(eventId, dto, await this.callerOf(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/suggest */
@@ -122,7 +122,7 @@ export class ProgrammeController {
     @Body() dto: ProgrammeConfigDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.suggest(eventId, dto, await this.caller(req));
+    return this.programme.suggest(eventId, dto, await this.callerOf(req));
   }
 
   /**
@@ -154,7 +154,7 @@ export class ProgrammeController {
     @Body() dto: ProgrammeConfigDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.putConfig(eventId, dto, await this.caller(req));
+    return this.programme.putConfig(eventId, dto, await this.callerOf(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/generate */
@@ -172,7 +172,7 @@ export class ProgrammeController {
     @Req() req: FastifyRequest,
     @Body() dto?: { dayIndices?: number[] },
   ) {
-    return this.programme.generate(eventId, dto ?? {}, await this.caller(req));
+    return this.programme.generate(eventId, dto ?? {}, await this.callerOf(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/blocks */
@@ -189,7 +189,7 @@ export class ProgrammeController {
     @Body() dto: CreateBlockDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.createBlock(eventId, dto, await this.caller(req));
+    return this.programme.createBlock(eventId, dto, await this.callerOf(req));
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/move */
@@ -207,7 +207,7 @@ export class ProgrammeController {
     @Body() dto: MoveBlockDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.moveBlock(eventId, blockId, dto, await this.caller(req));
+    return this.programme.moveBlock(eventId, blockId, dto, await this.callerOf(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/delay */
@@ -223,7 +223,7 @@ export class ProgrammeController {
     @Body() dto: DelayDayDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.delayDay(eventId, dto, await this.caller(req));
+    return this.programme.delayDay(eventId, dto, await this.callerOf(req));
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/resize */
@@ -241,7 +241,7 @@ export class ProgrammeController {
     @Body() dto: ResizeBlockDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.resizeBlock(eventId, blockId, dto, await this.caller(req));
+    return this.programme.resizeBlock(eventId, blockId, dto, await this.callerOf(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/schedule-group */
@@ -258,7 +258,7 @@ export class ProgrammeController {
     @Body() dto: ScheduleGroupDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.scheduleGroup(eventId, dto, await this.caller(req));
+    return this.programme.scheduleGroup(eventId, dto, await this.callerOf(req));
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId */
@@ -273,7 +273,7 @@ export class ProgrammeController {
     @Body() dto: UpdateBlockLabelDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.updateBlockLabel(eventId, blockId, dto, await this.caller(req));
+    return this.programme.updateBlockLabel(eventId, blockId, dto, await this.callerOf(req));
   }
 
   /** DELETE /api/v1/events/:eventId/programme/blocks/:blockId */
@@ -292,7 +292,7 @@ export class ProgrammeController {
     @Param('blockId', ParseUUIDPipe) blockId: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.programme.deleteBlock(eventId, blockId, await this.caller(req));
+    return this.programme.deleteBlock(eventId, blockId, await this.callerOf(req));
   }
 
   /** DELETE /api/v1/events/:eventId/programme/full */
@@ -306,6 +306,6 @@ export class ProgrammeController {
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async resetAll(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    return this.programme.resetAll(eventId, await this.caller(req));
+    return this.programme.resetAll(eventId, await this.callerOf(req));
   }
 }

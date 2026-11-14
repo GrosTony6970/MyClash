@@ -69,11 +69,11 @@ peerDependencyRules:
     # compiler directly via `import ts from 'typescript'` and the OpenAPI drift
     # gate passes on 6.0.3.
     openapi-typescript>typescript: '6'
-    # nestjs-zod 5.5.0 (the latest, and its main branch) peers @nestjs/common
+    # nestjs-zod 5.5.0 (5.6.0, the latest, peers the same) peers @nestjs/common
     # ^10 || ^11 and @nestjs/swagger ^7.4.2 || ^8 || ^11; no release names Nest 12
     # (issue #471). Verified rather than assumed: it reaches Nest only through root
     # exports and swagger's _OPENAPI_METADATA_FACTORY, every API test passes on
-    # Nest 12.3.2, the edge tests' Zod refusals hold, and the generated client is
+    # Nest 12.5.0, the edge tests' Zod refusals hold, and the generated client is
     # unchanged (quality:openapi-drift). Operator ruling, 2026-10-30. These are its
     # only two peers that move: zod and rxjs are in range.
     nestjs-zod>@nestjs/common: '12'
@@ -100,12 +100,14 @@ overrides:
   # GHSA-9q9j-q6p8-xq58 (request body replacement, an authentication bypass through
   # malformed URLs, request and header validation bypasses). >=5.12.5 clears
   # GHSA-4mh8-r7rc-xpvc. >=5.12.6 clears GHSA-389g-gv7q-r4x8 (a header validation
-  # bypass through case-sensitive propertyNames). A tilde: the fix is a patch of 5.12.
-  # Today the floor is also held by the API's own `^5.12.6` and by
-  # @nestjs/platform-fastify 12.3.2, which asks for exactly 5.12.7 (11.2.6 asked for
-  # 5.11.3, inside the advisory range, which is why the pin was written). Its remaining job
-  # is the ceiling: one fastify, below 5.13, for both consumers.
-  fastify: ~5.12.6
+  # bypass through case-sensitive propertyNames). >=5.12.8 clears GHSA-3qgw-9275-xf8w (a
+  # crash on a handlerTimeout with a streaming response). A tilde: the fix is a patch of 5.12.
+  # The override REPLACES @nestjs/platform-fastify's own exact ask (12.5.0 asks for exactly
+  # 5.12.8; 11.2.6 asked for 5.11.3, inside the advisory range, which is why the pin was
+  # written), so raising Nest alone never moves fastify: the floor here must move with it.
+  # The API's own `^5.12.8` asks for the same. Its other job is the ceiling: one fastify,
+  # below 5.13, for both consumers.
+  fastify: ~5.12.8
   # >=3.1.6 clears CVE-2026-75899/75931/75975/76172 (SSRF and host confusion).
   # The pin is the floor AND the ceiling in practice: ^3.1.5 resolved to exactly
   # 3.1.5, which is inside the advisory range, so the pin written to close the
@@ -134,12 +136,12 @@ overrides:
   # Transitive advisory floors. js-yaml is in the tree on two major lines at
   # once, so the key names the major — a bare `js-yaml` override would drag the
   # 5.x copy back to 4.x. That copy needs no pin now: its one consumer,
-  # @nestjs/swagger 12.0.5, asks for exactly 5.5.0, past every 5.x advisory
+  # @nestjs/swagger 12.1.2, asks for exactly 5.5.0, past every 5.x advisory
   # (the newest, GHSA-r3ph-w7gj-g6xm, is <=5.4.0); a `~5.4.1` pin held it on 5.4.3.
   # >=4.3.2 clears GHSA-2883-xcg3-v3hh; ^4.3.1 resolved to exactly 4.3.1.
   'js-yaml@4': ^4.3.2
-  # >=9.7.0 clears GHSA-c96f-x56v-gq3h (<=9.6.0). fastify (^9.6.0) and
-  # @fastify/middie (^9.5.0) still admit a vulnerable version, so the pin stays. It is 9.10.0, not the advisory's
+  # >=9.7.0 clears GHSA-c96f-x56v-gq3h (<=9.6.0). fastify 5.12.8 asks ^9.10.0, but
+  # @fastify/middie (^9.5.0) still admits a vulnerable version, so the pin stays. It is 9.10.0, not the advisory's
   # 9.7.0: an override replaces @nestjs/platform-fastify's own exact 9.10.0 ask, and
   # `^9.7.0` kept the lockfile on 9.7.0 under Nest's router.
   find-my-way: ^9.10.0

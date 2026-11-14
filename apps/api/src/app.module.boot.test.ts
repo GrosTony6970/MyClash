@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ModuleRef, ModulesContainer } from '@nestjs/core';
+import { ApplicationConfig, ModuleRef, ModulesContainer, type NestContainer } from '@nestjs/core';
+import { RoutesMapper } from '@nestjs/core/middleware/routes-mapper.js';
 import { Test } from '@nestjs/testing';
 
 /**
@@ -33,7 +34,14 @@ import { Test } from '@nestjs/testing';
  * those by source); a feature module that only AppModule imports, dropped from
  * it — the graph still builds and its routes are simply gone; `main.ts`
  * (the Fastify adapter, global pipes); anything that runs at `init()` or on the
- * first request.
+ * first request — except the one step the second test runs.
+ *
+ * A whole `init()` cannot stand in for it: the queue workers wait on Redis, and under
+ * `NODE_ENV=test` `AppModule.configure` mounts no request log at all, so the mapping below never
+ * runs. The second test runs that step of a real boot: Nest 12.5 maps the routes of EVERY
+ * controller for the request log's `forRoutes('*')`, reading each method name off
+ * `Object.create(Controller)`. A method named `caller` or `arguments` reaches a throwing accessor of
+ * `Function.prototype` there, and the API exited at start with every unit test green.
  */
 describe('AppModule', () => {
   beforeAll(() => {
@@ -73,6 +81,23 @@ describe('AppModule', () => {
           service.name,
         ).toEqual([]);
       }
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it('maps the routes of every controller, as a middleware on every route needs', async () => {
+    const { AppModule } = await import('./app.module.js');
+    const app = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    try {
+      // RoutesMapper reads the container through getModules() alone.
+      const modules = app.get(ModulesContainer);
+      const container = { getModules: () => modules } as unknown as NestContainer;
+      const routes = new RoutesMapper(
+        container,
+        new ApplicationConfig(),
+      ).mapControllersToRouteInfo();
+      expect(routes.map((route) => route.path)).toContain('/health');
     } finally {
       await app.close();
     }
