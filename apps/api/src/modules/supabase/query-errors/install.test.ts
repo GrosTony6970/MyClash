@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type * as TimerModule from '../storage-timeout-fetch';
 import { STORAGE_TIMEOUT_MS } from '../storage-timeout-fetch';
 import { createInstrumentedClients } from './install';
 
@@ -15,7 +16,7 @@ const seen = vi.hoisted(() => ({
 }));
 
 vi.mock('../storage-timeout-fetch', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../storage-timeout-fetch')>();
+  const real = await importOriginal<typeof TimerModule>();
   return {
     ...real,
     withStorageTimeout: (_inner: typeof fetch, url: string, ms: number) => {
