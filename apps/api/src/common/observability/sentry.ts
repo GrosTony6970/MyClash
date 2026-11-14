@@ -5,6 +5,7 @@ import {
   createSentryScrubbers,
   sentryOwnHosts,
 } from '@myclash/types/sentry-data-collection';
+import { sentryTracePropagationTargets } from '@myclash/types/sentry-trace-propagation';
 import { redactValue } from './redaction';
 
 export interface SentryInitResult {
@@ -31,11 +32,8 @@ export function initApiSentry(env: NodeJS.ProcessEnv = process.env): SentryInitR
   // query strings, so an option's name is no evidence. The settings and hooks
   // come from one shared module; the observability gate checks every init uses
   // them, and the envelope probe of the Sentry 11 slice proved what leaves.
-  const scrubbers = createSentryScrubbers({
-    ownHosts: sentryOwnHosts([env['SUPABASE_URL'], env['SUPABASE_AUTH_INTERNAL_URL']]),
-    domain: env['DOMAIN'],
-    runtime: 'server',
-  });
+  const ownHosts = sentryOwnHosts([env['SUPABASE_URL'], env['SUPABASE_AUTH_INTERNAL_URL']]);
+  const scrubbers = createSentryScrubbers({ ownHosts, domain: env['DOMAIN'], runtime: 'server' });
   Sentry.init({
     dsn,
     environment,
@@ -43,6 +41,9 @@ export function initApiSentry(env: NodeJS.ProcessEnv = process.env): SentryInitR
     tracesSampleRate: parseSampleRate(env['SENTRY_TRACES_SAMPLE_RATE']),
     dataCollection: SENTRY_DATA_COLLECTION,
     traceLifecycle: SENTRY_TRACE_LIFECYCLE,
+    // Trace headers go to our own hosts only, never to an AI provider or any other
+    // outside service (see sentry-trace-propagation.ts).
+    tracePropagationTargets: sentryTracePropagationTargets({ ownHosts, domain: env['DOMAIN'] }),
     beforeSend: scrubbers.beforeSend,
     beforeBreadcrumb: scrubbers.beforeBreadcrumb,
     beforeSendSpan: scrubbers.beforeSendSpan,

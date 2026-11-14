@@ -5,18 +5,17 @@ import {
   createSentryScrubbers,
   sentryOwnHosts,
 } from '@myclash/types/sentry-data-collection';
+import { sentryTracePropagationTargets } from '@myclash/types/sentry-trace-propagation';
 
 const dsn = process.env['NEXT_PUBLIC_SENTRY_DSN_PUBLIC'];
 
 if (dsn) {
-  const scrubbers = createSentryScrubbers({
-    ownHosts: sentryOwnHosts([
-      process.env['API_URL_INTERNAL'],
-      process.env['NEXT_PUBLIC_API_URL'],
-      process.env['NEXT_PUBLIC_SUPABASE_URL'],
-    ]),
-    runtime: 'server',
-  });
+  const ownHosts = sentryOwnHosts([
+    process.env['API_URL_INTERNAL'],
+    process.env['NEXT_PUBLIC_API_URL'],
+    process.env['NEXT_PUBLIC_SUPABASE_URL'],
+  ]);
+  const scrubbers = createSentryScrubbers({ ownHosts, runtime: 'server' });
   Sentry.init({
     dsn,
     environment: process.env['SENTRY_ENVIRONMENT'] ?? process.env['NODE_ENV'] ?? 'production',
@@ -26,6 +25,8 @@ if (dsn) {
     // apps/api/src/common/observability/sentry.ts for why.
     dataCollection: SENTRY_DATA_COLLECTION,
     traceLifecycle: SENTRY_TRACE_LIFECYCLE,
+    // Trace headers go to our own hosts only (see sentry-trace-propagation.ts).
+    tracePropagationTargets: sentryTracePropagationTargets({ ownHosts }),
     beforeSend: scrubbers.beforeSend,
     beforeBreadcrumb: scrubbers.beforeBreadcrumb,
     beforeSendSpan: scrubbers.beforeSendSpan,

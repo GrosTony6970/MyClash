@@ -53,5 +53,12 @@ describe('API Sentry, resolved by the real SDK', () => {
       frameContextLines: 5,
     });
     expect(client?.getOptions().traceLifecycle).toBe('stream');
+
+    // Unset, the Node SDK sends trace headers to every address: ours must be a list.
+    const targets = client?.getOptions().tracePropagationTargets ?? [];
+    expect(Array.isArray(client?.getOptions().tracePropagationTargets)).toBe(true);
+    const sends = (url: string) => targets.some((t) => t instanceof RegExp && t.test(url));
+    expect(sends('https://app.example.test/api/v1/me')).toBe(true);
+    expect(sends('https://api.anthropic.com/v1/messages')).toBe(false);
   });
 });

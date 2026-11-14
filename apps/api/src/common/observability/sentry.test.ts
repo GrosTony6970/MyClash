@@ -54,6 +54,8 @@ describe('API Sentry helper', () => {
       tracesSampleRate: 0.25,
       dataCollection: SENTRY_DATA_COLLECTION,
       traceLifecycle: 'stream',
+      // An empty list: no own host is configured here, so headers go nowhere.
+      tracePropagationTargets: [],
       beforeSend: expect.any(Function),
       beforeBreadcrumb: expect.any(Function),
       beforeSendSpan: expect.any(Function),

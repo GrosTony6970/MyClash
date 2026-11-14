@@ -24,11 +24,13 @@ describe('the web-staff Next server Sentry init, resolved by the real SDK', () =
     await Sentry.close(0);
     delete process.env['SENTRY_TRACE_LIFECYCLE'];
     delete process.env['NEXT_PUBLIC_SENTRY_DSN_SCORING'];
+    delete process.env['API_URL_INTERNAL'];
   });
 
   it('is the server SDK, holds the server setting, and streams spans whatever the env says', async () => {
     process.env['NEXT_PUBLIC_SENTRY_DSN_SCORING'] = 'http://k@127.0.0.1:9/1';
     process.env['SENTRY_TRACE_LIFECYCLE'] = 'static';
+    process.env['API_URL_INTERNAL'] = 'http://api:4000';
     await import('../sentry.server.config');
 
     const client = Sentry.getClient();
@@ -54,5 +56,13 @@ describe('the web-staff Next server Sentry init, resolved by the real SDK', () =
       frameContextLines: 5,
     });
     expect(client?.getOptions().traceLifecycle).toBe('stream');
+
+    // Unset, the Node SDK sends trace headers to every address: ours must be a list
+    // of our own hosts (API_URL_INTERNAL is read when the config loads, above).
+    const targets = client?.getOptions().tracePropagationTargets;
+    expect(Array.isArray(targets)).toBe(true);
+    const sends = (url: string) => (targets ?? []).some((t) => t instanceof RegExp && t.test(url));
+    expect(sends('http://api:4000/api/v1/events')).toBe(true);
+    expect(sends('https://api.anthropic.com/v1/messages')).toBe(false);
   });
 });

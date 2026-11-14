@@ -21,6 +21,10 @@
     "./sentry-data-collection": {
       "types": "./dist/sentry-data-collection.d.ts",
       "default": "./dist/sentry-data-collection.js"
+    },
+    "./sentry-trace-propagation": {
+      "types": "./dist/sentry-trace-propagation.d.ts",
+      "default": "./dist/sentry-trace-propagation.js"
     }
   },
   "scripts": {

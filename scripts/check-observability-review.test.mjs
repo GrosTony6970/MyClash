@@ -148,6 +148,7 @@ const SERVER_INIT = [
   "const scrubbers = createSentryScrubbers({ ownHosts: [], runtime: 'server' });",
   "Sentry.init({ dsn: 'https://k@o.example.test/1',",
   '  dataCollection: SENTRY_DATA_COLLECTION,',
+  '  tracePropagationTargets: sentryTracePropagationTargets({ ownHosts: [] }),',
   ...HOOK_LINES,
   '});',
 ].join('\n');
@@ -229,6 +230,55 @@ test('rule A: a browser init without the integrations filter is refused', () => 
   );
   assert.deepEqual(checkPrivacy(files).findings, [
     `${STAFF_BROWSER} must pass integrations: sentryBrowserIntegrations`,
+  ]);
+});
+
+test('rule A: a server init without its own trace targets is refused', () => {
+  const files = privacyTree();
+  files.set(
+    API,
+    SERVER_INIT.replace(
+      '  tracePropagationTargets: sentryTracePropagationTargets({ ownHosts: [] }),\n',
+      '',
+    ),
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${API} must pass tracePropagationTargets: sentryTracePropagationTargets(`,
+  ]);
+});
+
+test('rule A: trace targets written by hand, or only in a comment, do not count', () => {
+  for (const line of [
+    "  tracePropagationTargets: ['localhost'],",
+    '  // tracePropagationTargets: sentryTracePropagationTargets({ ownHosts: [] }),',
+  ]) {
+    const files = privacyTree();
+    files.set(
+      STAFF_SERVER,
+      SERVER_INIT.replace(
+        '  tracePropagationTargets: sentryTracePropagationTargets({ ownHosts: [] }),',
+        line,
+      ),
+    );
+    assert.deepEqual(
+      checkPrivacy(files).findings,
+      [`${STAFF_SERVER} must pass tracePropagationTargets: sentryTracePropagationTargets(`],
+      line,
+    );
+  }
+});
+
+test('rule A: a browser init that sets trace targets is refused', () => {
+  const files = privacyTree();
+  files.set(
+    STAFF_BROWSER,
+    BROWSER_INIT.replace(
+      '  integrations: sentryBrowserIntegrations,',
+      "  integrations: sentryBrowserIntegrations,\n  tracePropagationTargets: ['api.example.test'],",
+    ),
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${STAFF_BROWSER} must not set tracePropagationTargets (the SDK keeps them same-origin)`,
   ]);
 });
 

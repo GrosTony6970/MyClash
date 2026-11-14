@@ -153,7 +153,10 @@ export function stripComments(source, path = 'x.ts') {
 }
 
 /** Rule A, one init: its own setting (never the other runtime's), streamed spans,
- *  and the three hooks from the shared factory, each as a real key. */
+ *  and the three hooks from the shared factory, each as a real key. Trace headers:
+ *  a server init limits them to our own hosts (unset, the Node SDK sends them to
+ *  every address, AI providers included); a browser init leaves the SDK's
+ *  same-origin default alone. */
 function initFindings(path, code, browser) {
   const own = browser ? 'SENTRY_BROWSER_DATA_COLLECTION' : 'SENTRY_DATA_COLLECTION';
   const other = browser ? 'SENTRY_DATA_COLLECTION' : 'SENTRY_BROWSER_DATA_COLLECTION';
@@ -168,11 +171,20 @@ function initFindings(path, code, browser) {
   for (const hook of HOOKS) {
     must(new RegExp(`\\b${hook}\\s*:\\s*scrubbers\\.${hook}\\b`), `${hook}: scrubbers.${hook}`);
   }
-  if (browser)
+  if (browser) {
     must(
       /\bintegrations\s*:\s*sentryBrowserIntegrations\b/,
       'integrations: sentryBrowserIntegrations',
     );
+    if (/\btracePropagationTargets\b/.test(code)) {
+      found.push(`${path} must not set tracePropagationTargets (the SDK keeps them same-origin)`);
+    }
+  } else {
+    must(
+      /\btracePropagationTargets\s*:\s*sentryTracePropagationTargets\s*\(/,
+      'tracePropagationTargets: sentryTracePropagationTargets(',
+    );
+  }
   return found;
 }
 
