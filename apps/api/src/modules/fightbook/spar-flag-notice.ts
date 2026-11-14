@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sparFlagRaised } from '../notifications/notice-texts/notice-texts';
 import { rolesAtLeast } from '../organizations/organizations.service';
-import { OwnWordsError, logReason, unreadable } from './log-reason';
+import { OwnWordsError, logReason, unreadable } from '../../common/log-reason';
 import type { SparNoticeDeps } from './spar-notices';
 
 type FlagNoticeDeps = Omit<SparNoticeDeps, 'db'> & {

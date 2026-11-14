@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { inListChunks } from '../../common/postgrest-in-list';
 import { SupabaseService } from '../supabase/supabase.service';
 import { floorEvent, offTheFloor } from './floor-event';
-import { unreadable } from './log-reason';
+import { unreadable } from '../../common/log-reason';
 import { sparExpiresAt } from './spar-ask-rules';
 
 type Db = Pick<SupabaseClient, 'from'>;

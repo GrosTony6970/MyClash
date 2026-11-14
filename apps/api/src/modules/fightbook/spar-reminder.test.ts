@@ -235,7 +235,7 @@ describe('the reminder of an agreed spar', () => {
       d.db = mockSupabase({ spar_requests: answered('22P02') }).service as never;
       await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
       expect(scheduleReminder).not.toHaveBeenCalled();
-      logsOnly(logger, `${LINE}the spar is unreadable (22P02)`);
+      logsOnly(logger, `${LINE}the spar is unreadable: invalid_text_representation (22P02)`);
     });
 
     it('the profiles read answered with an error logs its code', async () => {
@@ -246,7 +246,7 @@ describe('the reminder of an agreed spar', () => {
       }).service as never;
       await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
       expect(scheduleReminder).not.toHaveBeenCalled();
-      logsOnly(logger, `${LINE}the profiles are unreadable (57014)`);
+      logsOnly(logger, `${LINE}the profiles are unreadable: query_canceled (57014)`);
     });
 
     it('a read that never reached the database says it has no code', async () => {
@@ -254,7 +254,7 @@ describe('the reminder of an agreed spar', () => {
       const { d, logger } = world();
       d.db = mockSupabase({ spar_requests: answered('') }).service as never;
       await scheduleSparReminders(d, REQUEST, NOW);
-      logsOnly(logger, `${LINE}the spar is unreadable (no code)`);
+      logsOnly(logger, `${LINE}the spar is unreadable: no code`);
     });
   });
 });

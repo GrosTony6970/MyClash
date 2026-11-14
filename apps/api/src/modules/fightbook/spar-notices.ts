@@ -14,7 +14,7 @@ import {
   sparRequestReceived,
   type NoticeEmailText,
 } from '../notifications/notice-texts/notice-texts';
-import { logReason, unreadable } from './log-reason';
+import { logReason, unreadable } from '../../common/log-reason';
 
 export interface SparNoticeDeps {
   db: Pick<SupabaseClient, 'from'>;

@@ -103,7 +103,9 @@ describe('the safety flag alert', () => {
     });
     await expect(notifySparFlagRaised(d, FLAG)).resolves.toBeUndefined();
     expect(send).not.toHaveBeenCalled();
-    expect(logger.error.mock.calls).toEqual([[`${NOT_SENT}the recipients are unreadable (XX000)`]]);
+    expect(logger.error.mock.calls).toEqual([
+      [`${NOT_SENT}the recipients are unreadable: internal_error (XX000)`],
+    ]);
   });
 
   it('an unexpected throw on the read logs its kind, never its message', async () => {

@@ -27,7 +27,7 @@ import {
   weaponColumns,
 } from './spar-askable';
 import { freeAt, ownFreeUntil } from './free-now.service';
-import { logReason } from './log-reason';
+import { logReason } from '../../common/log-reason';
 import { openEventDays } from './spar-ask-rules';
 import { readSparFighters } from './spar-fighters';
 

@@ -38,7 +38,9 @@ describe('SparQrService.scan, the notice to the shower when it fails', () => {
     });
     await scanThen(world);
     expect(world.send).not.toHaveBeenCalled();
-    expect(error.mock.calls).toEqual([[`${NOT_SENT}the request is unreadable (22P02)`]]);
+    expect(error.mock.calls).toEqual([
+      [`${NOT_SENT}the request is unreadable: invalid_text_representation (22P02)`],
+    ]);
   });
 
   it('a request that is gone logs our own words', async () => {

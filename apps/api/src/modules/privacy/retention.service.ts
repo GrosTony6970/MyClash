@@ -10,6 +10,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import { databaseReason } from '../../common/log-reason';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface RetentionSettings {
@@ -170,7 +171,7 @@ export class RetentionService {
     if (error) {
       // Surfaced, never swallowed: an unknown column 400s the query and would
       // otherwise look exactly like "nothing was old enough to delete".
-      this.logger.error(`retention sweep ${table}.${column}: ${error.message}`);
+      this.logger.error(`retention sweep ${table}.${column}: ${databaseReason(error)}`);
       return 0;
     }
     return (data ?? []).length;

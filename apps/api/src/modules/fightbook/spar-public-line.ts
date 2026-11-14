@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FightBookSettings, PublicSparLine, SparStars } from '@myclash/types';
-import { logReason, unreadable } from './log-reason';
+import { logReason, unreadable } from '../../common/log-reason';
 import { MARK_GRACE_MS } from './spar-windows';
 
 const logger = new Logger('FightBookPublicLine');

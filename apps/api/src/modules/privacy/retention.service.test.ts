@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RetentionService, __testing } from './retention.service';
 
 interface Deletion {
@@ -7,7 +8,10 @@ interface Deletion {
   cutoff: string;
 }
 
-function makeSupabase(settings: Record<string, unknown>) {
+function makeSupabase(
+  settings: Record<string, unknown>,
+  failing: { table: string; error: { code: string; message: string } } | null = null,
+) {
   const deletions: Deletion[] = [];
   const service = {
     from(table: string) {
@@ -22,7 +26,12 @@ function makeSupabase(settings: Record<string, unknown>) {
               deletions.push({ table, column, cutoff });
               return deleteChain;
             },
-            select: () => Promise.resolve({ data: [], error: null }),
+            select: () =>
+              Promise.resolve(
+                failing?.table === table
+                  ? { data: null, error: failing.error }
+                  : { data: [], error: null },
+              ),
           };
           return deleteChain;
         },
@@ -45,6 +54,21 @@ const BASE = {
 };
 
 describe('RetentionService.runSweep', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('logs a failed sweep by its table, column and code in words, never the message', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { supabase } = makeSupabase(BASE, {
+      table: 'global_person_claim_tokens',
+      error: { code: '42703', message: 'column "expires_at" does not exist near lea@example.test' },
+    });
+    const removed = await new RetentionService(supabase).runSweep();
+    expect(removed['global_person_claim_tokens']).toBe(0);
+    expect(error.mock.calls).toEqual([
+      ['retention sweep global_person_claim_tokens.expires_at: undefined_column (42703)'],
+    ]);
+  });
+
   it('leaves the audit log alone at the default horizon', async () => {
     const { supabase, deletions } = makeSupabase(BASE);
     await new RetentionService(supabase).runSweep();

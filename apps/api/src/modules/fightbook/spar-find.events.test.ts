@@ -146,7 +146,7 @@ describe('SparFindService.myEvents', () => {
     [
       'answered with an error',
       () => supabaseChain({ data: null, error: { code: '57014', message: `timeout for ${MARC}` } }),
-      'the free-now marks are unreadable (57014)',
+      'the free-now marks are unreadable: query_canceled (57014)',
     ],
     [
       'thrown',

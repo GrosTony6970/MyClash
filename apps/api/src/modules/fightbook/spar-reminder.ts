@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { zonedToUtcIso } from '@myclash/time';
 import type { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { sparStarting } from '../notifications/notice-texts/notice-texts';
-import { logReason, unreadable } from './log-reason';
+import { logReason, unreadable } from '../../common/log-reason';
 import { SPARS } from './spar-notices';
 
 export const SPAR_REMINDER_LEAD_MINUTES = 10;

@@ -104,7 +104,9 @@ describe('the three FightBook notices', () => {
     await expect(notifySparAgreed(d, REQUEST, JULIE)).resolves.toBeUndefined();
     expect(send).not.toHaveBeenCalled();
     expect(logger.error.mock.calls).toEqual([
-      [`FightBook spar_agreed of ${REQUEST} was not sent: the profile is unreadable (22P02)`],
+      [
+        `FightBook spar_agreed of ${REQUEST} was not sent: the profile is unreadable: invalid_text_representation (22P02)`,
+      ],
     ]);
   });
 });
@@ -167,7 +169,9 @@ describe('"Someone is in", to the poster of an open call (Decision 15)', () => {
     await expect(notifySparCallAnswered(d, CALL, JULIE, MARC)).resolves.toBeUndefined();
     expect(send).not.toHaveBeenCalled();
     expect(logger.error.mock.calls).toEqual([
-      [`FightBook spar_call_answered of ${CALL} was not sent: the blocks are unreadable (57014)`],
+      [
+        `FightBook spar_call_answered of ${CALL} was not sent: the blocks are unreadable: query_canceled (57014)`,
+      ],
     ]);
   });
 

@@ -193,7 +193,7 @@ describe('SparFindService.atEvent', () => {
     [
       'answered with an error',
       () => supabaseChain({ data: null, error: { code: '22P02', message: `bad "${MARC}"` } }),
-      'the free-now marks are unreadable (22P02)',
+      'the free-now marks are unreadable: invalid_text_representation (22P02)',
     ],
     [
       'thrown',

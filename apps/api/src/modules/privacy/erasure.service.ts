@@ -21,6 +21,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { databaseReason } from '../../common/log-reason';
 import { SupabaseService } from '../supabase/supabase.service';
 import { deleteInstructorPhotoFolder } from '../workshops/workshop-instructor-photo';
 import { eraseFightBookFlags, eraseFightBookRows } from './erasure-fightbook';
@@ -170,7 +171,7 @@ export class ErasureService {
     });
     // Best-effort: a missing receipt must not strand a completed erasure, but it
     // is a compliance gap, so it is logged loudly rather than swallowed.
-    if (error) this.logger.error(`erasure receipt failed (${kind}): ${error.message}`);
+    if (error) this.logger.error(`erasure receipt failed (${kind}): ${databaseReason(error)}`);
   }
 
   // ── Super-admin anonymisation ───────────────────────────────────────────────
@@ -281,7 +282,9 @@ export class ErasureService {
         .update({ payload_json: scrubbed })
         .eq('id', row['id'] as string);
       if (error) {
-        this.logger.error(`audit redaction failed for ${String(row['id'])}: ${error.message}`);
+        this.logger.error(
+          `audit redaction failed for ${String(row['id'])}: ${databaseReason(error)}`,
+        );
         continue;
       }
       redacted += 1;

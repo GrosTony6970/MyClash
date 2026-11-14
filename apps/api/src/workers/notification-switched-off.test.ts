@@ -217,10 +217,17 @@ describe('a notice Léa left on', () => {
 
   it('goes out when her switches cannot be read, and the log says so', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const seed = { ...tables(null), notification_preferences: { error: { message: 'boom' } } };
+    // A database message can echo the account id it was given; the line names no account.
+    const error = { code: '57014', message: `canceling statement for ${LEA}` };
+    const seed = { ...tables(null), notification_preferences: { error } };
     const results = notice('results_published', 'results_published');
     expect(await sent(results, seed)).toEqual({ phone: 1, email: 0 });
-    expect(warn).toHaveBeenCalledWith(`Switches of ${LEA} unreadable, taken as on: boom`);
+    // The notice, not the reader: her account id is in no line.
+    expect(warn.mock.calls).toEqual([
+      [
+        `The reader's switches for results_published of ${THING} are unreadable, taken as on: query_canceled (57014)`,
+      ],
+    ]);
   });
 
   it('goes to her mailbox when she has no phone alert set up', async () => {

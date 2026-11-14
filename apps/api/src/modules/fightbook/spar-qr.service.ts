@@ -5,7 +5,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { hashPassToken, mintPassToken } from '../checkin/pass-token';
 import { SupabaseService } from '../supabase/supabase.service';
 import { floorEvent } from './floor-event';
-import { OwnWordsError, logReason, unreadable } from './log-reason';
+import { OwnWordsError, logReason, unreadable } from '../../common/log-reason';
 import {
   badRequest,
   catalogWeapons,

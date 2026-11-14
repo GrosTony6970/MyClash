@@ -138,7 +138,7 @@ describe('readPublicSparLine', () => {
         const db = failing(failure);
         expect(await readPublicSparLine(db.service as never, MARC, NOW)).toBeNull();
         expect(warn.mock.calls).toEqual([
-          [`Public FightBook line left out: FightBook ${message} (57014)`],
+          [`Public FightBook line left out: FightBook ${message}: query_canceled (57014)`],
         ]);
         // Nothing after the failed step is attempted.
         expect(db.from.mock.calls.map(([table]) => table)).toEqual(tables);
@@ -156,7 +156,9 @@ describe('readPublicSparLine', () => {
         sparred: null,
         stars: null,
       });
-      expect(warn.mock.calls).toEqual([[`Own FightBook line left out: FightBook ${step} (57014)`]]);
+      expect(warn.mock.calls).toEqual([
+        [`Own FightBook line left out: FightBook ${step}: query_canceled (57014)`],
+      ]);
       warn.mockRestore();
     });
 

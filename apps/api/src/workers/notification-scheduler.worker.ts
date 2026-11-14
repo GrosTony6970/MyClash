@@ -24,6 +24,7 @@ import {
   type AlertOutcome,
 } from './duty-alert-rings';
 import { ringPhones } from './push-delivery';
+import { databaseReason } from '../common/log-reason';
 import {
   asItStands,
   readMovedSession,
@@ -622,10 +623,12 @@ export class NotificationSchedulerService {
   /** A read of the own Workshop alert. Best effort: one that fails is logged, and sets nothing. */
   private workshopRead(
     what: string,
-    { data, error }: { data: unknown; error: { message: string } | null },
+    { data, error }: { data: unknown; error: { code?: string } | null },
   ): unknown {
     if (error) {
-      this.logger.warn(`${what} unreadable; its alerts stay as they were: ${error.message}`);
+      this.logger.warn(
+        `${what} unreadable; its alerts stay as they were: ${databaseReason(error)}`,
+      );
     }
     return data;
   }
@@ -854,7 +857,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
 
   private async deliver(job: ScheduledNotificationJob): Promise<void> {
     const deliveryUserId = job.forceEmail ? null : job.userId;
-    const preference = deliveryUserId ? await this.getPreference(deliveryUserId) : null;
+    const preference = deliveryUserId ? await this.getPreference(deliveryUserId, job) : null;
     if (this.isSwitchedOff(job, preference)) {
       return this.logger.log(`Skipped ${job.kind} for ${job.entityId}: switched off`);
     }
@@ -882,13 +885,21 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   }
 
   /** The reader's switches. Unreadable ones count as never saved: the notice goes, with a warning. */
-  private async getPreference(userId: string): Promise<TogglePreferences | null> {
+  private async getPreference(
+    userId: string,
+    { kind, entityId }: ScheduledNotificationJob,
+  ): Promise<TogglePreferences | null> {
     const { data, error } = await this.supabase.service
       .from('notification_preferences')
       .select(`user_id, enabled, ${PREFERENCE_TOGGLE_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .maybeSingle();
-    if (error) this.logger.warn(`Switches of ${userId} unreadable, taken as on: ${error.message}`);
+    // The notice, not the reader: an account id is personal data, and the line needs none to act on.
+    if (error) {
+      this.logger.warn(
+        `The reader's switches for ${kind} of ${entityId} are unreadable, taken as on: ${databaseReason(error)}`,
+      );
+    }
     return (data as TogglePreferences | null) ?? null;
   }
 

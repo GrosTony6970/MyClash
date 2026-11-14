@@ -89,7 +89,8 @@ function setup(overrides: Record<string, TableSeed> = {}) {
 
 const alertOf = (sessionId: string, account: string) =>
   `notification.workshop_starting.${sessionId}.${account}`;
-const BOOM = { data: null, error: { message: 'boom' } };
+// A database message can echo the ids it was given: the log line says the code in words only.
+const BOOM = { data: null, error: { code: '57014', message: 'canceling statement for lea-row' } };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -276,7 +277,7 @@ describe('a read that fails is logged, and the alerts stay as they were', () => 
     expect(queue.add).not.toHaveBeenCalled();
     expect(queue.getJob).not.toHaveBeenCalled();
     expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
-      `${said}; its alerts stay as they were: boom`,
+      `${said}; its alerts stay as they were: query_canceled (57014)`,
     ]);
   });
 });
