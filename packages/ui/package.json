@@ -28,7 +28,7 @@
     "jsqr": "^1.4.0"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^1.66.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
