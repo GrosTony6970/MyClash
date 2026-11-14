@@ -153,14 +153,12 @@ function useLimitSave(
   const menuRef = useRef<HTMLSelectElement>(null);
   const heldFocus = useRef(false);
   // A disabled select drops focus. When the save ends and the menu is enabled again, give focus
-  // back only if the fighter held it at the pick and has not gone anywhere else since.
+  // back only if the fighter held it at the pick and focus now sits nowhere (the body or null).
   useEffect(() => {
     if (saving || !heldFocus.current) return;
     heldFocus.current = false;
     const active = document.activeElement;
-    if (active === null || active === document.body || active === menuRef.current) {
-      menuRef.current?.focus();
-    }
+    if (active === null || active === document.body) menuRef.current?.focus();
   }, [saving]);
   const save = async (next: number | null) => {
     const before = shown;

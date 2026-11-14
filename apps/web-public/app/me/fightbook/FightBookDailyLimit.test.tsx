@@ -168,7 +168,7 @@ describe('the daily limit select', () => {
  * button, remove it, and jsdom sends focus to the body.
  */
 describe('keyboard focus around a daily-limit save', () => {
-  async function pickHeld(answer: Answer) {
+  async function pickHeld(answer: Answer, focusFirst = true) {
     let release: (a: Answer) => void = () => undefined;
     serve({
       'GET /api/v1/me/fightbook/settings': { ok: true, data: SETTINGS },
@@ -176,7 +176,7 @@ describe('keyboard focus around a daily-limit save', () => {
       ...ON,
     });
     await open();
-    limitSelect()!.focus();
+    if (focusFirst) limitSelect()!.focus();
     await pick('3');
     return () => act(async () => release(answer));
   }
@@ -205,6 +205,15 @@ describe('keyboard focus around a daily-limit save', () => {
     await answerSave();
     await settled();
     expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it('does not pull focus to the menu when the fighter did not have it at the pick', async () => {
+    const answerSave = await pickHeld({ ok: true, data: { ...SETTINGS, dailyLimit: 3 } }, false);
+    expect(document.activeElement).toBe(document.body);
+    await answerSave();
+    await settled();
+    expect(limitSelect()!.disabled).toBe(false);
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('comes back after a failed save too, with the old value shown', async () => {
