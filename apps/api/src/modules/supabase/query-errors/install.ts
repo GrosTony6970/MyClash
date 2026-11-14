@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { QueryErrorRecorder } from './recorder';
 import { createRecordingFetch } from './recording-fetch';
+import { STORAGE_TIMEOUT_MS, withStorageTimeout } from '../storage-timeout-fetch';
 
 /**
  * Builds the Supabase clients with the swallowed-error tripwire installed.
@@ -52,11 +53,14 @@ export function createInstrumentedClients(
     }),
   );
 
+  // Every storage call on both clients gives up after STORAGE_TIMEOUT_MS.
+  const clientFetch = withStorageTimeout(recordingFetch, url, STORAGE_TIMEOUT_MS);
+
   return {
-    anon: createClient(url, anonKey, { ...CLIENT_OPTIONS, global: { fetch: recordingFetch } }),
+    anon: createClient(url, anonKey, { ...CLIENT_OPTIONS, global: { fetch: clientFetch } }),
     service: createClient(url, serviceKey, {
       ...CLIENT_OPTIONS,
-      global: { fetch: recordingFetch },
+      global: { fetch: clientFetch },
     }),
   };
 }

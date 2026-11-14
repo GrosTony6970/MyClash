@@ -1,3 +1,4 @@
+import { StorageApiError } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import { ClubsService } from '../modules/clubs/clubs.service';
 import { FightersService } from '../modules/fighters/fighters.service';
@@ -21,7 +22,10 @@ const png = { buffer: Buffer.from('png'), filename: 'logo.png', mimetype: 'image
 
 function missingBucketStorage() {
   return {
-    getBucket: vi.fn(async () => ({ data: null, error: { message: 'Bucket not found' } })),
+    getBucket: vi.fn(async () => ({
+      data: null,
+      error: new StorageApiError('Bucket not found', 404, '404'),
+    })),
     createBucket: vi.fn(async () => ({ data: null, error: { message: 'create refused' } })),
   };
 }

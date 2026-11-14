@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { storageGaveNoAnswer } from '../../common/storage-answer';
 import { storedZipBytes, type StoredZipEntrySize } from '../../common/stored-zip';
 import {
   ALLOWED_EVENT_HERO_MIME_TYPES,
@@ -215,20 +216,24 @@ interface Downloaded {
   bytes: Buffer;
 }
 
+/** Storage gave no answer (common/storage-answer.ts): the export asks it nothing more. */
+const NO_ANSWER = Symbol('storage gave no answer');
+
 async function download(
   storage: Storage,
   candidate: Candidate,
-): Promise<Downloaded | ArchiveImageLeftOutReason> {
+): Promise<Downloaded | ArchiveImageLeftOutReason | typeof NO_ANSWER> {
   let bytes: Buffer;
   let type: string;
   try {
     // A body cut mid-read throws (`TypeError: terminated`) rather than answering an error.
     const { data, error } = await storage.from(candidate.bucket).download(candidate.path);
+    if (storageGaveNoAnswer(error)) return NO_ANSWER;
     if (error || !data) return 'unreadable';
     bytes = Buffer.from(await data.arrayBuffer());
     type = data.type;
-  } catch {
-    return 'unreadable';
+  } catch (thrown) {
+    return storageGaveNoAnswer(thrown) ? NO_ANSWER : 'unreadable';
   }
   const contentType = type.split(';')[0]!.trim().toLowerCase();
   if (candidate.specs.some((spec) => !spec.mimeTypes.has(contentType))) return 'not_image';
@@ -314,9 +319,16 @@ export async function collectArchiveImages(input: {
     logger.warn('Archive data over its limit: the zip carries no image (ruling 409)');
     return { manifest: base, files: {} };
   }
+  // After one call storage did not answer, each further one would wait out the storage
+  // timeout again: every image not yet read is left out instead.
+  let storageGone = false;
   for (const candidate of candidatesOf(input.scope, input.data)) {
-    const result = await download(input.storage, candidate);
-    if (typeof result === 'string') leaveOut(leftOut, candidate.refs, result);
+    const result = storageGone ? 'unreadable' : await download(input.storage, candidate);
+    if (result === NO_ANSWER) {
+      storageGone = true;
+      logger.warn('Storage gave no answer: the archive leaves out every image not yet read');
+      leaveOut(leftOut, candidate.refs, 'unreadable');
+    } else if (typeof result === 'string') leaveOut(leftOut, candidate.refs, result);
     else if (zipBytes(base, [...fitting, result]) <= input.maxZipBytes) fitting.push(result);
     else leaveOut(leftOut, result.refs, 'budget');
   }

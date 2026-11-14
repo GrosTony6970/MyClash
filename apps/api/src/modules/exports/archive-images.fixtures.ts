@@ -2,6 +2,7 @@
  * A storage double for the archive's image tests: objects by `<bucket>/<path>`, uploads recorded
  * and readable afterwards, public links on a fixed origin. Imported by tests and nothing else.
  */
+import { StorageApiError } from '@supabase/supabase-js';
 import { vi } from 'vitest';
 import { emptyArchiveTables } from './archive.tables';
 import type { ArchiveTables } from './archive.types';
@@ -51,7 +52,7 @@ export function makeStorage(
     getBucket: vi.fn(async (name: string) =>
       buckets.has(name)
         ? { data: { name }, error: null }
-        : { data: null, error: { message: 'Bucket not found' } },
+        : { data: null, error: new StorageApiError('Bucket not found', 404, '404') },
     ),
     createBucket: vi.fn(async (name: string) => {
       buckets.add(name);

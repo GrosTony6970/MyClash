@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchiveImages } from './archive-images';
 import { imagesOfArchive, restoreArchiveImages } from './archive-images-restore';
@@ -220,6 +221,72 @@ describe('restoreArchiveImages: each image in the copy’s own folder', () => {
     expect(String(warn.mock.calls[0]![0])).toMatch(
       /^Archive image kept its old link: events\/event-new\/logo-/u,
     );
+    warn.mockRestore();
+  });
+
+  it('after storage gave no answer once, asks it nothing more: every image keeps its old link', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    // The real library's "no answer": a client pointed at a port nobody listens on.
+    const noAnswer = await createClient('http://127.0.0.1:1', 'key')
+      .storage.from('event-assets')
+      .upload('p.png', Buffer.from('png'));
+    expect(noAnswer.error?.name).toBe('StorageUnknownError');
+    const upload = vi.fn(async () => noAnswer);
+    const storage = {
+      getBucket: vi.fn(async (name: string) => ({ data: { name }, error: null })),
+      createBucket: vi.fn(),
+      from: vi.fn(() => ({ upload, getPublicUrl: vi.fn() })),
+    };
+    const data = eventRows();
+    const usable = usableOf(
+      [
+        carried({ refs: [{ table: 'events', rowId: 'event-1', column: 'logo_url' }] }),
+        carried({ entry: 'images/2.png' }),
+        carried({
+          refs: [{ table: 'workshops', rowId: 'w-1', column: 'cover_image_url' }],
+          entry: 'images/3.png',
+        }),
+      ],
+      new Map([
+        ['images/1.png', imageBytes(10)],
+        ['images/2.png', imageBytes(10)],
+        ['images/3.png', imageBytes(10)],
+      ]),
+    );
+
+    const kept = await restoreArchiveImages(storage as never, data, newIdOf, usable);
+
+    expect(kept).toBe(3);
+    expect(upload).toHaveBeenCalledOnce();
+    expect(storage.getBucket).toHaveBeenCalledOnce();
+    expect(data.events[0]!['logo_url']).toBe(LOGO);
+    expect(String(warn.mock.calls[0]![0])).toMatch(/\(Storage gave no answer\)$/u);
+    warn.mockRestore();
+  });
+
+  it('a bucket check that gets no answer stops the rest the same way', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const noAnswer = await createClient('http://127.0.0.1:1', 'key').storage.getBucket('b');
+    const upload = vi.fn();
+    const storage = {
+      getBucket: vi.fn(async () => noAnswer),
+      createBucket: vi.fn(),
+      from: vi.fn(() => ({ upload, getPublicUrl: vi.fn() })),
+    };
+    const usable = usableOf(
+      [carried(), carried({ entry: 'images/2.png' })],
+      new Map([
+        ['images/1.png', imageBytes(10)],
+        ['images/2.png', imageBytes(10)],
+      ]),
+    );
+
+    const kept = await restoreArchiveImages(storage as never, eventRows(), newIdOf, usable);
+
+    expect(kept).toBe(2);
+    expect(storage.getBucket).toHaveBeenCalledOnce();
+    expect(storage.createBucket).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 

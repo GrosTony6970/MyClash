@@ -39,13 +39,15 @@ interface PostgrestErrorBody {
   message?: string | null;
 }
 
-function methodOf(input: FetchInput, init?: RequestInit): string {
+/** The method and the address of a fetch call, whatever form its input takes. Shared with
+ *  the storage timer (../storage-timeout-fetch.ts). */
+export function methodOf(input: FetchInput, init?: RequestInit): string {
   if (init?.method) return init.method.toUpperCase();
   if (typeof Request !== 'undefined' && input instanceof Request) return input.method.toUpperCase();
   return 'GET';
 }
 
-function urlOf(input: FetchInput): string {
+export function urlOf(input: FetchInput): string {
   if (typeof input === 'string') return input;
   if (input instanceof URL) return input.toString();
   return input.url;

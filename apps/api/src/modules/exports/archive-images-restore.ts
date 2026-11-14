@@ -1,4 +1,5 @@
-import { Logger } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import { storageGaveNoAnswer } from '../../common/storage-answer';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import type { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -144,7 +145,9 @@ function folderOf(rows: RowsById, ref: ArchiveImageRef, newIdOf: NewIdOf): strin
  * Stores each usable image again in the copy's own folder, under a name made here, and points
  * every row that shows it at the new file. Runs after the restore's id maps are complete and
  * before any row is written. An image storage refuses keeps its old link (ruling 408) and is
- * counted. With no image, no storage call is made at all.
+ * counted. With no image, no storage call is made at all. After one call storage did not
+ * answer (common/storage-answer.ts), every image not yet stored keeps its old link without
+ * another call: each would wait out the storage timeout again.
  */
 export async function restoreArchiveImages(
   storage: Storage,
@@ -153,9 +156,14 @@ export async function restoreArchiveImages(
   usable: readonly UsableImage[],
 ): Promise<number> {
   let kept = 0;
+  let storageGone = false;
   const readyBuckets = new Set<string>();
   const rows = rowsById(data);
   for (const [index, image] of usable.entries()) {
+    if (storageGone) {
+      kept += image.refs.length;
+      continue;
+    }
     const first = image.refs[0]!;
     const folder = folderOf(rows, first, newIdOf);
     const { spec } = image;
@@ -169,11 +177,14 @@ export async function restoreArchiveImages(
       const { error } = await storage
         .from(spec.bucket)
         .upload(path, image.bytes, { contentType: image.contentType, upsert: false });
+      if (storageGaveNoAnswer(error))
+        throw new ServiceUnavailableException('Storage gave no answer');
       if (error) throw new Error(error.message);
     } catch (err) {
       kept += image.refs.length;
       const where = folder ? path : `${first.table} ${first.rowId}`;
       logger.warn(`Archive image kept its old link: ${where} (${(err as Error).message})`);
+      storageGone = err instanceof ServiceUnavailableException;
       continue;
     }
     const url = storage.from(spec.bucket).getPublicUrl(path).data.publicUrl;
