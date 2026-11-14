@@ -20,8 +20,8 @@ import { databaseRefusal } from './spar-requests.service';
 export const QR_CODE_PREFIX = 'fb:';
 
 /**
- * 400 `bad_event` for a scan at an Event: the database's refusal word for word (Decision 14), so
- * not even the raw answer tells whether the scanner or the shower is off the Event.
+ * 400 `bad_event` for a scan at an Event: the same body as the database's refusal (Decision 14), so
+ * the body does not tell whether the scanner or the shower is off the Event. Timing and order differ.
  */
 const offTheScanFloor = () => badRequest('bad_event', SPAR_REFUSAL_SENTENCES.bad_event);
 
