@@ -3114,8 +3114,10 @@ profiles are `FIGHTBOOK_ASK_THROTTLE`, `FIGHTBOOK_CALL_THROTTLE`, `FIGHTBOOK_SCA
 English sentence as its `message` (`SPAR_REFUSAL_SENTENCES`, `spar-refusal-sentences.ts`); the web
 keys on the `code` and shows its own. A refused scan's `bad_event` names both fighters, on the scan
 only (`publicApp.fightBook.qr.badEvent`, ruling 760), and the scan's own Event check answers the
-database's `message` word for word (`floorEvent`'s `refuse`), so not even the raw answer tells which
-fighter is off the Event (Decision 14).
+same body as the database's refusal (`floorEvent`'s `refuse`), so the body does not tell which
+fighter is off the Event (Decision 14). The two paths differ in timing and order, and neither tells
+the scanner anything new: the scan form lists only the scanner's own Events with a day today
+(`QrTools.tsx`), and the database reads the shower's block only after its `bad_event` check.
 
 **Notices.** Two kinds, preference `fightbook`, no names (they show on a locked phone):
 `spar_call_answered` to the poster, one per call (its job id is the kind, call and poster, so later

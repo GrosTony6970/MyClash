@@ -18,6 +18,8 @@ export const SPAR_REFUSAL_SENTENCES: Record<SparRefusalCode, string> = {
   bad_zone: 'Your time zone could not be read',
   bad_place: 'Pick a place for a free date',
   bad_weapon: 'That weapon is not on the list',
+  // Raised by the scan alone (`fightbook_qr_log`, 0270:343), so this is the scan's sentence. A new
+  // raiser gets its own word, or this sentence is reworded to fit both.
   bad_event: 'This code works only at a public Event you are both at, on a day it runs',
   bad_answer: 'That answer is not possible',
   self: 'You cannot ask yourself',
