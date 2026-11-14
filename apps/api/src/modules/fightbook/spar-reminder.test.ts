@@ -145,6 +145,48 @@ describe('the reminder of an agreed spar', () => {
     );
   });
 
+  describe('each fighter reminder is set on its own', () => {
+    const NOW = at('2026-11-14T10:00:00Z');
+    const LINE = `FightBook spar_starting reminder of ${REQUEST} was not set: `;
+
+    it('starts the second call while the first is still unresolved', async () => {
+      const { d, scheduleReminder } = world();
+      let release: () => void = () => undefined;
+      scheduleReminder.mockImplementationOnce(
+        () => new Promise<undefined>((resolve) => (release = () => resolve(undefined))),
+      );
+      const done = scheduleSparReminders(d, REQUEST, NOW);
+      await vi.waitFor(() => expect(scheduleReminder).toHaveBeenCalledTimes(2));
+      release();
+      await done;
+    });
+
+    it('still sets the second when the first fails, and logs one line with the request id', async () => {
+      const { d, scheduleReminder, logger } = world();
+      scheduleReminder.mockRejectedValueOnce(new Error('queue is down'));
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      expect(scheduleReminder).toHaveBeenCalledTimes(2);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(`${LINE}queue is down`);
+      expect(logger.error).not.toHaveBeenCalledWith(
+        expect.stringContaining(`spar_starting of ${REQUEST} was not set`),
+      );
+    });
+
+    it('logs one line per failed reminder when both fail, with no user id', async () => {
+      const { d, scheduleReminder, logger } = world();
+      scheduleReminder.mockRejectedValue(new Error('queue is down'));
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      expect(scheduleReminder).toHaveBeenCalledTimes(2);
+      expect(logger.error).toHaveBeenCalledTimes(2);
+      for (const [line] of logger.error.mock.calls as unknown as Array<[string]>) {
+        expect(line).toBe(`${LINE}queue is down`);
+        expect(line).not.toContain(ACCOUNT_JULIE);
+        expect(line).not.toContain(ACCOUNT_MARC);
+      }
+    });
+  });
+
   it('never throws: a failed read sets nothing and logs the request id', async () => {
     const { d, scheduleReminder, logger } = world();
     d.db = {

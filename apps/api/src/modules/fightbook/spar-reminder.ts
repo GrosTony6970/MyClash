@@ -82,17 +82,27 @@ async function ring(
     );
   }
   const { title, body } = sparStarting();
-  for (const userId of new Set(accounts)) {
-    await d.notifications.scheduleReminder({
-      kind: 'spar_starting',
-      entityId: requestId,
-      userId,
-      startsAt,
-      leadMinutes: SPAR_REMINDER_LEAD_MINUTES,
-      title,
-      body,
-      url: SPARS,
-      preference: 'fightbook',
-    });
+  // The two calls overlap on purpose. Each writes its own job (the job id holds kind, entity and
+  // user), so neither can overwrite the other; one failing must not stop the other.
+  const results = await Promise.allSettled(
+    [...new Set(accounts)].map(async (userId) =>
+      d.notifications.scheduleReminder({
+        kind: 'spar_starting',
+        entityId: requestId,
+        userId,
+        startsAt,
+        leadMinutes: SPAR_REMINDER_LEAD_MINUTES,
+        title,
+        body,
+        url: SPARS,
+        preference: 'fightbook',
+      }),
+    ),
+  );
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      d.logger.error(`FightBook spar_starting reminder of ${requestId} was not set: ${reason}`);
+    }
   }
 }

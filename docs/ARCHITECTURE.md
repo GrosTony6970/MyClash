@@ -3234,7 +3234,8 @@ the row's own zone, so the time reads on the day's own date, as an open call doe
 load-bearing: PostgREST returns a `TIME` as `15:00:00` and `zonedToUtcIso` takes only `HH:MM`. The
 lead is fixed at 10 minutes (`SPAR_REMINDER_LEAD_MINUTES`); the fight reminder's per-account lead
 setting is not reused. A Spar agreed inside its last 10 minutes gets no reminder (ruling 745). Both
-fighters get one, one job per account.
+fighters get one, one job per account; each fighter's reminder is set on its own, and a failure is
+logged and does not stop the other.
 
 **The re-check when it fires (Decision 10).** Nothing removes the job when a Spar is cancelled,
 marked done or merged. `WANTED.spar_starting` (`workers/alert-still-wanted.ts`) asks again when the
