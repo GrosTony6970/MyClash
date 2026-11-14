@@ -91,9 +91,10 @@ peerDependencyRules:
 #
 # Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
 # dedupes has drifted over time (glob now serves only @sentry/bundler-plugins — the
-# source-map uploader, held on glob 10 against its own ^14 ask — only a build with
-# SENTRY_AUTH_TOKEN runs it, and glob 10.5 has the Ignore and escape it calls; @nestjs/cli 12 no
-# longer uses it — minimatch serves eslint 10's config-array), so
+# source-map uploader, held on glob 10 against its own ^14 ask. Every production
+# `next build` runs its file filter and its .map deletion through glob, token or not;
+# only the upload needs SENTRY_AUTH_TOKEN. glob 10.5 has the Ignore and escape it
+# calls. @nestjs/cli 12 no longer uses it — minimatch serves eslint 10's config-array), so
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing.
 overrides:
@@ -124,8 +125,8 @@ overrides:
   minimatch: ^9.0.9
   picomatch: ^4.0.7
   # >=0.35.0 cleared GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs); >=0.35.4
-  # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). next and astro 7 both ask
-  # for ^0.35.4 themselves; web-marketing declares `^0.35.3` directly, the one
+  # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). next asks ^0.35.5 and astro 7
+  # ^0.35.4 themselves; web-marketing declares `^0.35.3` directly, the one
   # range left below the floor, so this pin holds that consumer on the fix.
   #
   # Raised to the advisory floor rather than left at ^0.35.0, which ALREADY
@@ -142,9 +143,9 @@ overrides:
   # >=4.3.2 clears GHSA-2883-xcg3-v3hh; ^4.3.1 resolved to exactly 4.3.1.
   'js-yaml@4': ^4.3.2
   # >=9.7.0 clears GHSA-c96f-x56v-gq3h (<=9.6.0). fastify 5.12.8 asks ^9.10.0, but
-  # @fastify/middie (^9.5.0) still admits a vulnerable version, so the pin stays. It is 9.10.0, not the advisory's
-  # 9.7.0: an override replaces @nestjs/platform-fastify's own exact 9.10.0 ask, and
-  # `^9.7.0` kept the lockfile on 9.7.0 under Nest's router.
+  # @fastify/middie (^9.5.0) still admits a vulnerable version, so the pin stays. It is
+  # 9.10.0, not the advisory's 9.7.0: an override replaces @nestjs/platform-fastify's own
+  # exact 9.10.0 ask, and `^9.7.0` kept the lockfile on 9.7.0 under Nest's router.
   find-my-way: ^9.10.0
   # >=4.28.7 clears GHSA-c83g-rgw3-j3cx (unbounded query-cache growth) and
   # GHSA-73wf-gq98-2v4g (a prototype write from custom stats). Every consumer's
@@ -156,15 +157,16 @@ overrides:
   # and a bare key would drag a future 5.x consumer back. It arrives through
   # postcss in next, vite and @tailwindcss/postcss: build and test tooling.
   'nanoid@3': ^3.3.18
-  # >=8.2.4 clears GHSA-587h-7wmj-h5pm (launch-editor's existence check bypassed on
-  # Windows). vitest's range already allowed the fix while the lockfile sat on 8.2.1.
-  # Keyed to a major, as above. It arrives through vitest and astro (the marketing
-  # build). A tilde, not a caret: the fix is a patch, and ^ once took a minor released
-  # the day before (8.3.5, with a new rolldown) into a production build.
+  # 8.2.4+ on 8.2 and 8.3.3+ on 8.3 clear GHSA-587h-7wmj-h5pm (launch-editor's
+  # existence check bypassed on Windows). vitest's range already allowed the fix while
+  # the lockfile sat on 8.2.1. Keyed to a major, as above. It arrives through vitest,
+  # astro (the marketing build) and, as an optional peer never loaded, @sentry/nextjs's
+  # @sentry/cloudflare. A tilde, not a caret: the fix is a patch, and ^ once took a minor
+  # released the day before (8.3.5, with a new rolldown) into a production build.
   # 8.3.8 since 2026-11-14 (operator ruling 775): astro asks ^8.3.6 and its
-  # @astrojs/vite-plugin-astro peers ^8.3.3, and pnpm rewrites every vite peer range to
-  # this pin, so no gate saw `~8.2.4` hold astro below its own floor. The rolldown worry
-  # is gone: 8.3.8 asks rolldown ~1.2.18, the line astro pins too.
+  # @astrojs/vite-plugin-astro peers ^8.3.3, and pnpm rewrites every vite range,
+  # dependency or peer, to this pin, so no gate saw `~8.2.4` hold astro below its own
+  # floor. The rolldown worry is gone: 8.3.8 asks rolldown ~1.2.18, the line astro pins.
   'vite@8': ~8.3.8
   # >=3.4.17 clears GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr (template expressions
   # surviving in shadow roots; an IN_PLACE hook that removes a parent). Only mermaid asks
@@ -179,8 +181,9 @@ overrides:
   # and GHSA-qrxm-fqhp-jwvm (a crash on stacked content-encodings, a cache shared
   # across a cross-origin redirect, TLS options dropped by an Agent, a TLS 1.2
   # renegotiation loop). A tilde: the fix is a patch of 8.12.
-  # jsdom 31 asks ^8.12.3 itself; unifont's ^8.0.0 still admits a vulnerable version,
-  # so the pin stays.
+  # jsdom 31 asks ^8.12.3 itself; unifont's ^8.0.0 and the API's openai SDK (an optional
+  # peer, >=5 <9, for its x509 auth transport) still admit a vulnerable version, so the
+  # pin stays.
   'undici@8': ~8.12.2
   # >=4.6.6 clears GHSA-mrhx-c7xc-m3w5 (a large array that fails validation
   # collects one issue per item, with no cap, until the process runs out of
@@ -201,9 +204,10 @@ overrides:
   # and build tooling.
   'brace-expansion@2': ^2.1.6
   # >=1.2.2 clears GHSA-68fv-2mgg-jv7q (a source map with indexed sections
-  # holds the event loop). Every consumer's range (postcss's ^1.2.1, css-tree's
-  # ^1.2.1) already allowed the fix while the lockfile sat on 1.2.1. It arrives
-  # through postcss in next, vite and @tailwindcss/postcss, and through css-tree in
+  # holds the event loop). Every consumer's range (^1.2.1, or ^1.0.1 for css-tree 2
+  # under csso) already allowed the fix while the lockfile sat on 1.2.1. It arrives
+  # through postcss in next, vite and @tailwindcss/postcss, directly in
+  # @tailwindcss/node and magicast (astro, @vitest/coverage-v8), and through css-tree in
   # astro's svgo and unifont (jsdom 31 no longer uses css-tree): build and test
   # tooling, reading our own source maps.
   'source-map-js@1': ^1.2.2
@@ -232,9 +236,10 @@ auditConfig:
 # install checks each patch file's hash against the lockfile, even when that
 # image never installs the patched package.
 #
-# nestjs-zod 5.5.0 (the latest) does not handle the `type: ["string", "null"]`
-# shape that zod >= 4.5 writes for a nullable field, so the OpenAPI document
-# described those fields as string arrays (issue #474, fix PR #477 unreleased).
+# nestjs-zod 5.5.0 does not handle the `type: ["string", "null"]` shape that
+# zod >= 4.5 writes for a nullable field, so the OpenAPI document described those
+# fields as string arrays (issue #474; fixed upstream by #498 in 5.6.0, not yet
+# taken here).
 # The patch rewrites the shape into the `anyOf` form zod 4.4 wrote, and the
 # generated client is byte-identical to the one zod 4.4.3 produced.
 # `quality:openapi-drift` holds it: without the patch the client drifts. Delete
