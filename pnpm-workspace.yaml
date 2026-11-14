@@ -91,7 +91,8 @@ peerDependencyRules:
 #
 # Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
 # dedupes has drifted over time (glob now serves only @sentry/bundler-plugins — the
-# source-map uploader, held on glob 10 against its own ^13 ask; @nestjs/cli 12 no
+# source-map uploader, held on glob 10 against its own ^14 ask — only a build with
+# SENTRY_AUTH_TOKEN runs it, and glob 10.5 has the Ignore and escape it calls; @nestjs/cli 12 no
 # longer uses it — minimatch serves eslint 10's config-array), so
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing.
