@@ -179,6 +179,8 @@ overrides:
   # and GHSA-qrxm-fqhp-jwvm (a crash on stacked content-encodings, a cache shared
   # across a cross-origin redirect, TLS options dropped by an Agent, a TLS 1.2
   # renegotiation loop). A tilde: the fix is a patch of 8.12.
+  # jsdom 31 asks ^8.12.3 itself; unifont's ^8.0.0 still admits a vulnerable version,
+  # so the pin stays.
   'undici@8': ~8.12.2
   # >=4.6.6 clears GHSA-mrhx-c7xc-m3w5 (a large array that fails validation
   # collects one issue per item, with no cap, until the process runs out of
@@ -201,8 +203,9 @@ overrides:
   # >=1.2.2 clears GHSA-68fv-2mgg-jv7q (a source map with indexed sections
   # holds the event loop). Every consumer's range (postcss's ^1.2.1, css-tree's
   # ^1.2.1) already allowed the fix while the lockfile sat on 1.2.1. It arrives
-  # through postcss in next, vite and @tailwindcss/postcss, and through css-tree
-  # in jsdom: build and test tooling, reading our own source maps.
+  # through postcss in next, vite and @tailwindcss/postcss, and through css-tree in
+  # astro's svgo and unifont (jsdom 31 no longer uses css-tree): build and test
+  # tooling, reading our own source maps.
   'source-map-js@1': ^1.2.2
   # >=7.29.6 clears GHSA-4x5r-pxfx-6jf8 (a sourceMappingURL comment reads any
   # file). Only eslint-plugin-react-hooks asks for it (^7.24.4, which already
