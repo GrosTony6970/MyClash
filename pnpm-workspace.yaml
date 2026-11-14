@@ -159,9 +159,13 @@ overrides:
   # >=8.2.4 clears GHSA-587h-7wmj-h5pm (launch-editor's existence check bypassed on
   # Windows). vitest's range already allowed the fix while the lockfile sat on 8.2.1.
   # Keyed to a major, as above. It arrives through vitest and astro (the marketing
-  # build). A tilde, not a caret: the fix is a patch, and ^ took the minor released the
-  # day before (8.3.5, with a new rolldown) into a production build.
-  'vite@8': ~8.2.4
+  # build). A tilde, not a caret: the fix is a patch, and ^ once took a minor released
+  # the day before (8.3.5, with a new rolldown) into a production build.
+  # 8.3.8 since 2026-11-14 (operator ruling 775): astro asks ^8.3.6 and its
+  # @astrojs/vite-plugin-astro peers ^8.3.3, and pnpm rewrites every vite peer range to
+  # this pin, so no gate saw `~8.2.4` hold astro below its own floor. The rolldown worry
+  # is gone: 8.3.8 asks rolldown ~1.2.18, the line astro pins too.
+  'vite@8': ~8.3.8
   # >=3.4.17 clears GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr (template expressions
   # surviving in shadow roots; an IN_PLACE hook that removes a parent). Only mermaid asks
   # for it (^3.4.12 since mermaid 12, which still allows the vulnerable 3.4.12-3.4.16):
