@@ -219,6 +219,17 @@ describe('the reminder of an agreed spar', () => {
       logsOnly(logger, `${LINE}TypeError`);
     });
 
+    it('a thrown value that is not an Error logs its type, never the value', async () => {
+      const { d, logger } = world();
+      d.db = {
+        from: () => {
+          throw `database is down for ${ACCOUNT_JULIE}`;
+        },
+      } as never;
+      await expect(scheduleSparReminders(d, REQUEST, NOW)).resolves.toBeUndefined();
+      logsOnly(logger, `${LINE}string`);
+    });
+
     it('the spar read answered with an error logs its code', async () => {
       const { d, scheduleReminder, logger } = world();
       d.db = mockSupabase({ spar_requests: answered('22P02') }).service as never;

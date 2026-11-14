@@ -113,7 +113,8 @@ describe('readPublicSparLine', () => {
   });
 
   describe('when a read fails, the profile still renders', () => {
-    const boom = { data: null, error: { message: 'boom' } };
+    // A database message can echo the values it was given: none may reach the log.
+    const boom = { data: null, error: { code: '57014', message: `timeout reading ${MARC}` } };
     const failing = (failure: 'switch' | 'count' | 'star') =>
       mockSupabase(
         {
@@ -136,9 +137,9 @@ describe('readPublicSparLine', () => {
         const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
         const db = failing(failure);
         expect(await readPublicSparLine(db.service as never, MARC, NOW)).toBeNull();
-        expect(warn).toHaveBeenCalledTimes(1);
-        expect(String(warn.mock.calls[0]![0])).toContain(message);
-        expect(String(warn.mock.calls[0]![0])).not.toContain(MARC);
+        expect(warn.mock.calls).toEqual([
+          [`Public FightBook line left out: FightBook ${message} (57014)`],
+        ]);
         // Nothing after the failed step is attempted.
         expect(db.from.mock.calls.map(([table]) => table)).toEqual(tables);
         expect(db.rpc.mock.calls.length).toBe(rpcCalls);
@@ -155,9 +156,25 @@ describe('readPublicSparLine', () => {
         sparred: null,
         stars: null,
       });
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0]![0])).toContain(step);
-      expect(String(warn.mock.calls[0]![0])).not.toContain(MARC);
+      expect(warn.mock.calls).toEqual([[`Own FightBook line left out: FightBook ${step} (57014)`]]);
+      warn.mockRestore();
+    });
+
+    it.each([
+      ['Public', readPublicSparLine],
+      ['Own', readOwnSparLine],
+    ] as const)('%s: an unexpected throw logs its kind, never its message', async (who, read) => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const db = {
+        from: () => {
+          throw new TypeError(`fetch failed for ${MARC}`);
+        },
+        rpc: () => {
+          throw new TypeError(`fetch failed for ${MARC}`);
+        },
+      };
+      await read(db as never, MARC, NOW);
+      expect(warn.mock.calls).toEqual([[`${who} FightBook line left out: TypeError`]]);
       warn.mockRestore();
     });
   });

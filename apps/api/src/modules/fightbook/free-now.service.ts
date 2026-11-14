@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { inListChunks } from '../../common/postgrest-in-list';
 import { SupabaseService } from '../supabase/supabase.service';
 import { floorEvent, offTheFloor } from './floor-event';
+import { unreadable } from './log-reason';
 import { sparExpiresAt } from './spar-ask-rules';
 
 type Db = Pick<SupabaseClient, 'from'>;
@@ -31,7 +32,7 @@ export async function freeAt(
       .eq('event_id', eventId)
       .gt('until', now.toISOString())
       .in('global_person_id', piece);
-    if (error) throw new Error(`FightBook free-now read failed: ${error.message}`);
+    if (error) throw unreadable('the free-now marks are unreadable', error);
     for (const row of (data ?? []) as Array<{ global_person_id: string }>) {
       free.add(row.global_person_id);
     }
@@ -46,7 +47,7 @@ export async function ownFreeUntil(db: Db, me: string, now: Date): Promise<Map<s
     .select('event_id, until')
     .eq('global_person_id', me)
     .gt('until', now.toISOString());
-  if (error) throw new Error(`FightBook free-now read failed: ${error.message}`);
+  if (error) throw unreadable('the free-now marks are unreadable', error);
   return new Map(
     ((data ?? []) as Array<{ event_id: string; until: string }>).map((row) => [
       row.event_id,

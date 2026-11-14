@@ -14,6 +14,7 @@ import {
   sparRequestReceived,
   type NoticeEmailText,
 } from '../notifications/notice-texts/notice-texts';
+import { logReason, unreadable } from './log-reason';
 
 export interface SparNoticeDeps {
   db: Pick<SupabaseClient, 'from'>;
@@ -66,11 +67,10 @@ export async function notifySparCallAnswered(
       .eq('blocker_global_person_id', poster)
       .eq('blocked_global_person_id', answerer)
       .limit(1);
-    if (error) throw new Error(`blocks unreadable: ${error.message}`);
+    if (error) throw unreadable('the blocks are unreadable', error);
     if ((data ?? []).length > 0) return;
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    d.logger.error(`FightBook spar_call_answered of ${callId} was not sent: ${reason}`);
+    d.logger.error(`FightBook spar_call_answered of ${callId} was not sent: ${logReason(cause)}`);
     return;
   }
   await notify(d, 'spar_call_answered', callId, poster, sparCallAnswered(), FIND);
@@ -100,7 +100,7 @@ async function notify(
       .select('claimed_by_user_id')
       .eq('id', profileId)
       .maybeSingle();
-    if (error) throw new Error(`profile unreadable: ${error.message}`);
+    if (error) throw unreadable('the profile is unreadable', error);
     const userId = (data as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
     if (!userId) {
       d.logger.warn(`FightBook ${kind} of ${requestId}: no account holds the profile; not sent`);
@@ -118,7 +118,6 @@ async function notify(
       preference: 'fightbook',
     });
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    d.logger.error(`FightBook ${kind} of ${requestId} was not sent: ${reason}`);
+    d.logger.error(`FightBook ${kind} of ${requestId} was not sent: ${logReason(cause)}`);
   }
 }

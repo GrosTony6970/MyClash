@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FightBookSettings, PublicSparLine, SparStars } from '@myclash/types';
+import { logReason, unreadable } from './log-reason';
 import { MARK_GRACE_MS } from './spar-windows';
 
 const logger = new Logger('FightBookPublicLine');
@@ -10,7 +11,7 @@ type Db = Pick<SupabaseClient, 'from' | 'rpc'>;
 /** The stars of one fighter, or null before their first review. */
 async function readStars(db: Db, subject: string): Promise<SparStars | null> {
   const { data, error } = await db.rpc('fightbook_star_line', { p_subject: subject });
-  if (error) throw new Error(`FightBook star line read failed: ${error.message}`);
+  if (error) throw unreadable('FightBook star line read failed', error);
   const line = data as { average: number | null; count: number } | null;
   return line && line.count >= 1 && line.average !== null
     ? { average: line.average, count: line.count }
@@ -29,7 +30,7 @@ async function countSparred(db: Db, person: string, now: Date): Promise<number> 
     .eq('status', 'done')
     .lte('expires_at', settled)
     .or(`asker_global_person_id.eq.${person},receiver_global_person_id.eq.${person}`);
-  if (error) throw new Error(`FightBook sparred count failed: ${error.message}`);
+  if (error) throw unreadable('FightBook sparred count failed', error);
   return count ?? 0;
 }
 
@@ -48,7 +49,7 @@ export async function readPublicSparLine(
   try {
     return await publicLine(db, globalPersonId, now);
   } catch (error) {
-    logger.warn(`Public FightBook line left out: ${(error as Error).message}`);
+    logger.warn(`Public FightBook line left out: ${logReason(error)}`);
     return null;
   }
 }
@@ -63,7 +64,7 @@ async function publicLine(
     .select('fightbook_enabled, fightbook_show_stars')
     .eq('id', globalPersonId)
     .maybeSingle();
-  if (error) throw new Error(`FightBook switch read failed: ${error.message}`);
+  if (error) throw unreadable('FightBook switch read failed', error);
   const row = data as { fightbook_enabled: boolean; fightbook_show_stars: boolean } | null;
   if (row?.fightbook_enabled !== true) return null;
 
@@ -86,7 +87,7 @@ export async function readOwnSparLine(
     const [sparred, stars] = await Promise.all([countSparred(db, me, now), readStars(db, me)]);
     return { sparred, stars };
   } catch (error) {
-    logger.warn(`Own FightBook line left out: ${(error as Error).message}`);
+    logger.warn(`Own FightBook line left out: ${logReason(error)}`);
     return { sparred: null, stars: null };
   }
 }

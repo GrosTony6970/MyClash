@@ -5,6 +5,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { hashPassToken, mintPassToken } from '../checkin/pass-token';
 import { SupabaseService } from '../supabase/supabase.service';
 import { floorEvent } from './floor-event';
+import { OwnWordsError, logReason, unreadable } from './log-reason';
 import {
   badRequest,
   catalogWeapons,
@@ -159,14 +160,15 @@ export class SparQrService {
         .select('receiver_global_person_id')
         .eq('id', requestId)
         .maybeSingle();
-      if (error) throw new Error(`request unreadable: ${error.message}`);
+      if (error) throw unreadable('the request is unreadable', error);
       const shower = (data as { receiver_global_person_id: string } | null)
         ?.receiver_global_person_id;
-      if (!shower) throw new Error('request not found');
+      if (!shower) throw new OwnWordsError('the request was not found');
       await notifySparRequestReceived(deps, requestId, shower);
     } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      this.logger.error(`FightBook spar_request_received of ${requestId} was not sent: ${reason}`);
+      this.logger.error(
+        `FightBook spar_request_received of ${requestId} was not sent: ${logReason(cause)}`,
+      );
     }
   }
 

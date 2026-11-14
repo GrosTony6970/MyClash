@@ -78,13 +78,34 @@ describe('the three FightBook notices', () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(REQUEST));
   });
 
-  it('logs a failed send instead of throwing: the change it reports is already saved', async () => {
+  it('logs a failed send instead of throwing, by its kind: the queue names the account', async () => {
     const { d, logger } = deps(
       ACCOUNT,
-      vi.fn(async () => Promise.reject(new Error('redis down'))),
+      vi.fn(async () =>
+        Promise.reject(
+          new TypeError(`job spar_cancelled:${REQUEST}:${ACCOUNT} could not be added`),
+        ),
+      ),
     );
     await expect(notifySparCancelled(d, REQUEST, JULIE)).resolves.toBeUndefined();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('redis down'));
+    expect(logger.error.mock.calls).toEqual([
+      [`FightBook spar_cancelled of ${REQUEST} was not sent: TypeError`],
+    ]);
+  });
+
+  it('logs an unreadable profile by the database code, never its message', async () => {
+    const { d, send, logger } = deps();
+    d.db = mockSupabase({
+      global_persons: {
+        data: null,
+        error: { code: '22P02', message: `invalid input syntax for type uuid: "${JULIE}"` },
+      },
+    }).service as never;
+    await expect(notifySparAgreed(d, REQUEST, JULIE)).resolves.toBeUndefined();
+    expect(send).not.toHaveBeenCalled();
+    expect(logger.error.mock.calls).toEqual([
+      [`FightBook spar_agreed of ${REQUEST} was not sent: the profile is unreadable (22P02)`],
+    ]);
   });
 });
 
@@ -130,7 +151,10 @@ describe('"Someone is in", to the poster of an open call (Decision 15)', () => {
 
   it('logs an unreadable block instead of throwing, and sends nothing', async () => {
     const db = mockSupabase({
-      fightbook_blocks: { data: null, error: { message: 'blocks down' } },
+      fightbook_blocks: {
+        data: null,
+        error: { code: '57014', message: `statement timeout reading ${JULIE} and ${MARC}` },
+      },
     });
     const send = vi.fn(async () => undefined);
     const logger = { warn: vi.fn(), error: vi.fn() };
@@ -142,6 +166,22 @@ describe('"Someone is in", to the poster of an open call (Decision 15)', () => {
     } as unknown as SparNoticeDeps;
     await expect(notifySparCallAnswered(d, CALL, JULIE, MARC)).resolves.toBeUndefined();
     expect(send).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('blocks down'));
+    expect(logger.error.mock.calls).toEqual([
+      [`FightBook spar_call_answered of ${CALL} was not sent: the blocks are unreadable (57014)`],
+    ]);
+  });
+
+  it('logs an unexpected throw on the block read by its kind, and sends nothing', async () => {
+    const { d, send, logger } = deps();
+    d.db = {
+      from: () => {
+        throw new TypeError(`fetch failed for ${JULIE}`);
+      },
+    } as never;
+    await expect(notifySparCallAnswered(d, CALL, JULIE, MARC)).resolves.toBeUndefined();
+    expect(send).not.toHaveBeenCalled();
+    expect(logger.error.mock.calls).toEqual([
+      [`FightBook spar_call_answered of ${CALL} was not sent: TypeError`],
+    ]);
   });
 });

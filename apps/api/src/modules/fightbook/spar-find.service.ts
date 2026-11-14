@@ -27,6 +27,7 @@ import {
   weaponColumns,
 } from './spar-askable';
 import { freeAt, ownFreeUntil } from './free-now.service';
+import { logReason } from './log-reason';
 import { openEventDays } from './spar-ask-rules';
 import { readSparFighters } from './spar-fighters';
 
@@ -168,7 +169,7 @@ export class SparFindService {
     const [read, free] = await Promise.all([
       readSparFighters(db, ids),
       freeAt(db, eventId, ids, now).catch((error: unknown) => {
-        this.logger.error(`Free-now badge left off: ${String(error)}`);
+        this.logger.error(`Free-now badge left off: ${logReason(error)}`);
         return new Set<string>();
       }),
     ]);
@@ -250,7 +251,7 @@ export class SparFindService {
     // The caller's own free-now time is an add-on to this page: if its read fails the Events still
     // come, with `freeUntil` null, and the failure is logged.
     const own = await ownFreeUntil(this.supabase.service, me, now).catch((error: unknown) => {
-      this.logger.error(`Free-now time left off: ${String(error)}`);
+      this.logger.error(`Free-now time left off: ${logReason(error)}`);
       return new Map<string, string>();
     });
     return rows

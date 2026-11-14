@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { zonedToUtcIso } from '@myclash/time';
 import type { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { sparStarting } from '../notifications/notice-texts/notice-texts';
+import { logReason, unreadable } from './log-reason';
 import { SPARS } from './spar-notices';
 
 export const SPAR_REMINDER_LEAD_MINUTES = 10;
@@ -42,10 +43,7 @@ export async function scheduleSparReminders(
       )
       .eq('id', requestId)
       .maybeSingle();
-    if (error) {
-      d.logger.error(notSet(requestId, `the spar is unreadable (${codeOf(error)})`));
-      return;
-    }
+    if (error) throw unreadable('the spar is unreadable', error);
     const spar = data as SparRow | null;
     // `done` too: "We sparred" opens at 00:00 of the spar day, so it can land between the Yes and
     // this read, and an undo later would find no job. The job is re-checked when it fires.
@@ -60,21 +58,9 @@ export async function scheduleSparReminders(
       spar.receiver_global_person_id,
     ]);
   } catch (cause) {
-    d.logger.error(notSet(requestId, kindOf(cause)));
+    d.logger.error(`FightBook spar_starting of ${requestId} was not set: ${logReason(cause)}`);
   }
 }
-
-const notSet = (requestId: string, why: string) =>
-  `FightBook spar_starting of ${requestId} was not set: ${why}`;
-
-// The error's kind, never its message: a message can name an account. A queue error names the
-// job id, which holds the account id (`notification-scheduler.worker.ts`); a database error can
-// echo the values it was given.
-const kindOf = (cause: unknown) => (cause instanceof Error ? cause.name : typeof cause);
-
-// A database answer's code, never its message. A failed fetch has an empty code, and an answer
-// that is not JSON (a proxy's error page) has none, whatever supabase-js's type says.
-const codeOf = (error: { code?: string }) => error.code || 'no code';
 
 async function ring(
   d: SparReminderDeps,
@@ -86,10 +72,7 @@ async function ring(
     .from('global_persons')
     .select('id, claimed_by_user_id')
     .in('id', profiles);
-  if (error) {
-    d.logger.error(notSet(requestId, `the profiles are unreadable (${codeOf(error)})`));
-    return;
-  }
+  if (error) throw unreadable('the profiles are unreadable', error);
   const accounts = ((data ?? []) as Array<{ claimed_by_user_id: string | null }>)
     .map((profile) => profile.claimed_by_user_id)
     .filter((userId): userId is string => Boolean(userId));
@@ -119,7 +102,7 @@ async function ring(
   for (const result of results) {
     if (result.status === 'rejected') {
       d.logger.error(
-        `FightBook spar_starting reminder of ${requestId} was not set: ${kindOf(result.reason)}`,
+        `FightBook spar_starting reminder of ${requestId} was not set: ${logReason(result.reason)}`,
       );
     }
   }

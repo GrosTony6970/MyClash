@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  filtersFor,
+  mockSupabase,
+  selectsFor,
+  supabaseChain,
+} from '../../common/testing/supabase-chain';
 import { SparFindService } from './spar-find.service';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
@@ -123,7 +129,7 @@ describe('SparFindService.myEvents', () => {
     expect(filtersFor(supabase.from, 'events', 'gte')).toEqual([['end_date', '2026-05-22']]);
   });
 
-  it('reads my own free-now row, live only, and keeps the Events when that read fails', async () => {
+  it('reads my own free-now row, live only', async () => {
     const { find, supabase } = service();
     await find.myEvents(MARC, NOW);
     expect(selectsFor(supabase.from, 'fightbook_free_now')).toEqual(['event_id, until']);
@@ -133,14 +139,34 @@ describe('SparFindService.myEvents', () => {
     expect(filtersFor(supabase.from, 'fightbook_free_now', 'gt')).toEqual([
       ['until', NOW.toISOString()],
     ]);
+  });
+
+  // A failed read is logged by its code or kind: a database message can echo the id it was given.
+  it.each([
+    [
+      'answered with an error',
+      () => supabaseChain({ data: null, error: { code: '57014', message: `timeout for ${MARC}` } }),
+      'the free-now marks are unreadable (57014)',
+    ],
+    [
+      'thrown',
+      () => {
+        throw new TypeError(`fetch failed for ${MARC}`);
+      },
+      'TypeError',
+    ],
+  ])('keeps the Events, with no free-now time, when that read is %s', async (_, read, why) => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { find, supabase } = service();
     const original = supabase.from.getMockImplementation()!;
-    supabase.from.mockImplementation((table: string) => {
-      if (table === 'fightbook_free_now') throw new Error('table unreachable');
-      return original(table);
-    });
+    supabase.from.mockImplementation((table: string) =>
+      table === 'fightbook_free_now' ? read() : original(table),
+    );
     const events = await find.myEvents(MARC, NOW);
     expect(events).toHaveLength(4);
     expect(events.map((e) => e.freeUntil)).toEqual([null, null, null, null]);
+    expect(error.mock.calls).toEqual([[`Free-now time left off: ${why}`]]);
+    error.mockRestore();
   });
 
   it('lists nothing for a fighter on no Event, without reading Events', async () => {

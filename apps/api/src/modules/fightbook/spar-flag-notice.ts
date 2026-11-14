@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sparFlagRaised } from '../notifications/notice-texts/notice-texts';
 import { rolesAtLeast } from '../organizations/organizations.service';
+import { OwnWordsError, logReason, unreadable } from './log-reason';
 import type { SparNoticeDeps } from './spar-notices';
 
 type FlagNoticeDeps = Omit<SparNoticeDeps, 'db'> & {
@@ -34,7 +35,7 @@ export async function notifySparFlagRaised(d: FlagNoticeDeps, flagId: string): P
       p_flag: flagId,
       p_roles: rolesAtLeast('admin'),
     });
-    if (error) throw new Error(`recipients unreadable: ${error.message}`);
+    if (error) throw unreadable('the recipients are unreadable', error);
     const rows = (data ?? []) as Recipient[];
     if (rows.length === 0) d.logger.warn(`FightBook flag ${flagId}: the alert has no recipient`);
     for (const row of rows) await alertOne(d, flagId, row);
@@ -67,11 +68,10 @@ function flagUrl(domain: string, row: Recipient): string {
   const admin = `https://admin.${domain}`;
   if (row.audience === 'platform') return `${admin}/admin/fightbook-flags`;
   // A club admin has no door to the platform page: a club row without a slug is an error, logged.
-  if (!row.org_slug) throw new Error('a club recipient came without a club slug');
+  if (!row.org_slug) throw new OwnWordsError('a club recipient came without a club slug');
   return `${admin}/org/${row.org_slug}/fightbook-flags`;
 }
 
 function logFailure(d: FlagNoticeDeps, flagId: string, cause: unknown): void {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  d.logger.error(`FightBook flag ${flagId}: the alert was not sent: ${reason}`);
+  d.logger.error(`FightBook flag ${flagId}: the alert was not sent: ${logReason(cause)}`);
 }

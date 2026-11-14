@@ -1,8 +1,13 @@
-import { ForbiddenException, type HttpException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { ForbiddenException, Logger, type HttpException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import type { PublicReader } from '../../common/auth/competition-visibility';
 import { IN_LIST_MAX, READ_PAGE } from '../../common/postgrest-in-list';
-import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import {
+  filtersFor,
+  mockSupabase,
+  selectsFor,
+  supabaseChain,
+} from '../../common/testing/supabase-chain';
 import { SparFindService } from './spar-find.service';
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
@@ -183,19 +188,38 @@ describe('SparFindService.atEvent', () => {
   });
 
   // The badge is an add-on to a page the fighter needs: lose the badge, keep the list.
-  it('still lists the fighters, with no badge, when the free-now read fails', async () => {
-    const { find, supabase } = service();
-    const original = supabase.from.getMockImplementation()!;
-    supabase.from.mockImplementation((table: string) => {
-      if (table === 'fightbook_free_now') throw new Error('table unreachable');
-      return original(table);
-    });
-    const cards = await find.atEvent(MARC, EVENT, undefined, reader, NOW);
-    expect(cards.map((card) => [card.fighter.name, card.freeNow])).toEqual([
-      ['alpha Fighter', false],
-      ['Bravo Fighter', false],
-    ]);
-  });
+  // A failed read is logged by its code or kind: a database message can echo the ids it was given.
+  it.each([
+    [
+      'answered with an error',
+      () => supabaseChain({ data: null, error: { code: '22P02', message: `bad "${MARC}"` } }),
+      'the free-now marks are unreadable (22P02)',
+    ],
+    [
+      'thrown',
+      () => {
+        throw new TypeError(`fetch failed for ${MARC}`);
+      },
+      'TypeError',
+    ],
+  ])(
+    'still lists the fighters, with no badge, when the free-now read is %s',
+    async (_, read, why) => {
+      const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const { find, supabase } = service();
+      const original = supabase.from.getMockImplementation()!;
+      supabase.from.mockImplementation((table: string) =>
+        table === 'fightbook_free_now' ? read() : original(table),
+      );
+      const cards = await find.atEvent(MARC, EVENT, undefined, reader, NOW);
+      expect(cards.map((card) => [card.fighter.name, card.freeNow])).toEqual([
+        ['alpha Fighter', false],
+        ['Bravo Fighter', false],
+      ]);
+      expect(error.mock.calls).toEqual([[`Free-now badge left off: ${why}`]]);
+      error.mockRestore();
+    },
+  );
 
   it('reads the roster of that Event only, and the askable fighters among it', async () => {
     const { find, supabase } = service();

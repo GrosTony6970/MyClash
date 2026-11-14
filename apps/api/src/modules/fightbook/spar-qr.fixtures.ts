@@ -5,7 +5,11 @@
  */
 import type { HttpException } from '@nestjs/common';
 import { vi, type Mock } from 'vitest';
-import { mockSupabase, type SupabaseRow } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  type SupabaseRow,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { SparQrService } from './spar-qr.service';
 
 export const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
@@ -50,6 +54,9 @@ export function qrWorld({
   answer = logged(true),
   send = vi.fn(async () => undefined) as Mock,
   codes = [] as SupabaseRow[],
+  request = {
+    rows: [{ id: REQUEST, asker_global_person_id: MARC, receiver_global_person_id: JULIE }],
+  } as TableSeed,
 } = {}) {
   const supabase = mockSupabase(
     {
@@ -65,9 +72,7 @@ export function qrWorld({
         ],
       },
       global_persons: { rows: [{ id: JULIE, claimed_by_user_id: JULIE_ACCOUNT }] },
-      spar_requests: {
-        rows: [{ id: REQUEST, asker_global_person_id: MARC, receiver_global_person_id: JULIE }],
-      },
+      spar_requests: request,
       fightbook_qr_codes: { rows: codes },
     },
     { fightbook_qr_log: () => answer as never },

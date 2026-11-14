@@ -9,7 +9,7 @@ const SUPER_ADMIN = '9a8b7c6d-2222-4222-8333-944455566677';
 
 type Row = { user_id: string; audience: 'club' | 'platform'; org_slug: string | null };
 
-function deps(rows: Row[] | null, error: { message: string } | null = null) {
+function deps(rows: Row[] | null, error: { message: string; code?: string } | null = null) {
   const db = mockSupabase({}, { fightbook_flag_recipients: () => ({ data: rows, error }) });
   const send = vi.fn(async () => undefined);
   const getAuthAdminUser = vi.fn(async (id: string) => ({
@@ -94,28 +94,48 @@ describe('the safety flag alert', () => {
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ userId: CLUB_ADMIN, email: null }));
   });
 
-  it('a failed read logs the flag id and resolves', async () => {
-    const { d, send, logger } = deps(null, { message: 'boom' });
+  const NOT_SENT = `FightBook flag ${FLAG}: the alert was not sent: `;
+
+  it('a failed read logs the flag id and the database code, never its message', async () => {
+    const { d, send, logger } = deps(null, {
+      code: 'XX000',
+      message: `could not read the admins of ${CLUB_ADMIN}`,
+    });
     await expect(notifySparFlagRaised(d, FLAG)).resolves.toBeUndefined();
     expect(send).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(FLAG));
+    expect(logger.error.mock.calls).toEqual([[`${NOT_SENT}the recipients are unreadable (XX000)`]]);
   });
 
-  it('a failed send logs the flag id, resolves, and the next recipient still gets it', async () => {
+  it('an unexpected throw on the read logs its kind, never its message', async () => {
+    const { d, send, logger } = deps([]);
+    (d as { db: unknown }).db = {
+      rpc: () => {
+        throw new TypeError(`fetch failed for ${FLAG}:${CLUB_ADMIN}`);
+      },
+    };
+    await expect(notifySparFlagRaised(d, FLAG)).resolves.toBeUndefined();
+    expect(send).not.toHaveBeenCalled();
+    expect(logger.error.mock.calls).toEqual([[`${NOT_SENT}TypeError`]]);
+  });
+
+  it('a failed send logs its kind, resolves, and the next recipient still gets it', async () => {
     const { d, send, logger } = deps([
       { user_id: CLUB_ADMIN, audience: 'club', org_slug: 'club-slug' },
       { user_id: SUPER_ADMIN, audience: 'platform', org_slug: null },
     ]);
-    send.mockRejectedValueOnce(new Error('redis down'));
+    // The queue's errors name the job id, and the job id holds the account id.
+    send.mockRejectedValueOnce(new TypeError(`job spar_flag_raised:${FLAG}:${CLUB_ADMIN} failed`));
     await expect(notifySparFlagRaised(d, FLAG)).resolves.toBeUndefined();
     expect(send).toHaveBeenCalledTimes(2);
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(FLAG));
+    expect(logger.error.mock.calls).toEqual([[`${NOT_SENT}TypeError`]]);
   });
 
   it('a club recipient with no slug is logged and sends nothing to a wrong page', async () => {
     const { d, send, logger } = deps([{ user_id: CLUB_ADMIN, audience: 'club', org_slug: null }]);
     await notifySparFlagRaised(d, FLAG);
     expect(send).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(FLAG));
+    expect(logger.error.mock.calls).toEqual([
+      [`${NOT_SENT}a club recipient came without a club slug`],
+    ]);
   });
 });
