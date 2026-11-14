@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
+import { ensurePublicBucket } from '../../common/storage-bucket';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { hasPlatformTier, NON_USER_IDS } from '../../common/auth/platform-role';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -415,7 +416,12 @@ export class OrganizationsService {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }
 
-    await this.ensureLogoBucket();
+    await ensurePublicBucket(
+      this.supabase.service.storage,
+      ORG_LOGO_BUCKET,
+      ORG_LOGO_MAX_BYTES,
+      ALLOWED_ORG_LOGO_MIME_TYPES,
+    );
     const extension =
       file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
     const safeBase = file.filename
@@ -445,20 +451,6 @@ export class OrganizationsService {
     if (updateError) throw new BadRequestException(updateError.message);
 
     return { url };
-  }
-
-  private async ensureLogoBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(ORG_LOGO_BUCKET);
-    if (data && !error) return;
-    const created = await storage.createBucket(ORG_LOGO_BUCKET, {
-      public: true,
-      fileSizeLimit: ORG_LOGO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_ORG_LOGO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
   }
 
   // ── Members ──────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
+import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -672,7 +673,12 @@ export class LeaguesService {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }
 
-    await this.ensureLogoBucket();
+    await ensurePublicBucket(
+      this.supabase.service.storage,
+      LEAGUE_LOGO_BUCKET,
+      LEAGUE_LOGO_MAX_BYTES,
+      ALLOWED_LEAGUE_LOGO_MIME_TYPES,
+    );
     const extension = this.extensionFor(file.mimetype);
     const safeBase = file.filename
       .toLowerCase()
@@ -741,20 +747,6 @@ export class LeaguesService {
     if (mimetype === 'image/png') return 'png';
     if (mimetype === 'image/webp') return 'webp';
     return 'jpg';
-  }
-
-  private async ensureLogoBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(LEAGUE_LOGO_BUCKET);
-    if (data && !error) return;
-    const created = await storage.createBucket(LEAGUE_LOGO_BUCKET, {
-      public: true,
-      fileSizeLimit: LEAGUE_LOGO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_LEAGUE_LOGO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
   }
 
   // ── Assignment list / remove ────────────────────────────────────────────────

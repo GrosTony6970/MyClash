@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
+import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, type ImportRowProblem } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import { firstPubliclyKnown, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
@@ -857,7 +858,12 @@ export class FightersService {
       throw new BadRequestException('Photo upload must be a PNG, JPEG, or WebP image.');
     }
 
-    await this.ensurePhotoBucket();
+    await ensurePublicBucket(
+      this.supabase.service.storage,
+      FIGHTER_PHOTO_BUCKET,
+      FIGHTER_PHOTO_MAX_BYTES,
+      ALLOWED_FIGHTER_PHOTO_MIME_TYPES,
+    );
     const extension =
       file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
     const path = `fighters/${id}/photo-${Date.now()}.${extension}`;
@@ -892,20 +898,6 @@ export class FightersService {
       .eq('id', id);
     if (error) throw new BadRequestException(error.message);
     return { url: null };
-  }
-
-  private async ensurePhotoBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(FIGHTER_PHOTO_BUCKET);
-    if (data && !error) return;
-    const created = await storage.createBucket(FIGHTER_PHOTO_BUCKET, {
-      public: true,
-      fileSizeLimit: FIGHTER_PHOTO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_FIGHTER_PHOTO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
   }
 
   async getMyDashboard(userId: string) {
