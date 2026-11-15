@@ -1,10 +1,10 @@
 /**
- * A `fetch` double for the adapter wire tests. The real Anthropic, Mistral and OpenAI SDKs run
- * against it, so the tests see the request an SDK actually builds and the answer it actually
+ * A `fetch` double for the adapter wire tests. The real Anthropic, Mistral, OpenAI and Gemini SDKs
+ * run against it, so the tests see the request an SDK actually builds and the answer it actually
  * parses — the mocked `adapters.test.ts` replaces the SDKs and cannot see either.
  *
- * Anthropic and OpenAI call `fetch(url, init)` and Mistral calls `fetch(request)`; both shapes are
- * read through `new Request(input, init)` so the recording has one shape.
+ * Anthropic, OpenAI and Gemini call `fetch(url, init)` and Mistral calls `fetch(request)`; both
+ * shapes are read through `new Request(input, init)` so the recording has one shape.
  */
 
 export interface RecordedRequest {
