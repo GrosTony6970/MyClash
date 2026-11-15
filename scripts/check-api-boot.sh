@@ -13,6 +13,11 @@
 # fails in a start-up hook, and the process must exit with code 1 within the bound, having logged
 # the failure. A one-off `run` container has no restart policy, so its exit code is the
 # process's; the service's `restart: unless-stopped` would start it again and hide the exit.
+# Phase 3, the jobs run in the worker alone (rulings 807-809): phase 1 also reads Redis's client
+# list while the api runs alone (no queue consumer); then the worker service, from its own
+# command in the compose file, runs alone: /health 200 and the API's /api/v1/version 404 from
+# inside it, one consumer of each queue an @Processor names, its start and auto-lock lines with
+# no warning before them (scripts/check-api-boot.mjs --worker).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -34,9 +39,18 @@ red() {
 }
 ok() { echo "ok  $*"; }
 
-# The status the API answers for a path, asked from inside its container; 000 when none.
-status() {
-  docker exec myclash-api node -e "fetch('http://127.0.0.1:4000$1').then((r) => process.stdout.write(String(r.status)), () => process.stdout.write('000'))" 2>/dev/null || echo 000
+# The status a container answers for a path, asked from inside it; 000 when none.
+status_in() {
+  docker exec "$1" node -e "fetch('http://127.0.0.1:4000$2').then((r) => process.stdout.write(String(r.status)), () => process.stdout.write('000'))" 2>/dev/null || echo 000
+}
+status() { status_in myclash-api "$1"; }
+
+# Redis's client list, where each BullMQ consumer is a named connection. A failed read is red.
+clients() {
+  docker exec myclash-redis redis-cli CLIENT LIST >"$1" 2>&1 || {
+    cat "$1"
+    red "Redis's client list could not be read"
+  }
 }
 
 # A red step above (the database or Redis not healthy) can stop compose itself: said, and the
@@ -68,6 +82,12 @@ if [[ "$unknown" == 404 ]]; then ok "unknown route 404"; else red "unknown route
 docker logs myclash-api >"$log" 2>&1 || true
 node scripts/check-api-boot.mjs "$log" packages/api-client/src/generated/schema.ts || failed=1
 if ((failed)); then tail -n 40 "$log"; fi
+# A consumer names its connection once it connects, after the start: give a wrong build the time
+# to show one.
+sleep 5
+api_clients="${RUNNER_TEMP:-/tmp}/api-clients.txt"
+clients "$api_clients"
+node scripts/check-api-boot.mjs --api-consumers "$api_clients" || failed=1
 "${compose[@]}" stop api >/dev/null || true
 
 # Phase 2. On a build that does not end a failed start the process stays up, and `timeout` ends
@@ -84,6 +104,38 @@ else
   tail -n 30 "$broken"
   red "a broken start ended with code $code (expected 1, its failure logged, no start)"
 fi
+
+# Phase 3. The worker service as compose declares it (its command, `--worker`), alone: the api
+# is stopped and the broken start has ended.
+worker=myclash-worker-probe
+worker_log="${RUNNER_TEMP:-/tmp}/worker-boot.log"
+worker_clients="${RUNNER_TEMP:-/tmp}/worker-clients.txt"
+"${compose[@]}" run -d --no-deps --name "$worker" worker >/dev/null || red "compose could not start the worker"
+SECONDS=0
+health=000
+while ((SECONDS < 90)); do
+  health=$(status_in "$worker" /health)
+  [[ "$health" == 200 ]] && break
+  sleep 2
+done
+if [[ "$health" == 200 ]]; then ok "worker /health 200 after ${SECONDS} s"; else red "worker /health answered $health after ${SECONDS} s"; fi
+api_route=$(status_in "$worker" /api/v1/version)
+if [[ "$api_route" == 404 ]]; then ok "the worker serves no API route (/api/v1/version 404)"; else red "the worker answered /api/v1/version with $api_route, not 404"; fi
+# Its consumers connect after /health listens: read until the check passes, 30 s at most, then
+# once more with its findings printed.
+for _ in $(seq 1 15); do
+  docker logs "$worker" >"$worker_log" 2>&1 || true
+  clients "$worker_clients"
+  node scripts/check-api-boot.mjs --worker "$worker_log" "$worker_clients" >/dev/null 2>&1 && break
+  sleep 2
+done
+docker logs "$worker" >"$worker_log" 2>&1 || true
+clients "$worker_clients"
+if ! node scripts/check-api-boot.mjs --worker "$worker_log" "$worker_clients"; then
+  failed=1
+  tail -n 40 "$worker_log"
+fi
+docker rm -f "$worker" >/dev/null 2>&1 || true
 
 if ((failed)); then
   echo "API START: fail"

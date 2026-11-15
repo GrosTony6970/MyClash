@@ -643,8 +643,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # The worker service builds the same Dockerfile (cached layers); the start check runs it.
       - name: Build production image
-        run: docker compose --env-file .env.example -f infra/docker-compose.prod.yml build api
+        run: docker compose --env-file .env.example -f infra/docker-compose.prod.yml build api worker
 
       - name: Run the deploy migrations twice
         run: |
@@ -673,7 +674,9 @@ jobs:
       # Rulings 778-781: the API, started from the production image beside the database and
       # Redis the steps above started, answers, logs no warning before it has started, maps the
       # routes of its client, and a broken start ends its process. Every unit test was green the
-      # day Nest 12.5 stopped it from starting. Its own verdict, after a red step above too.
+      # day Nest 12.5 stopped it from starting. Rulings 807-809: the api holds no queue consumer;
+      # the worker, from its compose command, holds one per queue and serves /health alone.
+      # Its own verdict, after a red step above too.
       - name: Prove the API starts from the production image
         if: '!cancelled()'
         run: bash scripts/check-api-boot.sh

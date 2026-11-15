@@ -6,9 +6,14 @@ import test from 'node:test';
 import {
   apiBootFindings,
   clientOperations,
+  consumerFindings,
+  consumersByQueue,
   isStartProblem,
   mappedRoutes,
+  processorQueues,
+  readSources,
   startLines,
+  workerBootFindings,
 } from './check-api-boot.mjs';
 
 const nest = (level, context, text) =>
@@ -169,4 +174,126 @@ test('the committed API client yields one operation per `operations[...]` line o
     paths.match(/^ {4}(get|put|post|delete|options|head|patch|trace): operations\[/gmu) ?? [];
   assert.ok(expected.length > 100);
   assert.equal(clientOperations(schema).size, expected.length);
+});
+
+// ── Which process runs the jobs (rulings 807-809) ─────────────────────────────
+
+const b64 = (queue) => Buffer.from(queue, 'utf8').toString('base64');
+/** A CLIENT LIST line, as Redis prints it. */
+const client = (id, name) =>
+  `id=${id} addr=172.18.0.9:4${id} laddr=172.18.0.3:6379 fd=9 name=${name} age=3 idle=0 cmd=blpop`;
+
+test('consumers are counted per queue from the blocking connections BullMQ names', () => {
+  const list = [
+    client(1, `bull:${b64('photo-cleanup')}`),
+    client(2, `bull:${b64('photo-cleanup')}:w:named`),
+    client(3, `bull:${b64('photo-cleanup')}:qe`),
+    client(4, ''),
+    'id=5 addr=172.18.0.9:45 name= cmd=client|list',
+    client(6, `bull:${b64('event-archive')}`),
+  ].join('\n');
+  assert.deepEqual(
+    [...consumersByQueue(list)],
+    [
+      ['photo-cleanup', 2],
+      ['event-archive', 1],
+    ],
+  );
+});
+
+test('the API must hold no consumer, the worker exactly one per queue and no other', () => {
+  const queues = ['event-archive', 'photo-cleanup'];
+  assert.deepEqual(consumerFindings('api', new Map(), queues), []);
+  assert.deepEqual(consumerFindings('api', new Map([['photo-cleanup', 1]]), queues), [
+    'The api holds 1 consumer(s) of the queue "photo-cleanup", not 0.',
+  ]);
+  const one = new Map([
+    ['event-archive', 1],
+    ['photo-cleanup', 1],
+  ]);
+  assert.deepEqual(consumerFindings('worker', one, queues), []);
+  assert.deepEqual(
+    consumerFindings(
+      'worker',
+      new Map([
+        ['event-archive', 2],
+        ['probe-marker-queue', 1],
+      ]),
+      queues,
+    ),
+    [
+      'The worker holds 2 consumer(s) of the queue "event-archive", not 1.',
+      'The worker holds 0 consumer(s) of the queue "photo-cleanup", not 1.',
+      'The worker holds 1 consumer(s) of "probe-marker-queue", a queue no @Processor in apps/api/src names.',
+    ],
+  );
+});
+
+test("a processor's queue is read from a string or an exported constant, and a miss is named", () => {
+  const sources = [
+    { path: 'a.ts', text: "export const A_QUEUE = 'queue-a';\n@Processor(A_QUEUE)\nclass A {}" },
+    { path: 'b.ts', text: "@Processor('queue-b', { concurrency: 2 })\nclass B {}" },
+    { path: 'c.ts', text: '@Processor(MISSING_QUEUE)\nclass C {}' },
+  ];
+  assert.deepEqual(processorQueues(sources), {
+    queues: ['queue-a', 'queue-b'],
+    unresolved: ['c.ts: @Processor(MISSING_QUEUE)'],
+  });
+});
+
+// The real source: every processor resolves, and the ten queues of today are all there.
+test("the API's source names ten processor queues, every one resolved", () => {
+  const { queues, unresolved } = processorQueues(
+    readSources(join(process.cwd(), 'apps', 'api', 'src')),
+  );
+  assert.deepEqual(unresolved, []);
+  assert.equal(queues.length, 10);
+  assert.ok(queues.includes('notification-scheduler'));
+  assert.ok(queues.includes('runtime-health-monitor'));
+});
+
+const WORKER_LINE =
+  'MyClash worker started: the queue consumers and the auto-lock run here; /health on 127.0.0.1:4000';
+const workerLog = (before = [], after = []) =>
+  [
+    nest('LOG', 'MatchAutoLockService', 'Auto-lock scan every 60 s'),
+    ...before,
+    mapped('/health', 'GET'),
+    STARTED,
+    WORKER_LINE,
+    ...after,
+  ].join('\n');
+
+test("a worker's clean start: its line, the auto-lock, GET /health alone, no warning", () => {
+  assert.deepEqual(workerBootFindings(workerLog()), []);
+  // A job's warning after the start belongs to the job.
+  assert.deepEqual(workerBootFindings(workerLog([], [nest('WARN', 'Job', 'probe-marker')])), []);
+});
+
+test("a worker's start is red when it serves the API, skips its jobs or warns", () => {
+  const asApi = [mapped('/api/v1/version', 'GET'), STARTED, LISTENING].join('\n');
+  assert.deepEqual(workerBootFindings(asApi), [
+    'The worker never logged "MyClash worker started".',
+    'The worker never started the auto-lock scan.',
+    'The worker started the API ("MyClash API listening on").',
+    'The worker maps 1 route(s), not GET /health alone: GET /api/v1/version.',
+  ]);
+  const many = Array.from({ length: 7 }, (_, i) => mapped(`/api/v1/r${i}`, 'GET')).join('\n');
+  assert.ok(
+    workerBootFindings(many).includes(
+      'The worker maps 7 route(s), not GET /health alone: GET /api/v1/r0, GET /api/v1/r1, ' +
+        'GET /api/v1/r2, GET /api/v1/r3, GET /api/v1/r4, ….',
+    ),
+  );
+  const warned = workerLog([nest('WARN', 'Probe', 'probe-marker-early')]);
+  assert.deepEqual(workerBootFindings(warned), [
+    `A worker start-up line is a warning or an error: ${nest('WARN', 'Probe', 'probe-marker-early')}`,
+  ]);
+});
+
+test('the API is red when it starts the auto-lock scan', () => {
+  const log = startLog([nest('LOG', 'MatchAutoLockService', 'Auto-lock scan every 60 s')]);
+  assert.deepEqual(apiBootFindings(log, OPERATIONS), [
+    'The API started the auto-lock scan: only the worker runs it (ruling 809).',
+  ]);
 });
