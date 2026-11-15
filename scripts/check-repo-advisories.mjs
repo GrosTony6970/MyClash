@@ -24,8 +24,11 @@ import { defineGate, isInvokedDirectly, nothingToCount } from './lib/gate.mjs';
  * - GitHub out of reach (a network error, a connection lost mid-answer, a timeout, a 5xx, a rate
  *   limit) is a warning and the gate passes (776), with an annotation in CI. So is a dependency
  *   whose package.json names no github.com repository: there is no feed to read. A repository
- *   GitHub does not know, a refused token, or a range or locked version nobody can read is an
- *   error: none of those mends itself.
+ *   GitHub does not know, a refused token, or a locked version no range can be compared with is
+ *   an error: none of those mends itself.
+ * - Doubt means report (ruling 806, scripts/lib/advisory-range.mjs): an advisory whose range its
+ *   patched versions contradict, or that no rule reads, or that names one of our packages off its
+ *   npm spelling (`withastro/astro`), is reported for a person to read, never passed.
  * - One ignore list with the audit: `auditConfig.ignoreGhsas` in pnpm-workspace.yaml.
  * - Text from GitHub or a package is printed without control characters or `##[`, so it cannot
  *   write a workflow command; a request, redirects followed by hand included, never leaves
@@ -203,18 +206,41 @@ export function advisoryHits(advisories, deps, names, ignored) {
     const failing = FAILING.has(String(advisory.severity).toLowerCase());
     if (!failing || advisory.withdrawn_at || ignored.has(advisory.ghsa_id)) continue;
     for (const vulnerability of advisory.vulnerabilities ?? []) {
-      const name = vulnerability.package?.name;
-      if (!names.includes(name)) continue;
+      const written = vulnerability.package?.name;
+      const name = packageNamed(written, names);
+      if (!name) continue;
       const range = vulnerability.vulnerable_version_range;
+      const patched = vulnerability.patched_versions;
       for (const version of deps.get(name).versions) {
-        const hit = inRange(version, range, vulnerability.patched_versions);
+        // A package named off its npm spelling is in doubt whatever its range says (ruling 806).
+        const hit = written === name ? inRange(version, range, patched) : null;
         const key = `${advisory.ghsa_id}|${name}|${version}`;
         if (hit === false || hits.get(key)?.readable) continue;
-        hits.set(key, { advisory, name, version, range, readable: hit !== null });
+        hits.set(key, { advisory, name, written, version, range, patched, readable: hit === true });
       }
     }
   }
   return [...hits.values()];
+}
+
+/** A name as a hand may write it: no `@`, no owner, no `.js`, lower case (`withastro/astro`). */
+function looseName(name) {
+  return String(name ?? '')
+    .toLowerCase()
+    .replace(/^@/u, '')
+    .replace(/\.js$/u, '')
+    .split('/')
+    .at(-1);
+}
+
+/**
+ * Which of `names` an advisory's package name means: itself when it is spelled as npm spells it,
+ * or the one it loosely names (`withastro/astro` for astro, `luxon.js` for luxon), else none.
+ */
+export function packageNamed(written, names) {
+  if (names.includes(written)) return written;
+  const loose = looseName(written);
+  return loose ? (names.find((name) => looseName(name) === loose) ?? null) : null;
 }
 
 /** Whether GitHub's global database lists the advisory (then `pnpm audit` reports it). */
@@ -226,12 +252,13 @@ async function inGlobalDatabase(ghsaId, client) {
 }
 
 /** The finding for one hit the global database does not list yet. */
-function hitFinding({ advisory, name, version, range: hitRange, readable }) {
+function hitFinding({ advisory, name, written, version, range: hitRange, patched, readable }) {
   const range = printable(hitRange);
   const what = `${printable(advisory.ghsa_id)} (${printable(advisory.severity)}) on ${name}@${version}`;
-  return readable
-    ? `${what}, inside "${range}", published by the package's repository and not yet in GitHub's global database: ${printable(advisory.html_url)}`
-    : `${what}: its range "${range}" cannot be read; read the advisory by hand: ${printable(advisory.html_url)}`;
+  const where = `published by the package's repository and not yet in GitHub's global database: ${printable(advisory.html_url)}`;
+  if (readable) return `${what}, inside "${range}", ${where}`;
+  const spelled = written === name ? '' : ` for a package written "${printable(written)}"`;
+  return `${what}: its range "${range}" (patched "${printable(patched)}")${spelled} leaves this version in doubt; read the advisory by hand. It is ${where}`;
 }
 
 /** A locked version no range can be compared with (an `npm:` alias, a tarball): an error. */

@@ -1,72 +1,81 @@
 import semver from 'semver';
 
 /**
- * How a GitHub repository advisory's `vulnerable_version_range` reads, against the locked
- * version of a dependency (scripts/check-repo-advisories.mjs). Repository advisories are written by
- * hand, before GitHub reviews them: the shapes below are the ones the 66 repositories our direct
- * dependencies come from actually use. Whatever no rule reads is unreadable (null), so a person
- * reads it: never a silent pass.
+ * Whether a locked version is hit by a GitHub repository advisory (scripts/check-repo-advisories.mjs).
+ *
+ * Repository advisories are written by hand, before GitHub reviews them, and the hand is often
+ * loose: mermaid's bare `8.13.6` and astro's `<= 5.13.0` (patched `>= 5.13.2`) both mean "before
+ * the fix" in GitHub's reviewed copies; a comma can mean OR (`<7.119.1, <8.33.0`). Three review
+ * rounds each found a new shape that a literal reading passed in silence. So the rule is doubt
+ * means report (operator ruling 806, 2026-11-15): a version reads safe only when the written range
+ * AND the advisory's own patched versions both say so. Anything else is a hit (`true`) or in doubt
+ * (`null`), and both are reported; an advisory in doubt stops being reported once GitHub's global
+ * database lists it (then `pnpm audit` owns it), or through the ignore list.
  */
 
-/**
- * Versions named in a text (`>= 6.3.3`, `19.0.1, 19.1.2`), oldest first.
- */
+/** Versions named in a text (`>= 6.3.3`, `19.0.1, 19.1.2`), oldest first. */
 export function versionsIn(text) {
   const found = String(text ?? '').match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/gu) ?? [];
   return found.filter((version) => semver.valid(version)).sort(semver.compare);
 }
 
 /**
- * Bare versions read against the versions that fixed them. A repository advisory's bare version
- * is not always "only this one": mermaid's `8.13.6` and astro's `6.3.1` are `< 8.13.8` and
- * `< 6.3.3` in GitHub's reviewed copies. So one version reads as "below the lowest patched
- * version above it", and each version of a list (React's `19.0.0, 19.1.0`) as "from it to its
- * patch". With no patched version to read against, the text is unreadable (null): a person reads
- * it, the check never passes it.
+ * A comparator set that cannot be the range its author meant: two upper or two lower bounds (a
+ * comma that meant OR), or an exact version beside another bound (`10.0.0 <= 12.0.10`, a lower
+ * bound written without its operator).
  */
-function versionListRange(tokens, patched) {
-  const fixes = versionsIn(patched);
-  if (fixes.length === 0) return null;
-  const fixOf = (version) => fixes.find((fix) => semver.gt(fix, version));
-  if (tokens.length === 1) {
-    const fix = fixOf(tokens[0]);
-    return fix ? `<${fix}` : `>=${tokens[0]}`;
-  }
-  return tokens
-    .map((version) => (fixOf(version) ? `>=${version} <${fixOf(version)}` : `>=${version}`))
-    .join(' || ');
-}
-
-/** A comparator set with two upper or two lower bounds: written as an OR, read as an AND. */
-function narrowedByAnd(written) {
+function misread(written) {
   return new semver.Range(written).set.some((comparators) => {
     const operators = comparators.map((comparator) => comparator.operator);
     const upper = operators.filter((operator) => operator.startsWith('<')).length;
     const lower = operators.filter((operator) => operator.startsWith('>')).length;
-    return upper > 1 || lower > 1;
+    const exact = operators.filter((operator) => operator === '' || operator === '=').length;
+    return upper > 1 || lower > 1 || (exact > 0 && operators.length > 1);
   });
 }
 
 /**
- * GitHub's range as node-semver reads it, or null when unreadable. GitHub writes a range
- * (`>= 12.0.0, < 12.5.0`, the comma an AND) or bare versions (see versionListRange). Unreadable
- * too: a range no version satisfies (`>= 12.0.0, < 11.2.4`), and one with two upper or two lower
- * bounds (`<7.119.1, <8.33.0`, `>= 13.3, >= 14`), whose comma meant OR: read as an AND it would
- * narrow the range and pass the versions it dropped.
+ * The written range as node-semver reads it, or null when it cannot be read as written: bare
+ * versions are a list (`19.0.0, 19.1.0`, React's), a range's comma is an AND (`>= 12.0.0, <
+ * 12.5.0`). Null too: a range no version satisfies, and one `misread` names.
  */
-export function semverRange(range, patched) {
+export function semverRange(range) {
   const text = String(range ?? '').trim();
   const tokens = text.split(/[\s,]+/u).filter(Boolean);
-  if (tokens.length > 0 && tokens.every((token) => semver.valid(token))) {
-    return versionListRange(tokens, patched);
-  }
+  if (tokens.length > 0 && tokens.every((token) => semver.valid(token))) return tokens.join(' || ');
   const written = text.replace(/,\s*/gu, ' ').replace(/=</gu, '<=').replace(/=>/gu, '>=');
   if (!written || !semver.validRange(written) || !semver.minVersion(written)) return null;
-  return narrowedByAnd(written) ? null : written;
+  return misread(written) ? null : written;
 }
 
-/** Whether a locked version sits in an advisory's range; `null` when the range is unreadable. */
+/**
+ * What the patched versions say about a version outside the written range: `open` when a fix
+ * above it on its own line (same major) exists and none at or below it on its own minor line
+ * does, so the version was never fixed; `fixed` or `unknown` (no fix on its major) otherwise.
+ */
+function patchReading(version, fixes) {
+  const line = fixes.filter((fix) => semver.major(fix) === semver.major(version));
+  const next = line.find((fix) => semver.gt(fix, version));
+  const previous = line.filter((fix) => semver.lte(fix, version)).at(-1);
+  const sameMinor = previous && semver.minor(previous) === semver.minor(version);
+  if (next && !sameMinor) return 'open';
+  return line.length ? 'fixed' : 'unknown';
+}
+
+/**
+ * Whether a locked version is hit: `true` inside the written range; `null` (doubt) when the range
+ * cannot be read, when it is bare versions with no patched version to check them against, or when
+ * the patched versions say the version was never fixed; `false` only when both agree it is safe.
+ */
 export function inRange(version, range, patched) {
-  const readable = semverRange(range, patched);
-  return readable ? semver.satisfies(version, readable, { includePrerelease: true }) : null;
+  const readable = semverRange(range);
+  if (!readable) return null;
+  if (semver.satisfies(version, readable, { includePrerelease: true })) return true;
+  const fixes = versionsIn(patched);
+  const bare = String(range ?? '')
+    .split(/[\s,]+/u)
+    .filter(Boolean)
+    .every((token) => semver.valid(token));
+  if (bare && fixes.length === 0) return null;
+  return patchReading(version, fixes) === 'open' ? null : false;
 }

@@ -209,7 +209,28 @@ test('a range nobody can read is a finding once GitHub has not listed the adviso
     [`${API}/advisories/GHSA-unre-adab-le00`]: [404, {}],
   });
   assert.equal(findings.length, 1);
-  assert.match(findings[0], /cannot be read; read the advisory by hand/u);
+  assert.match(findings[0], /leaves this version in doubt; read the advisory by hand/u);
+});
+
+// A hand writes the package as it likes (`withastro/astro`, `luxon.js`): a loose name that means
+// one of ours is in doubt whatever its range says (ruling 806); another package's name is not.
+test('a package named off its npm spelling is in doubt, never skipped', async () => {
+  const loose = [
+    advisory('GHSA-loos-enam-e000', 'high', 'nestjs/common', '>= 99.0.0'),
+    advisory('GHSA-loos-enam-e001', 'critical', 'Common.js', '>= 99.0.0'),
+    advisory('GHSA-othe-rpkg-e002', 'high', '@nestjs/microservices', '< 99.0.0'),
+  ];
+  const { findings } = await run({
+    [LIST]: [200, loose],
+    [`${API}/advisories/GHSA-loos-enam-e000`]: [404, {}],
+    [`${API}/advisories/GHSA-loos-enam-e001`]: [404, {}],
+  });
+  assert.equal(findings.length, 2);
+  assert.match(
+    findings[0],
+    /on @nestjs\/common@12\.3\.2: .* for a package written "nestjs\/common"/u,
+  );
+  assert.match(findings[1], /for a package written "Common\.js" leaves this version in doubt/u);
 });
 
 test("GitHub's pages are followed, and a page or a redirect off api.github.com is refused", async () => {
