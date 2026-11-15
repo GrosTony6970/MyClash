@@ -13,6 +13,23 @@ function cookieSecret(): string {
 }
 
 /**
+ * The request log, as a Fastify hook on every request, so it writes a line for '/' and for a path
+ * outside the prefix too: a Nest middleware mounts under the prefix only. A request answered by
+ * the adapter's own earlier hooks (a CORS preflight; a target that is not a path, `*api/…`) or
+ * refused by the router (a malformed or over-long address) never reaches it: Fastify's own log
+ * line records those.
+ */
+function addRequestLog(app: NestFastifyApplication): void {
+  const log = new RequestLoggingMiddleware();
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onRequest', (request, reply, done) =>
+      log.use(request.raw, reply.raw, done, request.routeOptions.url),
+    );
+}
+
+/**
  * Everything the API does to its HTTP app between creating it and listening: the request log,
  * the cookie and multipart plugins, the global pipe and filter, the global prefix, CORS.
  *
@@ -31,21 +48,8 @@ export async function configureHttpApp(
     requestLog = true,
   }: { reportException: ApiExceptionReporter; requestLog?: boolean },
 ): Promise<void> {
-  // The request log, as a Fastify hook on every request, so it writes a line for '/' and for a
-  // path outside the prefix too: a Nest middleware mounts under the prefix only. Added first, so
-  // no plugin registered below sits in a context that misses it. A request answered by the
-  // adapter's own earlier hooks (a CORS preflight; a target that is not a path, `*api/…`) or
-  // refused by the router (a malformed or over-long address) never reaches it: Fastify's own log
-  // line records those.
-  if (requestLog) {
-    const log = new RequestLoggingMiddleware();
-    app
-      .getHttpAdapter()
-      .getInstance()
-      .addHook('onRequest', (request, reply, done) =>
-        log.use(request.raw, reply.raw, done, request.routeOptions.url),
-      );
-  }
+  // First, so no plugin registered below sits in a context that misses it.
+  if (requestLog) addRequestLog(app);
 
   // Both plugins are loaded with require(), not import: see docs/ENGINEERING_LESSONS.md
   // ("@fastify/cookie must be registered via require()").
