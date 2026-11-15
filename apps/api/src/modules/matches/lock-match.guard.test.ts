@@ -7,8 +7,8 @@ import { MatchesService } from './matches.service';
  * and a write an organiser may unlock a bout to fix it, correct a score, or reset a bout (status
  * back to 'scheduled', lock cleared). An UPDATE keyed by id alone then locked it anyway. The write
  * now also requires the Match still unlocked, still completed or voided, and its `updated_at` the
- * one the scan read (each of those writes sets it); any other answers null, writes nothing and
- * throws nothing.
+ * one the scan read (every UPDATE of a Match moves it: the trigger matches_touch_updated_at,
+ * migration 0181); any other answers null, writes nothing and throws nothing.
  */
 
 type Call = [string, ...unknown[]];
@@ -81,7 +81,6 @@ describe('MatchesService.lockMatch (the auto lock)', () => {
       locked_by_staff_account_id: null,
     });
     expect(typeof update['locked_at']).toBe('string');
-    expect(update['updated_at']).toBe(update['locked_at']);
   });
 
   it('answers null, with no error, when the Match changed since the scan read it', async () => {

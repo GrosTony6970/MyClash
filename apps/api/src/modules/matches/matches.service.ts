@@ -1108,10 +1108,11 @@ export class MatchesService {
    * The auto lock's write; its one caller is the scan (match-auto-lock.service.ts), which decides
    * on rows it read before this write. So the write matches only the Match as the scan read it:
    * still unlocked, still completed or voided, and not written since (`updated_at` unchanged;
-   * rulings 809, 813, 816). An unlock, a score correction or a reset between that read and this
-   * write moves `updated_at` (each of those writes sets it; no trigger does), so the write
-   * matches no row: the answer is null and nothing is written. The next scan reads the change,
-   * and its wait counts from it.
+   * rulings 809, 813, 816). Every UPDATE of a Match moves `updated_at` (the trigger
+   * matches_touch_updated_at, migration 0181, stamps now()), so any write between that read and
+   * this one, an unlock, a score correction or a reset among them, leaves no row to match: the
+   * answer is null and nothing is written. The next scan reads the change, and its wait counts
+   * from it.
    */
   async lockMatch(matchId: string, reason: string, seenUpdatedAt: string) {
     const now = new Date().toISOString();
