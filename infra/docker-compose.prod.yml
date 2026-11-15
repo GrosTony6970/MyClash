@@ -1011,6 +1011,10 @@ services:
       PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
       PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
       PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
+      # The runtime-health monitor reads disk usage from the ops-runner (GET /disk). Without these
+      # two, every tick it ran here recorded disk as unavailable, a critical alert (ruling 810).
+      OPS_RUNNER_URL: http://ops-runner:4075
+      OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

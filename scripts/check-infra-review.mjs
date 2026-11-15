@@ -1085,7 +1085,29 @@ for (const serviceName of ['api', 'worker']) {
     `prod ${serviceName}`,
     'SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999',
   );
+  // The runtime-health monitor job reads disk usage from the ops-runner, and either service may
+  // run it: without these the tick records disk as unavailable, a critical alert (ruling 810).
+  requireContains(
+    services.get(serviceName) ?? '',
+    `prod ${serviceName}`,
+    'OPS_RUNNER_URL: http://ops-runner:4075',
+  );
+  requireContains(
+    services.get(serviceName) ?? '',
+    `prod ${serviceName}`,
+    'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}',
+  );
 }
+requireContains(
+  devServices.get('worker') ?? '',
+  'dev worker',
+  'OPS_RUNNER_URL: http://ops-runner:4075',
+);
+requireContains(
+  devServices.get('worker') ?? '',
+  'dev worker',
+  'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET:-dev-ops-runner-secret}',
+);
 if (authServiceText.includes('signInWithPassword')) {
   errors.push('AuthService.passwordLogin must use internal GoTrue instead of signInWithPassword.');
 }
