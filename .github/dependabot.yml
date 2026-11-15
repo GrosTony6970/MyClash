@@ -32,7 +32,9 @@ updates:
     schedule:
       interval: monthly
 
+  # /infra itself holds no Dockerfile; ops-runner's is the one this job watches. The apps'
+  # Dockerfiles are not watched.
   - package-ecosystem: docker
-    directory: '/infra'
+    directory: '/infra/ops-runner'
     schedule:
       interval: monthly
