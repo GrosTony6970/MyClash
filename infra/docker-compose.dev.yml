@@ -648,9 +648,9 @@ services:
       - traefik.http.services.dev-admin.loadbalancer.server.port=3000
 
   # ── Worker (BullMQ jobs) ──────────────────────────────────────────
-  # Same image as the api, started with --worker, exactly as prod does.
-  # Without it, dev never runs the scheduled/queued work (stats rollups,
-  # exports, notifications, ratings sync, runtime-health monitor).
+  # Same image as the api, started with --worker, exactly as prod does. --worker makes it run
+  # every queued and scheduled job (notifications, HEMA Ratings sync, the Event status ticker
+  # and archive, the monitors, clean-ups) and the auto-lock scan; the api runs none.
   worker:
     build:
       context: ../
@@ -677,7 +677,7 @@ services:
       AI_KEY_SECRET: ${AI_KEY_SECRET:-dev-ai-key-secret-change-me}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
-      # The runtime-health monitor runs here too, so it reads the same photo bucket keys.
+      # The runtime-health monitor runs here (only), and reads the photo bucket with these keys.
       PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
       PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
       PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}

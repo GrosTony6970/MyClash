@@ -722,7 +722,8 @@ services:
     # Healthcheck lives in apps/api/Dockerfile — same probe, same timings, one
     # owner. Overriding it here only makes sense when this stack needs different
     # behaviour from the image, as dev does (faster interval) and web-public does
-    # (a deeper probe). `worker` runs this same image and has always relied on it.
+    # (a deeper probe). `worker` runs this same image and relies on it too: it serves /health
+    # alone, on 127.0.0.1 (apps/api/src/workers/worker-role.ts).
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -959,7 +960,9 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
-  # ── Worker (BullMQ jobs: stats, exports, notifications, ratings) ──
+  # ── Worker (every BullMQ job, and the auto-lock scan) ────────────
+  # `--worker` makes this process run the jobs (apps/api/src/common/process-role.ts): the api
+  # runs none, so without the flag no job runs anywhere. infra:review pins the command.
   worker:
     build:
       context: ../
@@ -991,7 +994,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN: ${DOMAIN}
-      # The daily TLS certificate monitor (BullMQ job) can run in this container;
+      # The daily TLS certificate monitor (BullMQ job) runs in this container;
       # it emails LETSENCRYPT_EMAIL on trouble and flags certs within N days.
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
       TLS_CERT_MIN_DAYS: ${TLS_CERT_MIN_DAYS:-21}
@@ -1005,7 +1008,7 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
-      # The runtime-health monitor runs here too, so it reads the same photo bucket keys.
+      # The runtime-health monitor runs here (only), and reads the photo bucket with these keys.
       PHOTO_BUCKET_ACCESS_KEY: ${PHOTO_BUCKET_ACCESS_KEY:-}
       PHOTO_BUCKET_SECRET_KEY: ${PHOTO_BUCKET_SECRET_KEY:-}
       PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}

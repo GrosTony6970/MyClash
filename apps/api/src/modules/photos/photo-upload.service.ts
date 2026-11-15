@@ -90,8 +90,8 @@ const tooMany = (code: PhotoUploadRefusal, message: string) =>
  * - Two uploads may read the counts before either writes, so a cap can be passed by at most
  *   PHOTO_UPLOAD_SLOTS photos. Accepted (design: "not locked").
  * - The slot counter lives in this process. One API container serves HTTP; the `worker`
- *   container boots the same app but serves none, so one counter holds. If the worker ever serves
- *   HTTP, the memory budget doubles.
+ *   container serves /health alone (workers/worker-role.ts), so one counter holds. If the worker
+ *   ever serves the API, the memory budget doubles.
  */
 @Injectable()
 export class PhotoUploadService {

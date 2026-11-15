@@ -9,7 +9,9 @@ import { fastifyAdapterOptions } from './common/fastify-adapter-options';
 import { configureHttpApp } from './common/http-bootstrap';
 import { captureApiException, flushApiSentry, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
+import { processRole } from './common/process-role';
 import { startOrExit } from './common/start-or-exit';
+import { startWorker } from './workers/worker-role';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
 
@@ -20,7 +22,8 @@ registerProcessFailureHandlers(
   flushApiSentry,
 );
 
-async function bootstrap(): Promise<void> {
+/** The API: every route, no queue consumer and no auto-lock scan (rulings 808, 809). */
+async function startApi(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     // Fastify's own log line, the proxy trust: one owner, which the edge tests run too.
@@ -54,8 +57,17 @@ async function bootstrap(): Promise<void> {
   if (swagger) console.info(`Swagger UI: http://localhost:${PORT}/api/docs`);
 }
 
-// A start that fails or hangs ends the process, so Docker starts it again.
-void startOrExit(bootstrap, {
+/** The worker: the same graph with no HTTP, its jobs started, /health alone (worker-role.ts). */
+async function startWorkerProcess(): Promise<void> {
+  await startWorker(
+    () => NestFactory.createApplicationContext(AppModule, { abortOnError: false }),
+    PORT,
+  );
+}
+
+// `--worker` picks the role (common/process-role.ts). A start that fails or hangs ends the
+// process, so Docker starts it again, whichever the role.
+void startOrExit(processRole(process.argv) === 'worker' ? startWorkerProcess : startApi, {
   logger: new Logger('Start'),
   report: (reason, context) => captureApiException(reason, context),
   flush: flushApiSentry,

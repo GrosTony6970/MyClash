@@ -57,6 +57,12 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
         };
       },
       inject: [ConfigService],
+      // No process starts a queue consumer by building this graph: the worker starts them all
+      // (BullRegistrar.register(), workers/worker-role.ts) and the api runs none (rulings 807,
+      // 808). The api still adds jobs and upserts the job schedulers, which need a Queue only.
+      // Read here, beside useFactory: @nestjs/bullmq takes extraOptions from these options, and
+      // in the factory's return it would be ignored.
+      extraOptions: { manualRegistration: true },
     }),
     BullModule.registerQueue({
       name: HEMA_RATINGS_QUEUE,

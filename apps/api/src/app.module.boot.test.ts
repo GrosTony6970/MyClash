@@ -68,6 +68,12 @@ describe('AppModule', () => {
     const app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     try {
       expect(classesBuiltWithoutMetadata(app.get(ModulesContainer))).toEqual([]);
+      // Building this graph starts no queue consumer: only the worker starts them (rulings 807,
+      // 808; workers/worker-role.ts). The token is @nestjs/bullmq's BULL_EXTRA_OPTIONS_TOKEN
+      // (dist/bull.constants.js), which the package does not export.
+      expect(app.get('BULLMQ_EXTRA_OPTIONS', { strict: false })).toEqual({
+        manualRegistration: true,
+      });
       // An `@Optional()` parameter Nest cannot resolve is injected as undefined, with no error: a
       // `T | undefined` type emits `Object` into the metadata, as `import type` does. Every such
       // parameter carries a token of its own, or it is a bug that boots.
@@ -98,6 +104,22 @@ describe('AppModule', () => {
         new ApplicationConfig(),
       ).mapControllersToRouteInfo();
       expect(routes.map((route) => route.path)).toContain('/health');
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it("maps the worker's /health and no other route", async () => {
+    const { WorkerHealthModule } = await import('./workers/worker-health.module.js');
+    const app = await Test.createTestingModule({ imports: [WorkerHealthModule] }).compile();
+    try {
+      const modules = app.get(ModulesContainer);
+      const container = { getModules: () => modules } as unknown as NestContainer;
+      const routes = new RoutesMapper(
+        container,
+        new ApplicationConfig(),
+      ).mapControllersToRouteInfo();
+      expect(routes.map((route) => route.path)).toEqual(['/health']);
     } finally {
       await app.close();
     }

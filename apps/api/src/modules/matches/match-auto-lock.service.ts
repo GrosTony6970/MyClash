@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { DEFAULT_TOURNAMENT_LOCK_CONFIG, type TournamentLockConfig } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchesService } from './matches.service';
@@ -6,7 +6,7 @@ import { MatchesService } from './matches.service';
 type Row = Record<string, unknown>;
 
 @Injectable()
-export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
+export class MatchAutoLockService implements OnModuleDestroy {
   private readonly logger = new Logger(MatchAutoLockService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -15,8 +15,14 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
     private readonly matches: MatchesService,
   ) {}
 
-  onModuleInit(): void {
+  /**
+   * Starts the scan, every 60 s. The worker process alone calls it (workers/worker-role.ts,
+   * ruling 809): every process that builds this module used to start its own timer, so the api
+   * and the worker both scanned and both wrote.
+   */
+  start(): void {
     this.timer = setInterval(() => void this.runOnce(), 60_000);
+    this.logger.log('Auto-lock scan every 60 s');
   }
 
   onModuleDestroy(): void {

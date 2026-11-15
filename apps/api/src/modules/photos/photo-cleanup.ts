@@ -40,8 +40,9 @@ const reason = (err: unknown) => (err instanceof Error ? err.message : String(er
  * before each bucket call, and the next run goes on.
  *
  * The races, named:
- * - Two runs at once (the api and worker containers both run the jobs, and a slow run can meet
- *   the next tick): deleting a missing object and a missing tombstone are both no-ops.
+ * - Two runs at once (the worker runs one job of a queue at a time, but BullMQ hands a job out
+ *   again when its lock lapses, while the first run may still go): deleting a missing object and
+ *   a missing tombstone are both no-ops.
  * - An upload in flight writes its objects first and its row last, within about 2 minutes: the
  *   sweep's hour of grace keeps it.
  * - An upload whose row lands after `expire` read it: its Event is still expired at the next tick.

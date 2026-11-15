@@ -1085,8 +1085,9 @@ for (const serviceName of ['api', 'worker']) {
     `prod ${serviceName}`,
     'SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999',
   );
-  // The runtime-health monitor job reads disk usage from the ops-runner, and either service may
-  // run it: without these the tick records disk as unavailable, a critical alert (ruling 810).
+  // The api calls the ops-runner for the admin's actions and reads; the worker's runtime-health
+  // job reads disk usage from it, and without these the tick records disk as unavailable, a
+  // critical alert (ruling 810).
   requireContains(
     services.get(serviceName) ?? '',
     `prod ${serviceName}`,
@@ -1097,6 +1098,15 @@ for (const serviceName of ['api', 'worker']) {
     `prod ${serviceName}`,
     'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}',
   );
+}
+// `--worker` is what makes a process run the queue consumers and the auto-lock scan (rulings
+// 807-809; apps/api/src/common/process-role.ts): the api runs none. Without it the worker is a
+// second, healthy API, and no job runs anywhere.
+for (const [label, worker] of [
+  ['prod worker', services.get('worker')],
+  ['dev worker', devServices.get('worker')],
+]) {
+  requireContains(worker ?? '', label, "command: ['node', 'dist/main.js', '--worker']");
 }
 requireContains(
   devServices.get('worker') ?? '',

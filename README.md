@@ -122,7 +122,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 **MyClash apps**
 
 - `api` — NestJS REST + WebSocket gateway on port 4000.
-- `worker` — same image as `api`, started with `--worker`. BullMQ consumer for stats, exports, Ratings sync.
+- `worker` — same image as `api`, started with `--worker`. Runs every BullMQ job (notifications, HEMA Ratings sync, the Event status ticker and archive, the monitors, clean-ups) and the auto-lock scan, and serves `/health` alone. The `api` runs no job. Locally, `pnpm --filter @myclash/api dev` runs no job either: once its first compile is done, start the jobs in a second terminal with `PORT=4001 node apps/api/dist/main.js --worker`, and restart that process after you edit a job (it does not reload).
 - `web-admin`, `web-public`, `web-staff` — Next.js per-app containers.
 - `web-marketing` — Astro, prerendered and served by Caddy (`FROM caddy:2-alpine`; `check-infra-review.mjs` asserts it).
 

@@ -171,10 +171,19 @@ describe('startOrExit, when describing or reporting the failure fails', () => {
 describe('main.ts', () => {
   const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8');
 
-  it('starts through startOrExit, a wiring error rejecting instead of ending the process', () => {
-    expect(main).toContain('void startOrExit(bootstrap, {');
+  it('starts either role through one startOrExit, a wiring error rejecting in both', () => {
+    const count = (text: string) => main.split(text).length - 1;
+    expect(count('void startOrExit(')).toBe(1);
+    expect(main).toContain(
+      "void startOrExit(processRole(process.argv) === 'worker' ? startWorkerProcess : startApi, {",
+    );
+    // The API's create and the worker's graph: neither ends the process on a wiring error.
+    expect(count('abortOnError: false')).toBe(2);
     expect(main).toContain('{ abortOnError: false },');
-    expect(main).not.toContain('void bootstrap()');
+    expect(main).toContain(
+      'NestFactory.createApplicationContext(AppModule, { abortOnError: false })',
+    );
+    expect(main).not.toMatch(/void (startApi|startWorkerProcess)\(\)/);
   });
 
   it('gives the crash path the Sentry flush, and names Swagger only when it is served', () => {
