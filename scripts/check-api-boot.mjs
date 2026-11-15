@@ -9,11 +9,14 @@ import { defineGate } from './lib/gate.mjs';
  * Every test was green the day Nest 12.5 stopped the API from starting: only a real start shows
  * what a real start does. This checks the log of one:
  *
- * - Nest said "Nest application successfully started";
- * - nothing before that line was a warning or an error: a Nest WARN, ERROR or FATAL line, a Node
- *   process warning (`(node:1) [DEP0…] DeprecationWarning: …`) or a pino line of level 40 or more
- *   (ruling 779: a healthy start prints none; a new one is a change someone has to read). Lines
- *   after it come from requests, which have their own logs;
+ * - Nest said "Nest application successfully started", and main.ts said "MyClash API listening
+ *   on" once Fastify listened;
+ * - nothing before the "listening" line was a warning or an error: a Nest WARN, ERROR or FATAL
+ *   line, a Node process warning of any name (`(node:1) [DEP0…] DeprecationWarning: …`,
+ *   `(node:1) [FSTDEP023] FastifyDeprecation: …`) or a pino line of level 40 or more (ruling 779:
+ *   a healthy start prints none; a new one is a change someone has to read). Lines after it come
+ *   from requests, which have their own logs. A library's plain console.warn line matches none of
+ *   these shapes and is not read;
  * - the routes Nest mapped are the operations of the committed API client
  *   (packages/api-client/src/generated/schema.ts, kept honest by the OpenAPI drift gate), both
  *   ways (ruling 780): a controller that no longer starts, or one that starts without a client.
@@ -22,17 +25,27 @@ import { defineGate } from './lib/gate.mjs';
  */
 
 const STARTED = 'Nest application successfully started';
+// main.ts's own line, printed once app.listen() resolved: the start ends here, not at Nest's
+// init line, which comes before Fastify gets ready and listens.
+const LISTENING = 'MyClash API listening on';
 const ANSI = /\u001b\[[0-9;]*m/gu;
 const NEST_PROBLEM = /^\[Nest\] \d+\s+-\s+.*?\s(WARN|ERROR|FATAL)\s/u;
-const NODE_WARNING = /^\(node:\d+\) .*Warning:/u;
+// Node writes every process warning as `(node:<pid>) …`, whatever the warning's name (Fastify's
+// are FastifyDeprecation, FastifySecurity); its `(Use \`node --trace-warnings …\`)` hint is not.
+const NODE_WARNING = /^\(node:\d+\) /u;
 const MAPPED = /Mapped \{([^,}]+), ([A-Z]+)\} route/gu;
 const METHODS = 'get|put|post|delete|options|head|patch|trace';
 
-/** The log's lines before Nest's "started" line, and whether that line came at all. */
+/** The log's lines before main.ts's "listening" line, and which of the two start lines came. */
 export function startLines(log) {
   const lines = log.replace(ANSI, '').split(/\r?\n/u);
-  const started = lines.findIndex((line) => line.includes(STARTED));
-  return { started: started !== -1, lines: started === -1 ? lines : lines.slice(0, started) };
+  const started = lines.some((line) => line.includes(STARTED));
+  const listening = lines.findIndex((line) => line.includes(LISTENING));
+  return {
+    started,
+    listening: listening !== -1,
+    lines: listening === -1 ? lines : lines.slice(0, listening),
+  };
 }
 
 /** A start-up line that is a warning or an error, in any of the three shapes the image prints. */
@@ -80,8 +93,9 @@ export function clientOperations(schema) {
 /** What went wrong in the start, given its log and the client's operations. */
 export function apiBootFindings(log, operations) {
   const findings = [];
-  const { started, lines } = startLines(log);
+  const { started, listening, lines } = startLines(log);
   if (!started) findings.push(`The API never logged "${STARTED}".`);
+  if (!listening) findings.push(`The API never logged "${LISTENING}".`);
   for (const line of lines.filter(isStartProblem)) {
     findings.push(`A start-up line is a warning or an error: ${line.trim()}`);
   }
@@ -97,8 +111,8 @@ export function apiBootFindings(log, operations) {
   if (undocumented.length) {
     findings.push(
       `${undocumented.length} route(s) mapped at start are not in the API client: ` +
-        `${undocumented.join(', ')}. Run \`pnpm openapi:client\`, or the route carries ` +
-        '@ApiExcludeEndpoint().',
+        `${undocumented.join(', ')}. Run \`pnpm openapi:client\`. A route the client must not ` +
+        'list (@ApiExcludeEndpoint) cannot pass this check: that needs an operator ruling.',
     );
   }
   return findings;

@@ -39,7 +39,9 @@ status() {
   docker exec myclash-api node -e "fetch('http://127.0.0.1:4000$1').then((r) => process.stdout.write(String(r.status)), () => process.stdout.write('000'))" 2>/dev/null || echo 000
 }
 
-"${compose[@]}" up -d api
+# A red step above (the database or Redis not healthy) can stop compose itself: said, and the
+# checks below still run and print what they see.
+"${compose[@]}" up -d api || red "compose could not start the api service"
 
 # A healthy start takes a few seconds; the start bound inside the API is 60 s.
 SECONDS=0
@@ -66,7 +68,7 @@ if [[ "$unknown" == 404 ]]; then ok "unknown route 404"; else red "unknown route
 docker logs myclash-api >"$log" 2>&1 || true
 node scripts/check-api-boot.mjs "$log" packages/api-client/src/generated/schema.ts || failed=1
 if ((failed)); then tail -n 40 "$log"; fi
-"${compose[@]}" stop api >/dev/null
+"${compose[@]}" stop api >/dev/null || true
 
 # Phase 2. On a build that does not end a failed start the process stays up, and `timeout` ends
 # the wait with 124.

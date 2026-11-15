@@ -17,14 +17,21 @@ const mapped = (path, method) =>
   nest('LOG', 'RouterExplorer', `Mapped {${path}, ${method}} route +1ms`);
 const STARTED = nest('LOG', 'NestApplication', 'Nest application successfully started +4ms');
 
-/** A start log: the given lines, two routes, then the "started" line and whatever follows. */
-const startLog = (before = [], after = []) =>
+// main.ts's own line, once Fastify listens: the end of the start.
+const LISTENING = 'MyClash API listening on http://0.0.0.0:4000';
+
+/** A start log: the given lines, two routes, "started", the lines `between`, "listening", then
+ *  whatever follows (the requests). */
+const startLog = (before = [], after = [], between = []) =>
   [
     nest('LOG', 'NestFactory', 'Starting Nest application...'),
     ...before,
     mapped('/health', 'GET'),
     mapped('/api/v1/events/:eventId', 'PATCH'),
     STARTED,
+    ...between,
+    '{"level":30,"msg":"Server listening at http://0.0.0.0:4000"}',
+    LISTENING,
     ...after,
   ].join('\n');
 
@@ -40,7 +47,27 @@ test('a start that never finished is reported', () => {
     mapped('/health', 'GET'),
   ];
   const findings = apiBootFindings(log.join('\n'), new Set(['GET /health']));
-  assert.deepEqual(findings, ['The API never logged "Nest application successfully started".']);
+  assert.deepEqual(findings, [
+    'The API never logged "Nest application successfully started".',
+    'The API never logged "MyClash API listening on".',
+  ]);
+});
+
+test('a start that never listened is reported, and its lines are all start-up lines', () => {
+  const log = startLog().replace(LISTENING, '');
+  const lateWarning = `${log}\n${nest('WARN', 'Probe', 'probe-marker-late')}`;
+  assert.deepEqual(apiBootFindings(lateWarning, OPERATIONS), [
+    'The API never logged "MyClash API listening on".',
+    `A start-up line is a warning or an error: ${nest('WARN', 'Probe', 'probe-marker-late')}`,
+  ]);
+});
+
+// Nest logs "started" at the end of init(); Fastify gets ready and listens after it.
+test('a warning between Nest\'s "started" line and the listening line is a start-up line', () => {
+  const between = ['(node:1) [FSTDEP023] FastifyDeprecation: probe-marker-listen'];
+  assert.deepEqual(apiBootFindings(startLog([], [], between), OPERATIONS), [
+    `A start-up line is a warning or an error: ${between[0]}`,
+  ]);
 });
 
 test('a warning or an error before the start is reported, in each shape the image prints', () => {
@@ -51,6 +78,9 @@ test('a warning or an error before the start is reported, in each shape the imag
     nest('ERROR', 'ExceptionHandler', 'probe-marker-error'),
     '(node:1) [DEP0205] DeprecationWarning: probe-marker-deprecated',
     '(node:1) ExperimentalWarning: probe-marker-experimental',
+    // Fastify names its own warnings without "Warning" (lib/warnings.js).
+    '(node:1) [FSTDEP023] FastifyDeprecation: probe-marker-fastify',
+    '(node:1) [FSTSEC001] FastifySecurity: probe-marker-fastify-security',
     '{"level":40,"msg":"probe-marker-pino-warn"}',
     '{"level":50,"msg":"probe-marker-pino-error"}',
   ];
@@ -63,6 +93,8 @@ test('ordinary start lines and lines written after the start are not', () => {
   const before = [
     nest('LOG', 'InstanceLoader', 'AppModule dependencies initialized'),
     '{"level":30,"msg":"listening"}',
+    // Node's hint after a warning: not a warning of its own.
+    '(Use `node --trace-warnings ...` to show where the warning was created)',
   ];
   const after = [
     nest('WARN', 'AuthGuard', 'auth-shadow would-401'),
