@@ -77,6 +77,11 @@ they were once a single `&&` chain, and because `quality:complexity` was red on 
 eight gates behind it silently did not run for roughly six weeks. Never re-chain them with `&&`
 locally either — you will reproduce the same blindness.
 
+CI's `Dependency audit` job runs two more, outside this chain: `pnpm security:audit` and
+`pnpm security:repo-advisories` (the advisories a direct dependency's own GitHub repository
+publishes before GitHub's global database lists them, rulings 776-777; it needs `GITHUB_TOKEN`,
+`GH_TOKEN` or `gh auth token`, and GitHub out of reach is a warning). Run both after any bump.
+
 A change under `packages/db/` also needs CI's `Database replay` job locally: a fresh `postgres:17`
 container, then `pnpm db:migrations:replay`, `pnpm db:rls-probe`, `pnpm db:merge-probe`, `pnpm db:fightbook-probe`,
 `RACE_PROBE_DISPOSABLE=1 pnpm db:fightbook-race-probe` and

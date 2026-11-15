@@ -445,6 +445,16 @@ jobs:
       - name: Audit high and critical vulnerabilities
         run: pnpm audit --audit-level high
 
+      # Rulings 776-777: the advisories our direct dependencies' own repositories publish, which
+      # pnpm audit sees only days later, once GitHub's global database lists them (Nest's nine of
+      # 2026-11-12). GitHub out of reach is a warning, not a red. The token only raises the rate
+      # limit: the advisories are public. Its own verdict, after a red audit too.
+      - name: Check repository security advisories
+        if: '!cancelled()'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm security:repo-advisories
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

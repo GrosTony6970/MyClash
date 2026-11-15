@@ -228,6 +228,11 @@ overrides:
 # `pnpm view <name> version` shows the patched version, then bump the lockfile.
 # The list is empty since 2026-10-31: both earlier entries (braces,
 # http-cache-semantics) were advisories GitHub withdrew.
+#
+# It serves two checks: `pnpm audit` and `scripts/check-repo-advisories.mjs`, which
+# reads the advisories a direct dependency's own repository publishes before
+# GitHub's global database lists them (rulings 776-777). An entry made for the
+# second one follows the same rules.
 auditConfig:
   ignoreGhsas: []
 

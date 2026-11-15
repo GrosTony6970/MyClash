@@ -80,6 +80,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Test', step: 'Run tests again under a non-UTC timezone' },
   { job: 'Coverage', step: 'Run enforced coverage' },
   { job: 'Dependency audit', step: 'Audit high and critical vulnerabilities' },
+  { job: 'Dependency audit', step: 'Check repository security advisories' },
   { job: 'Playwright and Axe', step: 'Run Playwright and Axe tests' },
   { job: 'Database replay', step: 'Replay migrations on Postgres 17' },
   { job: 'Database replay', step: 'Probe RLS as an anonymous reader' },

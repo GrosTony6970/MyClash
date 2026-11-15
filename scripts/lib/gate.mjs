@@ -100,7 +100,7 @@ function reasonForCountingNothing(scanned) {
  * undefined) or when a path does not resolve. A path that is not there is not
  * this module.
  */
-function isInvokedDirectly(entry) {
+export function isInvokedDirectly(entry) {
   const invoked = process.argv[1];
   if (!invoked) return false;
   try {
