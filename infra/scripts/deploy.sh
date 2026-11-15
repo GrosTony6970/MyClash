@@ -28,6 +28,8 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/db-running.sh"
+# The worker stops on its own before `up -d`, its job in flight finishing (ruling 815).
+source "$SCRIPT_DIR/lib/worker-drain.sh"
 
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
@@ -617,6 +619,11 @@ hdr "Starting stack"
 # with web-public/web-staff/web-admin never recreated, their OLD containers still
 # running and healthy, and the poll below would pass on them: a deploy that
 # reports success while three services run the previous image.
+#
+# The worker stops first, on its own (lib/worker-drain.sh): its stop may wait
+# minutes for the job in flight, which this bound would cut, and which would hold
+# back the start of every container this `up -d` recreates.
+mc_drain_worker
 UP_TIMEOUT=240
 rc=0
 timeout --kill-after=10 "$UP_TIMEOUT" \

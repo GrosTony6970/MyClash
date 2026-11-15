@@ -37,6 +37,9 @@ source "$SCRIPT_DIR/lib/traefik-env.sh"
 # See deploy.sh — one owner for data/system-versions.json.
 source "$SCRIPT_DIR/lib/system-versions.sh"
 
+# The worker stops on its own before the recreate, its job in flight finishing (ruling 815).
+source "$SCRIPT_DIR/lib/worker-drain.sh"
+
 # --pull updates the checkout, then re-runs THIS script from it (ruling 400), so the
 # build and every later step are the new code, not the copy bash started with.
 source "$SCRIPT_DIR/lib/pull-reexec.sh"
@@ -177,6 +180,17 @@ hdr "Recreating: ${SERVICES[*]}"
 # Capture the exit code with `|| rc=$?` — NOT `if ! cmd; then rc=$?`. Inside a negated
 # `if`, `$?` holds the *inverted* status (always 0 when the branch runs), so the old
 # form silently reported every failure as "exit 0".
+#
+# The worker first, on its own (lib/worker-drain.sh): its stop may wait minutes for a job, which
+# this bound would cut. Then every container this recreate makes is newer than UP_STARTED, and the
+# poll below accepts no other: an old container still running is not a recreated one.
+for svc in "${SERVICES[@]}"; do
+  if [[ "$svc" == "worker" ]]; then
+    mc_drain_worker
+    break
+  fi
+done
+UP_STARTED=$(date +%s)
 UP_TIMEOUT=120
 rc=0
 timeout --kill-after=10 "$UP_TIMEOUT" \
@@ -203,10 +217,15 @@ for svc in "${SERVICES[@]}"; do
   for i in $(seq 1 "$RETRIES"); do
     ID=$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)
     if [[ -z "$ID" ]]; then
-      warn "$svc: container not found"
-      break
+      # Just recreated, so it must run: none running is not ready yet, and a failure at the end.
+      HEALTH="no running container"
+    else
+      HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ID")
+      CREATED=$(date -d "$(docker inspect --format='{{.Created}}' "$ID")" +%s 2>/dev/null || echo 0)
+      if ((CREATED < UP_STARTED)); then
+        HEALTH="the container from before this redeploy, not a new one"
+      fi
     fi
-    HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ID")
     if [[ "$HEALTH" == "healthy" || "$HEALTH" == "running" ]]; then
       ok "$svc: $HEALTH"
       break

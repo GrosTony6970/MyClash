@@ -87,6 +87,16 @@ const rollbackPath = path.join(rootDir, 'infra', 'scripts', 'rollback.sh');
 const startPath = path.join(rootDir, 'infra', 'scripts', 'start.sh');
 const traefikEnvLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'traefik-env.sh');
 const systemVersionsLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'system-versions.sh');
+const workerDrainLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'worker-drain.sh');
+const systemActionsServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'system-actions.service.ts',
+);
 const devTraefikStaticPath = path.join(rootDir, 'infra', 'traefik', 'traefik.dev.yml');
 const devTraefikDynamicPath = path.join(rootDir, 'infra', 'traefik', 'dynamic.dev.yml');
 const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
@@ -617,6 +627,8 @@ const statusText = await pinned.readPinnedFile(statusPath);
 const restoreText = await pinned.readPinnedFile(restorePath);
 const rollbackText = await pinned.readPinnedFile(rollbackPath);
 const vpsBootstrapText = await pinned.readPinnedFile(vpsBootstrapPath);
+const workerDrainLibText = await pinned.readPinnedFile(workerDrainLibPath);
+const systemActionsServiceText = await pinned.readPinnedFile(systemActionsServicePath);
 const publicRootPageText = await pinned.readPinnedFile(publicRootPagePath);
 const publicLoginPageText = await pinned.readPinnedFile(publicLoginPagePath);
 const publicLoginRequestsText = await pinned.readPinnedFile(publicLoginRequestsPath);
@@ -1088,12 +1100,12 @@ for (const serviceName of ['api', 'worker']) {
   // The api calls the ops-runner for the admin's actions and reads; the worker's runtime-health
   // job reads disk usage from it, and without these the tick records disk as unavailable, a
   // critical alert (ruling 810).
-  requireContains(
+  requireLine(
     services.get(serviceName) ?? '',
     `prod ${serviceName}`,
     'OPS_RUNNER_URL: http://ops-runner:4075',
   );
-  requireContains(
+  requireLine(
     services.get(serviceName) ?? '',
     `prod ${serviceName}`,
     'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}',
@@ -1106,21 +1118,70 @@ for (const [label, worker] of [
   ['prod worker', services.get('worker')],
   ['dev worker', devServices.get('worker')],
 ]) {
-  requireContains(worker ?? '', label, "command: ['node', 'dist/main.js', '--worker']");
+  requireLine(worker ?? '', label, "command: ['node', 'dist/main.js', '--worker']");
   // A stop lets the job in flight finish; Docker's 10 s default would cut most of them
   // (rulings 811, 814; apps/api/src/common/graceful-stop.ts).
-  requireContains(worker ?? '', label, 'stop_grace_period: 5m');
+  requireLine(worker ?? '', label, 'stop_grace_period: 5m');
 }
-requireContains(
+requireLine(
   devServices.get('worker') ?? '',
   'dev worker',
   'OPS_RUNNER_URL: http://ops-runner:4075',
 );
-requireContains(
+requireLine(
   devServices.get('worker') ?? '',
   'dev worker',
   'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET:-dev-ops-runner-secret}',
 );
+// The worker's stop waits for its job, up to the grace above. Every bound wrapped around that stop
+// must pass it, or the bound cuts the stop: a recreate killed mid-wait never started the new
+// worker, and the draining old one passed the health poll (rulings 815, 817).
+//   grace < the deploy scripts' drain bound <= the ops-runner's worker bound < the API's wait
+// and both deploy scripts drain the worker before their time-bounded `up -d`.
+if (!isMissingPinnedFile(workerDrainLibText)) {
+  assertionsRun += 1;
+  const grace = /^\s+stop_grace_period: (\d+)m$/mu.exec(services.get('worker') ?? '');
+  const drain = /^MC_WORKER_STOP_TIMEOUT=(\d+)$/mu.exec(workerDrainLibText);
+  const runner = /^const WORKER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu.exec(opsRunnerServerText);
+  const api = /^const CONTAINER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu.exec(systemActionsServiceText);
+  const seconds = (match, scale) => (match ? Number(match[1].replaceAll('_', '')) * scale : NaN);
+  const bounds = [
+    ['the prod worker stop_grace_period', seconds(grace, 60)],
+    ['MC_WORKER_STOP_TIMEOUT (infra/scripts/lib/worker-drain.sh)', seconds(drain, 1)],
+    ['WORKER_ACTION_TIMEOUT_MS (infra/ops-runner/server.mjs)', seconds(runner, 1 / 1000)],
+    [
+      'CONTAINER_ACTION_TIMEOUT_MS (apps/api/src/modules/admin/system-actions.service.ts)',
+      seconds(api, 1 / 1000),
+    ],
+  ];
+  for (const [name, value] of bounds) {
+    if (!Number.isFinite(value))
+      errors.push(`The worker's stop bounds: ${name} could not be read.`);
+  }
+  const [graceS, drainS, runnerS, apiS] = bounds.map(([, value]) => value);
+  if (!(graceS < drainS && drainS <= runnerS && runnerS < apiS)) {
+    errors.push(
+      `The worker's stop bounds must be grace < drain <= ops-runner < API, so no bound cuts the ` +
+        `stop's wait for the job in flight; they are ${bounds.map(([n, v]) => `${n} ${v} s`).join(', ')}.`,
+    );
+  }
+}
+for (const [script, text, up] of [
+  ['deploy.sh', deployText, '"${COMPOSE[@]}" up -d || rc=$?'],
+  ['redeploy.sh', redeployText, '"${COMPOSE[@]}" up -d --no-deps --force-recreate'],
+]) {
+  if (isMissingPinnedFile(text)) continue;
+  assertionsRun += 1;
+  const source = text.indexOf('source "$SCRIPT_DIR/lib/worker-drain.sh"');
+  const drain = text.search(/^\s*mc_drain_worker$/mu);
+  const upAt = text.indexOf(up);
+  if (source === -1 || drain === -1 || upAt === -1 || !(source < drain && drain < upAt)) {
+    errors.push(
+      `infra/scripts/${script} must source lib/worker-drain.sh and call mc_drain_worker before its ` +
+        "time-bounded `up -d`: inside that bound the worker's stop is cut (ruling 815).",
+    );
+  }
+}
 if (authServiceText.includes('signInWithPassword')) {
   errors.push('AuthService.passwordLogin must use internal GoTrue instead of signInWithPassword.');
 }
@@ -3451,6 +3512,18 @@ function requireContains(text, serviceName, expected) {
   if (isMissingPinnedFile(text)) return;
   assertionsRun += 1;
   if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
+}
+
+/**
+ * `expected` as a whole line of `text`, indentation aside, never inside a `#` comment:
+ * `requireContains` is a substring test, and `# stop_grace_period: 5m` contains the key it pins.
+ */
+function requireLine(text, serviceName, expected) {
+  if (isMissingPinnedFile(text)) return;
+  assertionsRun += 1;
+  if (!text.split(/\r?\n/u).some((line) => line.trim() === expected)) {
+    errors.push(`${serviceName} is missing the line ${expected}`);
+  }
 }
 
 /**

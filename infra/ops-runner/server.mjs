@@ -762,9 +762,18 @@ async function appendProcess(operation, command) {
 }
 
 /**
+ * How long a container action may run. The worker's stop and restart wait for
+ * its job in flight, up to its stop_grace_period (5m, rulings 811, 814, 815):
+ * its bound passes that grace. The API's call to this route waits longer still
+ * (CONTAINER_ACTION_TIMEOUT_MS, apps/api/src/modules/admin/system-actions.service.ts).
+ */
+const CONTAINER_ACTION_TIMEOUT_MS = 30_000;
+const WORKER_ACTION_TIMEOUT_MS = 330_000;
+
+/**
  * Run a `docker compose <action> <service>` against the production compose
  * file. Bounded to the RESTARTABLE_SERVICES allowlist; rejects everything
- * else with 400/403. Times out after 30 s and returns the captured stdio.
+ * else with 400/403. Times out (see above) and returns the captured stdio.
  */
 async function runContainerAction(service, action) {
   if (!CONTAINER_ACTIONS.has(action)) {
@@ -776,7 +785,7 @@ async function runContainerAction(service, action) {
   const result = await spawnCaptureWithTimeout(
     'docker',
     ['compose', ...COMPOSE_FLAGS, action, service],
-    30_000,
+    service === 'worker' ? WORKER_ACTION_TIMEOUT_MS : CONTAINER_ACTION_TIMEOUT_MS,
   );
   return {
     ok: result.code === 0,
