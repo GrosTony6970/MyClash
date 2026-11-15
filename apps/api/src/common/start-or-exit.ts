@@ -39,13 +39,23 @@ export async function startOrExit(
     if (over) return;
     over = true;
     clearTimeout(timer);
+    // Each step on its own: a step that throws skips none of the others, and never the exit, the
+    // one thing this path owes (Docker's restart is its trace).
+    let failure: { message: string; trace?: string } = { message: 'an undescribable failure' };
     try {
-      const failure = describeProcessFailure(reason);
+      failure = describeProcessFailure(reason);
+    } catch {
+      // Described by the words above.
+    }
+    try {
       logger.error(`The API did not start: ${failure.message}`, failure.trace);
+    } catch {
+      // The report below still goes.
+    }
+    try {
       report(reason, { type: 'start', message: failure.message });
     } catch {
-      // A logger or a reporter that throws must not keep a failed start alive: the exit below is
-      // the one thing this path owes, and Docker's restart is its trace.
+      // The exit below still comes.
     }
     await flushThenExit(flush, exit);
   };

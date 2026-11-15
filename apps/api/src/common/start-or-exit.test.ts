@@ -116,13 +116,32 @@ describe('startOrExit, when describing or reporting the failure fails', () => {
     ]);
   });
 
+  // `resolves`: a startOrExit that rejects would hand its rejection to the unhandledRejection
+  // handler, which only logs. The exit must come, and nothing must escape after it either.
   it('a reporter that throws does not keep the failed start alive', async () => {
     const { calls, options } = recorder();
     const report = () => {
       throw new Error('probe-marker-reporter');
     };
-    await startOrExit(() => Promise.reject(new Error('probe-marker-hook')), { ...options, report });
+    const start = () => Promise.reject(new Error('probe-marker-hook'));
+    await expect(startOrExit(start, { ...options, report })).resolves.toBeUndefined();
     expect(calls.at(-1)).toBe('exit 1');
+  });
+
+  it('a logger that throws skips neither the report nor the exit', async () => {
+    const { calls, options } = recorder();
+    const logger = {
+      error: () => {
+        throw new Error('probe-marker-logger');
+      },
+    };
+    const start = () => Promise.reject(new Error('probe-marker-hook'));
+    await expect(startOrExit(start, { ...options, logger })).resolves.toBeUndefined();
+    expect(calls).toEqual([
+      'report start probe-marker-hook',
+      `flush ${FLUSH_BEFORE_EXIT_MS}`,
+      'exit 1',
+    ]);
   });
 });
 
