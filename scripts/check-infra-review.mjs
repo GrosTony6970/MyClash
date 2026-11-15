@@ -1139,7 +1139,8 @@ requireLine(
 //            mid-wait never started the new worker, and the draining old one passed the poll);
 //   admin:   the button's grace (`-t`) < the ops-runner's worker bound < the API's wait < 300 s,
 //            where the API's fetch (undici) gives up on an answer with no headers yet.
-// Read from the five files; a value that cannot be read is a finding, never a pass.
+// Read from four files (the 300 s is undici's default, written here); a value that cannot be read
+// is a finding, never a pass.
 const workerStopBounds = (() => {
   if (
     [workerDrainLibText, opsRunnerServerText, systemActionsServiceText].some(isMissingPinnedFile)
@@ -1228,8 +1229,9 @@ for (const [script, text, up] of [
     );
   }
 }
-// rollback.sh and restore.sh stop the worker with the API, then drop the database: its job's work
-// goes with it, so the 5m wait is cut to 10 s there (ruling 819).
+// rollback.sh and restore.sh stop the worker in the same call as PostgREST, Storage and GoTrue, its
+// only way to the database: its job cannot finish its writes, so the 5m wait is cut to 10 s there
+// (ruling 819).
 for (const [script, text] of [
   ['rollback.sh', rollbackText],
   ['restore.sh', restoreText],
@@ -1243,7 +1245,8 @@ for (const [script, text] of [
   ) {
     errors.push(
       `infra/scripts/${script} must stop the services, the worker among them, with \`stop -t 10\`: ` +
-        'its job is dropped with the database, so a 5m wait buys nothing (ruling 819).',
+        'its job loses its way to the database in that same call, so a 5m wait buys nothing ' +
+        '(ruling 819).',
     );
   }
 }

@@ -101,9 +101,10 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 # with it so the console is not left hammering a dead upstream mid-rollback.
 hdr "Stopping services connected to the database"
 
-# `-t 10`: the worker's grace is 5m so a deploy lets its job finish, but here the database it
-# writes through is dropped next, the job's work with it (ruling 819). Docker's default for the
-# others.
+# `-t 10`: the worker's grace is 5m so a deploy lets its job finish. Here that wait buys nothing
+# (ruling 819): this same call stops PostgREST, Storage and GoTrue, the worker's only way to the
+# database (it holds no DATABASE_URL), so its job cannot finish its writes; and when a backup
+# exists the database is dropped next. Docker's default for the others.
 "${COMPOSE[@]}" stop -t 10 \
   api web-public web-staff web-admin worker \
   supabase-auth supabase-rest supabase-realtime supabase-storage \
