@@ -41,13 +41,14 @@ test('a version before a fix its patches name is in doubt, whatever the range sa
   assert.equal(inRange('5.13.2', '<= 5.13.0', '>= 5.13.2'), false);
   // A fix on another minor line says nothing for this one: 1.3.0 was never fixed before 1.3.1.
   assert.equal(inRange('1.3.0', '>= 1.2.0, < 1.2.5', '1.2.5, 1.3.1'), null);
-  // A fix on no line of this major says nothing either: our astro 7 against an astro 5 advisory.
+  // Every fix below it, on an earlier major, says it is fixed: our astro 7 against an astro 5 one.
   assert.equal(inRange('7.4.12', '<= 5.13.0', '>= 5.13.2'), false);
 });
 
 // The patched versions must say a version is fixed: none given, or fixes only on a later major,
 // say nothing. astro's GHSA-8hv8 (bare `6.3.1`, patched `>= 6.3.3`) is `< 6.3.3` reviewed, astro
-// 5 included; mermaid's GHSA-p3rp (`8.13.6`, `8.13.8`) is `< 8.13.8`, mermaid 7 included.
+// 5 included; mermaid's GHSA-p3rp (`8.13.6`, no patched version given) is `< 8.13.8`, mermaid 7
+// included (the `8.13.8` patch below is constructed, to show a later major's fix says nothing).
 test('a version the patched versions do not call fixed is in doubt', () => {
   assert.equal(inRange('8.13.7', '8.13.6', ''), null);
   assert.equal(inRange('9.0.0', '<= 8.13.6', ''), null);
@@ -76,4 +77,26 @@ test('a range its author cannot have meant is in doubt', () => {
   // With a fix below it, 11.0.0 would read safe: only the misread range keeps it in doubt.
   assert.equal(inRange('11.0.0', '10.0.0 <= 12.0.10', '9.0.0'), null);
   assert.equal(inRange('12.3.2', '>= 12.1.0, < 12.5.0'), true);
+});
+
+// A patched range ends at its upper bound: past it, with no fix of its own, a version is not
+// called fixed (vitest's GHSA-9crc 1.x entry, `>=1.6.1,<2.0.0`). Its sibling entries' fixes,
+// read together, do call 5.1.0 fixed.
+test("past a patched range's upper bound, only a later fix calls a version fixed", () => {
+  assert.equal(inRange('2.0.5', '<=1.6.0', '>=1.6.1,<2.0.0'), null);
+  assert.equal(inRange('7.4.12', '6.3.1', '>= 6.3.3 < 7.0.0'), null);
+  const vitest = '>=1.6.1,<2.0.0, >=2.1.9,<3.0.0, >=3.0.5';
+  assert.equal(inRange('5.1.0', '>=3.0.0, <=3.0.4', vitest), false);
+});
+
+test('a Unicode bound reads as its ASCII twin, and an exclusive lower bound is no fix', () => {
+  assert.deepEqual(versionsIn('≤15.0.4 and ≥15.2.0'), ['15.2.0']);
+  assert.equal(inRange('1.2.7', '>1.2.3 <1.2.6', '≤1.2.3 and ≥1.2.8'), null);
+  assert.equal(inRange('1.2.3', '< 1.2.3', '> 1.2.3'), null);
+});
+
+// The advisory lists a version past its own only fix on that line: the fix proves nothing there.
+test('bare versions listed past their own fixes are in doubt', () => {
+  assert.equal(inRange('2.2.5', '2.0.0, 2.2.0', '2.1.0'), null);
+  assert.equal(inRange('2.2.5', '1.8.0, 2.2.0', '1.9.0'), null);
 });

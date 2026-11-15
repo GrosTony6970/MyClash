@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import semver from 'semver';
 
-import { inRange } from './lib/advisory-range.mjs';
+import { inRange, packageNamed } from './lib/advisory-range.mjs';
 import { defineGate, isInvokedDirectly, nothingToCount } from './lib/gate.mjs';
 
 /**
@@ -210,7 +210,14 @@ export function advisoryHits(advisories, deps, names, ignored) {
       const name = packageNamed(written, names);
       if (!name) continue;
       const range = vulnerability.vulnerable_version_range;
-      const patched = vulnerability.patched_versions;
+      // Every entry of this advisory for this package speaks for the others' versions: Nest's and
+      // vitest's list one range per major, and the fix on 3.x is what calls 3.2.6 fixed when the
+      // 4.x entry is read.
+      const patched = (advisory.vulnerabilities ?? [])
+        .filter((other) => packageNamed(other.package?.name, names) === name)
+        .map((other) => String(other.patched_versions ?? '').trim())
+        .filter(Boolean)
+        .join(', ');
       for (const version of deps.get(name).versions) {
         // A version no range can be compared with is reported by uncheckableVersions.
         if (!semver.valid(version)) continue;
@@ -223,26 +230,6 @@ export function advisoryHits(advisories, deps, names, ignored) {
     }
   }
   return [...hits.values()];
-}
-
-/** A name as a hand may write it: no `@`, no owner, no `.js`, lower case (`withastro/astro`). */
-function looseName(name) {
-  return String(name ?? '')
-    .toLowerCase()
-    .replace(/^@/u, '')
-    .replace(/\.js$/u, '')
-    .split('/')
-    .at(-1);
-}
-
-/**
- * Which of `names` an advisory's package name means: itself when it is spelled as npm spells it,
- * or the one it loosely names (`withastro/astro` for astro, `luxon.js` for luxon), else none.
- */
-export function packageNamed(written, names) {
-  if (names.includes(written)) return written;
-  const loose = looseName(written);
-  return loose ? (names.find((name) => looseName(name) === loose) ?? null) : null;
 }
 
 /** Whether GitHub's global database lists the advisory (then `pnpm audit` reports it). */

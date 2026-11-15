@@ -13,17 +13,34 @@ import semver from 'semver';
  * database lists it (then `pnpm audit` owns it), or through the ignore list.
  */
 
+/** Each version a `patched_versions` text names, with its operator (`≤`/`≥` read as `<=`/`>=`). */
+function patchedTokens(text) {
+  const normal = String(text ?? '')
+    .replace(/≤/gu, '<=')
+    .replace(/≥/gu, '>=');
+  const token = /(<=|>=|<|>|=)?\s*v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/gu;
+  return [...normal.matchAll(token)]
+    .map(([, operator = '', version]) => ({ operator, version }))
+    .filter(({ version }) => semver.valid(version));
+}
+
 /**
  * The fixes a `patched_versions` text names (`>= 6.3.3`, `19.0.1, 19.1.2`), oldest first. A version
- * after `<` or `<=` is a patched range's upper bound (`>= 6.3.3 < 7.0.0`), not a fix.
+ * after `<` or `<=` is a patched range's upper bound (`>= 6.3.3 < 7.0.0`), and one after `>` is
+ * not itself patched: neither is a fix.
  */
 export function versionsIn(text) {
-  const fixes = [];
-  const token = /(<=|>=|<|>|=)?\s*v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/gu;
-  for (const [, operator, version] of String(text ?? '').matchAll(token)) {
-    if (!operator?.startsWith('<') && semver.valid(version)) fixes.push(version);
-  }
-  return fixes.sort(semver.compare);
+  return patchedTokens(text)
+    .filter(({ operator }) => !operator.startsWith('<') && operator !== '>')
+    .map(({ version }) => version)
+    .sort(semver.compare);
+}
+
+/** A patched range's upper bounds (`< 7.0.0` in `>= 6.3.3 < 7.0.0`): past one, a fix stops. */
+function boundsIn(text) {
+  return patchedTokens(text)
+    .filter(({ operator }) => operator.startsWith('<'))
+    .map(({ version }) => version);
 }
 
 /**
@@ -84,8 +101,55 @@ export function inRange(version, range, patched) {
   if (semver.satisfies(version, readable, { includePrerelease: true })) return true;
   const fixes = versionsIn(patched);
   if (fixes.length === 0) return null;
+  if (pastAPatchedBound(version, fixes, boundsIn(patched))) return null;
+  if (listedPastItsFixes(version, range, fixes)) return null;
   const reading = patchReading(version, fixes);
   if (reading === 'fixed') return false;
   if (reading === 'unknown' && semver.gt(version, fixes.at(-1))) return false;
   return null;
+}
+
+/** At or past a patched range's upper bound, with no fix between that bound and the version. */
+function pastAPatchedBound(version, fixes, bounds) {
+  return bounds.some(
+    (bound) =>
+      semver.gte(version, bound) &&
+      !fixes.some((fix) => semver.gte(fix, bound) && semver.lte(fix, version)),
+  );
+}
+
+/**
+ * Bare versions that name one on the version's major above every fix on that major: the advisory
+ * contradicts its own fix there (`2.0.0, 2.2.0` patched `2.1.0`), so the fix proves nothing.
+ */
+function listedPastItsFixes(version, range, fixes) {
+  const tokens = String(range ?? '')
+    .split(/[\s,]+/u)
+    .filter(Boolean);
+  if (!tokens.every((token) => semver.valid(token))) return false;
+  const major = semver.major(version);
+  const line = fixes.filter((fix) => semver.major(fix) === major);
+  return tokens.some(
+    (token) => semver.major(token) === major && line.every((fix) => semver.gt(token, fix)),
+  );
+}
+
+/** A name as a hand may write it: no `@`, no owner, no `.js`, lower case (`withastro/astro`). */
+function looseName(name) {
+  return String(name ?? '')
+    .toLowerCase()
+    .replace(/^@/u, '')
+    .replace(/\.js$/u, '')
+    .split('/')
+    .at(-1);
+}
+
+/**
+ * Which of `names` an advisory's package name means: itself when it is spelled as npm spells it,
+ * or the one it loosely names (`withastro/astro` for astro, `luxon.js` for luxon), else none.
+ */
+export function packageNamed(written, names) {
+  if (names.includes(written)) return written;
+  const loose = looseName(written);
+  return loose ? (names.find((name) => looseName(name) === loose) ?? null) : null;
 }

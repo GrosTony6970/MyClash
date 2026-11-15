@@ -334,3 +334,18 @@ test('a locked version no range can be compared with is an error', () => {
   const fixed = advisory('GHSA-alia-s000-0000', 'high', 'alias', '< 2.0.0', { patched: '2.0.0' });
   assert.deepEqual(advisoryHits([fixed], deps, ['alias'], new Set()), []);
 });
+
+// vitest's real GHSA-5xrq: one entry per major. 3.2.6 is past its own entry's fix, and the 4.x
+// entry, read alone, would put it in doubt: an advisory's entries for a package speak together.
+test("one entry's fix clears its sibling entries' doubt for the same package", () => {
+  const vitest = {
+    ...advisory('GHSA-5xrq-8626-4rwp', 'high', 'vitest', '>=4.0.0,<4.1.0', { patched: '4.1.0' }),
+  };
+  vitest.vulnerabilities.push({
+    package: { name: 'vitest' },
+    vulnerable_version_range: '<3.2.5',
+    patched_versions: '3.2.5',
+  });
+  const deps = new Map([['vitest', { versions: new Set(['3.2.6']), importers: new Set(['.']) }]]);
+  assert.deepEqual(advisoryHits([vitest], deps, ['vitest'], new Set()), []);
+});
