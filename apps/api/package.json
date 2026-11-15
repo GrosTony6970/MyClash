@@ -40,7 +40,7 @@
     "@supabase/supabase-js": "^2.119.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/web-push": "^3.6.4",
-    "bullmq": "^6.5.3",
+    "bullmq": "^6.7.6",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
