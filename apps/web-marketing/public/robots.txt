@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://myclash.fr/sitemap.xml
+Sitemap: https://myclash.fr/sitemap-index.xml
