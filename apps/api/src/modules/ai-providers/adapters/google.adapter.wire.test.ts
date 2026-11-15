@@ -67,6 +67,13 @@ beforeEach(() => {
 
 afterEach(() => {
   expect(wire.unrouted).toEqual([]);
+  // Every request of every test, not only the ones a test names: the host, the v1beta door, the key.
+  for (const request of wire.requests) {
+    const url = new URL(request.url);
+    expect(url.origin).toBe(HOST);
+    expect(url.pathname.startsWith('/v1beta/')).toBe(true);
+    expect(request.headers['x-goog-api-key']).toBe(KEY);
+  }
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -197,21 +204,23 @@ describe('GoogleAdapter on the wire', () => {
     });
   });
 
-  it('lists the models', async () => {
+  it('lists the models across pages', async () => {
     useWire({
-      'GET /v1beta/models': () => ({
-        body: {
-          models: [{ name: 'models/gemini-3.8-flash' }, { name: 'models/gemini-4-carbon' }],
-        },
-      }),
+      'GET /v1beta/models': (request) =>
+        new URL(request.url).searchParams.get('pageToken') === 'page-2'
+          ? { body: { models: [{ name: 'models/gemini-4-carbon' }] } }
+          : { body: { models: [{ name: 'models/gemini-3.8-flash' }], nextPageToken: 'page-2' } },
     });
 
     const ids = await new GoogleAdapter().listModels(KEY);
 
     expect(ids).toEqual(['gemini-3.8-flash', 'gemini-4-carbon']);
-    expect(wire.requests).toHaveLength(1);
-    expect(wire.requests[0]?.method).toBe('GET');
+    expect(wire.requests).toHaveLength(2);
+    expect(wire.requests.map((r) => r.method)).toEqual(['GET', 'GET']);
     expectGeminiDoor(wire.requests[0], 'models');
+    expectGeminiDoor(wire.requests[1], 'models');
+    expect(new URL(wire.requests[0]?.url ?? '').searchParams.get('pageToken')).toBeNull();
+    expect(new URL(wire.requests[1]?.url ?? '').searchParams.get('pageToken')).toBe('page-2');
   });
 
   // A pin on the SDK, not on the adapter: Sentry receives this error's message, so a future SDK
