@@ -5,10 +5,13 @@ packages:
 # pnpm-lock.yaml is TWO YAML documents. Because package.json pins pnpm 12, pnpm
 # records its own version in a first "boot" document; the dependencies are in the
 # second. pnpm audit, turbo and Dependabot's version updates read both. A tool that
-# reads only the first sees no dependencies and reports no vulnerabilities, and
-# GitHub's dependency graph is one of them (pnpm/pnpm#13805): turning Dependabot
-# alerts on would raise no alerts. `pmOnFail: ignore` keeps one document, but
-# pnpm then stops switching to the pinned version (operator ruling, 2026-10-31).
+# reads only the first sees no dependencies and reports no vulnerabilities; GitHub's
+# dependency graph once did (pnpm/pnpm#13805), but it reads the dependencies now (its
+# SBOM listed 1652 packages on 2026-11-15) and Dependabot raises alerts from it. Those
+# alerts are the only place a medium or low advisory shows: `pnpm audit --audit-level
+# high` and the Trivy image scan (HIGH,CRITICAL) never fail on one. `pmOnFail: ignore`
+# keeps one document, but pnpm then stops switching to the pinned version (operator
+# ruling, 2026-10-31).
 
 # Dependency install/postinstall scripts, allowlisted one by one. pnpm blocks
 # every one of these by default (since pnpm 11; pnpm 10 only warned), so an
@@ -202,6 +205,16 @@ overrides:
   # It only stops the audit listing a package nothing imports. The bundled copy
   # reads our own DESIGN.md. Delete this line when design.md declares zod 4.
   '@google/design.md>zod': ~4.6.6
+  # >=4.13.16 clears GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-3gg2-335m-rxc6,
+  # GHSA-46wx-v44x-9hh2 and GHSA-4h7h-rv7c-7m2v; >=2.1.6 clears GHSA-qv5m-9pm6-hqp3 and
+  # GHSA-jpvv-r467-5p4w. Both arrive through @modelcontextprotocol/sdk (hono ^4.11.4,
+  # @hono/node-server ^1.19.9 || ^2.0.5), which the Mistral SDK depends on (and @google/genai
+  # takes as an optional peer), so they are installed in the api image. Nothing loads them: Mistral reaches the MCP SDK
+  # only through dynamic imports of its client modules (extra/connectors.js), and the MCP SDK
+  # imports hono only in server/streamableHttp.js and its examples (operator rulings 794 and
+  # 798, 2026-11-15). A tilde: each fix is a patch of its line.
+  'hono@4': ~4.13.18
+  '@hono/node-server@2': ~2.1.8
   # minimatch is in the tree on four major lines, each consumer on the major it asks for
   # (operator rulings 783 and 792, 2026-11-15). A bare `minimatch` key once forced 9.0.9 on
   # all of them, against every consumer's own ask. A key per major holds only the consumers
