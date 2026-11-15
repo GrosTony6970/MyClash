@@ -676,7 +676,7 @@ services:
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET}
       # AuthGuard: 'shadow' logs the 401 it would have thrown, 'enforce' throws.
       # Defaults to shadow in code when unset. Set on the worker too so the two
-      # can never diverge if it ever serves HTTP.
+      # can never diverge if it ever serves the API (today it serves /health alone).
       AUTH_GUARD_MODE: ${AUTH_GUARD_MODE:-shadow}
       COOKIE_SECRET: ${COOKIE_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
@@ -992,7 +992,7 @@ services:
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET}
       # AuthGuard: 'shadow' logs the 401 it would have thrown, 'enforce' throws.
       # Defaults to shadow in code when unset. Set on the worker too so the two
-      # can never diverge if it ever serves HTTP.
+      # can never diverge if it ever serves the API (today it serves /health alone).
       AUTH_GUARD_MODE: ${AUTH_GUARD_MODE:-shadow}
       COOKIE_SECRET: ${COOKIE_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}

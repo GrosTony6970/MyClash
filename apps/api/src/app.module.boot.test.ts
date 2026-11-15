@@ -68,9 +68,11 @@ describe('AppModule', () => {
     const app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     try {
       expect(classesBuiltWithoutMetadata(app.get(ModulesContainer))).toEqual([]);
-      // Building this graph starts no queue consumer: only the worker starts them (rulings 807,
-      // 808; workers/worker-role.ts). The token is @nestjs/bullmq's BULL_EXTRA_OPTIONS_TOKEN
-      // (dist/bull.constants.js), which the package does not export.
+      // The option BullRegistrar reads to skip starting the queue consumers at init is set: only
+      // the worker starts them (rulings 807, 808; workers/worker-role.ts). This reads the value,
+      // not a start (compile() runs no init): that the library still honours it is proved by CI's
+      // start check, which counts the api's consumers in Redis. The token is @nestjs/bullmq's
+      // BULL_EXTRA_OPTIONS_TOKEN (dist/bull.constants.js), which the package does not export.
       expect(app.get('BULLMQ_EXTRA_OPTIONS', { strict: false })).toEqual({
         manualRegistration: true,
       });

@@ -94,7 +94,9 @@ socket receives a database change while its management API refuses the anon key
 (`scripts/check-realtime-socket.sh`, rulings 424, 504-507; locally: the dind box, never a host
 that runs the stack), then starts the API from the image and proves it answers, logs no warning
 before it has started, maps exactly the API client's operations, and that a broken start exits 1
-(`scripts/check-api-boot.sh` + `.mjs`, rulings 778-781). It is CI only, because it starts
+(`scripts/check-api-boot.sh` + `.mjs`, rulings 778-781), and from Redis's client list that the API
+holds no queue consumer while the worker service, started from its compose command, holds one per
+`@Processor` queue and serves `/health` alone (rulings 807-812). It is CI only, because it starts
 containers with production's fixed names (`myclash-db`, volume `myclash-postgres-data`); never run
 it on a host that runs the stack.
 
