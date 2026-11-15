@@ -1182,6 +1182,13 @@ for (const [script, text, up] of [
     );
   }
 }
+// The worker alone runs the jobs, the alert email among them: a deploy without it is down (817).
+assertionsRun += 1;
+if (!parseBashArray(deployText, 'CRITICAL_SERVICES').includes('worker')) {
+  errors.push(
+    'deploy.sh must list worker in CRITICAL_SERVICES: it alone runs the jobs (ruling 817).',
+  );
+}
 if (authServiceText.includes('signInWithPassword')) {
   errors.push('AuthService.passwordLogin must use internal GoTrue instead of signInWithPassword.');
 }

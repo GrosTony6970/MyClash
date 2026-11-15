@@ -668,9 +668,11 @@ hdr "Waiting for services to become healthy"
 # smoke test, .last-deploy.json). Worth it when the public surface is down;
 # actively harmful when the operator console is the only thing sick.
 #
-# CRITICAL — users cannot use the site.
+# CRITICAL — users cannot use the site. The worker is here since it alone runs the
+# jobs (ruling 817): with it down, no notification, auto-lock or alert email goes
+# out, the alert being itself one of its jobs, and nothing else would say so.
 CRITICAL_SERVICES=(traefik db redis supabase-auth supabase-storage api
-  web-public web-staff web-admin web-marketing)
+  web-public web-staff web-admin web-marketing worker)
 # ADVISORY — degraded, not down. Reported by name at the end of the run.
 # supabase-realtime sits here deliberately: live surfaces need it, and fall back
 # to polling without it. Its healthcheck once answered 200 for weeks while every
@@ -678,7 +680,7 @@ CRITICAL_SERVICES=(traefik db redis supabase-auth supabase-storage api
 # the way a socket does, and it stays ADVISORY by choice (ruling 509). When it is
 # listed below, `docker logs myclash-supabase-realtime 2>&1 | grep myclash-realtime-start`
 # says whether the tenant was written.
-ADVISORY_SERVICES=(supabase-realtime supabase-meta supabase-studio ops-runner worker)
+ADVISORY_SERVICES=(supabase-realtime supabase-meta supabase-studio ops-runner)
 
 RETRIES=20
 DELAY=3
