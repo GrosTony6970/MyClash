@@ -13,13 +13,14 @@ import {
   EDGE_REFUSED_NAME,
   EDGE_UPLOAD,
   rawRequest,
+  type RawAnswer,
 } from './testing/http-edge-app';
 
 /**
  * How the API answers at its edge: broken and oversized bodies, unknown routes, the prefix and
  * its one exclusion, CORS, the request id, an unexpected failure, uploads.
  *
- * Built by `configureHttpApp` and `applyRequestLogging`, the functions production runs, so a
+ * Built by `configureHttpApp` (the request log with it), the function production runs, so a
  * framework update that changes any of these answers turns this file red before it ships. The
  * guards, cookies and the read-only switch are in `http-edge.auth.http.test.ts`.
  *
@@ -58,6 +59,47 @@ function postJson(path: string, body: string, contentType = 'application/json'):
   });
 }
 
+/**
+ * The request-log lines written while `send` runs, once at least `count` have arrived. A case that
+ * expects no line for a request sends a control request after it and counts the control's line,
+ * so "none" is read after the log had time to write.
+ */
+async function requestLogDuring(
+  send: () => Promise<void>,
+  count: number,
+): Promise<Record<string, unknown>[]> {
+  const lines: string[] = [];
+  const write = vi
+    .spyOn(process.stdout, 'write')
+    .mockImplementation((chunk: string | Uint8Array) => {
+      lines.push(String(chunk));
+      return true;
+    });
+  const logged = () =>
+    lines
+      .filter((line) => line.includes('"http_request"'))
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+  try {
+    await send();
+    await vi.waitFor(() => expect(logged().length).toBeGreaterThanOrEqual(count));
+  } finally {
+    write.mockRestore();
+  }
+  return logged();
+}
+
+/** One GET line per target, in order, each under the status and id its answer carries. */
+function oneLineEach(targets: string[], answers: RawAnswer[]): unknown[] {
+  return targets.map((path, index) =>
+    expect.objectContaining({
+      method: 'GET',
+      path,
+      statusCode: answers[index]?.status,
+      requestId: answers[index]?.headers['x-request-id'],
+    }),
+  );
+}
+
 /** A multipart form: each entry a text field (string) or a file of that many bytes (number). */
 function form(entries: Array<[string, string | number]>, filename = 'probe-marker.bin'): FormData {
   const body = new FormData();
@@ -91,6 +133,23 @@ describe('the API edge, as configureHttpApp builds it', () => {
     expect(res.status).toBe(413);
     expect(res.headers.get('content-type')).toBe(PROBLEM_JSON);
     expect(await res.json()).toMatchObject({ code: 'HTTP_413' });
+  });
+
+  it('case 2, twin: an oversized body sent to "/" writes one request-log line, a 413', async () => {
+    let res = new Response();
+    const logged = await requestLogDuring(async () => {
+      res = await postJson('/', JSON.stringify({ marker: 'x'.repeat(1_100_000) }));
+      await res.text();
+    }, 1);
+    expect(res.status).toBe(413);
+    expect(logged).toEqual([
+      expect.objectContaining({
+        method: 'POST',
+        path: '/',
+        statusCode: 413,
+        requestId: res.headers.get('x-request-id'),
+      }),
+    ]);
   });
 
   it.each([
@@ -133,35 +192,20 @@ describe('the API edge, as configureHttpApp builds it', () => {
     }
   });
 
-  // A wildcard middleware is mounted on the routes taken out of the prefix, and Nest 12.5 also
-  // mounts it on the controller routes served there (for /health, the same path, de-duplicated).
-  // Two mounts that match one request run it twice. The probe sends no request id: a second run
-  // would write a second line and overwrite the answer's id with a new one.
+  // The request log runs once per request, from one Fastify hook. A second run (a Nest middleware
+  // mounted beside it, as the log was until 2026-11-15) would write a second line and overwrite
+  // the answer's id with a new one. The probe sends no request id, so either would show.
   it('case 5, twin: /health writes one request-log line, under the id it answers with', async () => {
-    const lines: string[] = [];
-    const write = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation((chunk: string | Uint8Array) => {
-        lines.push(String(chunk));
-        return true;
-      });
-    const logged = () =>
-      lines
-        .filter((line) => line.includes('"http_request"'))
-        .map((line) => JSON.parse(line) as Record<string, unknown>);
-    let get: Response;
-    let post: Response;
-    try {
+    let get = new Response();
+    let post = new Response();
+    const logged = await requestLogDuring(async () => {
       get = await fetch(`${base}/health`);
       await get.text();
       post = await fetch(`${base}/health`, { method: 'POST' });
       await post.text();
-      await vi.waitFor(() => expect(logged().length).toBeGreaterThanOrEqual(2));
-    } finally {
-      write.mockRestore();
-    }
+    }, 2);
     expect(post.status).toBe(404);
-    expect(logged()).toEqual([
+    expect(logged).toEqual([
       expect.objectContaining({
         method: 'GET',
         path: '/health',
@@ -177,40 +221,36 @@ describe('the API edge, as configureHttpApp builds it', () => {
     ]);
   });
 
-  // The request log is mounted once, on `{*path}` under the prefix. Each request below writes one
-  // line under the id it answers with: a 404 inside the prefix, a percent-encoded letter the
-  // router decodes, and the bare prefix. No request id is sent, so a second mount would show.
+  // Each request below writes one line under the id it answers with: a 404 inside the prefix, a
+  // percent-encoded letter the router decodes, and the bare prefix. No request id is sent, so a
+  // second run of the log would show.
   it('case 4, twin: inside the prefix, each request writes one request-log line', async () => {
-    const lines: string[] = [];
-    const write = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation((chunk: string | Uint8Array) => {
-        lines.push(String(chunk));
-        return true;
-      });
-    const logged = () =>
-      lines
-        .filter((line) => line.includes('"http_request"'))
-        .map((line) => JSON.parse(line) as Record<string, unknown>);
     const targets = ['/api/v1/probe-marker-missing', '/api/v1/edge/%70ublic', '/api/v1'];
-    const answers: Awaited<ReturnType<typeof rawRequest>>[] = [];
-    try {
+    const answers: RawAnswer[] = [];
+    const logged = await requestLogDuring(async () => {
       for (const target of targets) answers.push(await rawRequest(port, 'GET', target));
-      await vi.waitFor(() => expect(logged().length).toBeGreaterThanOrEqual(targets.length));
-    } finally {
-      write.mockRestore();
-    }
+    }, targets.length);
     expect(answers.map((answer) => answer.status)).toEqual([404, 200, 404]);
-    expect(logged()).toEqual(
-      targets.map((path, index) =>
-        expect.objectContaining({
-          method: 'GET',
-          path,
-          statusCode: answers[index]?.status,
-          requestId: answers[index]?.headers['x-request-id'],
-        }),
-      ),
-    );
+    expect(logged).toEqual(oneLineEach(targets, answers));
+  });
+
+  // Outside the prefix too: '/', a scanner's guess, another API version, a prefix look-alike and
+  // a double slash. A Nest middleware could only mount under the prefix, so none of these had a
+  // line before 2026-11-15.
+  it('case 5b: outside the prefix, each request writes one request-log line', async () => {
+    const targets = [
+      '/',
+      '/wp-login.php',
+      '/api/v2/probe-marker',
+      '/api/v1x',
+      '//api/v1/edge/public',
+    ];
+    const answers: RawAnswer[] = [];
+    const logged = await requestLogDuring(async () => {
+      for (const target of targets) answers.push(await rawRequest(port, 'GET', target));
+    }, targets.length);
+    expect(answers.map((answer) => answer.status)).toEqual([404, 404, 404, 404, 404]);
+    expect(logged).toEqual(oneLineEach(targets, answers));
   });
 
   it('case 6: a CORS preflight from an app is allowed; one from elsewhere is not', async () => {
@@ -232,6 +272,19 @@ describe('the API edge, as configureHttpApp builds it', () => {
     expect(allowed.headers.get('x-request-id')).toBeNull();
     const foreign = await preflight('https://probe-marker.example');
     expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  // A stated choice (operator, 2026-11-15): a CORS preflight stays out of the request log.
+  // Fastify's own log line records it.
+  it('case 6, twin: a CORS preflight writes no request-log line', async () => {
+    const logged = await requestLogDuring(async () => {
+      await fetch(`${base}/api/v1/edge/echo`, {
+        method: 'OPTIONS',
+        headers: { origin: ALLOWED_ORIGIN, 'access-control-request-method': 'POST' },
+      });
+      await (await fetch(`${base}/api/v1/edge/public`)).text();
+    }, 1);
+    expect(logged).toEqual([expect.objectContaining({ path: '/api/v1/edge/public' })]);
   });
 
   it('case 7: a request id sent is echoed, and one is made when none is sent', async () => {
@@ -419,13 +472,25 @@ describe('the API edge, as configureHttpApp builds it', () => {
     });
   });
 
+  // The router refuses the address before any hook runs, so the request log never sees it.
+  // Fastify's own log line records it.
+  it('case 12, twin: an address the router refuses writes no request-log line', async () => {
+    const logged = await requestLogDuring(async () => {
+      await rawRequest(port, 'GET', '/api/v1/edge/%E0%A4%A');
+      await (await fetch(`${base}/api/v1/edge/public`)).text();
+    }, 1);
+    expect(logged).toEqual([expect.objectContaining({ path: '/api/v1/edge/public' })]);
+  });
+
   it('case 14: main.ts and AppModule call the functions this file runs', () => {
     const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8');
     expect(main).toContain(
       'await configureHttpApp(app, { reportException: captureApiException });',
     );
     const appModule = readFileSync(join(__dirname, '..', 'app.module.ts'), 'utf8');
-    expect(appModule).toContain('applyRequestLogging(consumer);');
+    // The request log runs from configureHttpApp alone: a second mount would log twice.
+    expect(appModule).not.toContain('RequestLoggingMiddleware');
+    expect(appModule).not.toContain('forRoutes(');
     // The edge app registers both switches in this order (`testing/http-edge-app.ts`).
     expect(appModule).toMatch(
       /provide: APP_INTERCEPTOR,\s*useClass: LockdownInterceptor,\s*\},\s*\{\s*provide: APP_INTERCEPTOR,\s*useClass: ReadOnlyInterceptor,/,

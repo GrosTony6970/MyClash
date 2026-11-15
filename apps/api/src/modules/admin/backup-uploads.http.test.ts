@@ -66,7 +66,7 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
     logger: false,
   });
-  await configureHttpApp(app, { reportException: () => undefined });
+  await configureHttpApp(app, { reportException: () => undefined, requestLog: false });
   await app.listen(0, '127.0.0.1');
   const { port } = app.getHttpServer().address() as { port: number };
   base = `http://127.0.0.1:${port}/${API_GLOBAL_PREFIX}/admin/backups/uploads`;

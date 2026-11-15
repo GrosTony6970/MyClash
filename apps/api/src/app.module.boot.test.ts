@@ -36,12 +36,12 @@ import { Test } from '@nestjs/testing';
  * (the Fastify adapter, global pipes); anything that runs at `init()` or on the
  * first request — except the one step the second test runs.
  *
- * A whole `init()` cannot stand in for it: the queue workers wait on Redis, and under
- * `NODE_ENV=test` `AppModule.configure` mounts no request log at all, so the mapping below never
- * runs. The second test runs that step of a real boot: Nest 12.5 maps the routes of EVERY
- * controller for the request log's `forRoutes('{*path}')`, reading each method name off
- * `Object.create(Controller)`. A method named `caller` or `arguments` reaches a throwing accessor of
- * `Function.prototype` there, and the API exited at start with every unit test green.
+ * The second test is a tripwire. Nest 12.5 maps the routes of EVERY controller for any Nest
+ * middleware's `forRoutes`, reading each method name off `Object.create(Controller)`. A method named
+ * `caller` or `arguments` reaches a throwing accessor of `Function.prototype` there, and the API
+ * exited at start with every unit test green (2026-11-14, when the request log was such a
+ * middleware). The request log is a Fastify hook since 2026-11-15, so no start runs that mapping
+ * today; the day a Nest middleware comes back, this test has already run it.
  */
 describe('AppModule', () => {
   beforeAll(() => {
@@ -86,7 +86,7 @@ describe('AppModule', () => {
     }
   }, 60_000);
 
-  it('maps the routes of every controller, as a middleware on every route needs', async () => {
+  it('maps the routes of every controller, as any Nest middleware would need', async () => {
     const { AppModule } = await import('./app.module.js');
     const app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     try {

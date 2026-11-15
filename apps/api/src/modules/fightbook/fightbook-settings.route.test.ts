@@ -64,7 +64,7 @@ beforeAll(async () => {
     ],
   }).compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  await configureHttpApp(app, { reportException: () => undefined });
+  await configureHttpApp(app, { reportException: () => undefined, requestLog: false });
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 });

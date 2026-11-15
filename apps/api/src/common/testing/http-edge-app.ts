@@ -9,9 +9,7 @@ import {
   HttpStatus,
   Injectable,
   type LoggerService,
-  type MiddlewareConsumer,
   Module,
-  type NestModule,
   Post,
   Req,
   Res,
@@ -36,12 +34,11 @@ import { Public } from '../auth/public.decorator';
 import { configureHttpApp } from '../http-bootstrap';
 import { LockdownInterceptor } from '../interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from '../interceptors/read-only.interceptor';
-import { applyRequestLogging } from '../observability/request-logging.middleware';
 import { readUpload, readUploadParts, type UploadLimit } from '../read-upload';
 
 /**
  * A small API built the way production builds it, for the edge tests (`http-edge*.http.test.ts`):
- * the real `configureHttpApp`, the real request-log wiring, the real `AuthGuard` as the global
+ * the real `configureHttpApp` (the request log with it), the real `AuthGuard` as the global
  * guard and the real `LockdownInterceptor` and `ReadOnlyInterceptor` as global interceptors, in
  * AppModule's order, around test controllers. Only the services behind them are stubs: the login
  * marker is the one account, and it holds no platform role; the guest and staff markers are the
@@ -227,17 +224,13 @@ class EdgeHealthController {
 }
 
 @Module({})
-class EdgeModule implements NestModule {
+class EdgeModule {
   static with(options: EdgeAppOptions): DynamicModule {
     return {
       module: EdgeModule,
       controllers: EDGE_CONTROLLERS,
       providers: edgeProviders(options),
     };
-  }
-
-  configure(consumer: MiddlewareConsumer): void {
-    applyRequestLogging(consumer);
   }
 }
 

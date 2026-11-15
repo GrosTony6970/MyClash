@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -54,7 +54,6 @@ import { PoolStandingsModule } from './modules/pool-standings/pool-standings.mod
 import { PeopleContextModule } from './modules/people-context/people-context.module';
 import { SiteStatsModule } from './modules/site-stats/site-stats.module';
 import { PhotosModule } from './modules/photos/photos.module';
-import { applyRequestLogging } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
 import { AuthGuard } from './common/auth/auth.guard';
@@ -170,9 +169,4 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    if (process.env['NODE_ENV'] === 'test') return;
-    applyRequestLogging(consumer);
-  }
-}
+export class AppModule {}
