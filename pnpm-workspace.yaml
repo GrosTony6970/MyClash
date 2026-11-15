@@ -119,7 +119,13 @@ overrides:
   # >=3.1.9 clears GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr and
   # GHSA-333x-w4r6-6crp (scheme spoofing, path equivalence, host confusion, scheme
   # injection). A tilde: the fix is a patch of 3.1.
-  fast-uri: ~3.1.9
+  # Keyed to a major since 2026-11-15 (operator ruling 783): the bare key forced 3.1.9 on
+  # fast-json-stringify 7 (fastify's response serializer, in the API image), which asks
+  # fast-uri ^4.0.0. ajv (^3.0.1) and @fastify/ajv-compiler (^3.0.0) stay on 3.
+  'fast-uri@3': ~3.1.9
+  # >=4.2.3 clears the same four advisories on the 4.x line. A tilde, as above. Through
+  # fast-json-stringify 7 (^4.0.0), under fastify: it ships in the API image.
+  'fast-uri@4': ~4.2.3
   cross-spawn: ^7.0.6
   picomatch: ^4.0.7
   # >=0.35.0 cleared GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs); >=0.35.4
