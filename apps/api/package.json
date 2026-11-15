@@ -48,7 +48,7 @@
     "fastify": "^5.12.8",
     "ioredis": "6.0.0",
     "jsonwebtoken": "^9.0.3",
-    "nestjs-zod": "^5.5.0",
+    "nestjs-zod": "^5.6.0",
     "openai": "^7.45.1",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",

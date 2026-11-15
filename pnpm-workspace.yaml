@@ -69,9 +69,9 @@ peerDependencyRules:
     # compiler directly via `import ts from 'typescript'` and the OpenAPI drift
     # gate passes on 6.0.3.
     openapi-typescript>typescript: '6'
-    # nestjs-zod 5.5.0 (5.6.0, the latest, peers the same) peers @nestjs/common
+    # nestjs-zod 5.6.0 (5.5.0 peered the same) peers @nestjs/common
     # ^10 || ^11 and @nestjs/swagger ^7.4.2 || ^8 || ^11; no release names Nest 12
-    # (issue #471). Verified rather than assumed: it reaches Nest only through root
+    # (issue #471, open on 2026-11-15). Verified rather than assumed: it reaches Nest only through root
     # exports and swagger's _OPENAPI_METADATA_FACTORY, every API test passes on
     # Nest 12.5.0, the edge tests' Zod refusals hold, and the generated client is
     # unchanged (quality:openapi-drift). Operator ruling, 2026-10-30. These are its
@@ -235,19 +235,3 @@ overrides:
 # second one follows the same rules.
 auditConfig:
   ignoreGhsas: []
-
-# Local fixes to a dependency's published code (operator ruling, 2026-10-28).
-# Every Dockerfile that runs `pnpm install` copies patches/ before it: a frozen
-# install checks each patch file's hash against the lockfile, even when that
-# image never installs the patched package.
-#
-# nestjs-zod 5.5.0 does not handle the `type: ["string", "null"]` shape that
-# zod >= 4.5 writes for a nullable field, so the OpenAPI document described those
-# fields as string arrays (issue #474; fixed upstream by #498 in 5.6.0, not yet
-# taken here).
-# The patch rewrites the shape into the `anyOf` form zod 4.4 wrote, and the
-# generated client is byte-identical to the one zod 4.4.3 produced.
-# `quality:openapi-drift` holds it: without the patch the client drifts. Delete
-# this entry and the file the day a nestjs-zod release carries the fix.
-patchedDependencies:
-  nestjs-zod@5.5.0: patches/nestjs-zod@5.5.0.patch
