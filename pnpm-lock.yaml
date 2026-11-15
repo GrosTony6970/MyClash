@@ -280,8 +280,8 @@ importers:
         specifier: ^2.32.0
         version: 2.32.0(@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7))(supports-color@10.2.2)
       '@mistralai/mistralai':
-        specifier: ^3.4.0
-        version: 3.4.0(@aws-sdk/client-s3@3.1169.0)(@opentelemetry/api@1.10.0)(supports-color@10.2.2)
+        specifier: ^3.5.0
+        version: 3.5.0(@aws-sdk/client-s3@3.1169.0)(@opentelemetry/api@1.10.0)(supports-color@10.2.2)
       '@myclash/feature-flags':
         specifier: workspace:^
         version: link:../../packages/feature-flags
@@ -2086,8 +2086,8 @@ packages:
   '@microsoft/tsdoc@0.17.1':
     resolution: {integrity: sha512-VHyYyyoH63jFoO3shpw9Zfijk5v/9p/VrClW35z0/q6ooK7sSmxpzOkS4iZPxs3vO4XtBW4H38HRAKkAMIK7DA==}
 
-  '@mistralai/mistralai@3.4.0':
-    resolution: {integrity: sha512-zgfg+ppFm8F99jog31dUehktW2tLEq9HG7/tDxAve+Lett/MTYRiPcWwdN5bUo/NRRhI60OVQAQvtR6AotPhZQ==}
+  '@mistralai/mistralai@3.5.0':
+    resolution: {integrity: sha512-8nwJc1lySdkEWETw1Y4jOCAfFkzWQecZ12L3DYs+87G0/KcG+k/+r/CWLHPj8zL2vNigj8SCZQDRM9/ZoUaD0g==}
     peerDependencies:
       '@aws-sdk/client-s3': ^3.300.0
       '@azure/identity': ^4.0.0
@@ -8702,7 +8702,7 @@ snapshots:
 
   '@microsoft/tsdoc@0.17.1': {}
 
-  '@mistralai/mistralai@3.4.0(@aws-sdk/client-s3@3.1169.0)(@opentelemetry/api@1.10.0)(supports-color@10.2.2)':
+  '@mistralai/mistralai@3.5.0(@aws-sdk/client-s3@3.1169.0)(@opentelemetry/api@1.10.0)(supports-color@10.2.2)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(supports-color@10.2.2)(zod@4.6.7)
       '@opentelemetry/semantic-conventions': 1.43.0
