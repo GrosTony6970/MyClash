@@ -1,3 +1,5 @@
+import { scrubOwnUrl } from '@myclash/types/sentry-data-collection';
+
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
@@ -33,7 +35,9 @@ export function redactHeaders(
   const redacted: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(headers)) {
     if (value === undefined) continue;
-    const safeValue = SECRET_KEY_PATTERN.test(key) ? REDACTED : redactValue(value);
+    const safeValue = SECRET_KEY_PATTERN.test(key)
+      ? REDACTED
+      : redactValue(key.toLowerCase() === 'referer' ? cutQuery(value) : value);
     redacted[key] = Array.isArray(safeValue)
       ? safeValue.map((item) => String(item))
       : String(safeValue);
@@ -41,8 +45,56 @@ export function redactHeaders(
   return redacted;
 }
 
-export function isSensitiveRoute(path: string): boolean {
-  return /\/(auth|ai-|ai\/|query|upload|imports?|exports?|backup|archive)/i.test(path);
+/** A page's address without its query and fragment: a link's token rides there, and a
+ *  same-origin API call sends that address as its Referer. */
+function cutQuery(value: string | string[]): string | string[] {
+  return Array.isArray(value) ? value.map(scrubOwnUrl) : scrubOwnUrl(value);
+}
+
+/**
+ * A request path as a log may write it. A link's secret rides in the query (`?token=…`,
+ * `?token_hash=…`), so the query and fragment go, for every request; the event-pass code in the
+ * path is masked (`scrubOwnUrl`, the rule Sentry already applies). A percent-encoded segment and
+ * everything after it go too: the router decodes it, so it can spell anything, a pass code under
+ * another spelling (`%65vent-passes/…`) or an address the router refuses.
+ */
+export function logSafePath(url: string): string {
+  const path = scrubOwnUrl(url);
+  const encoded = path.indexOf('%');
+  if (encoded === -1) return path;
+  const segment = path.lastIndexOf('/', encoded);
+  return segment === -1 ? '[encoded]' : `${path.slice(0, segment)}/[encoded]`;
+}
+
+const SENSITIVE_PATH = /\/(auth|ai-|ai\/|query|upload|imports?|exports?|backup|archive)/i;
+
+/**
+ * Each form of a path a check reads: as sent, decoded until it stops changing (the router decodes
+ * it, so `%61uth` is `auth` to the handler), and the route it matched. `undefined` when the path
+ * cannot be decoded: a check then answers as if it matched (fail closed).
+ */
+function pathForms(path: string, route: string | undefined): string[] | undefined {
+  const sent = path.split(/[?#]/)[0] ?? '';
+  const forms = [sent];
+  let current = sent;
+  for (let round = 0; round < 3; round += 1) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      return undefined;
+    }
+    if (decoded === current) break;
+    forms.push(decoded);
+    current = decoded;
+  }
+  return route ? [...forms, route] : forms;
+}
+
+/** Whether a request's headers stay out of its log line. `route` is the matched route pattern. */
+export function isSensitiveRoute(path: string, route?: string): boolean {
+  const forms = pathForms(path, route);
+  return !forms || forms.some((form) => SENSITIVE_PATH.test(form));
 }
 
 const ANONYMOUS_PHOTO_PATH = /^\/api\/v1\/events\/[^/]+\/photos(?:\/[^/]+\/report)?$/;
@@ -54,8 +106,10 @@ const ANONYMOUS_PHOTO_PATH = /^\/api\/v1\/events\/[^/]+\/photos(?:\/[^/]+\/repor
  * hold the phone's address (Fastify's own request line, Traefik's access log): §2.7 says so. The signed-in send
  * (`/me/events/…/photos`) and the organiser's routes keep their log (ruling 476).
  */
-export function isAnonymousPhotoRoute(method: string, path: string): boolean {
-  return method === 'POST' && ANONYMOUS_PHOTO_PATH.test(path.split('?')[0] ?? '');
+export function isAnonymousPhotoRoute(method: string, path: string, route?: string): boolean {
+  if (method !== 'POST') return false;
+  const forms = pathForms(path, route);
+  return !forms || forms.some((form) => ANONYMOUS_PHOTO_PATH.test(form));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

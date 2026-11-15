@@ -98,8 +98,11 @@ describe('req.ip behind one local proxy', () => {
 });
 
 describe('the API server', () => {
+  // The server's options moved out of main.ts into one function main.ts and the edge tests share.
   it('is built with this trust, not a hop count (fastify 5.12 reads a number as "trust no one")', () => {
+    const options = readFileSync(join(__dirname, 'fastify-adapter-options.ts'), 'utf8');
+    expect(options).toMatch(/^\s*trustProxy: trustOneLocalProxy,$/m);
     const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8');
-    expect(main).toMatch(/^\s*trustProxy: trustOneLocalProxy,$/m);
+    expect(main).toContain('new FastifyAdapter(fastifyAdapterOptions(');
   });
 });

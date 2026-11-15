@@ -151,8 +151,9 @@ function scrubText(value: string, rule: Rule): string {
 
 /** An address that is ours by definition — the request being served, a stack
  *  frame's file: query, fragment and pass token off, never cut to the origin
- *  (the Host header names us whatever it says; source maps need the path). */
-function scrubOwnUrl(value: string): string {
+ *  (the Host header names us whatever it says; source maps need the path).
+ *  The API's logs build on it too (`logSafePath`, apps/api redaction.ts). */
+export function scrubOwnUrl(value: string): string {
   const cut = value.search(/[?#]/);
   return (cut === -1 ? value : value.slice(0, cut)).replace(PASS_TOKEN, '$1[token]');
 }

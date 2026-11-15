@@ -4,10 +4,10 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
+import { fastifyAdapterOptions } from './common/fastify-adapter-options';
 import { configureHttpApp } from './common/http-bootstrap';
 import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
-import { trustOneLocalProxy } from './common/trust-proxy';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
 
@@ -19,12 +19,8 @@ registerProcessFailureHandlers(undefined, (reason, context) =>
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({
-      logger: process.env['NODE_ENV'] !== 'test',
-      // Traefik is the only proxy in front of us: `req.ip` is the address it saw
-      // (common/trust-proxy.ts). Not `true`, and not a hop count.
-      trustProxy: trustOneLocalProxy,
-    }),
+    // Fastify's own log line, the proxy trust: one owner, which the edge tests run too.
+    new FastifyAdapter(fastifyAdapterOptions({ logger: process.env['NODE_ENV'] !== 'test' })),
   );
 
   // Cookies, uploads, the global pipe and filter, the prefix and CORS: one owner, which the

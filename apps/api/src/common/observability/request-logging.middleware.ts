@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Identity } from '../auth/identity';
-import { isAnonymousPhotoRoute, isSensitiveRoute, redactHeaders } from './redaction';
+import { isAnonymousPhotoRoute, isSensitiveRoute, logSafePath, redactHeaders } from './redaction';
 
 interface RequestLike {
   method?: string;
@@ -65,9 +65,10 @@ export function writeJsonLog(event: RequestLogEvent): void {
 export class RequestLoggingMiddleware {
   constructor(private readonly sink: LogSink = writeJsonLog) {}
 
-  use(request: RequestLike, response: ResponseLike, next: () => void): void {
+  /** `route` is the route pattern Fastify matched, if any: the checks below read it too. */
+  use(request: RequestLike, response: ResponseLike, next: () => void, route?: string): void {
     const startedAt = process.hrtime.bigint();
-    const path = request.originalUrl ?? request.url ?? '';
+    const sent = request.originalUrl ?? request.url ?? '';
     const requestId = firstHeaderValue(request.headers?.['x-request-id']) ?? randomUUID();
     response.setHeader?.('x-request-id', requestId);
 
@@ -76,8 +77,8 @@ export class RequestLoggingMiddleware {
       if (logged) return;
       logged = true;
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-      const sensitiveRoute = isSensitiveRoute(path);
-      const anonymous = isAnonymousPhotoRoute(request.method ?? '', path);
+      const sensitiveRoute = isSensitiveRoute(sent, route);
+      const anonymous = isAnonymousPhotoRoute(request.method ?? '', sent, route);
       const actorId = anonymous ? null : actorOf(request.identity);
       this.sink({
         level: 'info',
@@ -85,7 +86,7 @@ export class RequestLoggingMiddleware {
         event: 'http_request',
         requestId,
         method: request.method ?? '',
-        path,
+        path: logSafePath(sent),
         statusCode: response.statusCode ?? 0,
         durationMs: Math.round(durationMs),
         ...(actorId ? { actorId } : {}),

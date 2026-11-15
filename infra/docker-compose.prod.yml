@@ -61,6 +61,9 @@ services:
       # Recovery from a failed plugin fetch is then one flag and a restart:
       #   TRAEFIK_PLUGINS=off ./infra/scripts/start.sh
       - --accesslog=true
+      # A link's token rides in the query (`?token=…`): the access log writes the path only.
+      # Traefik keeps or drops all query parameters, never one.
+      - --accesslog.fields.queryparameters.defaultmode=drop
       - --log=true
       - --log.level=INFO
     ports:

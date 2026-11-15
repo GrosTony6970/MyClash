@@ -71,7 +71,8 @@ API request logs are JSON lines with:
 - `event`
 - `requestId`
 - `method`
-- `path`
+- `path`: without its query or fragment; an event-pass code as `[token]`; a percent-encoded
+  segment and what follows it as `[encoded]` (`logSafePath`, `common/observability/redaction.ts`)
 - `statusCode`
 - `durationMs`
 - `actorId` when the request had a caller: its kind, then its id, as AuthGuard found it
@@ -82,7 +83,13 @@ PII rules:
 
 - Do not log request bodies.
 - Do not log raw emails, cookies, authorization headers, tokens, API keys, DSNs, or password-like fields.
+- No address's query reaches a log: a link's token rides there (`?token=`, `?token_hash=`). The
+  API request log, Fastify's own request line and Traefik's access log
+  (`--accesslog.fields.queryparameters.defaultmode=drop`) write the path only, and a logged
+  `referer` header loses its query too. Search terms and filters go with it.
 - Auth, upload/import/export, AI, backup/archive, and tournament query routes are treated as sensitive and omit headers entirely.
+  The check reads the path as sent, as the router decodes it, and the route it matched; a path
+  that cannot be decoded counts as sensitive.
 - Technical logs can include route names and operational IDs.
 
 Retention:

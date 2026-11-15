@@ -31,6 +31,7 @@ import { buildSessionCookieOptions } from '../../security/http-security';
 import type { ApiExceptionReporter } from '../api-exception.filter';
 import { AuthGuard } from '../auth/auth.guard';
 import { Public } from '../auth/public.decorator';
+import { fastifyAdapterOptions, type LogStream } from '../fastify-adapter-options';
 import { configureHttpApp } from '../http-bootstrap';
 import { LockdownInterceptor } from '../interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from '../interceptors/read-only.interceptor';
@@ -59,6 +60,8 @@ export interface EdgeAppOptions {
   reportException?: ApiExceptionReporter;
   /** Nest's logger for this app; none by default. A test that reads what the start logs passes one. */
   logger?: LoggerService;
+  /** Fastify's own log line per request, written here; off by default. */
+  fastifyLog?: LogStream;
 }
 
 /** Stands in for a class-level guard such as PlatformRoleGuard, with an answer of its own. */
@@ -195,6 +198,17 @@ class EdgeLockedController {
   }
 }
 
+/** The shape of a photo sent from an Event's QR code, which the request log keeps anonymous. */
+@Controller('events')
+class EdgePhotoController {
+  @Public()
+  @Post(':eventId/photos')
+  @HttpCode(HttpStatus.OK)
+  send(): { ok: string } {
+    return { ok: 'probe-marker-photo' };
+  }
+}
+
 @Controller('class-guarded')
 @UseGuards(MarkerRefuser)
 class ClassGuardedController {
@@ -238,6 +252,7 @@ const EDGE_CONTROLLERS = [
   EdgeController,
   EdgeAllowlistedController,
   EdgeLockedController,
+  EdgePhotoController,
   ClassGuardedController,
   ClassPublicController,
   EdgeHealthController,
@@ -321,7 +336,9 @@ export interface EdgeApp {
 export async function buildEdgeApp(options: EdgeAppOptions): Promise<EdgeApp> {
   const app = await NestFactory.create<NestFastifyApplication>(
     EdgeModule.with(options),
-    new FastifyAdapter(),
+    new FastifyAdapter(
+      fastifyAdapterOptions({ logger: !!options.fastifyLog, stream: options.fastifyLog }),
+    ),
     { logger: options.logger ?? false },
   );
   await configureHttpApp(app, { reportException: options.reportException ?? (() => undefined) });

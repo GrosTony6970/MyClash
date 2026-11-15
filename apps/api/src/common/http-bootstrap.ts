@@ -40,7 +40,9 @@ export async function configureHttpApp(
     app
       .getHttpAdapter()
       .getInstance()
-      .addHook('onRequest', (request, reply, done) => log.use(request.raw, reply.raw, done));
+      .addHook('onRequest', (request, reply, done) =>
+        log.use(request.raw, reply.raw, done, request.routeOptions.url),
+      );
   }
 
   // Both plugins are loaded with require(), not import: see docs/ENGINEERING_LESSONS.md

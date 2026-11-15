@@ -88,12 +88,13 @@ async function requestLogDuring(
   return logged();
 }
 
-/** One GET line per target, in order, each under the status and id its answer carries. */
-function oneLineEach(targets: string[], answers: RawAnswer[]): unknown[] {
-  return targets.map((path, index) =>
+/** One GET line per target, in order, each under the status and id its answer carries. `paths`
+ *  are the paths the lines name, when they differ from the targets sent. */
+function oneLineEach(targets: string[], answers: RawAnswer[], paths = targets): unknown[] {
+  return targets.map((_target, index) =>
     expect.objectContaining({
       method: 'GET',
-      path,
+      path: paths[index],
       statusCode: answers[index]?.status,
       requestId: answers[index]?.headers['x-request-id'],
     }),
@@ -231,7 +232,9 @@ describe('the API edge, as configureHttpApp builds it', () => {
       for (const target of targets) answers.push(await rawRequest(port, 'GET', target));
     }, targets.length);
     expect(answers.map((answer) => answer.status)).toEqual([404, 200, 404]);
-    expect(logged).toEqual(oneLineEach(targets, answers));
+    // A percent-encoded segment is logged as a marker: it can spell anything (rulings 801-805).
+    const paths = ['/api/v1/probe-marker-missing', '/api/v1/edge/[encoded]', '/api/v1'];
+    expect(logged).toEqual(oneLineEach(targets, answers, paths));
   });
 
   // Outside the prefix too: '/', a scanner's guess, another API version, a prefix look-alike and
@@ -516,6 +519,57 @@ function capturingLogger(): LoggerService & { lines: { level: string; text: stri
     fatal: keep('fatal'),
   };
 }
+
+describe('the logs, as main.ts writes them (rulings 801-805)', () => {
+  // Fastify's own line goes through pino straight to fd 1, past a process.stdout.write spy, so the
+  // app here hands Fastify a stream of its own; the request log is read off stdout.
+  it('no secret from an address reaches a log line, whatever the spelling', async () => {
+    const fastifyLines: string[] = [];
+    const edge = await buildEdgeApp({
+      authMode: 'shadow',
+      fastifyLog: { write: (line) => void fastifyLines.push(line) },
+    });
+    const targets = [
+      '/api/v1/edge/public?token=SECRETMARK',
+      '/api/v1/event-passes/CODEMARK',
+      '/api/v1/event%2Dpasses/CODEMARK',
+      '/api/v1/%2565vent-passes/CODEMARK',
+      '/api/v1/event-passes%2FCODEMARK',
+      '/api/v1/%FF?token=SECRETMARK',
+      '/api/v1/event-passes/CODEMARK%C0%AF?token=SECRETMARK',
+      '/api/v1/event%2Dpasses/CODEMARK%FF?token=SECRETMARK',
+      "/api/v1/a'b%FF?token=SECRETMARK",
+    ];
+    const requestLog = await requestLogDuring(async () => {
+      for (const target of targets) await rawRequest(edge.port, 'GET', target);
+      await rawRequest(edge.port, 'GET', '/api/v1/edge/public', {
+        referer: 'https://app.myclash.localhost/me/claim-confirm?token=SECRETMARK',
+      });
+    }, 5).finally(() => edge.app.close());
+    // Both logs were written: every request has Fastify's line, and the refused addresses
+    // (four of the targets) have the error line that quotes them.
+    const incoming = fastifyLines.filter((line) => line.includes('"incoming request"'));
+    expect(incoming).toHaveLength(targets.length + 1);
+    expect(fastifyLines.filter((line) => line.includes('FST_ERR_BAD_URL'))).toHaveLength(4);
+    for (const line of [...fastifyLines, ...requestLog.map((entry) => JSON.stringify(entry))]) {
+      expect(line).not.toContain('SECRETMARK');
+      expect(line).not.toContain('CODEMARK');
+    }
+  });
+
+  // Fastify routes an absolute-form target (`POST http://host/api/v1/…`) to the photo route, while
+  // neither the target as sent nor its decoded form starts with /api/v1: only the route Fastify
+  // matched names it (ruling 476: a QR photo's line names no one and carries no headers).
+  it('a QR photo sent under any spelling is logged with no headers', async () => {
+    let answer: RawAnswer | undefined;
+    const logged = await requestLogDuring(async () => {
+      answer = await rawRequest(port, 'POST', 'http://127.0.0.1/api/v1/events/e1/photos');
+    }, 1);
+    expect(answer?.status).toBe(200);
+    expect(logged).toEqual([expect.objectContaining({ method: 'POST', statusCode: 200 })]);
+    expect(logged[0]).not.toHaveProperty('headers');
+  });
+});
 
 describe('the API start', () => {
   // A start-up warning is a change someone has to read; the CI start check fails on any. The

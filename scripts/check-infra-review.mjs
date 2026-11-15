@@ -2723,6 +2723,8 @@ for (const expected of [
   // command list omitted them. Pin both.
   '--api=true',
   '--api.dashboard=true',
+  // A link's token rides in the query; the access log must not keep it.
+  '--accesslog.fields.queryparameters.defaultmode=drop',
 ]) {
   if (!composeText.includes(expected)) errors.push(`Missing Traefik edge setting: ${expected}`);
 }
