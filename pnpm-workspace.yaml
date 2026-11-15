@@ -7,9 +7,10 @@ packages:
 # second. pnpm audit, turbo and Dependabot's version updates read both. A tool that
 # reads only the first sees no dependencies and reports no vulnerabilities; GitHub's
 # dependency graph once did (pnpm/pnpm#13805), but it reads the dependencies now (its
-# SBOM listed 1652 packages on 2026-11-15) and Dependabot raises alerts from it. Those
-# alerts are the only place a medium or low advisory shows: `pnpm audit --audit-level
-# high` and the Trivy image scan (HIGH,CRITICAL) never fail on one. `pmOnFail: ignore`
+# SBOM listed 1652 packages on 2026-11-15) and Dependabot raises alerts from it. No CI
+# gate fails on a medium or low advisory (`pnpm audit --audit-level high`, the Trivy
+# image scan's HIGH,CRITICAL and the repository-advisory check all stop at high), so
+# the alerts and a plain `pnpm audit` are where one shows. `pmOnFail: ignore`
 # keeps one document, but pnpm then stops switching to the pinned version (operator
 # ruling, 2026-10-31).
 
