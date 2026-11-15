@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Injectable,
+  type LoggerService,
   type MiddlewareConsumer,
   Module,
   type NestModule,
@@ -59,6 +60,8 @@ export interface EdgeAppOptions {
   readOnly?: boolean;
   lockdown?: boolean;
   reportException?: ApiExceptionReporter;
+  /** Nest's logger for this app; none by default. A test that reads what the start logs passes one. */
+  logger?: LoggerService;
 }
 
 /** Stands in for a class-level guard such as PlatformRoleGuard, with an answer of its own. */
@@ -326,7 +329,7 @@ export async function buildEdgeApp(options: EdgeAppOptions): Promise<EdgeApp> {
   const app = await NestFactory.create<NestFastifyApplication>(
     EdgeModule.with(options),
     new FastifyAdapter(),
-    { logger: false },
+    { logger: options.logger ?? false },
   );
   await configureHttpApp(app, { reportException: options.reportException ?? (() => undefined) });
   await app.listen(0, '127.0.0.1');

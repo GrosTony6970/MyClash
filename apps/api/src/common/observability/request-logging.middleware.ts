@@ -104,9 +104,13 @@ export class RequestLoggingMiddleware implements NestMiddleware {
 /**
  * The one wiring of the request log: every route. `AppModule.configure` and the edge tests both
  * call it, so the tests run the routes production logs.
+ *
+ * `{*path}`, not `*`: Nest 12 reads a bare `*` as the old path syntax, rewrites the mount to
+ * `/api/v1/{*path}` itself and logs a LegacyRouteConverter warning on every start. Both spellings
+ * mount on the same paths.
  */
 export function applyRequestLogging(consumer: MiddlewareConsumer): void {
-  consumer.apply(RequestLoggingMiddleware).forRoutes('*');
+  consumer.apply(RequestLoggingMiddleware).forRoutes('{*path}');
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {

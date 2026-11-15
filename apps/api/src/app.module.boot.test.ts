@@ -39,7 +39,7 @@ import { Test } from '@nestjs/testing';
  * A whole `init()` cannot stand in for it: the queue workers wait on Redis, and under
  * `NODE_ENV=test` `AppModule.configure` mounts no request log at all, so the mapping below never
  * runs. The second test runs that step of a real boot: Nest 12.5 maps the routes of EVERY
- * controller for the request log's `forRoutes('*')`, reading each method name off
+ * controller for the request log's `forRoutes('{*path}')`, reading each method name off
  * `Object.create(Controller)`. A method named `caller` or `arguments` reaches a throwing accessor of
  * `Function.prototype` there, and the API exited at start with every unit test green.
  */

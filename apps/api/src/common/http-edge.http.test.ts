@@ -1,3 +1,4 @@
+import type { LoggerService } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { readFileSync } from 'node:fs';
 import type { IncomingMessage, Server } from 'node:http';
@@ -174,6 +175,42 @@ describe('the API edge, as configureHttpApp builds it', () => {
         requestId: post.headers.get('x-request-id'),
       }),
     ]);
+  });
+
+  // The request log is mounted once, on `{*path}` under the prefix. Each request below writes one
+  // line under the id it answers with: a 404 inside the prefix, a percent-encoded letter the
+  // router decodes, and the bare prefix. No request id is sent, so a second mount would show.
+  it('case 4, twin: inside the prefix, each request writes one request-log line', async () => {
+    const lines: string[] = [];
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        lines.push(String(chunk));
+        return true;
+      });
+    const logged = () =>
+      lines
+        .filter((line) => line.includes('"http_request"'))
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const targets = ['/api/v1/probe-marker-missing', '/api/v1/edge/%70ublic', '/api/v1'];
+    const answers: Awaited<ReturnType<typeof rawRequest>>[] = [];
+    try {
+      for (const target of targets) answers.push(await rawRequest(port, 'GET', target));
+      await vi.waitFor(() => expect(logged().length).toBeGreaterThanOrEqual(targets.length));
+    } finally {
+      write.mockRestore();
+    }
+    expect(answers.map((answer) => answer.status)).toEqual([404, 200, 404]);
+    expect(logged()).toEqual(
+      targets.map((path, index) =>
+        expect.objectContaining({
+          method: 'GET',
+          path,
+          statusCode: answers[index]?.status,
+          requestId: answers[index]?.headers['x-request-id'],
+        }),
+      ),
+    );
   });
 
   it('case 6: a CORS preflight from an app is allowed; one from elsewhere is not', async () => {
@@ -392,6 +429,39 @@ describe('the API edge, as configureHttpApp builds it', () => {
     // The edge app registers both switches in this order (`testing/http-edge-app.ts`).
     expect(appModule).toMatch(
       /provide: APP_INTERCEPTOR,\s*useClass: LockdownInterceptor,\s*\},\s*\{\s*provide: APP_INTERCEPTOR,\s*useClass: ReadOnlyInterceptor,/,
+    );
+  });
+});
+
+/** Nest's logger for one app: keeps every line, by level. */
+function capturingLogger(): LoggerService & { lines: { level: string; text: string }[] } {
+  const lines: { level: string; text: string }[] = [];
+  const keep =
+    (level: string) =>
+    (message: unknown, ...rest: unknown[]): void => {
+      lines.push({ level, text: [message, ...rest].map(String).join(' ') });
+    };
+  return {
+    lines,
+    log: keep('log'),
+    error: keep('error'),
+    warn: keep('warn'),
+    debug: keep('debug'),
+    verbose: keep('verbose'),
+    fatal: keep('fatal'),
+  };
+}
+
+describe('the API start', () => {
+  // A start-up warning is a change someone has to read; the CI start check fails on any. The
+  // request log's old `forRoutes('*')` wrote one on every start (LegacyRouteConverter).
+  it('case 18: a healthy start writes no warning and no error', async () => {
+    const logger = capturingLogger();
+    const started = await buildEdgeApp({ authMode: 'shadow', logger });
+    await started.app.close();
+    expect(logger.lines.length).toBeGreaterThan(0);
+    expect(logger.lines.filter((line) => line.level !== 'log' && line.level !== 'debug')).toEqual(
+      [],
     );
   });
 });
