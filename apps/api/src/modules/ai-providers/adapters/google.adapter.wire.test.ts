@@ -14,9 +14,12 @@ import {
 const KEY = 'key-wire-marker';
 const HOST = 'https://generativelanguage.googleapis.com';
 
-// Every variable the SDK reads that could move the host, the API version or the credentials, or
-// switch it to Vertex AI, so a developer's shell cannot change what these tests see. The union of
-// 2.32.0's list and 3.3.0's, which adds GOOGLE_GENAI_API_VERSION.
+// Every variable the SDK's main client (GoogleGenAI, the one the adapter builds) reads that could
+// move the host, the API version or the credentials, or switch it to Vertex AI, so a developer's
+// shell cannot change what these tests see: 2.32.0's eight, and GOOGLE_GENAI_API_VERSION, which
+// 3.3.0's main client also reads. Both versions read GOOGLE_GENAI_API_KEY, _ACCESS_TOKEN,
+// _USER_PROJECT and _API_VERSION in their generated agents and interactions clients too; the
+// adapter never builds those.
 const SDK_ENV = [
   'GOOGLE_GENAI_USE_VERTEXAI',
   'GOOGLE_GENAI_USE_ENTERPRISE',
