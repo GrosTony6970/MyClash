@@ -657,6 +657,14 @@ jobs:
         if: '!cancelled()'
         run: bash scripts/check-realtime-socket.sh
 
+      # Rulings 778-781: the API, started from the production image beside the database and
+      # Redis the steps above started, answers, logs no warning before it has started, maps the
+      # routes of its client, and a broken start ends its process. Every unit test was green the
+      # day Nest 12.5 stopped it from starting. Its own verdict, after a red step above too.
+      - name: Prove the API starts from the production image
+        if: '!cancelled()'
+        run: bash scripts/check-api-boot.sh
+
   shellcheck:
     name: Shellcheck infra scripts
     runs-on: ubuntu-latest
@@ -682,7 +690,7 @@ jobs:
           "$SHELLCHECK" --version
           "$SHELLCHECK" -x infra/scripts/*.sh infra/scripts/lib/*.sh \
             infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh \
-            infra/realtime/start.sh scripts/check-realtime-socket.sh
+            infra/realtime/start.sh scripts/check-realtime-socket.sh scripts/check-api-boot.sh
 
   secret-scan:
     name: Secret scan
