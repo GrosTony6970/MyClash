@@ -88,7 +88,7 @@
     "@playwright/test": "^1.65.1",
     "@supabase/supabase-js": "^2.119.0",
     "@types/node": "^26.6.6",
-    "dotenv": "^18.0.9",
+    "dotenv": "^18.0.10",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^31.0.1",
@@ -99,8 +99,8 @@
     "semver": "^7.8.6",
     "simple-git-hooks": "^2.14.0",
     "tsx": "^4.23.15",
-    "turbo": "^2.11.10",
+    "turbo": "^2.11.11",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.2"
   }
 }
