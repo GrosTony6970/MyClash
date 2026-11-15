@@ -212,6 +212,8 @@ export function advisoryHits(advisories, deps, names, ignored) {
       const range = vulnerability.vulnerable_version_range;
       const patched = vulnerability.patched_versions;
       for (const version of deps.get(name).versions) {
+        // A version no range can be compared with is reported by uncheckableVersions.
+        if (!semver.valid(version)) continue;
         // A package named off its npm spelling is in doubt whatever its range says (ruling 806).
         const hit = written === name ? inRange(version, range, patched) : null;
         const key = `${advisory.ghsa_id}|${name}|${version}`;
@@ -258,7 +260,10 @@ function hitFinding({ advisory, name, written, version, range: hitRange, patched
   const where = `published by the package's repository and not yet in GitHub's global database: ${printable(advisory.html_url)}`;
   if (readable) return `${what}, inside "${range}", ${where}`;
   const spelled = written === name ? '' : ` for a package written "${printable(written)}"`;
-  return `${what}: its range "${range}" (patched "${printable(patched)}")${spelled} leaves this version in doubt; read the advisory by hand. It is ${where}`;
+  const fix = String(patched ?? '').trim()
+    ? `patched "${printable(patched)}"`
+    : 'no patched version given';
+  return `${what}: its range "${range}" (${fix})${spelled} leaves this version in doubt; read the advisory by hand. It is ${where}`;
 }
 
 /** A locked version no range can be compared with (an `npm:` alias, a tarball): an error. */

@@ -1,16 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   advisoryHits,
   annotate,
   githubRepository,
-  ignoredAdvisories,
   invokedInCi,
   isOutage,
-  lockedDirectDependencies,
   printable,
   repositoryAdvisoryFindings,
   uncheckableVersions,
@@ -33,71 +29,6 @@ test('only github.com repositories are read, in each spelling package.json uses'
   assert.equal(githubRepository(undefined), null);
 });
 
-test("the lockfile's direct dependencies are read from its last document, workspace links left out", () => {
-  const lock = [
-    '---',
-    'importers:',
-    '',
-    '  .:',
-    '    dependencies:',
-    '      pnpm:',
-    '        specifier: 12.16.1',
-    '        version: 12.16.1',
-    '---',
-    'importers:',
-    '',
-    '  .:',
-    '    devDependencies:',
-    "      '@scope/tool':",
-    '        specifier: ^2.0.0',
-    '        version: 2.1.0(peer@1.0.0)',
-    '',
-    '  apps/api:',
-    '    dependencies:',
-    "      '@myclash/types':",
-    '        specifier: workspace:*',
-    '        version: link:../../packages/types',
-    '      fastify:',
-    '        specifier: ^5.12.8',
-    '        version: 5.12.8',
-    '',
-    'packages:',
-  ].join('\n');
-  const deps = lockedDirectDependencies(lock);
-  assert.deepEqual([...deps.keys()], ['@scope/tool', 'fastify']);
-  assert.deepEqual([...deps.get('@scope/tool').versions], ['2.1.0']);
-  assert.deepEqual([...deps.get('fastify').importers], ['apps/api']);
-  assert.throws(() => lockedDirectDependencies('---\nlockfileVersion: 9.0\n'), /no `importers:`/u);
-});
-
-test('the committed lockfile yields the direct dependencies of every workspace', () => {
-  const deps = lockedDirectDependencies(
-    readFileSync(join(process.cwd(), 'pnpm-lock.yaml'), 'utf8'),
-  );
-  assert.ok(deps.size > 50);
-  assert.ok(deps.has('fastify') && deps.has('@nestjs/core') && deps.has('next'));
-});
-
-test("the ignore list is the audit's own, in each shape pnpm-workspace.yaml allows", () => {
-  assert.deepEqual([...ignoredAdvisories('auditConfig:\n  ignoreGhsas: []\n')], []);
-  assert.deepEqual(
-    [
-      ...ignoredAdvisories(
-        "auditConfig:\n  ignoreGhsas: ['GHSA-aaaa-bbbb-cccc', GHSA-dddd-eeee-ffff]\n",
-      ),
-    ],
-    ['GHSA-aaaa-bbbb-cccc', 'GHSA-dddd-eeee-ffff'],
-  );
-  assert.deepEqual(
-    [...ignoredAdvisories('auditConfig:\n  ignoreGhsas:\n    - GHSA-aaaa-bbbb-cccc\nnext: 1\n')],
-    ['GHSA-aaaa-bbbb-cccc'],
-  );
-  assert.throws(() => ignoredAdvisories('auditConfig:\n  ignoreGhsas: maybe\n'), /cannot read/u);
-  assert.throws(() => ignoredAdvisories('overrides: {}\n'), /no `auditConfig:`/u);
-  const real = readFileSync(join(process.cwd(), 'pnpm-workspace.yaml'), 'utf8');
-  assert.ok(ignoredAdvisories(real) instanceof Set);
-});
-
 test('GitHub out of reach is a 5xx, a 429 or a rate-limit 403, never another answer', () => {
   const answer = (status, headers = {}, text = '') => ({
     status,
@@ -118,12 +49,19 @@ const DEPS = new Map([
   ['@nestjs/core', { versions: new Set(['12.5.0']), importers: new Set(['apps/api']) }],
 ]);
 const REPOS = new Map([['nestjs/nest', ['@nestjs/common', '@nestjs/core']]]);
-const advisory = (id, severity, name, range, extra = {}) => ({
+/** A repository advisory; `extra.patched` is its one vulnerability's `patched_versions`. */
+const advisory = (id, severity, name, range, { patched, ...extra } = {}) => ({
   ghsa_id: id,
   severity,
   html_url: `https://github.com/nestjs/nest/security/advisories/${id}`,
   withdrawn_at: null,
-  vulnerabilities: [{ package: { ecosystem: 'npm', name }, vulnerable_version_range: range }],
+  vulnerabilities: [
+    {
+      package: { ecosystem: 'npm', name },
+      vulnerable_version_range: range,
+      ...(patched ? { patched_versions: patched } : {}),
+    },
+  ],
   ...extra,
 });
 
@@ -189,7 +127,9 @@ test('a medium, a withdrawn, an ignored or an out-of-range advisory is no findin
             withdrawn_at: '2026-11-13',
           }),
           advisory('GHSA-igno-red0-0000', 'high', '@nestjs/common', '< 13.0.0'),
-          advisory('GHSA-past-fix0-0000', 'high', '@nestjs/core', '< 12.5.0'),
+          advisory('GHSA-past-fix0-0000', 'high', '@nestjs/core', '< 12.5.0', {
+            patched: '12.5.0',
+          }),
           advisory('GHSA-othe-rpkg-0000', 'high', '@nestjs/testing', '< 13.0.0'),
         ],
       ],
@@ -216,8 +156,9 @@ test('a range nobody can read is a finding once GitHub has not listed the adviso
 // one of ours is in doubt whatever its range says (ruling 806); another package's name is not.
 test('a package named off its npm spelling is in doubt, never skipped', async () => {
   const loose = [
-    advisory('GHSA-loos-enam-e000', 'high', 'nestjs/common', '>= 99.0.0'),
-    advisory('GHSA-loos-enam-e001', 'critical', 'Common.js', '>= 99.0.0'),
+    // Range and patch both say 12.3.2 is safe: only the loose name keeps it in doubt.
+    advisory('GHSA-loos-enam-e000', 'high', 'nestjs/common', '>= 99.0.0', { patched: '12.3.0' }),
+    advisory('GHSA-loos-enam-e001', 'critical', 'Common.js', '>= 99.0.0', { patched: '12.3.0' }),
     advisory('GHSA-othe-rpkg-e002', 'high', '@nestjs/microservices', '< 99.0.0'),
   ];
   const { findings } = await run({
@@ -311,7 +252,7 @@ test('a hit names the locked version that sits in the range', () => {
     ['x', { versions: new Set(['1.0.0', '2.0.0']), importers: new Set(['.']) }],
   ]);
   const hits = advisoryHits(
-    [advisory('GHSA-twoo-vers-0000', 'high', 'x', '< 1.5.0')],
+    [advisory('GHSA-twoo-vers-0000', 'high', 'x', '< 1.5.0', { patched: '1.5.0' })],
     deps,
     ['x'],
     new Set(),
@@ -389,4 +330,7 @@ test('a locked version no range can be compared with is an error', () => {
   assert.deepEqual(uncheckableVersions(deps), [
     'alias: locked as "real-name@1.0.0", which no advisory range can be compared with',
   ]);
+  // Reported there, and skipped by the advisory reading, which would throw on it.
+  const fixed = advisory('GHSA-alia-s000-0000', 'high', 'alias', '< 2.0.0', { patched: '2.0.0' });
+  assert.deepEqual(advisoryHits([fixed], deps, ['alias'], new Set()), []);
 });

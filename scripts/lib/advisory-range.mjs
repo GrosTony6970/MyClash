@@ -13,10 +13,17 @@ import semver from 'semver';
  * database lists it (then `pnpm audit` owns it), or through the ignore list.
  */
 
-/** Versions named in a text (`>= 6.3.3`, `19.0.1, 19.1.2`), oldest first. */
+/**
+ * The fixes a `patched_versions` text names (`>= 6.3.3`, `19.0.1, 19.1.2`), oldest first. A version
+ * after `<` or `<=` is a patched range's upper bound (`>= 6.3.3 < 7.0.0`), not a fix.
+ */
 export function versionsIn(text) {
-  const found = String(text ?? '').match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/gu) ?? [];
-  return found.filter((version) => semver.valid(version)).sort(semver.compare);
+  const fixes = [];
+  const token = /(<=|>=|<|>|=)?\s*v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/gu;
+  for (const [, operator, version] of String(text ?? '').matchAll(token)) {
+    if (!operator?.startsWith('<') && semver.valid(version)) fixes.push(version);
+  }
+  return fixes.sort(semver.compare);
 }
 
 /**
@@ -63,19 +70,22 @@ function patchReading(version, fixes) {
 }
 
 /**
- * Whether a locked version is hit: `true` inside the written range; `null` (doubt) when the range
- * cannot be read, when it is bare versions with no patched version to check them against, or when
- * the patched versions say the version was never fixed; `false` only when both agree it is safe.
+ * Whether a locked version is hit: `true` inside the written range; `false` only when the patched
+ * versions positively say it is fixed too (a fix at or below it on its own line, or every fix
+ * below it: our astro 7 against an astro 5 fix); `null` (doubt) otherwise: the range cannot be
+ * read, no patched version is given, a fix above it was never matched on its own line, or the
+ * only fixes sit on a later major (astro's bare `6.3.1`, patched `>= 6.3.3`: reviewed `< 6.3.3`,
+ * so astro 5 is hit). A repository advisory whose own patched field is wrong cannot be caught
+ * before review (vitest's `<3.2.5`, patched `3.2.5`; reviewed `< 3.2.6`): pnpm audit owns it then.
  */
 export function inRange(version, range, patched) {
   const readable = semverRange(range);
   if (!readable) return null;
   if (semver.satisfies(version, readable, { includePrerelease: true })) return true;
   const fixes = versionsIn(patched);
-  const bare = String(range ?? '')
-    .split(/[\s,]+/u)
-    .filter(Boolean)
-    .every((token) => semver.valid(token));
-  if (bare && fixes.length === 0) return null;
-  return patchReading(version, fixes) === 'open' ? null : false;
+  if (fixes.length === 0) return null;
+  const reading = patchReading(version, fixes);
+  if (reading === 'fixed') return false;
+  if (reading === 'unknown' && semver.gt(version, fixes.at(-1))) return false;
+  return null;
 }
