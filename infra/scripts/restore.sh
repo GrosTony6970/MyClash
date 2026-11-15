@@ -360,7 +360,10 @@ if [[ "$STORAGE_ONLY" -eq 0 ]]; then
   # would spend the restore hammering a dead upstream and showing the operator
   # a broken console at the exact moment they are watching one.
   hdr "Stopping services connected to the database"
-  "${COMPOSE[@]}" stop \
+  # `-t 10`: the worker's grace is 5m so a deploy lets its job finish, but here the database it
+  # writes through is dropped next, the job's work with it (ruling 819). Docker's default for
+  # the others.
+  "${COMPOSE[@]}" stop -t 10 \
     api web-public web-staff web-admin worker \
     supabase-auth supabase-rest supabase-realtime supabase-storage \
     supabase-meta supabase-studio

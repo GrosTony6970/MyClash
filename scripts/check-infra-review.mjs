@@ -1133,46 +1133,92 @@ requireLine(
   'dev worker',
   'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET:-dev-ops-runner-secret}',
 );
-// The worker's stop waits for its job, up to the grace above. Every bound wrapped around that stop
-// must pass it, or the bound cuts the stop: a recreate killed mid-wait never started the new
-// worker, and the draining old one passed the health poll (rulings 815, 817).
-//   grace < the deploy scripts' drain bound <= the ops-runner's worker bound < the API's wait
-// and both deploy scripts drain the worker before their time-bounded `up -d`.
-if (!isMissingPinnedFile(workerDrainLibText)) {
+// The worker's stop waits for its job in flight. Every bound wrapped around a stop must pass the
+// grace that stop gives, or the bound cuts it (rulings 811, 814, 815, 818):
+//   deploy:  the 5m stop_grace_period < the deploy scripts' drain bound (a recreate killed
+//            mid-wait never started the new worker, and the draining old one passed the poll);
+//   admin:   the button's grace (`-t`) < the ops-runner's worker bound < the API's wait < 300 s,
+//            where the API's fetch (undici) gives up on an answer with no headers yet.
+// Read from the five files; a value that cannot be read is a finding, never a pass.
+const workerStopBounds = (() => {
+  if (
+    [workerDrainLibText, opsRunnerServerText, systemActionsServiceText].some(isMissingPinnedFile)
+  ) {
+    return null;
+  }
   assertionsRun += 1;
-  const grace = /^\s+stop_grace_period: (\d+)m$/mu.exec(services.get('worker') ?? '');
-  const drain = /^MC_WORKER_STOP_TIMEOUT=(\d+)$/mu.exec(workerDrainLibText);
-  const runner = /^const WORKER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu.exec(opsRunnerServerText);
-  const api = /^const CONTAINER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu.exec(systemActionsServiceText);
-  const seconds = (match, scale) => (match ? Number(match[1].replaceAll('_', '')) * scale : NaN);
-  const bounds = [
-    ['the prod worker stop_grace_period', seconds(grace, 60)],
-    ['MC_WORKER_STOP_TIMEOUT (infra/scripts/lib/worker-drain.sh)', seconds(drain, 1)],
-    ['WORKER_ACTION_TIMEOUT_MS (infra/ops-runner/server.mjs)', seconds(runner, 1 / 1000)],
-    [
-      'CONTAINER_ACTION_TIMEOUT_MS (apps/api/src/modules/admin/system-actions.service.ts)',
-      seconds(api, 1 / 1000),
-    ],
-  ];
-  for (const [name, value] of bounds) {
+  const read = (name, regex, text, scale) => {
+    const match = regex.exec(text);
+    const value = match ? Number(match[1].replaceAll('_', '')) * scale : NaN;
     if (!Number.isFinite(value))
       errors.push(`The worker's stop bounds: ${name} could not be read.`);
-  }
-  const [graceS, drainS, runnerS, apiS] = bounds.map(([, value]) => value);
-  if (!(graceS < drainS && drainS <= runnerS && runnerS < apiS)) {
+    return [name, value];
+  };
+  return {
+    deploy: [
+      read(
+        'the prod worker stop_grace_period',
+        /^\s+stop_grace_period: (\d+)m$/mu,
+        services.get('worker') ?? '',
+        60,
+      ),
+      read(
+        'MC_WORKER_STOP_TIMEOUT (infra/scripts/lib/worker-drain.sh)',
+        /^MC_WORKER_STOP_TIMEOUT=(\d+)$/mu,
+        workerDrainLibText,
+        1,
+      ),
+    ],
+    admin: [
+      read(
+        'WORKER_STOP_GRACE_S (infra/ops-runner/server.mjs)',
+        /^const WORKER_STOP_GRACE_S = ([\d_]+);$/mu,
+        opsRunnerServerText,
+        1,
+      ),
+      read(
+        'WORKER_ACTION_TIMEOUT_MS (infra/ops-runner/server.mjs)',
+        /^const WORKER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu,
+        opsRunnerServerText,
+        1 / 1000,
+      ),
+      read(
+        'WORKER_ACTION_WAIT_MS (apps/api/src/modules/admin/system-actions.service.ts)',
+        /^const WORKER_ACTION_WAIT_MS = ([\d_]+);$/mu,
+        systemActionsServiceText,
+        1 / 1000,
+      ),
+      ["undici's default headersTimeout", 300],
+    ],
+  };
+})();
+for (const [chain, bounds] of Object.entries(workerStopBounds ?? {})) {
+  const values = bounds.map(([, value]) => value);
+  if (!values.every((value, i) => i === 0 || values[i - 1] < value)) {
     errors.push(
-      `The worker's stop bounds must be grace < drain <= ops-runner < API, so no bound cuts the ` +
-        `stop's wait for the job in flight; they are ${bounds.map(([n, v]) => `${n} ${v} s`).join(', ')}.`,
+      `The worker's ${chain} stop bounds must each be shorter than the next, or one cuts the ` +
+        `stop's wait for the job in flight: ${bounds.map(([n, v]) => `${n} ${v} s`).join(' < ')}.`,
     );
   }
 }
+// The admin's stop or restart of the worker passes its grace to compose; `start` takes none.
+requireContains(
+  opsRunnerServerText,
+  'infra/ops-runner/server.mjs',
+  "const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];",
+);
+requireContains(
+  opsRunnerServerText,
+  'infra/ops-runner/server.mjs',
+  "['compose', ...COMPOSE_FLAGS, action, ...grace, service],\n    worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,",
+);
 for (const [script, text, up] of [
   ['deploy.sh', deployText, '"${COMPOSE[@]}" up -d || rc=$?'],
   ['redeploy.sh', redeployText, '"${COMPOSE[@]}" up -d --no-deps --force-recreate'],
 ]) {
   if (isMissingPinnedFile(text)) continue;
   assertionsRun += 1;
-  const source = text.indexOf('source "$SCRIPT_DIR/lib/worker-drain.sh"');
+  const source = text.search(/^source "\$SCRIPT_DIR\/lib\/worker-drain\.sh"$/mu);
   const drain = text.search(/^\s*mc_drain_worker$/mu);
   const upAt = text.indexOf(up);
   if (source === -1 || drain === -1 || upAt === -1 || !(source < drain && drain < upAt)) {
@@ -1182,12 +1228,33 @@ for (const [script, text, up] of [
     );
   }
 }
+// rollback.sh and restore.sh stop the worker with the API, then drop the database: its job's work
+// goes with it, so the 5m wait is cut to 10 s there (ruling 819).
+for (const [script, text] of [
+  ['rollback.sh', rollbackText],
+  ['restore.sh', restoreText],
+]) {
+  if (isMissingPinnedFile(text)) continue;
+  assertionsRun += 1;
+  if (
+    !/"\$\{COMPOSE\[@\]\}" stop -t 10 \\\n\s+api web-public web-staff web-admin worker \\/u.test(
+      text,
+    )
+  ) {
+    errors.push(
+      `infra/scripts/${script} must stop the services, the worker among them, with \`stop -t 10\`: ` +
+        'its job is dropped with the database, so a 5m wait buys nothing (ruling 819).',
+    );
+  }
+}
 // The worker alone runs the jobs, the alert email among them: a deploy without it is down (817).
-assertionsRun += 1;
-if (!parseBashArray(deployText, 'CRITICAL_SERVICES').includes('worker')) {
-  errors.push(
-    'deploy.sh must list worker in CRITICAL_SERVICES: it alone runs the jobs (ruling 817).',
-  );
+if (!isMissingPinnedFile(deployText)) {
+  assertionsRun += 1;
+  if (!(parseBashArray(deployText, 'CRITICAL_SERVICES') ?? []).includes('worker')) {
+    errors.push(
+      'deploy.sh must list worker in CRITICAL_SERVICES: it alone runs the jobs (ruling 817).',
+    );
+  }
 }
 if (authServiceText.includes('signInWithPassword')) {
   errors.push('AuthService.passwordLogin must use internal GoTrue instead of signInWithPassword.');
@@ -1662,7 +1729,8 @@ for (const serviceName of [
 // Two tiers on purpose. The wait runs AFTER `up -d` has already replaced every
 // container, so aborting buys nothing for a sick operator console and would skip
 // the super-admin bootstrap and the deploy metadata write. Critical = the public
-// surface is down. Advisory = degraded, reported, survived.
+// surface is down, or no job runs (the worker, ruling 817). Advisory = degraded,
+// reported, survived.
 const criticalWait = parseBashArray(deployText, 'CRITICAL_SERVICES');
 const advisoryWait = parseBashArray(deployText, 'ADVISORY_SERVICES');
 if (!criticalWait || !advisoryWait) {
@@ -1692,7 +1760,7 @@ if (!criticalWait || !advisoryWait) {
     if (!waited.has(serviceName)) {
       errors.push(
         `${serviceName} has a healthcheck but deploy.sh never waits on it — add it to ` +
-          'CRITICAL_SERVICES (the public surface is down without it) or ADVISORY_SERVICES ' +
+          'CRITICAL_SERVICES (the public surface, or every job, is down without it) or ADVISORY_SERVICES ' +
           '(degraded, reported at the end).',
       );
     }

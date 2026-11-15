@@ -665,8 +665,9 @@ hdr "Waiting for services to become healthy"
 # The split is not about importance, it is about what aborting achieves. This
 # runs AFTER `up -d` has already replaced every container, so exiting does not
 # roll anything back — it only skips the steps below (super-admin bootstrap,
-# smoke test, .last-deploy.json). Worth it when the public surface is down;
-# actively harmful when the operator console is the only thing sick.
+# smoke test, .last-deploy.json). Worth it when the public surface is down, or
+# when no job runs (the worker); actively harmful when the operator console is the
+# only thing sick.
 #
 # CRITICAL — users cannot use the site. The worker is here since it alone runs the
 # jobs (ruling 817): with it down, no notification, auto-lock or alert email goes

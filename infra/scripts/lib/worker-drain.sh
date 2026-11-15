@@ -27,7 +27,7 @@ mc_drain_worker() {
   local rc=0
   timeout --kill-after=10 "$MC_WORKER_STOP_TIMEOUT" "${COMPOSE[@]}" stop worker || rc=$?
   if [[ "$rc" -eq 0 ]]; then
-    ok "Worker stopped (its job in flight, if any, finished)"
+    ok "Worker stopped (a job in flight had up to its 5 min grace to finish)"
   else
     warn "Stopping the worker ended with code $rc; the recreate below replaces it anyway"
   fi

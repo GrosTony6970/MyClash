@@ -762,13 +762,18 @@ async function appendProcess(operation, command) {
 }
 
 /**
- * How long a container action may run. The worker's stop and restart wait for
- * its job in flight, up to its stop_grace_period (5m, rulings 811, 814, 815):
- * its bound passes that grace. The API's call to this route waits longer still
- * (CONTAINER_ACTION_TIMEOUT_MS, apps/api/src/modules/admin/system-actions.service.ts).
+ * How long a container action may run. Any action on the worker waits for its
+ * job in flight when it stops it. From the admin's button that wait is 270 s, not
+ * the 5m of its stop_grace_period (rulings 811, 814, 818): the API's call to this
+ * route is Node's fetch, which gives up when no answer has come after 300 s
+ * (undici's headersTimeout), and this route answers once compose is done. So:
+ * 270 s grace < this 285 s bound < the API's 295 s wait
+ * (WORKER_ACTION_WAIT_MS, apps/api/src/modules/admin/system-actions.service.ts)
+ * < 300 s. infra:review pins the order.
  */
-const CONTAINER_ACTION_TIMEOUT_MS = 30_000;
-const WORKER_ACTION_TIMEOUT_MS = 330_000;
+const DEFAULT_ACTION_TIMEOUT_MS = 30_000;
+const WORKER_STOP_GRACE_S = 270;
+const WORKER_ACTION_TIMEOUT_MS = 285_000;
 
 /**
  * Run a `docker compose <action> <service>` against the production compose
@@ -782,10 +787,13 @@ async function runContainerAction(service, action) {
   if (!RESTARTABLE_SERVICES.has(service)) {
     return { ok: false, error: 'service_not_allowed' };
   }
+  const worker = service === 'worker';
+  // `start` takes no timeout: only a stop (or a restart's stop) waits for a job.
+  const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];
   const result = await spawnCaptureWithTimeout(
     'docker',
-    ['compose', ...COMPOSE_FLAGS, action, service],
-    service === 'worker' ? WORKER_ACTION_TIMEOUT_MS : CONTAINER_ACTION_TIMEOUT_MS,
+    ['compose', ...COMPOSE_FLAGS, action, ...grace, service],
+    worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,
   );
   return {
     ok: result.code === 0,

@@ -86,10 +86,12 @@ export interface AdminSystemActionsServiceOptions {
 }
 
 const DEFAULT_OPS_TIMEOUT_MS = 35_000; // ops-runner kills at 30s; give it slack
-// A container action: the ops-runner bounds the worker's stop and restart at 330 s, since they
-// wait for its job in flight (WORKER_ACTION_TIMEOUT_MS, infra/ops-runner/server.mjs; rulings 811,
-// 814, 815). Wait past that, so the runner's own answer arrives, timed out or not.
-const CONTAINER_ACTION_TIMEOUT_MS = 340_000;
+// A container action: an action on the worker waits up to 270 s for its job in flight, and the
+// ops-runner bounds it at 285 s (WORKER_ACTION_TIMEOUT_MS, infra/ops-runner/server.mjs; rulings
+// 811, 818). Wait past that, so the runner's own answer arrives, timed out or not; and under 300 s,
+// where this fetch (undici, no dispatcher of its own) gives up on an answer whose headers have not
+// come. infra:review pins the order.
+const WORKER_ACTION_WAIT_MS = 295_000;
 // Host facts are a read, not an operation: the sidecar kills `docker info` at
 // 5s, so a longer budget here would only turn a fast, clear failure into a slow
 // one on a panel the operator is watching load.
@@ -147,7 +149,7 @@ export class AdminSystemActionsService {
         {
           method: 'POST',
           headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
-          signal: AbortSignal.timeout(CONTAINER_ACTION_TIMEOUT_MS),
+          signal: AbortSignal.timeout(WORKER_ACTION_WAIT_MS),
         },
       );
       if (!response.ok) {
