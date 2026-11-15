@@ -94,6 +94,38 @@ describe('startOrExit', () => {
   });
 });
 
+describe('startOrExit, when describing or reporting the failure fails', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a rejection JSON cannot write is described and still exits 1', async () => {
+    const { calls, options } = recorder();
+    const circular: Record<string, unknown> = {};
+    circular['self'] = circular;
+    await startOrExit(() => Promise.reject(circular), options);
+    expect(calls).toEqual([
+      'log The API did not start: [object Object]',
+      'report start [object Object]',
+      `flush ${FLUSH_BEFORE_EXIT_MS}`,
+      'exit 1',
+    ]);
+  });
+
+  it('a reporter that throws does not keep the failed start alive', async () => {
+    const { calls, options } = recorder();
+    const report = () => {
+      throw new Error('probe-marker-reporter');
+    };
+    await startOrExit(() => Promise.reject(new Error('probe-marker-hook')), { ...options, report });
+    expect(calls.at(-1)).toBe('exit 1');
+  });
+});
+
 // main.ts runs at import, so it is read, not run. The CI start check runs it for real.
 describe('main.ts', () => {
   const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8');

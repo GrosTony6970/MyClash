@@ -25,9 +25,13 @@ export function describeProcessFailure(reason: unknown): { message: string; trac
     };
   }
 
-  return {
-    message: typeof reason === 'string' ? reason : (JSON.stringify(reason) ?? String(reason)),
-  };
+  if (typeof reason === 'string') return { message: reason };
+  try {
+    return { message: JSON.stringify(reason) ?? String(reason) };
+  } catch {
+    // A circular value or a BigInt: JSON.stringify throws, and so can String() (no prototype).
+    return { message: Object.prototype.toString.call(reason) };
+  }
 }
 
 export function logUnhandledRejection(

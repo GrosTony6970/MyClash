@@ -35,14 +35,19 @@ export async function startOrExit(
 ): Promise<void> {
   let over = false;
   // Read by `fail` only once set below: the bound's own callback or a failed start calls it.
-  const fail = (reason: unknown): Promise<void> => {
-    if (over) return Promise.resolve();
+  const fail = async (reason: unknown): Promise<void> => {
+    if (over) return;
     over = true;
     clearTimeout(timer);
-    const failure = describeProcessFailure(reason);
-    logger.error(`The API did not start: ${failure.message}`, failure.trace);
-    report(reason, { type: 'start', message: failure.message });
-    return flushThenExit(flush, exit);
+    try {
+      const failure = describeProcessFailure(reason);
+      logger.error(`The API did not start: ${failure.message}`, failure.trace);
+      report(reason, { type: 'start', message: failure.message });
+    } catch {
+      // A logger or a reporter that throws must not keep a failed start alive: the exit below is
+      // the one thing this path owes, and Docker's restart is its trace.
+    }
+    await flushThenExit(flush, exit);
   };
   const timer = setTimeout(
     () => void fail(new Error(`The start did not finish within ${timeoutMs / 1000} s`)),
