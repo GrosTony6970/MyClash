@@ -14,6 +14,11 @@ import { findModel, getDefaultModel } from '../model-registry';
 // CommonJS file can't statically `import` from it. Load it lazily via a dynamic
 // import inside the methods (same pattern as the Mistral adapter).
 
+// The Gemini API door both clients call. @google/genai 3 defaults to `v1`; we stay on `v1beta`,
+// where 2.x sent us (operator ruling 784, 2026-11-15). Set on the client, it wins over the
+// GOOGLE_GENAI_API_VERSION environment variable.
+const GEMINI_API_VERSION = 'v1beta';
+
 function mapTools(tools: ToolDefinition[]) {
   return [
     {
@@ -96,7 +101,7 @@ function mapStopReason(r: string | null | undefined, hasToolCalls: boolean): Gen
 export class GoogleAdapter implements ProviderAdapter {
   async generate(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
     const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey, apiVersion: GEMINI_API_VERSION });
     const model = findModel('google', request.model);
     const supportsTemperature = model?.supportsTemperature ?? true;
 
@@ -155,7 +160,7 @@ export class GoogleAdapter implements ProviderAdapter {
 
   async listModels(apiKey: string): Promise<string[]> {
     const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey, apiVersion: GEMINI_API_VERSION });
     const ids: string[] = [];
     const pager = await ai.models.list();
     for await (const m of pager) {
