@@ -15,6 +15,7 @@ import {
   printable,
   repositoryAdvisoryFindings,
   semverRange,
+  uncheckableVersions,
 } from './check-repo-advisories.mjs';
 
 const API = 'https://api.github.com';
@@ -140,8 +141,10 @@ const advisory = (id, severity, name, range, extra = {}) => ({
 /** A fake GitHub: `routes` maps a URL to [status, body, headers] or a function that throws. */
 function fakeGitHub(routes) {
   const asked = [];
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, options) => {
     asked.push(url);
+    // A redirect must come back to this code, which decides whether to follow it.
+    assert.equal(options.redirect, 'manual');
     const route = routes[url];
     if (typeof route === 'function') return route();
     const [status, body, headers = {}] = route ?? [404, { message: 'Not Found' }];
@@ -307,4 +310,81 @@ test('a hit names the locked version that sits in the range', () => {
     hits.map((hit) => hit.version),
     ['1.0.0'],
   );
+});
+
+// React's advisories list the versions hit instead of a range, in three spellings; read as one
+// AND range, a list matched no version and the check passed in silence.
+test('a list of versions is read as a list, and a range no version satisfies is unreadable', () => {
+  assert.equal(inRange('19.2.0', '19.0.0, 19.1.0, 19.1.1, 19.2.0'), true);
+  assert.equal(inRange('19.1.2', '19.0.0, 19.1.0, 19.1.1, 19.2.0'), false);
+  assert.equal(inRange('2.2.3', '2.2.2,2.2.3,2.2.4'), true);
+  assert.equal(inRange('19.1.5', '19.1.4, 19.1.5 19.2.0'), true);
+  assert.equal(inRange('19.1.6', '19.1.5 , 19.1.6'), true);
+  assert.equal(inRange('12.0.1', '>= 12.0.0, < 12.0.2, < 11.2.4'), null);
+  assert.equal(inRange('16.0.0', '>= 15, >= 16'), true);
+});
+
+test('a listed version hit is a finding, printing the range that hit', async () => {
+  const twoRanges = {
+    ...advisory('GHSA-twoo-rang-0000', 'high', '@nestjs/common', '>= 13.0.0, < 13.1.0'),
+    vulnerabilities: [
+      { package: { name: '@nestjs/common' }, vulnerable_version_range: '>= 13.0.0, < 13.1.0' },
+      { package: { name: '@nestjs/common' }, vulnerable_version_range: '12.3.1, 12.3.2' },
+    ],
+  };
+  const { findings } = await run({
+    [LIST]: [200, [twoRanges]],
+    [`${API}/advisories/GHSA-twoo-rang-0000`]: [404, {}],
+  });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /on @nestjs\/common@12\.3\.2, inside "12\.3\.1, 12\.3\.2"/u);
+});
+
+test('a connection lost while GitHub sends its answer is a warning, not a red (ruling 776)', async () => {
+  const { findings, answered } = await run({
+    [LIST]: () => ({
+      status: 200,
+      headers: new Headers(),
+      text: () => Promise.reject(new TypeError('terminated')),
+    }),
+  });
+  assert.equal(answered, 0);
+  assert.deepEqual(findings, [
+    { level: 'warn', message: 'nestjs/nest not checked: GitHub out of reach: terminated' },
+  ]);
+});
+
+test('a redirect is followed only within api.github.com, and the pages are bounded', async () => {
+  const moved = `${API}/repositories/1/security-advisories?state=published&per_page=100`;
+  const renamed = await run({
+    [LIST]: [301, {}, { location: moved }],
+    [moved]: [200, [advisory('GHSA-move-d000-0000', 'high', '@nestjs/common', '< 13.0.0')]],
+    [`${API}/advisories/GHSA-move-d000-0000`]: [404, {}],
+  });
+  assert.equal(renamed.findings.length, 1);
+  const away = await run({ [LIST]: [302, {}, { location: 'https://example.test/x' }] });
+  assert.match(away.findings[0], /refused to leave https:\/\/api\.github\.com/u);
+  assert.equal(away.asked.includes('https://example.test/x'), false);
+  const endless = await run({ [LIST]: [200, [], { link: `<${LIST}>; rel="next"` }] });
+  assert.equal(
+    endless.findings[0],
+    'nestjs/nest not checked: nestjs/nest: more than 50 pages of advisories',
+  );
+  assert.equal(endless.asked.length, 50);
+});
+
+test('the old workflow command form is broken too, and a dot segment is no repository', () => {
+  assert.equal(printable('range ##[error]forged'), 'range # #[error]forged');
+  assert.equal(githubRepository('https://github.com/../orgs'), null);
+  assert.equal(githubRepository('https://github.com/owner/..'), null);
+});
+
+test('a locked version no range can be compared with is an error', () => {
+  const deps = new Map([
+    ['alias', { versions: new Set(['real-name@1.0.0']), importers: new Set(['.']) }],
+    ['plain', { versions: new Set(['1.0.0']), importers: new Set(['.']) }],
+  ]);
+  assert.deepEqual(uncheckableVersions(deps), [
+    'alias: locked as "real-name@1.0.0", which no advisory range can be compared with',
+  ]);
 });

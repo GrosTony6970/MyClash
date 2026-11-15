@@ -423,6 +423,9 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-latest
     needs: install
+    # The repository-advisory step's token reads public advisories only: no more than this.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 

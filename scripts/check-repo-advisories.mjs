@@ -20,22 +20,32 @@ import { defineGate, isInvokedDirectly, nothingToCount } from './lib/gate.mjs';
  *
  * - Direct dependencies only, on every push (777). Their repository: the installed package's
  *   own `repository` field, github.com only.
- * - GitHub out of reach (a network error, a timeout, a 5xx, a rate limit) is a warning and the
- *   gate passes (776), with an annotation in CI. A missing repository, a refused token or a
- *   range nobody can read is an error: none of those mends itself.
+ * - GitHub out of reach (a network error, a connection lost mid-answer, a timeout, a 5xx, a rate
+ *   limit) is a warning and the gate passes (776), with an annotation in CI. So is a dependency
+ *   whose package.json names no github.com repository: there is no feed to read. A repository
+ *   GitHub does not know, a refused token, or a range or locked version nobody can read is an
+ *   error: none of those mends itself.
  * - One ignore list with the audit: `auditConfig.ignoreGhsas` in pnpm-workspace.yaml.
- * - Text from GitHub or a package is printed without control characters, and a request never
- *   leaves https://api.github.com, where the token goes.
+ * - Text from GitHub or a package is printed without control characters or `##[`, so it cannot
+ *   write a workflow command; a request, redirects followed by hand included, never leaves
+ *   https://api.github.com, where the token goes.
  */
 
 const API = 'https://api.github.com';
 const FAILING = new Set(['high', 'critical']);
 const TIMEOUT_MS = 10_000;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
+const MAX_PAGES = 50;
+const MAX_REDIRECTS = 3;
 
-/** Text from outside, safe to print: no control character, so no line of its own. */
+/**
+ * Text from outside, safe to print: no control character (so no line of its own, where `::` starts
+ * a workflow command) and no `##[` (the old command form, which the runner reads anywhere).
+ */
 export function printable(text) {
-  return String(text).replace(/[\u0000-\u001f\u007f-\u009f]/gu, ' ');
+  return String(text)
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, ' ')
+    .replace(/##\[/gu, '# #[');
 }
 
 /** The lockfile's dependency document (the last one; pnpm 12 writes its own version first). */
@@ -105,17 +115,22 @@ export function githubRepository(repository) {
   );
   const scp = /^git@github\.com:([^/]+\/[^/#]+)$/u.exec(url);
   const found = (shorthand ?? full ?? scp)?.[1]?.replace(/\.git$/u, '');
-  return found && REPO.test(found) ? found : null;
+  const dotSegment = found?.split('/').some((segment) => /^\.{1,2}$/u.test(segment));
+  return found && REPO.test(found) && !dotSegment ? found : null;
 }
 
-/** GitHub's range (`>= 12.0.0, < 12.5.0`) as node-semver reads it, or null when unreadable. */
+/**
+ * GitHub's range as node-semver reads it, or null when unreadable. GitHub writes a range
+ * (`>= 12.0.0, < 12.5.0`, the comma an AND) or a list of the versions hit (`19.0.0, 19.1.0`,
+ * `19.1.5 19.2.0`, `19.1.5 , 19.1.6`: React's advisories). A range no version can satisfy
+ * (`>= 12.0.0, < 11.2.4`) is unreadable too: read as written, it would pass every version.
+ */
 export function semverRange(range) {
-  const written = String(range ?? '')
-    .replace(/,\s*/gu, ' ')
-    .replace(/=</gu, '<=')
-    .replace(/=>/gu, '>=')
-    .trim();
-  return written && semver.validRange(written) ? written : null;
+  const text = String(range ?? '').trim();
+  const tokens = text.split(/[\s,]+/u).filter(Boolean);
+  if (tokens.length > 0 && tokens.every((token) => semver.valid(token))) return tokens.join(' || ');
+  const written = text.replace(/,\s*/gu, ' ').replace(/=</gu, '<=').replace(/=>/gu, '>=');
+  return written && semver.validRange(written) && semver.minVersion(written) ? written : null;
 }
 
 /** Whether a locked version sits in an advisory's range; `null` when the range is unreadable. */
@@ -138,35 +153,55 @@ export function isOutage(response) {
 
 class Outage extends Error {}
 
-/** One GET on api.github.com: the status, headers, text and the next page's URL. */
-async function githubGet(url, { token, fetchImpl }) {
-  if (new URL(url).origin !== API) throw new Error(`refused to leave ${API}: ${printable(url)}`);
-  let res;
+/** The answer to one request, its body read: a connection lost on the way is an outage too. */
+async function fetchAnswer(url, { token, fetchImpl }) {
   try {
-    res = await fetchImpl(url, {
+    const res = await fetchImpl(url, {
       headers: {
         accept: 'application/vnd.github+json',
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
+      redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    return { status: res.status, headers: res.headers, text: await res.text() };
   } catch (error) {
     throw new Outage(`GitHub out of reach: ${printable(error?.message ?? error)}`);
   }
-  if (res.url && new URL(res.url).origin !== API) {
-    throw new Error(`a redirect left ${API}: ${printable(res.url)}`);
-  }
-  const answer = { status: res.status, headers: res.headers, text: await res.text() };
-  if (isOutage(answer)) throw new Outage(`GitHub answered ${res.status} (out of reach for now)`);
-  const next = /<([^>]+)>;\s*rel="next"/u.exec(res.headers.get('link') ?? '');
-  return { ...answer, next: next?.[1] ?? null };
 }
 
-/** Every published advisory of one repository, following GitHub's pages. */
+/**
+ * One GET on api.github.com: the status, headers, text and the next page's URL. A redirect is
+ * followed by hand, and only within api.github.com (a renamed repository answers 301 to
+ * /repositories/<id>/…), so no request, and no token, ever goes elsewhere.
+ */
+async function githubGet(url, client) {
+  let target = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    if (new URL(target).origin !== API) {
+      throw new Error(`refused to leave ${API}: ${printable(target)}`);
+    }
+    const answer = await fetchAnswer(target, client);
+    const location = answer.headers.get('location');
+    if (answer.status >= 300 && answer.status < 400 && location) {
+      target = new URL(location, target).href;
+      continue;
+    }
+    if (isOutage(answer)) {
+      throw new Outage(`GitHub answered ${answer.status} (out of reach for now)`);
+    }
+    const next = /<([^>]+)>;\s*rel="next"/u.exec(answer.headers.get('link') ?? '');
+    return { ...answer, next: next?.[1] ?? null };
+  }
+  throw new Error(`more than ${MAX_REDIRECTS} redirects from ${printable(url)}`);
+}
+
+/** Every published advisory of one repository, following GitHub's pages (at most 50). */
 async function repositoryAdvisories(repo, client) {
   const advisories = [];
   let url = `${API}/repos/${repo}/security-advisories?state=published&per_page=100`;
-  while (url) {
+  for (let pages = 0; url; pages += 1) {
+    if (pages === MAX_PAGES) throw new Error(`${repo}: more than ${MAX_PAGES} pages of advisories`);
     const page = await githubGet(url, client);
     if (page.status === 404) throw new Error(`${repo}: no such repository on GitHub (404)`);
     if (page.status !== 200) throw new Error(`${repo}: GitHub answered ${page.status}`);
@@ -176,22 +211,29 @@ async function repositoryAdvisories(repo, client) {
   return advisories;
 }
 
-/** Each high or critical advisory naming one of `names` at a locked version, or unreadable. */
+/**
+ * Each high or critical advisory naming one of `names` at a locked version, or unreadable, once
+ * per advisory, package and version, with the range that hit (Nest's list a package twice, one
+ * range per major).
+ */
 export function advisoryHits(advisories, deps, names, ignored) {
-  const hits = [];
+  const hits = new Map();
   for (const advisory of advisories) {
     const failing = FAILING.has(String(advisory.severity).toLowerCase());
     if (!failing || advisory.withdrawn_at || ignored.has(advisory.ghsa_id)) continue;
     for (const vulnerability of advisory.vulnerabilities ?? []) {
       const name = vulnerability.package?.name;
       if (!names.includes(name)) continue;
+      const range = vulnerability.vulnerable_version_range;
       for (const version of deps.get(name).versions) {
-        const hit = inRange(version, vulnerability.vulnerable_version_range);
-        if (hit !== false) hits.push({ advisory, name, version, readable: hit !== null });
+        const hit = inRange(version, range);
+        const key = `${advisory.ghsa_id}|${name}|${version}`;
+        if (hit === false || hits.get(key)?.readable) continue;
+        hits.set(key, { advisory, name, version, range, readable: hit !== null });
       }
     }
   }
-  return hits;
+  return [...hits.values()];
 }
 
 /** Whether GitHub's global database lists the advisory (then `pnpm audit` reports it). */
@@ -203,14 +245,27 @@ async function inGlobalDatabase(ghsaId, client) {
 }
 
 /** The finding for one hit the global database does not list yet. */
-function hitFinding({ advisory, name, version, readable }) {
-  const range = printable(
-    advisory.vulnerabilities?.find((v) => v.package?.name === name)?.vulnerable_version_range,
-  );
+function hitFinding({ advisory, name, version, range: hitRange, readable }) {
+  const range = printable(hitRange);
   const what = `${printable(advisory.ghsa_id)} (${printable(advisory.severity)}) on ${name}@${version}`;
   return readable
     ? `${what}, inside "${range}", published by the package's repository and not yet in GitHub's global database: ${printable(advisory.html_url)}`
     : `${what}: its range "${range}" cannot be read; read the advisory by hand: ${printable(advisory.html_url)}`;
+}
+
+/** A locked version no range can be compared with (an `npm:` alias, a tarball): an error. */
+export function uncheckableVersions(deps) {
+  const messages = [];
+  for (const [name, { versions }] of deps) {
+    for (const version of versions) {
+      if (!semver.valid(version)) {
+        messages.push(
+          `${name}: locked as "${printable(version)}", which no advisory range can be compared with`,
+        );
+      }
+    }
+  }
+  return messages;
 }
 
 /** Which repository each direct dependency comes from, read from its installed package.json. */
@@ -227,7 +282,11 @@ export function repositoriesOf(deps, root) {
     }
     const repo = githubRepository(JSON.parse(readFileSync(manifest, 'utf8')).repository);
     if (!repo) {
-      errors.push(`${name}: its package.json names no github.com repository`);
+      // No GitHub feed to read, so nothing this check can see or mend: said, not failed.
+      errors.push({
+        level: 'warn',
+        message: `${name}: its package.json names no github.com repository; not checked`,
+      });
       continue;
     }
     repos.set(repo, [...(repos.get(repo) ?? []), name]);
@@ -276,7 +335,7 @@ function githubToken() {
 }
 
 /**
- * Each outage as a CI annotation, escaped as GitHub's toolkit escapes data. The harness prints a
+ * Each warning as a CI annotation, escaped as GitHub's toolkit escapes data. The harness prints a
  * warning as `  ! …`, which the runner does not read as a command, so this line is the one the
  * run's summary shows (ruling 776: visible, never silent).
  */
@@ -309,15 +368,12 @@ export const gate = defineGate({
     const ignored = ignoredAdvisories(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'));
     const { repos, errors } = repositoriesOf(deps, root);
     const client = { token: githubToken(), fetchImpl: fetch };
-    const { findings, answered } = await repositoryAdvisoryFindings({
-      deps,
-      repos,
-      ignored,
-      client,
-    });
+    const checked = await repositoryAdvisoryFindings({ deps, repos, ignored, client });
+    const answered = checked.answered;
+    const findings = [...uncheckableVersions(deps), ...errors, ...checked.findings];
     if (invokedInCi) annotate(findings);
     return {
-      findings: [...errors, ...findings],
+      findings,
       // Every repository out of reach is a warning, not a broken gate (ruling 776).
       scanned: answered || nothingToCount('GitHub answered for no repository; each is named above'),
       summary: `${answered} repositories of ${deps.size} direct dependencies publish no high or critical advisory on a locked version that GitHub's global database does not list yet.`,
