@@ -40,5 +40,10 @@ describe('a refused address, as Fastify logs it (rulings 801-805)', () => {
     expect(logSafeError(notFound)).toBe(notFound);
     const plain = new Error('probe-marker');
     expect(logSafeError(plain)).toBe(plain);
+    // The code decides, not the wording: another error that happens to end like a refusal.
+    const lookalike = Object.assign(new errorCodes.FST_ERR_NOT_FOUND(), {
+      message: "'/x?token=SECRETMARK' is not a valid url component",
+    });
+    expect(logSafeError(lookalike)).toBe(lookalike);
   });
 });

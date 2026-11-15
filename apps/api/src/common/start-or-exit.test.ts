@@ -116,8 +116,30 @@ describe('startOrExit, when describing or reporting the failure fails', () => {
     ]);
   });
 
+  // A value that even Object.prototype.toString cannot read (its Symbol.toStringTag getter throws,
+  // and so does its toJSON): describing it throws, and the failure is "an undescribable failure".
+  it('a failure that cannot be described is logged and reported as such, then exits 1', async () => {
+    const { calls, options } = recorder();
+    const hostile = {
+      toJSON() {
+        throw new Error('probe-marker-json');
+      },
+      get [Symbol.toStringTag](): string {
+        throw new Error('probe-marker-tag');
+      },
+    };
+    await expect(startOrExit(() => Promise.reject(hostile), options)).resolves.toBeUndefined();
+    expect(calls).toEqual([
+      'log The API did not start: an undescribable failure',
+      'report start an undescribable failure',
+      `flush ${FLUSH_BEFORE_EXIT_MS}`,
+      'exit 1',
+    ]);
+  });
+
   // `resolves`: a startOrExit that rejects would hand its rejection to the unhandledRejection
-  // handler, which only logs. The exit must come, and nothing must escape after it either.
+  // handler, which logs and reports it but never exits. The exit must come, and nothing must
+  // escape after it either.
   it('a reporter that throws does not keep the failed start alive', async () => {
     const { calls, options } = recorder();
     const report = () => {
