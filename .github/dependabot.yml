@@ -13,6 +13,15 @@ updates:
         patterns: ['next', '@next/*']
       nest:
         patterns: ['@nestjs/*']
+      # Sentry's packages move together (the api and the three Next apps): one PR, apart from the rest.
+      sentry:
+        patterns: ['@sentry/*']
+      # A runtime dependency's minor or patch, outside the three framework groups above, comes in
+      # one PR instead of one each. Majors still come one by one.
+      production-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+        exclude-patterns: ['next', '@next/*', '@nestjs/*', '@sentry/*']
     ignore:
       # TypeScript waits for 7.1: 7.1 is offered again, 7.0.x never is.
       - dependency-name: typescript
