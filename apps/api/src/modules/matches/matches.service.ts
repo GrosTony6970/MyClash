@@ -1104,6 +1104,13 @@ export class MatchesService {
     return this.scoring.endRoundOnTime(matchId, context, late);
   }
 
+  /**
+   * The auto lock's write; its one caller is the scan (match-auto-lock.service.ts). The scan
+   * decides on rows it read before this write, so the write matches only a Match still unlocked
+   * and still completed or voided (rulings 809, 813). An organiser's unlock, or a reset that sent
+   * the bout back to 'scheduled', between that read and this write leaves no row to match: the
+   * answer is null and nothing is written.
+   */
   async lockMatch(
     matchId: string,
     reason: string | undefined,
@@ -1122,8 +1129,10 @@ export class MatchesService {
         updated_at: now,
       })
       .eq('id', matchId)
+      .is('locked_at', null)
+      .in('status', ['completed', 'voided'])
       .select('*')
-      .single();
+      .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     return data;
   }

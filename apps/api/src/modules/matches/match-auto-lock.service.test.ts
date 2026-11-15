@@ -16,6 +16,8 @@ describe('MatchAutoLockService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // A write that locked its Match answers the row (MatchesService.lockMatch).
+    lockMatchMock.mockResolvedValue({ id: 'locked' });
     service = new MatchAutoLockService(
       { service: { from: fromMock } } as never,
       { lockMatch: lockMatchMock } as never,
@@ -94,6 +96,43 @@ describe('MatchAutoLockService', () => {
       undefined,
       'auto',
     );
+  });
+
+  it('counts only the Matches its write locked: a Match changed since the read is not', async () => {
+    fromMock
+      .mockReturnValueOnce(
+        makeSelectResult({
+          data: [{ id: 'tournament-1', lock_config_json: { autoLockEnabled: true } }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectResult({
+          data: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectResult({
+          data: ['match-1', 'match-2'].map((id) => ({
+            id,
+            phase_id: 'phase-1',
+            status: 'completed',
+            ended_at: '2026-05-16T00:00:00.000Z',
+            locked_at: null,
+            pool_id: 'pool-1',
+          })),
+          error: null,
+        }),
+      );
+    // match-1 was reset or locked by an organiser after the scan read it: the write matched no
+    // row and answered null.
+    lockMatchMock.mockResolvedValueOnce(null);
+
+    const locked = await service.runOnce(new Date('2026-05-16T00:20:00.000Z'));
+
+    expect(locked).toBe(1);
+    expect(lockMatchMock).toHaveBeenCalledTimes(2);
   });
 
   it('does not lock incomplete pool groups', async () => {

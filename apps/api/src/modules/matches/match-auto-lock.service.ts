@@ -91,13 +91,14 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
       if (!this.delayElapsed(group, config.autoLockDelayMinutes, now)) continue;
       for (const match of group) {
         if (match['locked_at']) continue;
-        await this.matches.lockMatch(
+        // Null: the Match changed since this scan read it, and the write left it alone.
+        const row = await this.matches.lockMatch(
           String(match['id']),
           'Auto lock after completed group',
           undefined,
           'auto',
         );
-        locked += 1;
+        if (row) locked += 1;
       }
     }
     return locked;
