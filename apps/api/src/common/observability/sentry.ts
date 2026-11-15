@@ -58,6 +58,13 @@ export function isApiSentryEnabled(): boolean {
   return sentryEnabled;
 }
 
+/** Waits at most `ms` for the reports already captured to leave; returns at once when Sentry is
+ *  off. A process about to exit calls it, or its last report can be lost. */
+export async function flushApiSentry(ms: number): Promise<void> {
+  if (!sentryEnabled) return;
+  await Sentry.flush(ms);
+}
+
 export function captureApiException(
   exception: unknown,
   context: Record<string, unknown> = {},
