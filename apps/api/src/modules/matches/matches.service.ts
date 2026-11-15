@@ -1105,32 +1105,30 @@ export class MatchesService {
   }
 
   /**
-   * The auto lock's write; its one caller is the scan (match-auto-lock.service.ts). The scan
-   * decides on rows it read before this write, so the write matches only a Match still unlocked
-   * and still completed or voided (rulings 809, 813). An organiser's unlock, or a reset that sent
-   * the bout back to 'scheduled', between that read and this write leaves no row to match: the
-   * answer is null and nothing is written.
+   * The auto lock's write; its one caller is the scan (match-auto-lock.service.ts), which decides
+   * on rows it read before this write. So the write matches only the Match as the scan read it:
+   * still unlocked, still completed or voided, and not written since (`updated_at` unchanged;
+   * rulings 809, 813, 816). An unlock, a score correction or a reset between that read and this
+   * write moves `updated_at` (each of those writes sets it; no trigger does), so the write
+   * matches no row: the answer is null and nothing is written. The next scan reads the change,
+   * and its wait counts from it.
    */
-  async lockMatch(
-    matchId: string,
-    reason: string | undefined,
-    context?: MatchActor,
-    source: 'manual' | 'auto' = 'manual',
-  ) {
+  async lockMatch(matchId: string, reason: string, seenUpdatedAt: string) {
     const now = new Date().toISOString();
     const { data, error } = await this.supabase.service
       .from('matches')
       .update({
         locked_at: now,
-        locked_by_user_id: context?.userId ?? null,
-        locked_by_staff_account_id: context?.staffAccountId ?? null,
-        lock_source: source,
-        lock_reason: reason ?? null,
+        locked_by_user_id: null,
+        locked_by_staff_account_id: null,
+        lock_source: 'auto',
+        lock_reason: reason,
         updated_at: now,
       })
       .eq('id', matchId)
       .is('locked_at', null)
       .in('status', ['completed', 'voided'])
+      .eq('updated_at', seenUpdatedAt)
       .select('*')
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);

@@ -56,6 +56,7 @@ describe('MatchAutoLockService', () => {
               phase_id: 'phase-1',
               status: 'completed',
               ended_at: '2026-05-16T00:00:00.000Z',
+              updated_at: '2026-05-16T00:00:01.123456+00:00',
               locked_at: null,
               pool_id: 'pool-1',
             },
@@ -64,6 +65,7 @@ describe('MatchAutoLockService', () => {
               phase_id: 'phase-1',
               status: 'completed',
               ended_at: '2026-05-16T00:01:00.000Z',
+              updated_at: '2026-05-16T00:01:02.654321+00:00',
               locked_at: null,
               pool_id: 'pool-1',
             },
@@ -84,17 +86,16 @@ describe('MatchAutoLockService', () => {
     expect(selects).not.toContain(
       'id, lock_config_json, phases(id,type,matches(id,status,ended_at,locked_at,pool_id))',
     );
+    // Each write carries the `updated_at` this scan read for that Match (ruling 816).
     expect(lockMatchMock).toHaveBeenCalledWith(
       'match-1',
       'Auto lock after completed group',
-      undefined,
-      'auto',
+      '2026-05-16T00:00:01.123456+00:00',
     );
     expect(lockMatchMock).toHaveBeenCalledWith(
       'match-2',
       'Auto lock after completed group',
-      undefined,
-      'auto',
+      '2026-05-16T00:01:02.654321+00:00',
     );
   });
 
@@ -125,8 +126,8 @@ describe('MatchAutoLockService', () => {
           error: null,
         }),
       );
-    // match-1 was reset or locked by an organiser after the scan read it: the write matched no
-    // row and answered null.
+    // match-1 was unlocked, corrected or reset after the scan read it: the write matched no row
+    // and answered null.
     lockMatchMock.mockResolvedValueOnce(null);
 
     const locked = await service.runOnce(new Date('2026-05-16T00:20:00.000Z'));

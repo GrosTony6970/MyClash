@@ -101,8 +101,7 @@ export class MatchAutoLockService implements OnModuleDestroy {
         const row = await this.matches.lockMatch(
           String(match['id']),
           'Auto lock after completed group',
-          undefined,
-          'auto',
+          String(match['updated_at']),
         );
         if (row) locked += 1;
       }
