@@ -14,12 +14,15 @@ import { startWorker, startWorkerRole, type StartedWorker } from './worker-role'
 function fakeJobs(register = vi.fn()) {
   const start = vi.fn();
   const close = vi.fn().mockResolvedValue(undefined);
+  // A spy: the real one would add SIGTERM/SIGINT listeners to the test process.
+  const enableShutdownHooks = vi.fn();
   const get = vi.fn((token: unknown) => {
     if (token === BullRegistrar) return { register };
     if (token === MatchAutoLockService) return { start };
     throw new Error(`unexpected token ${String(token)}`);
   });
-  return { context: { get, close } as unknown as INestApplicationContext, register, start };
+  const context = { get, close, enableShutdownHooks } as unknown as INestApplicationContext;
+  return { context, register, start, enableShutdownHooks };
 }
 
 describe('startWorkerRole', () => {
@@ -56,6 +59,10 @@ describe('startWorker', () => {
 
     expect(jobs.register).toHaveBeenCalledTimes(1);
     expect(jobs.start).toHaveBeenCalledTimes(1);
+    // The jobs context owns the stop (ruling 811): it waits for the job in flight.
+    expect(jobs.enableShutdownHooks).toHaveBeenCalledWith(['SIGTERM', 'SIGINT'], {
+      useProcessExit: true,
+    });
     const address = started.health.getHttpServer().address() as { address: string; port: number };
     expect(address.address).toBe('127.0.0.1');
     const base = `http://127.0.0.1:${address.port}`;
@@ -72,5 +79,10 @@ describe('startWorker', () => {
     expect(source).toContain("await health.listen(port, '127.0.0.1');");
     expect(source).not.toContain('0.0.0.0');
     expect(source).toContain('{ abortOnError: false },');
+    // One owner of the stop per process: hooks on the health app too would exit the process as
+    // soon as its own (instant) shutdown ended, killing the job in flight.
+    expect(source.split('enableGracefulStop(').length - 1).toBe(1);
+    expect(source).toContain('enableGracefulStop(jobs);');
+    expect(source).not.toContain('enableShutdownHooks');
   });
 });

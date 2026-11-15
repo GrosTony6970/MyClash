@@ -973,6 +973,10 @@ services:
     container_name: myclash-worker
     restart: unless-stopped
     command: ['node', 'dist/main.js', '--worker']
+    # A stop lets the job in flight finish (apps/api/src/common/graceful-stop.ts): photo
+    # clean-up stops itself within 4 min plus one 30 s bucket call. A longer job is cut and
+    # retried after the restart (rulings 811, 814).
+    stop_grace_period: 5m
     environment:
       NODE_ENV: production
       # No DATABASE_URL (ruling 394), like the api.

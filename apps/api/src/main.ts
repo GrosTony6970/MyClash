@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { fastifyAdapterOptions } from './common/fastify-adapter-options';
+import { enableGracefulStop } from './common/graceful-stop';
 import { configureHttpApp } from './common/http-bootstrap';
 import { captureApiException, flushApiSentry, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
@@ -36,6 +37,8 @@ async function startApi(): Promise<void> {
   // The request log, cookies, uploads, the global pipe and filter, the prefix and CORS: one
   // owner, which the edge tests run too (common/http-bootstrap.ts).
   await configureHttpApp(app, { reportException: captureApiException });
+  // A stop signal closes the app, then exits 0 (common/graceful-stop.ts).
+  enableGracefulStop(app);
 
   // ── OpenAPI / Swagger (dev only) ─────────────────────────────────────────
   const swagger = process.env['NODE_ENV'] !== 'production';

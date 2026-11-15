@@ -1107,6 +1107,9 @@ for (const [label, worker] of [
   ['dev worker', devServices.get('worker')],
 ]) {
   requireContains(worker ?? '', label, "command: ['node', 'dist/main.js', '--worker']");
+  // A stop lets the job in flight finish; Docker's 10 s default would cut most of them
+  // (rulings 811, 814; apps/api/src/common/graceful-stop.ts).
+  requireContains(worker ?? '', label, 'stop_grace_period: 5m');
 }
 requireContains(
   devServices.get('worker') ?? '',

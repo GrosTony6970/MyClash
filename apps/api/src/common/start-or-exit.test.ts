@@ -186,6 +186,11 @@ describe('main.ts', () => {
     expect(main).not.toMatch(/void (startApi|startWorkerProcess)\(\)/);
   });
 
+  it('lets a stop signal close the API before the process exits (ruling 811)', () => {
+    expect(main.split('enableGracefulStop(app);').length - 1).toBe(1);
+    expect(main).not.toContain('enableShutdownHooks');
+  });
+
   it('gives the crash path the Sentry flush, and names Swagger only when it is served', () => {
     expect(main).toMatch(/registerProcessFailureHandlers\([^;]*flushApiSentry,\s*\);/);
     expect(main).toContain('if (swagger) console.info(`Swagger UI:');

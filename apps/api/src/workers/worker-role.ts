@@ -3,6 +3,7 @@ import { BullRegistrar } from '@nestjs/bullmq';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { fastifyAdapterOptions } from '../common/fastify-adapter-options';
+import { enableGracefulStop } from '../common/graceful-stop';
 import { MatchAutoLockService } from '../modules/matches/match-auto-lock.service';
 import { WorkerHealthModule } from './worker-health.module';
 
@@ -34,6 +35,9 @@ export async function startWorker(
   port: number,
 ): Promise<StartedWorker> {
   const jobs = await createJobs();
+  // The jobs context owns the stop: it waits for the job in flight, then exits the process, which
+  // closes the health server too. The health app gets no hooks of its own (graceful-stop.ts).
+  enableGracefulStop(jobs);
   await startWorkerRole(jobs);
   const health = await NestFactory.create<NestFastifyApplication>(
     WorkerHealthModule,
