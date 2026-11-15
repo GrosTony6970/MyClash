@@ -8,26 +8,15 @@ import {
   annotate,
   githubRepository,
   ignoredAdvisories,
-  inRange,
   invokedInCi,
   isOutage,
   lockedDirectDependencies,
   printable,
   repositoryAdvisoryFindings,
-  semverRange,
   uncheckableVersions,
 } from './check-repo-advisories.mjs';
 
 const API = 'https://api.github.com';
-
-test('a range is read as GitHub writes it, and an unreadable one says so', () => {
-  assert.equal(semverRange('>= 12.0.0, < 12.5.0'), '>= 12.0.0 < 12.5.0');
-  assert.equal(semverRange('=< 3.1.4'), '<= 3.1.4');
-  assert.equal(inRange('12.3.2', '>= 12.0.0, < 12.5.0'), true);
-  assert.equal(inRange('12.5.0', '>= 12.0.0, < 12.5.0'), false);
-  assert.equal(inRange('12.3.2', 'before the fix'), null);
-  assert.equal(inRange('12.3.2', ''), null);
-});
 
 test('only github.com repositories are read, in each spelling package.json uses', () => {
   assert.equal(githubRepository('git+https://github.com/nestjs/nest.git'), 'nestjs/nest');
@@ -312,24 +301,16 @@ test('a hit names the locked version that sits in the range', () => {
   );
 });
 
-// React's advisories list the versions hit instead of a range, in three spellings; read as one
-// AND range, a list matched no version and the check passed in silence.
-test('a list of versions is read as a list, and a range no version satisfies is unreadable', () => {
-  assert.equal(inRange('19.2.0', '19.0.0, 19.1.0, 19.1.1, 19.2.0'), true);
-  assert.equal(inRange('19.1.2', '19.0.0, 19.1.0, 19.1.1, 19.2.0'), false);
-  assert.equal(inRange('2.2.3', '2.2.2,2.2.3,2.2.4'), true);
-  assert.equal(inRange('19.1.5', '19.1.4, 19.1.5 19.2.0'), true);
-  assert.equal(inRange('19.1.6', '19.1.5 , 19.1.6'), true);
-  assert.equal(inRange('12.0.1', '>= 12.0.0, < 12.0.2, < 11.2.4'), null);
-  assert.equal(inRange('16.0.0', '>= 15, >= 16'), true);
-});
-
 test('a listed version hit is a finding, printing the range that hit', async () => {
   const twoRanges = {
     ...advisory('GHSA-twoo-rang-0000', 'high', '@nestjs/common', '>= 13.0.0, < 13.1.0'),
     vulnerabilities: [
       { package: { name: '@nestjs/common' }, vulnerable_version_range: '>= 13.0.0, < 13.1.0' },
-      { package: { name: '@nestjs/common' }, vulnerable_version_range: '12.3.1, 12.3.2' },
+      {
+        package: { name: '@nestjs/common' },
+        vulnerable_version_range: '12.3.1, 12.3.2',
+        patched_versions: '12.3.3',
+      },
     ],
   };
   const { findings } = await run({

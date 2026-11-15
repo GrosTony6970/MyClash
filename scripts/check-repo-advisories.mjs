@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import semver from 'semver';
 
+import { inRange } from './lib/advisory-range.mjs';
 import { defineGate, isInvokedDirectly, nothingToCount } from './lib/gate.mjs';
 
 /**
@@ -119,26 +120,6 @@ export function githubRepository(repository) {
   return found && REPO.test(found) && !dotSegment ? found : null;
 }
 
-/**
- * GitHub's range as node-semver reads it, or null when unreadable. GitHub writes a range
- * (`>= 12.0.0, < 12.5.0`, the comma an AND) or a list of the versions hit (`19.0.0, 19.1.0`,
- * `19.1.5 19.2.0`, `19.1.5 , 19.1.6`: React's advisories). A range no version can satisfy
- * (`>= 12.0.0, < 11.2.4`) is unreadable too: read as written, it would pass every version.
- */
-export function semverRange(range) {
-  const text = String(range ?? '').trim();
-  const tokens = text.split(/[\s,]+/u).filter(Boolean);
-  if (tokens.length > 0 && tokens.every((token) => semver.valid(token))) return tokens.join(' || ');
-  const written = text.replace(/,\s*/gu, ' ').replace(/=</gu, '<=').replace(/=>/gu, '>=');
-  return written && semver.validRange(written) && semver.minVersion(written) ? written : null;
-}
-
-/** Whether a locked version sits in an advisory's range; `null` when the range is unreadable. */
-export function inRange(version, range) {
-  const readable = semverRange(range);
-  return readable ? semver.satisfies(version, readable, { includePrerelease: true }) : null;
-}
-
 /** A GitHub answer that says GitHub is out of reach for now, not that something is wrong. */
 export function isOutage(response) {
   if (response.status >= 500 || response.status === 429) return true;
@@ -226,7 +207,7 @@ export function advisoryHits(advisories, deps, names, ignored) {
       if (!names.includes(name)) continue;
       const range = vulnerability.vulnerable_version_range;
       for (const version of deps.get(name).versions) {
-        const hit = inRange(version, range);
+        const hit = inRange(version, range, vulnerability.patched_versions);
         const key = `${advisory.ghsa_id}|${name}|${version}`;
         if (hit === false || hits.get(key)?.readable) continue;
         hits.set(key, { advisory, name, version, range, readable: hit !== null });
