@@ -349,3 +349,29 @@ test("one entry's fix clears its sibling entries' doubt for the same package", (
   const deps = new Map([['vitest', { versions: new Set(['3.2.6']), importers: new Set(['.']) }]]);
   assert.deepEqual(advisoryHits([vitest], deps, ['vitest'], new Set()), []);
 });
+
+// But a sibling's fix below what this entry's own range reaches on the version's major vouches
+// for nothing: `<= 8.13.6` with no patch, or with a fix only on another major, keeps 8.13.7 in
+// doubt; the finding shows this entry's own (empty) patched text.
+test("a sibling's fix below an entry's own range never clears that entry's doubt", () => {
+  const deps = new Map([['m', { versions: new Set(['8.13.7']), importers: new Set(['.']) }]]);
+  const twoEntries = (first, second) => {
+    const entry = (range, patched) => ({
+      package: { name: 'm' },
+      vulnerable_version_range: range,
+      patched_versions: patched,
+    });
+    return {
+      ...advisory('GHSA-sibl-ings-0000', 'high', 'm', ''),
+      vulnerabilities: [entry(...first), entry(...second)],
+    };
+  };
+  const sameMajor = twoEntries(['<= 8.13.6', ''], ['>=8.0.0 <8.5.0', '8.5.0']);
+  const hits = advisoryHits([sameMajor], deps, ['m'], new Set());
+  assert.deepEqual(
+    hits.map((hit) => [hit.range, hit.patched, hit.readable]),
+    [['<= 8.13.6', '', false]],
+  );
+  const otherMajor = twoEntries(['>=8.0.0 <=8.13.6', ''], ['>=7.0.0 <7.5.0', '7.5.0']);
+  assert.equal(advisoryHits([otherMajor], deps, ['m'], new Set()).length, 1);
+});

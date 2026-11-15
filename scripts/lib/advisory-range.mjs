@@ -102,11 +102,27 @@ export function inRange(version, range, patched) {
   const fixes = versionsIn(patched);
   if (fixes.length === 0) return null;
   if (pastAPatchedBound(version, fixes, boundsIn(patched))) return null;
-  if (listedPastItsFixes(version, range, fixes)) return null;
+  if (rangeOutrunsItsFixes(version, readable, fixes)) return null;
   const reading = patchReading(version, fixes);
   if (reading === 'fixed') return false;
   if (reading === 'unknown' && semver.gt(version, fixes.at(-1))) return false;
   return null;
+}
+
+/**
+ * A range that reaches the version's major with no fix on that major above all it reaches there:
+ * no fix vouches for the version (`<= 8.13.6` with a sibling entry's `8.5.0` says nothing of
+ * 8.13.7), nor does a fix an advisory's own list passes (`2.0.0, 2.2.0` patched `2.1.0`). Only
+ * the version's own major counts, so a range that spans majors (`1.8.0, 2.2.0`, patched `1.9.0`)
+ * still lets 1.9.0 vouch for 1.9.5.
+ */
+function rangeOutrunsItsFixes(version, readable, fixes) {
+  const major = semver.major(version);
+  const top = `<${major + 1}.0.0-0`;
+  if (!semver.intersects(readable, `>=${major}.0.0 ${top}`)) return false;
+  return !fixes.some(
+    (fix) => semver.major(fix) === major && !semver.intersects(readable, `>=${fix} ${top}`),
+  );
 }
 
 /** At or past a patched range's upper bound, with no fix between that bound and the version. */
@@ -115,22 +131,6 @@ function pastAPatchedBound(version, fixes, bounds) {
     (bound) =>
       semver.gte(version, bound) &&
       !fixes.some((fix) => semver.gte(fix, bound) && semver.lte(fix, version)),
-  );
-}
-
-/**
- * Bare versions that name one on the version's major above every fix on that major: the advisory
- * contradicts its own fix there (`2.0.0, 2.2.0` patched `2.1.0`), so the fix proves nothing.
- */
-function listedPastItsFixes(version, range, fixes) {
-  const tokens = String(range ?? '')
-    .split(/[\s,]+/u)
-    .filter(Boolean);
-  if (!tokens.every((token) => semver.valid(token))) return false;
-  const major = semver.major(version);
-  const line = fixes.filter((fix) => semver.major(fix) === major);
-  return tokens.some(
-    (token) => semver.major(token) === major && line.every((fix) => semver.gt(token, fix)),
   );
 }
 

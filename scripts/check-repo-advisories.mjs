@@ -213,16 +213,18 @@ export function advisoryHits(advisories, deps, names, ignored) {
       // Every entry of this advisory for this package speaks for the others' versions: Nest's and
       // vitest's list one range per major, and the fix on 3.x is what calls 3.2.6 fixed when the
       // 4.x entry is read.
-      const patched = (advisory.vulnerabilities ?? [])
+      const allPatched = (advisory.vulnerabilities ?? [])
         .filter((other) => packageNamed(other.package?.name, names) === name)
         .map((other) => String(other.patched_versions ?? '').trim())
         .filter(Boolean)
         .join(', ');
+      // A finding names this entry's own patched text, the one written beside its range.
+      const patched = vulnerability.patched_versions;
       for (const version of deps.get(name).versions) {
         // A version no range can be compared with is reported by uncheckableVersions.
         if (!semver.valid(version)) continue;
         // A package named off its npm spelling is in doubt whatever its range says (ruling 806).
-        const hit = written === name ? inRange(version, range, patched) : null;
+        const hit = written === name ? inRange(version, range, allPatched) : null;
         const key = `${advisory.ghsa_id}|${name}|${version}`;
         if (hit === false || hits.get(key)?.readable) continue;
         hits.set(key, { advisory, name, written, version, range, patched, readable: hit === true });
