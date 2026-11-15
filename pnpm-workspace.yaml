@@ -90,8 +90,8 @@ peerDependencyRules:
 # deleting a pin that is no longer needed over raising it to a new major.
 #
 # Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
-# dedupes has drifted over time (the bare minimatch pin, written for one advisory,
-# ended up forcing 9.0.9 on consumers asking 3, 5, 10 and 11; it went 2026-11-15), so
+# dedupes has drifted over time (the bare minimatch pin ended up forcing 9.0.9 on
+# consumers asking 3, 5, 10 and 11; it went 2026-11-15), so
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing. The glob pin went on 2026-11-15
 # (operator ruling 783): its one consumer, @sentry/bundler-plugins (the source-map
@@ -225,7 +225,8 @@ overrides:
   # @redocly/openapi-core.
   'brace-expansion@2': ^2.1.7
   # >=5.0.12 clears GHSA-q2hr-2g5m-vwhr, and >=5.0.11 GHSA-qhr7-859c-m2p7. Through minimatch 10
-  # (^5.0.5); minimatch 11.0.5 and later ask ^5.0.12 themselves.
+  # (10.2.6 asks ^5.0.8; 10.2.3 and 10.2.4 ask ^5.0.2); minimatch 11.0.5 and later ask ^5.0.12
+  # themselves.
   'brace-expansion@5': ^5.0.12
   # >=1.2.2 clears GHSA-68fv-2mgg-jv7q (a source map with indexed sections
   # holds the event loop). Every consumer's range (^1.2.1, or ^1.0.1 for css-tree 2
