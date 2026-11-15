@@ -329,9 +329,10 @@ export interface EdgeApp {
 
 /**
  * Builds and starts the edge app on a free local port. Through `NestFactory.create`, as main.ts
- * does, not `Test.createNestApplication`: the two order Fastify's hooks and Nest's middleware
- * differently (Nest 12.2 release notes, "the request hook … now runs before Nest and app.use()
- * middleware with NestFactory.create() too"), and a CORS preflight shows it.
+ * does, not `Test.createNestApplication`: the two order Fastify's hooks differently (Nest 12.2
+ * release notes, "the request hook … now runs before Nest and app.use() middleware with
+ * NestFactory.create() too"), and the order of the adapter's CORS hook and the request log's hook
+ * is what a CORS preflight shows.
  */
 export async function buildEdgeApp(options: EdgeAppOptions): Promise<EdgeApp> {
   const app = await NestFactory.create<NestFastifyApplication>(

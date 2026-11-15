@@ -181,6 +181,19 @@ describe('the request log, as configureHttpApp writes it', () => {
     }, 1);
     expect(logged).toEqual([expect.objectContaining({ path: '/api/v1/edge/public' })]);
   });
+
+  // A target that is not a path (`*api/v1/…`) is answered 404 by the adapter's own onRequest hook,
+  // which skips every onRequest hook after it, the request log's among them. A stated choice, as
+  // the router's refusals: Fastify's own log line records it.
+  it('case 12, twin b: a target that is not a path writes no request-log line', async () => {
+    let answer: RawAnswer | undefined;
+    const logged = await requestLogDuring(async () => {
+      answer = await rawRequest(port, 'GET', '*api/v1/edge/public');
+      await (await fetch(`${base}/api/v1/edge/public`)).text();
+    }, 1);
+    expect(answer?.status).toBe(404);
+    expect(logged).toEqual([expect.objectContaining({ path: '/api/v1/edge/public' })]);
+  });
 });
 
 /** Nest's logger for one app: keeps every line, by level. */

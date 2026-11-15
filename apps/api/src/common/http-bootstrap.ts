@@ -17,8 +17,9 @@ function cookieSecret(): string {
  * the cookie and multipart plugins, the global pipe and filter, the global prefix, CORS.
  *
  * One owner. `main.ts` calls it, and the edge tests (`http-edge*.http.test.ts`) call it on their
- * own small app, so what they pin is what production runs. The `FastifyAdapter` itself stays in
- * `main.ts`, where `trust-proxy.test.ts` reads its options.
+ * own small app, so what they pin is what production runs. The Fastify server's own options
+ * (its log line, the proxy trust) are `fastifyAdapterOptions` (`fastify-adapter-options.ts`),
+ * which `trust-proxy.test.ts` reads.
  *
  * `requestLog: false` leaves the request log out, for a test suite that is not about it and would
  * otherwise write a line to stdout for every request it sends.
@@ -33,8 +34,9 @@ export async function configureHttpApp(
   // The request log, as a Fastify hook on every request, so it writes a line for '/' and for a
   // path outside the prefix too: a Nest middleware mounts under the prefix only. Added first, so
   // no plugin registered below sits in a context that misses it. A request answered by the
-  // adapter's own earlier hooks (a CORS preflight) or refused by the router (a malformed or
-  // over-long address) never reaches it: Fastify's own log line records those.
+  // adapter's own earlier hooks (a CORS preflight; a target that is not a path, `*api/…`) or
+  // refused by the router (a malformed or over-long address) never reaches it: Fastify's own log
+  // line records those.
   if (requestLog) {
     const log = new RequestLoggingMiddleware();
     app

@@ -30,8 +30,8 @@ async function bootstrap(): Promise<void> {
     { abortOnError: false },
   );
 
-  // Cookies, uploads, the global pipe and filter, the prefix and CORS: one owner, which the
-  // edge tests run too (common/http-bootstrap.ts).
+  // The request log, cookies, uploads, the global pipe and filter, the prefix and CORS: one
+  // owner, which the edge tests run too (common/http-bootstrap.ts).
   await configureHttpApp(app, { reportException: captureApiException });
 
   // ── OpenAPI / Swagger (dev only) ─────────────────────────────────────────

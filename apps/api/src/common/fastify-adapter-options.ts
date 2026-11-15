@@ -81,15 +81,18 @@ class LogSafeLogController extends LogController {
  * The error as the log writes it. A copy: the error itself still answers the caller with the
  * address they sent.
  */
-function logSafeError(error: Error & { code?: string }): Error {
+export function logSafeError(error: Error & { code?: string }): Error {
   const tail = error?.code ? ADDRESS_REFUSALS[error.code] : undefined;
   if (!tail || !error.message.startsWith("'") || !error.message.endsWith(tail)) return error;
   const address = error.message.slice(1, error.message.length - tail.length);
   const message = `'${logSafePath(address)}${tail}`;
   const safe: Error & { code?: string; statusCode?: number } = new Error(message);
+  // Fastify's own error class, so the logged `err.type` stays `FastifyError`.
+  Object.setPrototypeOf(safe, Object.getPrototypeOf(error));
   safe.name = error.name;
   safe.code = error.code;
   safe.statusCode = (error as { statusCode?: number }).statusCode;
-  safe.stack = `${error.name}: ${message}${error.stack?.slice(error.stack.indexOf('\n')) ?? ''}`;
+  const frames = error.stack?.indexOf('\n') ?? -1;
+  safe.stack = `${error.name}: ${message}${frames === -1 ? '' : (error.stack?.slice(frames) ?? '')}`;
   return safe;
 }

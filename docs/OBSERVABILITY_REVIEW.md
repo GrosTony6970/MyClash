@@ -86,7 +86,16 @@ PII rules:
 - No address's query reaches a log: a link's token rides there (`?token=`, `?token_hash=`). The
   API request log, Fastify's own request line and Traefik's access log
   (`--accesslog.fields.queryparameters.defaultmode=drop`) write the path only, and a logged
-  `referer` header loses its query too. Search terms and filters go with it.
+  `referer` header loses its query too. Search terms and filters go with it, and the query no
+  longer counts toward a route being sensitive.
+- What still holds an address, decided (rulings 801-805): Traefik's access log keeps an event-pass
+  code that sits in a path (it can drop a whole query, not part of a path); a problem+json answer
+  echoes the caller's own address to the caller; GoTrue's own log keeps a Referer with its query
+  when it is on the redirect allow list (the Google sign-in callback's one-time PKCE code, useless
+  without the verifier the browser keeps).
+- No API request-log line, by choice (Fastify's own line records each): a CORS preflight, an
+  address the router refuses (a broken percent escape, an over-long parameter) and a target that
+  is not a path (`*api/…`).
 - Auth, upload/import/export, AI, backup/archive, and tournament query routes are treated as sensitive and omit headers entirely.
   The check reads the path as sent, as the router decodes it, and the route it matched; a path
   that cannot be decoded counts as sensitive.
