@@ -168,11 +168,6 @@ overrides:
   # dependency or peer, to this pin, so no gate saw `~8.2.4` hold astro below its own
   # floor. The rolldown worry is gone: 8.3.8 asks rolldown ~1.2.18, the line astro pins.
   'vite@8': ~8.3.8
-  # >=3.4.17 clears GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr (template expressions
-  # surviving in shadow roots; an IN_PLACE hook that removes a parent). Only mermaid asks
-  # for it: the `docs:mermaid` check, dev tooling. A tilde, as vite's: the fix is a patch.
-  # mermaid 12.3.0 asks ^3.4.17 itself, so today the pin is a ceiling only.
-  'dompurify@3': ~3.4.17
   # >=8.10.2 clears GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3 and
   # GHSA-vp8m-p9jh-q5pm. Nobody declares undici directly: jsdom (^8.9.0, test
   # tooling) and astro's unifont (^8.0.0, the web-marketing build) both allowed

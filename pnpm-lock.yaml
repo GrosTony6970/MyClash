@@ -175,7 +175,6 @@ overrides:
   browserslist@4: ^4.28.7
   nanoid@3: ^3.3.18
   vite@8: ~8.3.8
-  dompurify@3: ~3.4.17
   undici@8: ~8.12.2
   zod@4: ~4.6.6
   '@google/design.md>zod': ~4.6.6
