@@ -17,6 +17,7 @@
  */
 import { BadRequestException } from '@nestjs/common';
 import { inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
+import { PageReadFailed, readEveryRowById } from '../../common/read-every-row-by-id';
 import type { ArchiveRow } from './archive.table-spec';
 import { readOrderFor, type ArchiveTableName } from './archive.tables';
 
@@ -54,18 +55,28 @@ async function readPiece(
   piece: readonly unknown[],
 ): Promise<ArchiveRow[]> {
   const order = readOrderFor(table);
-  const byId = order.length === 1 && order[0] === 'id';
+  const filtered = () => {
+    const selected = from(table).select('*');
+    return piece.length === 1 ? selected.eq(column, piece[0]) : selected.in(column, [...piece]);
+  };
+  if (order.length === 1 && order[0] === 'id') {
+    try {
+      const { rows } = await readEveryRowById<ArchiveRow>((after) => {
+        const query = filtered().order('id');
+        return (after === undefined ? query : query.gt('id', after)).limit(READ_PAGE);
+      });
+      return rows;
+    } catch (err) {
+      // A refused read is the request's fault (400), as before; a broken page is ours (500).
+      if (err instanceof PageReadFailed) throw new BadRequestException(err.message);
+      throw err;
+    }
+  }
   const rows: ArchiveRow[] = [];
   for (;;) {
-    const selected = from(table).select('*');
-    let query =
-      piece.length === 1 ? selected.eq(column, piece[0]) : selected.in(column, [...piece]);
+    let query = filtered();
     for (const key of order) query = query.order(key);
-    const last = rows.at(-1);
-    if (byId && last) query = query.gt('id', last['id']);
-    const page = await answered(
-      byId ? query.limit(READ_PAGE) : query.range(rows.length, rows.length + READ_PAGE - 1),
-    );
+    const page = await answered(query.range(rows.length, rows.length + READ_PAGE - 1));
     if (page.length === 0) return rows;
     rows.push(...page);
   }

@@ -9,6 +9,7 @@ interface Read {
   keep: (row: ArchiveRow) => boolean;
   order: string[];
   after: unknown;
+  gtCalled: boolean;
   count: number;
   window: [number, number] | null;
 }
@@ -18,6 +19,7 @@ const newRead = (): Read => ({
   keep: () => true,
   order: [],
   after: undefined,
+  gtCalled: false,
   count: Infinity,
   window: null,
 });
@@ -58,7 +60,10 @@ function fakeDb(
         return chain;
       },
       gt: (_column, value) => {
+        // PostgREST would refuse `id=gt.undefined`: page 1 must send no cursor at all.
+        if (value === undefined || value === null) throw new Error(`gt with ${String(value)}`);
         read.after = value;
+        read.gtCalled = true;
         return chain;
       },
       order: (column) => {
@@ -104,6 +109,7 @@ describe('readArchivedRows', () => {
       'match-1-hit-1004',
     ]);
     expect(reads[0]!.order).toEqual(['id']);
+    expect(reads.map((read) => read.gtCalled)).toEqual([false, true, true]);
   });
 
   it('reads every row when the server cuts a read shorter than a page', async () => {
@@ -159,10 +165,28 @@ describe('readArchivedRows', () => {
     expect(reads).toEqual([]);
   });
 
-  it('fails the archive when a read fails', async () => {
+  it('fails the archive when a read fails, with PostgREST’s message', async () => {
     const { from } = fakeDb([], { error: { message: 'column does not exist' } });
-    await expect(readArchivedRows(from, 'exchanges', 'match_id', ['m'])).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const read = readArchivedRows(from, 'exchanges', 'match_id', ['m']);
+    await expect(read).rejects.toBeInstanceOf(BadRequestException);
+    await expect(read).rejects.toThrow('column does not exist');
+  });
+
+  it('a page that breaks the paging (a row twice) is the server’s fault, not a 400', async () => {
+    // A read that ignores its cursor answers the same row on every page.
+    const chain: ReadChain = {
+      select: () => chain,
+      eq: () => chain,
+      in: () => chain,
+      gt: () => chain,
+      order: () => chain,
+      limit: () => chain,
+      range: () => chain,
+      then: (resolve, reject) =>
+        Promise.resolve({ data: [hit(1)], error: null }).then(resolve, reject),
+    };
+    const read = readArchivedRows(() => chain, 'exchanges', 'match_id', ['match-1']);
+    await expect(read).rejects.toThrow('got the row match-1-hit-0001 twice');
+    await expect(read).rejects.not.toBeInstanceOf(BadRequestException);
   });
 });

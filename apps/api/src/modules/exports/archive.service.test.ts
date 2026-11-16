@@ -133,24 +133,24 @@ describe('ArchiveService', () => {
         { id: 'event-1', organization_id: 'org-1', slug: 'fal', name: 'FAL', status: 'draft' },
       ],
       registrations: [
-        { id: 'red-reg', tournament_id: 'tournament-1', person_id: 'red-person' },
         { id: 'blue-reg', tournament_id: 'tournament-1', person_id: 'blue-person' },
+        { id: 'red-reg', tournament_id: 'tournament-1', person_id: 'red-person' },
       ],
       phases: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }],
       persons: [
-        {
-          id: 'red-person',
-          event_id: 'event-1',
-          given_name: 'Anne',
-          family_name: 'Smith',
-          email: 'a@example.test',
-        },
         {
           id: 'blue-person',
           event_id: 'event-1',
           given_name: 'Bob',
           family_name: 'Club, Jr.',
           email: 'b@example.test',
+        },
+        {
+          id: 'red-person',
+          event_id: 'event-1',
+          given_name: 'Anne',
+          family_name: 'Smith',
+          email: 'a@example.test',
         },
       ],
       matches: [
@@ -396,9 +396,10 @@ describe('ArchiveService', () => {
       },
     ],
     // The copy of its rules the bout holds, and one it held before (0229).
+    // In key order, as the read double expects (archive.fixtures.ts): a page then starts after it.
     match_rules: [
-      { id: 'mr-now', tournament_id: 't-1', ruleset_code: 'TF_v1', digest: 'd-now' },
       { id: 'mr-before', tournament_id: 't-1', ruleset_code: 'TF_v1', digest: 'd-before' },
+      { id: 'mr-now', tournament_id: 't-1', ruleset_code: 'TF_v1', digest: 'd-now' },
     ],
     matches: [
       {
