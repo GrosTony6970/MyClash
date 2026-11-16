@@ -94,11 +94,10 @@ const EXPECTED: Record<string, string> = {
     'where t.id = registrations.tournament_id and (is_org_member(e.organization_id) ' +
     `or ${PUBLIC})));`,
   // 0204 (ruling 126): a Pool or bout assignment follows its Tournament; a piste one has none.
+  // 0272 (ruling 820): the referee's own-row branch went with the web roles' read of global_persons.
   referee_assignments_select:
     'create policy "referee_assignments_select" on referee_assignments for select using ' +
-    '(is_super_admin() or exists (select 1 from global_persons gp ' +
-    'where gp.id = referee_assignments.person_id and gp.claimed_by_user_id = auth.uid()) ' +
-    'or is_org_member(event_org_id(event_id)) or (exists (select 1 from events e ' +
+    '(is_super_admin() or is_org_member(event_org_id(event_id)) or (exists (select 1 from events e ' +
     "where e.id = referee_assignments.event_id and e.status in ('published','running','completed')) " +
     "and (referee_assignments.scope_type = 'lice' or exists (select 1 from pools p " +
     'join phases ph on ph.id = p.phase_id join tournaments t on t.id = ph.tournament_id ' +

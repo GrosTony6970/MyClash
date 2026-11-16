@@ -3181,10 +3181,11 @@ migration, 0271. Two comforts: a **daily limit** ("At most N spars a day") and a
 uuid` primary key, `global_person_id` (UNIQUE, constraint `fightbook_daily_limits_person_uk`, ON
 DELETE CASCADE), `daily_limit smallint` and `updated_at`. RLS is on and no policy. The CHECK
 `fightbook_daily_limits_range` says 1 to 20, as a `CASE … ELSE false END`. 20 matches the ask
-throttle, and 0 is FightBook off, which already exists. No row means no limit. Policy 0187 lets
-anyone read a listed fighter's profile row. A limit on that row would turn ruling 660's "an instant
-no may be automatic" into "an instant no from a fighter with no limit is a block". So the limit
-lives where only the API reads it.
+throttle, and 0 is FightBook off, which already exists. No row means no limit. Policy 0187 let
+anyone read a listed fighter's profile row, until 0272 (ruling 820) closed `global_persons` to both
+web roles. A limit on that row would have turned ruling 660's "an instant no may be automatic" into
+"an instant no from a fighter with no limit is a block". So the limit lives where only the API
+reads it, and stays a table now that the profile row is API-only too.
 
 **Where it bites (Decisions 2, 3; rulings 741, 744, 747).** Only in `fightbook_ask` (0271), and
 only on a NEW ask to her. The function counts her live Spars on the asked `spar_day`, as asker or
