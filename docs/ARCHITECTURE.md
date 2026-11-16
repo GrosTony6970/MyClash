@@ -359,12 +359,17 @@ What is **not** derivable from the DDL, and so belongs here:
   `authenticated` holds INSERT, UPDATE or DELETE on any relation of `public`, no policy lets them
   write, and the default privileges give a new table no web write either (RLS probe check 20).
   A signed-in reader reads through the API too: since `0273` `authenticated` holds no SELECT on
-  any relation of `public`, now or on a new table, and no policy serves it alone (check 22). The
-  seven RLS helpers still loop for a signed-in reader (the loop once filed as ruling 228), but no
-  table read reaches them: one signed-in socket on the live channel used to stop every viewer's
-  updates, since Realtime checks all subscribers in one shared poll. Web read grants go to `anon`
-  only; `0002`'s promise "authenticated → scoped by org membership" is history. Fighter profiles
-  (`global_persons`) are API-only for both web roles since `0272` (check 21).
+  any relation of `public`, now or on a new table, and no policy serves it alone (check 22). No
+  table read as a signed-in user reaches the RLS helpers (the loop once filed as ruling 228): one
+  signed-in socket on the live channel used to stop every viewer's updates, since Realtime checks
+  all subscribers in one shared poll. Since `0274` every rule is a read rule that a role able to
+  run it can pass (check 23): the 36 rules no reader could pass are gone, four of the five helper
+  loops with them. Web read grants go to `anon` only; `0002`'s promise "authenticated → scoped by
+  org membership" is history. Fighter profiles (`global_persons`) are API-only for both web roles
+  since `0272` (check 21). **Functions too** (`0275`, check 24): `anon` runs only the helpers its
+  read rules need, `authenticated` and PUBLIC run nothing in `public`, and a new function or
+  sequence starts closed (PUBLIC's default stays only in `realtime`, for Realtime's own
+  functions). A read rule that calls a NEW helper grants it to `anon` by name.
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
@@ -3479,7 +3484,7 @@ This is intentional — preventing self-registration is what makes guest session
 - Guest session JWTs are signed with a separate secret from Supabase auth (`MYCLASH_GUEST_JWT_SECRET`) to keep them strictly bounded — they never grant access to anything beyond their Person.
 - All admin actions (organizer/super) require **Supabase claimed accounts** with the appropriate `OrganizationMembership` row. Guest sessions cannot administer anything, ever.
 - Email masking: show first character + asterisks + domain first character + `***` + TLD. `jean.dupont@gmail.com` → `j***@g***.com`.
-- RLS policies key off `auth.uid()` for claimed actions and a JWT claim `mc_guest_person_id` for guest actions.
+- Guest actions go through the API, which checks the guest session itself; no RLS policy reads a guest claim (and since `0273` no signed-in reader reads through RLS at all).
 
 ### 12.5bis Authorization on the write path — where the boundary actually is
 

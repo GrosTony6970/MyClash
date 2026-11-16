@@ -81,6 +81,20 @@ here.
   comments is history. A probe that reads as `authenticated` now gets 42501 on the missing SELECT,
   whatever else it meant to test: read write grants off the catalogue (check 5), and make a refusal
   name what it refuses (check 11: "permission denied for function").
+- **A new function starts closed, and that reaches further than `public`** (0275). PUBLIC's EXECUTE
+  on a new function is Postgres's global default, so 0275 removes it globally for `postgres` and
+  `supabase_admin`. A read rule that calls a NEW helper must `grant execute … to anon` (or every
+  anonymous read of its table fails: probe checks 1 and 24). A function made outside `public` gets
+  only its schema's own defaults: grant `service_role` by name. Software that makes its own
+  functions after the migrations is hit too: on a fresh deploy six of Realtime's functions started
+  closed to visitors until 0275 kept PUBLIC's default in `realtime` (ruling 838). Measure such a
+  change on a fresh volume in the deploy's order, not on a database that already ran it.
+- **A function in `public` keeps `service_role`'s EXECUTE** (check 24): the old "migration-only
+  function granted to no role" pattern (0229) needs a ruling now.
+- **A text rule over SQL reads statements, in order.** db:review's definer rule once matched
+  `REVOKE … FROM …;` across statement ends, so a table revoke followed by a grant to anon read as
+  closed; it now splits the corpus on `;` outside quotes and replays each function's grants in
+  order (`scripts/lib/definer-rule.mjs`).
 
 ## Offline & realtime
 

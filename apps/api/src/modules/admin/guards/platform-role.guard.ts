@@ -121,11 +121,12 @@ export class PlatformRoleGuard implements CanActivate {
    * The tier the caller holds, or null.
    *
    * The `app_metadata.role` fallback is preserved from SuperAdminGuard, and
-   * only ever yields `super_admin`: SQL `is_super_admin()` honours the very
-   * same JWT claim (0002_rls.sql), and `scripts/bootstrap-super-admin.mjs`
-   * relies on it to create the first account. Dropping it would make the API
-   * stricter than the RLS it is supposed to mirror. There is no claim for the
-   * lower tiers and there should not be — they exist only as table rows.
+   * only ever yields `super_admin`. It is not what SQL `is_super_admin()` reads
+   * (the top-level `role` claim, which a signed-in token never sets to
+   * `super_admin`; and since 0273 no signed-in reader reaches a policy), and
+   * `scripts/bootstrap-super-admin.mjs` writes a `platform_roles` row rather
+   * than a claim. There is no claim for the lower tiers and there should not
+   * be — they exist only as table rows.
    *
    * While the auth server is silent the claim is the login's own, signed at
    * most an hour ago (ruling 346). A stored row still decides first.

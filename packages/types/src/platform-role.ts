@@ -35,10 +35,9 @@
  *
  * SQL `is_super_admin()` is unchanged and still means exactly `super_admin`.
  * Every `platform_admin` capability is exercised through the API's service-role
- * connection, so a `platform_admin` holding a raw `authenticated` JWT gains
- * nothing at the Postgres level beyond reading their own `platform_roles` row.
- * Widening `is_super_admin()` would grant writes across ~80 policies — never do
- * it to accommodate a new tier.
+ * connection, and a raw `authenticated` JWT reads nothing in `public` since
+ * 0273 (no web role writes since 0247). Widening `is_super_admin()` would widen
+ * every read rule that calls it — never do it to accommodate a new tier.
  *
  * The module is pure — no I/O, no React, no Node-only APIs — so the NestJS API
  * and all three Next apps share one definition.
