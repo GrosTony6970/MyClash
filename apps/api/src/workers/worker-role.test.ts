@@ -54,6 +54,8 @@ describe('startWorker', () => {
 
   it('starts the jobs, then serves /health alone on 127.0.0.1', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    // The real graceful stop would add its stop-recording listeners to the test process.
+    const once = vi.spyOn(process, 'once').mockImplementation(() => process);
     const jobs = fakeJobs();
     started = await startWorker(() => Promise.resolve(jobs.context), 0);
 
@@ -63,6 +65,7 @@ describe('startWorker', () => {
     expect(jobs.enableShutdownHooks).toHaveBeenCalledWith(['SIGTERM', 'SIGINT'], {
       useProcessExit: true,
     });
+    expect(once.mock.calls.map(([signal]) => signal)).toEqual(['SIGTERM', 'SIGINT']);
     const address = started.health.getHttpServer().address() as { address: string; port: number };
     expect(address.address).toBe('127.0.0.1');
     const base = `http://127.0.0.1:${address.port}`;

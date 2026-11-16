@@ -44,6 +44,9 @@ interface AlertState {
 // photoStorage's 'not_configured' is in neither alert tier, so an unset bucket stays quiet.
 const METRIC_KEYS = ['database', 'redis', 'queues', 'disk', 'photoStorage'] as const;
 
+/** A tick that checks nothing: alerts off, or the worker stopping. */
+const notRun = () => ({ ran: false, emailed: false, criticalKeys: [] as string[] });
+
 @Processor(RUNTIME_HEALTH_MONITOR_QUEUE)
 @Injectable()
 export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleInit {
@@ -55,6 +58,12 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     private readonly settingsService: RuntimeHealthAlertSettingsService,
     private readonly samples: RuntimeHealthSamplesService,
     private readonly mail: MailService,
+    /**
+     * graceful-stop's `isStopping`. A stopping worker closes its idle consumers first: the queue
+     * tile would read 0 and alarm on every deploy (ruling 830). `tick` asks before its read and
+     * again after it, since the read can outlast the signal.
+     */
+    private readonly isStopping: () => boolean,
     @Optional() private readonly redis?: Redis,
   ) {
     super();
@@ -75,8 +84,7 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   /** Public for tests. Returns whether a full check ran + whether an email was sent. */
   async tick(now: number): Promise<{ ran: boolean; emailed: boolean; criticalKeys: string[] }> {
     const settings = await this.settingsService.getSettings();
-    if (!settings.enabled) return { ran: false, emailed: false, criticalKeys: [] };
-
+    if (!settings.enabled || this.isStopping()) return notRun();
     const { state, ok: stateOk } = await this.readState();
     // Throttle full checks to checkIntervalMinutes ONLY while quiet (no active
     // alert). Once something is flagged, re-check on every fixed 5-min tick
@@ -88,6 +96,7 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     }
 
     const snapshot = await this.runtimeHealth.collect();
+    if (this.isStopping()) return notRun();
 
     // Retain the tick before anything that can short-circuit, so the trend keeps
     // its densest data exactly when things are going wrong.

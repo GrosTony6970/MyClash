@@ -1,12 +1,15 @@
 // runtime-health-monitor.worker.test.ts
 import { describe, it, expect, vi } from 'vitest';
+import { isStopping } from '../common/graceful-stop';
 import { RuntimeHealthMonitorWorker } from './runtime-health-monitor.worker';
+import { WorkersModule } from './workers.module';
 import { DEFAULT_ALERT_SETTINGS } from '../modules/admin/dto/runtime-health.dto';
 
 function makeDeps(opts: {
   settings?: Partial<typeof DEFAULT_ALERT_SETTINGS>;
   snapshot: Record<string, { status: string }>;
   state?: Record<string, unknown> | null;
+  stopping?: () => boolean;
 }) {
   const store = new Map<string, string>();
   if (opts.state) store.set('runtime-health:alert-state', JSON.stringify(opts.state));
@@ -17,9 +20,10 @@ function makeDeps(opts: {
   };
   const mail = { sendNotification: vi.fn(async () => undefined) };
   const samples = { record: vi.fn(async () => true), prune: vi.fn(async () => 0) };
+  const collect = vi.fn(async () => ({ checkedAt: 'now', overall: 'healthy', ...opts.snapshot }));
   const worker = new RuntimeHealthMonitorWorker(
     { add: async () => undefined } as never, // queue (onModuleInit not exercised here)
-    { collect: async () => ({ checkedAt: 'now', overall: 'healthy', ...opts.snapshot }) } as never,
+    { collect } as never,
     {
       getSettings: async () => ({
         ...DEFAULT_ALERT_SETTINGS,
@@ -29,9 +33,10 @@ function makeDeps(opts: {
     } as never,
     samples as never,
     mail as never,
+    opts.stopping ?? (() => false),
     redis as never,
   );
-  return { worker, mail, store, samples };
+  return { worker, mail, store, samples, collect };
 }
 
 const healthy = {
@@ -147,6 +152,7 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
       } as never,
       { record: async () => true, prune: async () => 0 } as never,
       mail as never,
+      () => false,
       redis as never,
     );
     const result = await worker.tick(Date.now());
@@ -180,5 +186,49 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
     samples.record.mockRejectedValueOnce(new Error('insert failed'));
     await expect(worker.tick(Date.now())).resolves.toMatchObject({ emailed: true });
     expect(mail.sendNotification).toHaveBeenCalledOnce();
+  });
+});
+
+describe('a stopping worker sends no queue alarm (ruling 830)', () => {
+  const queuesCritical = { ...healthy, queues: { status: 'critical' } };
+
+  it.each(['critical', 'warning'] as const)(
+    'does not collect, record, email or store anything once stopping (email level %s)',
+    async (emailLevel) => {
+      const { worker, mail, store, samples, collect } = makeDeps({
+        snapshot: queuesCritical,
+        settings: { emailLevel },
+        stopping: () => true,
+      });
+      await expect(worker.tick(Date.now())).resolves.toMatchObject({ ran: false, emailed: false });
+      expect(collect).not.toHaveBeenCalled();
+      expect(samples.record).not.toHaveBeenCalled();
+      expect(mail.sendNotification).not.toHaveBeenCalled();
+      expect(store.size).toBe(0);
+    },
+  );
+
+  it('a stop that lands while the read runs: nothing recorded, emailed or stored', async () => {
+    let stopping = false;
+    const deps = makeDeps({ snapshot: queuesCritical, stopping: () => stopping });
+    deps.collect.mockImplementationOnce(async () => {
+      stopping = true; // the drain closed the idle consumers while the queues were read
+      return { checkedAt: 'now', overall: 'critical', ...queuesCritical };
+    });
+    await expect(deps.worker.tick(Date.now())).resolves.toMatchObject({ ran: false });
+    expect(deps.samples.record).not.toHaveBeenCalled();
+    expect(deps.mail.sendNotification).not.toHaveBeenCalled();
+    expect(deps.store.size).toBe(0);
+  });
+
+  it('the worker module gives the monitor the process stop state', () => {
+    const providers = Reflect.getMetadata('providers', WorkersModule) as Array<{
+      provide?: unknown;
+      useFactory?: (...args: unknown[]) => RuntimeHealthMonitorWorker;
+    }>;
+    const factory = providers.find((p) => p.provide === RuntimeHealthMonitorWorker)?.useFactory;
+    const config = { get: (_key: string, fallback?: unknown) => fallback };
+    const worker = factory?.({}, {}, {}, {}, {}, config);
+    expect((worker as unknown as { isStopping: unknown }).isStopping).toBe(isStopping);
   });
 });

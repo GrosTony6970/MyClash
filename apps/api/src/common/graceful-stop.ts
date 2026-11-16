@@ -15,9 +15,24 @@ export const STOP_SIGNALS = ['SIGTERM', 'SIGINT'] as const;
  * `useProcessExit`: after its shutdown Nest otherwise sends the signal to itself again, which PID 1
  * ignores too, and the process would wait for every socket to close. One owner per process: two
  * listeners would each exit when their own (shorter) shutdown ends, killing the job in flight.
+ *
+ * It also records that the stop began (`isStopping`): a stopping worker closes its idle queue
+ * consumers first, and its health monitor must not read that as a dead worker (ruling 830). The
+ * listener only records; the exit stays Nest's. It is added here, never when the file is
+ * imported: an import must not change how any process, a test runner included, answers SIGTERM.
+ * `signals` is a seam for tests, which emit on a fake.
  */
 export function enableGracefulStop(
   app: Pick<INestApplicationContext, 'enableShutdownHooks'>,
+  signals: Pick<NodeJS.EventEmitter, 'once'> = process,
 ): void {
+  for (const signal of STOP_SIGNALS) signals.once(signal, () => (stopping = true));
   app.enableShutdownHooks([...STOP_SIGNALS], { useProcessExit: true });
+}
+
+let stopping = false;
+
+/** Whether this process got a stop signal: its consumers are closing, on purpose. */
+export function isStopping(): boolean {
+  return stopping;
 }

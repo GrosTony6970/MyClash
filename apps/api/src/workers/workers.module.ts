@@ -35,6 +35,7 @@ import {
   RuntimeHealthMonitorWorker,
 } from './runtime-health-monitor.worker';
 import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor.worker';
+import { isStopping } from '../common/graceful-stop';
 
 @Module({
   imports: [
@@ -143,9 +144,9 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     photoStoreProvider,
     {
       provide: RuntimeHealthMonitorWorker,
-      // useFactory because the worker's 5th constructor param is a raw ioredis
-      // connection (not a Nest-tokened provider) — a plain provider would fail
-      // DI on that param. Mirrors AdminSystemActionsService's factory pattern.
+      // useFactory because two constructor params have no Nest token: the process's
+      // isStopping (graceful-stop) and a raw ioredis connection — a plain provider
+      // would fail DI on them. Mirrors AdminSystemActionsService's factory pattern.
       useFactory: (
         queue: Queue,
         runtimeHealth: AdminRuntimeHealthService,
@@ -160,6 +161,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
           settings,
           samples,
           mail,
+          isStopping,
           createRuntimeHealthRedis(config),
         ),
       inject: [
