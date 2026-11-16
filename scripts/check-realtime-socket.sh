@@ -8,8 +8,11 @@
 #   - the container turns healthy (its healthcheck is /api/ping as the tenant: the tenant exists;
 #     the image's own seed is off);
 #   - the management API refuses the anon and the service key (403): its secret is its own;
-#   - an anon socket joins with postgres_changes and receives an INSERT made through PostgREST;
-#   - a garbage token is refused at the upgrade (401).
+#   - an anon socket joins with postgres_changes and receives an INSERT made through PostgREST, on
+#     a table whose read rule calls an RLS helper (ruling 836): Realtime checks each change as the
+#     subscriber, so anon must still run the helpers the read rules call (0275, ruling 826);
+#   - a garbage token is refused at the upgrade (401);
+#   - anon may run every function Realtime made in its schema at boot (ruling 838).
 # The socket is opened on a host name whose first label is the tenant (`app.ci`), so the Host
 # it sends is the one the edge forwards in prod. The HTTP half is
 # scripts/realtime-socket-probe.mjs, run inside the api image like check-service-db-users.mjs.
@@ -58,11 +61,14 @@ else
   fail_now "Realtime is '$health' after ${SECONDS} s; start script said: ${written:-nothing}"
 fi
 
-# A table of this run only, in the publication Realtime reads (migration 0004), readable by anon,
-# written by the service role through PostgREST. The db image's DDL event trigger already makes
-# PostgREST reload its schema cache; the notify asks for it anyway, and the probe retries its
-# INSERT until the change arrives.
+# A table of this run only, in the publication Realtime reads (migration 0004), readable by anon
+# through a read rule that calls is_super_admin() as the live tables' rules do (anon may run it
+# since 0275 only because a read rule needs it), written by the service role through PostgREST.
+# The db image's DDL event trigger already makes PostgREST reload its schema cache; the notify
+# asks for it anyway, and the probe retries its INSERT until the change arrives.
 sql "create table public.ci_realtime_probe (id bigint generated always as identity primary key, v text);
+alter table public.ci_realtime_probe enable row level security;
+create policy ci_realtime_probe_read on public.ci_realtime_probe for select using (is_super_admin() or v is not null);
 grant select on public.ci_realtime_probe to anon;
 grant select, insert on public.ci_realtime_probe to service_role;
 alter publication supabase_realtime add table public.ci_realtime_probe;
@@ -77,6 +83,16 @@ rt_ip=$(docker inspect -f '{{(index .NetworkSettings.Networks "myclash").IPAddre
 if ! docker run --rm --network myclash --add-host "app.ci:$rt_ip" -v "$PWD/scripts:/check:ro" \
   -e SUPABASE_JWT_SECRET "$api_image" node /check/realtime-socket-probe.mjs; then
   red "the socket checks"
+fi
+
+# Ruling 838: Realtime made its own functions after the migrations, under 0275's defaults; the
+# `realtime` default keeps them runnable by PUBLIC (broadcast, private channels), as Supabase
+# ships them.
+closed=$(sql "select count(*) filter (where not has_function_privilege('anon', p.oid, 'EXECUTE')) || ' of ' || count(*) from pg_proc p where p.pronamespace = 'realtime'::regnamespace") || closed="unreadable"
+if [[ "$closed" == "0 of "* && "$closed" != "0 of 0" ]]; then
+  ok "anon may run every function Realtime made: ${closed#0 of }"
+else
+  red "functions Realtime made that anon may not run: $closed"
 fi
 
 if [[ "$failed" -eq 0 ]]; then

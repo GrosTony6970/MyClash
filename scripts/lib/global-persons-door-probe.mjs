@@ -5,8 +5,9 @@
  * `global_persons_select` (0187) chose which rows the public saw and hid no column: a listed
  * fighter's email and date of birth went to anyone holding the anon key. Now neither web role may
  * read any column of `global_persons`, no policy is left on it, and `lookup_global_persons` (which
- * reads it) is closed to both and to PUBLIC, but answers the service role: the API's fuzzy
- * directory search calls it, and falls back to a plain match in silence on any error.
+ * reads it), every overload of it, is closed to both and to PUBLIC, but answers the service role:
+ * the API's fuzzy directory search calls it, and falls back to a plain match in silence on any
+ * error.
  *
  * The read is tried on a fighter who is claimed and listed in the directory, the one row 0187
  * showed the public, with an address and a date of birth: an empty table would prove nothing about
@@ -14,7 +15,6 @@
  */
 
 const WEB_ROLES = ['anon', 'authenticated'];
-const LOOKUP = 'public.lookup_global_persons(text, integer, double precision)';
 
 /** The seed's bystander (rls-probe-seed.sql): an account that claims no profile there. */
 const BYSTANDER = '44444444-4444-4444-8444-444444444444';
@@ -27,14 +27,22 @@ const ROLLBACK = new Error('rollback');
 async function privilegeFailures(tx) {
   const failures = [];
   for (const role of WEB_ROLES) {
-    const [{ reads, calls }] = await tx`
-      SELECT has_any_column_privilege(${role}, 'public.global_persons'::regclass, 'SELECT') AS reads,
-             has_function_privilege(${role}, ${LOOKUP}::regprocedure, 'EXECUTE') AS calls`;
+    const [{ reads }] = await tx`
+      SELECT has_any_column_privilege(${role}, 'public.global_persons'::regclass, 'SELECT') AS reads`;
     if (reads)
       failures.push(`${role} may read global_persons: only the API reads fighter profiles`);
-    if (calls)
-      failures.push(`${role} may call lookup_global_persons: it reads fighter profiles for them`);
   }
+  // Every overload, not only the API's: a second one would start with whatever grants it is given
+  // (0275, ruling 826). PUBLIC counts too: every role is a member of it.
+  const lookups = await tx`
+    SELECT p.oid::regprocedure::text AS fn, r.who,
+           has_function_privilege(r.who, p.oid, 'EXECUTE') AS calls
+    FROM pg_proc p CROSS JOIN unnest(${[...WEB_ROLES, 'public']}::text[]) AS r(who)
+    WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'lookup_global_persons'
+    ORDER BY 1, 2`;
+  if (lookups.length === 0) failures.push('lookup_global_persons is gone: the API calls it');
+  for (const { fn, who, calls } of lookups)
+    if (calls) failures.push(`${who} may call ${fn}: it reads fighter profiles for them`);
   const policies = await tx`
     SELECT policyname FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'global_persons' ORDER BY policyname`;

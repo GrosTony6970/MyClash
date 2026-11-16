@@ -9,6 +9,7 @@ import { fighterStatusFailures } from './fighter-status-probe.mjs';
 import { fightersStatusUnderFailures } from './fighters-status-under-probe.mjs';
 import { forfeitDrawFailures } from './forfeit-draw-probe.mjs';
 import { forfeitRulesFailures } from './forfeit-rules-probe.mjs';
+import { functionDoorFailures } from './function-door-probe.mjs';
 import { globalPersonsDoorFailures } from './global-persons-door-probe.mjs';
 import { matchRulesFailures } from './match-rules-probe.mjs';
 import { programmeWritesFailures } from './programme-writes-probe.mjs';
@@ -43,5 +44,6 @@ export async function laterCheckFailures(tx) {
     ...(await globalPersonsDoorFailures(tx)),
     ...(await signedInReadsFailures(tx)),
     ...(await deadPolicyFailures(tx)),
+    ...(await functionDoorFailures(tx)),
   ];
 }
