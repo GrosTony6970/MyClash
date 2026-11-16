@@ -67,6 +67,20 @@ here.
   of those tables and then ALTERs one runs `SET CONSTRAINTS ALL IMMEDIATE` first (55006 "pending
   trigger events"); and a delete of rows inserted by the SAME transaction is re-checked on every
   update the cascade makes, so test a delete on committed rows.
+- **An error that hid a branch was a guard; ending the error wakes the branch.** 0201 ended the
+  anonymous RLS helper loop, which had failed every anonymous read in prod, and so woke 0187's
+  directory branch: a listed fighter's email and date of birth went to anyone (0272 closed it).
+  Before ending an error, list what it was stopping, and decide each one.
+- **A policy subquery needs SELECT on the table it names, checked when the query starts**, even on
+  an empty table and whatever the `OR` order (measured on Postgres 17). Revoking a web role's read
+  of table B fails every read of table A whose policy names B with 42501: take the branch out of
+  A's policy in the same migration (0272), and let the anon probe's check 1 guard it.
+- **Web read grants go to `anon` only.** `authenticated` holds no SELECT in `public` since 0273: a
+  signed-in read loops in the RLS helpers, and on the live channel one such subscriber stopped every
+  viewer's updates (one shared poll). The "to anon, authenticated" in 0205's and 0260's TRAP
+  comments is history. A probe that reads as `authenticated` now gets 42501 on the missing SELECT,
+  whatever else it meant to test: read write grants off the catalogue (check 5), and make a refusal
+  name what it refuses (check 11: "permission denied for function").
 
 ## Offline & realtime
 

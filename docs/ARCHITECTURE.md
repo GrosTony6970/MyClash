@@ -351,13 +351,20 @@ What is **not** derivable from the DDL, and so belongs here:
   carries `bracket_slot_id`. `phase_id` has no FK constraint, only the `NOT NULL`.
 - **The ruleset is a pin, not a join.** `tournaments` stores `ruleset_code` + `ruleset_version`
   as a pointer resolved at read time. Consequences in §7bis.
-- **RLS is the read boundary; privilege is the write boundary.** Without RLS a table is
-  world-readable — PostgREST exposes `public` as `anon`; with RLS and no policy, nobody reads it
+- **RLS is the anonymous read boundary; privilege is every other boundary.** Without RLS a table
+  is world-readable — PostgREST exposes `public` as `anon`; with RLS and no policy, nobody reads it
   through PostgREST. Views and functions bypass RLS: an
   unpinned view runs as its `BYPASSRLS` owner, so a view over a policed table is still a hole.
   Only the API writes, as the service role: since migration `0247` neither `anon` nor
   `authenticated` holds INSERT, UPDATE or DELETE on any relation of `public`, no policy lets them
   write, and the default privileges give a new table no web write either (RLS probe check 20).
+  A signed-in reader reads through the API too: since `0273` `authenticated` holds no SELECT on
+  any relation of `public`, now or on a new table, and no policy serves it alone (check 22). The
+  seven RLS helpers still loop for a signed-in reader (the loop once filed as ruling 228), but no
+  table read reaches them: one signed-in socket on the live channel used to stop every viewer's
+  updates, since Realtime checks all subscribers in one shared poll. Web read grants go to `anon`
+  only; `0002`'s promise "authenticated → scoped by org membership" is history. Fighter profiles
+  (`global_persons`) are API-only for both web roles since `0272` (check 21).
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
@@ -944,8 +951,9 @@ rules are never rolled back.
 → to, the settings before and after, the list of changes, the per-bucket diff, whether ranking
 stayed compatible, the reason, and the materialised placings before and after. The database call
 writes it once; its `placings_after` is filled once after, best effort (NULL when that fill
-failed). Only the API writes it (migration `0227`: SELECT policies only, no INSERT, UPDATE or
-DELETE for `anon` or `authenticated`), so the record has one writer. The Tournament's public page
+failed). Only the API writes it (migration `0227`: no INSERT, UPDATE or DELETE for `anon` or
+`authenticated`), so the record has one writer; since `0273` it has no policy and only the API
+reads it too. The Tournament's public page
 lists every change, newest first: its kind, the rules before and after, the date, the change lines
 (no lamps, no ranking sentence) and the reason. A club formula's values are never shown, and no
 Fighter is named (rulings 41, 42, 145).
@@ -1240,7 +1248,7 @@ still see a draft season's standings.
 
 ### 9.2 Mechanism
 
-- **Read-side**: clients subscribe via Supabase Realtime. Postgres `LISTEN/NOTIFY` on row changes (`exchanges`, `matches`, `match_events`) is bridged to clients with sub-second latency. RLS policies filter what each user sees.
+- **Read-side**: clients subscribe via Supabase Realtime. Postgres `LISTEN/NOTIFY` on row changes (`exchanges`, `matches`, `match_events`) is bridged to clients with sub-second latency. RLS policies filter what each anonymous subscriber sees; the apps' live clients are anonymous, and a signed-in token's subscription answers "Error 401: Unauthorized" for itself since `0273` (it once froze every viewer's updates, ruling 822).
 - **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent. Only the API writes a Match and what is recorded on it (`matches`, `exchanges`, `match_events`, `match_penalties`, `match_forfeits`) and deletes a phase or a Registration (migration `0238`: no write policy and no write grant for anon or authenticated on the five, no DELETE grant on `phases` and `registrations`).
 
 ```mermaid
