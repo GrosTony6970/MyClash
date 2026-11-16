@@ -18,6 +18,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { AIDataQualityService } from '../modules/admin/ai-data-quality.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
@@ -51,7 +52,7 @@ export class DataQualityDeterministicWorker
     // replacement for what was `queue.add(..., { repeat, jobId })`.)
     await this.queue.upsertJobScheduler(
       'data-quality-deterministic-daily',
-      { pattern: '0 4 * * *' }, // 04:00 UTC every day
+      utcCron('0 4 * * *'), // 04:00 UTC every day
       { name: DATA_QUALITY_DETERMINISTIC_JOB, data: {} },
     );
     this.logger.log('Data quality deterministic scan scheduled (04:00 UTC)');

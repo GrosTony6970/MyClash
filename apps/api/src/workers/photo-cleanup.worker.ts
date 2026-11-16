@@ -20,6 +20,7 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { PHOTO_STORE, type PhotoStore } from '../modules/photos/photo-bucket';
 import { PhotoCleanup } from '../modules/photos/photo-cleanup';
 import { SupabaseService } from '../modules/supabase/supabase.service';
@@ -47,16 +48,14 @@ export class PhotoCleanupWorker extends SentryReportingWorkerHost implements OnM
 
   async onModuleInit(): Promise<void> {
     // Upserted by scheduler id: safe on every boot of either container.
-    await this.queue.upsertJobScheduler(
-      'photo-cleanup-tick',
-      { pattern: '*/5 * * * *' },
-      { name: PHOTO_CLEANUP_TICK, data: {} },
-    );
-    await this.queue.upsertJobScheduler(
-      'photo-orphan-sweep',
-      { pattern: '50 * * * *' },
-      { name: PHOTO_ORPHAN_SWEEP, data: {} },
-    );
+    await this.queue.upsertJobScheduler('photo-cleanup-tick', utcCron('*/5 * * * *'), {
+      name: PHOTO_CLEANUP_TICK,
+      data: {},
+    });
+    await this.queue.upsertJobScheduler('photo-orphan-sweep', utcCron('50 * * * *'), {
+      name: PHOTO_ORPHAN_SWEEP,
+      data: {},
+    });
     this.logger.log(
       'Photo clean-up scheduled (expiry + drain every 5 minutes, orphan sweep hourly)',
     );

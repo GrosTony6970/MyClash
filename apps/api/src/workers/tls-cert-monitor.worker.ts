@@ -25,6 +25,7 @@ import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { AdminTlsStatusService } from '../modules/admin/tls-status.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import type { TlsCertStatusDto } from '../modules/admin/dto/tls-status.dto';
@@ -49,11 +50,10 @@ export class TlsCertMonitorWorker extends SentryReportingWorkerHost implements O
 
   async onModuleInit(): Promise<void> {
     // Job schedulers are upserted by scheduler id — safe to call on every boot.
-    await this.queue.upsertJobScheduler(
-      'tls-cert-monitor-daily',
-      { pattern: '17 6 * * *' },
-      { name: TLS_CERT_MONITOR_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('tls-cert-monitor-daily', utcCron('17 6 * * *'), {
+      name: TLS_CERT_MONITOR_JOB,
+      data: {},
+    });
     this.logger.log('TLS certificate monitor scheduled (daily, 06:17 UTC)');
   }
 

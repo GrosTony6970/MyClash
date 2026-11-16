@@ -31,8 +31,8 @@ describe('PhotoCleanupWorker', () => {
     const { worker, queue } = makeWorker();
     await worker.onModuleInit();
     expect(queue.upsertJobScheduler.mock.calls).toEqual([
-      ['photo-cleanup-tick', { pattern: '*/5 * * * *' }, { name: 'tick', data: {} }],
-      ['photo-orphan-sweep', { pattern: '50 * * * *' }, { name: 'orphans', data: {} }],
+      ['photo-cleanup-tick', { pattern: '*/5 * * * *', tz: 'UTC' }, { name: 'tick', data: {} }],
+      ['photo-orphan-sweep', { pattern: '50 * * * *', tz: 'UTC' }, { name: 'orphans', data: {} }],
     ]);
   });
 

@@ -16,6 +16,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
@@ -38,11 +39,10 @@ export class SparRequestExpiryWorker extends SentryReportingWorkerHost implement
 
   async onModuleInit(): Promise<void> {
     // Upserted by scheduler id: safe on every boot of either container.
-    await this.queue.upsertJobScheduler(
-      'spar-request-expiry-hourly',
-      { pattern: '35 * * * *' },
-      { name: SPAR_REQUEST_EXPIRY_SWEEP, data: {} },
-    );
+    await this.queue.upsertJobScheduler('spar-request-expiry-hourly', utcCron('35 * * * *'), {
+      name: SPAR_REQUEST_EXPIRY_SWEEP,
+      data: {},
+    });
     this.logger.log('Spar request expiry scheduled (hourly, :35 UTC)');
   }
 

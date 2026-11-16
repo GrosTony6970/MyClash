@@ -20,6 +20,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { AdminFeatureFlagsService } from '../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
@@ -65,14 +66,12 @@ export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   async onModuleInit(): Promise<void> {
-    // Schedule the daily cron job if it doesn't already exist.
+    // An upsert overwrites the stored scheduler, so a changed pattern or tz moves its next run.
     // Job schedulers are upserted by scheduler id — safe to call on every start.
-    await this.queue.upsertJobScheduler(
-      'hema-ratings-daily-sync',
-      // Daily at 03:30 UTC
-      { pattern: '30 3 * * *' },
-      { name: HEMA_RATINGS_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('hema-ratings-daily-sync', utcCron('30 3 * * *'), {
+      name: HEMA_RATINGS_JOB,
+      data: {},
+    });
     this.logger.log('HEMA Ratings daily sync job scheduled (03:30 UTC)');
   }
 

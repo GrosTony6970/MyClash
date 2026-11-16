@@ -49,7 +49,7 @@ describe('SparRequestExpiryWorker', () => {
     expect(SPAR_REQUEST_EXPIRY_QUEUE).toBe('spar-request-expiry');
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       'spar-request-expiry-hourly',
-      { pattern: '35 * * * *' },
+      { pattern: '35 * * * *', tz: 'UTC' },
       { name: SPAR_REQUEST_EXPIRY_SWEEP, data: {} },
     );
   });

@@ -21,6 +21,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { RetentionService } from '../modules/privacy/retention.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
@@ -41,11 +42,10 @@ export class DataRetentionWorker extends SentryReportingWorkerHost implements On
 
   async onModuleInit(): Promise<void> {
     // Job schedulers are upserted by scheduler id — safe to call on every boot.
-    await this.queue.upsertJobScheduler(
-      'data-retention-daily',
-      { pattern: '0 5 * * *' },
-      { name: DATA_RETENTION_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('data-retention-daily', utcCron('0 5 * * *'), {
+      name: DATA_RETENTION_JOB,
+      data: {},
+    });
     this.logger.log('Data retention sweep scheduled (daily, 05:00 UTC)');
   }
 

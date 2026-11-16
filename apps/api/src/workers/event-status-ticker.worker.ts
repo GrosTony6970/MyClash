@@ -34,6 +34,7 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { addDays } from '@myclash/time';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
@@ -84,11 +85,10 @@ export class EventStatusTickerWorker extends SentryReportingWorkerHost implement
 
   async onModuleInit(): Promise<void> {
     // Job schedulers are upserted by scheduler id — safe to call on every boot.
-    await this.queue.upsertJobScheduler(
-      'event-status-tick-hourly',
-      { pattern: '5 * * * *' },
-      { name: EVENT_STATUS_TICK_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('event-status-tick-hourly', utcCron('5 * * * *'), {
+      name: EVENT_STATUS_TICK_JOB,
+      data: {},
+    });
     this.logger.log('Event status ticker scheduled (hourly, :05 UTC)');
   }
 

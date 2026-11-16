@@ -23,6 +23,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { insertAuditLog } from '../common/audit-log';
 import { photoArchiveHold } from '../modules/photos/photo-window';
@@ -46,11 +47,10 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
   }
 
   async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'event-archive-hourly',
-      { pattern: '30 * * * *' },
-      { name: EVENT_ARCHIVE_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('event-archive-hourly', utcCron('30 * * * *'), {
+      name: EVENT_ARCHIVE_JOB,
+      data: {},
+    });
     this.logger.log('Event archive cron scheduled (hourly, :30 UTC)');
   }
 

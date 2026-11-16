@@ -21,14 +21,15 @@ describe('DataRetentionWorker', () => {
 
     const [schedulerId, repeatOpts, template] = queue.upsertJobScheduler.mock.calls[0] as [
       string,
-      { pattern: string },
+      { pattern: string; tz: string },
       { name: string; data: unknown },
     ];
     // Fixed scheduler id is what makes re-registration on every container boot
     // idempotent — BullMQ 6 upserts by this id, where v5 deduped by jobId.
     expect(schedulerId).toBe('data-retention-daily');
-    // 05:00 keeps it clear of hema-ratings-sync (03:30) and data-quality (04:00).
-    expect(repeatOpts.pattern).toBe('0 5 * * *');
+    // 05:00 keeps it clear of hema-ratings-sync (03:30) and data-quality (04:00); the hour is UTC
+    // because of `tz` (cron-zone.test.ts reads it through bullmq's own clock).
+    expect(repeatOpts).toEqual({ pattern: '0 5 * * *', tz: 'UTC' });
     expect(template.name).toBe(DATA_RETENTION_JOB);
     expect(template.data).toEqual({});
   });

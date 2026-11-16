@@ -20,6 +20,7 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { utcCron } from './cron-zone';
 import type { Redis } from 'ioredis';
 import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
@@ -60,11 +61,10 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   }
 
   async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'runtime-health-monitor-tick',
-      { pattern: '*/5 * * * *' },
-      { name: RUNTIME_HEALTH_MONITOR_JOB, data: {} },
-    );
+    await this.queue.upsertJobScheduler('runtime-health-monitor-tick', utcCron('*/5 * * * *'), {
+      name: RUNTIME_HEALTH_MONITOR_JOB,
+      data: {},
+    });
     this.logger.log('Runtime health monitor scheduled (every 5 min)');
   }
 
