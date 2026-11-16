@@ -4,7 +4,7 @@
  *
  * The CHECKs read as the LAST word across the migrations in order, so a later
  * migration that drops or widens one reds here. The edition list is read as
- * TEXT from @myclash/rules, as test 34 of rls.test.ts reads the platform roles:
+ * TEXT from @myclash/rules, as platform-role-tiers.test.ts reads the platform roles:
  * an edition added in code without a migration, or the reverse, reds here. The
  * running database is the replay's (the RLS probe seeds a club row with one).
  */

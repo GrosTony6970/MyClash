@@ -169,7 +169,6 @@
     "infra/ops-runner/server.mjs",
     "packages/api-client/src/generated/schema.ts",
     "packages/api-client/src/request.test.ts",
-    "packages/db/test/rls.test.ts",
     "packages/i18n/src/messages/en/admin.ts",
     "packages/i18n/src/messages/en/organizer.ts",
     "packages/i18n/src/messages/en/publicApp.ts",

@@ -12,7 +12,7 @@
  * What the package actually is:
  *   migrations/        — the schema. Raw SQL, numbered, checksummed.
  *   scripts/migrate.mjs — applies them with `postgres`; deploy.sh runs this.
- *   test/rls.test.ts   — the RLS invariant (CLAUDE.md hard rule 4).
+ *   test/              — migration-text pins; RLS behaviour is `pnpm db:rls-probe`'s.
  *   fixtures/          — perf fixtures for db:perf:*.
  *
  * The barrel stays because `apps/api/Dockerfile` installs this package (so the

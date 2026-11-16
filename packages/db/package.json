@@ -2,7 +2,7 @@
   "name": "@myclash/db",
   "version": "0.0.0",
   "private": true,
-  "description": "MyClash database migrations, the runner that applies them, and the RLS invariant tests.",
+  "description": "MyClash database migrations, the runner that applies them, and the tests that pin what each migration leaves.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

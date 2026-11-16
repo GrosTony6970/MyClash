@@ -1,7 +1,7 @@
 {
   // TYPECHECK surface — see packages/rulesets/tsconfig.json. `test/` joins it
-  // here for the first time: test/rls.test.ts is the only thing standing behind
-  // the RLS invariant (CLAUDE.md hard rule 4) and it had never been typechecked.
+  // here: the migration-text tests pin what each migration leaves behind. The
+  // RLS behaviour itself is proved on a replay by `pnpm db:rls-probe`.
   //
   // That pulls in node:fs / node:path / node:url, and TS 6 defaults `types` to
   // effectively [] — so node types have to be named, and @types/node has to be a
