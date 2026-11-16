@@ -6,8 +6,9 @@
  * API's checks (an Event with recorded results, or an archived one, needs a deletion request);
  * `orgs_delete` let a signed-in super admin delete a club past the API's HQ guard and its audit
  * line. Only the RLS helper loop stopped either, once 0237's deferred keys removed the other
- * accident that did. Both policies go and the two public roles lose DELETE on both tables; reads
- * stay (inserts and updates went with 0247, `web-write-doors.test.ts`). This reads the migrations
+ * accident that did. Both policies go and the two public roles lose DELETE on both tables; the
+ * Event's public read stays, and the club's read rule went in 0274 (it served only a signed-in
+ * reader; inserts and updates went with 0247, `web-write-doors.test.ts`). This reads the migrations
  * in order and asserts the LAST word, so a
  * later migration that brings back a delete policy, or a grant of DELETE that names the table,
  * reds here. A schema-wide grant is the running database's to catch: `pnpm db:rls-probe`
@@ -38,9 +39,11 @@ describe.each([
     kept: ['events_select_public'],
   },
   {
+    // Its read policy served only a signed-in reader and went in 0274: club reads go through the
+    // API (dead-read-rules-dropped.test.ts).
     table: 'organizations',
     policy: 'orgs_delete',
-    kept: ['orgs_select'],
+    kept: [] as string[],
   },
 ])('$table: only the API deletes a row', ({ table, policy, kept }) => {
   const on = (s: string) => new RegExp(` on (public\\.)?${table} `).test(`${s} `);
@@ -54,13 +57,14 @@ describe.each([
     expect(created).toBeLessThan(dropped);
   });
 
-  it.each(kept)('keeps the policy %s', (name) => {
-    // Quoted or not: 0247 drops its policies unquoted.
-    const named = (verb: string) => new RegExp(`^${verb} policy (if exists )?"?${name}"? `);
-    const made = lastIndex((s) => named('create').test(s) && on(s));
-    expect(made).toBeGreaterThan(-1);
-    expect(lastIndex((s) => named('drop').test(s) && on(s))).toBeLessThan(made);
-  });
+  for (const name of kept)
+    it(`keeps the policy ${name}`, () => {
+      // Quoted or not: 0247 drops its policies unquoted.
+      const named = (verb: string) => new RegExp(`^${verb} policy (if exists )?"?${name}"? `);
+      const made = lastIndex((s) => named('create').test(s) && on(s));
+      expect(made).toBeGreaterThan(-1);
+      expect(lastIndex((s) => named('drop').test(s) && on(s))).toBeLessThan(made);
+    });
 
   it('revokes DELETE from both public roles, and no later grant names it again', () => {
     const revoked = lastIndex(

@@ -2,13 +2,15 @@
  * The membership and platform-role checks answer an anonymous reader without
  * reading a table (migration 0201, operator ruling 111a).
  *
- * Each helper below reads a table whose own read policy calls a helper again.
+ * Each helper below read a table whose own read policy called a helper again.
  * For an anonymous reader that loop ran until Postgres stopped with "stack depth
  * limit exceeded", and it did so on EVERY anonymous read as soon as one platform
- * role existed: every policy starts with `is_super_admin()`, which reads
- * `platform_roles`, whose policy calls `is_platform_staff()`, which reads
+ * role existed: every policy started with `is_super_admin()`, which reads
+ * `platform_roles`, whose policy called `is_platform_staff()`, which read
  * `platform_roles` again. The live-update server checks each change as the
  * anonymous subscriber, so the public live channel carried errors, not rows.
+ * Since 0274 that policy and `is_platform_staff` are gone, and four of the five
+ * loops have no way back (`dead-read-rules-dropped.test.ts`).
  *
  * This reads the migrations in order and asserts each helper's LAST definition
  * WHOLE: the anonymous branch must come first, inside a CASE (Postgres does not
@@ -59,11 +61,6 @@ const EXPECTED: Record<string, string> = {
     "when auth.uid() is null then coalesce(auth.jwt() ->> 'role' = 'super_admin', false) " +
     "else coalesce(auth.jwt() ->> 'role' = 'super_admin' or exists (select 1 from platform_roles " +
     "where user_id = auth.uid() and role = 'super_admin'), false) end; $$;",
-  is_platform_staff:
-    'create or replace function is_platform_staff() returns boolean language sql stable as $$ select case ' +
-    "when auth.uid() is null then coalesce(auth.jwt() ->> 'role' = 'super_admin', false) " +
-    "else coalesce(auth.jwt() ->> 'role' = 'super_admin' or exists (select 1 from platform_roles " +
-    'where user_id = auth.uid()), false) end; $$;',
   is_org_member:
     'create or replace function is_org_member(org_id uuid) returns boolean language sql stable as $$ ' +
     'select case when auth.uid() is null then false else exists (select 1 from organization_members ' +

@@ -4,6 +4,7 @@
  */
 
 import { accountEmailsFailures } from './account-emails-probe.mjs';
+import { deadPolicyFailures } from './dead-policy-probe.mjs';
 import { fighterStatusFailures } from './fighter-status-probe.mjs';
 import { fightersStatusUnderFailures } from './fighters-status-under-probe.mjs';
 import { forfeitDrawFailures } from './forfeit-draw-probe.mjs';
@@ -41,5 +42,6 @@ export async function laterCheckFailures(tx) {
     ...(await webWriteDoorsFailures(tx)),
     ...(await globalPersonsDoorFailures(tx)),
     ...(await signedInReadsFailures(tx)),
+    ...(await deadPolicyFailures(tx)),
   ];
 }

@@ -2,11 +2,11 @@
  * Who was in a Workshop's room is not readable through the database door (migration 0259,
  * operator ruling 548).
  *
- * `workshop_enrollments_select` (0002) shows every booking of an Event to any member of the
- * organising club, and a policy hides rows, never one field. A check-in says where a person
- * physically was and when, like the desk's arrivals (0174), which nobody reads through PostgREST
- * since 0247. So the table's SELECT grant is split per column for both public roles, and the two
- * check-in columns are left out. The API reads them with the service role.
+ * `workshop_enrollments_select` (0002; dropped in 0274) showed every booking of an Event to any
+ * member of the organising club, and a policy hides rows, never one field. A check-in says where a
+ * person physically was and when, like the desk's arrivals (0174), which nobody reads through
+ * PostgREST since 0247. So the table's SELECT grant is split per column for both public roles, and
+ * the two check-in columns are left out. The API reads them with the service role.
  *
  * This reads the migrations in order and asserts the LAST revoke and grant on the table WHOLE, so a
  * column slipped into the grant cannot pass as a substring. It cannot see the running database;
