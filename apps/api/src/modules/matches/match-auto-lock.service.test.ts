@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, supabaseFrom } from '../../common/testing/supabase-chain';
 import { MatchAutoLockService } from './match-auto-lock.service';
@@ -81,6 +81,22 @@ describe('MatchAutoLockService', () => {
 
     expect(await scanner(db).runOnce(new Date('2026-05-16T00:20:00.000Z'))).toBe(1);
     expect(lockMatchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a lock the database refuses is logged with its bout, and the scan goes on', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const db = world([bout('match-1'), bout('match-2'), bout('match-3')]);
+    // lockMatch throws only when PostgREST answers `{ error }` (matches.service.ts lockMatch).
+    lockMatchMock.mockResolvedValueOnce({ id: 'locked' });
+    lockMatchMock.mockRejectedValueOnce(
+      new BadRequestException('canceling statement due to timeout'),
+    );
+
+    expect(await scanner(db).runOnce(new Date('2026-05-16T00:20:00.000Z'))).toBe(2);
+    expect(lockMatchMock.mock.calls.map(([id]) => id)).toEqual(['match-1', 'match-2', 'match-3']);
+    expect(warn).toHaveBeenCalledWith(
+      'Auto-lock of bout match-2 failed: canceling statement due to timeout',
+    );
   });
 
   it('does not lock incomplete pool groups', async () => {

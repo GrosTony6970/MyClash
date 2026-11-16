@@ -268,15 +268,32 @@ export class MatchAutoLockService implements OnModuleDestroy, BeforeApplicationS
       // A Bracket is one group of many bouts: a stop waits for one lock, not the whole phase.
       if (this.closing) return locked;
       if (match['locked_at']) continue;
+      if (await this.lockOne(match)) locked += 1;
+    }
+    return locked;
+  }
+
+  /**
+   * One lock. A write the database refuses is logged with its bout and the scan goes on (ruling
+   * 831): one failed bout must not leave the rest of the group, and every later group, unlocked
+   * until the next tick. A later scan tries that bout again.
+   */
+  private async lockOne(match: Row): Promise<boolean> {
+    const id = String(match['id']);
+    try {
       // Null: the Match changed since this scan read it, and the write left it alone.
       const row = await this.matches.lockMatch(
-        String(match['id']),
+        id,
         'Auto lock after completed group',
         String(match['updated_at']),
       );
-      if (row) locked += 1;
+      return Boolean(row);
+    } catch (err) {
+      this.logger.warn(
+        `Auto-lock of bout ${id} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
     }
-    return locked;
   }
 
   /**
