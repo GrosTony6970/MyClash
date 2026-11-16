@@ -92,8 +92,9 @@ here.
 - **A function in `public` keeps `service_role`'s EXECUTE** (check 24): the old "migration-only
   function granted to no role" pattern (0229) needs a ruling now.
 - **A text rule over SQL reads statements, in order.** db:review's definer rule once ran a
-  `REVOKE` on to the first `FROM` after an `ON FUNCTION`, across statement ends: a grant to anon
-  read as closed whenever a later statement's `FROM` named anon and authenticated. It now splits
+  `REVOKE` on to the next `ON FUNCTION` and the first `FROM` after it, across statement ends: a
+  function named in another statement (a `GRANT … TO anon`, a `COMMENT ON FUNCTION`) read as
+  revoked when that `FROM` named anon and authenticated. It now splits
   the corpus on `;` outside quotes and replays each function's grants in order
   (`scripts/lib/definer-rule.mjs`).
 
