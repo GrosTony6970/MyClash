@@ -1,3 +1,4 @@
+import type { RuntimeHealthQueueRow } from '@myclash/types';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -36,13 +37,7 @@ export interface QueueMetricOk {
   status: 'healthy' | 'warning' | 'critical';
   totalWaiting: number;
   totalFailed: number;
-  queues: Array<{
-    name: string;
-    active: number;
-    waiting: number;
-    delayed: number;
-    failed: number;
-  }>;
+  queues: RuntimeHealthQueueRow[];
 }
 export type QueueMetric = QueueMetricOk | Unavailable;
 

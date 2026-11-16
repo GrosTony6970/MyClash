@@ -2,18 +2,29 @@
   "$schema": "https://turbo.build/schema.json",
   "extends": ["//"],
   "tasks": {
+    "typecheck": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/check-api-boot.d.mts",
+        "$TURBO_ROOT$/scripts/lib/migration-literal.d.mts"
+      ]
+    },
     "test": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/db/migrations/**",
-        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs"
+        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs",
+        "$TURBO_ROOT$/scripts/check-api-boot.mjs",
+        "$TURBO_ROOT$/scripts/lib/gate.mjs"
       ]
     },
     "coverage": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/db/migrations/**",
-        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs"
+        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs",
+        "$TURBO_ROOT$/scripts/check-api-boot.mjs",
+        "$TURBO_ROOT$/scripts/lib/gate.mjs"
       ]
     }
   }

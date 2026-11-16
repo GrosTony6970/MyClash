@@ -13,6 +13,8 @@ import { collectRedis } from './runtime-health/redis-collector';
 
 const never = <T>(): Promise<T> => new Promise<T>(() => {});
 const counts = { active: 0, waiting: 1, delayed: 0, failed: 0 };
+// One consumer, so no check here waits for the re-read (that is queue-collector.test.ts's).
+const getWorkers = async () => [{ rawname: 'bull:ZXZlbnQtYXJjaGl2ZQ==' }];
 
 describe('the Redis-backed collectors give up at their bound', () => {
   it('collectRedis rejects with a BoundedCallTimeout when Redis never answers', async () => {
@@ -25,7 +27,11 @@ describe('the Redis-backed collectors give up at their bound', () => {
   it('collectQueues rejects with a BoundedCallTimeout when a job count never answers', async () => {
     const read = collectQueues({} as never, {
       names: ['event-archive'],
-      queueFactory: () => ({ getJobCounts: () => never(), close: async () => undefined }),
+      queueFactory: () => ({
+        getJobCounts: () => never(),
+        getWorkers,
+        close: async () => undefined,
+      }),
       timeoutMs: 20,
     });
     await expect(read).rejects.toBeInstanceOf(BoundedCallTimeout);
@@ -34,7 +40,7 @@ describe('the Redis-backed collectors give up at their bound', () => {
   it('collectQueues answers although a queue close never settles', async () => {
     const read = await collectQueues({} as never, {
       names: ['event-archive'],
-      queueFactory: () => ({ getJobCounts: async () => counts, close: () => never() }),
+      queueFactory: () => ({ getJobCounts: async () => counts, getWorkers, close: () => never() }),
       timeoutMs: 20,
     });
     expect(read.totalWaiting).toBe(1);
@@ -46,6 +52,7 @@ describe('the Redis-backed collectors give up at their bound', () => {
       names: ['event-archive'],
       queueFactory: () => ({
         getJobCounts: async () => counts,
+        getWorkers,
         close: () => Promise.reject(new Error('socket gone')),
       }),
     });

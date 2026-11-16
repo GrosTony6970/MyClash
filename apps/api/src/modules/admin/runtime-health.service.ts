@@ -12,6 +12,7 @@ import type {
   RuntimeHealthResponseDto,
 } from './dto/runtime-health.dto';
 import type { PhotoStorageReading } from './runtime-health/photo-storage-collector';
+import type { QueueRow } from './runtime-health/queue-collector';
 import { deriveStatus, worstStatus } from './runtime-health/status';
 
 interface Collectors {
@@ -39,7 +40,6 @@ interface Collectors {
   }>;
   collectPhotoStorage: () => Promise<PhotoStorageReading>;
 }
-type QueueRow = { name: string; active: number; waiting: number; delayed: number; failed: number };
 
 function errorText(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'collector failed';
@@ -150,11 +150,16 @@ export class AdminRuntimeHealthService {
     if (r.status === 'rejected') return { status: 'unavailable', error: redisErrorText(r.reason) };
     const v = r.value;
     const backlogStatus = deriveStatus(v.totalWaiting, s.queueBacklogWarn, s.queueBacklogCrit);
-    // Any failed job is at least a warning, independent of backlog size.
-    // worstStatus() returns the 4-value MetricStatus (incl. 'unavailable'), but both inputs here
-    // are always 3-value, so the result is safely narrowable to QueueMetricOk['status'].
-    const status = (v.totalFailed > 0 ? worstStatus(backlogStatus, 'warning') : backlogStatus) as
-      'healthy' | 'warning' | 'critical';
+    // Any failed job is at least a warning, independent of backlog size. A queue nobody works is
+    // critical (ruling 830); one whose consumers could not be read is a warning.
+    // worstStatus() returns the 4-value MetricStatus (incl. 'unavailable'), but every input here
+    // is 3-value, so the result is safely narrowable to QueueMetricOk['status'].
+    const status = worstStatus(
+      backlogStatus,
+      v.totalFailed > 0 ? 'warning' : 'healthy',
+      v.queues.some((q) => q.reason === 'no_consumer') ? 'critical' : 'healthy',
+      v.queues.some((q) => q.reason === 'consumers_unreadable') ? 'warning' : 'healthy',
+    ) as 'healthy' | 'warning' | 'critical';
     return { status, totalWaiting: v.totalWaiting, totalFailed: v.totalFailed, queues: v.queues };
   }
 

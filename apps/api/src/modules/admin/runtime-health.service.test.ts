@@ -117,3 +117,37 @@ describe('AdminRuntimeHealthService.collect', () => {
     expect(JSON.stringify(result)).not.toMatch(/SHOULD-NOT-SHOW/);
   });
 });
+
+describe('the queue tile and who works each queue (ruling 830)', () => {
+  const row = (
+    reason: 'no_consumer' | 'consumers_unreadable' | null,
+    consumers: number | null,
+  ) => ({
+    name: 'event-archive',
+    active: 0,
+    waiting: 0,
+    delayed: 0,
+    failed: 0,
+    consumers,
+    reason,
+  });
+  const queues = (rows: ReturnType<typeof row>[], totalWaiting = 0) => ({
+    collectQueues: async () => ({ totalWaiting, totalFailed: 0, queues: rows }),
+  });
+
+  it('a queue nobody works makes the tile and the page critical', async () => {
+    const result = await make(queues([row(null, 1), row('no_consumer', 0)])).collect();
+    expect(result.queues.status).toBe('critical');
+    expect(result.overall).toBe('critical');
+  });
+
+  it('consumers that could not be read make a healthy backlog a warning', async () => {
+    const result = await make(queues([row('consumers_unreadable', null)])).collect();
+    expect(result.queues.status).toBe('warning');
+  });
+
+  it('unreadable consumers never soften a critical backlog', async () => {
+    const result = await make(queues([row('consumers_unreadable', null)], 10_000)).collect();
+    expect(result.queues.status).toBe('critical');
+  });
+});

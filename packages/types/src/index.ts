@@ -45,3 +45,4 @@ export * from './staff-role';
 export * from './venue';
 export * from './wrong-current-password';
 export * from './fightbook';
+export * from './runtime-health';
