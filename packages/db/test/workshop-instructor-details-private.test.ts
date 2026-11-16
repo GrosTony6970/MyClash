@@ -33,10 +33,16 @@ const flat = (text: string | undefined) =>
  * The last statement starting with `verb` that names `workshop_instructors`, up to its semicolon;
  * with `privileges`, the last one whose privilege list matches it.
  */
-function lastStatement(sql: string, verb: 'grant' | 'revoke', privileges?: RegExp): string {
-  // `ON TABLE public.workshop_instructors` and `ON ALL TABLES IN SCHEMA public` grant it too.
-  const target =
-    '(?:(?:table\\s+)?(?:public\\.)?workshop_instructors\\b|all\\s+tables\\s+in\\s+schema\\s+public)';
+const TABLE = '(?:table\\s+)?(?:public\\.)?workshop_instructors\\b';
+// `ON TABLE public.workshop_instructors` and `ON ALL TABLES IN SCHEMA public` grant it too.
+const TABLE_OR_ALL = `(?:${TABLE}|all\\s+tables\\s+in\\s+schema\\s+public)`;
+
+function lastStatement(
+  sql: string,
+  verb: 'grant' | 'revoke',
+  privileges?: RegExp,
+  target = TABLE_OR_ALL,
+): string {
   const pattern = new RegExp(`${verb}\\s[^;]*\\bon\\s+${target}[^;]*;`, 'gi');
   const hits = [...sql.matchAll(pattern)].map((hit) => hit[0]);
   const named = privileges
@@ -49,12 +55,18 @@ describe("a Workshop's instructor details are not readable through the database 
   const sql = allSql();
 
   it('takes the table-wide SELECT away from both public roles', () => {
-    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i)).toBe(
+    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i, TABLE)).toBe(
       'revoke select on public.workshop_instructors from anon, authenticated;',
     );
   });
 
-  it('gives back every column but bio, affiliation and photo_url', () => {
+  it('takes the rest from authenticated too (0273): the last SELECT revoke over it names that role', () => {
+    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i)).toBe(
+      'revoke select on all tables in schema public from authenticated;',
+    );
+  });
+
+  it("gives back every column but bio, affiliation and photo_url (to anon: 0273 takes authenticated's share)", () => {
     expect(lastStatement(sql, 'grant')).toBe(
       'grant select (id, workshop_id, global_person_id, display_name, sort_order) ' +
         'on public.workshop_instructors to anon, authenticated;',

@@ -15,6 +15,7 @@ import { pushAddressFailures } from './push-address-probe.mjs';
 import { rosterHolderFailures } from './roster-holder-probe.mjs';
 import { rulesWriteFailures } from './rules-write-probe.mjs';
 import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
+import { signedInReadsFailures } from './signed-in-reads-probe.mjs';
 import { swissFailures } from './swiss-probe.mjs';
 import { swissStatusFailures } from './swiss-status-probe.mjs';
 import { tfV1CopiesFailures } from './tf-v1-copies-probe.mjs';
@@ -39,5 +40,6 @@ export async function laterCheckFailures(tx) {
     ...(await fightersStatusUnderFailures(tx)),
     ...(await webWriteDoorsFailures(tx)),
     ...(await globalPersonsDoorFailures(tx)),
+    ...(await signedInReadsFailures(tx)),
   ];
 }

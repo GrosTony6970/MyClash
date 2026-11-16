@@ -5,7 +5,10 @@
  * RLS: with the grant back and no write policy, an INSERT is still 42501 ("violates row-level
  * security") and an UPDATE or DELETE touches no row in silence. The INSERT copies the seeded row
  * under a new key from JSON read beforehand, so it reads nothing as the admin: SELECT is per column
- * since 0205.
+ * since 0205. Since 0273 `authenticated` holds no SELECT at all, and an UPDATE or DELETE that reads
+ * the key needs it: with only the write grant back, the admin's UPDATE and DELETE would still be
+ * refused "permission denied for table", on the missing SELECT. So each verb's grant is also read
+ * off the catalogue for `authenticated`, as for anon.
  */
 import { API_ONLY_WRITES } from './rls-probe-tables.mjs';
 import { attempt } from './ruleset-pair-probe.mjs';
@@ -29,9 +32,15 @@ export async function apiOnlyWritesFailures(tx) {
       DELETE: (sp) => sp`DELETE FROM ${sp(table)} WHERE ${sp(key)}::text = ${row}`,
     };
     for (const verb of Object.keys(writes)) {
-      const [anon] =
-        await tx`SELECT has_table_privilege('anon', ${`public.${table}`}, ${verb}) AS granted`;
-      if (anon.granted) failures.push(`anon holds ${verb} on ${table}: only the API writes it`);
+      // A column grant counts (check 20's rule): INSERT and UPDATE have one, DELETE has none.
+      for (const role of ['anon', 'authenticated']) {
+        const [held] = await tx`
+          SELECT CASE WHEN ${verb} = 'DELETE'
+                      THEN has_table_privilege(${role}, ${`public.${table}`}, ${verb})
+                      ELSE has_any_column_privilege(${role}, ${`public.${table}`}, ${verb}) END AS granted`;
+        if (held.granted)
+          failures.push(`${role} holds ${verb} on ${table}: only the API writes it`);
+      }
       const failure = await attempt(tx, 'authenticated', writes[verb]);
       if (!failure)
         failures.push(`the organisation admin may ${verb} ${table}: only the API writes it`);

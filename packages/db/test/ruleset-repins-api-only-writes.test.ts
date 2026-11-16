@@ -48,12 +48,17 @@ describe('the record of a ruleset re-pin: only the API writes it', () => {
     expect(created).toBeLessThan(dropped);
   });
 
-  it.each(Object.entries(READS))('keeps the read "%s", whole', (name, policy) => {
-    expect(statements.filter((s) => s.startsWith(`create policy "${name}"`)).at(-1)).toBe(policy);
-    expect(lastIndex((s) => s.startsWith('drop policy') && s.includes(`"${name}"`))).toBeLessThan(
-      lastIndex((s) => s === policy),
-    );
-  });
+  // 0227 kept each read whole; 0273 (ruling 821) drops both, as no signed-in reader reads through
+  // the database any more: neither may come back.
+  it.each(Object.entries(READS))(
+    'drops the read "%s" (0273), and it never comes back',
+    (name, policy) => {
+      expect(statements.filter((s) => s.startsWith(`create policy "${name}"`)).at(-1)).toBe(policy);
+      expect(lastIndex((s) => s === `drop policy "${name}" on ${TABLE}`)).toBeGreaterThan(
+        lastIndex((s) => s.startsWith(`create policy "${name}"`)),
+      );
+    },
+  );
 
   it('revokes the three write grants from both public roles, and none comes back', () => {
     const revoked = lastIndex(

@@ -31,10 +31,16 @@ const flat = (text: string | undefined) =>
  * The last statement starting with `verb` that names `referee_assignments`, up to its semicolon;
  * with `privileges`, the last one whose privilege list matches it.
  */
-function lastStatement(sql: string, verb: 'grant' | 'revoke', privileges?: RegExp): string {
-  // `ON TABLE public.referee_assignments` and `ON ALL TABLES IN SCHEMA public` grant it too.
-  const target =
-    '(?:(?:table\\s+)?(?:public\\.)?referee_assignments\\b|all\\s+tables\\s+in\\s+schema\\s+public)';
+const TABLE = '(?:table\\s+)?(?:public\\.)?referee_assignments\\b';
+// `ON TABLE public.referee_assignments` and `ON ALL TABLES IN SCHEMA public` grant it too.
+const TABLE_OR_ALL = `(?:${TABLE}|all\\s+tables\\s+in\\s+schema\\s+public)`;
+
+function lastStatement(
+  sql: string,
+  verb: 'grant' | 'revoke',
+  privileges?: RegExp,
+  target = TABLE_OR_ALL,
+): string {
   const pattern = new RegExp(`${verb}\\s[^;]*\\bon\\s+${target}[^;]*;`, 'gi');
   const hits = [...sql.matchAll(pattern)].map((hit) => hit[0]);
   const named = privileges
@@ -48,12 +54,18 @@ describe('referee_assignments.conflicts_jsonb is not public', () => {
 
   it('takes the table-wide SELECT away from both public roles', () => {
     // 0209 revokes the writes (referee-rules-what-goes.test.ts); this pins the last word on SELECT.
-    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i)).toBe(
+    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i, TABLE)).toBe(
       'revoke select on referee_assignments from anon, authenticated;',
     );
   });
 
-  it('gives back every column but conflicts_jsonb', () => {
+  it('takes the rest from authenticated too (0273): the last SELECT revoke over it names that role', () => {
+    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i)).toBe(
+      'revoke select on all tables in schema public from authenticated;',
+    );
+  });
+
+  it("gives back every column but conflicts_jsonb (to anon: 0273 takes authenticated's share)", () => {
     expect(lastStatement(sql, 'grant')).toBe(
       'grant select (id, event_id, scope_type, lice_id, pool_id, match_id, role, status, ' +
         'auto_assigned, created_at, person_id) on referee_assignments to anon, authenticated;',

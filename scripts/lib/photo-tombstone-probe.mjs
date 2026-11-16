@@ -236,11 +236,10 @@ async function webRoleReadsNone({ tryAndRollBack, check }) {
       },
       async (tx) => (await tx`SELECT count(*)::int AS n FROM event_photo_tombstones`)[0].n,
     );
-    check(
-      `${role} reads no tombstone`,
-      error === null && observed === 0,
-      error?.message ?? `${role} read ${observed}`,
-    );
+    // anon keeps SELECT and RLS (no policy) shows it no row; a signed-in reader holds no SELECT at
+    // all since 0273, so the database refuses the read on privilege.
+    const held = role === 'anon' ? error === null && observed === 0 : error?.code === '42501';
+    check(`${role} reads no tombstone`, held, error?.message ?? `${role} read ${observed}`);
   }
 }
 

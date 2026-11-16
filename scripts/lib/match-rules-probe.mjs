@@ -272,9 +272,11 @@ async function grantFailures(tx, failures) {
       (sp) => sp`SELECT public.ruleset_pair_held_by_a_bout(${CLUB_SCORING}, '1.0.0')`,
     ],
   ];
+  // The refusal must name the function: since 0273 an INVOKER function a web role could call would
+  // still fail 42501 on the tables it reads (`permission denied for table`), and pass here unseen.
   for (const [role, call] of calls) {
     const error = await attempt(tx, role, call);
-    if (error?.code !== '42501')
+    if (error?.code !== '42501' || !error.message.startsWith('permission denied for function'))
       failures.push(`${role} called a match_rules function (${error?.message ?? 'no error'})`);
   }
   const served = await attempt(

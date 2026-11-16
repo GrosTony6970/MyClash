@@ -9,6 +9,12 @@
  *   DATABASE_URL=postgres://... pnpm --filter @myclash/db test:integration
  *
  * The tests below cover the 10+ cross-tenant leak scenarios required by T-102 AC.
+ *
+ * Since 0273 (ruling 821) a signed-in reader holds no SELECT in `public`: the database refuses
+ * them on privilege before any policy runs, so the signed-in cases below describe policy text,
+ * not a door anyone can open. Some of them already disagreed with the live policies (super admin
+ * reading org AI settings; query history private to its owner). The live answers are
+ * `pnpm db:rls-probe`'s (checks 1, 2 and 22); `test:integration` above does not exist.
  */
 
 import { readFileSync } from 'node:fs';

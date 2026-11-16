@@ -32,8 +32,9 @@
  *   - every path that removes a photo row (its delete and the Event delete, by the API's role too;
  *     the club delete; a TRUNCATE, a cascading one too) queues both its image keys and takes its
  *     report (0252), a Tournament delete only untags it, a second report by the same phone adds no
- *     row, its comment replaces the first and holds 1 to 200 characters (0253), and a web role
- *     reads no tombstone (0250, `lib/photo-tombstone-probe.mjs`);
+ *     row, its comment replaces the first and holds 1 to 200 characters (0253), anon reads no
+ *     tombstone (0250) and a signed-in reader is refused the read on privilege (0273,
+ *     `lib/photo-tombstone-probe.mjs`);
  *   - a photo sent from an account refuses the auth server's delete of that account, erasure's
  *     delete of it queues both keys first, and a photo has one sender and a name of 40 (a phone)
  *     or 200 (an account) characters at most (0254, `lib/photo-account-probe.mjs`);
