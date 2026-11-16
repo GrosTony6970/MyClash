@@ -8,7 +8,9 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
+import type { RuntimeHealthQueueRow } from '@myclash/types';
 import { photoStorageRows, type PhotoStorageTile } from './photo-storage-rows';
+import { metricErrorText, queueTileRows, type TileRow } from './queue-rows';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
 /** A tile's pill. `not_configured` is the photo bucket's alone and never reaches `overall`. */
@@ -35,7 +37,13 @@ interface RuntimeHealth {
     connectedClients?: number;
     error?: string;
   };
-  queues: { status: MetricStatus; totalWaiting?: number; totalFailed?: number; error?: string };
+  queues: {
+    status: MetricStatus;
+    totalWaiting?: number;
+    totalFailed?: number;
+    queues?: RuntimeHealthQueueRow[];
+    error?: string;
+  };
   disk: {
     status: MetricStatus;
     usePercent?: number;
@@ -92,6 +100,11 @@ function statusClasses(s: TileStatus): string {
     case 'warning':
       return 'bg-warning/10 text-warning';
   }
+}
+
+/** A toned row's text colour: the same tokens as the status pill. */
+function statusText(tone: 'warning' | 'critical'): string {
+  return tone === 'critical' ? 'text-danger' : 'text-warning';
 }
 
 function StatusPill({ t, status }: { t: Translate; status: TileStatus }) {
@@ -293,7 +306,7 @@ export function RuntimeHealthCard() {
                   ? [
                       [
                         t('admin.systemVersions.runtimeHealth.unavailable'),
-                        health.redis.error ?? '—',
+                        metricErrorText(t, health.redis.error),
                       ],
                     ]
                   : [
@@ -321,19 +334,10 @@ export function RuntimeHealthCard() {
                   ? [
                       [
                         t('admin.systemVersions.runtimeHealth.unavailable'),
-                        health.queues.error ?? '—',
+                        metricErrorText(t, health.queues.error),
                       ],
                     ]
-                  : [
-                      [
-                        t('admin.systemVersions.runtimeHealth.queues.waiting'),
-                        String(health.queues.totalWaiting ?? 0),
-                      ],
-                      [
-                        t('admin.systemVersions.runtimeHealth.queues.failed'),
-                        String(health.queues.totalFailed ?? 0),
-                      ],
-                    ]
+                  : queueTileRows(t, health.queues)
               }
             />
             <MetricTile
@@ -399,7 +403,7 @@ function MetricTile({
   t: Translate;
   title: string;
   status: TileStatus;
-  rows: Array<[string, string]>;
+  rows: readonly TileRow[];
 }) {
   return (
     <div className="bg-surface p-4">
@@ -408,10 +412,15 @@ function MetricTile({
         <StatusPill t={t} status={status} />
       </div>
       <dl className="space-y-1">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between text-xs">
+        {rows.map(([label, value, tone, key]) => (
+          <div key={key ?? label} className="flex justify-between gap-3 text-xs">
             <dt className="text-muted">{label}</dt>
-            <dd className="font-mono text-foreground-secondary">{value}</dd>
+            {/* A toned value is a sentence, not a figure: it is not set in mono. */}
+            <dd
+              className={`text-right ${tone ? statusText(tone) : 'font-mono text-foreground-secondary'}`}
+            >
+              {value}
+            </dd>
           </div>
         ))}
       </dl>

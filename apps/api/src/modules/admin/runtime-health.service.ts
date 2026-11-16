@@ -1,5 +1,6 @@
 // runtime-health.service.ts
 import { Injectable } from '@nestjs/common';
+import { RUNTIME_HEALTH_TIMEOUT } from '@myclash/types';
 import { BoundedCallTimeout } from '../../common/bounded-call';
 import type { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
 import type {
@@ -51,7 +52,7 @@ function errorText(reason: unknown): string {
  * Redis and queue tiles use it: the photo probe's own timeout stays its prose.
  */
 function redisErrorText(reason: unknown): string {
-  return reason instanceof BoundedCallTimeout ? 'timeout' : errorText(reason);
+  return reason instanceof BoundedCallTimeout ? RUNTIME_HEALTH_TIMEOUT : errorText(reason);
 }
 
 @Injectable()

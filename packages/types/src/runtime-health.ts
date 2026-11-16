@@ -25,6 +25,12 @@ export type RuntimeHealthQueueName = (typeof RUNTIME_HEALTH_QUEUE_NAMES)[number]
  */
 export type QueueConsumerReason = 'no_consumer' | 'consumers_unreadable';
 
+/**
+ * The `error` of a Redis or queue tile when Redis did not answer within its bound (ruling 842): a
+ * code the API sends and the card translates.
+ */
+export const RUNTIME_HEALTH_TIMEOUT = 'timeout';
+
 /** One queue on the runtime-health card: its job counts and who works it. One owner of the shape. */
 export interface RuntimeHealthQueueRow {
   name: string;

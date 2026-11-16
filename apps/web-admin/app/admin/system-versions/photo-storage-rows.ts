@@ -1,3 +1,5 @@
+import type { TileRow } from './queue-rows';
+
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 /** The runtime-health photo-storage metric, as the API sends it. */
@@ -7,7 +9,7 @@ export type PhotoStorageTile =
   | { status: 'unavailable'; error?: string };
 
 /** The label/value rows of the photo-storage tile. */
-export function photoStorageRows(t: Translate, m: PhotoStorageTile): Array<[string, string]> {
+export function photoStorageRows(t: Translate, m: PhotoStorageTile): TileRow[] {
   switch (m.status) {
     case 'healthy':
       return [
