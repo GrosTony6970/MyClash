@@ -3,9 +3,21 @@ import path from 'node:path';
 import { Global, Logger, Module, type OnModuleDestroy } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { supabaseFrom } from '../../common/testing/supabase-chain';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AUTO_LOCK_STOP_WAIT_MS, MatchAutoLockService } from './match-auto-lock.service';
 import { MatchesService } from './matches.service';
+
+/** A read that answers only when `answer` settles: every filter returns the read itself. */
+function heldRead(answer: Promise<unknown>) {
+  const read: Record<string, unknown> = {
+    then: (ok: (value: unknown) => unknown, ko: (err: unknown) => unknown) => answer.then(ok, ko),
+  };
+  for (const method of ['select', 'eq', 'in', 'is', 'gt', 'order', 'limit']) {
+    read[method] = () => read;
+  }
+  return read;
+}
 
 /**
  * One auto-lock scan at a time (ruling 831). The first scan after a deploy can lock a backlog, one
@@ -27,14 +39,8 @@ describe('MatchAutoLockService: one scan at a time', () => {
   });
 
   /** A read that waits until `release()`, then answers with no rows. */
-  function heldRead() {
-    return {
-      select: () =>
-        new Promise((done) => {
-          release = () => done({ data: [], error: null });
-        }),
-    };
-  }
+  const releasedRead = () =>
+    heldRead(new Promise((done) => (release = () => done({ data: [], error: null }))));
 
   async function started() {
     const module = await Test.createTestingModule({
@@ -52,9 +58,10 @@ describe('MatchAutoLockService: one scan at a time', () => {
 
   it('a tick that finds a scan running does not start another, and says so', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    // The scan's first read is held; every later read answers at once with no rows.
-    from.mockImplementation(() => ({ select: async () => ({ data: [], error: null }) }));
-    from.mockImplementationOnce(heldRead);
+    // The scan's first read is held; every later read answers at once with no Events.
+    const none = supabaseFrom({ events: { rows: [] } });
+    from.mockImplementation(none);
+    from.mockImplementationOnce(releasedRead);
     const module = await started();
     try {
       await vi.advanceTimersByTimeAsync(60_000);
@@ -102,19 +109,22 @@ describe('MatchAutoLockService: one scan at a time', () => {
  */
 describe('MatchAutoLockService: a stop waits for the scan, bounded', () => {
   const OLD = '2026-01-01T10:00:00.000Z';
-  const rows: Record<string, unknown[]> = {
-    tournaments: [{ id: 't1', lock_config_json: {} }],
-    phases: [{ id: 'p1', tournament_id: 't1', type: 'single_elim' }],
-    matches: Array.from({ length: 8 }, (_, i) => ({
-      id: `m${i}`,
-      phase_id: 'p1',
-      pool_id: null,
-      status: 'completed',
-      ended_at: OLD,
-      updated_at: OLD,
-      locked_at: null,
-    })),
-  };
+  const tables = supabaseFrom({
+    events: { rows: [{ id: 'e1', status: 'running' }] },
+    tournaments: { rows: [{ id: 't1', event_id: 'e1', lock_config_json: {} }] },
+    phases: { rows: [{ id: 'p1', tournament_id: 't1', type: 'single_elim' }] },
+    matches: {
+      rows: Array.from({ length: 8 }, (_, i) => ({
+        id: `m${i}`,
+        phase_id: 'p1',
+        pool_id: null,
+        status: 'completed',
+        ended_at: OLD,
+        updated_at: OLD,
+        locked_at: null,
+      })),
+    },
+  });
   let releaseLock: () => void = () => undefined;
   let releaseRead: () => void = () => undefined;
   const lockMatch = vi.fn();
@@ -136,12 +146,12 @@ describe('MatchAutoLockService: a stop waits for the scan, bounded', () => {
 
   /** Started, its first lock held. With `failingRead`, the bouts' read is held instead. */
   async function scanning(extra: unknown[] = [], failingRead = false) {
-    const from = (table: string) => ({
-      select: () =>
-        failingRead && table === 'matches'
-          ? new Promise((_done, fail) => (releaseRead = () => fail(new Error('fetch failed'))))
-          : Promise.resolve({ data: rows[table] ?? [], error: null }),
-    });
+    const from = (table: string) =>
+      failingRead && table === 'matches'
+        ? heldRead(
+            new Promise((_done, fail) => (releaseRead = () => fail(new Error('fetch failed')))),
+          )
+        : tables(table);
     const module = await Test.createTestingModule({
       imports: extra as never[],
       providers: [

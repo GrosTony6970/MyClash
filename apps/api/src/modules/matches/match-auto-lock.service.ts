@@ -1,9 +1,41 @@
 import { BeforeApplicationShutdown, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { DEFAULT_TOURNAMENT_LOCK_CONFIG, type TournamentLockConfig } from '@myclash/types';
+import { isOver } from '../../common/live-status';
+import { inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
+import { readEveryRowById, type PageAnswer } from '../../common/read-every-row-by-id';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchesService } from './matches.service';
 
 type Row = Record<string, unknown>;
+
+/** The slice of a PostgREST read the scan's pages use. */
+type PageQuery = PromiseLike<PageAnswer<Row>> & {
+  eq(column: string, value: unknown): PageQuery;
+  in(column: string, values: readonly unknown[]): PageQuery;
+  is(column: string, value: null): PageQuery;
+  gt(column: string, value: string): PageQuery;
+  order(column: string): PageQuery;
+  limit(count: number): PageQuery;
+};
+
+/** A phase whose bouts may lock, with its Tournament's lock settings. */
+interface ScanPhase {
+  id: string;
+  pool: boolean;
+  config: TournamentLockConfig;
+}
+
+/** Bouts locked together, or not at all: one Pool, or a whole phase that has no Pools. */
+interface Group {
+  key: string;
+  phase: ScanPhase;
+  poolId: string | null;
+}
+
+const FINISHED = ['completed', 'voided'];
+
+const groupKey = (phase: ScanPhase, poolId: string | null): string =>
+  phase.pool ? `${phase.id}/${poolId ?? 'no-pool'}` : phase.id;
 
 /** How long a stop waits for the scan in flight, counted from the stop. */
 export const AUTO_LOCK_STOP_WAIT_MS = 30_000;
@@ -87,84 +119,162 @@ export class MatchAutoLockService implements OnModuleDestroy, BeforeApplicationS
     }
   }
 
+  /**
+   * One scan. It reads only what can lock, every row of it (ruling 831), then locks each finished
+   * group whose wait is over. A module that closes ends the scan: every later page is skipped and
+   * no further lock is made (`closing`, checked before each), so rows a stop cut short never lock.
+   * What is left waits for the next start. A read PostgREST refuses throws; `tick` logs it.
+   */
   async runOnce(now = new Date()): Promise<number> {
-    const tournamentsResult = await this.supabase.service
-      .from('tournaments')
-      .select('id, lock_config_json');
-    if (tournamentsResult.error) {
-      this.logger.warn(`Auto-lock scan failed: ${tournamentsResult.error.message}`);
-      return 0;
-    }
-
-    const phasesResult = await this.supabase.service
-      .from('phases')
-      .select('id, tournament_id, type');
-    if (phasesResult.error) {
-      this.logger.warn(`Auto-lock scan failed: ${phasesResult.error.message}`);
-      return 0;
-    }
-
-    const matchesResult = await this.supabase.service
-      .from('matches')
-      .select('id, phase_id, status, ended_at, updated_at, locked_at, pool_id');
-    if (matchesResult.error) {
-      this.logger.warn(`Auto-lock scan failed: ${matchesResult.error.message}`);
-      return 0;
-    }
-
-    const phasesByTournament = this.groupBy(this.rows(phasesResult.data), 'tournament_id');
-    const matchesByPhase = this.groupBy(this.rows(matchesResult.data), 'phase_id');
-
+    const groups = await this.readCandidateGroups(await this.readPhases());
+    const bouts = await this.readGroupBouts(groups);
     let locked = 0;
-    for (const tournament of this.rows(tournamentsResult.data)) {
-      const config = this.config(tournament['lock_config_json']);
-      if (!config.autoLockEnabled) continue;
-      for (const phase of phasesByTournament.get(String(tournament['id'])) ?? []) {
-        const phaseType = String(phase['type'] ?? '');
-        if (phaseType === 'pool' && !config.autoLockCompletedPools) continue;
-        if (phaseType !== 'pool' && !config.autoLockCompletedBrackets) continue;
-        locked += await this.lockEligiblePhaseMatches(
-          phase,
-          matchesByPhase.get(String(phase['id'])) ?? [],
-          config,
-          now,
-        );
-      }
+    for (const group of groups.values()) {
+      const inGroup = bouts.get(group.key) ?? [];
+      locked += await this.lockIfDone(inGroup, group.phase.config, now);
     }
     return locked;
   }
 
-  private async lockEligiblePhaseMatches(
-    phase: Row,
-    matches: Row[],
-    config: TournamentLockConfig,
-    now: Date,
-  ): Promise<number> {
-    const groups = new Map<string, Row[]>();
-    for (const match of matches) {
-      const key = phase['type'] === 'pool' ? String(match['pool_id'] ?? 'no-pool') : 'bracket';
-      groups.set(key, [...(groups.get(key) ?? []), match]);
+  /**
+   * The phases whose bouts may lock: of the Tournaments that lock on their own, in the Events that
+   * are not over (ruling 841: an over Event's results are frozen, a super admin's edit there is not
+   * locked again). The Events' status is read, not filtered in the query: `isOver` is its one owner.
+   */
+  private async readPhases(): Promise<Map<string, ScanPhase>> {
+    const events = await this.paged(() => this.db.from('events').select('id, status'));
+    const live = events.filter((event) => !isOver(event['status'])).map((event) => event['id']);
+    const tournaments = await this.pagedIn(live, (ids) =>
+      this.db.from('tournaments').select('id, lock_config_json, event_id').in('event_id', ids),
+    );
+    const configs = new Map<string, TournamentLockConfig>();
+    for (const tournament of tournaments) {
+      const config = this.config(tournament['lock_config_json']);
+      if (config.autoLockEnabled) configs.set(String(tournament['id']), config);
     }
-
-    let locked = 0;
-    for (const group of groups.values()) {
-      if (group.length === 0) continue;
-      if (!group.every((match) => ['completed', 'voided'].includes(String(match['status'])))) {
+    const phases = await this.pagedIn([...configs.keys()], (ids) =>
+      this.db.from('phases').select('id, tournament_id, type').in('tournament_id', ids),
+    );
+    const kept = new Map<string, ScanPhase>();
+    for (const phase of phases) {
+      const config = configs.get(String(phase['tournament_id']));
+      const pool = phase['type'] === 'pool';
+      if (!config || !(pool ? config.autoLockCompletedPools : config.autoLockCompletedBrackets)) {
         continue;
       }
-      if (!this.delayElapsed(group, config.autoLockDelayMinutes, now)) continue;
-      for (const match of group) {
-        // A Bracket is one group of many bouts: a stop waits for one lock, not the whole phase.
-        if (this.closing) return locked;
-        if (match['locked_at']) continue;
-        // Null: the Match changed since this scan read it, and the write left it alone.
-        const row = await this.matches.lockMatch(
-          String(match['id']),
-          'Auto lock after completed group',
-          String(match['updated_at']),
+      kept.set(String(phase['id']), { id: String(phase['id']), pool, config });
+    }
+    return kept;
+  }
+
+  /**
+   * The groups that can lock: those holding a finished bout not yet locked. A Pool is a group, and
+   * so are a pool phase's bouts with no Pool; any other phase (Bracket, Swiss…) is ONE group, whatever
+   * pool id its bouts carry.
+   */
+  private async readCandidateGroups(phases: Map<string, ScanPhase>): Promise<Map<string, Group>> {
+    const candidates = await this.pagedIn([...phases.keys()], (ids) =>
+      this.db
+        .from('matches')
+        .select('id, phase_id, pool_id')
+        .in('phase_id', ids)
+        .is('locked_at', null)
+        .in('status', FINISHED),
+    );
+    const groups = new Map<string, Group>();
+    for (const bout of candidates) {
+      const phase = phases.get(String(bout['phase_id']));
+      if (!phase) continue;
+      const poolId = phase.pool ? ((bout['pool_id'] as string | null) ?? null) : null;
+      const key = groupKey(phase, poolId);
+      groups.set(key, { key, phase, poolId });
+    }
+    return groups;
+  }
+
+  /**
+   * Every bout of each candidate group, locked ones too: a locked bout can run again, and its last
+   * write counts in the wait. A Pool is read within its phase, so a pool id never joins two phases.
+   */
+  private async readGroupBouts(groups: Map<string, Group>): Promise<Map<string, Row[]>> {
+    const byPhase = new Map<ScanPhase, Group[]>();
+    for (const group of groups.values()) {
+      byPhase.set(group.phase, [...(byPhase.get(group.phase) ?? []), group]);
+    }
+    const bouts = new Map<string, Row[]>();
+    for (const [phase, inPhase] of byPhase) {
+      for (const bout of await this.readPhaseBouts(phase, inPhase)) {
+        const key = groupKey(
+          phase,
+          phase.pool ? ((bout['pool_id'] as string | null) ?? null) : null,
         );
-        if (row) locked += 1;
+        bouts.set(key, [...(bouts.get(key) ?? []), bout]);
       }
+    }
+    return bouts;
+  }
+
+  private async readPhaseBouts(phase: ScanPhase, groups: Group[]): Promise<Row[]> {
+    const bouts = (narrow: (query: PageQuery) => PageQuery) =>
+      this.paged(() =>
+        narrow(
+          this.db
+            .from('matches')
+            .select('id, phase_id, pool_id, status, ended_at, updated_at, locked_at')
+            .eq('phase_id', phase.id),
+        ),
+      );
+    if (!phase.pool) return bouts((query) => query);
+    const poolIds = groups.flatMap((group) => (group.poolId === null ? [] : [group.poolId]));
+    const pooled: Row[] = [];
+    for (const piece of inListChunks(poolIds)) {
+      pooled.push(...(await bouts((query) => query.in('pool_id', piece))));
+    }
+    if (!groups.some((group) => group.poolId === null)) return pooled;
+    return [...pooled, ...(await bouts((query) => query.is('pool_id', null)))];
+  }
+
+  /**
+   * Every row of one read, page after page by id: PostgREST cuts a read at 1000 rows and says
+   * nothing. Once the module closes, no further page is read.
+   */
+  private async paged(query: () => PageQuery): Promise<Row[]> {
+    const { rows } = await readEveryRowById<Row>(
+      (after) => {
+        const ordered = query().order('id');
+        return (after === undefined ? ordered : ordered.gt('id', after)).limit(READ_PAGE);
+      },
+      { shouldStop: () => this.closing },
+    );
+    return rows;
+  }
+
+  /** `paged`, once per piece of `IN_LIST_MAX` values: a long `.in()` list outgrows the URL. */
+  private async pagedIn(values: unknown[], query: (piece: unknown[]) => PageQuery): Promise<Row[]> {
+    const rows: Row[] = [];
+    for (const piece of inListChunks([...new Set(values)])) {
+      rows.push(...(await this.paged(() => query(piece))));
+    }
+    return rows;
+  }
+
+  /** A group locks once every bout in it is finished and its wait is over. */
+  private async lockIfDone(group: Row[], config: TournamentLockConfig, now: Date): Promise<number> {
+    if (group.length === 0) return 0;
+    if (!group.every((match) => FINISHED.includes(String(match['status'])))) return 0;
+    if (!this.delayElapsed(group, config.autoLockDelayMinutes, now)) return 0;
+    let locked = 0;
+    for (const match of group) {
+      // A Bracket is one group of many bouts: a stop waits for one lock, not the whole phase.
+      if (this.closing) return locked;
+      if (match['locked_at']) continue;
+      // Null: the Match changed since this scan read it, and the write left it alone.
+      const row = await this.matches.lockMatch(
+        String(match['id']),
+        'Auto lock after completed group',
+        String(match['updated_at']),
+      );
+      if (row) locked += 1;
     }
     return locked;
   }
@@ -192,18 +302,13 @@ export class MatchAutoLockService implements OnModuleDestroy, BeforeApplicationS
     return { ...DEFAULT_TOURNAMENT_LOCK_CONFIG, ...raw };
   }
 
-  private rows(value: unknown): Row[] {
-    if (!value) return [];
-    return Array.isArray(value) ? (value as Row[]) : [value as Row];
-  }
-
-  private groupBy(rows: Row[], key: string): Map<string, Row[]> {
-    const groups = new Map<string, Row[]>();
-    for (const row of rows) {
-      const groupKey = String(row[key] ?? '');
-      if (!groupKey) continue;
-      groups.set(groupKey, [...(groups.get(groupKey) ?? []), row]);
-    }
-    return groups;
+  /**
+   * The service-role client, typed as the slice the pages use (as `archive.service.ts` does): the
+   * full builder type is too deep for the compiler to match against it.
+   */
+  private get db(): { from(table: string): { select(columns: string): PageQuery } } {
+    return this.supabase.service as unknown as {
+      from(table: string): { select(columns: string): PageQuery };
+    };
   }
 }

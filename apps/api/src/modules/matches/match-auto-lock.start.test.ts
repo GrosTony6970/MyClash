@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { supabaseFrom } from '../../common/testing/supabase-chain';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchesService } from './matches.service';
@@ -11,11 +12,11 @@ import { MatchesService } from './matches.service';
  * lifecycle, so a start-up hook that brought the timer back would run here.
  */
 describe('MatchAutoLockService start', () => {
-  const from = vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [], error: null }) }));
+  let from = supabaseFrom({});
 
   beforeEach(() => {
     vi.useFakeTimers();
-    from.mockClear();
+    from = supabaseFrom({ events: { rows: [] } });
   });
 
   afterEach(() => {
@@ -54,7 +55,7 @@ describe('MatchAutoLockService start', () => {
       const said = () => log.mock.calls.filter(([line]) => line === 'Auto-lock scan every 60 s');
       expect(said()).toHaveLength(1);
       await vi.advanceTimersByTimeAsync(60_000);
-      expect(from).toHaveBeenCalledWith('tournaments');
+      expect(from).toHaveBeenCalledWith('events');
       const afterOne = from.mock.calls.length;
       await vi.advanceTimersByTimeAsync(60_000);
       expect(from.mock.calls.length).toBe(afterOne * 2);

@@ -116,15 +116,17 @@ interface RowSet {
   skip(offset: number): void;
 }
 
-function rowSet(seed: readonly SupabaseRow[]): RowSet {
+function rowSet(seed: readonly SupabaseRow[], maxRows = Infinity): RowSet {
   let working: SupabaseRow[] = [...seed];
   const orderings: Ordering[] = [];
-  let cap: number | null = null;
+  let cap = Infinity;
   let offset = 0;
   return {
     current: () => {
       const out = orderings.length > 0 ? orderRows([...working], orderings) : [...working];
-      return out.slice(offset, cap === null ? undefined : offset + cap);
+      // The page is the smaller of what the query asked and what the server answers at most.
+      const size = Math.min(cap, maxRows);
+      return out.slice(offset, size === Infinity ? undefined : offset + size);
     },
     skip: (from) => {
       offset = from;
@@ -271,7 +273,7 @@ function installUnsupported(chain: SupabaseChain): void {
 }
 
 export function seededTableChain(seed: SeededTable, sink: WriteSink): SupabaseChain {
-  const set = rowSet(seed.rows);
+  const set = rowSet(seed.rows, seed.maxRows);
   const mode: ReadMode = { counting: null, headOnly: false, written: null, representation: false };
   const rows = () =>
     mode.written && mode.representation

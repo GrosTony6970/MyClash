@@ -39,6 +39,11 @@ export interface SeededTable {
    * position, for the call that inserts more than one.
    */
   returning?: SupabaseRow | ((row: SupabaseRow, index: number) => SupabaseRow);
+  /**
+   * The server's own cut, `PGRST_DB_MAX_ROWS`: one read answers at most this many rows, whatever
+   * its `limit` asked, and says nothing. Opt-in: a seed without it answers every row it holds.
+   */
+  maxRows?: number;
 }
 
 /** Everything a table may be configured with. */
