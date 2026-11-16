@@ -124,10 +124,13 @@ const definer = (sig) =>
   `create function ${sig} returns int language sql security definer as $$ select 1 $$;`;
 
 test('a revoke on a table does not reach into the next statement', () => {
+  // The rule before ruling 826 ran a REVOKE on to the first FROM after an ON FUNCTION: here, the third
+  // statement's, so the grant to anon read as closed.
   const sql = `
     ${definer('public.f(x uuid)')}
     revoke all on public.some_table from anon, authenticated;
     grant execute on function public.f(uuid) to anon;
+    revoke select on public.other_table from anon, authenticated;
   `;
   assert.deepEqual(securityDefinerFunctionsReachableByAnon(sql), ['f']);
 });
