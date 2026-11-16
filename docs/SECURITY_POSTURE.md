@@ -107,7 +107,7 @@ Gitleaks runs in CI as the automated secret-scan gate.
 - What anon may and may not read is proved on a replay of every migration by `pnpm db:rls-probe` (checks 1 and 2, on a seeded database); the migration-text tests in `packages/db/test/` pin what each migration leaves behind. A TypeScript copy of the policies, tested against itself, was deleted in ruling 827.
 - No web role writes any table (RLS probe checks 5 and 20, `packages/db/test/web-write-doors.test.ts`).
 - RLS is verified live on every push: CI's `Database replay` job replays every migration on Postgres 17 and runs `pnpm db:rls-probe` (and the other probes); its `Deploy migration run` job applies them with the deploy's own script on the Supabase image and opens a live-channel socket as anon.
-- RLS does not apply to views or functions. Views must set `security_invoker = on`. Since `0275` the web roles run only the RLS helpers their read rules need, and a new function starts closed (RLS probe check 24); a `SECURITY DEFINER` function is still revoked from PUBLIC **and** from `anon` and `authenticated` by name — either alone leaves a grant. Both are enforced offline by `pnpm db:review`.
+- RLS does not apply to views or functions. Views must set `security_invoker = on`. Since `0275` the web roles run only the RLS helpers their read rules need among the functions of `public`, and a new function or sequence the migrations' roles make there starts closed (RLS probe check 24); Realtime's own functions in `realtime` stay open to PUBLIC (ruling 838); a `SECURITY DEFINER` function is still revoked from PUBLIC **and** from `anon` and `authenticated` by name — either alone leaves a grant. Both are enforced offline by `pnpm db:review`.
 
 ### Supabase Linter Warnings We Accept
 

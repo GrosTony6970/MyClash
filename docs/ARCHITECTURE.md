@@ -362,14 +362,17 @@ What is **not** derivable from the DDL, and so belongs here:
   any relation of `public`, now or on a new table, and no policy serves it alone (check 22). No
   table read as a signed-in user reaches the RLS helpers (the loop once filed as ruling 228): one
   signed-in socket on the live channel used to stop every viewer's updates, since Realtime checks
-  all subscribers in one shared poll. Since `0274` every rule is a read rule that a role able to
-  run it can pass (check 23): the 36 rules no reader could pass are gone, four of the five helper
-  loops with them. Web read grants go to `anon` only; `0002`'s promise "authenticated → scoped by
-  org membership" is history. Fighter profiles (`global_persons`) are API-only for both web roles
+  all subscribers in one shared poll. Since `0274` every rule is a read rule, and every role it
+  names can run it (check 23). `0274` also dropped the 36 rules no reader could pass, four of the
+  five helper loops with them: those were found by reading each rule, not by a check, and are
+  pinned by name (`packages/db/test/dead-read-rules-dropped.test.ts`). A new rule no reader can
+  pass is caught only by reading it. Web read grants go to `anon` only; `0002`'s promise
+  "authenticated → scoped by org membership" is history. Fighter profiles (`global_persons`) are API-only for both web roles
   since `0272` (check 21). **Functions too** (`0275`, check 24): `anon` runs only the helpers its
   read rules need, `authenticated` and PUBLIC run nothing in `public`, and a new function or
-  sequence starts closed (PUBLIC's default stays only in `realtime`, for Realtime's own
-  functions). A read rule that calls a NEW helper grants it to `anon` by name.
+  sequence that `postgres` or `supabase_admin` makes in `public` starts closed. For the functions
+  those two make, PUBLIC's default stays only in `realtime`, for Realtime's own functions (ruling
+  838). A read rule that calls a NEW helper grants it to `anon` by name.
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.

@@ -91,10 +91,11 @@ here.
   change on a fresh volume in the deploy's order, not on a database that already ran it.
 - **A function in `public` keeps `service_role`'s EXECUTE** (check 24): the old "migration-only
   function granted to no role" pattern (0229) needs a ruling now.
-- **A text rule over SQL reads statements, in order.** db:review's definer rule once matched
-  `REVOKE … FROM …;` across statement ends, so a table revoke followed by a grant to anon read as
-  closed; it now splits the corpus on `;` outside quotes and replays each function's grants in
-  order (`scripts/lib/definer-rule.mjs`).
+- **A text rule over SQL reads statements, in order.** db:review's definer rule once ran a
+  `REVOKE` on to the first `FROM` after an `ON FUNCTION`, across statement ends: a grant to anon
+  read as closed whenever a later statement's `FROM` named anon and authenticated. It now splits
+  the corpus on `;` outside quotes and replays each function's grants in order
+  (`scripts/lib/definer-rule.mjs`).
 
 ## Offline & realtime
 
