@@ -31,8 +31,8 @@ import { MIGRATION_FILE_PATTERN, listMigrationFiles } from './lib/migrations.mjs
 import { stripSqlComments } from './lib/sql.mjs';
 
 // Re-exported so scripts/check-db-review.test.mjs keeps importing them from the
-// path it always did. That file is the regression proof for this refactor and
-// must stay byte-identical; see scripts/lib/db-rules.mjs for why they moved.
+// path it always did. That file was the regression proof for this refactor; see
+// scripts/lib/db-rules.mjs for why they moved.
 export { securityDefinerFunctionsReachableByAnon, tablesMissingRls, viewsMissingSecurityInvoker };
 
 const root = process.cwd();
@@ -127,7 +127,7 @@ export function checkSchemaSecurity(allSql) {
   const anonReachableDefiners = securityDefinerFunctionsReachableByAnon(allSql);
   if (anonReachableDefiners.length > 0) {
     findings.push(
-      `SECURITY DEFINER functions must REVOKE EXECUTE FROM anon, authenticated by name (REVOKE ... FROM public does not remove the image's default grants): ${anonReachableDefiners.join(', ')}`,
+      `SECURITY DEFINER functions must REVOKE EXECUTE FROM public AND from anon, authenticated by name (each alone leaves a grant), per overload: ${anonReachableDefiners.join(', ')}`,
     );
   }
   return findings;
@@ -374,7 +374,8 @@ export const gate = defineGate({
         'Every new table needs an RLS policy in the same migration — without RLS a table is\n' +
         'world-readable, because PostgREST exposes the public schema as anon. A view needs\n' +
         'security_invoker = on, and a SECURITY DEFINER function needs EXECUTE revoked from\n' +
-        'anon and authenticated BY NAME; revoking from PUBLIC leaves the image default grants.',
+        'PUBLIC AND from anon and authenticated by name: before 0275 PUBLIC held the built-in\n' +
+        'grant and the image granted the two roles by name, and an older function still may.',
     };
   },
 });

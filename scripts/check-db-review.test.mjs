@@ -129,56 +129,6 @@ test('resetting security_invoker unpins the view, IF EXISTS or not', () => {
   assert.deepEqual(viewsMissingSecurityInvoker(sql), ['vw_reset', 'vw_reset_if']);
 });
 
-// ── SECURITY DEFINER reachability ────────────────────────────────────────────
-
-test('REVOKE ... FROM public does not count as revoked', () => {
-  // 0156's actual pattern. The linter proved anon could still execute it: the
-  // image grants EXECUTE to anon by name, and a role-specific grant survives a
-  // revoke aimed at PUBLIC.
-  const sql = `
-    create or replace function public.admin_runtime_db_stats()
-    returns jsonb language sql stable security definer
-    set search_path = public, pg_catalog
-    as $$ select 1 $$;
-    revoke all on function public.admin_runtime_db_stats() from public;
-    grant execute on function public.admin_runtime_db_stats() to service_role;
-  `;
-  assert.deepEqual(securityDefinerFunctionsReachableByAnon(sql), ['admin_runtime_db_stats']);
-});
-
-test('accepts a revoke that names both roles, across a multi-line signature', () => {
-  const sql = `
-    create or replace function public.record_query_error(
-      p_fingerprint text, p_status int
-    ) returns void language sql volatile security definer
-    set search_path = public, pg_catalog
-    as $$ select 1 $$;
-    REVOKE EXECUTE ON FUNCTION public.record_query_error(
-      text, int
-    ) FROM anon, authenticated;
-  `;
-  assert.deepEqual(securityDefinerFunctionsReachableByAnon(sql), []);
-});
-
-test('revoking only one of the two roles is not enough', () => {
-  const sql = `
-    create or replace function public.f() returns void language sql security definer as $$ select 1 $$;
-    revoke execute on function public.f() from anon;
-  `;
-  assert.deepEqual(securityDefinerFunctionsReachableByAnon(sql), ['f']);
-});
-
-test('a plain function does not inherit the next function SECURITY DEFINER', () => {
-  // The scan is bounded at the body marker. Unbounded, `invoker_fn` would be
-  // reported because a definer function is declared after it.
-  const sql = `
-    create or replace function public.invoker_fn() returns void language sql as $$ select 1 $$;
-    create or replace function public.definer_fn() returns void language sql security definer as $$ select 1 $$;
-    revoke execute on function public.definer_fn() from anon, authenticated;
-  `;
-  assert.deepEqual(securityDefinerFunctionsReachableByAnon(sql), []);
-});
-
 // ── The real corpus ──────────────────────────────────────────────────────────
 
 test('the shipped migrations satisfy all three rules', async () => {

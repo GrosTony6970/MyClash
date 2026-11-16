@@ -2,8 +2,8 @@
  * The rules this gate holds that scripts/check-db-review.test.mjs does not.
  *
  * That file covers three rules — RLS coverage, view security_invoker and
- * SECURITY DEFINER reachability — and is left byte-identical as the regression
- * proof for the harness conversion. The gate holds about twenty. Splitting its
+ * SECURITY DEFINER reachability — and was the regression proof for the harness
+ * conversion; it has grown since (ruling 826). The gate holds about twenty. Splitting its
  * body into named functions could have dropped any of the other seventeen with
  * every gate in the fleet still reading green, so each one gets a fixture here.
  *

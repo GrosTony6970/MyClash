@@ -1,5 +1,6 @@
 /**
- * The three schema-security rules, as pure functions over migration SQL.
+ * The three schema-security rules, as pure functions over migration SQL (the third, SECURITY
+ * DEFINER reachability, in ./definer-rule.mjs, re-exported here).
  *
  * ── Why they live here rather than in the gate ──────────────────────────────
  * check-db-review.mjs holds about twenty rules and sits against the 400-line
@@ -61,30 +62,6 @@ export function viewsMissingSecurityInvoker(sql) {
   return [...pinned].filter(([, on]) => !on).map(([view]) => view);
 }
 
-// SECURITY DEFINER functions must be revoked from anon and authenticated BY
-// NAME. `REVOKE ... FROM public` looks equivalent and is not: the supabase
-// image's ALTER DEFAULT PRIVILEGES grants EXECUTE to those two roles by name,
-// and a role-specific grant survives a revoke aimed at PUBLIC. 0156, 0180 and
-// 0182 all shipped believing otherwise.
-export function securityDefinerFunctionsReachableByAnon(sql) {
-  // Bounded at the body marker so a plain function cannot borrow the SECURITY
-  // DEFINER of whichever function happens to be declared after it.
-  const definers = [
-    ...sql.matchAll(
-      /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+((?:"?\w+"?\.)?"?\w+"?)\s*\(([\s\S]*?)AS\s*\$/gi,
-    ),
-  ]
-    .filter((match) => /\bSECURITY\s+DEFINER\b/i.test(match[2] ?? ''))
-    .map((match) => objectName(match[1] ?? ''));
-  const revoked = new Set();
-  for (const match of sql.matchAll(
-    /REVOKE\s+[\s\S]*?\bON\s+FUNCTION\s+([\s\S]*?)\bFROM\b([^;]*);/gi,
-  )) {
-    const roles = match[2] ?? '';
-    if (!/\banon\b/iu.test(roles) || !/\bauthenticated\b/iu.test(roles)) continue;
-    for (const target of (match[1] ?? '').matchAll(/((?:"?\w+"?\.)?"?\w+"?)\s*\(/g)) {
-      revoked.add(objectName(target[1] ?? ''));
-    }
-  }
-  return [...new Set(definers.filter((fn) => !revoked.has(fn)))];
-}
+// The third rule, SECURITY DEFINER reachability, reads the corpus in order, statement by
+// statement; it has a module of its own (ruling 826).
+export { securityDefinerFunctionsReachableByAnon } from './definer-rule.mjs';
