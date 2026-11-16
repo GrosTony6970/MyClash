@@ -1,6 +1,7 @@
+import { boundedCall } from '../../../common/bounded-call';
 import {
-  boundedCall,
   PHOTO_BUCKET_PROBE_TIMEOUT_MS,
+  photoBucketGaveUp,
   type PhotoBucketProbe,
   type PhotoBucketSetting,
 } from '../../photos/photo-bucket';
@@ -23,6 +24,10 @@ export async function collectPhotoStorage(
   }
 
   const started = now();
-  await boundedCall((signal) => probe(setting.config, signal), timeoutMs, 'probe');
+  await boundedCall(
+    (signal) => probe(setting.config, signal),
+    timeoutMs,
+    photoBucketGaveUp('probe'),
+  );
   return { configured: true, bucket: setting.config.bucket, latencyMs: now() - started };
 }

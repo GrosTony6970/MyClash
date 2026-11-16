@@ -1,5 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
+import { boundedCall } from '../../../common/bounded-call';
+import { REDIS_CHECK_TIMEOUT_MS, redisGaveUp } from './redis-connection';
+
+const logger = new Logger('RuntimeHealthQueues');
 
 export const RUNTIME_HEALTH_QUEUE_NAMES = [
   'hema-ratings-sync',
@@ -23,6 +28,7 @@ export async function collectQueues(
   opts: {
     names?: readonly string[];
     queueFactory?: (name: string) => QueueLike;
+    timeoutMs?: number;
   } = {},
 ): Promise<{
   totalWaiting: number;
@@ -38,7 +44,11 @@ export async function collectQueues(
     names.map(async (name) => {
       const queue = factory(name);
       try {
-        const c = await queue.getJobCounts();
+        const c = await boundedCall(
+          () => queue.getJobCounts(),
+          opts.timeoutMs ?? REDIS_CHECK_TIMEOUT_MS,
+          redisGaveUp(`job counts of ${name}`),
+        );
         return {
           name,
           active: c.active ?? 0,
@@ -47,9 +57,12 @@ export async function collectQueues(
           failed: c.failed ?? 0,
         };
       } finally {
-        // Only close queues we constructed via BullMQ (real factory returns a
-        // Queue with close()); the test factory's close() is a harmless no-op.
-        await queue.close().catch(() => undefined);
+        // Not awaited: the card must not wait on teardown (ruling 842). On the shared connection
+        // bullmq 6.7.6 closes without waiting on Redis; what an abandoned Queue holds (its
+        // wait-for-ready listeners, its queued commands) is released when Redis answers again.
+        void queue.close().catch((err: unknown) => {
+          logger.warn(`Queue ${name} did not close: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }),
   );

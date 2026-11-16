@@ -1,5 +1,6 @@
 // runtime-health.service.ts
 import { Injectable } from '@nestjs/common';
+import { BoundedCallTimeout } from '../../common/bounded-call';
 import type { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
 import type {
   DbMetric,
@@ -42,6 +43,15 @@ type QueueRow = { name: string; active: number; waiting: number; delayed: number
 
 function errorText(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'collector failed';
+}
+
+/**
+ * A Redis-backed tile's error: the code `timeout` when Redis did not answer within its bound
+ * (ruling 842; a code, not prose: the card translates it), the raw message otherwise. Only the
+ * Redis and queue tiles use it: the photo probe's own timeout stays its prose.
+ */
+function redisErrorText(reason: unknown): string {
+  return reason instanceof BoundedCallTimeout ? 'timeout' : errorText(reason);
 }
 
 @Injectable()
@@ -120,7 +130,7 @@ export class AdminRuntimeHealthService {
     r: PromiseSettledResult<Awaited<ReturnType<Collectors['collectRedis']>>>,
     s: RuntimeHealthAlertSettings,
   ): RedisMetric {
-    if (r.status === 'rejected') return { status: 'unavailable', error: errorText(r.reason) };
+    if (r.status === 'rejected') return { status: 'unavailable', error: redisErrorText(r.reason) };
     const v = r.value;
     // maxmemory 0 = unlimited → no memory-pressure signal.
     const pct = v.maxMemoryBytes > 0 ? (v.usedMemoryBytes / v.maxMemoryBytes) * 100 : 0;
@@ -137,7 +147,7 @@ export class AdminRuntimeHealthService {
     r: PromiseSettledResult<Awaited<ReturnType<Collectors['collectQueues']>>>,
     s: RuntimeHealthAlertSettings,
   ): QueueMetric {
-    if (r.status === 'rejected') return { status: 'unavailable', error: errorText(r.reason) };
+    if (r.status === 'rejected') return { status: 'unavailable', error: redisErrorText(r.reason) };
     const v = r.value;
     const backlogStatus = deriveStatus(v.totalWaiting, s.queueBacklogWarn, s.queueBacklogCrit);
     // Any failed job is at least a warning, independent of backlog size.

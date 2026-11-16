@@ -14,8 +14,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  boundedCall,
   headPhotoBucket,
+  photoBucketGaveUp,
   photoKeyParts,
   photoObjectKeys,
   photoBucketClientConfig,
@@ -278,29 +278,12 @@ describe('the photo key shape', () => {
   });
 });
 
-describe('boundedCall', () => {
-  it('gives up at its bound and aborts the call, even when the call ignores the signal', async () => {
-    let aborted = false;
-    const started = Date.now();
-    await expect(
-      boundedCall(
-        (signal) => {
-          signal.addEventListener('abort', () => (aborted = true));
-          return new Promise(() => {});
-        },
-        30,
-        'delete',
-      ),
-    ).rejects.toThrow('Photo bucket did not answer within 30 ms (delete)');
-    expect(aborted).toBe(true);
-    expect(Date.now() - started).toBeLessThan(1_000);
-  });
-
-  it('passes the answer and the error of a call that settles in time', async () => {
-    await expect(boundedCall(async () => 'ok', 1_000, 'list')).resolves.toBe('ok');
-    await expect(
-      boundedCall(async () => Promise.reject(new Error('HTTP 500')), 1_000, 'list'),
-    ).rejects.toThrow('HTTP 500');
+describe('photoBucketGaveUp', () => {
+  // The bound itself is `boundedCall`'s (common/bounded-call.test.ts); this is the photo text.
+  it('names the bucket, the bound and the call', () => {
+    expect(photoBucketGaveUp('delete')(30)).toBe(
+      'Photo bucket did not answer within 30 ms (delete)',
+    );
   });
 });
 

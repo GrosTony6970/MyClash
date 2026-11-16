@@ -10,6 +10,7 @@ import {
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { boundedCall } from '../../common/bounded-call';
 
 /**
  * The photo bucket's settings and its S3 client. One owner: nothing else reads a `PHOTO_BUCKET_*`
@@ -156,28 +157,13 @@ const STORE_TIMEOUTS: PhotoStoreTimeouts = {
 };
 
 /**
- * Runs `call` with an abort signal and gives up at `ms`, whether or not the call honours the
- * signal: the SDK's retries outlast its connection timeout, so a signal alone is not a bound.
+ * What a photo bucket call that gave up at its bound says (`boundedCall`, `common/bounded-call.ts`):
+ * the bucket's SDK retries outlast its connection timeout, so a signal alone is not a bound.
  */
-export async function boundedCall<T>(
-  call: (signal: AbortSignal) => Promise<T>,
-  ms: number,
-  what: string,
-): Promise<T> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const gaveUp = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error(`Photo bucket did not answer within ${ms} ms (${what})`));
-    }, ms);
-  });
-  try {
-    return await Promise.race([call(controller.signal), gaveUp]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+export const photoBucketGaveUp =
+  (what: string) =>
+  (ms: number): string =>
+    `Photo bucket did not answer within ${ms} ms (${what})`;
 
 export type PhotoBucketProbe = (config: PhotoBucketConfig, signal: AbortSignal) => Promise<void>;
 
@@ -302,7 +288,7 @@ function sender(s3: Pick<S3Client, 'send'>, bucket: string) {
       return await boundedCall(
         (signal) => s3.send(command as never, { abortSignal: signal }) as Promise<T>,
         timeoutMs,
-        what,
+        photoBucketGaveUp(what),
       );
     } catch (err) {
       throw refusalOf(err, bucket);
@@ -331,7 +317,7 @@ function originalReader(s3: Pick<S3Client, 'send'>, bucket: string, ms: number) 
           return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         },
         ms,
-        'read',
+        photoBucketGaveUp('read'),
       );
     } catch (err) {
       body?.destroy?.();
