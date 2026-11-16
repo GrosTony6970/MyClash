@@ -9,6 +9,7 @@ type Row = Record<string, unknown>;
 export class MatchAutoLockService implements OnModuleDestroy {
   private readonly logger = new Logger(MatchAutoLockService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
+  private inFlight: Promise<number> | null = null;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -21,8 +22,26 @@ export class MatchAutoLockService implements OnModuleDestroy {
    * and the worker both scanned and both wrote.
    */
   start(): void {
-    this.timer = setInterval(() => void this.runOnce(), 60_000);
+    this.timer = setInterval(() => this.tick(), 60_000);
     this.logger.log('Auto-lock scan every 60 s');
+  }
+
+  /**
+   * One scan at a time (ruling 831): the first scan after a deploy can lock a backlog for longer
+   * than the 60 s tick, and a second scan beside it would read and write the same groups. The
+   * promise kept is the caught one: a failed scan is a warning, never a rejection, so whoever
+   * waits for it cannot fail.
+   */
+  private tick(): void {
+    if (this.inFlight) return;
+    this.inFlight = this.runOnce()
+      .catch((err: unknown) => {
+        this.logger.warn(`Auto-lock scan failed: ${err instanceof Error ? err.message : err}`);
+        return 0;
+      })
+      .finally(() => {
+        this.inFlight = null;
+      });
   }
 
   onModuleDestroy(): void {
