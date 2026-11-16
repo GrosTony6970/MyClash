@@ -5,8 +5,10 @@ export const STOP_SIGNALS = ['SIGTERM', 'SIGINT'] as const;
 
 /**
  * On a stop signal, Nest closes the app (ruling 811): the queue consumers finish the job in
- * flight (@nestjs/bullmq closes each Worker, which waits for its job), the auto-lock timer stops,
- * the HTTP server stops taking requests; then the process exits 0.
+ * flight (@nestjs/bullmq closes each Worker, which waits for its job), the auto-lock timer stops
+ * and its scan in flight ends after its current lock (waited for at most 30 s, during the Workers'
+ * drain: match-auto-lock.service.ts), the HTTP server stops taking requests; then the process
+ * exits 0.
  *
  * Without it, Node ran as the container's PID 1 with no handler, which ignores SIGTERM: Docker
  * killed the process at the end of its grace period, the job in flight with it, and BullMQ handed

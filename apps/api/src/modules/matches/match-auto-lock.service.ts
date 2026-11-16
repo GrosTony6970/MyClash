@@ -1,15 +1,22 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { DEFAULT_TOURNAMENT_LOCK_CONFIG, type TournamentLockConfig } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchesService } from './matches.service';
 
 type Row = Record<string, unknown>;
 
+/** How long a stop waits for the scan in flight, counted from the stop. */
+export const AUTO_LOCK_STOP_WAIT_MS = 30_000;
+
 @Injectable()
-export class MatchAutoLockService implements OnModuleDestroy {
+export class MatchAutoLockService implements OnModuleDestroy, BeforeApplicationShutdown {
   private readonly logger = new Logger(MatchAutoLockService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight: Promise<number> | null = null;
+  private scanStartedAt = 0;
+  /** The module is closing: the scan in flight stops before its next lock. */
+  private closing = false;
+  private stopBy = 0;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -30,10 +37,16 @@ export class MatchAutoLockService implements OnModuleDestroy {
    * One scan at a time (ruling 831): the first scan after a deploy can lock a backlog for longer
    * than the 60 s tick, and a second scan beside it would read and write the same groups. The
    * promise kept is the caught one: a failed scan is a warning, never a rejection, so whoever
-   * waits for it cannot fail.
+   * waits for it cannot fail. A skipped tick says so: a scan held by a call that does not answer
+   * (fetch gives up after ~300 s) must not hide.
    */
   private tick(): void {
-    if (this.inFlight) return;
+    if (this.inFlight) {
+      const seconds = Math.round((Date.now() - this.scanStartedAt) / 1000);
+      this.logger.warn(`Auto-lock scan still running after ${seconds} s: this tick is skipped`);
+      return;
+    }
+    this.scanStartedAt = Date.now();
     this.inFlight = this.runOnce()
       .catch((err: unknown) => {
         this.logger.warn(`Auto-lock scan failed: ${err instanceof Error ? err.message : err}`);
@@ -44,8 +57,34 @@ export class MatchAutoLockService implements OnModuleDestroy {
       });
   }
 
+  /**
+   * A stop: no new scan, and the scan in flight ends at its next lock (`closing`). It does not wait
+   * here: Nest destroys modules one at a time, the global BullModule last, and a wait here would
+   * hold every queue Worker open, taking new jobs. The wait is in `beforeApplicationShutdown`,
+   * which Nest runs after every module is destroyed, the Workers' drain included.
+   */
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+    this.closing = true;
+    this.stopBy = Date.now() + AUTO_LOCK_STOP_WAIT_MS;
+  }
+
+  /**
+   * A stop waits for the scan in flight (ruling 831), at most until 30 s after the stop began: it
+   * ends after the lock in progress, and one lock has no time limit of its own. So the stop costs
+   * the longer of the Workers' drain and this wait, never their sum.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
+    if (!this.inFlight) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<'deadline'>((done) => {
+      timer = setTimeout(() => done('deadline'), Math.max(0, this.stopBy - Date.now()));
+    });
+    const ended = await Promise.race([this.inFlight, deadline]);
+    clearTimeout(timer);
+    if (ended === 'deadline') {
+      this.logger.warn('Auto-lock lock still running 30 s after the stop: the stop goes on');
+    }
   }
 
   async runOnce(now = new Date()): Promise<number> {
@@ -115,6 +154,8 @@ export class MatchAutoLockService implements OnModuleDestroy {
       }
       if (!this.delayElapsed(group, config.autoLockDelayMinutes, now)) continue;
       for (const match of group) {
+        // A Bracket is one group of many bouts: a stop waits for one lock, not the whole phase.
+        if (this.closing) return locked;
         if (match['locked_at']) continue;
         // Null: the Match changed since this scan read it, and the write left it alone.
         const row = await this.matches.lockMatch(
