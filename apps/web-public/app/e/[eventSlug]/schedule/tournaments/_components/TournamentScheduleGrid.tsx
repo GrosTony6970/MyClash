@@ -261,17 +261,18 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
           {dayBreaks.map((brk) => {
             const endSlot = brk.startSlot + brk.span;
             // Every bar carries an accent — the organiser's, or the kind's
-            // default. Same resolution the admin board and its picker use.
+            // default. Same resolution the admin board and its picker use. The
+            // accent is the bar's edge; its words take the page ink, as on the
+            // admin board: a workshop's amber was 2.15:1 as text (D30).
             const accent = resolveBlockAccent(brk.kind, brk.colorHex);
             return (
               <div
                 key={`brk-${brk.id}`}
-                className="flex items-center justify-center overflow-hidden border-y bg-surface px-2 text-[11px] font-semibold uppercase tracking-wide"
+                className="flex items-center justify-center overflow-hidden border-y bg-surface px-2 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary"
                 style={{
                   gridColumn: '2 / -1',
                   gridRow: `${rowFor(brk.startSlot)} / ${rowFor(Math.max(brk.startSlot + 1, endSlot))}`,
                   zIndex: 6,
-                  color: accent,
                   borderColor: accent,
                 }}
               >

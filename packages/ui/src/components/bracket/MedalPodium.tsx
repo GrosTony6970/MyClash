@@ -144,7 +144,7 @@ function Step({
         <span
           className={[
             'text-center font-semibold leading-tight break-words',
-            isTbd ? 'italic text-slate-400' : 'text-slate-900',
+            isTbd ? 'italic text-slate-500' : 'text-slate-900',
           ].join(' ')}
         >
           {fighterName}
@@ -195,7 +195,7 @@ function Ribbon({
       <span
         className={[
           'min-w-0 flex-1 text-xs font-medium leading-tight break-words',
-          isTbd ? 'italic text-slate-400' : 'text-slate-900',
+          isTbd ? 'italic text-slate-500' : 'text-slate-900',
         ].join(' ')}
       >
         {fighterName}

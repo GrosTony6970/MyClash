@@ -27,8 +27,8 @@ import {
   DataTableHead,
   DataTableRow,
   SkillBadge,
+  accentClassFor,
   nameOrUnknown,
-  tintBgClassFor,
 } from '@myclash/ui';
 import { reorderOwnSkills } from './reorder-own-skills';
 
@@ -187,8 +187,8 @@ export function SkillCatalog({
               <DataTableCell>
                 <span
                   className={[
-                    'inline-block h-5 w-5 rounded-full border border-border',
-                    tintBgClassFor(skill.color),
+                    'inline-block h-5 w-5 rounded-full border border-foreground/50',
+                    accentClassFor(skill.color),
                   ].join(' ')}
                   aria-hidden="true"
                 />

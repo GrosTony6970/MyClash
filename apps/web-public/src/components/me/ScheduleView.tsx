@@ -466,7 +466,8 @@ export function ScheduleView({
         style={{ borderColor: tint.borderColor, backgroundColor: tint.backgroundColor }}
         className="flex items-center gap-3 rounded-lg border border-l-4 px-4 py-3 text-sm text-foreground"
       >
-        <span className="shrink-0 font-bold tabular-nums" style={{ color: tint.borderColor }}>
+        {/* The page ink, not the bar's colour: amber on its own wash was 1.87:1 (D30). */}
+        <span className="shrink-0 font-bold tabular-nums text-foreground-secondary">
           {fmtTime(row.start)}
           {row.end ? `–${fmtTime(row.end)}` : ''}
         </span>

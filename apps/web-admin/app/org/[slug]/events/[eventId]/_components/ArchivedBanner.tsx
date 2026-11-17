@@ -119,7 +119,7 @@ export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
         <span className="text-sm text-yellow-800">
           {t('organizer.deletionRequest.archivedBannerCopy')}
           {formattedArchivedDate && (
-            <span className="ml-2 text-yellow-600 text-xs">
+            <span className="ml-2 text-yellow-800 text-xs">
               {t('organizer.deletionRequest.archivedLastArchivedOn', {
                 date: formattedArchivedDate,
               })}

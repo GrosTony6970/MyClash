@@ -761,6 +761,46 @@ full ink; its size and weight already set it back.
 
 ---
 
+## D30 — FIXED: a hue, or a raw grey, written as text on a light page
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17.** Rendered and measured that day (static pages from each app's production
+stylesheet, in Chromium):
+
+| Where                                                                 | It was                      | Ratio       | It is                                               | Ratio       |
+| --------------------------------------------------------------------- | --------------------------- | ----------- | --------------------------------------------------- | ----------- |
+| A side colour as text on a light page: yellow / green / orange / pink | the hex as configured       | 2.8–4.4     | the same hue, darkened                              | 4.55–4.70   |
+| Tournament stats, afterblow given / afterblow received                | `orange-600` / `red-400`    | 3.43 / 2.77 | `orange-700` / `red-700`                            | 5.00 / 6.15 |
+| Tournament stats, clean hits received                                 | `red-600`                   | 4.57        | `red-800`                                           | 8.00        |
+| Tournament schedule grid, a break bar's label (a workshop's amber)    | the bar's colour            | 2.15        | `text-foreground-secondary`                         | 7.58        |
+| `/me` schedule, a programme bar's time (amber, on its own wash)       | the bar's colour            | 1.87        | `text-foreground-secondary`                         | 6.59        |
+| Archived-Event banner, its date                                       | `yellow-600` on `yellow-50` | 2.84        | `yellow-800`, as its sentence                       | 6.61        |
+| Referees › Qualifications, a skill's colour swatch                    | the pale tint, on white     | 1.09        | the skill's colour, with a `foreground/50` hairline | —           |
+| The ⓘ of every help tooltip; the "TBD" of an empty podium place       | `slate-400` on white        | 2.63        | `text-muted` / `slate-500`                          | 4.76        |
+
+- **The side colour is the root one.** `legibleOn(hex, 'light')` (`packages/ui` `side-color.ts`)
+  promised a legible side colour and clamped only near-white. Every caller that writes a fighter's
+  side as text on a light page went through it unchanged: the organiser's match page (score, round
+  wins, "+N" per exchange), the public bout page, the print pack, `/me`'s schedule, a referee's
+  profile, and the white header of `TVScoreboard`. It now darkens a mid tone, keeping its hue,
+  until it is 4.5:1 on the light page: yellow `#ca8a04` → `#9a6903`, green `#16a34a` → `#12823b`,
+  orange `#ea580c` → `#c54a0a`, pink `#db2777` → `#d72675`. Red, blue, purple, brown, grey and black
+  already read and are returned unchanged. A caller that uses it as a fill (the stripe of a
+  `/me` commitment card) gets the darker hue too.
+- **A bar's colour is its edge.** The organiser's board already wrote break and programme bars in
+  `text-foreground-secondary`; the public grid and `/me` wrote them in the bar's own colour.
+- **The stats are data categories, not statuses**, so they stay on palette shades rather than the
+  status tokens (D19).
+
+`side-color.test.ts` measures every side colour; `hue-ink.test.ts` (one in each app) and
+`light-page-ink.test.ts` hold the rest.
+
+**Still open, beside it:** `legibleOn(hex, 'dark')` still clamps only near-black. On the stage, the
+brown side (`#92400e`) is about 2.9:1. web-staff and the projector were not audited.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

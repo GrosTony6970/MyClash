@@ -49,6 +49,63 @@ describe('outlineInkOn', () => {
   });
 });
 
+describe('legibleOn, on a light surface', () => {
+  // Every side colour an organiser can pick. Yellow, green and orange passed through unchanged and
+  // were 2.8:1 to 3.4:1 as a score on the organiser's match page (known-deviations D30).
+  const TOKENS = [
+    'white',
+    'black',
+    'grey',
+    'yellow',
+    'red',
+    'blue',
+    'green',
+    'brown',
+    'pink',
+    'orange',
+    'purple',
+  ] as const;
+  const PAGE = '#fafaf9';
+  const ratio = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const [r, g, b2] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      }) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+    };
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  it.each(TOKENS)('reads as text on the light page: %s', (token) => {
+    const ink = legibleOn(sideStyle(withSidesFor(token), 'red').border, 'light');
+    expect(ratio(ink, PAGE)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('leaves a colour that already reads untouched', () => {
+    for (const token of ['red', 'blue', 'purple', 'brown'] as const) {
+      const border = sideStyle(withSidesFor(token), 'red').border;
+      expect(legibleOn(border, 'light')).toBe(border);
+    }
+  });
+
+  it('keeps the hue when it darkens: yellow stays a yellow-brown, not a grey', () => {
+    const ink = legibleOn('#ca8a04', 'light');
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(ink.slice(i, i + 2), 16)) as [
+      number,
+      number,
+      number,
+    ];
+    expect(r).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(b);
+  });
+
+  it('returns a value it cannot parse unchanged', () => {
+    expect(legibleOn('not-a-hex', 'light')).toBe('not-a-hex');
+  });
+});
+
 describe('legibleOn', () => {
   it('replaces a near-black colour with a light fallback on a dark surface', () => {
     // black token border (#334155) would be near-invisible as a score on
@@ -82,9 +139,13 @@ describe('sideColorsFor', () => {
     ({ display: { sideColors: { red, blue } } }) as never;
 
   it('paints the colours the organiser configured, not red and blue', () => {
-    const { red, blue } = sideColorsFor(withSides('green', 'yellow'), 'light');
-    expect(red).toBe('#16a34a');
-    expect(blue).toBe('#ca8a04');
+    const dark = sideColorsFor(withSides('green', 'yellow'), 'dark');
+    expect(dark.red).toBe('#16a34a');
+    expect(dark.blue).toBe('#ca8a04');
+    // On light the same hues, darkened until they read as text (D30).
+    const light = sideColorsFor(withSides('green', 'yellow'), 'light');
+    expect(light.red).toBe('#12823b');
+    expect(light.blue).toBe('#9a6903');
   });
 
   it('keeps a black side visible on the dark projector stage', () => {

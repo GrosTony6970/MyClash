@@ -203,18 +203,48 @@ function relativeLuminance(hex: string): number {
  * The configured side palette includes near-black ('black' → #334155)
  * and near-white ('white' → #cbd5e1) tokens; rendered verbatim, the
  * black token vanishes as a score on the dark stage and the white
- * token vanishes as a name on the white header strip. This returns a
- * safe fallback in those cases and the original hex otherwise.
+ * token vanishes as a name on the white header strip. Those two take a
+ * fixed fallback.
  *
- * Thresholds isolate only the black/white extremes — saturated reds
- * (lum ≈0.17), blues (≈0.16), purples (≈0.13) and the brown token
- * (≈0.10) all pass through unchanged on both surfaces.
+ * On light, a mid tone is darkened, keeping its hue, until it reads as
+ * text on the light page (4.5:1 on #fafaf9, the darker of the two light
+ * surfaces). Yellow, green, pink and orange passed through unchanged at
+ * 2.8:1 to 4.3:1 until 2026-11-17 (known-deviations D30). A colour that
+ * already reads — red, blue, purple, brown, grey, black — is returned
+ * as it is.
  */
 export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
   const lum = relativeLuminance(hex);
   if (bg === 'dark' && lum < 0.08) return '#e2e8f0'; // too dark on dark → light slate
   if (bg === 'light' && lum > 0.6) return '#1f2937'; // too light on light → dark slate
+  if (bg === 'light') return darkenUntilReadable(hex);
   return hex;
+}
+
+/** Relative luminance of #fafaf9, the light page. */
+const LIGHT_PAGE_LUM = relativeLuminance('#fafaf9');
+
+/** Scale a hex toward black in small steps until it is 4.5:1 on the light page. */
+function darkenUntilReadable(hex: string): string {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const rgb = [m[1]!, m[2]!, m[3]!].map((h) => parseInt(h, 16));
+  const toHex = (k: number) =>
+    '#' +
+    rgb
+      .map((c) =>
+        Math.round(c * k)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('');
+  for (let k = 1; k > 0; k -= 0.02) {
+    const candidate = toHex(k);
+    if ((LIGHT_PAGE_LUM + 0.05) / (relativeLuminance(candidate) + 0.05) >= 4.5) {
+      return k === 1 ? hex : candidate;
+    }
+  }
+  return '#000000';
 }
 
 /**

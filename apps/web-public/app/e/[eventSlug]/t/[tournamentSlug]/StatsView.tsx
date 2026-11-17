@@ -72,11 +72,13 @@ export function StatsView({ overview, fighters, afterblow, targets, colorToken, 
     hitsReceived: 'publicApp.tournamentStats.colCleanReceivedTitle',
     afterblowReceived: 'publicApp.tournamentStats.colAfterblowReceivedTitle',
   } as const;
+  // Each ink reads on the page (4.74:1 at least, measured). Orange-600 and red-400 were 3.4:1 and
+  // 2.8:1 (known-deviations D30). The afterblow received stays the lighter of the two reds.
   const blowCellClass = {
     hitsGiven: 'text-green-700',
-    afterblowGiven: 'text-orange-600',
-    hitsReceived: 'text-red-600',
-    afterblowReceived: 'text-red-400',
+    afterblowGiven: 'text-orange-700',
+    hitsReceived: 'text-red-800',
+    afterblowReceived: 'text-red-700',
   } as const;
 
   // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
