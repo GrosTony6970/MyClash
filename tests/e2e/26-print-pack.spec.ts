@@ -102,11 +102,11 @@ test('print pack renders and builds a document from real tournament data', async
       }) as unknown as Window;
   });
 
-  // The page defaults to the FIRST tournament the event returns, which in a full
-  // suite run is whatever `02` left behind — a wizard draft with no pools, so the
-  // button is (correctly) disabled and every assertion below would be about the
-  // wrong tournament. Pick this spec's own. The picker only renders when the
-  // event holds more than one, so a solo run has nothing to choose.
+  // The page defaults to "All tournaments" (since 9e2aa2a89), which in a full
+  // suite run takes in whatever `02` and the others left behind — so every
+  // assertion below would be about a pack of other specs' tournaments. Pick this
+  // spec's own by its label. The picker only renders when the event holds more
+  // than one, so a solo run has nothing to choose.
   //
   // While either fetch is in flight the button is labelled "loading", so this
   // locator resolving at all IS the settle signal — before the select and again

@@ -1262,11 +1262,9 @@ of the bracket says afterwards:
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
 (`.github/workflows/e2e-prod.yml`) is **manual dispatch only**: its nightly schedule has been off
-since 2026-11-01, so nothing runs these specs unless someone starts it. It does **not** set all of
-them: `07` is excluded on purpose, and `34` (`E2E_DRIFT`), `35` (`E2E_FORFEIT`) and
-`36` (`E2E_UNCOMPLETE`) are simply absent from `.github/workflows/e2e-prod.yml`. Those
-three are documented here as active specs that nothing schedules — run them by hand, or
-add the flag to the workflow.
+since 2026-11-01, so nothing runs these specs unless someone starts it. It sets every flag but
+one: `07` is excluded on purpose. `41` also needs the repository variable `E2E_STAFF_URL`
+(the staff app's own address), and skips until it is set.
 
 `31` is the one exception to "gated purely on their env flag": it also needs
 `E2E_AI_PROVIDER` + `E2E_AI_KEY`, which are opt-in by **secret** rather than by
