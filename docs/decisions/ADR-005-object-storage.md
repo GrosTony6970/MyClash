@@ -3,6 +3,12 @@
 **Date:** 2025-01-01
 **Status:** Accepted
 
+> **Note (2026-11-17):** Event photos do not follow this decision. They are kept in a separate
+> Scaleway Object Storage bucket (the `PHOTO_BUCKET_*` keys) that the API reaches directly with an
+> S3 client (`apps/api/src/modules/photos/photo-bucket.ts`), not through the Supabase Storage API,
+> and `infra/scripts/backup.sh` does not copy that bucket. Fighter photos, logos, and Event and
+> Workshop pictures still go through Supabase Storage, as decided below.
+
 ## Context
 
 MyClash needs object storage for:

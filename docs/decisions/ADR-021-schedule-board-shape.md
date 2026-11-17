@@ -3,6 +3,13 @@
 **Date:** 2026-09-14
 **Status:** Accepted
 
+> **Note (2026-11-17):** On this date two parts of the Decision are not in the code. The referee
+> board has no route of its own:
+> `apps/web-admin/app/org/[slug]/events/[eventId]/referee-assignments/page.tsx` redirects to
+> `/referees#assignments`, and Assignments is the fourth tab of `referees/page.tsx`. The schedule
+> grid has no column per room: a Workshop shows there as a bar across the pistes, and its sessions
+> are on the Workshops board. The other parts of the Decision were not checked for this note.
+
 ## Context
 
 Five shape questions on the two boards, each with a fact behind it.

@@ -3,6 +3,12 @@
 **Date:** 2026-08-04
 **Status:** Accepted
 
+> **Note (2026-11-17):** The Decision below says the privacy policy "names the three cookies".
+> The apps now set eight, all first-party: `sb-access-token`, `sb-refresh-token`, `mc_guest`,
+> `mc_staff`, `mc_locale`, `mc_theme`, `mc_photo_device`, and `mc-oauth-…-code-verifier` during a
+> Google sign-in. The policy's §9 lists all eight, and `scripts/privacy-cookies.test.mjs` holds
+> that list against the code both ways. The decision itself, no banner, is unchanged.
+
 ## Context
 
 Opening signups to the public in the EU raised two questions that are routinely conflated:

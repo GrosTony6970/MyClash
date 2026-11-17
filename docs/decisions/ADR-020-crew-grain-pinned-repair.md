@@ -3,6 +3,13 @@
 **Date:** 2026-09-14
 **Status:** Accepted
 
+> **Note (2026-11-17):** On this date the code is still as the Context describes, on three points
+> checked in `packages/db/migrations/` (latest `0276_match_protests.sql`). The Lice scope is still
+> in `referee_assignments_scope_check` (`0091_sql_audit_tier2.sql`; no later migration redefines
+> it), `lice_id` is still on the row, and the compensation code still has its Lice branch
+> (`apps/api/src/modules/compensation/compensation.service.ts`). No migration gives a Match a
+> pinned mark. No migration puts a unique index on `(pool_id, role)` or `(match_id, role)`.
+
 ## Context
 
 - `referee_assignments` allows three scopes: a Pool, a Match, or a Lice
