@@ -9,7 +9,8 @@
  * copy described a bracket tool with six generic cards: it never mentioned
  * offline scoring (the differentiator, which appeared only in a meta tag), hid
  * Swiss behind "et plus encore", and said nothing about leagues, workshops,
- * referee compensation, HEMA Ratings export or fighter accounts.
+ * referee compensation, HEMA Ratings export or fighter accounts — and, until
+ * a later pass, Event photos or FightBook.
  */
 import type { Locale } from './ui';
 
@@ -124,8 +125,16 @@ const fr: HomeCopy = {
       text: "Un événement AMHE, ce n'est pas seulement des combats. Programmez vos ateliers, gérez les inscriptions et les intervenants, et récoltez les retours des participants après coup.",
     },
     {
+      title: 'Les photos de votre événement',
+      text: 'Affichez un QR code dans la salle : le public envoie ses photos depuis son téléphone, sans créer de compte, et leurs données cachées sont retirées. Publiez-les aussitôt ou après validation, confiez la modération à un compte photo dédié, et téléchargez-les toutes en un seul zip.',
+    },
+    {
       title: 'Comptes combattants et statistiques',
       text: "Chaque compétiteur dispose d'un profil : palmarès, historique de combats, statistiques par arme, cartons reçus. Les résultats s'exportent au format HEMA Ratings pour alimenter le classement international.",
+    },
+    {
+      title: 'FightBook : trouvez un partenaire de sparring',
+      text: "Avant l'événement ou entre deux combats, proposez un sparring amical à un autre combattant. La réponse reste privée : oui, ou « pas cette fois ». Voyez qui est disponible maintenant, lancez un appel ouvert, ou scannez un QR pour enregistrer un sparring. FightBook reste désactivé tant que vous ne l'activez pas.",
     },
     {
       title: 'Vos données restent les vôtres',
@@ -237,8 +246,16 @@ const en: HomeCopy = {
       text: 'A HEMA event is more than fighting. Schedule your workshops, manage enrolment and instructors, and collect participant feedback once they are over.',
     },
     {
+      title: "Your event's photos",
+      text: 'Put a QR code up in the hall: spectators send their photos from their phones, with no account, and hidden data is stripped. Show them at once or after approval, hand moderation to a dedicated photo login, and download them all as one zip.',
+    },
+    {
       title: 'Fighter accounts and statistics',
       text: 'Every competitor gets a profile: honours, bout history, per-weapon statistics, cards received. Results export in HEMA Ratings format to feed the international rating.',
+    },
+    {
+      title: 'FightBook: find a sparring partner',
+      text: 'Before the Event or between bouts, ask another fighter for a friendly sparring session. The answer stays private: yes, or "not this time". See who is free for sparring now, post an open call, or scan a QR code to log a sparring session. FightBook stays off until you switch it on.',
     },
     {
       title: 'Your data stays yours',
@@ -325,9 +342,18 @@ export const FEATURE_ICON_PATHS: readonly (readonly string[])[] = [
     'M12 14l9-5-9-5-9 5 9 5z',
     'M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
   ],
+  // photos
+  [
+    'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z',
+    'M15 13a3 3 0 11-6 0 3 3 0 016 0z',
+  ],
   // stats
   [
     'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z',
+  ],
+  // fightbook
+  [
+    'M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z',
   ],
   // data ownership
   [
