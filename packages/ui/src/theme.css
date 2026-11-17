@@ -47,31 +47,37 @@
    *   --color-gold      #f59e0b — FILLS, medals, icons, large display type. As
    *                     small text on light this is 2.06:1 — never use it for that.
    *   --color-gold-text #92400e — gold as SMALL TEXT on a light surface, 6.79:1.
-   * They are not merged because the AA-passing amber for text (#b45309) is the
-   * exact value of --color-warning-hover — merging would make gold indistinguishable
-   * from a warning and destroy the distinction this system is built on.
+   * They are not merged because an amber dark enough to pass AA as text is a
+   * warning amber (#a24b08 is --color-warning, #92400e its hover) — merging would
+   * make gold indistinguishable from a warning and destroy the distinction this
+   * system is built on.
    * The dark scope needs no split: gold is #fbbf24 there, already 10.69:1. */
   --color-gold: #f59e0b; /* gold-500 */
   --color-gold-text: #92400e; /* amber-800 — 6.79:1 on #fafaf9 */
 
   /* Status (badges / alerts only — never the page accent).
-   * Every value below is >= WCAG AA 4.5:1 both as text on the page and under
-   * white text as a solid fill. success/warning were green-600/gold-600 until
-   * 2026-07-17 and failed at 3.30:1 / 3.19:1. */
-  --color-danger: #dc2626; /* red-600 — 4.83:1 under white */
+   * Every value below is >= WCAG AA 4.5:1 as text on the page, as text on its
+   * own 10% or 15% wash (a chip, an alert), and under white text as a solid
+   * fill. They are not palette steps: red-600 / green-700 / amber-700 / blue-600
+   * were 3.67:1 to 4.50:1 on their own wash, and one palette step darker would
+   * land danger on the accent, warning on gold-text and info on the personal
+   * accent. So each is about 10% darker than its 600/700 step, same hue
+   * (2026-11-17, known-deviations D34). success/warning were green-600/gold-600
+   * until 2026-07-17 and failed at 3.30:1 / 3.19:1. */
+  --color-danger: #be2121; /* 4.58:1 on its 15% wash, 6.12:1 under white */
   --color-danger-foreground: #ffffff;
-  --color-success: #15803d; /* green-700 — 5.02:1 under white */
+  --color-success: #137337; /* 4.59:1 on its 15% wash, 5.94:1 under white */
   --color-success-foreground: #ffffff;
-  --color-warning: #b45309; /* amber-700 — 5.02:1 under white */
+  --color-warning: #a24b08; /* 4.57:1 on its 15% wash, 5.92:1 under white */
   --color-warning-foreground: #ffffff;
   --color-instructor: #7c3aed; /* violet-600 — instructor role pill (personal space) */
   --color-instructor-foreground: #ffffff;
-  --color-info: #2563eb; /* blue-600 — 5.17:1 under white */
+  --color-info: #225bd7; /* 4.56:1 on its 15% wash, 5.92:1 under white */
   --color-info-foreground: #ffffff;
 
   /* Hover states for solid STATUS buttons (so hover isn't a no-op).
    * Each is one step darker than its base, so hover only ever raises contrast. */
-  --color-danger-hover: #b91c1c; /* red-700 */
+  --color-danger-hover: #991b1b; /* red-800 */
   --color-success-hover: #166534; /* green-800 */
   --color-warning-hover: #92400e; /* amber-800 */
   --color-info-hover: #1d4ed8; /* blue-700 */
@@ -279,11 +285,11 @@
   --color-gold: #f59e0b; /* gold-500 */
   --color-gold-text: #92400e; /* amber-800 */
 
-  --color-danger: #dc2626; /* red-600 */
-  --color-success: #15803d; /* green-700 */
-  --color-warning: #b45309; /* amber-700 */
+  --color-danger: #be2121;
+  --color-success: #137337;
+  --color-warning: #a24b08;
   --color-instructor: #7c3aed; /* violet-600 */
-  --color-info: #2563eb; /* blue-600 */
+  --color-info: #225bd7;
 
   --color-danger-foreground: #ffffff;
   --color-success-foreground: #ffffff;
@@ -291,7 +297,7 @@
   --color-info-foreground: #ffffff;
   --color-instructor-foreground: #ffffff;
 
-  --color-danger-hover: #b91c1c; /* red-700 */
+  --color-danger-hover: #991b1b; /* red-800 */
   --color-success-hover: #166534; /* green-800 */
   --color-warning-hover: #92400e; /* amber-800 */
   --color-info-hover: #1d4ed8; /* blue-700 */

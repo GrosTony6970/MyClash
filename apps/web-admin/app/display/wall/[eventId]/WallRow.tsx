@@ -60,7 +60,10 @@ export function WallRow({ row, state, nowMs, locale, t }: WallRowProps) {
         {cm ? statusLabel('match', cm.status, t) : ''}
         {timing.clock ? ` · ${timing.clock}` : ''}
       </span>
+      {/* A warning takes the dark scope: the stage sets none, and the light amber is
+          3.4:1 on near-black where the dark one is 9.37:1 (known-deviations D34). */}
       <span
+        data-theme={timing.warn ? 'dark' : undefined}
         className={`w-48 shrink-0 truncate text-right ${timing.warn ? 'text-warning' : 'text-stage-foreground/60'}`}
         style={{ fontSize: 'var(--text-stage-meta)' }}
       >

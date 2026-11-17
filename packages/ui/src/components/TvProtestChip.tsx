@@ -9,9 +9,11 @@ import { HandMark } from './hand-mark';
  * or `count/limit` with a Tournament limit, in the warning colour from the
  * limit on. Voided protests and the other fighter's are not counted.
  *
- * Warning ink (`--color-warning` #b45309) on the chip's own fill, `bg-warning/20`
- * blended over `--color-stage` #030712, is 3.47:1, over the 3:1 a stage-size
- * glyph needs. Against the bare stage the ink alone is 4.01:1.
+ * At the limit the chip sets `data-theme="dark"`: the stage sets no scope, so a
+ * bare `text-warning` would be the light page's amber on near-black. The dark
+ * scope's amber (#f59e0b) on the chip's own fill, `bg-warning/20` blended over
+ * `--color-stage` #030712, is 6.90:1; the light one was 3.46:1 and would have
+ * dropped to 3.00:1 when the light status inks darkened (known-deviations D34).
  */
 export function TvProtestChip({
   protests,
@@ -34,6 +36,7 @@ export function TvProtestChip({
     : `bg-stage-foreground/10 text-stage-foreground ${count === 0 ? 'opacity-30' : ''}`;
   return (
     <span
+      data-theme={atLimit ? 'dark' : undefined}
       title={t('scoring.lice.protestsChipTooltip', { fighter: fighterName })}
       className={`text-stage-club inline-flex items-center gap-2 rounded-full px-4 py-1.5 font-bold ${tone}`}
     >

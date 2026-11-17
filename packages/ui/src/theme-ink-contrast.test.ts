@@ -137,6 +137,58 @@ describe('ink on the dark panel, the initials disc and the stage toggles', () =>
 });
 
 /**
+ * The four status inks on light. A status chip and an alert write the ink on a 10% or 15% wash of
+ * itself; at red-600 / green-700 / amber-700 / blue-600 that was 3.67:1 to 4.50:1 — every red error
+ * box of the product was under the reading bar (known-deviations D34). By the operator's ruling the
+ * four went about 10% darker, same hue.
+ */
+describe('the status inks on light', () => {
+  const STATUS = ['danger', 'success', 'warning', 'info'] as const;
+  const LIGHT = ['surface', 'background'] as const;
+
+  it.each(STATUS.flatMap((s) => LIGHT.flatMap((g) => [0.1, 0.15].map((a) => [s, g, a] as const))))(
+    '%s reads on its own wash over the light %s, at %s',
+    (status, ground, alpha) => {
+      const ink = token(status);
+      expect(contrast(ink, over(ink, alpha, token(ground)))).toBeGreaterThanOrEqual(AA);
+    },
+  );
+
+  it.each(STATUS)('%s still carries its white foreground as a solid fill', (status) => {
+    expect(contrast(token(`${status}-foreground`), token(status))).toBeGreaterThanOrEqual(AA);
+  });
+
+  it.each(STATUS)('%s hover is a darker step than %s', (status) => {
+    const lum = (c: Rgb) => c.reduce((n, v) => n + v, 0);
+    expect(lum(token(`${status}-hover`))).toBeLessThan(lum(token(status)));
+  });
+});
+
+/**
+ * The projector stage sets no scope, so a bare status ink there is the light page's value, which
+ * the step above made darker. The stage's two status elements — the protest chip of the TV
+ * scoreboard and the "behind" cell of the Live wall — take `data-theme="dark"` and read the dark
+ * scope's bright amber instead.
+ */
+describe('a warning on the stage', () => {
+  const DARK = "[data-theme='dark']";
+  const stage = token('stage');
+
+  it('reads as the dark scope warning, as text on the stage', () => {
+    expect(contrast(token('warning', DARK), stage)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('reads as the dark scope warning on its 20% chip fill, over the 3:1 stage-size text needs', () => {
+    const ink = token('warning', DARK);
+    expect(contrast(ink, over(ink, 0.2, stage))).toBeGreaterThanOrEqual(3);
+  });
+
+  it('would not read as the light warning there', () => {
+    expect(contrast(token('warning'), stage)).toBeLessThan(AA);
+  });
+});
+
+/**
  * The keyboard focus ring of every Button and dialog button. It was `gold`, 2.06:1 against a light
  * page, under the 3:1 a focus indicator needs: a keyboard user could barely see where they were
  * (known-deviations D32). `gold-text` is the deep amber on light and the same bright gold on dark.

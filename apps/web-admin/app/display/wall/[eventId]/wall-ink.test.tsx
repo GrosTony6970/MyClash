@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { NOW, mkRow } from '@/lib/live-board/live-board.fixtures';
+import { NOW, agoIso, mkMatch, mkRow } from '@/lib/live-board/live-board.fixtures';
 import { WallRow } from './WallRow';
 
 /**
@@ -47,6 +47,17 @@ describe('the wall row, on the stage', () => {
 
   it('spends no page ink', () => {
     expect(classes.filter((c) => c.match(PAGE_INK))).toEqual([]);
+  });
+
+  // The stage sets no scope, so a bare `text-warning` is the light page's amber on near-black.
+  // The "behind" cell takes the dark scope's, 9.37:1 (known-deviations D34).
+  it('writes "behind" in the dark scope, so its warning is the bright amber', () => {
+    // Ten minutes into a five-minute bout: over time, which is the warning.
+    const overTime = mkRow({ currentMatch: mkMatch({ startedAt: agoIso(600) }) });
+    const late = renderToStaticMarkup(
+      <WallRow row={overTime} state="late" nowMs={NOW} locale="en" t={t} />,
+    );
+    expect(late).toMatch(/<span data-theme="dark" class="[^"]*text-warning/);
   });
 });
 

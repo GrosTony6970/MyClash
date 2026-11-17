@@ -46,7 +46,7 @@ than an architectural change. What remains is the visible brand decision in [D4]
 - **`--font-display: 'Cinzel', serif`** — an inscriptional Roman capital. Monumental, not printed-handbook. A fundamentally different claim from Fraunces.
 - **`--font-body: 'Cormorant Garamond', serif`** — it was once requested from Google Fonts as `'Cormorant Garant'`, a typo for a font that does not exist, so the body copy silently rendered in **Times** for months. See [D4](known-deviations.md#d4--web-marketing-is-still-on-the-legacy-design-language).
 - **Both faces are self-hosted** through `@fontsource` (`src/styles/fonts.css`). No request leaves for Google: the privacy policy on this very site says which flows leave the European Union, and a font request to Google on that page contradicted it.
-- **The palette is inverted** relative to the product: `--red: #dc2626` (the product's _danger_ value) is the brand red, while `--red-dark: #b91c1c` (the product's _actual_ accent) is secondary.
+- **The palette is inverted** relative to the product: `--red: #dc2626` (the product's red corner, and its _danger_ value until 2026-11-17) is the brand red, while `--red-dark: #b91c1c` (the product's _actual_ accent) is secondary.
 - **The brand images.** The home page shows a hero photograph and, under it, the banner artwork on a band of its own navy (`.banner-section`, `--banner-navy`). The banner is contained, not cropped, so the letterforms stay whole. The same emblem and banner are the brand mark of the product apps' headers and sign-in pages.
 
 ## Don't

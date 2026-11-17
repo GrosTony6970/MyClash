@@ -91,7 +91,7 @@ Worth remembering _why_ it was dangerous rather than merely dead: its radius sca
 
 Two specific defects on top of the font stack:
 
-1. **Its brand red is the danger value.** `--red: #dc2626` is used as the brand red while `--red-dark: #b91c1c` — the product's actual accent — is demoted to secondary. Inverted.
+1. **Its brand red is the product's red corner** (and its danger value until 2026-11-17, D34). `--red: #dc2626` is used as the brand red while `--red-dark: #b91c1c` — the product's actual accent — is demoted to secondary. Inverted.
 2. **~~Its body font never loaded.~~** — _fixed_: `family=Cormorant+Garant` was a typo for \*Cormorant **Garamond\*** in all 6 HTML files. Google Fonts **silently drops an unknown family from a combined request** rather than erroring — the request returned `HTTP 200` with only Cinzel (860 bytes vs 2136 after the fix), so there was no 400, no console error, and no signal of any kind. Cinzel loaded; the body copy fell back to Times for months. Corrected; kept here as context for the migration, and as a reminder that a font can be silently absent. Since the Astro rebuild (2026-08-11) neither the six HTML files nor the Google Fonts request exists: both faces are self-hosted through `@fontsource` (`src/styles/fonts.css`).
 
 It shares the product palette **by copy, not by import**. Of the thirteen colours in `src/styles/base.css`, eleven have a value that also appears in `theme.css` (`#ffffff`, `#0f172a`, `#1e293b`, `#f1f5f9`, `#e2e8f0`, `#64748b`, `#b91c1c`, `#dc2626`, `#f59e0b`, `#1d4ed8`, `#3b82f6`); two match nothing there — `--blue-dark: #1e40af` and `--banner-navy: #010f33`, the navy baked into the banner image, added 2026-11-09. Sharing values is not sharing a system: when `theme.css` moves, this app does not follow.
@@ -887,6 +887,41 @@ Rendered on 2026-11-17 with the production stylesheet and the real Geist face, i
 
 **Still open, beside it:** about 220 sites stay at 10px or 11px. The "YOU" chip is ten hand-copied
 spans (D23's class).
+
+---
+
+## D34 — FIXED: every status chip and alert sat just under the reading bar
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17, by the operator's ruling: about 10% darker, same hue.** A status chip or an
+alert writes the status ink on a 10% or 15% wash of itself — every red error box of the product
+(`bg-danger/10 … text-danger`), `PageAlert`, `FreshnessChip`, the "Live now" pill, about 140 lines
+across the two apps. Measured from `theme.css`, the light values were under 4.5:1 there:
+
+| Status    | Was                 | On its wash (worst) | Is        | On its wash (worst) | Under white |
+| --------- | ------------------- | ------------------- | --------- | ------------------- | ----------- |
+| `danger`  | `#dc2626` red-600   | 3.67                | `#be2121` | 4.58                | 6.12        |
+| `success` | `#15803d` green-700 | 3.93                | `#137337` | 4.59                | 5.94        |
+| `warning` | `#b45309` amber-700 | 3.92                | `#a24b08` | 4.57                | 5.92        |
+| `info`    | `#2563eb` blue-600  | 4.02                | `#225bd7` | 4.56                | 5.92        |
+
+The worst case is the 15% wash over the light page. The new values are not palette steps on
+purpose: one step darker would have made `danger` the accent red, `warning` the `gold-text` amber
+and `info` the personal accent blue. `danger-hover` moved one step with its base, to `#991b1b`.
+
+**The stage.** The projector sets no scope, so its status inks were the light values and would have
+got darker: the protest chip of the TV scoreboard from 3.46 to 3.00:1, the Live wall's "behind"
+cell from 4.01 to 3.40:1. By the operator's ruling those two elements set `data-theme="dark"` on
+themselves and read the dark scope's amber: 6.90:1 on the chip's fill, 9.37:1 as text. The wall's
+state dots stay light-scope fills, 3.29:1 at the lowest, over the 3:1 a shape needs.
+
+`theme-ink-contrast.test.ts` measures each status ink on its 10% and 15% wash over both light
+surfaces, under white, and the stage's warning; `TvProtestChip.render.test.tsx` and
+`wall-ink.test.tsx` hold the two stage elements.
+
+**Still open, beside it:** the dark scope did not move. Its 15% wash on a dark card is 4.27:1 for
+`danger` and 4.42:1 for `info`. web-staff, which lives in that scope, was not audited.
 
 ---
 

@@ -73,6 +73,13 @@ describe('TvProtestChip', () => {
     expect(html).toContain('bg-warning/20');
   });
 
+  // The stage sets no scope, so a bare `text-warning` is the light page's amber on near-black.
+  // At the limit the chip takes the dark scope's, 6.90:1 on its fill (known-deviations D34).
+  it('takes the dark scope at the limit, so its warning is the bright amber', () => {
+    expect(render(2)).toContain('data-theme="dark"');
+    expect(render(5)).not.toContain('data-theme');
+  });
+
   it('names the fighter in the tooltip and uses tokens only', () => {
     const html = render(2);
     expect(html).toContain('title="&lt;scoring.lice.protestsChipTooltip:Ada&gt;"');

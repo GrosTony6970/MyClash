@@ -31,16 +31,16 @@ colors:
   strong-hover: '#020617' # slate-950
 
   # Status: badges and alerts only. Never the page accent.
-  danger: '#dc2626' # red-600
+  danger: '#be2121' # 4.58:1 on its own 15% wash, 6.12:1 under white
   danger-foreground: '#ffffff'
-  danger-hover: '#b91c1c'
-  success: '#15803d' # green-700 — 5.02:1 under white
+  danger-hover: '#991b1b'
+  success: '#137337' # 4.59:1 on its own 15% wash, 5.94:1 under white
   success-foreground: '#ffffff'
   success-hover: '#166534' # green-800
-  warning: '#b45309' # amber-700 — the warning. Not `gold`. 5.02:1 under white
+  warning: '#a24b08' # the warning. Not `gold`. 4.57:1 on its own 15% wash, 5.92:1 under white
   warning-foreground: '#ffffff'
   warning-hover: '#92400e' # amber-800
-  info: '#2563eb' # blue-600
+  info: '#225bd7' # 4.56:1 on its own 15% wash, 5.92:1 under white
   info-foreground: '#ffffff'
   info-hover: '#1d4ed8'
   instructor: '#7c3aed' # violet-600 — instructor role pill
@@ -328,13 +328,14 @@ Colours fall into families, and the families have jurisdictions:
 
 `gold` (`#f59e0b`) is **medal ink** — fills, medals, ★ rating glyphs, icons, large display type. As _small text on a light surface_ it is **2.06:1**, so it must never be used that way. `gold-text` (`#92400e`, 6.79:1) exists for exactly that case.
 
-They are not merged into one darker token because the amber that passes AA as text is `#b45309` — **the exact value of `warning`**. Merging would make gold indistinguishable from a warning and destroy the distinction this system is built on. The dark scope needs no split: gold is `#fbbf24` there and already clears AA, so `gold-text` points at the same value and a component can use `text-gold-text` on either surface and stay legible.
+They are not merged into one darker token because an amber dark enough to pass AA as text is a **warning** amber — `warning` is `#a24b08` and `warning-hover` is `#92400e`, the very value of `gold-text`. Merging would make gold indistinguishable from a warning and destroy the distinction this system is built on. The dark scope needs no split: gold is `#fbbf24` there and already clears AA, so `gold-text` points at the same value and a component can use `text-gold-text` on either surface and stay legible.
 
 ### Every colour pair here clears WCAG AA for text
 
 That is a checked claim, not an aspiration — `pnpm design:lint` runs the contrast rule over the front matter. Two consequences worth knowing:
 
-- **`success` and `warning` are red-700-era darks** (`#15803d`, `#b45309`), not the green-600/amber-600 you might reach for. Those failed at 3.30:1 and 3.19:1.
+- **The four status inks are not palette steps** (`#be2121`, `#137337`, `#a24b08`, `#225bd7`). A chip or an alert writes the ink on a 10% or 15% wash of itself, and red-600 / green-700 / amber-700 / blue-600 were 3.67:1 to 4.50:1 there. One palette step darker would have landed `danger` on `accent`, `warning` on `gold-text` and `info` on the personal accent, so each is about 10% darker than its step, same hue. Before 2026-07-17 `success` and `warning` were green-600/amber-600, 3.30:1 and 3.19:1 under white.
+- **The stage takes the dark scope for a status ink.** The projector sets no scope, so a bare `text-warning` there is the light page's amber on near-black. The two status elements of the stage — the protest chip and the Live wall's "behind" cell — set `data-theme="dark"` on themselves.
 - **On dark, a bright chip takes dark ink.** The dark scope lightens every status hue so it reads as text on a dark surface — which makes it useless as a fill under _white_ text (white on dark `success` is 2.28:1). So the dark scope also flips `--color-*-foreground` to `#0f172a`. This is the same move `strong` already makes: the dark scope lightens it and inverts its foreground for the same reason. (The scope lightens `gold`, the corner defaults and the chart series too; none of those carries a foreground to flip.)
 
 ### The two scopes are orthogonal
@@ -488,7 +489,7 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Do** spend the accent once per page, on the live action. Two inks; the red is scarce.
 - **Don't** paint a page in a status colour. `danger` / `success` / `warning` / `info` are badge and alert inks. A rule book does not turn red because one bout was cancelled.
 - **Do** use `gold` for placings and flourish — eyebrows, medals, a card's top rule.
-- **Don't** use `gold` as a warning. It is medal ink. `warning` (`#b45309`) is the warning; `gold` (`#f59e0b`) is a podium. Two ambers, and this is the easiest mistake in the system to make.
+- **Don't** use `gold` as a warning. It is medal ink. `warning` (`#a24b08`) is the warning; `gold` (`#f59e0b`) is a podium. Two ambers, and this is the easiest mistake in the system to make.
 - **Don't** use `text-gold` for small text on a light surface — it is 2.06:1. That is what `gold-text` is for. On dark, either is fine.
 - **Do** reach for `strong` when you need a dark-neutral action.
 - **Don't** collapse `strong`, `accent` and `foreground` into "the dark one". Three tokens, three jobs — and on dark, `strong` **inverts** while `accent` does not move at all. Code that treats them as interchangeable breaks on exactly one surface, which is how it ships.
@@ -497,7 +498,7 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Don't** tint the accent per event. `/e/*` wears the same accent as every other page (see Event colour); these two lines used to say the opposite, a leftover of the tint that migration 0086 retired.
 - **Do** carry an event's identity in its logo, its hero image and its tournaments' colours.
 - **Don't** write a fixed ink on a fill the organiser picks. White cannot be read on a white, silver, yellow or gold tournament. A solid `accentClassFor(token)` fill takes `accentInkClassFor(token)`; a fill in a free hex takes `inkOnHex(hex)`.
-- **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. **`#b91c1c` is the MyClash red** — it is `--color-accent`. Its shades are tokens too: `#991b1b` is `accent-hover`, `#dc2626` is `danger`. A fourth red, the legacy `#c0392b`, used to be loose in emails, PWA chrome and event pages; it was unified onto `#b91c1c` on 2026-07-17. If you are about to type `#c0392b`, you are copying something that was removed on purpose.
+- **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. **`#b91c1c` is the MyClash red** — it is `--color-accent`. Its shades are tokens too: `#991b1b` is `accent-hover`, `#be2121` is `danger`, `#dc2626` is `corner-red`. A fourth red, the legacy `#c0392b`, used to be loose in emails, PWA chrome and event pages; it was unified onto `#b91c1c` on 2026-07-17. If you are about to type `#c0392b`, you are copying something that was removed on purpose.
 
 ### Type
 
