@@ -41,6 +41,7 @@ ugly, but cheaper than renumbering. Append new sections at the end instead.
 - [11quater. Pool Population & Referee Assignment](#11quater-pool-population--referee-assignment)
 - [11sexies. Bracket Auto-Advance](#11sexies-bracket-auto-advance)
 - [11quinquies. Following & Public Profiles](#11quinquies-following--public-profiles)
+- [11septies. FightBook](#11septies-fightbook)
 - [12. Authentication & Identity](#12-authentication--identity)
 - [13. Per-Event Theming](#13-per-event-theming)
 - [14. API Surface](#14-api-surface)
@@ -56,6 +57,7 @@ ugly, but cheaper than renumbering. Append new sections at the end instead.
 - [24. Event Schedule Planner (T-1210)](#24-event-schedule-planner-t-1210)
 - [25. Live Schedule View (T-1211)](#25-live-schedule-view-t-1211)
 - [26. AI Infrastructure (T-1212)](#26-ai-infrastructure-t-1212)
+- [27. Event Photos](#27-event-photos)
 
 ---
 
@@ -103,7 +105,7 @@ MyClash is **five distinct surfaces** sharing one backend:
 Per-event themed (logo, colors, history pages, club directory). Personas chosen during onboarding — **non-exclusive: a single user can be Competitor + Referee + Workshop Attendee simultaneously**. The "My Schedule" view aggregates whichever apply.
 
 - **Competitor** — "my next match", "my pool standings", "my results", "where I need to be".
-- **Referee** — today's assigned matches, my piste schedule, on-piste tools (start clock, call halt/warning, request scorekeeper attention).
+- **Referee** — today's assigned matches, my piste schedule. The on-piste tools planned here (start the clock, call a halt, call the scorekeeper) were never built: the clock and the cards are the scorekeeper's, on the pad.
 - **Workshop Attendee** — selected workshops, capacity status, conflicts with my matches/refereeing.
 - **Accompanist** — follow favorite fighters, live tracking on multiple Lices.
 - **Public** — discover HEMA, event editorial, schedule, club directory.
@@ -117,7 +119,7 @@ The **"My Schedule"** view is the unified personal view (matches the beta compan
 - Day filter (Saturday/Sunday)
 - "Focus on me" vs "Show all" toggle
 
-Reference design: the prototype HTML (Cinzel + Inter typography, red/blue HEMA palette, gold accents, shield motifs). This design system is **canonical** and ports directly to the production app. Beta companion app at `https://myfal.lyonamhe.fr/` is the reference for "My Schedule" interaction.
+Reference design: `DESIGN.md` at the repo root (the "Tournament Manual" language: Fraunces, Geist and JetBrains Mono, tokens in `packages/ui/src/theme.css`). It is **canonical**. The prototype HTML this line used to name (Cinzel + Inter) was deleted on 2026-08-06; only the marketing site still carries that older look (`docs/design/known-deviations.md`, D4). Beta companion app at `https://myfal.lyonamhe.fr/` is the reference for "My Schedule" interaction.
 
 ### 2.2 Scorekeeper App (PWA, tablet-first, offline-tolerant)
 
@@ -171,34 +173,34 @@ App: `apps/web-marketing/` — Astro pages under `src/pages/`, built with `astro
 
 ### 3.1 Decisions
 
-| Layer                         | Choice                                                          | Rationale                                                                                                                                                                                         |
-| ----------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend (all PWAs)           | **Next.js 16** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                                                                                                           |
-| Backend                       | **NestJS 12** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference                                                                                      |
-| Database                      | **PostgreSQL 17** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                                                                                                             |
-| ORM                           | **None** — PostgREST + raw SQL                                  | Reads go through `SupabaseService`; migrations are hand-written SQL. A Drizzle mirror was carried until 2026-08 and deleted: nothing imported it and it had drifted from the SQL it described     |
-| Realtime                      | **Supabase Realtime** (Phoenix Channels)                        | Postgres-native broadcast on row changes; zero glue code for the read-side                                                                                                                        |
-| Auth                          | **Supabase Auth** (email magic link + Google OAuth)             | Self-hostable, JWT-based, integrates with Postgres RLS                                                                                                                                            |
-| Object Storage                | **Supabase Storage** (S3-compatible)                            | Fighter photos, event logos, podium photos                                                                                                                                                        |
-| Background jobs               | **BullMQ** (Redis-backed)                                       | Notifications, HEMA Ratings sync, the Event status ticker and archive, the TLS and runtime-health monitors, clean-ups; run by the `worker` container alone (its row in the container table below) |
-| Cache + pub/sub               | **Redis 8**                                                     | BullMQ + L2 cache for ranking queries                                                                                                                                                             |
-| Reverse proxy                 | **Traefik v3**                                                  | Automatic Let's Encrypt, label-based config, native Docker integration                                                                                                                            |
-| Container                     | **Docker + Docker Compose**                                     | User requirement                                                                                                                                                                                  |
-| Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                                                                                                      |
-| Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                                                                                                               |
-| Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                                                                                                             |
-| Heavy compute                 | Main thread                                                     | Web Workers were the plan and are NOT implemented — no `new Worker(` and no Comlink anywhere in the repo                                                                                          |
-| Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                                                                                                            |
-| Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                                                                                                                   |
-| Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                                                                                                      |
-| CI/CD                         | **GitHub Actions**                                              | Standard                                                                                                                                                                                          |
+| Layer                         | Choice                                                                | Rationale                                                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend (all PWAs)           | **Next.js 16** (App Router) + TypeScript + Tailwind 4 + `@myclash/ui` | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end. shadcn/ui was the plan and was never added: the components are our own, in `packages/ui`                 |
+| Backend                       | **NestJS 12** + TypeScript                                            | Modular, opinionated, excellent for domain-rich apps; matches user preference. REST only: there is no WebSocket gateway, live updates are Supabase Realtime's                                     |
+| Database                      | **PostgreSQL 17** (via Supabase)                                      | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                                                                                                             |
+| ORM                           | **None** — PostgREST + raw SQL                                        | Reads go through `SupabaseService`; migrations are hand-written SQL. A Drizzle mirror was carried until 2026-08 and deleted: nothing imported it and it had drifted from the SQL it described     |
+| Realtime                      | **Supabase Realtime** (Phoenix Channels)                              | Postgres-native broadcast on row changes; zero glue code for the read-side                                                                                                                        |
+| Auth                          | **Supabase Auth** (password, email magic link, Google OAuth)          | Self-hostable, JWT-based, integrates with Postgres RLS                                                                                                                                            |
+| Object Storage                | **Supabase Storage** (S3-compatible), plus one S3 bucket apart        | Supabase Storage holds fighter photos, Event assets and Workshop pictures. Event photos sent by the public go to their own Scaleway bucket, reached by the API alone (§27)                        |
+| Background jobs               | **BullMQ** (Redis-backed)                                             | Notifications, HEMA Ratings sync, the Event status ticker and archive, the TLS and runtime-health monitors, clean-ups; run by the `worker` container alone (its row in the container table below) |
+| Cache + pub/sub               | **Redis 8**                                                           | BullMQ + L2 cache for ranking queries                                                                                                                                                             |
+| Reverse proxy                 | **Traefik v3**                                                        | Automatic Let's Encrypt, label-based config, native Docker integration                                                                                                                            |
+| Container                     | **Docker + Docker Compose**                                           | User requirement                                                                                                                                                                                  |
+| Monorepo tool                 | **pnpm workspaces** + **Turborepo**                                   | Fast, simple, well-supported                                                                                                                                                                      |
+| Client state                  | React state and context, fetches through `@myclash/api-client`        | TanStack Query + Zustand were the plan and are NOT dependencies of any app                                                                                                                        |
+| Forms                         | Plain React forms + **Zod**                                           | Schema validation shared with backend. React Hook Form was the plan and is NOT a dependency                                                                                                       |
+| Heavy compute                 | Main thread                                                           | Web Workers were the plan and are NOT implemented — no `new Worker(` and no Comlink anywhere in the repo                                                                                          |
+| Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                          | Offline exchange queue                                                                                                                                                                            |
+| Charts                        | Hand-drawn SVG components in `@myclash/ui`                            | Rating history, bout flow, the health trend. Recharts + D3 were the plan and are NOT dependencies                                                                                                 |
+| Testing                       | **Vitest** (unit) + **Playwright** (E2E)                              | Modern, fast                                                                                                                                                                                      |
+| CI/CD                         | **GitHub Actions**                                                    | Standard                                                                                                                                                                                          |
 
 ### 3.2 Why Supabase + NestJS together (not "one or the other")
 
 - **Supabase** handles: auth, storage, realtime broadcast, the Postgres database itself.
 - **NestJS** handles: business logic, ruleset engine, bracket generation, statistics aggregation, HEMA Ratings sync, complex transactions.
 
-The Next.js frontends talk to **NestJS for mutations** and to **Supabase Realtime for live read-side subscriptions**. Reads can also go through NestJS for aggregation endpoints. This split avoids cramming domain logic into Postgres functions while keeping realtime trivial.
+The Next.js frontends talk to **NestJS for mutations** and to **Supabase Realtime for live read-side subscriptions**. Reads can also go through NestJS for aggregation endpoints. This split keeps domain logic in the API while keeping realtime trivial. The exception is a decision that must read and write in one transaction: merging two fighters, settling a fighter's status, Swiss pairing and the FightBook asks are Postgres functions, held in CI by the database probes (`pnpm db:merge-probe`, `pnpm db:fightbook-probe` and `pnpm db:fightbook-race-probe`; the status and Swiss functions inside `pnpm db:rls-probe`).
 
 ### 3.3 Frontend "multi-threading"
 
@@ -231,7 +233,7 @@ server-side.
                                          │
                                   ┌──────▼─────────┐
                                   │    NestJS API  │
-                                  │  (REST + WS)   │
+                                  │     (REST)     │
                                   └──────┬─────────┘
                                          │
                        ┌─────────────────┼─────────────────┐
@@ -250,13 +252,13 @@ server-side.
 | `web-staff`         | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                                                                                                                                                                                                                                                           |
 | `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                                                                                                                                                                                                                                                                |
 | `web-marketing`     | Astro, prerendered and served by Caddy — `myclash.fr` apex landing page.                                                                                                                                                                                                                                                                          |
-| `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                                                                                                                                                                                                                                                                 |
+| `api`               | NestJS — domain logic, REST, BullMQ producer.                                                                                                                                                                                                                                                                                                     |
 | `worker`            | The api image started with `--worker`: every BullMQ consumer (the ten queues: notifications, HEMA Ratings sync, Event status ticker, Event archive, data quality, TLS and runtime-health monitors, data retention, photo clean-up, spar-request expiry) and the auto-lock scan. Serves `/health` alone, on 127.0.0.1. The `api` runs no consumer. |
 | `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.160`), with the Supabase init scripts.                                                                                                                                                                                                                                             |
 | `redis`             | Redis 8 — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                                                                                                                                                                                                                                                 |
-| `supabase-auth`     | GoTrue — email magic link + Google OAuth, JWT-based session.                                                                                                                                                                                                                                                                                      |
+| `supabase-auth`     | GoTrue — password, email magic link and Google OAuth, JWT-based session.                                                                                                                                                                                                                                                                          |
 | `supabase-realtime` | Phoenix Channels broadcasting Postgres row changes to subscribers.                                                                                                                                                                                                                                                                                |
-| `supabase-storage`  | S3-compatible object storage for fighter photos, club logos.                                                                                                                                                                                                                                                                                      |
+| `supabase-storage`  | S3-compatible object storage for fighter photos, Event assets and Workshop pictures. Event photos are not here: they have their own bucket (§27).                                                                                                                                                                                                 |
 | `supabase-rest`     | PostgREST over the public schema, served at `/rest/v1`.                                                                                                                                                                                                                                                                                           |
 | `traefik`           | Reverse proxy + TLS termination (Let's Encrypt). Routes by hostname to every public-facing service.                                                                                                                                                                                                                                               |
 | `ops-runner`        | Bearer-authed sidecar with `/var/run/docker.sock` mounted. Backups, restore, container lifecycle. See §17.4.                                                                                                                                                                                                                                      |
@@ -456,6 +458,22 @@ call. It is its own entry of the Match, beside its Exchanges and cards, in the t
   completed Event and Tournament (`match_protests_select`); the API's list answers `[]` for a bout
   the caller may not see. Only the API writes the table. Live updates carry it (`REPLICA IDENTITY
 FULL`, the `supabase_realtime` publication).
+- **Limit.** A Tournament may set a protest limit and one penalty of its list to offer past it,
+  on the Display tab of its settings. Both live in the scoring config (`display.protests`:
+  `limit`, `offerPenaltyRef`) and have one reader, `protestRulesOf`
+  (`packages/types/src/scoring-config.ts`); a Tournament saved before the limit existed reads as
+  no limit and no offer. The server decides nothing from the limit: it stores a protest at any
+  count. Past the limit the pad records the protest first, then asks whether to give the chosen
+  penalty; "No" changes nothing. It offers nothing between rounds or after the end, where it takes
+  no card.
+- **Shown.** The pad's chip and the TV scoreboard's (`TvProtestChip` in `@myclash/ui`) show the
+  count, or `count/limit` with a limit, in the warning colour from the limit on. Voided protests
+  are never counted, here or below.
+- **Statistics.** A fighter's private dashboard shows the protests she made, under her penalties
+  and with the same Event and weapon filters (ruling 846). A referee's private history shows the
+  protests faced, per Match, counted for the declarant referee as a card is (ruling 850); the
+  public referee page reads none. The Event statistics table has a "Protests" column that counts
+  completed Matches and the declarant only (ruling 852). No card total changes with a protest.
 
 ### 5.4 Match-level statistics (timing)
 
@@ -3913,13 +3931,14 @@ Manual creation uses the same form, single-row, in `/org/[orgSlug]/events/[event
 
 Each event can customize:
 
-- Logo, hero image, favicon.
-- Color palette (primary, secondary, accent, background).
-- Display font (the prototype uses Cinzel; allow per-event override).
-- Event-specific landing copy (Markdown).
-- Custom pages (history, location, partners, media kit) — Markdown with frontmatter.
-- Club directory (curated list of nearby clubs with descriptions, like the prototype).
-- "Discipline" pages (history of longsword, sidesword, etc.) — Markdown.
+- Logo (`events.logo_url`) and hero image (`themes.hero_image_url`).
+- Event-specific landing copy (Markdown, `events.description_md`).
+
+That is all. Per-Event colours, fonts and a custom CSS field were built and then dropped in
+migration `0086_drop_theme_dead_columns.sql`: no component read them. One design language governs
+every Event (`DESIGN.md`); a club's `organizations.brand_color` and a Tournament's
+`tournaments.color` survive as small accents only. Custom pages, a club directory and
+"discipline" pages were planned here and never built.
 
 ### 13.2 URL shape
 
@@ -3939,9 +3958,8 @@ Global (cross-event):
 
 ### 13.3 Implementation
 
-- Theme stored in DB (`themes` table).
-- CSS variables injected at the layout level for the `/e/[eventSlug]/...` route group.
-- Custom CSS field (sandboxed, vetted) for advanced tweaks.
+- The `themes` table holds one row per Event with its hero image and nothing else (0086).
+- No CSS variable is injected per Event, and there is no custom CSS field.
 
 ---
 
@@ -3950,7 +3968,8 @@ Global (cross-event):
 ### 14.1 Style
 
 - REST for CRUD, JSON request/response.
-- WebSocket gateway (NestJS `@WebSocketGateway`) for scoring events that need bi-directional flow.
+- No WebSocket gateway. A `@WebSocketGateway` for scoring was the plan and was never built: the
+  pad writes over REST from its outbox (§10), and live reads come from Supabase Realtime (§9).
 - All endpoints versioned under `/api/v1/...`.
 - All endpoints documented via OpenAPI (Swagger UI at `/api/docs` in dev).
 
@@ -3990,17 +4009,23 @@ live in `apps/api/src/common/throttling/throttle-profiles.ts`. Limits are per
 client IP unless stated otherwise, and IPs listed in `THROTTLE_IP_WHITELIST` skip
 all of them.
 
-| Scope                                                                  | Limit                                                |
-| ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| Default — every route, reads and writes alike                          | 120 req/min/IP                                       |
-| Login, magic link, password-reset-confirm, public-choose-password      | 10 req/hour/IP                                       |
-| Login **per email** — `password-login` + `public-login` share a bucket | 10 req/hour                                          |
-| Current password **per account** — password change + account deletion  | 10 req/hour                                          |
-| Signup, password-reset request                                         | 5 req/hour/IP                                        |
-| Admin reads — `/admin/users`, fighter merge audit-log                  | 600 req/min/IP                                       |
-| Catalog reads — `/clubs`, `/global-persons`                            | 300 req/min/IP                                       |
-| Event persons lookup                                                   | 30 req/min/IP                                        |
-| AI natural-language query                                              | 60/hour per (tournament, user); admin-settable 1–500 |
+| Scope                                                                                                                                      | Limit                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Default — every route, reads and writes alike                                                                                              | 120 req/min/IP                                       |
+| Venue doors — `magic-link`, `password-login`, `public-login`, `public-signup`, `public-choose-password`                                    | 60 req/hour/IP                                       |
+| `public-password-reset-confirm`, `signup-choose-password`                                                                                  | 10 req/hour/IP                                       |
+| Login **per email** — `password-login` + `public-login` share a bucket                                                                     | 10 req/hour                                          |
+| Mails **per email** — `public-signup` + `magic-link` share a bucket                                                                        | 10 req/hour                                          |
+| Current password **per account** — password change + account deletion                                                                      | 10 req/hour                                          |
+| Wrong staff PINs **per (Event, username)** — a good PIN does not count                                                                     | 10 req/hour                                          |
+| Club sign-up, password-reset request                                                                                                       | 5 req/hour/IP                                        |
+| FightBook **per account** — spar requests, open calls, QR scans: a bucket each                                                             | 20 req/hour                                          |
+| FightBook QR codes minted **per account**                                                                                                  | 60 req/hour                                          |
+| Admin reads — `/admin/users`, fighter merge audit-log, the staff live board                                                                | 600 req/min/IP                                       |
+| Public live reads — a Match and its exchanges, penalties and protests, the Event live state, a piste's current bout, the public photo list | 600 req/min/IP                                       |
+| Catalog reads — `/clubs`, `/global-persons`                                                                                                | 300 req/min/IP                                       |
+| Event persons lookup                                                                                                                       | 30 req/min/IP                                        |
+| AI natural-language query                                                                                                                  | 60/hour per (tournament, user); admin-settable 1–500 |
 
 `req.ip` is resolved through `trustProxy` on the Fastify adapter
 (`apps/api/src/common/trust-proxy.ts`): one hop, believed only when the direct caller is
@@ -4011,10 +4036,13 @@ takes it and trusts no one, in silence.
 Two limits worth knowing about: the throttler store is in-memory, so counters are
 per API container and reset on every redeploy; and there is no edge-level
 (Traefik) rate limiting, so the Nest guard is the only limiter in front of the API.
-The one limiter on a signed-in account is the current-password row above (ruling 359,
-`throttle-by-account.ts`: keyed on the account of the request's login, its signature
-checked, so a whole venue on one address does not share it). There are no per-org
-limiters, and scoring writes get the default.
+Five limits key on the signed-in account, not the address: the current-password row above
+(ruling 359, `throttle-by-account.ts`: keyed on the account of the request's login, its signature
+checked, so a whole venue on one address does not share it) and the four FightBook rows, keyed
+the same way, each in its own bucket. The two 60-an-hour and 600-a-minute rows are sized for a
+hall: every phone on the venue's wifi shares one address (`throttle-profiles.ts`). The staff PIN
+row is an interceptor, not a throttler (`throttle-by-staff-account.ts`), because it counts only
+wrong PINs. There are no per-org limiters, and scoring writes get the default.
 
 ---
 
@@ -4228,13 +4256,15 @@ flowchart LR
     PUSH(["Web Push / VAPID"])
     HEMA(["HEMA Ratings"])
     S3(["Scaleway S3<br/>off-site backups"])
+    PHO(["Scaleway S3<br/>Event photos"])
+    AI(["AI providers"])
   end
 
   TR["traefik"] --> LE
   TR --> GH
   TR --> GEO
-  API["api"] --> RSD & SEN & PUSH & HEMA
-  WRK["worker"] --> RSD & SEN & PUSH & HEMA
+  API["api"] --> RSD & SEN & PUSH & HEMA & PHO & AI
+  WRK["worker"] --> RSD & SEN & PUSH & HEMA & PHO
   OPS["ops-runner"] --> S3
 
   DB[("db")] --- V1[["myclash-postgres-data"]]
@@ -4264,24 +4294,24 @@ routing, same plugins. The deltas:
 
 The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share the internal `myclash` network, except the database console: `supabase-meta` and `supabase-studio` live on `myclash-dbadmin` alone, with `db` and Traefik also on it (ruling 396, §17.7). Only Traefik publishes ports 80/443.
 
-| Service             | Container                   | Image / Build                              | Role                                                                                                                         |
-| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.                                      |
-| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.                                     |
-| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                                      |
-| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                                       |
-| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                                                |
-| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                                       |
-| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                                      |
-| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted**, on `myclash-dbadmin` only: nothing routes to it and only `supabase-studio` uses it. |
-| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                                         |
-| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Starts after `db`, `redis`; no database URL (§17.7).                  |
-| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | Every BullMQ consumer (the ten queues of the `worker` row above) and the auto-lock scan; `/health` alone, on 127.0.0.1.      |
-| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                                               |
-| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                                                 |
-| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                                               |
-| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Astro, prerendered, served by Caddy on port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).                   |
-| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.                         |
+| Service             | Container                   | Image / Build                              | Role                                                                                                                                       |
+| ------------------- | --------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.                                                    |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.                                                   |
+| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                                                    |
+| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                                                     |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                                                              |
+| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (fighter photos, Event assets, Workshop pictures; not Event photos, §27). 50 MB upload cap. Served at `/storage/v1`. |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                                                    |
+| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted**, on `myclash-dbadmin` only: nothing routes to it and only `supabase-studio` uses it.               |
+| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                                                       |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST on internal port 4000. Starts after `db`, `redis`; no database URL (§17.7).                                                    |
+| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | Every BullMQ consumer (the ten queues of the `worker` row above) and the auto-lock scan; `/health` alone, on 127.0.0.1.                    |
+| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                                                             |
+| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                                                               |
+| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                                                             |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Astro, prerendered, served by Caddy on port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).                                 |
+| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.                                       |
 
 Traefik routes by Host header. Key mappings:
 
@@ -4317,7 +4347,8 @@ Backups now run as **ops-runner operations** rather than direct cron-on-host (se
 - **Postgres:** nightly `pg_dump` of the `db` container, gzip + optional GPG encryption (`BACKUP_GPG_RECIPIENT`).
 - **Storage:** nightly tarball of the `supabase-storage` data volume (`storage_data`).
 - **Off-site mirror:** Scaleway Object Storage (S3-compatible). Configured via `BACKUP_SCW_ACCESS_KEY`, `BACKUP_SCW_SECRET_KEY`, `BACKUP_SCW_BUCKET`, `BACKUP_SCW_ENDPOINT`, `BACKUP_SCW_REGION`. When unset, backups stay local-only.
-- **Retention:** 30 days rolling, enforced on each new backup.
+- **Retention:** by count, not by age. After each backup the ops-runner keeps the newest N sets locally and the newest N in the bucket, both set from `/admin/backups` (`enforceLocalRetention` / `enforceCloudRetention` in `infra/ops-runner/server.mjs`); `BACKUP_RETENTION_DAYS` is no longer read. The copies `deploy.sh` takes before each update are apart: `backup.sh` deletes those older than 30 days every night.
+- **Not covered:** Event photos. They live in their own bucket (§27), which no backup reads.
 - **Schedule:** configurable from `/admin/backups` (hour + minute UTC). Persisted by the ops-runner; not in Postgres.
 - **Restore:** triggered from `/admin/backups` against a local file, an uploaded archive, or an S3 object. The UI requires typed confirmation matching `RESTORE MYCLASH <backupId>` before running.
 - **Uploads:** a file of up to 2 GiB (`BACKUP_UPLOAD_MAX_BYTES`, owned by the ops runner) goes from the screen in chunks of at most 16 MiB, each sized to take about 20 s, because Traefik reads a request body for 60 s at most (`apps/web-admin/app/admin/backups/chunked-upload.ts` → `admin/backups/uploads` → `infra/ops-runner/upload-chunks.mjs`). It resumes after a lost connection, and after a reload when the same file is picked again (same name, size and sha-256 of its first MiB). Kept: one folder per night, `backups/uploads/<TS>/` (`infra/ops-runner/upload-store.mjs`), listed as the set `upload-<TS>`. A restore pairs the night's database and images (or restores either alone, images via `restore.sh --storage-only`), then deletes the files it used. See `docs/DISASTER_RECOVERY.md`.
@@ -4458,18 +4489,21 @@ myclash/
 │   │   ├── src/
 │   │   │   ├── common/               # cross-cutting: auth guards, event-authz,
 │   │   │   │                         #   event-readonly, testing doubles
-│   │   │   ├── modules/              # 51 feature modules — `ls apps/api/src/modules`
+│   │   │   ├── modules/              # 54 feature modules — `ls apps/api/src/modules`
 │   │   │   ├── workers/
 │   │   │   └── main.ts
 │   │   └── test/
 │   ├── web-public/             # Next.js (PWA, mobile-first — spectator/competitor)
-│   ├── web-staff/              # Next.js (PWA, offline-first — scorekeeper)
-│   ├── web-admin/              # Next.js (SPA — organiser + super-admin)
+│   ├── web-staff/              # Next.js (PWA, offline-first — scoring pad, check-in desk,
+│   │                           #   gear check, photo moderation)
+│   ├── web-admin/              # Next.js (organiser + super-admin)
 │   └── web-marketing/          # Astro — marketing site (myclash.fr apex)
-├── packages/                   # all ten, no others
+├── packages/                   # all eleven, no others
 │   ├── ui/                     # Shared components + Tournament Manual aesthetic.
 │   │                           #   theme.css lives here — it IS the token source of truth
 │   ├── db/                     # SQL migrations + the runner that applies them. No ORM
+│   ├── rules/                  # @myclash/rules — the dependency-free scoring core; its
+│   │                           #   `/pad` door is what the pad runs offline (§7.3)
 │   ├── rulesets/               # @myclash/rulesets — TF_v1 + custom-ruleset runtime
 │   ├── schedule-core/          # @myclash/schedule-core — pure schedule/grid geometry
 │   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
@@ -4487,7 +4521,10 @@ myclash/
 │   ├── ops-runner/                 # bearer-authed sidecar (docker.sock + backups + lifecycle); see §17.4
 │   └── scripts/                    # bash scripts that run ON THE VPS
 │       ├── lib/log.sh              # shared color/log helpers (sourced by all)
+│       ├── lib/*.sh                # one owner each: database-url, db-running, pull-reexec,
+│       │                           #   system-versions, traefik-env, worker-drain
 │       ├── deploy.sh               # full deploy: validate → backup → migrate → up
+│       ├── redeploy.sh             # rebuild + recreate the named app service(s) in place
 │       ├── rollback.sh             # restore previous version + previous DB backup
 │       ├── start.sh                # bring stack up (no rebuild)
 │       ├── stop.sh                 # halt stack
@@ -4496,13 +4533,17 @@ myclash/
 │       ├── destroy.sh              # nuke containers + clean runtime data
 │       ├── backup.sh               # nightly cron: pg_dump + storage + off-site sync
 │       ├── restore.sh              # restore from a chosen backup file
+│       ├── test-restore-roundtrip.sh  # integration test of the dump → drop → restore core
 │       └── vps-bootstrap.sh        # idempotent VPS provisioning
 ├── scripts/                        # cross-platform scripts (Node) for the dev machine
 │   ├── deploy.ts                   # `pnpm deploy:prod` — SSH wrapper for infra/scripts/deploy.sh
+│   ├── rollback.ts                 # `pnpm rollback:prod` — its sibling for rollback.sh
 │   ├── gen-api-client.ts           # regenerate the @myclash/api-client from OpenAPI
 │   ├── gen-ffamhe-penalty-seed.ts  # generate the FFAMHE penalty seed data
 │   ├── seed-min.ts                 # seed a minimal dev dataset
-│   └── *.mjs                       # cross-cutting check/lint scripts
+│   ├── check-*.sh                  # three CI-only checks on the prod compose file: the API
+│   │                               #   boots, Realtime's socket works, each service's DB user
+│   └── *.mjs                       # cross-cutting check/lint scripts and the database probes
 ├── docs/
 │   ├── ARCHITECTURE.md             # this file
 │   ├── ENGINEERING_LESSONS.md      # reusable rules distilled from past mistakes
@@ -4549,9 +4590,9 @@ build record.
   no branch-per-task and no PR ritual; several agent sessions commit here concurrently, so check
   `git log --oneline -1` before staging and stage explicit paths.
 - **Code style**: Prettier + ESLint (`@typescript-eslint`), enforced in CI.
-- **API errors**: RFC 7807 Problem Details JSON format.
+- **API errors**: RFC 9457 Problem Details JSON format (`apps/api/src/common/api-exception.filter.ts`).
 - **Logging**: structured JSON logs (Pino), correlation IDs end-to-end.
-- **Observability**: OpenTelemetry traces, exported to Jaeger in dev (optional in prod).
+- **Observability**: Sentry, for errors and traces, in the API and the three Next.js apps (`docs/OBSERVABILITY_REVIEW.md`). There is no OpenTelemetry exporter and no Jaeger.
 - **No client-side `eval`** for ruleset formulas. Ever.
 - **Time** always stored as `timestamptz` UTC; rendered in user's locale.
 - **Money** (future): `numeric(10,2)` only.
@@ -4562,7 +4603,7 @@ CI's Lint job runs `pnpm turbo run lint` plus twenty-eight further steps, each i
 `.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
 source of truth when they disagree.
 
-Fourteen of the nineteen `scripts/check-*.mjs` gates run through **`defineGate`**
+Twenty-one of the twenty-six `scripts/check-*.mjs` gates run through **`defineGate`**
 (`scripts/lib/gate.mjs`), which owns reporting, exit codes and anti-vacuity. Two invariants there
 are not obvious and are easy to break:
 
@@ -4629,7 +4670,6 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 - **Live video integration** (stream URL per Lice; embed in public Lice view).
 - **Mobile native apps** (React Native, sharing the API layer).
 - **Federation with other event platforms** (e.g. import from hemaScorecard exports).
-- **In-event photo gallery** (fighter portraits, podium photos uploaded by organizers).
 - **Crowd judging / spectator scoring** (entertainment feature, not authoritative).
 - **AI-assisted refereeing** (target detection from video). Out of scope; flagged for research.
 - **HEMA Ratings push API** (when/if available).
@@ -4983,6 +5023,123 @@ V1 tools cover fighter search/stats, match search, pool standings, lice status, 
 **Super-admin AI settings** (`/admin/ai-settings`) - shared platform BYOK provider/key management for super-admin AI tools only.
 
 **Super-admin data quality** (`/admin/data-quality`) - manual scan launcher, scan history, filters by type/severity/status, evidence viewer, and links to existing fighter merge / club review pages.
+
+---
+
+## 27. Event Photos
+
+People at an Event send photos from their phones, and the photos show on the public Event page for
+30 days. They tell the story of the day; they are not an archive. Design and rulings:
+`docs/superpowers/archive/specs/2026-11-03-event-photos-design.md`. Code:
+`apps/api/src/modules/photos`. Migrations `0249`-`0255`.
+
+### 27.1 Data
+
+- `events.photo_mode` is `off` (the default), `live` or `approve`. `events.photo_token_version`
+  numbers the Event's QR link.
+- `event_photos`: one row per photo, with its Event, an optional Tournament or Workshop, the
+  sender's name and caption, its status (`waiting` or `approved`), the stored size and CRC, and the
+  keys of its two objects (the original and the preview). The sender is a phone (`device_id`) or an
+  account (`0254`).
+- `event_photo_tombstones` (`0250`): the keys of deleted photos' objects. A row trigger fills it.
+- `event_photo_reports` (`0252`, `0253`, `0255`): one row per photo and phone, with an optional
+  comment.
+- `event_staff_accounts` accepts a fourth job, `photos` (`0251`).
+
+All three photo tables are deny-all: RLS on, no read rule. Only the API reads and writes them.
+
+### 27.2 The bucket
+
+Photos live in their own Scaleway S3 bucket with its own key pair (`PHOTO_BUCKET_*` in
+`.env.example`). `photo-bucket.ts` is the one owner of those keys. It never reads a `BACKUP_SCW_*`
+key, and the backup never reads a photo key: a leaked key on one side does not reach the other.
+
+**No backup holds a photo.** `backup.sh` and `restore.sh` do not touch this bucket, on purpose: a
+deleted photo must be really gone. The cost is that nothing brings a photo back, and a database
+restore can leave rows and images out of step (`docs/DISASTER_RECOVERY.md`). The archive export
+leaves `event_photos` out for the same reason (`ARCHIVE_EXCLUDED_TABLES`,
+`apps/api/src/modules/exports/archive.tables.ts`).
+
+### 27.3 Sending a photo
+
+Two doors, one service (`photo-upload.service.ts`):
+
+- **A phone with the QR link**, no account: `POST events/:eventId/photos`, public. The link carries
+  a token that is never stored: `HMAC(PHOTO_TOKEN_SECRET, eventId:version)` (`photo-token.ts`).
+  "New link" on the organiser's page adds one to the version and retires every printed code at
+  once. The phone gets a signed cookie, `mc_photo_device`, kept 30 days (`photo-device.ts`). The
+  cookie only counts a phone for the limits; a missing or bad cookie is a new phone, never a
+  refusal. A signed-in person who scans the code still sends anonymously.
+- **A signed-in person, for one of her own Events**: `POST me/events/:eventId/photos`. "Her own
+  Events" is the "my events" list. The photo always carries her profile name, never her email
+  (`photo-account.ts`); with no name the upload is refused.
+
+Both follow the same rules, checked cheapest first, and the file is read only when all pass: the
+mode is not Off; the upload window is open (`photo-window.ts`: from the start of the day before the
+Event's first day to the end of the day after its last day, on the Event's clock); the limits are
+not reached. The limits are 20 photos an hour per phone or per account, 300 an hour per Event, and
+15 GB stored per Event. Two uploads may read a count before either writes, so a cap can be passed
+by at most four photos (`PHOTO_UPLOAD_SLOTS`); accepted.
+
+The server keeps the picture and nothing else. `jpeg-strip.ts` walks the JPEG and keeps only the
+segments that draw the image, by whitelist: EXIF, GPS, thumbnails, comments and everything after
+the first end-of-image marker go. The picture bytes are copied as sent, with no re-compression.
+Only what phone cameras write is accepted (one baseline or extended-sequential frame in one scan,
+at most 64 megapixels), so decode memory is bounded. `photo-preview.ts` makes a 1024-pixel preview
+from the stripped bytes. The objects are written first and the row last.
+
+In `live` mode the photo is public at once. In `approve` mode it waits for a moderator.
+
+### 27.4 Moderation
+
+Three kinds of moderator see the same queue (Waiting, Reported, All) and the same buttons
+(Approve, Keep, Delete):
+
+- **The Event's club admins**, in the admin site (`/org/[slug]/events/[eventId]/photos`). They
+  alone set the mode, read or renew the QR link, and download the zip (ruling 492).
+- **A staff login with the `photos` job**, in the staff app (`/photos`, routes `staff/photos`). It
+  stops when the Event is archived (ruling 438); the organiser may still approve and delete then
+  (ruling 443).
+- **A platform super admin**, from `/admin/photos` (rulings 491-494). The gate asks the club first
+  and reads the platform role only on a club refusal (`photo-organiser.ts`). Each of her writes
+  goes to the audit log.
+
+Anyone may report a public photo, once per phone and photo (`POST
+events/:eventId/photos/:photoId/report`, public). A reported photo stays visible until a moderator
+deletes it. Keep clears the reports the moderator's screen showed, and no others: a comment changed
+after the screen was read survives (rulings 457, 460, 466).
+
+### 27.5 Reading and downloading
+
+- The public list (`GET events/:eventId/photos/public`) serves live photos, newest first, with an
+  optional Tournament or Workshop filter, on the public live-read rate limit (§14.3).
+- Previews and originals are read through signed links to the bucket (`photo-links.ts`); the
+  bucket itself is never public.
+- "Download all" (`GET events/:eventId/photos/download`) streams one zip of every stored original
+  with a `photos.csv`. It is never built in memory or on disk. Each original is checked against the
+  size and CRC stored at upload before it enters the zip (`photo-download.ts`, ruling 468).
+
+### 27.6 Deletion
+
+Every photo of an Event is deleted at 00:00 on the 31st day after the Event's last day, on the
+Event's clock (`photoDeletionInstant`, the one owner of that date). While photos are not Off, the
+hourly auto-archive waits until the upload window has closed (ruling 441).
+
+The worker's photo clean-up job does the deleting (`photo-cleanup.ts`, `workers/photo-cleanup.worker.ts`):
+
+- **expire**, every 5 minutes: delete the photo rows of every Event past its deletion instant. The
+  row trigger queues their object keys as tombstones.
+- **drain**, in the same run: delete each tombstoned object, then its tombstone. Object first, so a
+  tombstone never goes while its object may exist.
+- **sweep**, every hour: delete each object at least one hour old that no photo row names.
+
+A photo deleted by a moderator or by its sender, an Event deleted, a club deleted and an account
+erased all go through the same tombstones. The bucket's own 120-day expiry rule is the backstop.
+
+Races, named in the code: two runs at once are safe, because deleting a missing object or tombstone
+does nothing; an upload in flight is kept by the sweep's hour of grace; the sweep leaves alone any
+key of an Event this database does not hold, so a second stack given the same bucket keys cannot
+delete photos it knows nothing of.
 
 ---
 
