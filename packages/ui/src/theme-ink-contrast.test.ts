@@ -165,6 +165,30 @@ describe('the status inks on light', () => {
 });
 
 /**
+ * The same four inks in the dark scope. On a 15% wash over a dark card, danger was 4.27:1 and info
+ * 4.42:1 (known-deviations D37); both moved the least amount lighter, same hue.
+ */
+describe('the status inks on dark', () => {
+  const DARK = "[data-theme='dark']";
+  const STATUS = ['danger', 'success', 'warning', 'info'] as const;
+  const GROUND = ['surface', 'background'] as const;
+
+  it.each(STATUS.flatMap((s) => GROUND.flatMap((g) => [0.1, 0.15].map((a) => [s, g, a] as const))))(
+    '%s reads on its own wash over the dark %s, at %s',
+    (status, ground, alpha) => {
+      const ink = token(status, DARK);
+      expect(contrast(ink, over(ink, alpha, token(ground, DARK)))).toBeGreaterThanOrEqual(AA);
+    },
+  );
+
+  it.each(STATUS)('%s still carries its dark foreground as a solid fill', (status) => {
+    expect(
+      contrast(token(`${status}-foreground`, DARK), token(status, DARK)),
+    ).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+/**
  * The projector stage sets no scope, so a bare status ink there is the light page's value, which
  * the step above made darker. The stage's two status elements — the protest chip of the TV
  * scoreboard and the "behind" cell of the Live wall — take `data-theme="dark"` and read the dark

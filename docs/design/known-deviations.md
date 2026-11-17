@@ -922,8 +922,8 @@ state dots stay light-scope fills, 3.29:1 at the lowest, over the 3:1 a shape ne
 surfaces, under white, and the stage's warning; `TvProtestChip.render.test.tsx` and
 `wall-ink.test.tsx` hold the two stage elements.
 
-**Still open, beside it:** the dark scope did not move. Its 15% wash on a dark card is 4.27:1 for
-`danger` and 4.42:1 for `info`. web-staff, which lives in that scope, was not audited.
+The dark scope did not move in this entry: its `danger` and `info` were under the bar on their own
+wash over a dark card, 4.27:1 and 4.42:1. They are D37.
 
 ---
 
@@ -970,6 +970,20 @@ and blue defaults included. `side-color.test.ts` measures all eleven on the dark
 
 **Still open, beside it:** on a dark _card_ (`#1e293b`), blue is 2.83:1 and purple 2.72:1. The
 dark cards that draw side colours are in the scoring app, audited separately.
+
+---
+
+## D37 — FIXED: the dark scope's red and blue chips sat just under the reading bar
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17, on the operator's ruling for the light inks (D34) mirrored: the least move,
+same hue.** In the dark scope a status chip writes its ink on a 10% or 15% wash of itself. Over a
+dark card, `danger` (`#f87171`, red-400) was 4.27:1 there and `info` (`#60a5fa`, blue-400) 4.42:1.
+They are `#f97e7e` (4.56:1) and `#66a9fa` (4.57:1), mixed toward white until the worst wash cleared
+4.5:1. Under their dark foreground as a fill they are 7.05:1 and 7.31:1. `success` and `warning`
+already cleared it (4.92:1, 5.22:1) and did not move. `theme-ink-contrast.test.ts` measures all four
+on both dark surfaces at 10% and 15%.
 
 ---
 

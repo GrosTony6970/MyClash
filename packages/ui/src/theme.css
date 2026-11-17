@@ -209,14 +209,16 @@
    * either surface and always be legible. */
   --color-gold-text: #fbbf24;
 
-  /* red-400, not red-500: #ef4444 is 4.74:1 on the dark PAGE but only 3.89:1 on
+  /* Lighter than red-500: #ef4444 is 4.74:1 on the dark PAGE but only 3.89:1 on
    * a dark CARD (--color-surface #1e293b), where most danger text actually sits.
-   * #f87171 clears AA on both (6.45:1 page / 5.29:1 card). */
-  --color-danger: #f87171; /* red-400 */
+   * And a touch lighter than red-400: a chip writes the ink on a 15% wash of
+   * itself, where #f87171 was 4.27:1 over a dark card (known-deviations D37).
+   * #f97e7e clears AA there (4.56:1) and as plain text on both surfaces. */
+  --color-danger: #f97e7e;
   --color-success: #22c55e; /* green-500 */
   --color-warning: #f59e0b; /* gold-500 */
   --color-instructor: #a78bfa; /* violet-400 — brighter for contrast on dark */
-  --color-info: #60a5fa; /* blue-400 */
+  --color-info: #66a9fa; /* a touch lighter than blue-400 (#60a5fa: 4.42:1 on its 15% wash, D37) */
 
   /* A bright chip on a dark page takes DARK ink, not white.
    * The dark scope lightens every status hue so it reads as TEXT on a dark

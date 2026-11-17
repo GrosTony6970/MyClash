@@ -83,13 +83,13 @@ colors:
   dark-strong: '#e2e8f0' # INVERTS — a light chip on a dark page
   dark-strong-foreground: '#0f172a'
   dark-strong-hover: '#cbd5e1'
-  dark-danger: '#f87171' # red-400 — 5.29:1 on a dark card
+  dark-danger: '#f97e7e' # 4.56:1 on its own 15% wash over a dark card
   dark-danger-hover: '#ef4444'
   dark-success: '#22c55e'
   dark-success-hover: '#16a34a'
   dark-warning: '#f59e0b'
   dark-warning-hover: '#d97706'
-  dark-info: '#60a5fa'
+  dark-info: '#66a9fa' # 4.57:1 on its own 15% wash over a dark card
   dark-info-hover: '#3b82f6'
   dark-instructor: '#a78bfa'
   dark-corner-red: '#ef4444'
