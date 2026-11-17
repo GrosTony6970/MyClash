@@ -29,6 +29,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   displayClockMs,
   formatClockMs,
+  protestRulesOf,
   resolveMatchWinner,
   shouldWarnClock,
 } from '@myclash/types';
@@ -45,6 +46,7 @@ import { statusLabelKey } from '../utils/status-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
+import { TvProtestChip } from './TvProtestChip';
 
 export interface TVScoreboardProps {
   /** The caller's translator. See src/types/translator.ts for why it is a prop. */
@@ -239,6 +241,8 @@ export function TVScoreboard({
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
   const redStyle = sideStyle(match.scoringConfig, 'red');
   const blueStyle = sideStyle(match.scoringConfig, 'blue');
+  // The raw stored config: a Tournament saved before the limit existed has none.
+  const protestLimit = protestRulesOf(match.scoringConfig?.display).limit;
 
   // Connection cue — one shared chip now, driven by the shared freshness state
   // rather than by two hand-rolled pills with hard-coded amber/green.
@@ -265,6 +269,9 @@ export function TVScoreboard({
       score={match.redScore}
       registrationId={match.redRegistrationId ?? null}
       penalties={penalties}
+      protests={protests}
+      protestLimit={protestLimit}
+      t={t}
       tintHex={redStyle.border}
     />
   );
@@ -277,6 +284,9 @@ export function TVScoreboard({
       score={match.blueScore}
       registrationId={match.blueRegistrationId ?? null}
       penalties={penalties}
+      protests={protests}
+      protestLimit={protestLimit}
+      t={t}
       tintHex={blueStyle.border}
     />
   );
@@ -441,6 +451,9 @@ function FighterColumn({
   score,
   registrationId,
   penalties,
+  protests,
+  protestLimit,
+  t,
   tintHex,
 }: {
   name: string;
@@ -449,6 +462,9 @@ function FighterColumn({
   score: number;
   registrationId: string | null;
   penalties: Penalty[];
+  protests: MatchProtest[];
+  protestLimit: number | null;
+  t: Translator;
   tintHex: string;
 }) {
   const myPenalties = penalties.filter((p) => !p.voided && p.registration_id === registrationId);
@@ -492,6 +508,15 @@ function FighterColumn({
             </span>
           );
         })}
+        {registrationId && (
+          <TvProtestChip
+            protests={protests}
+            registrationId={registrationId}
+            limit={protestLimit}
+            fighterName={name}
+            t={t}
+          />
+        )}
       </div>
     </div>
   );
