@@ -2,12 +2,12 @@
 # infra/scripts/destroy.sh — Remove containers, images, and optionally all data
 #
 # Default: stops containers and removes locally-built images only.
-#          All persistent state is preserved (DB, certs, logs, uploads).
+#          All persistent state is preserved (DB, certs, uploads).
 #
 # --wipe-db  Also remove Docker volumes (postgres, redis, storage).
-#            data/ folder and logs/ are kept.
+#            Files on the host are kept.
 #
-# --full     Complete reset: volumes + data/ + logs/ + runtime files.
+# --full     Complete reset: volumes + runtime files (.last-deploy.json).
 #            backups/ and .env are NEVER touched.
 #
 # --prune-cache  Also delete ALL build cache of the current Docker builder (`docker
@@ -21,8 +21,8 @@
 #            `./destroy.sh --full --force` for an unattended wipe.
 #
 # destroy.sh <service...>   Selective: stop & remove only the named containers
-#            (docker compose rm -sf). Volumes, images, data/, logs/, and every other
-#            container are preserved. Pair with `redeploy.sh <service>` to recreate.
+#            (docker compose rm -sf). Volumes, images, and every other container are
+#            preserved. Pair with `redeploy.sh <service>` to recreate.
 #            Cannot be combined with --wipe-db / --full (whole-stack ops) or --prune-cache
 #            (host-wide).
 
@@ -46,8 +46,8 @@ Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--prune-cache] [--force]
 
   (no args)    Remove containers + locally-built images. ALL data preserved.
   --wipe-db    Also remove Docker volumes (postgres, redis, storage data).
-               data/ folder and logs/ are kept.
-  --full       Complete reset: volumes + data/ + logs/ destroyed.
+               Files on the host are kept.
+  --full       Complete reset: volumes + .last-deploy.json destroyed.
                backups/ and .env are NEVER touched.
   --prune-cache
                Also delete ALL build cache of the current Docker builder,
@@ -55,7 +55,7 @@ Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--prune-cache] [--force]
                the runtime images' apk upgrade. Base images (node:26-alpine...)
                are kept.
   <service...> Selective: stop & remove only the named containers.
-               Volumes, images, data/, logs/, and other containers preserved.
+               Volumes, images, and other containers preserved.
                Cannot be combined with --wipe-db / --full / --prune-cache.
   --force      Skip ALL confirmation prompts, including the second
                "this cannot be undone" gate on --full. Intended for
@@ -92,7 +92,7 @@ if [[ "${#SERVICES[@]}" -gt 0 ]]; then
 
   hdr "Removing containers: ${SERVICES[*]}"
   warn "Stops & removes only these containers: ${SERVICES[*]}"
-  warn "Preserved:  Docker volumes  images  data/  logs/  backups/  .env  (all other containers)"
+  warn "Preserved:  Docker volumes  images  backups/  .env  (all other containers)"
 
   if [[ "$FORCE" -ne 1 ]]; then
     confirm "Are you sure?" || { warn "Aborted."; exit 0; }
@@ -113,14 +113,14 @@ fi
 hdr "Removing stack"
 
 if [[ "$FULL" -eq 1 ]]; then
-  warn "FULL RESET: will delete containers, images, Docker volumes, data/, and logs/"
-  warn "Preserved:  backups/  .env"
+  warn "FULL RESET: will delete containers, images, Docker volumes, and .last-deploy.json"
+  warn "Preserved:  backups/  .env  certificates (infra/data/traefik)"
 elif [[ "$WIPE_DB" -eq 1 ]]; then
   warn "This will DELETE containers, images, and Docker volumes (postgres + redis + storage)"
-  warn "Preserved:  data/  logs/  backups/  .env"
+  warn "Preserved:  backups/  .env"
 else
   warn "This will remove containers and locally-built images"
-  warn "Preserved:  Docker volumes  data/  logs/  backups/  .env"
+  warn "Preserved:  Docker volumes  backups/  .env"
 fi
 if [[ "$PRUNE_CACHE" -eq 1 ]]; then
   warn "Also deletes ALL Docker build cache (the current builder, host-wide); the next build starts cold"
@@ -137,7 +137,7 @@ fi
 # explicitly requested). The warning is still printed either way so the run log
 # always records what was about to be deleted.
 if [[ "$FULL" -eq 1 ]]; then
-  warn "⚠  This will permanently delete data/ and logs/. This cannot be undone."
+  warn "⚠  This will permanently delete the database, Redis and storage volumes. This cannot be undone."
   if [[ "$FORCE" -ne 1 ]]; then
     confirm "Confirm full reset?" || { warn "Aborted."; exit 0; }
   fi
@@ -156,10 +156,8 @@ else
 fi
 
 if [[ "$FULL" -eq 1 ]]; then
-  rm -rf data/traefik data/postgres data/redis data/storage
-  rm -rf logs/api logs/traefik logs/web-public logs/web-staff logs/web-admin logs/db
   rm -f .last-deploy.json
-  ok "data/, logs/, and runtime files removed"
+  ok "Runtime files removed"
 fi
 
 # Last, after the stack is down. Host-wide: the builder cache is not scoped to a

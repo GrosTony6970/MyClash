@@ -10,8 +10,9 @@
 # Conventions inherited from MyFAL:
 #   - Traefik 3.6.x with label-based routing
 #   - Cert resolver named "letsencrypt"
-#   - Log paths under ./logs/<service>/
-#   - Data paths under ./data/<service>/
+#   - Logs to stdout (Docker's json-file driver); no log folder on the host
+#   - Traefik's certificates and plugin cache under ./data/traefik/ (infra/data/, beside this
+#     file); the database, Redis and storage in named volumes
 #   - .env vars: DOMAIN, LETSENCRYPT_EMAIL, TZ, COMPOSE_PROJECT_NAME
 #   - Container names prefixed with project name (myclash-*)
 #   - Healthchecks use `node -e` HTTP probe (no curl/wget needed in image)
@@ -73,7 +74,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/traefik:/data
       - ./data/traefik/plugins:/plugins-storage
-      - ./logs/traefik:/logs
       - ./config/traefik:/config:ro
     healthcheck:
       test: ['CMD', 'traefik', 'healthcheck', '--ping']
@@ -737,10 +737,8 @@ services:
     # Runtime state written by the deploy scripts (this manifest, backups/,
     # .last-deploy.json) lives at the repo root — hence `../`, the same idiom
     # `context: ../` and the ops-runner's `../:/srv/myclash` already use.
-    # `./logs/api` stays as-is deliberately: nothing reads it (the API logs to
-    # stdout), so pointing it elsewhere would be churn.
+    # No log folder: the API logs to stdout (Docker's json-file driver, below).
     volumes:
-      - ./logs/api:/app/logs
       - ../data/system-versions.json:/app/data/system-versions.json:ro
     networks: [myclash]
     mem_limit: 1g
@@ -1024,8 +1022,6 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
-    volumes:
-      - ./logs/worker:/app/logs
     networks: [myclash]
     mem_limit: 768m
     cpus: 1

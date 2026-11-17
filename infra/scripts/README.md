@@ -133,12 +133,10 @@ Three things about it are not guessable:
 
 ## Cron
 
-`backup.sh` is intended to run nightly. The editable schedule is now managed by the
-ops-runner (`/admin/backups`); the legacy host cron entry was:
-
-```cron
-0 3 * * *  deploy  bash /srv/myclash/infra/scripts/backup.sh >> /srv/myclash/logs/backup.log 2>&1
-```
+`backup.sh` runs nightly. The ops runner runs it on the editable schedule (`/admin/backups`)
+and the operation keeps the last 80 lines of its output; there is no host cron entry and no
+log file (`vps-bootstrap.sh` removes
+the legacy `/etc/cron.d/myclash-backup`).
 
 ## Related
 

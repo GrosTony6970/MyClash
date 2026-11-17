@@ -320,9 +320,6 @@ fi
 # ── Disk usage ───────────────────────────────────────────────────
 hdr "Disk usage"
 df -h / | tail -n 1 | awk '{print "  Root  : " $3 " used / " $2 " total (" $5 " full)"}'
-if [[ -d data/postgres ]]; then
-  echo "  pgdata: $(du -sh data/postgres 2>/dev/null | cut -f1)"
-fi
 if [[ -d backups ]]; then
   echo "  backups: $(du -sh backups 2>/dev/null | cut -f1)"
 fi

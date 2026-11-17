@@ -9,11 +9,11 @@
 #   3. Optionally encrypt both with GPG
 #   4. Upload both files to Scaleway S3 (aws-cli, S3-compatible)
 #   5. (Retention is enforced by the ops runner, not here — see below.)
-#   6. Write a structured summary line to the log
+#   6. Write a structured summary line to the output (stderr when the backup failed)
 #
-# Cron (installed by vps-bootstrap.sh):
-#   0 3 * * *  deploy  bash /srv/myclash/infra/scripts/backup.sh \
-#                        >> /srv/myclash/logs/backup.log 2>&1
+# Run by the ops runner (infra/ops-runner/server.mjs), on its schedule (/admin/backups) or on
+# demand; the operation keeps the last 80 lines of its output. vps-bootstrap.sh removes the old
+# host cron entry.
 #
 # Required .env vars:
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
@@ -95,7 +95,6 @@ fi
 # ── Prepare directories ──────────────────────────────────────────
 BACKUP_DIR="$ROOT_DIR/backups/nightly"
 mkdir -p "$BACKUP_DIR"
-mkdir -p "$ROOT_DIR/logs"
 
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 

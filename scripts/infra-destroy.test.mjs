@@ -2,8 +2,8 @@
  * infra/scripts/destroy.sh run against a fake `docker` that only records its arguments.
  *
  * The script and the libs it sources are copied into a temporary root, because it `cd`s two
- * levels above itself and `--full` deletes data/ and logs/ there: run in place, a test would
- * wipe the repo's own directories.
+ * levels above itself and `--full` deletes `.last-deploy.json` there: run in place, a test would
+ * delete the repo's own.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,7 +44,10 @@ function sandbox() {
   writeFileSync(join(root, 'bin', 'docker'), '#!/usr/bin/env bash\necho "$*" >> "$DOCKER_LOG"\n', {
     mode: 0o755,
   });
-  mkdirSync(join(root, 'data', 'postgres'), { recursive: true });
+  // What a deploy leaves at the repo root: the deploy manifest and the last deploy's record.
+  mkdirSync(join(root, 'data'));
+  writeFileSync(join(root, 'data', 'system-versions.json'), '{}');
+  writeFileSync(join(root, '.last-deploy.json'), '{}');
   return root;
 }
 
@@ -94,12 +97,23 @@ test('--prune-cache empties the whole build cache once the stack is down', { ski
   assert.match(run.output, /ALL Docker build cache \(the current builder, host-wide\)/u);
 });
 
-test('--full --prune-cache wipes data and the build cache together', { skip }, () => {
+test('--full --prune-cache wipes the volumes and the build cache together', { skip }, () => {
   const root = sandbox();
   const run = destroy(root, '--full', '--prune-cache', '--force');
   assert.equal(run.status, 0, run.output);
-  assert.ok(!existsSync(join(root, 'data', 'postgres')), 'data/postgres survived --full');
-  assert.ok(run.calls.includes(PRUNE), `no prune in: ${run.calls.join(' | ')}`);
+  const calls = run.calls.join(' | ');
+  assert.ok(
+    run.calls.some((call) => /\bdown --rmi local --remove-orphans -v\b/u.test(call)),
+    `no down -v in: ${calls}`,
+  );
+  assert.ok(
+    run.calls.includes('volume rm myclash-postgres-data myclash-redis-data myclash-storage-data'),
+    `no volume rm in: ${calls}`,
+  );
+  assert.ok(!existsSync(join(root, '.last-deploy.json')), '.last-deploy.json survived --full');
+  // The volumes hold the data; the host's data/ holds the deploy manifest, which stays.
+  assert.ok(existsSync(join(root, 'data', 'system-versions.json')), '--full deleted data/');
+  assert.ok(run.calls.includes(PRUNE), `no prune in: ${calls}`);
 });
 
 test('the prompt guards the prune: no answer, no docker call', { skip }, () => {

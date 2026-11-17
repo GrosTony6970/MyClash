@@ -2902,9 +2902,6 @@ for (const expected of [
 ]) {
   if (!composeText.includes(expected)) errors.push(`Missing Traefik edge setting: ${expected}`);
 }
-if (!deployText.includes('chmod 600 "$ACME_FILE"')) {
-  errors.push('deploy.sh must enforce ACME storage permissions with chmod 600.');
-}
 
 // Compose REPLACES list-valued keys instead of merging them, so a second copy of
 // traefik's `command:` in the staging overlay silently drops any prod-only flag —

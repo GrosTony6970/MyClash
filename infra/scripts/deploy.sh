@@ -472,8 +472,7 @@ if [[ "$USE_DEV_CERTS" -eq 1 ]]; then
   COMPOSE+=(-f infra/docker-compose.staging-certs.yml)
   # The overlay no longer redefines traefik's command; it selects the staging CA
   # through these two vars instead. Exported (not passed via --env-file) so they
-  # win over .env in Compose's interpolation precedence. Must stay in sync with
-  # ACME_FILE below.
+  # win over .env in Compose's interpolation precedence.
   export ACME_STORAGE_FILE=acme-staging.json
   export ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory
   warn "Using Let's Encrypt staging certificates (--dev-certs)"
@@ -502,24 +501,13 @@ fi
 # file, behind `|| true`, and web-public's worker has no cache; web-admin has no worker.
 
 # ── Prepare directories ──────────────────────────────────────────
-hdr "Preparing data and log directories"
+# Only the backups live here, at the repo root. The services log to stdout; the
+# database, Redis and storage keep their data in named volumes; Traefik keeps its
+# certificates under infra/data/traefik (compose paths are relative to infra/) and
+# creates acme.json itself, mode 600 (ruling 832).
+hdr "Preparing backup directories"
 
-mkdir -p \
-  logs/api logs/worker logs/web-public logs/web-staff logs/web-admin logs/traefik \
-  data/postgres data/redis data/storage data/traefik \
-  backups/pre-deploy backups/nightly
-
-: > logs/api/api.log
-: > logs/traefik/traefik.log
-
-# Mirrors the container-side flag: --acme.storage=/data/${ACME_STORAGE_FILE:-acme.json}
-# Derived rather than re-branched on --dev-certs so host and container cannot drift.
-ACME_FILE="data/traefik/${ACME_STORAGE_FILE:-acme.json}"
-
-[[ -f "$ACME_FILE" ]] || touch "$ACME_FILE"
-chmod 600 "$ACME_FILE"
-
-chmod 775 data/postgres data/redis data/storage logs/* 2>/dev/null || true
+mkdir -p backups/pre-deploy backups/nightly
 ok "Directories ready"
 
 # ── Pre-deploy backup ────────────────────────────────────────────
