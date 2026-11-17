@@ -27,7 +27,7 @@ function renderWithPolicyLinks(
         href={hrefs[kind]}
         target="_blank"
         rel="noreferrer"
-        className="underline decoration-dotted underline-offset-2 hover:text-accent"
+        className="underline decoration-dotted underline-offset-2 hover:text-foreground"
         // Stops a click on the link from toggling the checkbox it sits inside.
         onClick={(event) => event.stopPropagation()}
       >

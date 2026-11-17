@@ -43,11 +43,14 @@ describe('auth panel classes', () => {
     expect(authFieldClass).not.toMatch(/\b(?:bg|text|border)-(?:slate|gray|zinc|white|black)\b/);
   });
 
-  it('paints the cross-app link with the accent, not a fixed colour', () => {
-    // The same component renders on the blue personal-space panel and the red
-    // organizer one. A literal colour here would be right on exactly one of
-    // them, and there is no DOM test that would catch which.
-    expect(authAltLinkClass).toContain('text-accent');
+  it('writes the cross-app link in the panel ink with an underline, not in the accent', () => {
+    // The panel is a dark scope and the accent does not lighten there: the red link was 2.3:1 on
+    // the panel's card and the blue one 2.2:1 (known-deviations D27). The underline is what says
+    // "link" now, so it is always on; theme-ink-contrast.test.ts measures the ink.
+    const classes = authAltLinkClass.split(' ');
+    expect(classes).toContain('text-foreground');
+    expect(classes).toContain('underline');
+    expect(authAltLinkClass).not.toContain('accent');
     expect(authAltLinkClass).not.toMatch(/\b(?:bg|text|border)-(?:slate|gray|zinc|white|black)\b/);
   });
 });

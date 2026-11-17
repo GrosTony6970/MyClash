@@ -91,6 +91,52 @@ describe('text on the stage', () => {
 });
 
 /**
+ * Three inks that sat on a surface they were not made for (known-deviations D27): the accent as
+ * text on the dark sign-in panel, the page ink on the accent disc of the initials, and a faded
+ * white on a thin black wash over the scoreboard's white header.
+ */
+describe('ink on the dark panel, the initials disc and the stage toggles', () => {
+  const DARK = "[data-theme='dark']";
+  const PERSONAL = "[data-accent='personal']";
+  const WHITE: Rgb = [255, 255, 255];
+
+  it('reads as the panel ink on the sign-in card, in the organiser and the personal panel', () => {
+    expect(contrast(token('foreground', DARK), token('surface', DARK))).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('did not read as the accent there: no scope lightens the accent', () => {
+    expect(contrast(token('accent'), token('surface', DARK))).toBeLessThan(3);
+    expect(contrast(token('accent', PERSONAL), token('surface', DARK))).toBeLessThan(3);
+  });
+
+  it.each([
+    ['a light page', undefined],
+    ['the dark sidebar', DARK],
+  ])('reads as initials on the strong disc, on %s', (_name, scope) => {
+    expect(
+      contrast(token('strong-foreground', scope), token('strong', scope)),
+    ).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('did not read as the page ink on the accent disc', () => {
+    expect(contrast(token('foreground'), token('accent'))).toBeLessThan(3);
+    expect(contrast(token('foreground'), token('accent', PERSONAL))).toBeLessThan(3);
+  });
+
+  it('reads on a stage toggle, over the white header of the scoreboard and over the stage', () => {
+    const ink = token('stage-foreground');
+    const stage = token('stage');
+    expect(contrast(ink, over(stage, 0.8, WHITE))).toBeGreaterThanOrEqual(AA);
+    expect(contrast(ink, stage)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('did not read as 70% white on a 40% black wash over that header', () => {
+    const wash = over([0, 0, 0], 0.4, WHITE);
+    expect(contrast(over(WHITE, 0.7, wash), wash)).toBeLessThan(3);
+  });
+});
+
+/**
  * A solid fill in a colour the organiser picked — the Standings toggle, the winner's score in the
  * bracket, the league medal discs, the run header of the schedule. Each wrote a fixed white, which
  * is 1.1:1 on a white tournament and 1.5:1 on a yellow one (known-deviations D26). The fill and

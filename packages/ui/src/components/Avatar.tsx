@@ -47,9 +47,10 @@ export const Avatar = ({ name, src, size = 'md', className = '' }: AvatarProps) 
         // Neutral, not red: this fallback renders wherever a photo is missing,
         // including beside a fighter whose side colour is configured. A fixed
         // red disc there reads as a side marker it is not — TVScoreboard
-        // already had to route around exactly that.
-        'rounded-full bg-accent border border-border flex items-center justify-center',
-        'font-bold text-foreground select-none',
+        // already had to route around exactly that. `strong` inverts with the
+        // scope, so the pair reads on a light page and in the dark sidebar.
+        'rounded-full bg-strong border border-border flex items-center justify-center',
+        'font-bold text-strong-foreground select-none',
         sz,
         className,
       ].join(' ')}

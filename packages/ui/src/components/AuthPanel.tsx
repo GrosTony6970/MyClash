@@ -40,11 +40,11 @@ export function authNoticeClass(tone: AuthNoticeTone): string {
 /**
  * The pointer from one front door to the other.
  *
- * `text-accent` rather than a fixed colour: the class resolves per scope, so
- * the link is blue on the personal-space panel and red on the organizer one
- * without this component knowing which app rendered it.
+ * The panel's own ink with a standing underline, not the accent: the panel is
+ * a dark scope and no scope lightens the accent, so the red link was 2.3:1 on
+ * the card and the blue one 2.2:1. The underline is what says "link".
  */
-export const authAltLinkClass = 'font-semibold text-accent underline-offset-2 hover:underline';
+export const authAltLinkClass = 'font-semibold text-foreground underline underline-offset-2';
 
 export interface AuthPanelTab<T extends string = string> {
   value: T;

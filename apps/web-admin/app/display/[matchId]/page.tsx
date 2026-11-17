@@ -28,8 +28,10 @@ import { TVScoreboard, useDisplayMirror, useFullscreen } from '@myclash/ui';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 
+// A fill of its own: the toggles sit over the scoreboard's WHITE header, where a thin black wash
+// under a faded white was 2.2:1. The stage at 80% reads there and over the stage itself.
 const STAGE_TOGGLE =
-  'cursor-pointer rounded-md border border-white/20 bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/70 backdrop-blur hover:bg-black/60 hover:text-white';
+  'cursor-pointer rounded-md border border-stage-foreground/30 bg-stage/80 px-3 py-1.5 text-xs font-semibold text-stage-foreground backdrop-blur hover:bg-stage';
 
 export default function DisplayPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { t } = useI18n();
@@ -49,8 +51,8 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
 
   return (
     <>
-      {/* Subtle toggles over the cursor-none stage; cursor-pointer so they're
-          clickable. Small + translucent so they don't distract on the TV. */}
+      {/* Toggles over the cursor-none stage; cursor-pointer so they're
+          clickable. Small so they don't distract on the TV. */}
       <div className="fixed left-3 top-3 z-50 flex gap-2">
         <button type="button" onClick={toggleMirror} className={STAGE_TOGGLE}>
           {t('scoring.scoreboard.swapSides')}

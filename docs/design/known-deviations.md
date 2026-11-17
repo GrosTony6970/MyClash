@@ -670,6 +670,39 @@ The other half is that the fill does not get a fixed ink either. Take both from 
 
 ---
 
+## D27 — FIXED: three inks on a surface they were not made for
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; components follow the scope
+they sit in.
+
+**Fixed on 2026-11-17.** Rendered and measured that day, before and after (a static page built from
+the classes and web-admin's production stylesheet, in Chromium, not the running app):
+
+| Where                                                    | It was                                   | Ratio | It is                               | Ratio |
+| -------------------------------------------------------- | ---------------------------------------- | ----- | ----------------------------------- | ----- |
+| Sign-in panel, the link to the other app (organiser)     | `text-accent`, red on the dark card      | 2.26  | `text-foreground`, underlined       | 13.35 |
+| The same link on the personal panel                      | `text-accent`, blue on the dark card     | 2.18  | the same                            | 13.35 |
+| Initials disc of a person with no photo, on a light page | `bg-accent text-foreground`, dark on red | 2.76  | `bg-strong text-strong-foreground`  | 17.85 |
+| The same disc in the dark sidebar of `/me`               | light on blue, about 6:1                 | —     | the `strong` pair, inverted         | 14.48 |
+| Projector popup, "Swap sides" and "Fullscreen"           | `bg-black/40 text-white/70` over white   | 2.16  | `bg-stage/80 text-stage-foreground` | 11.58 |
+
+- **The accent is a fill, not an ink, in a dark scope.** `[data-theme='dark']` lightens every status
+  colour and does not touch `--color-accent`, because `bg-accent` carries white text in both scopes.
+  So `text-accent` on a dark card is the light-page red or blue on slate-800. The cross-app link
+  (`AuthPanel.tsx`, `authAltLinkClass`) and the hover of the consent line's two links
+  (`LegalConsent.tsx`, one copy in each app) both did it.
+- **The initials disc** (`Avatar.tsx`) painted the accent and wrote the page ink on it. Its comment
+  said "neutral, not red" from the day it was written. It was used on light pages on the fighter
+  directory, the follows, FightBook and a Workshop's instructor.
+- **The stage toggles** (`web-admin/app/display/[matchId]/page.tsx`) float over the top-left corner
+  of the popup, which is `TVScoreboard`'s white header. A thin black wash there is a mid grey.
+
+**Still open, beside it:** `LegalConsent.tsx` is two identical files, one in each app (D23's class).
+Any other `text-accent` placed in a dark scope has the same 2.2:1; none was found in the sidebars,
+the drawers or the password panels.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.
