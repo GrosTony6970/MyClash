@@ -57,7 +57,9 @@ export const COPY = {
   /** The prefix the schedule board reports its first bootstrap read under
    *  — `organizer.schedulePage.grid.fetchLices` is `'Lices: {message}'`. */
   scheduleFetchLicesPrefix: 'Lices:',
-  tournamentNotFound: 'Tournament not found',
+  /** The site's one not-found card (`publicApp.notFound.title`): an unknown Tournament calls
+   *  `notFound()` since quick win F13, so it has no words of its own any more. */
+  pageNotFound: 'Page not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
   claimEmailLabel: 'Your registered email',

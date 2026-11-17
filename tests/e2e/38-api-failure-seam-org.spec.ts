@@ -450,7 +450,9 @@ test.describe('the api-failure seam — web-public', () => {
       waitUntil: 'domcontentloaded',
     });
 
-    await expect(page.getByText(COPY.tournamentNotFound)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: COPY.pageNotFound })).toBeVisible({
+      timeout: 30_000,
+    });
     // The other arm of the same branch. A 404 read as a server fault would put
     // this heading up instead, which is the regression the tri-state exists for.
     await expect(page.getByText(COPY.tournamentLoadFailed)).toBeHidden();
