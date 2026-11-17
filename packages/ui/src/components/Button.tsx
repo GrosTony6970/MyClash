@@ -27,8 +27,11 @@ const variantClasses: Record<ButtonVariant, string> = {
     'bg-accent hover:bg-accent-hover active:bg-accent-hover text-accent-foreground border-transparent shadow-sm',
   secondary:
     'bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white border-transparent shadow-sm',
+  // `ghost` is the scope's own ink at opacity steps, so it follows the light and the dark scope.
+  // It was raw white (`text-white border-white/20`): right on the dark sign-in panels, white on
+  // white on a light page, where it could not be seen at all (known-deviations D13).
   ghost:
-    'bg-transparent hover:bg-white/10 active:bg-white/20 text-white border-white/20 hover:border-white/40',
+    'bg-transparent hover:bg-foreground/10 active:bg-foreground/20 text-foreground border-foreground/20 hover:border-foreground/40',
   danger: 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-transparent shadow-sm',
   gold: 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-gray-900 border-transparent font-bold shadow-[0_0_12px_rgb(245_158_11_/_0.4)]',
   back: 'bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border-slate-300 shadow-sm',

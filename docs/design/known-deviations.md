@@ -336,22 +336,27 @@ On a section heading that is a fair trade; on the title, it is not.
 > code and fixed none of what it found. Each shares the same "why not fixed": it was found in that
 > sweep and not fixed in it. Line numbers are as of that day.
 
-## D13 — the `ghost` button is white ink, and it is used on light pages
+## D13 — FIXED: the `ghost` button was white ink on light pages
 
 **Rule broken:** Colours — every colour pair clears WCAG AA for text; components follow the scope
 they sit in.
 
-**Rendered and measured on 2026-11-17.** A static page built from the classes below and each
-app's production stylesheet, in Chromium, not the running app: the label and the border both paint
-`#ffffff` on `#ffffff`, a contrast of 1:1, on the admin photo tile, on a FightBook card and in a
-FightBook dialog. The button cannot be seen at all; it still takes its place in the row and still
-takes a click. `Button`'s `ghost` variant is
-`text-white border-white/20 hover:bg-white/10` (`packages/ui/src/components/Button.tsx:30-31`),
-raw white whatever the scope. On a dark surface that is a quiet outlined action, and the dark auth
-panels use it that way. On a light surface it is white text inside a white hairline on
-`#ffffff` or `#fafaf9`, and no stylesheet in the repo overrides it.
+**Fixed on 2026-11-17, in the component.** `ghost` now spends the scope's own ink at the opacity
+steps it had: `text-foreground border-foreground/20 hover:border-foreground/40
+hover:bg-foreground/10 active:bg-foreground/20` (`packages/ui/src/components/Button.tsx`). On the
+dark sign-in panels it reads as before (`#f1f5f9` where it was `#ffffff`); on a light surface it is
+dark text in a hairline. No call site changed. `button-ghost-render.test.tsx` holds the variant on
+tokens, and `theme-ink-contrast.test.ts` holds the contrast of that ink on every surface.
 
-It is used on light surfaces in two apps:
+**What it was.** Rendered and measured on 2026-11-17 (a static page built from the classes and
+each app's production stylesheet, in Chromium, not the running app): the label and the border both
+painted `#ffffff` on `#ffffff`, a contrast of 1:1, on the admin photo tile, on a FightBook card and
+in a FightBook dialog. The button could not be seen at all; it still took its place in the row and
+still took a click. The variant was `text-white border-white/20 hover:bg-white/10`, raw white
+whatever the scope: a quiet outlined action on the dark auth panels, and white text inside a white
+hairline on `#ffffff` or `#fafaf9`.
+
+It was used on light surfaces in two apps:
 
 - **web-admin:** Delete on each photo of the moderation queue
   (`src/components/photos/PhotoQueue.tsx:207`, inside the `bg-surface` tile at `:132`; `ea20edef8`,
@@ -364,11 +369,9 @@ It is used on light surfaces in two apps:
   `src/components/fightbook/AskSparDialog.tsx:252`, and "Remove photo" at
   `app/profile/fighter/FighterProfileClient.tsx:828`.
 
-In the same photo queue, Approve and Keep use `secondary`, a raw `bg-blue-700`
-(`PhotoQueue.tsx:190,200`), on the surface whose accent is "always red" (`web-admin.md`).
-
-**Fix:** the token-driven neutral already exists — `outline` follows both scopes. Either move the
-light call sites to it or put `ghost` itself on tokens; the second is the class fix.
+**Still open, beside it:** in the same photo queue, Approve and Keep use `secondary`, a raw
+`bg-blue-700` (`PhotoQueue.tsx:190,200`), on the surface whose accent is "always red"
+(`web-admin.md`).
 
 ---
 
