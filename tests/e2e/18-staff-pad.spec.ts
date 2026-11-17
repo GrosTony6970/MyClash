@@ -270,7 +270,7 @@ test.describe('staff pad', () => {
       // alert like the one of the 401 it means to prove.
       //
       // NEVER `waitUntil: 'networkidle'` anywhere in the scoring app: it holds a
-      // live connection and re-requests a service worker the /scoring proxy
+      // live connection and re-requests a service worker the /staff route
       // answers 404, so the network never goes idle and goto hangs until the
       // test times out. `06` and `16` both navigate the pad with a bare goto for
       // this reason; the settle signal is an explicit wait on a real element.
@@ -298,7 +298,7 @@ test.describe('staff pad', () => {
       await page.locator('form:has(#staffPin) button[type="submit"]').click();
 
       // Assert the SESSION, not the landing URL: the pad is served both at
-      // scoring.<domain> and same-origin under admin.<domain>/scoring, and the
+      // its own host and same-origin under admin.<domain>/staff, and the
       // landing path is now role-dependent too (`landingPathForRole` sends a
       // desk volunteer to /desk and a gear marshal to /gear). The session is the
       // contract under all of them.
@@ -410,14 +410,20 @@ test.describe('staff pad', () => {
       // Play it out as the organizer so the pool group completes, then wait for
       // MatchAutoLockService — a 60s interval, so this also happens to be the
       // only test that proves the auto-lock scan runs in production at all.
+      // Since 7a55fa293 (2026-11-15) the scan runs ONLY in the `--worker`
+      // process (`workers/worker-role.ts`); the api runs no job. A stack
+      // deployed without a healthy worker fails here, and nowhere earlier.
       await scoreMatch(api, lock.matchId, 'red');
       await expect
         .poll(async () => (await readMatch(api, lock.matchId)).locked_at, {
           timeout: 120_000,
           intervals: [5_000],
           message:
-            'the completed pool never auto-locked. MatchAutoLockService runs on a 60s interval and ' +
-            'skips a group whose latest ended_at is null — check that point-cap completion stamps it.',
+            'the completed pool never auto-locked. First check the WORKER is deployed and healthy ' +
+            '(`node apps/api/dist/main.js --worker`; the api runs no job since 2026-11-15, and the ' +
+            'super-admin health card names who works each queue). Then: MatchAutoLockService runs ' +
+            'on a 60s interval and skips a group whose latest ended_at is null — check that ' +
+            'point-cap completion stamps it.',
         })
         .not.toBeNull();
 

@@ -622,9 +622,12 @@ Things worth knowing before touching it:
 - **There is no `POST /matches/:id/lock`.** Locking is `MatchAutoLockService`, a
   60 s interval that locks a completed group once `autoLockDelayMinutes` has
   elapsed. The spec builds a one-match pool with the delay at 0 and polls, which
-  makes it the only test that proves that scan runs in production at all. It
-  skips a group whose latest `ended_at` is null, so if that poll ever times out,
-  suspect completion not stamping `ended_at` before suspecting the spec.
+  makes it the only test that proves that scan runs in production at all. **The
+  scan runs only in the worker** since 2026-11-15 (`--worker`, `7a55fa293`); the
+  api process runs no job. So if that poll times out, first check the worker is
+  deployed and healthy (the super-admin health card names who works each queue).
+  Then: it skips a group whose latest `ended_at` is null, so suspect completion
+  not stamping `ended_at` before suspecting the spec.
 - **Both login legs carry `?event=`, and that is load-bearing.**
   `StaffPinForm` renders the `#eventSlugOrCode` input only on the deep-link
   branch, or when the event picker came back empty. The spec creates an active

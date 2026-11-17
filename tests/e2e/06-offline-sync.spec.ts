@@ -18,7 +18,7 @@ import { runContext } from './_context';
  *   3. comes back ONLINE — asserts the outbox drains to 0 and the server now
  *      returns BOTH exchanges (client_uuid idempotency; auto-drain on reconnect).
  *
- * The pad is served same-origin via the admin `/scoring/*` proxy by default
+ * The pad is served same-origin via the admin `/staff/*` route by default
  * (trusted cert, the path organizers actually use); set `E2E_STAFF_URL` to the
  * canonical scoring subdomain to exercise that host instead. The `.myclash.fr`
  * session cookie authenticates either origin.
@@ -35,7 +35,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
   // The pad lives in the web-staff app; reach it same-origin through the admin
-  // `/scoring/*` proxy (default) or via an explicit scoring host override.
+  // `/staff/*` route (default) or via an explicit staff host override.
   const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
 
   const ok = async (res: APIResponse, label: string): Promise<APIResponse> => {
