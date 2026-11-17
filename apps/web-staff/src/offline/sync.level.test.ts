@@ -93,6 +93,7 @@ describe('a step of a level bout written on the tablet', () => {
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [],
     });
 

@@ -3,6 +3,7 @@
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UndoLast } from '../hooks/useUndoLast';
+import { ProtestPair, type ProtestPairProps } from './ProtestButton';
 
 /**
  * The screens that stand between the official and the clock: the question on
@@ -155,6 +156,8 @@ interface RoundBreakDialogProps {
   undo: UndoLast;
   /** An undo cancelled an entry and this round stays closed: the sentence that says so. */
   undone: string | null;
+  /** Both Fighters' protest buttons: a Fighter protests a call between rounds too. */
+  protests: ProtestPairProps;
   onStart: () => void;
 }
 
@@ -202,6 +205,10 @@ function ClosedOnTablet() {
  * while that press waits on the tablet the undo is refused, and once the server
  * holds it the server judges the undo: the round stays closed, the screen stays
  * up, and it says which entry was cancelled (`undone`).
+ *
+ * The protest buttons of both Fighters come LAST, under the two: the dialog
+ * gives its focus to its first button, and a Space there must start the round,
+ * never record a protest.
  */
 export function RoundBreakDialog({
   open,
@@ -217,6 +224,7 @@ export function RoundBreakDialog({
   error,
   undo,
   undone,
+  protests,
   onStart,
 }: RoundBreakDialogProps) {
   const { t } = useI18n();
@@ -225,7 +233,14 @@ export function RoundBreakDialog({
       open={open}
       onClose={staysOpen}
       title={t('scoring.rounds.roundComplete', { round: String(round) })}
-      footer={<RoundBreakButtons round={round} undo={undo} onStart={onStart} />}
+      footer={
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex justify-end gap-2">
+            <RoundBreakButtons round={round} undo={undo} onStart={onStart} />
+          </div>
+          <ProtestPair {...protests} />
+        </div>
+      }
     >
       <div className="text-center">
         {winner && (

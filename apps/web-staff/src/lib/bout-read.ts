@@ -89,6 +89,8 @@ export interface BoutSummary {
   phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
   /** Effective best-of for this match's phase (not a matches column). */
   bestOf?: number;
+  /** The bout's Event is completed or archived: its results are frozen. Absent from an older server. */
+  eventOver?: boolean;
 }
 
 export async function readBout(
@@ -160,6 +162,8 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     blueRoundWins: raw.blue_round_wins ?? 0,
     roundsJson: raw.rounds_json ?? null,
     awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
+    // With no summary the tablet does not know: the server still refuses what the Event froze.
+    eventOver: summary?.eventOver ?? false,
     decisionEdition: raw.decision_edition,
     rules: raw.rules,
   };

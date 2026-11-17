@@ -44,8 +44,12 @@ export type PenaltyCardColor = PenaltyCard;
  *
  * A `level` is a tap on the step of a level bout: "Extra time 60s" or "Sudden
  * death" (the offline bout, slice 5). A tap too, with its own door.
+ *
+ * A `protest` is one Fighter's protest of a call (the protest counter). It is
+ * an entry of the bout's sheet, as a card is: it takes a number of the bout's
+ * sequence, the undo takes it back, and it names no points.
  */
-export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round' | 'level';
+export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round' | 'level' | 'protest';
 
 /**
  * What kind of row this is. The one reader of `kind`: a caller switches on the
@@ -55,8 +59,8 @@ export const kindOf = (entry: { kind?: OutboxKind }): OutboxKind => entry.kind ?
 
 /**
  * Is this row a tap on a button of the bout (a clock press, a round press, a
- * step of a level bout), and not an entry of its sheet (a hit, a card)? A tap
- * takes no number of the
+ * step of a level bout), and not an entry of its sheet (a hit, a card, a
+ * protest)? A tap takes no number of the
  * bout's sequence, no other sequence cures it, it is in no list of the bout,
  * and the undo never takes it back. It keeps its place among the bout's rows.
  */
@@ -68,6 +72,7 @@ export function isTap(entry: { kind?: OutboxKind }): boolean {
       return true;
     case 'penalty':
     case 'exchange':
+    case 'protest':
       return false;
   }
 }
@@ -140,10 +145,11 @@ export interface OutboxEntry {
   clientUuid: string;
   matchId: string;
   /**
-   * Shared across BOTH kinds on purpose. `exchanges` and `match_penalties` each
-   * carry their own UNIQUE(match_id, sequence), so one monotonic counter across
-   * the two never collides — and it is what orders the unified timeline. Each
-   * table simply ends up with gaps.
+   * Shared across the hits, the cards and the protests on purpose.
+   * `exchanges`, `match_penalties` and `match_protests` each carry their own
+   * UNIQUE(match_id, sequence), so one monotonic counter across them never
+   * collides — and it is what orders the unified timeline. Each table simply
+   * ends up with gaps.
    */
   sequence: number;
   /** Exchange only. */
@@ -154,14 +160,17 @@ export interface OutboxEntry {
   afterblowValue?: number;
   noExchangeReason?: string;
   // ── Penalty only ───────────────────────────────────────────────────────────
-  /** Which fighter the card is against. Required for a penalty. */
+  /** Which fighter the card is against, or who protests. Required for a penalty and a protest. */
   registrationId?: string;
   /** Ruleset-driven penalty: the catalogue entry the referee picked. */
   rulesetEntryId?: string;
   /** Direct card, bypassing the catalogue. Needs a reason server-side. */
   directCard?: PenaltyCardColor;
   reason?: string;
-  /** Which corner the card is against: the row's only way to say it in words. */
+  /**
+   * Which corner the card is against, or the corner of the Fighter who
+   * protests: the row's only way to say it in words.
+   */
   cardedColor?: StrikerColor;
   /**
    * The short name of the penalty-list entry the referee tapped (ruling 246): a

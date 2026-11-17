@@ -3,7 +3,8 @@
  *
  * The API is stubbed, and every card the pad sends is written down. The penalty
  * list has a yellow entry, a red entry, a black entry, and an entry that is
- * yellow the first time and red the second.
+ * yellow the first time and red the second. A protest the server takes is kept,
+ * and listed back as the server lists it.
  */
 import { expect, type Page } from '@playwright/test';
 
@@ -19,7 +20,7 @@ const ROW = {
   red_score: 0,
   blue_score: 0,
   winner_registration_id: null,
-  locked_at: null,
+  locked_at: null as string | null,
   lice_id: null,
   end_reason: null,
   current_round: 1,
@@ -71,37 +72,123 @@ const PRIORS = {
   },
 };
 
-/** Opens a running bout. Returns the list entry of every card the pad sent. */
-export async function openBout(page: Page, savesReach = true) {
-  const cards: string[] = [];
+interface Stub {
+  /** False: a dead network, as the pad's service worker answers it. Writes stay in the queue. */
+  savesReach: boolean;
+  row: typeof ROW;
+  summary: typeof SUMMARY & { eventOver?: boolean };
+  /** The list entry of every card the pad sent. */
+  cards: string[];
+  /** Every protest the server took, as it lists it back. */
+  protests: Array<Record<string, unknown>>;
+  /** How many reads of the protests were answered, and how many before the last protest was taken. */
+  protestReads: number;
+  readsAtTake: number;
+}
+
+/** A protest the server takes: saved once by its `clientUuid`, as the API does. */
+function takeProtest(stub: Stub, body: Record<string, unknown>) {
+  const saved = stub.protests.find((row) => row['client_uuid'] === body['clientUuid']);
+  if (saved) return saved;
+  const row = {
+    id: `protest-${stub.protests.length + 1}`,
+    client_uuid: body['clientUuid'],
+    match_id: BOUT,
+    registration_id: body['registrationId'],
+    sequence: body['sequence'],
+    round_number: 1,
+    clock_time_ms: body['clockTimeMs'] ?? null,
+    occurred_at: body['occurredAt'],
+    voided: false,
+  };
+  stub.protests.push(row);
+  stub.readsAtTake = stub.protestReads;
+  return row;
+}
+
+async function serve(page: Page, stub: Stub) {
   await page.route('**/api/**', (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
     if (method !== 'GET') {
       if (path.endsWith(`/matches/${BOUT}/penalties`)) {
         const body = route.request().postDataJSON() as { rulesetEntryId?: string };
-        cards.push(body.rulesetEntryId ?? 'no entry');
+        stub.cards.push(body.rulesetEntryId ?? 'no entry');
       }
-      // A dead network, as the pad's service worker answers it: the card stays in the queue.
-      if (!savesReach)
+      // A dead network, as the pad's service worker answers it: the entry stays in the queue.
+      if (!stub.savesReach)
         return route.fulfill({ status: 503, json: { error: 'offline', status: 503 } });
+      if (path.endsWith(`/matches/${BOUT}/protests`)) {
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        return route.fulfill({ status: 201, json: takeProtest(stub, body) });
+      }
       return route.fulfill({ status: 201, json: {} });
     }
-    if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: ROW });
-    if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
+    if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: stub.row });
+    if (path.endsWith('/summary')) return route.fulfill({ json: stub.summary });
     if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: PENALTY_LIST });
     if (path.endsWith('/penalty-scope')) return route.fulfill({ json: PRIORS });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
+    if (path.endsWith('/protests')) {
+      stub.protestReads += 1;
+      return route.fulfill({ json: stub.protests });
+    }
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });
     if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
     return route.fulfill({ status: 404, json: {} });
   });
+}
+
+const newStub = (savesReach: boolean): Stub => ({
+  savesReach,
+  row: ROW,
+  summary: SUMMARY,
+  cards: [],
+  protests: [],
+  protestReads: 0,
+  readsAtTake: 0,
+});
+
+/** Opens a running bout. Returns the list entry of every card the pad sent. */
+export async function openBout(page: Page, savesReach = true) {
+  const stub = newStub(savesReach);
+  await serve(page, stub);
   await page.goto(`${PAD}/matches/${BOUT}`);
   await expect(redRow(page, 'entry-red')).toBeEnabled();
-  return cards;
+  return stub.cards;
 }
+
+/**
+ * Opens the running bout for the protest stories, on the stub's record. The
+ * bout may be locked, or its Event over. `online`: what `navigator.onLine`
+ * says, as the browser would; with false, no write reaches the server.
+ */
+export async function openProtestBout(
+  page: Page,
+  bout: { lockedAt?: string; eventOver?: boolean; online?: boolean } = {},
+) {
+  const online = bout.online ?? true;
+  const stub = newStub(online);
+  stub.row = { ...ROW, locked_at: bout.lockedAt ?? null };
+  stub.summary = { ...SUMMARY, eventOver: bout.eventOver ?? false };
+  await page.addInitScript((isOnline) => {
+    (window as unknown as { padOnline: boolean }).padOnline = isOnline;
+    Object.defineProperty(Navigator.prototype, 'onLine', {
+      configurable: true,
+      get: () => (window as unknown as { padOnline: boolean }).padOnline,
+    });
+  }, online);
+  await serve(page, stub);
+  await page.goto(`${PAD}/matches/${BOUT}`);
+  await expect(protestChip(page, 'red')).toBeVisible();
+  return stub;
+}
+
+/** One Fighter's protest button on the pad, in that Fighter's column. */
+export const protestChip = (page: Page, side: 'red' | 'blue') =>
+  page.locator(`[data-testid="scoring-column"][data-side="${side}"] [data-testid="protest-chip"]`);
 
 /** One row of the penalty list, in one fighter's column. */
 export const row = (page: Page, side: 'red' | 'blue', entryId: string) =>

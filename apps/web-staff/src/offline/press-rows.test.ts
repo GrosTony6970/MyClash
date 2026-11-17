@@ -39,6 +39,7 @@ describe('the bout’s list and its score', () => {
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [],
     });
 

@@ -48,7 +48,7 @@ function server(hits: unknown[], duringTheRead: () => Promise<unknown> = async (
         return json({ voided: true });
       }
       if (path.endsWith('/penalty-ruleset')) return duringTheRead().then(() => json({}));
-      return json(path.endsWith('/penalties') ? [] : hits);
+      return json(path.endsWith('/penalties') || path.endsWith('/protests') ? [] : hits);
     }),
   );
   return voided;

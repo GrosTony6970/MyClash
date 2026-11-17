@@ -14,6 +14,7 @@ import { runContext } from './_context';
  *      the network bar flips to offline with pending count 1 AND the IndexedDB
  *      `myclash-staff` outbox holds exactly 1 queued exchange (nothing lost),
  *      then
+ *      (2b, 2c and 2d queue a card of the list, a direct card and a protest the same way)
  *   3. comes back ONLINE — asserts the outbox drains to 0 and the server now
  *      returns BOTH exchanges (client_uuid idempotency; auto-drain on reconnect).
  *
@@ -250,6 +251,41 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     (await json<unknown[]>(await request.get(api(`matches/${match.id}/penalties`)))).length;
   const penaltiesBefore = await serverPenaltyCount();
 
+  // ── 2d) OFFLINE: a protest is one tap, and queues too ────────────────────────
+  // The protest counter: a protest is an entry of the bout's sheet, kept on the tablet.
+  const queuedKinds = (p: Page): Promise<string[]> =>
+    p.evaluate(
+      () =>
+        new Promise<string[]>((resolve) => {
+          const open = indexedDB.open('myclash-staff');
+          open.onerror = () => resolve([]);
+          open.onsuccess = () => {
+            const all = open.result.transaction('outbox').objectStore('outbox').getAll();
+            all.onsuccess = () => {
+              open.result.close();
+              resolve(
+                (all.result as Array<{ kind?: string }>).map((row) => row.kind ?? 'exchange'),
+              );
+            };
+          };
+        }),
+    );
+  await page
+    .locator('[data-testid="scoring-column"][data-side="red"] [data-testid="protest-chip"]')
+    .click();
+  await expect
+    .poll(async () => (await queuedKinds(page)).filter((kind) => kind === 'protest'), {
+      timeout: 15_000,
+    })
+    .toEqual(['protest']);
+  const liveProtests = async (): Promise<number> => {
+    const res = await request.get(api(`matches/${match.id}/protests`));
+    if (!res.ok()) return -1;
+    const list = await json<Array<{ voided: boolean }>>(res);
+    return Array.isArray(list) ? list.filter((row) => !row.voided).length : -1;
+  };
+  expect(await liveProtests(), 'still offline: the server has no protest').toBe(0);
+
   // ── 3) RECONNECT: the queue auto-drains and the server has both ──────────────
   await context.setOffline(false);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 15_000 });
@@ -260,4 +296,6 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   await expect
     .poll(serverPenaltyCount, { timeout: 20_000 })
     .toBe(penaltiesBefore + (redFirst ? 2 : 1));
+  // The protest of step 2d: exactly one live row.
+  await expect.poll(liveProtests, { timeout: 20_000 }).toBe(1);
 });

@@ -55,7 +55,7 @@ function server(
       if (init?.method === 'PATCH') return (voids ?? (() => json(200, { voided: true })))();
       if (path.endsWith('/penalty-ruleset')) return json(200, {});
       if (path.endsWith('/exchanges')) return json(200, hits);
-      if (path.endsWith('/penalties')) return json(200, []);
+      if (path.endsWith('/penalties') || path.endsWith('/protests')) return json(200, []);
       const bout = bouts[path.replace('/matches/', '')];
       return bout ? bout() : json(200, { status: 'running' });
     }),

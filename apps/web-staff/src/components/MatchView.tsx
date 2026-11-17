@@ -13,6 +13,10 @@ import { usePadClock } from '../hooks/usePadClock';
 import { usePadRounds } from '../hooks/usePadRounds';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
 import { useUndoLast } from '../hooks/useUndoLast';
+import { useProtestTap } from '../hooks/useProtestTap';
+import { protestButtonLive } from '../lib/protest-button';
+import { clockAtTap } from '../lib/protest-tap';
+import type { ProtestPairProps } from './ProtestButton';
 import { entryLine, roundStaysClosed } from '../lib/undone-line';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
@@ -94,6 +98,8 @@ export interface MatchInfo {
   roundsJson?: unknown;
   /** A round ended but the series isn't decided — show the Start-round overlay. */
   awaitingRoundAdvance?: boolean;
+  /** The bout's Event is over: its results are frozen, and the protest button is off. */
+  eventOver: boolean;
   /** The end-decision edition of the bout's ruleset version, as the server sent it
    *  (or a kept copy holds it). Read it through `editionOf`, never directly. */
   decisionEdition?: string;
@@ -517,7 +523,15 @@ export function MatchView({
     !series.awaitingStart;
   const clockRunning = boutClock?.status === 'running';
   const canScore = scoringEnabled && !clockRunning;
+  // The protest button is live longer than card entry: paused, between rounds, after the end.
+  const protestLive = protestButtonLive({
+    boutStatus,
+    lockedAt: match.lockedAt ?? null,
+    eventOver: match.eventOver,
+  });
   const clockTimeMs = clockState?.activeMs ?? null;
+  // A protest is tapped while the clock runs too: its time is read at the tap, for every protest button.
+  const protestClockMs = () => clockAtTap(clockState);
 
   // Phase time limit (ms) — drives the corrections drawer's display-anchored
   // time adjust. Null in count-up mode or when no limit is configured.
@@ -727,6 +741,26 @@ export function MatchView({
         color: sideStyle(scoringConfig, closedRound.winnerColor).border,
       }
     : null;
+  // The protest buttons of the round break and of the result: the same tap as the columns'.
+  const tapProtest = useProtestTap({
+    match,
+    nextSequence,
+    submit,
+    clockTimeMs: protestClockMs,
+    syncEngine,
+    onRecorded: moveSequenceOn,
+  });
+  const protestPair: ProtestPairProps = {
+    redName,
+    blueName,
+    count: (corner) =>
+      scoring.protestCountFor(
+        corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
+      ),
+    live: protestLive,
+    onTap: (corner) =>
+      void tapProtest(corner).catch(() => setClockError(t('scoring.lice.hitNotSaved'))),
+  };
 
   return (
     <div className="flex flex-1 flex-col bg-background">
@@ -816,6 +850,9 @@ export function MatchView({
         <ScoringColumn
           side="red"
           matchId={match.id}
+          match={match}
+          protestLive={protestLive}
+          protestClockMs={protestClockMs}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
           registrationId={match.redRegistrationId}
@@ -875,6 +912,9 @@ export function MatchView({
         <ScoringColumn
           side="blue"
           matchId={match.id}
+          match={match}
+          protestLive={protestLive}
+          protestClockMs={protestClockMs}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
           registrationId={match.blueRegistrationId}
@@ -982,6 +1022,7 @@ export function MatchView({
         error={clockError}
         undo={undo}
         undone={undone}
+        protests={protestPair}
         onStart={rounds.startNextRound}
       />
 
@@ -1006,6 +1047,8 @@ export function MatchView({
           phaseType={match.phaseType}
           clockState={boutClock}
           scoring={scoring}
+          protestLive={protestLive}
+          onProtest={protestPair.onTap}
           nextMatchHref={
             nextMatch ? (buildMatchHref ?? ((id: string) => `/matches/${id}`))(nextMatch.id) : null
           }

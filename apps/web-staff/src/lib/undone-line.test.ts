@@ -52,6 +52,7 @@ const screen = {
     activePenalties: [card],
     pendingPenalties: [],
     activeProtests: [] as MatchProtest[],
+    pendingProtests: [] as MatchProtest[],
   },
   match: {
     redRegistrationId: 'reg-red',
@@ -120,6 +121,26 @@ describe('entryLine', () => {
     expect(entryLine(taken, { ...screen, scoring, t: fr })).toBe('Réclamation de Bo Blue');
     expect(entryLine({ id: 'ex-2', clientUuid: 'uuid-ex-2' }, { ...screen, scoring })).toBe(
       '#2 · 00:02 · Bo Blue · Clean hit +1',
+    );
+  });
+
+  it('names a protest that waits on the tablet by the tablet’s id', () => {
+    const waits: MatchProtest = {
+      id: 'uuid-protest-2',
+      client_uuid: 'uuid-protest-2',
+      match_id: 'bout-1',
+      registration_id: 'reg-red',
+      sequence: 5,
+      round_number: 1,
+      clock_time_ms: 9500,
+      occurred_at: '2026-10-11T10:09:30.000Z',
+      voided: false,
+      pending: true,
+    };
+    const scoring = { ...screen.scoring, pendingProtests: [waits] };
+
+    expect(entryLine({ clientUuid: 'uuid-protest-2' }, { ...screen, scoring })).toBe(
+      'Protest by Ana Red',
     );
   });
 

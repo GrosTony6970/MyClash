@@ -13,15 +13,16 @@ const CLEAR_LAST_REASON = [messages.fr, messages.en]
   .map((tree) => createTranslator(tree)('scoring.corrections.clearLastReason'))
   .join(' / ');
 
-/** One entry the server holds: a hit or a card, each voided by its own route. */
+/** One entry the server holds: a hit, a card or a protest, each voided by its own route. */
 export interface ServerEntry {
-  kind: 'exchange' | 'penalty';
+  kind: 'exchange' | 'penalty' | 'protest';
   id: string;
 }
 
 const VOID_PATH: Record<ServerEntry['kind'], (id: string) => string> = {
   exchange: (id) => `/api/v1/exchanges/${id}/void`,
   penalty: (id) => `/api/v1/match-penalties/${id}/void`,
+  protest: (id) => `/api/v1/match-protests/${id}/void`,
 };
 
 /** The one request that voids an entry for the pad's undo, with its fixed reason. */

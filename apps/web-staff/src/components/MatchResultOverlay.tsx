@@ -30,6 +30,7 @@ import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 import { isDoubleLoss } from './is-double-loss';
+import { ProtestPair } from './ProtestButton';
 
 export interface MatchResultOverlayProps {
   redName: string;
@@ -69,6 +70,9 @@ export interface MatchResultOverlayProps {
   clockState: ClockState | null;
   /** The match's events, read once by `MatchView`. */
   scoring: MatchScoringData;
+  /** The protest buttons are live: a Fighter protests after the end too, until the bout is locked. */
+  protestLive: boolean;
+  onProtest: (corner: 'red' | 'blue') => void;
   nextMatchHref: string | null;
   onClose: () => void;
 }
@@ -278,6 +282,39 @@ function NotConfirmed() {
 }
 
 /**
+ * Both Fighters' protest buttons: a Fighter protests after the end too. Counted
+ * from the server and the tablet, while the history below keeps to the server's rows.
+ */
+function ResultProtests(
+  props: Pick<
+    MatchResultOverlayProps,
+    | 'redName'
+    | 'blueName'
+    | 'redRegistrationId'
+    | 'blueRegistrationId'
+    | 'scoring'
+    | 'protestLive'
+    | 'onProtest'
+  >,
+) {
+  return (
+    <div className="mb-4">
+      <ProtestPair
+        redName={props.redName}
+        blueName={props.blueName}
+        count={(corner) =>
+          props.scoring.protestCountFor(
+            corner === 'red' ? props.redRegistrationId : props.blueRegistrationId,
+          )
+        }
+        live={props.protestLive}
+        onTap={props.onProtest}
+      />
+    </div>
+  );
+}
+
+/**
  * The result of a bout, over the whole pad. A dialog by its role too: the keys
  * of the bout screen ask the page for a modal dialog before they press a
  * button (`MatchView`). Without the role, U pressed "Undo last entry" under
@@ -309,6 +346,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
           scoringConfig={scoringConfig}
         />
         {props.unconfirmed && <NotConfirmed />}
+        <ResultProtests {...props} />
         <BoutReview {...props} />
 
         <div className="flex items-center justify-center gap-3">

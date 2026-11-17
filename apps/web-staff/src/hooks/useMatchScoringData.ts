@@ -45,6 +45,7 @@ import { notTakenBack, useTakenBack } from './useTakenBack';
 import {
   cardCountFor,
   pendingRowsForMatch,
+  protestCountFor as protestCount,
   queuedCardsFor as queuedCardsForRegistration,
 } from '../offline/pending-events';
 import { priorsWithQueued, resolveEntryCard } from '../offline/resolve-entry-card';
@@ -66,6 +67,8 @@ export interface MatchScoringData {
   /** Queued rows the server has not acknowledged, deduped on `client_uuid`. */
   pendingExchanges: ExchangeRow[];
   pendingPenalties: Penalty[];
+  /** Queued protests, deduped the same way. The result screen's history never takes them. */
+  pendingProtests: MatchProtest[];
   /**
    * Queued cards the pad could not put a price on. Non-zero means the score
    * below is incomplete and a surface showing it must say so.
@@ -91,6 +94,8 @@ export interface MatchScoringData {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   countFor: (registrationId: string, card: PenaltyCard) => number;
+  /** A Fighter's protests: the server's and the tablet's, each counted once (`protestCountFor`). */
+  protestCountFor: (registrationId: string) => number;
   /**
    * Which card this entry will ACTUALLY produce for this fighter, counting the
    * offences they already have in the same rule group: the server's, and the
@@ -163,12 +168,13 @@ export function useMatchScoringData(args: {
         config,
         serverExchanges: activeExchanges,
         serverPenalties: activePenalties,
+        serverProtests: activeProtests,
         // The catalogue and the prior offences the pad already holds — enough
         // to say what a queued card will cost. Null in either slot means it
         // cannot, and the count below says how many it could not.
         pricing: { ruleset, priors },
       }),
-    [pendingEntries, config, activeExchanges, activePenalties, ruleset, priors],
+    [pendingEntries, config, activeExchanges, activePenalties, activeProtests, ruleset, priors],
   );
 
   const queuedRoundPresses = useMemo(
@@ -183,6 +189,9 @@ export function useMatchScoringData(args: {
       registrationId,
       card,
     });
+
+  const protestCountFor = (registrationId: string) =>
+    protestCount({ server: activeProtests, pending: pending.protests, registrationId });
 
   // Same function the server calls (`resolveEntryCard`), on the offences the
   // server will count: the ones it told the pad and the cards the tablet holds.
@@ -208,11 +217,13 @@ export function useMatchScoringData(args: {
     activeProtests,
     pendingExchanges: pending.exchanges,
     pendingPenalties: pending.penalties,
+    pendingProtests: pending.protests,
     unpricedCards: pending.unpricedCardUuids.length,
     queuedCardsFor,
     queuedRoundPresses,
     boutHeld,
     countFor,
+    protestCountFor,
     resolveCard,
     refreshExchanges,
   };

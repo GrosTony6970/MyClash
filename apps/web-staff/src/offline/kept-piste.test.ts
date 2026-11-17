@@ -14,6 +14,7 @@ import type { MatchInfo } from '../components/MatchView';
 
 const bout = (id: string, redScore = 0): MatchInfo => ({
   id,
+  eventOver: false,
   matchNumberLabel: 'M3',
   status: 'scheduled',
   redRegistrationId: 'red-1',

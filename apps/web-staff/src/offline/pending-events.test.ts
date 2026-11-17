@@ -5,10 +5,11 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
 import {
   cardCountFor,
   pendingRowsForMatch,
+  protestCountFor,
   provisionalDeltas,
   queuedCardsFor,
 } from './pending-events';
@@ -33,7 +34,13 @@ function queued(over: Partial<OutboxEntry>): OutboxEntry {
 }
 
 const map = (entries: OutboxEntry[], config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG) =>
-  pendingRowsForMatch({ entries, config, serverExchanges: [], serverPenalties: [] });
+  pendingRowsForMatch({
+    entries,
+    config,
+    serverExchanges: [],
+    serverPenalties: [],
+    serverProtests: [],
+  });
 
 /**
  * A catalogue shaped like the built-in one: yellow and black cost nothing, red
@@ -76,6 +83,7 @@ const priced = (
     entries,
     config: DEFAULT_SCORING_CONFIG,
     serverExchanges: [],
+    serverProtests: [],
     serverPenalties: [],
     pricing: { ruleset: RULESET, priors },
   });
@@ -180,6 +188,7 @@ describe('pendingRowsForMatch', () => {
       entries: [entry],
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [onServer],
+      serverProtests: [],
       serverPenalties: [],
     });
 
@@ -217,6 +226,7 @@ describe('pendingRowsForMatch', () => {
       entries: [entry],
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [onServer],
     });
 
@@ -228,6 +238,7 @@ describe('pendingRowsForMatch', () => {
       entries: [queued({ kind: 'penalty', clientUuid: 'mine', registrationId: 'reg-red' })],
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [
         {
           id: 'server-generated-id',
@@ -251,6 +262,7 @@ describe('pendingRowsForMatch', () => {
     const out = pendingRowsForMatch({
       entries: [queued({ clientUuid: 'mine' })],
       config: DEFAULT_SCORING_CONFIG,
+      serverProtests: [],
       serverExchanges: [
         {
           id: 'other',
@@ -399,6 +411,7 @@ describe('pricing a queued card', () => {
       entries: [first, second],
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       // The first card landed; the server counted it and the priors say so.
       serverPenalties: [
         {
@@ -621,5 +634,81 @@ describe('provisionalDeltas', () => {
         ],
       }),
     ).toEqual({ red: 0, blue: 0 });
+  });
+});
+
+describe('protests', () => {
+  const protest = (over: Partial<OutboxEntry> = {}) =>
+    queued({
+      kind: 'protest',
+      registrationId: 'reg-red',
+      cardedColor: 'red',
+      type: undefined,
+      firstStrikerColor: undefined,
+      firstStrikeValue: undefined,
+      round: 2,
+      ...over,
+    });
+  const serverProtest = (over: Partial<MatchProtest>): MatchProtest => ({
+    id: 'server-protest',
+    client_uuid: 'server-uuid',
+    match_id: 'm-1',
+    registration_id: 'reg-red',
+    sequence: 1,
+    round_number: 1,
+    clock_time_ms: null,
+    occurred_at: '2027-06-21T10:00:00.000Z',
+    voided: false,
+    ...over,
+  });
+
+  it('a queued protest becomes a protest row, never an exchange, and adds nothing to provisionalDeltas', () => {
+    const entry = protest({ clientUuid: 'p-1', clockTimeMs: 61_000 });
+
+    const out = map([entry]);
+
+    expect(out.exchanges).toEqual([]);
+    expect(out.penalties).toEqual([]);
+    expect(out.protests).toEqual([
+      {
+        id: 'p-1',
+        client_uuid: 'p-1',
+        match_id: 'm-1',
+        registration_id: 'reg-red',
+        sequence: entry.sequence,
+        round_number: 2,
+        clock_time_ms: 61_000,
+        occurred_at: entry.occurredAt,
+        voided: false,
+        pending: true,
+      },
+    ]);
+    const deltas = provisionalDeltas({
+      exchanges: out.exchanges,
+      penalties: out.penalties,
+      redRegistrationId: 'reg-red',
+      blueRegistrationId: 'reg-blue',
+    });
+    expect(deltas).toEqual({ red: 0, blue: 0 });
+  });
+
+  it('protestCountFor counts a protest held on the server and waiting on the tablet once', () => {
+    const server = [serverProtest({ client_uuid: 'same' })];
+    const { protests: pending } = pendingRowsForMatch({
+      entries: [protest({ clientUuid: 'same' }), protest({ registrationId: 'reg-blue' })],
+      config: DEFAULT_SCORING_CONFIG,
+      serverExchanges: [],
+      serverPenalties: [],
+      serverProtests: server,
+    });
+
+    expect(protestCountFor({ server, pending, registrationId: 'reg-red' })).toBe(1);
+    expect(protestCountFor({ server, pending, registrationId: 'reg-blue' })).toBe(1);
+  });
+
+  it('a voided server protest is not counted', () => {
+    const server = [serverProtest({ voided: true }), serverProtest({ client_uuid: 'kept' })];
+
+    expect(protestCountFor({ server, pending: [], registrationId: 'reg-red' })).toBe(1);
   });
 });

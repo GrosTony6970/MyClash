@@ -199,11 +199,13 @@ export const scoring = {
     typeDouble: 'Double',
     typeNoExchange: 'No exchange',
     typePenalty: 'Penalty',
+    typeProtest: 'Protest',
     typeUnknown: 'Queued entry',
     // `{who}` is the Fighter's name, or "Fighter 1" on a row saved with no name.
     scored: '{who} scored {points}',
     scoredAfterblow: '{who} scored {points}, the afterblow {afterblow}',
     cardAgainst: 'Against {who}',
+    protestBy: 'Protest by {who}',
     eventOver:
       'This event is over, so the server did not accept this entry. It is held here, not lost. Ask an organiser.',
     notAllowed:
@@ -262,6 +264,9 @@ export const scoring = {
     discardLevelTitle: 'Discard this step?',
     discardLevelBody:
       'The extra time or sudden death step is deleted. The entries of this match that wait behind it are then sent.',
+    discardProtestTitle: 'Discard this protest?',
+    discardProtestBody:
+      'This permanently deletes a protest recorded on this tablet. It will never reach the history of its match. The entries of its match that wait behind it are then sent without it.',
     discardPressTitle: 'Discard this clock press?',
     discardPressBody:
       'The clock press is deleted. The entries of this match that wait behind it are then sent without it.',
@@ -407,6 +412,8 @@ export const scoring = {
     eventRowNoExchange: 'No exchange',
     eventRowProtest: 'Protest',
     undoneProtest: 'Protest by {fighter}',
+    protestButtonLabel: 'Record a protest by {fighter} ({count} so far)',
+    protestsChipTooltip: 'Protests by {fighter}',
   },
   match: {
     unavailableTitle: 'Match unavailable',

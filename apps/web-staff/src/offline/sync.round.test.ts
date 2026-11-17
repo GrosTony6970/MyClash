@@ -74,11 +74,12 @@ describe('a round press written on the tablet', () => {
     expect(await nextSequence('m1')).toBe(before);
   });
 
-  it('is a tap as a clock press is; a hit and a card are not', async () => {
+  it('is a tap as a clock press is; a hit, a card and a protest are not', async () => {
     expect(isTap({ kind: 'round' })).toBe(true);
     expect(isTap({ kind: 'press' })).toBe(true);
     expect(isTap({ kind: 'penalty' })).toBe(false);
     expect(isTap({ kind: 'exchange' })).toBe(false);
+    expect(isTap({ kind: 'protest' }), 'a protest is an entry of the sheet').toBe(false);
     expect(isTap({}), 'a row from before the queue knew kinds is a hit').toBe(false);
   });
 

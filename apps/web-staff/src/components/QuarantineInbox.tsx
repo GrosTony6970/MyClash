@@ -63,6 +63,8 @@ function entryLabel(
       return heldLevelLabel(entry.level, t);
     case 'penalty':
       return t('scoring.quarantine.typePenalty');
+    case 'protest':
+      return t('scoring.quarantine.typeProtest');
     case 'exchange':
       return entry.type ? exchangeTypeLabel(entry.type, t) : t('scoring.quarantine.typeUnknown');
   }

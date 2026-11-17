@@ -208,10 +208,12 @@ export const scoring = {
     typeDouble: 'Double',
     typeNoExchange: "Pas d'échange",
     typePenalty: 'Pénalité',
+    typeProtest: 'Réclamation',
     typeUnknown: 'Entrée en attente',
     scored: '{who} marque {points}',
     scoredAfterblow: '{who} marque {points}, le coup double retardé {afterblow}',
     cardAgainst: 'Contre {who}',
+    protestBy: 'Réclamation de {who}',
     eventOver:
       "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
     notAllowed:
@@ -266,6 +268,9 @@ export const scoring = {
     discardLevelTitle: 'Supprimer cette étape ?',
     discardLevelBody:
       'L’étape de prolongation ou de mort subite est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées.',
+    discardProtestTitle: 'Supprimer cette réclamation ?',
+    discardProtestBody:
+      'Cette action supprime définitivement une réclamation enregistrée sur cette tablette. Elle n’apparaîtra pas dans l’historique de l’assaut. Les saisies de son assaut qui attendent derrière sont alors envoyées sans elle.',
     discardPressTitle: 'Supprimer cette action sur le chrono ?',
     discardPressBody:
       'L’action sur le chrono est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées sans elle.',
@@ -388,6 +393,8 @@ export const scoring = {
     eventRowNoExchange: 'Aucun échange',
     eventRowProtest: 'Réclamation',
     undoneProtest: 'Réclamation de {fighter}',
+    protestButtonLabel: "Enregistrer une réclamation de {fighter} ({count} jusqu'ici)",
+    protestsChipTooltip: 'Réclamations de {fighter}',
   },
   match: {
     unavailableTitle: 'Assaut indisponible',

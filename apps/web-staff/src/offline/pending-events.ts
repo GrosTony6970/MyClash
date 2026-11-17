@@ -27,7 +27,7 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
@@ -131,6 +131,7 @@ export function pendingRowsForMatch(args: {
   config: TournamentScoringConfig;
   serverExchanges: readonly ExchangeRow[];
   serverPenalties: readonly Penalty[];
+  serverProtests: readonly MatchProtest[];
   /**
    * What the pad knows about the penalty catalogue. Omit it and every queued
    * card comes back unpriced, which is what this module did before it could
@@ -140,6 +141,8 @@ export function pendingRowsForMatch(args: {
 }): {
   exchanges: ExchangeRow[];
   penalties: Penalty[];
+  /** Queued protests: rows of the history, of no score. */
+  protests: MatchProtest[];
   /**
    * `client_uuid` of every queued card the pad could not price — the ids, not a
    * count, because a caller showing a caption under ONE fighter's numeral has
@@ -147,10 +150,11 @@ export function pendingRowsForMatch(args: {
    */
   unpricedCardUuids: string[];
 } {
-  const { entries, config, serverExchanges, serverPenalties } = args;
+  const { entries, config, serverExchanges, serverPenalties, serverProtests } = args;
   const known = new Set<string>();
   for (const e of serverExchanges) if (e.client_uuid) known.add(e.client_uuid);
   for (const p of serverPenalties) if (p.client_uuid) known.add(p.client_uuid);
+  for (const p of serverProtests) known.add(p.client_uuid);
 
   // Built once per pass and driven in order: pricing a card is a fold over the
   // fighter's prior offences, not a lookup. Created even with no pricing input
@@ -159,6 +163,7 @@ export function pendingRowsForMatch(args: {
 
   const exchanges: ExchangeRow[] = [];
   const penalties: Penalty[] = [];
+  const protests: MatchProtest[] = [];
   const unpricedCardUuids: string[] = [];
   // The round the newest queued "Start round" before a row opens (0: none).
   let opened = 0;
@@ -178,6 +183,11 @@ export function pendingRowsForMatch(args: {
       continue;
     }
     const round = queuedRound(entry, opened);
+    // A protest is a line of the history and no hit: it falls through to none of the rows below.
+    if (kindOf(entry) === 'protest') {
+      protests.push(pendingProtestRow(entry, round));
+      continue;
+    }
     if (kindOf(entry) === 'penalty') {
       const priced = pricer.price({
         registrationId: entry.registrationId ?? '',
@@ -211,7 +221,40 @@ export function pendingRowsForMatch(args: {
     });
   }
 
-  return { exchanges, penalties, unpricedCardUuids };
+  return { exchanges, penalties, protests, unpricedCardUuids };
+}
+
+/** One queued protest as a row of the history: the server's row, as the server will list it. */
+function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProtest {
+  return {
+    id: entry.clientUuid,
+    client_uuid: entry.clientUuid,
+    match_id: entry.matchId,
+    registration_id: entry.registrationId ?? '',
+    sequence: entry.sequence,
+    round_number: round,
+    clock_time_ms: entry.clockTimeMs ?? null,
+    occurred_at: entry.occurredAt,
+    voided: false,
+    pending: true,
+  };
+}
+
+/**
+ * A Fighter's count of protests, server rows PLUS the queue: the protest
+ * chip's number. The rule of the card chips (`cardCountFor`): a voided server
+ * row counts for nothing, and `pending` must already be deduped against
+ * `server` (`pendingRowsForMatch` does it), or a protest in the drain window
+ * is counted twice.
+ */
+export function protestCountFor(args: {
+  server: readonly MatchProtest[];
+  pending: readonly MatchProtest[];
+  registrationId: string;
+}): number {
+  const { server, pending, registrationId } = args;
+  const mine = (p: MatchProtest) => !p.voided && p.registration_id === registrationId;
+  return server.filter(mine).length + pending.filter(mine).length;
 }
 
 /**

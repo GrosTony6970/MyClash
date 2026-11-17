@@ -7,7 +7,7 @@
  *   1. Big score numeral
  *   2. Fighter name
  *   3. Club (optional)
- *   4. Card-counter chips (one per ruleset card colour)
+ *   4. Card-counter chips (one per ruleset card colour), then the protest button
  *   5. CLEAN HIT section header + ruleset-driven clean buttons
  *   6. AFTERBLOW section header + ruleset-driven afterblow buttons
  *   7. PENALTIES section header + ruleset entry picker + direct cards
@@ -33,13 +33,21 @@ import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
+import { useProtestTap, type ProtestTapArgs } from '../hooks/useProtestTap';
 import { queueCard } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
+import { ProtestButton } from './ProtestButton';
 
 interface ScoringColumnProps {
   side: ExchangeSide;
   matchId: string;
+  /** The bout's two Fighters: a protest is recorded for this column's corner. */
+  match: ProtestTapArgs['match'];
+  /** The protest button is live (`protestButtonLive`): longer than card entry. */
+  protestLive: boolean;
+  /** The clock's time at the tap of a protest (`clockAtTap`): the button is live while it runs. */
+  protestClockMs: () => number | null;
   nextSequence: number;
   /**
    * Durable-sync engine. A card goes through the outbox like a hit, so this is
@@ -77,7 +85,8 @@ interface ScoringColumnProps {
    *  penalty so the timeline shows match-clock time. */
   clockTimeMs: number | null;
   submit: UseScoringSubmitResult;
-  onPenaltyRecorded?: () => void;
+  /** A card or a protest was written on the tablet: the bout's sequence moves on. */
+  onPenaltyRecorded: () => void;
   /**
    * The match's events, read once by `MatchView`.
    *
@@ -108,6 +117,9 @@ const listedCard = (entry: { id: string; short_name: string }) => ({
 export function ScoringColumn({
   side,
   matchId,
+  match,
+  protestLive,
+  protestClockMs,
   nextSequence,
   syncEngine,
   registrationId,
@@ -118,7 +130,7 @@ export function ScoringColumn({
   reachedCap,
   unconfirmed,
   leading,
-  readOnly,
+  readOnly = false,
   pointCap,
   reverse,
   config,
@@ -203,7 +215,7 @@ export function ScoringColumn({
       // the quarantine inbox and reddens the sync bar — the existing path for a
       // refused scored artefact. The press does not wait for it (ruling 316).
       syncEngine?.sendBehind();
-      onPenaltyRecorded?.();
+      onPenaltyRecorded();
       // The card is written on the tablet: the next penalty starts from the
       // whole list (quick win P15). A write that failed keeps the search.
       setPenaltyQuery('');
@@ -213,6 +225,16 @@ export function ScoringColumn({
       setPenaltySubmitting(false);
     }
   }
+
+  // A protest of this column's Fighter: recorded at the tap, with no question.
+  const tapProtest = useProtestTap({
+    match,
+    nextSequence,
+    submit,
+    clockTimeMs: protestClockMs,
+    syncEngine,
+    onRecorded: onPenaltyRecorded,
+  });
 
   // A red or black card of the list waits here for the referee's yes.
   const [askedCard, setAskedCard] = useState<{
@@ -319,8 +341,9 @@ export function ScoringColumn({
         {club && <p className="text-lg text-muted mt-0.5 truncate">{club}</p>}
       </div>
 
-      {/* Card-counter chips (ruleset-driven) */}
-      <div className="flex justify-center gap-2">
+      {/* Card-counter chips (ruleset-driven), then the protest button: the chips
+          show, the button records. */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {ruleSetCards.map((card) => {
           const count = countFor(registrationId, card);
           return (
@@ -342,6 +365,15 @@ export function ScoringColumn({
             </span>
           );
         })}
+        <ProtestButton
+          count={scoring.protestCountFor(registrationId)}
+          fighterName={fighterName}
+          disabled={!protestLive || readOnly}
+          onTap={() =>
+            void tapProtest(side).catch(() => setPenaltyError(t('scoring.lice.hitNotSaved')))
+          }
+          size="pad"
+        />
       </div>
 
       {/* CLEAN HIT */}

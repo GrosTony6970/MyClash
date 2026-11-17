@@ -25,10 +25,8 @@ function timelineArgs(source: string): string {
 }
 
 describe('the centre of the pad', () => {
-  it('hands the server’s protests to the history', () => {
-    expect(timelineArgs(centre)).toContain('protests: activeProtests,');
-  });
-
+  // What the centre hands the history (the server's protests and the waiting
+  // ones) is pinned in `protest-chip.screens.test.ts`.
   it('counts hits and cards in "Exchanges: N", never a protest', () => {
     expect(centre).toContain(
       "const entriesCounted = events.filter((e) => e.kind !== 'protest').length;",

@@ -174,8 +174,14 @@ export function ScoringCenterControls({
   const status = clockState?.status ?? 'idle';
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [noExchangeOpen, setNoExchangeOpen] = useState(false);
-  const { activeExchanges, activePenalties, activeProtests, pendingExchanges, pendingPenalties } =
-    scoring;
+  const {
+    activeExchanges,
+    activePenalties,
+    activeProtests,
+    pendingExchanges,
+    pendingPenalties,
+    pendingProtests,
+  } = scoring;
 
   // Live ticker — runs while running AND while halted so the wall-clock
   // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
@@ -254,8 +260,8 @@ export function ScoringCenterControls({
         // and the `#` numbers stay the shared ones every other surface uses.
         exchanges: [...activeExchanges, ...pendingExchanges],
         penalties: [...activePenalties, ...pendingPenalties],
-        // The server's only: the pad queues no protest yet.
-        protests: activeProtests,
+        // The server's and the tablet's, as hits and cards are.
+        protests: [...activeProtests, ...pendingProtests],
         redName,
         blueName,
         redRegId: redRegistrationId,
@@ -269,6 +275,7 @@ export function ScoringCenterControls({
       activeProtests,
       pendingExchanges,
       pendingPenalties,
+      pendingProtests,
       redName,
       blueName,
       redRegistrationId,

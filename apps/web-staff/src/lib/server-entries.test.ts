@@ -5,7 +5,7 @@ import { readServerEntries } from './server-entries';
 /**
  * The bout as the server holds it, for the undo (ruling 350).
  *
- * The two lists are public reads: to a caller they do not know they answer an
+ * The three lists are public reads: to a caller they do not know they answer an
  * empty list with a 200. A pad whose login ran out would read "the server holds
  * nothing". So a read for who may score goes first, alone, and the whole read
  * has one time limit.
@@ -50,13 +50,21 @@ const HIT = {
   occurred_at: '2026-10-06T10:01:00.000Z',
 };
 const CARD = { id: 'card-2', client_uuid: 'uuid-2', voided: true, sequence: 2, occurred_at: null };
+const PROTEST = {
+  id: 'protest-3',
+  client_uuid: 'uuid-3',
+  voided: false,
+  sequence: 3,
+  occurred_at: '2026-10-06T10:03:00.000Z',
+};
 const LISTS = {
   [`${BOUT}/exchanges`]: () => json(200, [HIT]),
   [`${BOUT}/penalties`]: () => json(200, [CARD]),
+  [`${BOUT}/protests`]: () => json(200, [PROTEST]),
 };
 
 describe('readServerEntries', () => {
-  it('hands back every hit and card, each with the id the tablet gave it', async () => {
+  it('hands back every hit, card and protest, each with the id the tablet gave it', async () => {
     server({ [`${BOUT}/penalty-ruleset`]: () => json(200, {}), ...LISTS });
 
     await expect(readServerEntries(API_URL, 'm1')).resolves.toEqual({
@@ -77,6 +85,14 @@ describe('readServerEntries', () => {
           sequence: 2,
           occurredAt: '',
         },
+        {
+          kind: 'protest',
+          id: 'protest-3',
+          clientUuid: 'uuid-3',
+          voided: false,
+          sequence: 3,
+          occurredAt: '2026-10-06T10:03:00.000Z',
+        },
       ],
     });
   });
@@ -95,7 +111,11 @@ describe('readServerEntries', () => {
 
     answer(json(200, {}));
     await read;
-    expect(asked.slice(1).sort()).toEqual([`${BOUT}/exchanges`, `${BOUT}/penalties`]);
+    expect(asked.slice(1).sort()).toEqual([
+      `${BOUT}/exchanges`,
+      `${BOUT}/penalties`,
+      `${BOUT}/protests`,
+    ]);
   });
 
   it('a caller who may not score the bout: the refusal, and no list is read', async () => {
@@ -111,7 +131,7 @@ describe('readServerEntries', () => {
     expect(asked).toEqual([`${BOUT}/penalty-ruleset`]);
   });
 
-  it.each([`${BOUT}/exchanges`, `${BOUT}/penalties`])(
+  it.each([`${BOUT}/exchanges`, `${BOUT}/penalties`, `${BOUT}/protests`])(
     'a failed list (%s) fails the read: nothing is decided on half the bout',
     async (path) => {
       server({

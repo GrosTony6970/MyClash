@@ -1347,9 +1347,12 @@ shows, `reads` the copies of setup data and of bouts, `undone` and `undoNotices`
 order of a bout's rows), `pad-clock.ts` and `pad-series.ts` (the clock and the rounds on the
 tablet), `kept-bout.ts`, `drill.ts`.
 
-A row of the queue is one of five kinds (`OutboxKind` in `db.ts`): a hit (`exchange`), a card
-(`penalty`), a clock press (`press`), a round press (`round`) and a step of a level bout
-(`level`). Each kind has its door on the server and its paragraph below. The diagram shows a hit.
+A row of the queue is one of six kinds (`OutboxKind` in `db.ts`): a hit (`exchange`), a card
+(`penalty`), a protest (`protest`), a clock press (`press`), a round press (`round`) and a step of
+a level bout (`level`). Each kind has its door on the server and its paragraph below. The diagram
+shows a hit. A protest is an entry of the bout's sheet, as a card is: it takes a number of the
+bout's sequence, `isTap` answers false, the undo takes it back, and a refused one is held in the
+inbox (`POST /matches/:id/protests`, `queueProtest` in `protest-queue.ts`).
 
 The write is **durable-first**: the exchange lands in the IndexedDB outbox before any network call, so
 closing the tab or losing wifi mid-bout cannot lose it. A card rides the same queue, a card of the

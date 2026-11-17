@@ -15,6 +15,7 @@ const BOUT: MatchInfo = {
   blueScore: 2,
   redFighterName: 'Ana Red',
   blueFighterName: 'Bo Blue',
+  eventOver: false,
 };
 
 beforeEach(async () => {

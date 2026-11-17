@@ -273,7 +273,7 @@ export class SyncEngine {
     // any of that would be teaching the crew a screen they will never see.
     if (isDrillActive()) return Promise.resolve(offlineResponse());
 
-    // Five kinds of row, five doors. No `default`: a sixth kind does not compile.
+    // Six kinds of row, six doors. No `default`: a seventh kind does not compile.
     switch (kindOf(entry)) {
       case 'press':
         return postPress(this.apiUrl, entry);
@@ -283,9 +283,32 @@ export class SyncEngine {
         return postLevelPress(this.apiUrl, entry);
       case 'penalty':
         return this.postCard(entry, sequence);
+      case 'protest':
+        return this.postProtest(entry, sequence);
       case 'exchange':
         return this.postHit(entry, sequence);
     }
+  }
+
+  /**
+   * A protest, as a card is sent: the same `client_uuid` idempotency (a resend
+   * answers the saved row), the tablet's time of the tap and of the send. The
+   * server stamps its round; it never asks the tablet's.
+   */
+  private postProtest(entry: OutboxEntry, sequence: number): Promise<Response> {
+    return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/protests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientUuid: entry.clientUuid,
+        sequence,
+        registrationId: entry.registrationId,
+        occurredAt: entry.occurredAt,
+        sentAt: sentAtOf(entry),
+        clockTimeMs: entry.clockTimeMs ?? null,
+      }),
+    });
   }
 
   /**
@@ -367,29 +390,31 @@ export class SyncEngine {
   /**
    * Highest sequence this match has anywhere — server or local — plus one.
    *
-   * BOTH server tables, not just exchanges. The counter is shared across
-   * exchanges and penalties (see `OutboxEntry.sequence`), so re-deriving from
-   * one of them can hand a retry a number the other already holds — and a
-   * sequence collision is the single most likely reason the entry was refused
-   * in the first place. Reading one table would fix the collision it was
-   * refused for and walk straight into its twin.
+   * ALL THREE server tables, not just exchanges. The counter is shared across
+   * exchanges, penalties and protests (see `OutboxEntry.sequence`), so
+   * re-deriving from one of them can hand a retry a number another already
+   * holds — and a sequence collision is the single most likely reason the
+   * entry was refused in the first place. Reading one table would fix the
+   * collision it was refused for and walk straight into its twin.
    *
    * A read that is not answered hands its answer back: there is no number to
    * send under, and the hit waits (ruling 344). A read that throws has no
    * network at all, and `sendEntry` files it as it files a send that throws.
    */
   private async freshSequence(matchId: string): Promise<number | Unanswered> {
-    const [exchanges, penalties] = await Promise.all([
+    const [exchanges, penalties, protests] = await Promise.all([
       fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
       fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
+      fetch(`${this.apiUrl}/api/v1/matches/${matchId}/protests`, { credentials: 'include' }),
     ]);
     // Exchanges must answer — it is the older endpoint and the one every
-    // match has. A penalties read that fails degrades to "no cards", which is
-    // still better than giving up on the retry entirely.
+    // match has. A penalties or protests read that fails degrades to "none",
+    // which is still better than giving up on the retry entirely.
     if (!exchanges.ok) return { unanswered: exchanges };
     const serverMax = Math.max(
       await maxSequence(exchanges),
       penalties.ok ? await maxSequence(penalties) : 0,
+      protests.ok ? await maxSequence(protests) : 0,
     );
     return Math.max(serverMax + 1, await nextSequence(matchId));
   }

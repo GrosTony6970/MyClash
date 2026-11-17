@@ -126,7 +126,7 @@ async function undoLanded(
 ): Promise<ClearLastOutcome> {
   const { apiUrl, t } = deps;
   const kind = kindOf(entry);
-  // `undoLastEntry` lists hits and cards only: a press here is a bug of this file.
+  // `undoLastEntry` lists hits, cards and protests only: a press here is a bug of this file.
   if (kind === 'press' || kind === 'round' || kind === 'level') {
     throw new Error('A press is never undone');
   }
@@ -171,7 +171,7 @@ async function undoOnTablet(
 }
 
 /**
- * "Undo last entry": take back the newest hit or card of a bout, wherever it
+ * "Undo last entry": take back the newest hit, card or protest of a bout, wherever it
  * is (rulings 317, 318, 350).
  *
  * The server is asked first, for a short time: the newest entry is the last

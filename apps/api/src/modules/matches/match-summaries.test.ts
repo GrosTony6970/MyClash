@@ -48,6 +48,7 @@ describe('matchSummaries', () => {
       blueRoundWins: 0,
       roundsJson: [{ round: 1 }],
       awaitingRoundAdvance: true,
+      eventOver: false,
     });
     expect(matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
   });
@@ -171,8 +172,22 @@ describe('matchSummaries', () => {
     expect(selectsFor(from, 'tournaments')).toEqual(['id, weapon, name, scoring_config_json']);
     expect(selectsFor(from, 'phases')).toEqual(['id, config_json']);
     expect(selectsFor(from, 'pools')).toEqual(['id, sort_order']);
-    expect(selectsFor(from, 'events')).toEqual(['id, timezone']);
+    expect(selectsFor(from, 'events')).toEqual(['id, timezone, status']);
     expect(selectsFor(from, 'lices')).toEqual(['id, name']);
+  });
+
+  // The pad's protest button goes off when the Event's results are frozen.
+  it('the summary says eventOver true for a completed or archived Event, false otherwise', async () => {
+    const over = async (status: string) => {
+      const seed = { ...summarySeed(), events: { rows: [{ id: 'event-1', status }] } };
+      const summaries = await matchSummaries(mockSupabase(seed).service as never, ['pool']);
+      return summaries.get('pool')?.eventOver;
+    };
+
+    expect(await over('completed')).toBe(true);
+    expect(await over('archived')).toBe(true);
+    expect(await over('running')).toBe(false);
+    expect(await over('published')).toBe(false);
   });
 
   it('asks for a long list of bouts a hundred ids at a time', async () => {

@@ -44,6 +44,7 @@ describe('the bout’s list and its score', () => {
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [],
     });
 
@@ -61,6 +62,7 @@ describe('the round of a queued hit or card, as the bout’s list gives it', () 
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
       serverExchanges: [],
+      serverProtests: [],
       serverPenalties: [],
     });
     return [...rows.exchanges, ...rows.penalties].map((row) => row.round_number);

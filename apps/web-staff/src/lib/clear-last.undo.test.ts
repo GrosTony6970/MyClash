@@ -1,11 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 
-import { db, type OutboxEntry } from '../offline/db';
+import { db } from '../offline/db';
 import { enqueue, getPendingForMatch, queueCard } from '../offline/outbox';
 import { pendingRowsForMatch } from '../offline/pending-events';
-import { takeBack, type TakenBack } from '../offline/take-back';
-import { newestToUndo, undoLastEntry } from './clear-last';
+import type { TakenBack } from '../offline/take-back';
+import { newestToUndo } from './clear-last';
+import {
+  API_URL,
+  at,
+  BOUT_READ,
+  held,
+  json,
+  server,
+  undo,
+  uuid,
+  voided,
+  waiting,
+  waits,
+  writtenDown,
+} from './clear-last.undo.fixtures';
 import type { ServerRow } from './server-entries';
 import * as settle from './settle-undone';
 
@@ -17,9 +31,6 @@ import * as settle from './settle-undone';
  * kept the hit. Story B: hit 4 failed to send and waits, hit 5 was sent. The
  * undo asked the tablet first and removed hit 4.
  */
-const API_URL = 'http://localhost:4000';
-const t = (key: string) => key;
-
 beforeEach(async () => {
   await db.outbox.clear();
   await db.synced.clear();
@@ -29,72 +40,6 @@ beforeEach(async () => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-});
-
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': status >= 400 ? 'application/problem+json' : 'application/json' },
-  });
-const at = (minute: number) => `2026-10-06T10:${String(minute).padStart(2, '0')}:00.000Z`;
-const uuid = (minute: number) => `uuid-${minute}`;
-/** A hit or card as the server lists it, scored at `minute`, under the tablet's id of that minute. */
-const held = (id: string, minute: number, over: object = {}) => ({
-  id,
-  client_uuid: uuid(minute),
-  voided: false,
-  sequence: minute,
-  occurred_at: at(minute),
-  ...over,
-});
-
-interface Server {
-  /** One answer per read of the hits: the last one is repeated. */
-  hits?: unknown[][];
-  cards?: unknown[];
-  mayScore?: () => Response | Promise<Response>;
-  voids?: () => Response;
-}
-
-function server({ hits = [[]], cards = [], mayScore, voids }: Server) {
-  const calls: Array<[string, string]> = [];
-  let read = 0;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init?: { method?: string }) => {
-      const path = url.replace(`${API_URL}/api/v1`, '');
-      calls.push([init?.method ?? 'GET', path]);
-      if (init?.method === 'PATCH') return (voids ?? (() => json(200, { voided: true })))();
-      if (path.endsWith('/penalty-ruleset')) return (mayScore ?? (() => json(200, {})))();
-      if (path.endsWith('/penalties')) return json(200, cards);
-      read += 1;
-      return json(200, hits[Math.min(read, hits.length) - 1]);
-    }),
-  );
-  const asked = (method: string) => calls.filter(([verb]) => verb === method).map(([, to]) => to);
-  return { asked };
-}
-
-/** A hit that waits on the tablet, scored at `minute`. */
-const waits = (minute: number) =>
-  enqueue({
-    clientUuid: uuid(minute),
-    matchId: 'm1',
-    sequence: minute,
-    type: 'clean',
-    occurredAt: at(minute),
-    firstStrikerColor: 'red',
-    firstStrikeValue: 1,
-  });
-const waiting = async () => (await getPendingForMatch('m1')).map((entry) => entry.clientUuid);
-const writtenDown = async () => (await db.undone.toArray()).map((entry) => entry.clientUuid);
-const undo = (take: (entry: OutboxEntry) => Promise<TakenBack> = takeBack) =>
-  undoLastEntry({ apiUrl: API_URL, matchId: 'm1', t, takeBack: take });
-const BOUT_READ = ['/matches/m1/penalty-ruleset', '/matches/m1/exchanges', '/matches/m1/penalties'];
-/** The undo's answer names the entry it took: by the server's id when the server held it. */
-const voided = (minute: number, id?: string) => ({
-  kind: 'voided',
-  entry: id ? { id, clientUuid: uuid(minute) } : { clientUuid: uuid(minute) },
 });
 
 describe('story A: the entry that waits on the tablet is on the server', () => {
@@ -167,6 +112,61 @@ describe('story B: an older entry waits, the server holds the newest', () => {
     await undo();
 
     expect(asked('PATCH')).toEqual(['/exchanges/ex-late/void']);
+  });
+});
+
+describe('a protest is an entry the undo takes back', () => {
+  /** A protest of the red Fighter that waits on the tablet, tapped at `minute`. */
+  const protestWaits = (minute: number, sequence = minute) =>
+    enqueue({
+      kind: 'protest',
+      clientUuid: uuid(minute),
+      matchId: 'm1',
+      sequence,
+      registrationId: 'reg-red',
+      cardedColor: 'red',
+      occurredAt: at(minute),
+    });
+
+  it('undo takes a protest that is the newest entry, on the tablet and with PATCH /match-protests/:id/void', async () => {
+    await waits(4);
+    await protestWaits(6);
+    // The server saved the protest and its answer was lost.
+    const { asked } = server({ hits: [[held('ex-4', 4)]], protests: [held('pr-6', 6)] });
+
+    await expect(undo()).resolves.toEqual(voided(6, 'pr-6'));
+
+    expect(asked('GET')).toEqual(BOUT_READ);
+    expect(asked('PATCH')).toEqual(['/match-protests/pr-6/void']);
+    expect(await waiting()).toEqual([uuid(4)]);
+  });
+
+  it('undo voids a protest recorded by another tablet', async () => {
+    const { asked } = server({ hits: [[held('ex-5', 5)]], protests: [held('pr-7', 7)] });
+
+    await expect(undo()).resolves.toEqual(voided(7, 'pr-7'));
+
+    expect(asked('PATCH')).toEqual(['/match-protests/pr-7/void']);
+  });
+
+  it('after a card given from the offer, the first undo takes the card and the second the protest', async () => {
+    // Tapped in the same second: the card, given after the protest, has the next number.
+    await protestWaits(5, 5);
+    await enqueue({
+      kind: 'penalty',
+      clientUuid: uuid(55),
+      matchId: 'm1',
+      sequence: 6,
+      registrationId: 'reg-red',
+      directCard: 'yellow',
+      occurredAt: at(5),
+    });
+    server({});
+
+    await expect(undo()).resolves.toEqual(voided(55));
+    expect(await waiting()).toEqual([uuid(5)]);
+    await expect(undo()).resolves.toEqual(voided(5));
+    expect(await waiting()).toEqual([]);
   });
 });
 
@@ -347,6 +347,7 @@ describe('newestToUndo and the screen’s list', () => {
       config: {} as never,
       serverExchanges: live.map((row) => ({ client_uuid: row.clientUuid })) as never,
       serverPenalties: [],
+      serverProtests: [],
     }).exchanges.map((row) => row.id);
 
     expect(drawn).toEqual([uuid(4), uuid(5)]);

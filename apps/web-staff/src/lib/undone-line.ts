@@ -32,6 +32,7 @@ interface BoutOnScreen {
     activePenalties: Penalty[];
     pendingPenalties: Penalty[];
     activeProtests: MatchProtest[];
+    pendingProtests: MatchProtest[];
   };
   match: {
     redRegistrationId: string;
@@ -54,7 +55,7 @@ export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null
   const list = buildUnifiedTimeline({
     exchanges: [...scoring.activeExchanges, ...scoring.pendingExchanges],
     penalties: [...scoring.activePenalties, ...scoring.pendingPenalties],
-    protests: scoring.activeProtests,
+    protests: [...scoring.activeProtests, ...scoring.pendingProtests],
     redName: match.redFighterName ?? t('scoring.lice.red'),
     blueName: match.blueFighterName ?? t('scoring.lice.blue'),
     redRegId: match.redRegistrationId,

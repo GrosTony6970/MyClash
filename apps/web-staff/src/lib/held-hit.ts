@@ -102,6 +102,7 @@ function heldWhat(held: Pick<RejectedEntry, 'kind'>, t: Translate): string {
     case 'level':
       return t('scoring.clock.levelHeld');
     case 'penalty':
+    case 'protest':
     case 'exchange':
       return t('scoring.clock.entryHeld');
   }
@@ -154,6 +155,10 @@ const DISCARD_WORDS: Record<OutboxKind, { title: string; body: string }> = {
   level: {
     title: 'scoring.quarantine.discardLevelTitle',
     body: 'scoring.quarantine.discardLevelBody',
+  },
+  protest: {
+    title: 'scoring.quarantine.discardProtestTitle',
+    body: 'scoring.quarantine.discardProtestBody',
   },
 };
 
@@ -239,10 +244,16 @@ function cardOf(held: Held, t: Translate): string | undefined {
 /**
  * Who scored, or which card and who it is against (ruling 246; a row queued
  * before that names only the Fighter). Null for a double, a no-exchange and a
- * card queued before the row knew its corner: there is nobody to name. Null
+ * card or a protest queued before the row knew its corner: there is nobody to name. Null
  * for a clock press too: it holds no striker, and its label says which button.
  */
 export function heldWhoLine(held: Held, t: Translate): string | null {
+  // A protest names who protested, from its Fighter's corner.
+  if (kindOf(held) === 'protest') {
+    return held.cardedColor
+      ? t('scoring.quarantine.protestBy', { who: fighterOf(held, held.cardedColor, t) })
+      : null;
+  }
   if (kindOf(held) === 'penalty') {
     if (!held.cardedColor) return null;
     const against = t('scoring.quarantine.cardAgainst', {

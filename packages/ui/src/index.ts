@@ -93,6 +93,8 @@ export type { TVScoreboardProps } from './components/TVScoreboard';
 
 export { MatchTimeline } from './components/MatchTimeline';
 export type { MatchTimelineProps, MatchTimelineScale } from './components/MatchTimeline';
+// The protest's hand: the history's row and the pad's protest button draw the same one.
+export { HandMark } from './components/hand-mark';
 
 export { BoutFlowChart } from './components/BoutFlowChart';
 export type { BoutFlowChartProps, BoutFlowScale } from './components/BoutFlowChart';

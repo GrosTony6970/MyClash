@@ -105,6 +105,7 @@ describe('readBout', () => {
         blueRoundWins: 0,
         roundsJson: [{ round: 1 }],
         awaitingRoundAdvance: true,
+        eventOver: false,
         // The end decision of the bout's own version, as the server sent it.
         decisionEdition: '2026-04',
         // The bout's own rules (ruling K), as the server sent them.
@@ -132,8 +133,21 @@ describe('readBout', () => {
       bestOf: 1,
       currentRound: 1,
       phaseType: null,
+      // With no summary the tablet does not know the Event is over: the server still says no.
+      eventOver: false,
     });
     expect(read.match.tournamentId).toBeUndefined();
+  });
+
+  it('copies eventOver from the summary: the protest button goes off on an Event that is over', async () => {
+    const { fetchFn } = answering(
+      () => json(ROW),
+      () => json({ ...SUMMARY, eventOver: true }),
+    );
+
+    const read = await readBout('https://api.test', 'bout-1', fetchFn);
+
+    expect(read.kind === 'bout' && read.match.eventOver).toBe(true);
   });
 
   it('says the bout is gone when the server answers that it is', async () => {

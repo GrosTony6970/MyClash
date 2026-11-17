@@ -39,7 +39,7 @@ function lockedServer(hits: unknown[]) {
       }
       if (path.endsWith('/penalty-ruleset')) return json(200, {});
       if (path.endsWith('/exchanges')) return json(200, hits);
-      if (path.endsWith('/penalties')) return json(200, []);
+      if (path.endsWith('/penalties') || path.endsWith('/protests')) return json(200, []);
       return json(200, { status: 'running' });
     }),
   );

@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bracketToken } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
+import { isOver } from '../../common/live-status';
 import { asRow } from './bout-rules';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
@@ -128,7 +129,7 @@ async function contextOf(db: SupabaseClient, views: ViewRow[]): Promise<SummaryC
       byId('pools', 'id, sort_order'),
       views.map((row) => row.pool_id),
     ),
-    events: await rowsById(db, byId('events', 'id, timezone'), eventIds),
+    events: await rowsById(db, byId('events', 'id, timezone, status'), eventIds),
     lices: await rowsById(
       db,
       byId('lices', 'id, name'),
@@ -189,6 +190,7 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
   const tournament = context.tournaments.get(row.tournament_id);
   const weapon = (tournament?.['weapon'] as string | null | undefined) ?? null;
   const bout = context.bouts.get(row.match_id);
+  const event = context.events.get(row.event_id);
   // The format the bout is fought under: its copy's, not its Tournament's of now (ruling E: the
   // public bout page shows the bout's copy).
   const matchFormat = boutMatchFormat(row.match_id, bout);
@@ -214,9 +216,9 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
     blueName: row.blue_name ?? '',
     blueClub: row.blue_club ?? null,
     // The venue's wall clock, for the public match view's times.
-    eventTimezone:
-      (context.events.get(row.event_id)?.['timezone'] as string | null | undefined) ??
-      'Europe/Paris',
+    eventTimezone: (event?.['timezone'] as string | null | undefined) ?? 'Europe/Paris',
+    // The Event's results are frozen: the pad's protest button goes off (the server refuses too).
+    eventOver: isOver(event?.['status']),
     referees,
     weapon: weapon ?? '',
     // For the pad opened straight on a bout: which scoring config to read, and

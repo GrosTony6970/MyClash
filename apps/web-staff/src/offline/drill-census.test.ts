@@ -87,7 +87,7 @@ const EXPECTED: Record<string, string> = {
   // open: the read of a whole piste, which the tablet keeps for a cut of the network.
   'src/lib/piste-read.ts': 'fetchFn 1',
   // drill: the undo's read of the server, so the undo works on the tablet alone.
-  'src/lib/server-entries.ts': 'padRequest 3',
+  'src/lib/server-entries.ts': 'padRequest 4',
   // open: the read of the bout's status. Its void is `askVoid`, below.
   'src/lib/settle-undone.ts': 'apiRequest 1',
   // open: the desks (check-in, gear) are no part of a bout.
@@ -108,8 +108,8 @@ const EXPECTED: Record<string, string> = {
   'src/offline/press-send.ts': 'fetchRenewingLogin 3',
   // No caller (older than the drill's census): a read.
   'src/offline/reconcile.ts': 'fetch 1',
-  // queue: a card and a hit. open: the two reads before a second try.
-  'src/offline/sync.ts': 'fetch 2, fetchRenewingLogin 2',
+  // queue: a card, a hit and a protest. open: the three reads before a second try.
+  'src/offline/sync.ts': 'fetch 3, fetchRenewingLogin 3',
   // open: who is signed in, and the pistes of this tablet.
   'app/lices/page.tsx': 'api.get 1, apiRequest 1, fetchMe 1',
   'app/page.tsx': 'apiRequest 1, fetchMe 1',
@@ -124,13 +124,19 @@ describe('the requests of the pad, and the offline drill', () => {
     expect(census()).toEqual(EXPECTED);
   });
 
-  it('the queue meets the drill before any of its five doors', () => {
+  it('the queue meets the drill before any of its six doors', () => {
     const engine = readFileSync(join(APP, 'src', 'offline', 'sync.ts'), 'utf8');
     const drill = engine.indexOf('if (isDrillActive()) return Promise.resolve(offlineResponse());');
     expect(drill).toBeGreaterThan(0);
     expect(drill).toBeLessThan(engine.indexOf('switch (kindOf(entry)) {'));
     // One caller of each door: `postExchange`.
-    for (const door of ['postPress(', 'postRoundPress(', 'postLevelPress(', 'this.postCard(']) {
+    for (const door of [
+      'postPress(',
+      'postRoundPress(',
+      'postLevelPress(',
+      'this.postCard(',
+      'this.postProtest(',
+    ]) {
       expect(engine.split(door), door).toHaveLength(2);
     }
     expect(engine.split('this.postHit('), 'postHit').toHaveLength(2);
