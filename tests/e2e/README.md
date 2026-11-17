@@ -726,12 +726,12 @@ has six assertions for 33 referee endpoints.
 `match-scheduler.ts`'s own header, as four independent invariants over real
 generated rows:
 
-| invariant                                                      | the day it saves                                          |
-| -------------------------------------------------------------- | --------------------------------------------------------- |
-| one piste runs one match at a time                             | two bouts called to the same strip                        |
-| no fighter is in two matches at once                           | a fighter called to two pistes and able to answer neither |
-| consecutive bouts are ≥ `minRestMinutes` apart                 | the rest promise the planner sheet makes                  |
-| a pool stays on one piste (and the two pools do not share one) | "pool 2 is over there" stops being true                   |
+| invariant                                                         | the day it saves                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| one piste runs one match at a time                                | two bouts called to the same strip                        |
+| no fighter is in two matches at once                              | a fighter called to two pistes and able to answer neither |
+| each Pool breaks once, for `minRestMinutes`, after half its bouts | the crew's pause the planner sheet promises (ADR-018)     |
+| a pool stays on one piste (and the two pools do not share one)    | "pool 2 is over there" stops being true                   |
 
 It also pins the one validation `resize` actually performs (end after start) and
 does **not** pretend overlap is validated, because it isn't.

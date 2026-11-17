@@ -11,14 +11,18 @@ import { createBracketTournament, ensureRoster } from './_bracket';
  * satisfy. The real contract is in `match-scheduler.ts`'s own header:
  *
  *   2. For each unscheduled match, find the earliest Lice slot where:
- *      - Both fighters have had at least minRestMinutes since their last match.
+ *      - Neither fighter is still in an earlier bout (nobody fights twice at once).
  *      - The Lice is available (previous match has ended).
  *
- * Those are three separate invariants — a lice never running two matches at
- * once, a fighter never being in two at once, and a fighter's consecutive bouts
- * being at least `minRestMinutes` apart — and NOTHING checked any of them
- * against real generated rows. They are the difference between a timetable and
- * a list of times.
+ * plus the Pool's break (ADR-018, operator ruling 2026-09-17): a Pool runs back
+ * to back on its piste and pauses ONCE, after half its bouts, for the sheet's
+ * `minRestMinutes`. There is no per-fighter rest any more — it went in
+ * `1f7142816`, and this spec asserted it until then.
+ *
+ * Those are separate invariants — a lice never running two matches at once, a
+ * fighter never being in two at once, and each Pool breaking exactly once in
+ * its middle — checked against real generated rows. They are the difference
+ * between a timetable and a list of times.
  *
  * IT BUILDS ITS OWN `event_kind: 'test'` EVENT. The shared throwaway event
  * accumulates other specs' tournaments, lices and blocks, and
@@ -44,6 +48,8 @@ interface GridMatch {
   redRegistrationId: string;
   blueRegistrationId: string;
   poolId: string | null;
+  /** The break the server lays after half the Pool's bouts; null outside a Pool. */
+  poolRestMinutes: number | null;
 }
 
 /** A placed match, reduced to the interval arithmetic the invariants need. */
@@ -53,13 +59,14 @@ interface Placed {
   start: number;
   end: number;
   poolId: string | null;
+  poolRestMinutes: number | null;
   fighters: string[];
 }
 
 test.describe('schedule', () => {
   test.skip(!SCHEDULE, 'set E2E_SCHEDULE=1 to hold the generator to its own contract');
 
-  test('generate places matches without double-booking a lice, a fighter, or their rest', async ({
+  test('generate places matches without double-booking a lice or a fighter, and breaks each Pool once', async ({
     request,
   }) => {
     test.setTimeout(240_000);
@@ -90,8 +97,9 @@ test.describe('schedule', () => {
     }
 
     // 8 fighters over 2 pools of 4 → 6 matches per pool, and EVERY fighter
-    // appears three times. That repetition is what makes the rest rule
-    // observable at all: with one match each, no fighter ever waits.
+    // appears three times. That repetition is what makes "nobody fights twice
+    // at once" observable at all, and six bouts give each Pool a middle to
+    // break in.
     const fighters = await ensureRoster(
       api,
       eventId,
@@ -213,19 +221,29 @@ test.describe('schedule', () => {
       }
     }
 
-    // ── Invariant 3: the rest minimum is honoured ─────────────────────────────
-    // Asserted from the minRestMinutes this spec stored on the sheet, so it stays
-    // true if the constant above changes.
-    const minRestMs = MIN_REST_MINUTES * 60_000;
-    for (const [fighter, bouts] of byFighter(placed)) {
-      for (let i = 1; i < bouts.length; i++) {
-        const gap = bouts[i]!.start - bouts[i - 1]!.end;
-        expect(
-          gap,
-          `fighter ${fighter} gets only ${Math.round(gap / 60_000)} min between ` +
-            `${bouts[i - 1]!.id} and ${bouts[i]!.id}; the sheet promises ${MIN_REST_MINUTES}`,
-        ).toBeGreaterThanOrEqual(minRestMs);
-      }
+    // ── Invariant 3: each Pool breaks once, in its middle ─────────────────────
+    // The sheet's gap is 0, so a Pool's queue runs back to back except for ONE
+    // pause of the sheet's `minRestMinutes`, after half its bouts rounded down
+    // (`boutsBeforeRest`): six bouts → idle minutes [0, 0, 20, 0, 0]. Built from
+    // the constants above, so it stays true if they change. The grid names the
+    // same break (`poolRestMinutes`), which is what the board draws.
+    for (const poolId of new Set(placed.map((p) => p.poolId))) {
+      if (!poolId) continue;
+      const queue = placed.filter((p) => p.poolId === poolId).sort((a, b) => a.start - b.start);
+      const breakAfter = Math.floor(queue.length / 2);
+      const expectedGaps = queue
+        .slice(1)
+        .map((_, i) => (i + 1 === breakAfter ? MIN_REST_MINUTES : 0));
+      const gaps = queue.slice(1).map((bout, i) => (bout.start - queue[i]!.end) / 60_000);
+      expect(
+        gaps,
+        `pool ${poolId} must run back to back with one ${MIN_REST_MINUTES}-min break after ` +
+          `bout ${breakAfter} of ${queue.length}`,
+      ).toEqual(expectedGaps);
+      expect(
+        queue.map((p) => p.poolRestMinutes),
+        `the grid must name pool ${poolId}'s break`,
+      ).toEqual(queue.map(() => MIN_REST_MINUTES));
     }
 
     // ── Invariant 4: a pool stays on one piste ────────────────────────────────
@@ -329,6 +347,7 @@ async function readPlaced(api: Api, eventId: string): Promise<Placed[]> {
         // from it keeps the overlap arithmetic honest to what was planned.
         end: start + m.durationMinutes * 60_000,
         poolId: m.poolId,
+        poolRestMinutes: m.poolRestMinutes,
         fighters: [m.redRegistrationId, m.blueRegistrationId].filter(Boolean),
       };
     });

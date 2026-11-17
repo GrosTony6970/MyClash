@@ -329,10 +329,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   await adminBlock('Referee meeting', '08:45', '09:00');
 
   // The planner sheet holds the numbers Generate spaces bouts with (ADR-018).
-  // Every bout lasts 5 minutes with a 30-second gap. No fighter rest for the demo
-  // (the default is 10 min), so each pool's matches run back-to-back and render
-  // as ONE continuous card per pool instead of being split into rest-separated
-  // blocks.
+  // Every bout lasts 5 minutes with a 30-second gap. No Pool break for the demo
+  // (the sheet's rest is the one pause a Pool takes after half its bouts; the
+  // default is 10 min), so each pool's matches run back-to-back as ONE
+  // continuous card per pool.
   await step('planner sheet: bout lengths, gap and rest', async () =>
     reqOk(
       await put(`events/${eventId}/programme/config`, {
