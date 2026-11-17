@@ -307,13 +307,13 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
                   className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(color)}`}
                 />
                 {block.tournamentName && showTournamentLine ? (
-                  <span className="truncate text-[11px] font-semibold uppercase tracking-wide opacity-70">
+                  <span className="truncate text-[11px] font-semibold uppercase tracking-wide">
                     {block.tournamentName}
                   </span>
                 ) : null}
                 <span className="truncate text-sm font-bold leading-tight">{block.label}</span>
                 {showSubLine ? (
-                  <span className="truncate text-xs font-medium opacity-80">
+                  <span className="truncate text-xs font-medium">
                     {`${fightsLabel} · ${timeRange}`}
                   </span>
                 ) : null}

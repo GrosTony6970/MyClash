@@ -82,3 +82,31 @@ describe('a Workshop card on the public grid', () => {
     expect(style.justifySelf).toBe('');
   });
 });
+
+/**
+ * Quiet by colour, not by fade (known-deviations D29). A cancelled card was the Workshop's colour
+ * at 60%, and its small lines at 70% of that: 1.8:1 to 3.1:1. It is now the neutral slate pair at
+ * full ink, struck through; every line of a card reads at full ink.
+ */
+describe('a cancelled Workshop card', () => {
+  const cancelled = { ...block(null, true), color: 'teal', category: 'Longsword', level: 'Open' };
+
+  it('turns neutral grey instead of fading', () => {
+    const classes = Array.from(card(cancelled).classList);
+    expect(classes).toEqual(expect.arrayContaining(['bg-slate-50', 'text-slate-600']));
+    expect(classes).not.toContain('bg-teal-50');
+    expect(classes).not.toContain('opacity-60');
+  });
+
+  it('keeps the colour of a live card', () => {
+    const classes = Array.from(card({ ...cancelled, cancelled: false }).classList);
+    expect(classes).toEqual(expect.arrayContaining(['bg-teal-50', 'text-teal-700']));
+  });
+
+  it('fades no line of the card', () => {
+    const faded = Array.from(card(cancelled).querySelectorAll('*')).filter((el) =>
+      Array.from(el.classList).some((c) => /^opacity-\d+$/.test(c)),
+    );
+    expect(faded).toEqual([]);
+  });
+});

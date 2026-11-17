@@ -13,9 +13,11 @@ describe('tournamentPillClasses', () => {
     expect(classes).toContain('emerald');
   });
 
-  it('renders a dimmed grey pill for a waitlist registration (colour ignored)', () => {
+  // Quiet by colour, not by fade: at 60% the waitlist pill was 2.2:1 (known-deviations D29).
+  it('renders a grey pill at full ink for a waitlist registration (colour ignored)', () => {
     const classes = tournamentPillClasses({ color: 'purple', registrationState: 'waitlist' });
-    expect(classes).toContain('opacity-60');
+    expect(classes.split(' ')).toContain('text-slate-600');
+    expect(classes).not.toContain('opacity');
     expect(classes).not.toContain('purple');
   });
 });

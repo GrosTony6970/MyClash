@@ -254,7 +254,7 @@ function BracketMatchCard({
               }),
             ].join(' ')}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+            <p className="text-[10px] font-semibold uppercase tracking-wider">
               {slotRoleName(slot, t, skillNameById)}
             </p>
             {slot.assignment ? (

@@ -673,17 +673,21 @@ export function BlockGridView({
           const color = tournamentColorByName.get(block.tournamentName ?? '') ?? null;
           const hasConflict = block.matches.some((m) => conflictMatchIds.has(m.id));
           const hasOverlap = overlapBlockKeys.has(block.key);
+          const allDone =
+            block.matches.length > 0 && block.matches.every((m) => m.status === 'completed');
+          const anyRunning = block.matches.some((m) => m.status === 'running');
+          // A completed run turns neutral grey at full ink; the Tournament's colour stays on the
+          // stripe. It was faded to 60%, which took its text under 3:1 (known-deviations D29).
           const tone = hasConflict
             ? 'border-danger/30 bg-danger/10 text-danger'
             : hasOverlap
               ? 'border-warning/30 bg-warning/10 text-warning'
-              : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`;
-          // Status accent (from the run's matches) + legend-focus dimming.
-          const allDone =
-            block.matches.length > 0 && block.matches.every((m) => m.status === 'completed');
-          const anyRunning = block.matches.some((m) => m.status === 'running');
+              : allDone
+                ? `${tintBgClassFor('slate')} ${tintBorderClassFor('slate')} ${tintTextClassFor('slate')}`
+                : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`;
+          // Legend focus: a filter the organiser switches on, so it may fade.
           const dimmed = focusedTournament !== null && block.tournamentName !== focusedTournament;
-          const opacityClass = dimmed ? 'opacity-30' : allDone ? 'opacity-60' : '';
+          const opacityClass = dimmed ? 'opacity-30' : '';
           return (
             <div
               key={block.key}
@@ -725,14 +729,14 @@ export function BlockGridView({
                 className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(color)}`}
               />
               {block.tournamentName && showTournamentLine ? (
-                <span className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-70">
+                <span className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide">
                   {anyRunning ? <span className="text-success">●</span> : null}
                   <span className="truncate">{block.tournamentName}</span>
                 </span>
               ) : null}
               <span className="truncate text-sm font-bold leading-tight">{block.label}</span>
               {showSubLine ? (
-                <span className="truncate text-xs font-medium opacity-80">
+                <span className="truncate text-xs font-medium">
                   {t('organizer.schedulePage.blockGrid.fightsAndTime', {
                     count: block.matchCount,
                     start: formatSlotTime(startSlot, gridStartHour),

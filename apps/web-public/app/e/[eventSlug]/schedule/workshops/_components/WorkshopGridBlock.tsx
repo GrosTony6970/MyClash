@@ -57,6 +57,8 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
   // A cancelled session stays, struck through; its word rides in the title at every size (526).
   const cancelledWord = block.cancelled ? statusLabel('workshopSession', 'cancelled', t) : null;
   const struck = block.cancelled ? 'line-through' : '';
+  // Cancelled: neutral grey at full ink. It was the colour at 60%, under 3:1 (known-deviations D29).
+  const tone = block.cancelled ? 'slate' : block.color;
   const hover = [cancelledWord, block.title, timeRange, instructors, taxonomy];
 
   return (
@@ -66,10 +68,9 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
       className={[
         'm-px flex flex-col overflow-hidden rounded-md border px-1.5 py-1 transition-opacity',
         'hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-accent/40',
-        tintBgClassFor(block.color),
-        tintBorderClassFor(block.color),
-        tintTextClassFor(block.color),
-        block.cancelled ? 'opacity-60' : '',
+        tintBgClassFor(tone),
+        tintBorderClassFor(tone),
+        tintTextClassFor(tone),
       ].join(' ')}
       style={cardPlacement(block, rowFor, gridColumn)}
     >
@@ -78,16 +79,16 @@ export function WorkshopGridBlock({ block, startHour, rowFor, gridColumn }: Prop
       ) : null}
       <span className={`truncate text-sm font-bold leading-tight ${struck}`}>{block.title}</span>
       {heightPx >= SHOW_TIME_PX ? (
-        <span className={`truncate font-mono text-xs opacity-80 ${struck}`}>{timeRange}</span>
+        <span className={`truncate font-mono text-xs ${struck}`}>{timeRange}</span>
       ) : null}
       {instructors && heightPx >= SHOW_INSTRUCTORS_PX ? (
-        <span className="truncate text-xs opacity-90">{instructors}</span>
+        <span className="truncate text-xs">{instructors}</span>
       ) : null}
       {taxonomy && heightPx >= SHOW_TAXONOMY_PX ? (
-        <span className="truncate text-[11px] opacity-70">{taxonomy}</span>
+        <span className="truncate text-[11px]">{taxonomy}</span>
       ) : null}
       {heightPx >= SHOW_SEATS_PX ? (
-        <span className="truncate text-[11px] opacity-70">
+        <span className="truncate text-[11px]">
           {block.confirmedCount}/{block.capacity ?? '∞'}
         </span>
       ) : null}

@@ -42,14 +42,18 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   const winnerName = winner === 'red' ? summary.redName : winner === 'blue' ? summary.blueName : '';
   const label = match.matchNumberLabel || summary.roundCode;
 
-  // Score emphasis: when there's a winner, dim the loser; otherwise both full.
+  // Score emphasis: when there's a winner, the loser's score drops to the muted ink and the
+  // winner keeps the side colour; otherwise both keep it. The loser was the side colour at 40%,
+  // 1.8:1 to 2.6:1 (known-deviations D29).
+  const isLoser = (side: 'red' | 'blue') => !!winner && winner !== side;
   const scoreClass = (side: 'red' | 'blue') => {
     if (!winner) return '';
-    return winner === side ? 'font-black' : 'opacity-40';
+    return winner === side ? 'font-black' : 'text-muted';
   };
   const scoreStyle = (side: 'red' | 'blue') => ({
     color: side === 'red' ? colors.red : colors.blue,
   });
+  const bigScoreStyle = (side: 'red' | 'blue') => (isLoser(side) ? undefined : scoreStyle(side));
 
   const fmtTime = (iso: string | null) =>
     formatInZone(
@@ -86,7 +90,7 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
           <span
             className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}
-            style={scoreStyle('red')}
+            style={bigScoreStyle('red')}
           >
             {match.redScore}
           </span>
@@ -103,7 +107,7 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
           <span
             className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}
-            style={scoreStyle('blue')}
+            style={bigScoreStyle('blue')}
           >
             {match.blueScore}
           </span>

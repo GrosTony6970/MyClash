@@ -154,7 +154,7 @@ function RefereeChip({ referee }: { referee: BoardReferee }) {
       className={`rounded-full px-2 py-0.5 text-xs ${tintBgClassFor(token)} ${tintTextClassFor(token)}`}
     >
       {referee.name}
-      {referee.roleLabel && <span className="opacity-70"> · {referee.roleLabel}</span>}
+      {referee.roleLabel && <span> · {referee.roleLabel}</span>}
     </li>
   );
 }

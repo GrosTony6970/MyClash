@@ -727,6 +727,40 @@ other colour utility naming a token `theme.css` lacks.
 
 ---
 
+## D29 — FIXED: done, cancelled, waitlisted and lost were faded under the reading bar
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17, by the operator's ruling: quiet by colour, not by fade.** Text stays at full
+ink. A completed run and a cancelled Workshop take the neutral slate pair (`tintBgClassFor('slate')`
+and its border and ink); the Tournament's or the Workshop's colour stays on the stripe. A cancelled
+Workshop keeps its strike-through and its word. The Blocks view's legend focus keeps its 30%: it is
+a filter the organiser switches on.
+
+Rendered and measured on 2026-11-17 (a static page from web-public's production stylesheet, in
+Chromium, each opacity composited over what is behind it):
+
+| Where                                                            | It was      | It is |
+| ---------------------------------------------------------------- | ----------- | ----- |
+| Blocks view, a completed run: its label / its Tournament line    | 2.85 / 2.02 | 7.25  |
+| Workshop grids (both apps), a cancelled card: title / seats      | 2.52 / 1.85 | 7.25  |
+| Participants, a waitlisted Tournament pill                       | 2.20        | 6.95  |
+| A bout page, the loser's score (red / blue side at 40%)          | 1.92 / 1.81 | 4.76  |
+| A referee chip's role label, amber skill (70% of the chip's ink) | 2.93        | 4.85  |
+
+The sites: `schedule/BlockGridView.tsx` and `workshops/WorkshopScheduleBoard.tsx` in web-admin;
+`schedule/workshops/_components/WorkshopGridBlock.tsx`,
+`schedule/tournaments/_components/TournamentScheduleGrid.tsx` (its sub-lines, 70% and 80%),
+`participants/_components/tournament-pill-classes.ts` and `match/[matchId]/match-live-view.tsx` in
+web-public; and the role label in `PoolSlotCard.tsx`, `bracket/_tabs/RefereesTab.tsx` and
+`live/BoardRowDetail.tsx`. Every sub-line at 70%, 80% or 90% of a card's ink on those cards went to
+full ink; its size and weight already set it back.
+
+`quiet-states-ink.test.ts` (one in each app), `WorkshopGridBlock.test.tsx` and
+`tournament-pill-classes.test.ts` hold them.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

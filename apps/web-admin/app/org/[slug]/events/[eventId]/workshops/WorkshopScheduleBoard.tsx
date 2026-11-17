@@ -820,10 +820,13 @@ export function WorkshopScheduleBoard({
                                 fixed ? '' : 'cursor-grab',
                                 // While resized it may cross a cancelled card at full width: on top.
                                 r ? 'z-10' : '',
-                                bl.cancelled ? 'opacity-60' : '',
+                                // Cancelled: neutral grey at full ink, struck through. It was the
+                                // colour at 60%, under 3:1 (known-deviations D29).
                                 conflict
                                   ? 'border-danger bg-danger/10 text-danger ring-2 ring-danger'
-                                  : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`,
+                                  : bl.cancelled
+                                    ? `${tintBgClassFor('slate')} ${tintBorderClassFor('slate')} ${tintTextClassFor('slate')}`
+                                    : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`,
                               ].join(' ')}
                               style={{ top: startSlot * slotHeightPx, height: span * slotHeightPx }}
                             >
@@ -867,20 +870,20 @@ export function WorkshopScheduleBoard({
                               <span className={`block truncate pr-3 text-base font-bold ${struck}`}>
                                 {bl.title}
                               </span>
-                              <span className={`block font-mono text-sm opacity-80 ${struck}`}>
+                              <span className={`block font-mono text-sm ${struck}`}>
                                 {slotToHHMM(startSlot, startHour)}–{slotToHHMM(endSlot, startHour)}
                               </span>
                               {bl.instructorNames.length > 0 && (
-                                <span className="block truncate text-sm opacity-90">
+                                <span className="block truncate text-sm">
                                   {bl.instructorNames.join(', ')}
                                 </span>
                               )}
                               {(bl.category || bl.level) && (
-                                <span className="block truncate text-xs opacity-70">
+                                <span className="block truncate text-xs">
                                   {[bl.category, bl.level].filter(Boolean).join(' · ')}
                                 </span>
                               )}
-                              <span className="block text-xs opacity-70">
+                              <span className="block text-xs">
                                 {bl.confirmedCount}/{bl.capacity ?? '∞'}
                               </span>
                               {/* Bottom resize grip */}
