@@ -30,6 +30,7 @@ import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { protestRulesOf, resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 import { isDoubleLoss } from './is-double-loss';
+import { CornerDot } from './CornerDot';
 import { ProtestPair } from './ProtestButton';
 
 export interface MatchResultOverlayProps {
@@ -142,7 +143,7 @@ function ResultHeadline({
 
   return (
     <>
-      <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-gold">
+      <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-gold-text">
         {t('scoring.result.finalResult')}
       </p>
       {winnerName ? (
@@ -152,11 +153,18 @@ function ResultHeadline({
           // test asking "does the overlay name only the winner" has to scope to
           // this element or it is really asking about the review.
           data-testid="match-result-winner"
-          className="mb-2 flex items-center justify-center gap-2 text-3xl font-black animate-pulse"
-          // The winner wears their own configured side colour, not gold.
-          style={{ color: winner ? sideStyle(scoringConfig, winner).border : undefined }}
+          className="mb-2 flex items-center justify-center gap-2 text-3xl font-black text-foreground"
         >
-          <span aria-hidden>🏆</span> {winnerName}
+          <span aria-hidden>🏆</span>
+          {/* The winner's corner colour beside the name, never its ink, and the dot pulses, not
+              the words: a pulsing name in its corner colour fell to 1.6:1 (D38, D35). */}
+          {winner && (
+            <CornerDot
+              hex={sideStyle(scoringConfig, winner).border}
+              className="h-4 w-4 motion-safe:animate-pulse"
+            />
+          )}
+          {winnerName}
         </p>
       ) : (
         <NoWinner resultReason={resultReason} />

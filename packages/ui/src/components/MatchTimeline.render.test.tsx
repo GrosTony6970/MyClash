@@ -113,3 +113,12 @@ describe('MatchTimeline — a protest row', () => {
     expect(protestRow(rows(1))).not.toContain('rounded-md -mx-1 px-1');
   });
 });
+
+describe('MatchTimeline — the side dot', () => {
+  // A black corner's dot was 1.72:1 on the dark pad, a white one 1.42:1 on a light one (D38).
+  it('carries an edge ring, so a black or white corner still shows', () => {
+    expect(hitRow(rows(null))).toMatch(
+      /class="inline-block h-2 w-2 rounded-full flex-shrink-0 ring-1 ring-inset ring-foreground\/50"/,
+    );
+  });
+});

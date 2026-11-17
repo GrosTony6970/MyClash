@@ -95,7 +95,9 @@ const COMPACT: ScaleStyles = {
   row: 'flex items-center gap-2 text-sm py-0.5',
   num: 'font-mono text-muted tabular-nums w-7 flex-shrink-0',
   time: 'font-mono text-muted tabular-nums flex-shrink-0',
-  dot: 'inline-block h-2 w-2 rounded-full flex-shrink-0',
+  // The ring gives a black or white corner an edge on either theme (D38); the stage's scale
+  // clamps the colour through `legibleOn` instead.
+  dot: 'inline-block h-2 w-2 rounded-full flex-shrink-0 ring-1 ring-inset ring-foreground/50',
   name: 'font-semibold text-foreground truncate min-w-0 flex-auto',
   type: 'text-muted truncate min-w-0',
   delta: 'font-bold text-foreground flex-shrink-0',

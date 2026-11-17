@@ -49,6 +49,7 @@ import { PAD_KEYS } from '../lib/pad-keys';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
+import { CornerDot } from './CornerDot';
 
 interface ScoringCenterControlsProps {
   /** Match status (DB enum) — drives the DOUBLE LOSS banner once completed. */
@@ -507,11 +508,13 @@ export function ScoringCenterControls({
                 data-testid="round-tally"
                 data-red={redRoundWins}
                 data-blue={blueRoundWins}
-                className="rounded-full border border-border bg-surface px-3 py-0.5 tabular-nums text-foreground-secondary"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-0.5 tabular-nums text-foreground"
               >
-                <span style={{ color: sideStyle(config, 'red').border }}>{redRoundWins}</span>
-                <span className="mx-1 text-muted">–</span>
-                <span style={{ color: sideStyle(config, 'blue').border }}>{blueRoundWins}</span>
+                <CornerDot hex={sideStyle(config, 'red').border} />
+                {redRoundWins}
+                <span className="text-muted">–</span>
+                {blueRoundWins}
+                <CornerDot hex={sideStyle(config, 'blue').border} />
               </span>
             </div>
           )}

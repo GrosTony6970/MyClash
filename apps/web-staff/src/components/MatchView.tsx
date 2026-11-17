@@ -728,7 +728,7 @@ export function MatchView({
   const roundWinner = closedRound?.winnerColor
     ? {
         name: closedRound.winnerColor === 'red' ? redName : blueName,
-        color: sideStyle(scoringConfig, closedRound.winnerColor).border,
+        hex: sideStyle(scoringConfig, closedRound.winnerColor).border,
       }
     : null;
   // The pad's one protest tap: both columns, the round break and the result screen.

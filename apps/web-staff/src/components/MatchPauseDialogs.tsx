@@ -1,6 +1,7 @@
 'use client';
 
 import { Modal } from '@myclash/ui';
+import { CornerDot } from './CornerDot';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UndoLast } from '../hooks/useUndoLast';
 import { ProtestPair, type ProtestPairProps } from './ProtestButton';
@@ -141,8 +142,8 @@ interface RoundBreakDialogProps {
   open: boolean;
   /** The round that just closed. */
   round: number;
-  /** The ROUND's winner, or null when the row does not say. */
-  winner: { name: string; color: string } | null;
+  /** The ROUND's winner, or null when the row does not say. `hex` is their corner's colour. */
+  winner: { name: string; hex: string } | null;
   redScore: number;
   blueScore: number;
   redRoundWins: number;
@@ -161,14 +162,28 @@ interface RoundBreakDialogProps {
   onStart: () => void;
 }
 
-/** The rounds each side has won, each in its side's colour. */
+/** The round's winner, in the page's ink, beside their corner's colour (D38). */
+function RoundWinner({ name, hex }: { name: string; hex: string }) {
+  return (
+    <p className="mb-2 inline-flex items-center gap-2 text-2xl font-black text-foreground">
+      <span aria-hidden>🏆</span>
+      <CornerDot hex={hex} className="h-3.5 w-3.5" />
+      {name}
+    </p>
+  );
+}
+
+/** The rounds each side has won, each beside its side's colour (D38: the colour is never the ink). */
 function SeriesTally({ red, blue }: { red: [number, string]; blue: [number, string] }) {
   const { t } = useI18n();
   return (
-    <p className="text-sm font-semibold text-muted">
-      {t('scoring.rounds.seriesTally')} <span style={{ color: red[1] }}>{red[0]}</span>
+    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground-secondary">
+      {t('scoring.rounds.seriesTally')}
+      <CornerDot hex={red[1]} />
+      <span className="text-foreground">{red[0]}</span>
       {' – '}
-      <span style={{ color: blue[1] }}>{blue[0]}</span>
+      <span className="text-foreground">{blue[0]}</span>
+      <CornerDot hex={blue[1]} />
     </p>
   );
 }
@@ -243,11 +258,7 @@ export function RoundBreakDialog({
       }
     >
       <div className="text-center">
-        {winner && (
-          <p className="mb-2 text-2xl font-black" style={{ color: winner.color }}>
-            <span aria-hidden>🏆</span> {winner.name}
-          </p>
-        )}
+        {winner && <RoundWinner name={winner.name} hex={winner.hex} />}
         <p className="mb-4 font-mono text-2xl font-bold text-foreground-secondary">
           {redScore} – {blueScore}
         </p>

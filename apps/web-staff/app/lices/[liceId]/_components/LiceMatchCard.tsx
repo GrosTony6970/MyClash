@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { sideStyle } from '@myclash/ui';
 import type { LiceMatch } from '../../../../src/components/lice-match-types';
 import { isLiveStatus } from '../../../../src/components/partition-lice-matches';
+import { CornerDot } from '../../../../src/components/CornerDot';
 import { MatchStatusPill } from './MatchStatusPill';
 import { RefereeChipLine } from './RefereeChipLine';
 
@@ -24,10 +25,10 @@ function FighterLine({
   compact: boolean;
 }) {
   return (
-    <p className={`font-semibold leading-tight ${compact ? 'text-sm' : 'text-base'}`}>
-      <span style={{ color }} aria-hidden>
-        ●{' '}
-      </span>
+    <p
+      className={`flex items-center gap-1.5 font-semibold leading-tight ${compact ? 'text-sm' : 'text-base'}`}
+    >
+      <CornerDot hex={color} />
       {name ?? '—'}
     </p>
   );
@@ -71,10 +72,12 @@ export function LiceMatchCard({ match, compact = false }: { match: LiceMatch; co
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {showScore && (
-            <p className="font-mono text-lg font-bold leading-none tabular-nums">
-              <span style={{ color: redColor }}>{match.redScore}</span>
+            <p className="flex items-center gap-1 font-mono text-lg font-bold leading-none tabular-nums text-foreground">
+              <CornerDot hex={redColor} />
+              {match.redScore}
               <span className="text-muted">–</span>
-              <span style={{ color: blueColor }}>{match.blueScore}</span>
+              {match.blueScore}
+              <CornerDot hex={blueColor} />
             </p>
           )}
           {time && <p className="font-mono text-sm tabular-nums text-muted">{time}</p>}

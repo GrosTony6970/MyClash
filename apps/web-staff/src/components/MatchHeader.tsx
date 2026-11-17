@@ -24,6 +24,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import { sideStyle, roundLabel } from '@myclash/ui';
+import { CornerDot } from './CornerDot';
 import type { NextMatchInfo } from '@myclash/ui';
 import {
   displayUrlForMatch,
@@ -159,12 +160,12 @@ export function MatchHeader({
                 ◂ {t('scoring.lice.previousMatchLabel')}
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
-                <span style={{ color: redStyle.border }}>● </span>
+                <CornerDot hex={redStyle.border} className="mr-1.5" />
                 {previous.redName}
                 {previous.redClub && <span className="text-muted"> · {previous.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
-                <span style={{ color: blueStyle.border }}>● </span>
+                <CornerDot hex={blueStyle.border} className="mr-1.5" />
                 {previous.blueName}
                 {previous.blueClub && <span className="text-muted"> · {previous.blueClub}</span>}
               </p>
@@ -185,18 +186,22 @@ export function MatchHeader({
                 current: String(currentRound),
                 total: String(bestOf),
               })}
-              <span className="font-semibold tabular-nums">
-                <span style={{ color: redStyle.border }}>{redRoundWins}</span>
-                <span className="mx-0.5 text-muted">–</span>
-                <span style={{ color: blueStyle.border }}>{blueRoundWins}</span>
+              <span className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground">
+                <CornerDot hex={redStyle.border} />
+                {redRoundWins}
+                <span className="mx-0.5">–</span>
+                {blueRoundWins}
+                <CornerDot hex={blueStyle.border} />
               </span>
             </span>
           )}
           {contextLine && <span className="text-xs font-semibold text-muted">{contextLine}</span>}
-          <p className="text-base font-semibold text-foreground">
-            <span style={{ color: redStyle.border }}>{redName}</span>{' '}
-            <span className="text-muted">{t('scoring.lice.vs')}</span>{' '}
-            <span style={{ color: blueStyle.border }}>{blueName}</span>
+          <p className="inline-flex flex-wrap items-center justify-center gap-x-1.5 text-base font-semibold text-foreground">
+            <CornerDot hex={redStyle.border} />
+            <span>{redName}</span>
+            <span className="text-muted">{t('scoring.lice.vs')}</span>
+            <span>{blueName}</span>
+            <CornerDot hex={blueStyle.border} />
           </p>
           <GearLine gear={gear} redName={redName} blueName={blueName} />
           <button
@@ -233,12 +238,12 @@ export function MatchHeader({
                 {t('scoring.lice.nextMatchLabel')} ▸
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
-                <span style={{ color: redStyle.border }}>● </span>
+                <CornerDot hex={redStyle.border} className="mr-1.5" />
                 {next.redName}
                 {next.redClub && <span className="text-muted"> · {next.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
-                <span style={{ color: blueStyle.border }}>● </span>
+                <CornerDot hex={blueStyle.border} className="mr-1.5" />
                 {next.blueName}
                 {next.blueClub && <span className="text-muted"> · {next.blueClub}</span>}
               </p>

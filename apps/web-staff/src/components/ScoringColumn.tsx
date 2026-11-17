@@ -27,7 +27,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { afterblowButtonPoints } from './afterblow-button';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
-import { outlineInkOn, sideStyle } from '@myclash/ui';
+import { legibleOn, outlineInkOn, sideStyle } from '@myclash/ui';
 import type { PenaltyCard, PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
@@ -240,7 +240,7 @@ export function ScoringColumn({
       <p
         className="text-center text-8xl font-black tabular-nums leading-none mt-2"
         style={{
-          color: reachedCap ? 'var(--color-gold)' : style.border,
+          color: reachedCap ? 'var(--color-gold)' : legibleOn(style.border, padScope),
           textShadow: reachedCap
             ? '0 0 14px color-mix(in srgb, var(--color-gold) 55%, transparent)'
             : leading

@@ -987,6 +987,33 @@ on both dark surfaces at 10% and 15%.
 
 ---
 
+> **D38 onward were found in the scoring app's audit of 2026-11-17** (web-staff), the one app the
+> first audit left out.
+
+## D38 — FIXED: the scoring app wrote words in the corner colour
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; a hue is safe as a fill and
+unsafe as ink (D12).
+
+**Fixed on 2026-11-17, by the operator's ruling: neutral words, the colour beside them.** The pad
+wrote fighters' names, round tallies, the round's winner and the piste list's scores in the raw
+corner colour. On the dark pad, blue was 2.83:1 and red 3.03:1 as text; a black or white corner was
+1.4:1, and a pulsing winner's name fell to 1.6:1 at the faint end. Sites: the header's names and
+round tally and the previous/next tiles (`MatchHeader.tsx`), the centre round tally
+(`ScoringCenterControls.tsx`), the round-break dialog's winner and series tally
+(`MatchPauseDialogs.tsx`), the result screen's winner (`MatchResultOverlay.tsx`), and the piste
+list's bout card (`LiceMatchCard.tsx`). Each now writes the page's ink, with a `CornerDot` beside it:
+a filled dot in the corner colour with a `ring-foreground/50` edge, so a black or white corner shows
+on either theme. The result screen's dot pulses; the name does not (D35). The pad's big score
+numeral keeps its corner colour, clamped through `legibleOn` for the pad's scope (a black corner's
+score was dark grey on the dark pad). The exchange timeline's side dot takes the same ring
+(`MatchTimeline.tsx`). Before/after screenshots were reviewed by the operator on 2026-11-17.
+
+`corner-ink.test.ts` scans the whole app: an inline `color:` may only be the clamped numeral, a side
+panel's own ink, or the afterblow button's outline ink.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.
