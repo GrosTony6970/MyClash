@@ -6,9 +6,11 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 
 ## Purpose
 
-- Project homepage: what is MyClash, why it exists, screenshots.
+- Project homepage: what is MyClash, why it exists, a hero photo and the brand banner, and a band
+  of three live counts (Events, clubs, fighters) that appears only once the API has answered.
 - "For organizers" pitch with CTA → `admin.myclash.fr`.
 - "For HEMA clubs" pitch with CTA → `app.myclash.fr` (the app root is the browse-events surface; there is no `/events` segment).
+- The nav links to the app (`app.myclash.fr`) and its sign-in button opens `app.myclash.fr/login`.
 - Privacy policy, ToS, contact, attribution.
 
 ## Pages
@@ -27,7 +29,13 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 `packages/types/src/legal.ts` publishes them, and `legal-url.ts` in `web-public` and `web-admin`
 builds every consent link and `LegalUpdateBanner` href from them. They must answer on exactly
 those paths, without a redirect. `test/site.test.mjs` reads the paths out of `legal.ts` and
-asserts each one resolves to its own document.
+asserts each one resolves to its own document. `test/privacy-date.test.mjs` holds each legal
+page's "Last updated" line to the version in `legal.ts` that every stored acceptance points at.
+
+Two URLs come from no page. `@astrojs/sitemap` (`astro.config.mjs`) writes `sitemap-index.xml` at
+build time, and `public/robots.txt` points crawlers at it. `GET /api/version` is answered by
+Caddy itself (`Caddyfile`), with the commit the container serves, in the shape the three Next
+apps answer.
 
 ## Build
 
@@ -60,15 +68,18 @@ is a compile error.
   `test/site.test.mjs` fails on any cross-origin subresource.
 - **Copy lives in `src/i18n/`**, markup in `src/components/`. Both locales are one object, so a
   missing string does not compile.
-- **`public/` is for stable URLs only** — the favicon and the OG card, which social scrapers and
-  browsers address directly. Everything else goes through `src/assets/` so Astro can hash and
-  re-encode it (the hero is 2.37 MB as a PNG and 72 kB as an AVIF).
+- **`public/` is for stable URLs only** — the favicon, the OG card and `robots.txt`, which social
+  scrapers, browsers and crawlers address directly. Everything else goes through `src/assets/` so
+  Astro can hash and re-encode it (the hero is 2.43 MB as a PNG and 25 to 115 kB as an AVIF, by
+  width).
 - **Scroll-reveal is opt-in via a `.js` class** on `<html>`. Starting content at `opacity: 0`
   unconditionally meant the whole features section rendered blank without JavaScript.
 
 ## What this is NOT
 
 - Not a per-event site (that's `web-public`).
-- Not interactive — no auth, no API calls at runtime. The container never talks to the API,
-  which is why `scripts/check-infra-review.mjs` exempts it from the `depends_on: api` rule.
+- Not interactive — no auth, and one API call: the visitor's browser reads
+  `/api/v1/public/site-stats` for the counts band (`src/components/Home.astro`; the host is the
+  `PUBLIC_API_URL` build arg). The container itself never talks to the API, which is why
+  `scripts/check-infra-review.mjs` exempts it from the `depends_on: api` rule.
 - Not the place for organizer dashboards or scoring tools.

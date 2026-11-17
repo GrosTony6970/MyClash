@@ -44,6 +44,18 @@ answer that prompt for you. Use `--dry-run` to see what it would do.
 | `vps-bootstrap.sh [--all]`             | One-time fresh-VPS provisioning (packages, Docker, UFW, fail2ban, swap, deploy user)                                                                                           | —                |
 | `test-restore-roundtrip.sh`            | Disposable-container integration test proving the DB restore is atomic + schema-coherent                                                                                       | —                |
 | `lib/log.sh`                           | Sourced helper: colors + `ok/err/warn/hdr/info`, `confirm`, `require_cmd`                                                                                                      | —                |
+| `lib/pull-reexec.sh`                   | Sourced helper: update the checkout, then run the new copy of the script (`deploy.sh`, `redeploy.sh`)                                                                          | —                |
+| `lib/worker-drain.sh`                  | Sourced helper: stop the worker on its own before a recreate, so its job in flight finishes (`deploy.sh`, `redeploy.sh`)                                                       | —                |
+| `lib/database-url.sh`                  | Sourced helper: the superuser connection string for deploy's one-off commands (`deploy.sh`, `redeploy.sh`, CI's Deploy migration run)                                          | —                |
+| `lib/db-running.sh`                    | Sourced helper: "is the database container running?", told apart from a `docker compose ps` that failed (`backup.sh`, `deploy.sh`)                                             | —                |
+| `lib/system-versions.sh`               | Sourced helper: writes the deploy manifest `data/system-versions.json` the admin board reads (`deploy.sh`, `redeploy.sh`, `rollback.sh`, `start.sh`)                           | —                |
+| `lib/traefik-env.sh`                   | Sourced helper: the Traefik edge variables the compose file reads from the invoking shell (every script that runs compose)                                                     | —                |
+
+`deploy.sh` takes `--dev-certs`, `--skip-backup` and `--skip-migrations` (both for iterating, never
+in production), and three flags that provision the E2E sandbox from `.env.e2e` after the deploy:
+`--create-demo-org`, `--create-e2e-super-admin` and `--install-e2e-ai-key`. `redeploy.sh` takes
+`--pull`, `--migrate` (run pending migrations after the build, before the recreate), `--no-build`
+(recreate from the existing image) and `--dev-certs`.
 
 ## Which one do I run?
 
@@ -104,6 +116,12 @@ both covered in [`docs/ARCHITECTURE.md` §17.6](../../docs/ARCHITECTURE.md#176-r
   `deploy.sh` allows 240s (the web tier waits on `api: service_healthy`) and retries once
   on an abnormal exit: a timeout that leaves a gated service un-recreated keeps its **old**
   container running and healthy, which the poll would happily accept.
+- **The worker stops first** — `deploy.sh`, and `redeploy.sh` when `worker` is among its services,
+  stop the worker on its own before `up -d` (`lib/worker-drain.sh`, bounded at 330 s). It is the
+  only process that runs jobs, and its stop waits up to its 5-minute grace for the job in flight.
+  Left inside the bounded `up -d`, that wait was cut short: the new worker never started, and the
+  old one, still answering `/health`, passed the poll. The worker is also in `deploy.sh`'s
+  critical health set, so a deploy whose worker is not healthy fails.
 - Two scripts are **standalone on purpose** and don't source `lib/log.sh`:
   `vps-bootstrap.sh` (needs an `_ask` prompt helper the lib lacks; runs at first
   provisioning) and `test-restore-roundtrip.sh` (self-contained test, plain PASS/FAIL).
@@ -114,8 +132,14 @@ CI runs this in its own job (`Shellcheck infra scripts`), outside the Lint chain
 `pnpm`-land covers these files, so run it yourself after editing one:
 
 ```bash
-shellcheck -x infra/scripts/*.sh infra/scripts/lib/*.sh
+shellcheck -x infra/scripts/*.sh infra/scripts/lib/*.sh \
+  infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh \
+  infra/realtime/start.sh scripts/check-realtime-socket.sh scripts/check-api-boot.sh
 ```
+
+That is CI's file list: this directory, plus the two container start scripts and the three shell
+checks under [`scripts/`](../../scripts/README.md). CI pins ShellCheck `v0.10.0`, because findings
+differ by version.
 
 Three things about it are not guessable:
 

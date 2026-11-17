@@ -117,6 +117,7 @@ the pass/fail record.
 | `39` | late presses             | `E2E_SCORING_PAD`                                                                                                                                                                                                        |
 | `40` | offline bout             | — always runs                                                                                                                                                                                                            |
 | `41` | next bout, no network    | `E2E_STAFF_URL`                                                                                                                                                                                                          |
+| `42` | swiss status             | `E2E_SWISS`                                                                                                                                                                                                              |
 
 </div>
 
@@ -684,7 +685,7 @@ Things worth knowing before touching it:
 `E2E_WORKSHOPS=1 pnpm test:e2e:prod tests/e2e/19-workshops.spec.ts` runs
 `19-workshops.spec.ts`. Workshops are **31 endpoints that had zero assertions**:
 `07` touches them, but its `step()` helper catches every error and carries on
-(1714 lines, 10 `expect`s, excluded from the nightly).
+(1714 lines, 10 `expect`s, excluded from the prod workflow).
 
 That gap matters more here than almost anywhere else, because **the failure mode
 is silent mis-allocation, not a throw**. A seat given to the wrong person reads
@@ -1244,10 +1245,12 @@ of the bracket says afterwards:
 | 39  | The tablet's presses, sent twice        | `39-late-presses.spec.ts`           | opt-in (`E2E_SCORING_PAD=1`); see `16`    |
 | 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                          |
 | 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                  |
-| 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), nightly with `22` |
+| 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22` |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
-opt-in ones are gated purely on their env flag. The nightly does **not** set all of
+opt-in ones are gated purely on their env flag. The prod workflow
+(`.github/workflows/e2e-prod.yml`) is **manual dispatch only**: its nightly schedule has been off
+since 2026-11-01, so nothing runs these specs unless someone starts it. It does **not** set all of
 them: `07` is excluded on purpose, and `34` (`E2E_DRIFT`), `35` (`E2E_FORFEIT`) and
 `36` (`E2E_UNCOMPLETE`) are simply absent from `.github/workflows/e2e-prod.yml`. Those
 three are documented here as active specs that nothing schedules — run them by hand, or
@@ -1255,4 +1258,4 @@ add the flag to the workflow.
 
 `31` is the one exception to "gated purely on their env flag": it also needs
 `E2E_AI_PROVIDER` + `E2E_AI_KEY`, which are opt-in by **secret** rather than by
-flag precisely because setting them means every nightly bills tokens.
+flag precisely because setting them means every workflow run bills tokens.
