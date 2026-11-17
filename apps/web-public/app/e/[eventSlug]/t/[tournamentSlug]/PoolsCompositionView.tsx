@@ -235,7 +235,7 @@ export function PoolsCompositionView({
                                   {m.fighterName}
                                 </span>
                                 {isYou && (
-                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
                                     {t('publicApp.me.hub.youChip')}
                                   </span>
                                 )}
@@ -282,7 +282,7 @@ export function PoolsCompositionView({
                                   {r.displayName}
                                 </span>
                                 {isMe && (
-                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
                                     {t('publicApp.me.hub.youChip')}
                                   </span>
                                 )}

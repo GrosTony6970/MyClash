@@ -1018,7 +1018,7 @@ export function WorkshopScheduleBoard({
                       className="pointer-events-none absolute left-0 right-0 z-30 border-t-2 border-danger"
                       style={{ top: nowSlot * slotHeightPx }}
                     >
-                      <span className="absolute -top-2 left-0 rounded bg-danger px-1 text-[9px] font-bold text-danger-foreground">
+                      <span className="absolute -top-2 left-0 rounded bg-danger px-1 text-[11px] font-bold text-danger-foreground">
                         {slotToHHMM(nowSlot, startHour)}
                       </span>
                     </div>

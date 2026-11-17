@@ -192,7 +192,7 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
 
           {/* Row 2: time-label corner + per-lice header */}
           <div
-            className="sticky left-0 z-30 flex items-end justify-end bg-surface pb-0.5 pr-1 text-[10px] font-semibold uppercase tracking-wide text-muted"
+            className="sticky left-0 z-30 flex items-end justify-end bg-surface pb-0.5 pr-1 text-[11px] font-semibold uppercase tracking-wide text-muted"
             style={{
               gridColumn: 1,
               gridRow: 2,
@@ -229,7 +229,7 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
             slot % 12 === 0 ? (
               <div key={`ruler-${slot}`} className="contents">
                 <div
-                  className="sticky left-0 z-10 flex select-none items-start justify-end border-t border-border/60 bg-surface pr-1 text-[10px] text-muted"
+                  className="sticky left-0 z-10 flex select-none items-start justify-end border-t border-border/60 bg-surface pr-1 text-[11px] text-muted"
                   style={{ gridColumn: 1, gridRow: rowFor(slot) }}
                 >
                   {formatSlotTime(slot)}
@@ -358,7 +358,7 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
               style={{ gridColumn: '2 / -1', gridRow: rowFor(nowSlot), zIndex: 15 }}
             >
               <span className="absolute inset-x-0 top-0 border-t-2 border-accent" />
-              <span className="absolute left-1 top-0 -translate-y-1/2 rounded bg-accent px-1 py-0.5 text-[9px] font-bold uppercase leading-none text-accent-foreground">
+              <span className="absolute left-1 top-0 -translate-y-1/2 rounded bg-accent px-1 py-0.5 text-[11px] font-bold uppercase leading-none text-accent-foreground">
                 {t('publicApp.eventHome.schedule.now')}
               </span>
             </div>

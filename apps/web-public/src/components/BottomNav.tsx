@@ -113,7 +113,7 @@ export function BottomNav({ notificationsUnread = 0 }: { notificationsUnread?: n
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={[
-              'flex min-h-[46px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10.5px] font-semibold [touch-action:manipulation]',
+              'flex min-h-[46px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-semibold [touch-action:manipulation]',
               active ? 'text-accent' : 'text-muted',
             ].join(' ')}
           >
@@ -121,7 +121,7 @@ export function BottomNav({ notificationsUnread = 0 }: { notificationsUnread?: n
               <Icon className="h-5 w-5" />
               {item.key === 'more' && notificationsUnread > 0 && (
                 <span
-                  className="absolute -right-2 -top-1.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-danger px-1 text-[0.6rem] font-bold leading-tight text-danger-foreground"
+                  className="absolute -right-2 -top-1.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-tight text-danger-foreground"
                   aria-label={t('publicApp.me.nav.unreadLabel', { count: notificationsUnread })}
                 >
                   {notificationsUnread > 9 ? '9+' : notificationsUnread}

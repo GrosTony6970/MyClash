@@ -860,6 +860,36 @@ its kin, about 120 sites). Those were not measured in this audit.
 
 ---
 
+## D33 — FIXED: text under 10px, and the most-read 10px text
+
+**Rule broken:** Type — the app's type is the Tailwind scale; `text-xs` (12px) is its smallest
+step. The arbitrary sizes under it had no floor.
+
+**Fixed on 2026-11-17.** There is now a floor of 10px, and the text people read most moved to 11px:
+
+- **8px to 9.6px → 11px:** the "YOU" chip that marks your own row, in ten copies (standings,
+  pools, pool matches, Swiss rounds, final ranking, a league's detail on `/me`, and twice in a
+  bracket card); the "Now" marker of the two public schedule grids; the utilisation figure of a
+  piste on the Blocks view; the conflict badge of the Workshops board.
+- **10px → 11px:** the time column of the three schedule grids (header and hour labels), the LIVE
+  and NEXT tags of a `/me` commitment card, the role chips of the `/me` dashboard. **10.5px →
+  11px:** the labels of the `/me` tab bar on a phone.
+- **9px → 10px:** the piste pill of a bracket card, to match the 10px pills in its row; the
+  unread count on the phone tab bar, which must fit its small circle.
+
+Rendered on 2026-11-17 with the production stylesheet and the real Geist face, in Chromium: at
+375px wide every tab label stays on one line at 11px; at 320px "Mes événements" already wrapped at
+10.5px and the bar grows by 1px. "08:00" and the column header still fit the 64px time column. The
+"VOUS" chip grows by 5px, and the name beside it truncates 5px earlier.
+
+`type-floor.test.ts` scans each app and `packages/ui` for a `text-[…px]` or `text-[…rem]` under
+10px. The stage scale is `clamp()` and is not scanned.
+
+**Still open, beside it:** about 220 sites stay at 10px or 11px. The "YOU" chip is ten hand-copied
+spans (D23's class).
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

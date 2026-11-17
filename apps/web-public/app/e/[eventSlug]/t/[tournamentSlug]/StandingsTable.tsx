@@ -28,7 +28,7 @@ interface Props {
 /** Personal-space "YOU" chip marking the viewer's own row. */
 function YouChip({ label }: { label: string }) {
   return (
-    <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+    <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
       {label}
     </span>
   );

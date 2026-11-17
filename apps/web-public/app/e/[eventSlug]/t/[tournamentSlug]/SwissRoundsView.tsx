@@ -272,7 +272,7 @@ function Fighter({
       </span>
       {club && <span className="shrink-0 text-[11px] text-muted">{club}</span>}
       {isSelf && (
-        <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+        <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
           {youLabel}
         </span>
       )}

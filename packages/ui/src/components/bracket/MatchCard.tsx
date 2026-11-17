@@ -238,7 +238,7 @@ export function MatchCard({
           {slot.liceName && (
             <span
               title={t('common.bracket.lice', { name: slot.liceName })}
-              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
             >
               {slot.liceName}
             </span>
@@ -278,7 +278,7 @@ export function MatchCard({
                     {r.displayName}
                   </span>
                   {isMe && youLabel && (
-                    <span className="shrink-0 rounded bg-accent px-1 py-px text-[8px] font-bold uppercase leading-none text-accent-foreground">
+                    <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
                       {youLabel}
                     </span>
                   )}
@@ -379,7 +379,7 @@ function FighterRow({
             {name ?? '-'}
           </span>
           {isYou && youLabel && (
-            <span className="shrink-0 rounded bg-accent px-1 py-px text-[8px] font-bold uppercase leading-none text-accent-foreground">
+            <span className="shrink-0 rounded bg-accent px-1 py-px text-[11px] font-bold uppercase leading-none text-accent-foreground">
               {youLabel}
             </span>
           )}

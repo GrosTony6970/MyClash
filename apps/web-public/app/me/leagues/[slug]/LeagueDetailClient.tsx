@@ -207,7 +207,7 @@ export default function LeagueDetailClient() {
                               )}
                             </span>
                             {isMe && (
-                              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[0.6rem] font-bold text-accent-foreground">
+                              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-bold text-accent-foreground">
                                 {t('publicApp.me.leagues.youChip')}
                               </span>
                             )}

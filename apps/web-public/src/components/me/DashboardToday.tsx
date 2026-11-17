@@ -114,17 +114,17 @@ export function DashboardToday() {
                   <span className="block truncate text-sm font-bold">{e.event.name}</span>
                   <span className="mt-0.5 flex flex-wrap gap-1.5">
                     {e.roles.isCompetitor && (
-                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
                         {t('publicApp.me.events.roleCompetitor')}
                       </span>
                     )}
                     {e.roles.isReferee && (
-                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning">
+                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-bold text-warning">
                         {t('publicApp.me.events.roleReferee')}
                       </span>
                     )}
                     {e.roles.isInstructor && (
-                      <span className="rounded-full bg-instructor/15 px-2 py-0.5 text-[10px] font-bold text-instructor">
+                      <span className="rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
                         {t('publicApp.me.events.roleInstructor')}
                       </span>
                     )}

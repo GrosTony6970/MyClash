@@ -176,7 +176,7 @@ export function WorkshopScheduleGrid({ data, emptyLabel }: Props) {
             slot % SLOTS_PER_HOUR === 0 ? (
               <div key={`ruler-${slot}`} className="contents">
                 <div
-                  className="sticky left-0 z-10 flex select-none items-start justify-end border-t border-border/60 bg-surface pr-1 font-mono text-[10px] text-muted"
+                  className="sticky left-0 z-10 flex select-none items-start justify-end border-t border-border/60 bg-surface pr-1 font-mono text-[11px] text-muted"
                   style={{ gridColumn: 1, gridRow: rowFor(slot) }}
                 >
                   {slotToHHMM(slot, startHour)}
@@ -256,7 +256,7 @@ export function WorkshopScheduleGrid({ data, emptyLabel }: Props) {
               style={{ gridColumn: '2 / -1', gridRow: rowFor(nowSlot), zIndex: 15 }}
             >
               <span className="absolute inset-x-0 top-0 border-t-2 border-accent" />
-              <span className="absolute left-1 top-0 -translate-y-1/2 rounded bg-accent px-1 py-0.5 text-[9px] font-bold uppercase leading-none text-accent-foreground">
+              <span className="absolute left-1 top-0 -translate-y-1/2 rounded bg-accent px-1 py-0.5 text-[11px] font-bold uppercase leading-none text-accent-foreground">
                 {t('publicApp.eventHome.schedule.now')}
               </span>
             </div>

@@ -395,7 +395,7 @@ export function BlockGridView({
 
         {/* Row 2: time-axis corner + per-lice header (name + drift) */}
         <div
-          className="sticky left-0 z-30 bg-surface text-[10px] font-semibold uppercase tracking-wide text-muted flex items-end justify-end pr-1 pb-0.5"
+          className="sticky left-0 z-30 bg-surface text-[11px] font-semibold uppercase tracking-wide text-muted flex items-end justify-end pr-1 pb-0.5"
           style={{
             gridColumn: 1,
             gridRow: 2,
@@ -422,7 +422,7 @@ export function BlockGridView({
             >
               {util > 0 ? (
                 <span
-                  className="absolute right-1 top-0.5 text-[9px] font-medium text-muted"
+                  className="absolute right-1 top-0.5 text-[11px] font-medium text-muted"
                   title={t('organizer.schedulePage.blockGrid.utilizationTitle', { pct: util })}
                 >
                   {util}%
@@ -485,7 +485,7 @@ export function BlockGridView({
           slot % 12 === 0 ? (
             <div key={`ruler-${slot}`} className="contents">
               <div
-                className="sticky left-0 z-10 flex items-start justify-end bg-surface pr-1 text-[10px] text-muted select-none"
+                className="sticky left-0 z-10 flex items-start justify-end bg-surface pr-1 text-[11px] text-muted select-none"
                 style={{ gridColumn: 1, gridRow: rowFor(slot), borderTop: '1px solid #e5e7eb' }}
               >
                 {formatSlotTime(slot, gridStartHour)}

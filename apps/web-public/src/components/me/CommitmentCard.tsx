@@ -107,7 +107,7 @@ export function CommitmentCard({
       ].join(' ')}
     >
       {isLive ? (
-        <span className="absolute -top-2 left-12 inline-flex items-center gap-1 rounded-md bg-danger px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-danger-foreground">
+        <span className="absolute -top-2 left-12 inline-flex items-center gap-1 rounded-md bg-danger px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-danger-foreground">
           <span
             className="h-1.5 w-1.5 rounded-full bg-danger-foreground animate-pulse motion-reduce:animate-none"
             aria-hidden
@@ -116,7 +116,7 @@ export function CommitmentCard({
         </span>
       ) : (
         isNext && (
-          <span className="absolute -top-2 left-12 rounded-md bg-accent px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-accent-foreground">
+          <span className="absolute -top-2 left-12 rounded-md bg-accent px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-accent-foreground">
             {nextLabel}
           </span>
         )
