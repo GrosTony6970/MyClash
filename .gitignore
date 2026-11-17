@@ -74,10 +74,9 @@ test-results/
 *.tgz
 .eslintcache
 
-# Per-task working docs written by the /dev-docs and /dev-docs-update commands.
-# Session scratch, not product code — and this repo is public, so it must not be
-# committed by accident.
-dev/
+# The knowledge graph the understand-anything plugin writes. Generated, large and
+# stale within days: it was committed once (2026-06-19) and deleted on 2026-11-17.
+.understand-anything/
 
 # Claude Code
 .claude/*

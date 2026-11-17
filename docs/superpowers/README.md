@@ -5,14 +5,18 @@ This folder holds the **plan + design-spec pairs** produced by the Superpowers
 sprints. Each feature typically has an implementation plan (`…md`) and a
 matching design spec (`…-design.md`).
 
-**A plan lives here only while it is unexecuted.** Once the work ships it moves
-to `archive/`, gains a `Status` header saying what landed, and loses the
-"implement this plan task-by-task" instruction — an unmoved plan reads as open
-work and an agent will act on it. Four plans and two specs sat in `plans/` and
-`specs/` after shipping, with 197 unchecked boxes between them; that is the
-failure this rule exists to prevent. It happened again: on 2026-11-17 a sweep
-moved 29 shipped plans and 4 specs (Event photos, FightBook, the protest
-counter, the weapon catalog, the Google sign-in leftover).
+**A plan lives here only while it is unexecuted.** Once the work ships, the plan
+is deleted and git history keeps it: it is a list of steps already taken, and an
+unmoved plan reads as open work that an agent will act on. The spec moves to
+`archive/specs/` and gains a `Status` header saying what landed; it is kept for
+the design reasoning.
+
+This rule has been broken twice. Four plans and two specs sat in `plans/` and
+`specs/` after shipping, with 197 unchecked boxes between them. Then, by
+2026-11-17, 29 more shipped plans and 4 specs did (Event photos, FightBook, the
+protest counter, the weapon catalog, the Google sign-in leftover). That day the
+operator had every shipped plan deleted, the 13 older ones in `archive/plans/`
+included.
 
 These are **historical build artifacts, not living documentation.** Nothing in
 the codebase, CI, or tooling depends on them. For the current system, use
@@ -29,13 +33,12 @@ the git history.
 
 ## Archived
 
-Everything under [`archive/`](archive/) describes work that has **shipped** — or
-was **superseded** by what actually shipped. Kept for provenance only; each file
-carries a `Status` header recording what landed and how it differed from the plan.
+Everything under [`archive/specs/`](archive/specs/) describes work that has
+**shipped** — or was **superseded** by what actually shipped. Kept for provenance
+only; each file carries a `Status` header recording what landed.
 
-- [`archive/plans/`](archive/plans/) — 42 implementation plans
-- [`archive/specs/`](archive/specs/) — 18 design specs
+- [`archive/specs/`](archive/specs/) — 17 design specs
 
-One archived spec was never built:
-[`archive/specs/2026-05-19-consistent-backups-design.md`](archive/specs/2026-05-19-consistent-backups-design.md)
-(the backup write-quiesce lock). Its header says what the backups do instead.
+A spec that was never built is deleted too, not archived: the backup
+write-quiesce lock (`2026-05-19-consistent-backups-design.md`) went on
+2026-11-17.

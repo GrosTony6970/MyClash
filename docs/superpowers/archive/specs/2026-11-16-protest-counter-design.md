@@ -1,6 +1,6 @@
 # Protest counter (réclamations) — design
 
-> **Status (2026-11-17):** Shipped on 2026-11-17 in `0d4853345` … `a2375ad69` (migration 0276). The plan is `../plans/2026-11-17-protest-counter.md`. The "Status: design" line below is as written at the time. Kept for the design reasoning.
+> **Status (2026-11-17):** Shipped on 2026-11-17 in `0d4853345` … `a2375ad69` (migration 0276). The plan was deleted on 2026-11-17 with the other shipped plans; git history keeps it. The "Status: design" line below is as written at the time. Kept for the design reasoning.
 
 > Status: design, from a brainstorm with the operator on 2026-11-16, approved with every "My call"
 > on 2026-11-17. Built slice by slice, planned with `superpowers:writing-plans`.

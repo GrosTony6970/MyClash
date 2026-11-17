@@ -1,6 +1,6 @@
 # Event photos — design
 
-> **Status (2026-11-17):** Shipped, slice by slice, from `07b927510` (2026-11-04) to `fd3886ea3` (2026-11-07). The plans are in `../plans/`, each with its own commits. Kept for the design reasoning.
+> **Status (2026-11-17):** Shipped, slice by slice, from `07b927510` (2026-11-04) to `fd3886ea3` (2026-11-07). The slice plans were deleted on 2026-11-17 with the other shipped plans; git history keeps them. Kept for the design reasoning.
 
 > On approval this design is copied to `docs/superpowers/specs/2026-11-03-event-photos-design.md`
 > and committed, then `superpowers:writing-plans` turns it into the build plan.

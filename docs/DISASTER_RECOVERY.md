@@ -127,6 +127,6 @@ infra/scripts/restore.sh --storage-only <storage-file>   # images only, same nig
   step: a photo deleted after the backup has its row back and no image, and a photo sent after the
   backup has an image and no row, which the hourly-grace orphan sweep
   (`apps/api/src/modules/photos/photo-cleanup.ts`) then deletes from the bucket.
-- **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window. Nothing mitigates it: the quiesce lock designed in `docs/superpowers/archive/specs/2026-05-19-consistent-backups-design.md` was never built, and that spec is marked superseded.
+- **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window. Nothing mitigates it: a quiesce lock was designed in 2026-05 and never built. Its spec was deleted on 2026-11-17; git history keeps it.
 - **Integrity is truncation/corruption-level (`gunzip -t` / `gzip -t`), not a SHA-256 manifest.** A per-set checksum manifest is a deferred enhancement; it was intentionally left out of the current pass to avoid destabilizing the tested retention/listing logic.
 - **GPG key escrow:** if `BACKUP_GPG_RECIPIENT` is set, store the matching private key off-box. Without it, encrypted backups cannot be restored.

@@ -2620,9 +2620,8 @@ A fighter asks another fighter for one friendly, unscored **Spar** (`docs/HIERAR
 a day, an optional time and message. The other answers Yes or "Not this time" in private. Design and
 rulings 642-665 (slice 3, after the spar: 677-690; slice 4, safety flags: 691-701; slice 5, floor
 tools: 705-714; slice 6, comfort: 741-747):
-`docs/superpowers/archive/specs/2026-11-10-fightbook-design.md`; slice 6 plan:
-`docs/superpowers/archive/plans/2026-11-13-fightbook-slice6-comfort.md`; slice 1 plan:
-`docs/superpowers/archive/plans/2026-11-11-fightbook-slice1-core.md`. A Spar never touches
+`docs/superpowers/archive/specs/2026-11-10-fightbook-design.md`. The slice plans were deleted with
+the other shipped plans on 2026-11-17; git history keeps them. A Spar never touches
 `@myclash/rulesets`, Matches or the scoring app.
 
 ### 11septies.1 Data
@@ -2799,7 +2798,7 @@ never lands on a row it did not cover.
 
 ### 11septies.7 After the spar
 
-Rulings 677-690 (plan: `docs/superpowers/archive/plans/2026-11-12-fightbook-slice3-after.md`). Migrations
+Rulings 677-690. Migrations
 0267 (tables, `fightbook_review`, `fightbook_star_line`) and 0268 (merge). Routes sit in
 `modules/fightbook/fightbook-after.controller.ts`; the rest of §11septies.4 holds: every route acts
 on the caller's own profile, a stranger's or missing spar id answers 404 (never 403), and an
@@ -2880,7 +2879,7 @@ unchanged (pushed).
 
 ### 11septies.8 Safety flags
 
-Rulings 691-701 (plan: `docs/superpowers/archive/plans/2026-11-12-fightbook-slice4-flags.md`). One
+Rulings 691-701. One
 migration, 0269. A fighter reports a safety problem about the partner of a Spar. The club that runs
 the Event reads it, or the MyClash super admins when the Spar was on a free date. The flagged
 fighter never reads it (anti-goal 4, ruling 656).
@@ -3009,7 +3008,7 @@ from gear-check notes, whose subject receives them. `spar_flag_admin` is in
 
 ### 11septies.9 Floor tools
 
-Rulings 705-714 (plan: `docs/superpowers/archive/plans/2026-11-13-fightbook-slice5-floor.md`). One
+Rulings 705-714. One
 migration, 0270. Three tools for fighters standing at an Event: **Free to spar now**, **open calls**
 and **a FightBook QR** that logs a Spar by scan. All routes sit in
 `modules/fightbook/fightbook-floor.controller.ts` (`me/fightbook`) and act on the caller's own
@@ -3254,7 +3253,7 @@ after a deploy.
 
 ### 11septies.10 Comfort
 
-Rulings 741-747 (plan: `docs/superpowers/archive/plans/2026-11-13-fightbook-slice6-comfort.md`). One
+Rulings 741-747. One
 migration, 0271. Two comforts: a **daily limit** ("At most N spars a day") and a **spar reminder**
 (10 minutes before an agreed Spar that has a time).
 

@@ -1,6 +1,6 @@
 # FightBook — design
 
-> **Status (2026-11-17):** Shipped in six slices and two fix rounds, from `f4648b62f` (2026-11-11) to `02d051ed2` (2026-11-14), migrations 0263-0271. The plans are in `../plans/`. The "Status: design" line below is as written at the time. Kept for the design reasoning.
+> **Status (2026-11-17):** Shipped in six slices and two fix rounds, from `f4648b62f` (2026-11-11) to `02d051ed2` (2026-11-14), migrations 0263-0271. The slice plans were deleted on 2026-11-17 with the other shipped plans; git history keeps them. The "Status: design" line below is as written at the time. Kept for the design reasoning.
 
 > Status: design, from a brainstorm with the operator on 2026-11-10 (rulings 642-661), converged
 > after two review passes. Built slice by slice, each planned with `superpowers:writing-plans`.
