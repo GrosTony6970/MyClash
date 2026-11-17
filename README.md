@@ -8,13 +8,13 @@
 
 ## What it is
 
-MyClash lets HEMA event organizers run their events end-to-end and publish results, while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day.
+MyClash lets HEMA event organizers run their events end-to-end and publish results, while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day. Around the competition it also carries Workshops, a sparring-partner finder (FightBook) and Event photos sent from the venue.
 
 Designed around three convictions:
 
 1. **Real HEMA events happen in spaces with bad wifi.** Offline-first scoring is the quality bar.
 2. **Per-exchange data is the only honest source of truth.** Aggregate scores derive; raw exchanges persist.
-3. **Per-event theming makes platforms feel like local events.** A platform doesn't have to feel like a platform.
+3. **An Event keeps its own face.** Its logo, its hero image and the organiser's own words make a platform feel like a local event. The design language is the same everywhere.
 
 For the full product overview, see [`myclash.md`](./myclash.md).
 
@@ -25,12 +25,18 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 | Document                                                       | Audience               | Purpose                                                  |
 | -------------------------------------------------------------- | ---------------------- | -------------------------------------------------------- |
 | [`myclash.md`](./myclash.md)                                   | Anyone                 | Product / functional / UX overview                       |
+| [`docs/HIERARCHY.md`](./docs/HIERARCHY.md)                     | Anyone                 | Vocabulary — Event, Tournament, Pool, Match, Exchange    |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)               | Developers & AI agents | Master technical specification                           |
 | [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)               | Developers & QA        | End-to-end golden paths for manual and automated testing |
 | [`docs/decisions/`](./docs/decisions/)                         | Developers             | Architecture Decision Records (ADRs)                     |
 | [`CLAUDE.md`](./CLAUDE.md)                                     | AI coding agent        | Agent contract — hard rules, authority, workflow         |
 | [`DESIGN.md`](./DESIGN.md)                                     | Developers & designers | Canonical UI design language                             |
 | [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md) | Developers & AI agents | Per-area rules learned the hard way                      |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md)                         | Contributors           | CI checks, development setup, what to run before a push  |
+| [`docs/SECURITY_POSTURE.md`](./docs/SECURITY_POSTURE.md)       | Developers & operators | Security posture: auth, rate limits, the database door   |
+| [`docs/DISASTER_RECOVERY.md`](./docs/DISASTER_RECOVERY.md)     | Operators              | Backup and restore runbook, and what no backup covers    |
+| [`infra/scripts/README.md`](./infra/scripts/README.md)         | Operators              | The deploy, rollback and backup scripts on the VPS       |
+| [`tests/e2e/README.md`](./tests/e2e/README.md)                 | Developers & QA        | The end-to-end suite: how to run it, what each spec does |
 
 ---
 
@@ -53,9 +59,10 @@ pnpm dev
 
 Local URLs (after `pnpm dev`):
 
-- `http://localhost:3001` — web-public (spectator / competitor PWA)
-- `http://localhost:3002` — web-staff (scorekeeper PWA)
+- `http://localhost:3001` — web-public (spectator / competitor app)
+- `http://localhost:3002` — web-staff (scoring pad PWA, check-in desk, gear check, photo moderation)
 - `http://localhost:3003` — web-admin (organiser + super-admin)
+- `http://localhost:3004` — web-marketing (the landing site)
 - `http://localhost:4000` — NestJS API
 - `http://localhost:4000/api/docs` — Swagger UI (dev only)
 
@@ -68,22 +75,24 @@ For the full Traefik-fronted dev stack with self-signed TLS at `*.myclash.localh
 ```
 myclash/
 ├── apps/                # Three Next.js apps + NestJS api + Astro marketing site
-│   ├── api/             # NestJS — domain logic, REST + WebSocket (port 4000)
-│   ├── web-public/      # Mobile-first PWA — public/spectator/competitor
-│   ├── web-staff/       # Tablet-first PWA — offline-first scoring
+│   ├── api/             # NestJS — domain logic, REST (port 4000); with --worker, the jobs
+│   ├── web-public/      # Mobile-first app — public/spectator/competitor
+│   ├── web-staff/       # Tablet-first PWA — offline-first scoring, check-in desk, gear, photos
 │   ├── web-admin/       # Desktop-first admin app — organiser + super-admin
 │   ├── web-marketing/   # Astro 7 — myclash.fr apex landing, prerendered to dist/
 │   └── pictures/        # Brand images (logo, hero, banner) — not an app
 ├── packages/            # Shared workspaces (consumed by the apps)
+│   ├── rules/           # @myclash/rules — the pure scoring core, no dependencies; the pad runs it offline
 │   ├── rulesets/        # @myclash/rulesets — TF_v1 scoring engine + custom-ruleset runtime
 │   ├── feature-flags/   # @myclash/feature-flags — curated toggle registry
 │   ├── db/              # Numbered SQL migrations + fixtures (no ORM)
 │   ├── ui/              # Shared components + theme.css, the design-token source of truth
-│   ├── schedule-core/   # Scheduling + assignment engines
+│   ├── schedule-core/   # Shared schedule-grid geometry + block model (pure)
 │   ├── time/            # Duration/date formatting, locale-aware
 │   ├── types/           # Shared TS types
 │   ├── api-client/      # Generated OpenAPI client
-│   └── i18n/            # EN + FR translation strings
+│   ├── i18n/            # EN + FR translation strings
+│   └── next-i18n/       # @myclash/next-i18n — locale plumbing for the Next apps
 ├── infra/               # Production deploy artefacts
 │   ├── docker-compose.prod.yml
 │   ├── docker-compose.dev.yml
@@ -112,17 +121,17 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 **Supabase surface** — each fronted directly by Traefik, in both dev and prod (no gateway in between)
 
-- `supabase-auth` (`supabase/gotrue:v2.195.0`) — email magic link + Google OAuth.
-- `supabase-realtime` (`supabase/realtime:v2.124.1`) — Phoenix Channels broadcasting Postgres row changes.
-- `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (photos, club logos).
-- `supabase-rest` (`postgrest/postgrest:v14.16`) — PostgREST over the public schema, served at `/rest/v1`.
+- `supabase-auth` (`supabase/gotrue:v2.195.0`) — password, email magic link and Google OAuth.
+- `supabase-realtime` (`supabase/realtime:v2.124.1`) — Phoenix Channels broadcasting Postgres row changes. Its browser clients are anonymous: a signed-in token is refused there (migration `0273`).
+- `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (fighter photos, Event assets, Workshop pictures). Event photos are not here: they have their own bucket.
+- `supabase-rest` (`postgrest/postgrest:v14.16`) — PostgREST over the public schema, served at `/rest/v1`. Only the anonymous visitor reads through it, bounded by RLS; a signed-in reader goes through the API, and no web role writes (migrations `0247`, `0273`).
 - `supabase-meta` (`supabase/postgres-meta:v0.96.8`) — schema/DDL API for Studio. Unrouted, on the database console's own network (`myclash-dbadmin`) with Studio, `db` and Traefik only.
 - `supabase-studio` (`supabase/studio`) — operator DB console at `studio.myclash.fr`. Studio ships with no login of its own, so the router gates it twice with an IP allowlist (`TRAEFIK_STUDIO_ALLOWLIST`, derived from `THROTTLE_IP_WHITELIST` and loopback-only when that is empty) and basic auth (`STUDIO_BASIC_AUTH`, auto-generated by `deploy.sh`). Both are built-in Traefik middlewares rather than `${MW_*}` prefixes, so `TRAEFIK_PLUGINS=off` cannot strip them. It queries as the superuser and **bypasses RLS** — the one deliberate exception to the boundary described in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 **MyClash apps**
 
-- `api` — NestJS REST + WebSocket gateway on port 4000.
-- `worker` — same image as `api`, started with `--worker`. Runs every BullMQ job (notifications, HEMA Ratings sync, the Event status ticker and archive, the monitors, clean-ups) and the auto-lock scan, and serves `/health` alone. The `api` runs no job. Locally, `pnpm --filter @myclash/api dev` runs no job either: once its first compile is done, start the jobs in a second terminal with `PORT=4001 node apps/api/dist/main.js --worker`, and restart that process after you edit a job (it does not reload).
+- `api` — NestJS REST on port 4000.
+- `worker` — same image as `api`, started with `--worker`. Runs every BullMQ job (the ten queues: notifications, HEMA Ratings sync, the Event status ticker, the Event archive, the data-quality scan, the TLS and runtime-health monitors, data retention, photo clean-up, spar-request expiry) and the auto-lock scan, and serves `/health` alone. The `api` runs no job. Locally, `pnpm --filter @myclash/api dev` runs no job either: once its first compile is done, start the jobs in a second terminal with `PORT=4001 node apps/api/dist/main.js --worker`, and restart that process after you edit a job (it does not reload).
 - `web-admin`, `web-public`, `web-staff` — Next.js per-app containers.
 - `web-marketing` — Astro, prerendered and served by Caddy (`FROM caddy:2-alpine`; `check-infra-review.mjs` asserts it).
 
@@ -130,7 +139,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 - `ops-runner` — a bearer-authed Node service ([`infra/ops-runner/server.mjs`](./infra/ops-runner/server.mjs)) that mounts `/var/run/docker.sock` and exposes a small HTTP surface (port 4075, docker-network only). It owns backups, schedule, restore, and `POST /containers/:service/(start|stop|restart)` lifecycle controls for the 12 allowlisted services. **The docker socket lives here, not in the API container** — so a compromise of any API code path doesn't grant Docker root. See [`docs/ARCHITECTURE.md` §17.4](./docs/ARCHITECTURE.md) for the full endpoint table + allowlist.
 
-External services: Scaleway Object Storage (S3-compatible, for the nightly backup mirror), Resend (transactional email), Sentry (errors + APM), Web Push (VAPID, optional), Google OAuth (optional).
+External services: Scaleway Object Storage (S3-compatible: one bucket for the nightly backup mirror, a separate one for Event photos, which no backup covers), Resend (transactional email), Sentry (errors + APM), Web Push (VAPID, optional), Google OAuth (optional).
 
 ---
 

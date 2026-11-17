@@ -8,16 +8,21 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 ## Hard rules
 
 1. **Never bypass the ruleset engine.** Scores are always derived from exchanges via
-   `@myclash/rulesets`. Do not store computed scores as the source of truth.
+   `@myclash/rulesets`. Do not store computed scores as the source of truth. The scoring pad shows
+   a provisional score offline from the same core (`@myclash/rules`, its `/pad` door); the server
+   derives the score that counts.
 2. **TF_v1 must reproduce the FAL 2026 reference data byte-for-byte.** A failing golden test
    (`packages/rulesets/test/tf_v1.fal2026.test.ts`, fixture
    `packages/rulesets/test/fixtures/fal2026.json`) means the engine is wrong — fix the engine,
    never the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline
    functionality, and the offline E2E tests must pass.
-4. **RLS first, application checks second.** Every new table needs an RLS policy. Never disable RLS
-   in a production code path. Without RLS a table is world-readable — PostgREST exposes `public`
-   as `anon`.
+4. **RLS on, on every table; signed-in users go through the API.** Every new table enables RLS.
+   Add a read rule only where the public (`anon`) may read the rows — RLS on with no rule is a
+   closed table, on purpose. No web role writes, and a signed-in token reads nothing through the
+   database. A rule that calls a new helper function needs `grant execute … to anon`. Never
+   disable RLS in a production code path. Without RLS a table is world-readable — PostgREST
+   exposes `public` as `anon`.
 5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset
    configs are validated against Zod schemas and either dispatched to whitelisted functions or
    evaluated as a Zod-validated AST (`FormulaNode`) by our own `evaluateFormula` — a closed
@@ -49,6 +54,12 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 
 `docs/ENGINEERING_LESSONS.md` collects hard-won rules per area (auth, Docker, testing, scheduling,
 deployment). Read the relevant section before working in that area.
+
+Two more places hold decisions, below the four files above. A code comment that says "ruling 492"
+names one of the operator's numbered rulings: the register is `docs/notes/quick-wins-2026-10-08.md`
+(and `docs/notes/workshops-rulings.md` for the Workshops work). A feature's design is its spec in
+`docs/superpowers/` — `specs/` while it is not built, `archive/specs/` once it shipped; an archived
+spec explains why, and `ARCHITECTURE.md` says what the code does now.
 
 If something conflicts with `HIERARCHY.md` or `ARCHITECTURE.md`, ask before deviating. If
 `ARCHITECTURE.md` is silent on a decision, ask — don't guess and write 500 lines that need
@@ -116,6 +127,10 @@ record; there is no task queue to pick from.
 - If a task is ambiguous or contradicts the architecture, **stop and ask**. If it needs something
   only the operator can do — a DNS record, a third-party account, a decision about the real event —
   **stop and notify** rather than improvising around it.
+- **Hand a session over with the `myclash-handover` skill**: when asked for a handover, and before
+  ending a session that leaves work uncommitted.
+- **`pnpm dev` runs no job.** Work on a job (a notification, a clean-up, a monitor) needs the
+  worker beside it: `PORT=4001 node apps/api/dist/main.js --worker`, restarted after each edit.
 
 ---
 
