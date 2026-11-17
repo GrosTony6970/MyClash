@@ -10,7 +10,7 @@ import {
   type WeaponRating,
 } from './weapon-rating';
 
-/** Queue name re-exported here so callers don't reach into workers/. */
+/** The HEMA Ratings sync queue's one name and job: this service enqueues, the worker consumes. */
 export const HEMA_RATINGS_QUEUE_NAME = 'hema-ratings-sync';
 export const HEMA_RATINGS_SYNC_JOB = 'sync';
 

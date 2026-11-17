@@ -27,7 +27,6 @@ process.env.PHOTO_TOKEN_SECRET ??= 'stub-photo-token-secret';
 process.env.PHOTO_DEVICE_JWT_SECRET ??= 'stub-photo-device-secret';
 process.env.COOKIE_SECRET ??= 'stub-cookie-secret';
 process.env.DOMAIN ??= 'myclash.localhost';
-process.env.HEMA_RATINGS_SYNC_ENABLED = 'false';
 process.env.RESEND_API_KEY ??= 'stub';
 process.env.MAIL_FROM ??= 'stub@myclash.localhost';
 process.env.OPS_RUNNER_URL ??= 'http://127.0.0.1:9';

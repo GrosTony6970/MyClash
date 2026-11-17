@@ -26,7 +26,8 @@ import {
 } from './data-quality-deterministic.worker';
 import { EVENT_ARCHIVE_QUEUE, EventArchiveWorker } from './event-archive.worker';
 import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status-ticker.worker';
-import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
+import { HEMA_RATINGS_QUEUE_NAME } from '../modules/hema-ratings/hema-ratings.service';
+import { HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
 import { photoStoreProvider } from '../modules/photos/photo-store.provider';
 import { PHOTO_CLEANUP_QUEUE, PhotoCleanupWorker } from './photo-cleanup.worker';
 import { SPAR_REQUEST_EXPIRY_QUEUE, SparRequestExpiryWorker } from './spar-request-expiry.worker';
@@ -66,7 +67,7 @@ import { isStopping } from '../common/graceful-stop';
       extraOptions: { manualRegistration: true },
     }),
     BullModule.registerQueue({
-      name: HEMA_RATINGS_QUEUE,
+      name: HEMA_RATINGS_QUEUE_NAME,
       // Daily sync may fail transiently (hemaratings.com DNS / timeout /
       // 5xx). Retry up to 3× with exponential back-off before surfacing
       // the failure to the BullMQ failed-jobs list.
@@ -175,9 +176,8 @@ import { isStopping } from '../common/graceful-stop';
     },
   ],
   // Re-export the leaf so consumers importing WorkersModule still resolve the
-  // notification services. BullModule stays exported for the queues Workers
-  // still registers (hema-ratings, event-status-tick, event-archive,
-  // data-quality, tls-cert-monitor).
+  // notification services. BullModule stays exported for the queues registered
+  // above.
   exports: [BullModule, NotificationSchedulingModule],
 })
 export class WorkersModule {}

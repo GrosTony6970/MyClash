@@ -462,6 +462,12 @@ services:
       PHOTO_BUCKET_NAME: ${PHOTO_BUCKET_NAME:-}
       PHOTO_BUCKET_REGION: ${PHOTO_BUCKET_REGION:-}
       PHOTO_BUCKET_ENDPOINT: ${PHOTO_BUCKET_ENDPOINT:-}
+      # No OPS_RUNNER_URL / OPS_RUNNER_SECRET here, on purpose (ruling 832): everything the ops
+      # runner does drives the PRODUCTION compose file (backup.sh and restore.sh pin it in their
+      # COMPOSE arrays, the restart actions in server.mjs COMPOSE_FLAGS), so a backup, restore or
+      # restart pressed in the dev admin would run the prod stack's commands on this host. With no
+      # runner configured, the API refuses each such request with a 503 (ops-runner-client.ts,
+      # system-actions.service.ts). The dev worker below reads only the runner's disk figures.
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

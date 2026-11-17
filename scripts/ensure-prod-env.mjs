@@ -418,7 +418,6 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['SMTP_HOST', state.values.get('SMTP_HOST') || 'smtp.resend.com'],
     ['SMTP_PORT', state.values.get('SMTP_PORT') || '587'],
     ['SMTP_USER', state.values.get('SMTP_USER') || 'resend'],
-    ['HEMA_RATINGS_SYNC_ENABLED', state.values.get('HEMA_RATINGS_SYNC_ENABLED') || 'true'],
     // Scaleway S3 defaults
     ['BACKUP_SCW_REGION', state.values.get('BACKUP_SCW_REGION') || 'fr-par'],
     [

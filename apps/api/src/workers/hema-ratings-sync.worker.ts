@@ -27,6 +27,8 @@ import { SupabaseService } from '../modules/supabase/supabase.service';
 import { linkedHemaRatingsIds } from './hema-ratings-linked-ids';
 import {
   fetchHemaRatingsProfile,
+  HEMA_RATINGS_QUEUE_NAME,
+  HEMA_RATINGS_SYNC_JOB,
   type HemaRatingsProfile,
 } from '../modules/hema-ratings/hema-ratings.service';
 
@@ -45,18 +47,15 @@ export interface HemaRatingsFighter {
   ratings?: HemaRatingsProfile['ratings'];
 }
 
-export const HEMA_RATINGS_QUEUE = 'hema-ratings-sync';
-export const HEMA_RATINGS_JOB = 'sync';
-
 // ── Worker ────────────────────────────────────────────────────────────────────
 
-@Processor(HEMA_RATINGS_QUEUE)
+@Processor(HEMA_RATINGS_QUEUE_NAME)
 @Injectable()
 export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(HemaRatingsSyncWorker.name);
 
   constructor(
-    @InjectQueue(HEMA_RATINGS_QUEUE) private readonly queue: Queue,
+    @InjectQueue(HEMA_RATINGS_QUEUE_NAME) private readonly queue: Queue,
     private readonly supabase: SupabaseService,
     private readonly flags: AdminFeatureFlagsService,
   ) {
@@ -69,7 +68,7 @@ export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements 
     // An upsert overwrites the stored scheduler, so a changed pattern or tz moves its next run.
     // Job schedulers are upserted by scheduler id — safe to call on every start.
     await this.queue.upsertJobScheduler('hema-ratings-daily-sync', utcCron('30 3 * * *'), {
-      name: HEMA_RATINGS_JOB,
+      name: HEMA_RATINGS_SYNC_JOB,
       data: {},
     });
     this.logger.log('HEMA Ratings daily sync job scheduled (03:30 UTC)');
