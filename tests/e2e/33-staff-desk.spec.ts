@@ -1,7 +1,14 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
-import { ensureRoster } from './_bracket';
+import {
+  WEAPON,
+  buildDeskFixture,
+  disposeDeskEvents,
+  organizerContext,
+  staffContext,
+  type DeskFixture,
+} from './_desk';
 
 /**
  * The staff surfaces that are not the scoring pad: the check-in desk, the gear
@@ -50,26 +57,11 @@ import { ensureRoster } from './_bracket';
  * (`hiddenEntrantIds`). A club Event publishes silently and stays
  * hard-deletable. This spec deletes it with `E2E_CLEANUP`, and otherwise flips
  * it to `test` so it leaves the public site — `global-teardown` only ever
- * removes the run's shared event.
+ * removes the run's shared event. The Event is built by `_desk.ts`, which
+ * `44-desk-screens` shares.
  */
 
 const STAFF = ['1', 'true', 'yes'].includes((process.env.E2E_STAFF ?? '').toLowerCase());
-
-/** Not weak: `isWeakPin` refuses runs, repeats and the classics. */
-const PIN = '481902';
-
-/**
- * Capitalised on purpose.
- *
- * The gear table resolves a weapon by `registrations → tournaments.weapon →
- * slugify → weapon_catalog.slug`, and `weapon_catalog` seeds exactly ten slugs
- * (`0017_fighter_profile_links.sql`). Capitalised input proves the slugify hop
- * does real work rather than being an identity function. An INVENTED weapon
- * would fail silently — the fighter still appears with `weapons: []` and there
- * is simply no id to check against — which is why the assertion below names the
- * catalog when the list comes back empty.
- */
-const WEAPON = 'Longsword';
 
 interface RosterEntry {
   personId: string;
@@ -121,15 +113,7 @@ const gearList = async (api: Api): Promise<DeskList<GearEntry>> =>
 const arrivedCount = (entries: RosterEntry[]): number =>
   entries.filter((entry) => entry.arrived).length;
 
-interface Fixture {
-  eventId: string;
-  eventSlug: string;
-  people: Array<{ id: string; givenName: string; familyName: string }>;
-  deskUser: string;
-  gearUser: string;
-  scoringUser: string;
-  scheduledPersonId: string;
-}
+type Fixture = DeskFixture;
 
 /**
  * Every event this file creates, so a RETRY cannot leak one.
@@ -148,7 +132,7 @@ test.describe('staff desk', () => {
     const { orgId, baseURL } = runContext();
     const ctx = await organizerContext(playwright, baseURL);
     try {
-      fixture = await buildFixture(apiFor(ctx), orgId);
+      fixture = await buildDeskFixture(apiFor(ctx), orgId, createdEventIds);
     } finally {
       await ctx.dispose();
     }
@@ -157,21 +141,7 @@ test.describe('staff desk', () => {
   test.afterAll(async ({ playwright }) => {
     test.setTimeout(180_000);
     const { baseURL, orgSlug } = runContext();
-    const cleanup = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase());
-    if (createdEventIds.length === 0) return;
-    const ctx = await organizerContext(playwright, baseURL);
-    for (const id of createdEventIds) {
-      if (!cleanup) {
-        // Off the public site, still inspectable by the organisation.
-        const hidden = await ctx.patch(`/api/v1/events/${id}`, { data: { eventKind: 'test' } });
-        if (!hidden.ok()) console.warn(`[e2e] could not hide desk event ${id}: ${hidden.status()}`);
-        console.log(`[e2e] desk event PRESERVED: ${baseURL}/org/${orgSlug}/events/${id}`);
-        continue;
-      }
-      const res = await ctx.delete(`/api/v1/events/${id}?mode=hard`);
-      if (!res.ok()) console.warn(`[e2e] could not delete desk event ${id}: ${res.status()}`);
-    }
-    await ctx.dispose();
+    await disposeDeskEvents(playwright, baseURL, orgSlug, createdEventIds);
   });
 
   test('the check-in desk marks arrivals, and undo is a state change not a delete', async ({
@@ -446,179 +416,4 @@ function required(f: Fixture | null): Fixture {
 /** A UUID that belongs to nobody, for the off-roster refusal. */
 function randomUuid(): string {
   return '00000000-0000-4000-8000-0000000000ff';
-}
-
-/**
- * An organizer jar. `playwright.request.newContext` inherits NEITHER `baseURL`
- * nor `ignoreHTTPSErrors` from the config, and prod serves a dev cert — both
- * have to be passed explicitly or every call fails at the TLS handshake.
- */
-async function organizerContext(
-  playwright: { request: { newContext: (o: object) => Promise<APIRequestContext> } },
-  baseURL: string,
-): Promise<APIRequestContext> {
-  return playwright.request.newContext({
-    baseURL,
-    ignoreHTTPSErrors: true,
-    storageState: 'tests/e2e/.auth/admin.json',
-  });
-}
-
-/** A staff jar, signed in with a PIN. No organizer cookie anywhere near it. */
-async function staffContext(
-  playwright: { request: { newContext: (o: object) => Promise<APIRequestContext> } },
-  baseURL: string,
-  f: Fixture,
-  username: string,
-): Promise<APIRequestContext> {
-  // `storageState: undefined` is load-bearing, not decoration:
-  // `playwright.request.newContext()` INHERITS `use.storageState` from the
-  // config, so a jar created without it carries the organizer's
-  // `sb-access-token`. Every role refusal below would then be asserted against
-  // a session that is also an organizer — and the endpoints with an organizer
-  // branch would answer 200 for the wrong reason.
-  const ctx = await playwright.request.newContext({
-    baseURL,
-    ignoreHTTPSErrors: true,
-    storageState: undefined,
-  });
-  const api = apiFor(ctx);
-  await api.ok(
-    await api.post('staff-auth/login', {
-      data: { eventSlugOrCode: f.eventSlug, eventId: f.eventId, username, pin: PIN },
-    }),
-  );
-  return ctx;
-}
-
-/**
- * The desk's own event: a small roster, one tournament whose weapon resolves,
- * one scheduled bout, and one staff account per role.
- */
-async function buildFixture(api: Api, orgId: string): Promise<Fixture> {
-  const token = Date.now().toString(36);
-  const { eventId, eventSlug, people } = await createDeskEvent(api, orgId, token);
-  await scheduleOneBout(api, eventId, people, token);
-  const accounts = await createStaffAccounts(api, eventId, token);
-
-  return {
-    eventId,
-    eventSlug,
-    people,
-    ...accounts,
-    scheduledPersonId: people[0]!.id,
-  };
-}
-
-/** A disposable, published `club`-kind event with a four-person roster. */
-async function createDeskEvent(
-  api: Api,
-  orgId: string,
-  token: string,
-): Promise<{ eventId: string; eventSlug: string; people: Fixture['people'] }> {
-  const eventSlug = `e2e-desk-${token}`;
-  // Future dates on purpose: a pass expires at `end_date + 7 days`, so a past
-  // event would mint an already-expired pass and the scan leg would 404.
-  const event = await api.json<{ id: string }>(
-    await api.post(`organizations/${orgId}/events`, {
-      data: {
-        name: `E2E TEST (auto) desk — ${token}`,
-        slug: eventSlug,
-        startDate: '2099-06-01',
-        endDate: '2099-06-02',
-        city: 'Testville',
-        country: 'FR',
-        // Public to the participant of the pass leg, and silent on publish.
-        eventKind: 'club',
-      },
-    }),
-  );
-  createdEventIds.push(event.id);
-  // Published, as at a real venue. A participant picks themselves off the roster
-  // for the pass leg below, and a draft Event's roster is its organisation's
-  // alone: the guest-session mint refuses a draft to anyone outside it.
-  await api.ok(await api.post(`events/${event.id}/publish`, { data: {} }));
-
-  const people = await ensureRoster(api, event.id, [
-    { givenName: 'Deskcheck', familyName: `Alpha${token}` },
-    { givenName: 'Deskcheck', familyName: `Bravo${token}` },
-    { givenName: 'Deskcheck', familyName: `Charlie${token}` },
-    { givenName: 'Deskcheck', familyName: `Delta${token}` },
-  ]);
-  return { eventId: event.id, eventSlug, people };
-}
-
-/**
- * A tournament whose weapon resolves, two of the four registered, and one pool
- * match on a Lice at a known time — the only way a roster row's `next` is non-null.
- */
-async function scheduleOneBout(
-  api: Api,
-  eventId: string,
-  people: Fixture['people'],
-  token: string,
-): Promise<void> {
-  const tournament = await api.json<{ id: string }>(
-    await api.post(`events/${eventId}/tournaments`, {
-      data: { name: `Desk Cup ${token}`, slug: `desk-cup-${token}`, weapon: WEAPON, color: 'red' },
-    }),
-  );
-  // Only the first two register: the gear tabs are only interesting when some
-  // of the roster has weapons to check and some has none.
-  for (const [index, person] of people.slice(0, 2).entries()) {
-    await api.ok(
-      await api.post(`tournaments/${tournament.id}/registrations`, {
-        data: { personId: person.id, seed: index + 1 },
-      }),
-    );
-  }
-
-  const lice = await api.json<{ id: string }>(
-    await api.post(`events/${eventId}/lices`, { data: { name: `Desk Piste ${token}` } }),
-  );
-  await api.ok(
-    await api.post(`tournaments/${tournament.id}/generate-pools`, { data: { poolCount: 1 } }),
-  );
-  // `pools-with-matches` answers a bare ARRAY of pools, not `{ pools: [...] }`.
-  const pools = await api.json<Array<{ matches?: Array<{ id: string }> }>>(
-    await api.get(`tournaments/${tournament.id}/pools-with-matches`),
-  );
-  const firstMatch = pools.flatMap((p) => p.matches ?? [])[0];
-  expect(firstMatch, 'the desk fixture needs one pool match to schedule').toBeTruthy();
-  await api.ok(
-    await api.patch(`matches/${firstMatch!.id}/schedule`, {
-      data: { liceId: lice.id, scheduledAt: '2099-06-01T10:00:00.000Z' },
-    }),
-  );
-  // Published last, as an organiser does once the draw is set. A person entered
-  // only in a draft Tournament reads as unknown outside the organisation, and
-  // the pass holder is entered in this one alone.
-  await api.ok(await api.post(`tournaments/${tournament.id}/publish`, { data: {} }));
-}
-
-/** One account per role, each asserted to have been created with it. */
-async function createStaffAccounts(
-  api: Api,
-  eventId: string,
-  token: string,
-): Promise<{ deskUser: string; gearUser: string; scoringUser: string }> {
-  const deskUser = `desk${token}`.slice(0, 20);
-  const gearUser = `gear${token}`.slice(0, 20);
-  const scoringUser = `scor${token}`.slice(0, 20);
-  for (const [username, role] of [
-    [deskUser, 'checkin'],
-    [gearUser, 'gear'],
-    [scoringUser, 'scoring'],
-  ] as const) {
-    const created = await api.json<{ role: string }>(
-      await api.post(`events/${eventId}/staff-accounts`, {
-        data: { displayName: `E2E ${role} ${token}`, username, pin: PIN, role },
-      }),
-    );
-    // `role` is optional on the DTO and the column defaults to `scoring`, so an
-    // ignored field would hand every account the wrong surface and the refusal
-    // assertions elsewhere would pass for the wrong reason.
-    expect(created.role, `the ${role} account must be created with that role`).toBe(role);
-  }
-  return { deskUser, gearUser, scoringUser };
 }
