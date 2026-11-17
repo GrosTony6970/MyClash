@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { protestAtLimit, protestChipText } from './protest-chip';
+import type { MatchProtest } from '../types/match-events';
+import { liveProtestsOf, protestAtLimit, protestChipText } from './protest-chip';
+
+describe('liveProtestsOf', () => {
+  const row = (id: string, registrationId: string, voided = false) =>
+    ({ id, registration_id: registrationId, voided }) as MatchProtest;
+
+  it('keeps the Fighter’s protests that are not voided', () => {
+    const rows = [row('a', 'red'), row('b', 'red', true), row('c', 'blue'), row('d', 'red')];
+    expect(liveProtestsOf(rows, 'red').map((p) => p.id)).toEqual(['a', 'd']);
+    expect(liveProtestsOf(rows, 'blue').map((p) => p.id)).toEqual(['c']);
+  });
+});
 
 describe('protestChipText', () => {
   it('shows the count alone when the Tournament has no limit', () => {

@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 const read = (name: string) => readFileSync(join(__dirname, name), 'utf8');
 const button = read('ProtestButton.tsx');
 const column = read('ScoringColumn.tsx');
+const control = read('ProtestControl.tsx');
 const dialogs = read('MatchPauseDialogs.tsx');
 const result = read('MatchResultOverlay.tsx');
 const centre = read('ScoringCenterControls.tsx');
@@ -86,46 +87,68 @@ describe('the protest button', () => {
 describe('the pad', () => {
   it('shows the button after the card chips, live on the bout’s protest rule', () => {
     const chips = column.indexOf('data-testid="card-chip"');
-    const chip = element(column, '<ProtestButton');
-    expect(column.indexOf('<ProtestButton')).toBeGreaterThan(chips);
+    expect(column.indexOf('<ProtestControl')).toBeGreaterThan(chips);
+    expect(element(column, '<ProtestControl')).toContain('disabled={!protestLive || readOnly}');
+    const chip = element(control, '<ProtestButton');
     expect(chip).toContain('count={scoring.protestCountFor(registrationId)}');
     expect(chip).toContain('limit={protestRules.limit}');
-    expect(column).toContain('const protestRules = protestRulesOf(config.display);');
-    expect(chip).toContain('disabled={!protestLive || readOnly}');
+    expect(control).toContain('const protestRules = protestRulesOf(config.display);');
+    expect(chip).toContain('disabled={disabled}');
     expect(chip).toContain('size="pad"');
   });
 
   // A completed bout whose result screen was closed shows the columns: the button is live there,
   // card entry is not, and the offer must keep to card entry.
   it('offers the penalty after the tap, only while the pad takes a card', () => {
-    const tap = column.slice(column.indexOf('async function protest()'));
+    const tap = control.slice(control.indexOf('async function protest()'));
     const body = tap.slice(0, tap.indexOf('\n  }\n'));
     expect(body).toContain('const entry = await protestThenOffer({');
-    expect(body).toContain('tap: () => tapProtest(side),');
+    expect(body).toContain('tap: () => onProtestTap(side),');
     expect(body).toContain('seen: seenProtests.current,');
-    expect(body).toContain('cardEntryLive: scoringEnabled,');
+    expect(body).toMatch(/^\s+cardEntryLive,$/m);
+    expect(element(column, '<ProtestControl')).toContain('cardEntryLive={scoringEnabled}');
+  });
+
+  // The offer IS the confirmation: its yes gives the card of the list, through the column's one
+  // card path, with no second question.
+  it('gives the offered card at the yes, through the column’s card path', () => {
+    expect(control).toMatch(
+      /const offer = offered;\s+setOffered\(null\);\s+if \(offer\) onOfferAccepted\(offer\.entry\);/,
+    );
+    expect(element(column, '<ProtestControl')).toContain(
+      'onOfferAccepted={(entry) => void submitPenalty(listedCard(entry))}',
+    );
   });
 
   // The count after a tap is the drawn protests plus the written ones not drawn yet: the draw the
-  // column tells it is the chip's own rows (`protestsOf`, the owner of the chip's count).
+  // control tells it is the chip's own rows (`protestsOf`, the owner of the chip's count).
   it('tells the offer which protests the screen drew, from the chip’s own rows', () => {
-    expect(column).toMatch(
+    expect(control).toMatch(
       /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+registrationId,\s+\}\)/,
     );
-    expect(column).toContain('protestsShown(seenProtests.current,');
-    expect(column).toContain('}, [shownKey]);');
+    expect(control).toContain('const seenProtests = useRef(protestsSeen(matchId));');
+    expect(control).toContain(
+      'seenProtests.current = protestsShown(seenProtests.current, matchId, shown);',
+    );
   });
 
-  it('taps through the one tap handler, reading the clock at the tap', () => {
-    expect(column).toContain('useProtestTap({');
-    expect(column).toContain('clockTimeMs: protestClockMs,');
-    expect(column).toContain('onRecorded: onPenaltyRecorded');
+  // The pad opens the next bout on the same screen: the protests seen are the bout's.
+  it('starts the protests seen afresh when the bout changes', () => {
+    expect(control).toContain('}, [matchId, shownKey]);');
   });
 
-  it('reads the running clock at the tap, one getter for every protest button', () => {
-    expect(view).toContain('const protestClockMs = () => clockAtTap(clockState);');
-    expect(view.split('protestClockMs={protestClockMs}')).toHaveLength(3);
-    expect(view).toContain('clockTimeMs: protestClockMs,');
+  it('taps through the page’s one tap: no column and no control builds its own', () => {
+    expect(column).not.toContain('useProtestTap(');
+    expect(column).not.toContain('protestTap(');
+    expect(control).not.toContain('useProtestTap(');
+    expect(element(column, '<ProtestControl')).toContain('onProtestTap={onProtestTap}');
+    expect(view.split('useProtestTap(')).toHaveLength(2);
+    expect(view.split('onProtestTap={tapProtest}')).toHaveLength(3);
+    expect(view).toContain('onRecorded: moveSequenceOn,');
+  });
+
+  it('reads the running clock at the tap', () => {
+    expect(view).toContain('clockTimeMs: () => clockAtTap(clockState),');
   });
 
   it('is told the bout’s protest rule by the page: both columns and the result screen', () => {
@@ -163,6 +186,13 @@ describe('the result screen', () => {
     expect(pair).toContain('limit={protestRulesOf(props.scoringConfig.display).limit}');
     expect(pair).toContain('live={props.protestLive}');
     expect(pair).toContain('onTap={props.onProtest}');
+  });
+
+  it('never offers a card, nor does the round-break screen: the offer is the pad’s', () => {
+    for (const screen of [result, dialogs, button]) {
+      expect(screen).not.toContain('protestThenOffer');
+      expect(screen).not.toContain('ProtestControl');
+    }
   });
 
   it('keeps its history to the server’s rows: the waiting protests never reach it', () => {

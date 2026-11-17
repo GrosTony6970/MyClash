@@ -30,8 +30,8 @@ export function protestOffer(args: {
 }
 
 /**
- * One Fighter's protests as the column knows them: the ones the screen last
- * drew (`shown`, by `client_uuid`), and the ones this column wrote that the
+ * One Fighter's protests as the pad knows them: the ones the screen last
+ * drew (`shown`, by `client_uuid`), and the ones this button wrote that the
  * screen does not show yet (`unseen`). Kept across draws (a ref).
  *
  * The race it handles: a tap is written, then the screen draws the new count
@@ -41,18 +41,37 @@ export function protestOffer(args: {
  * count after a tap is the drawn protests plus the written ones not drawn yet.
  * A protest leaves `unseen` once a draw shows it, so an undo after that draw
  * takes it out of the count too.
+ *
+ * It belongs to one bout (`matchId`): the pad can open the next bout without
+ * a new screen, and a protest written in the last bout and never drawn must
+ * not count in this one.
  */
 export interface ProtestsSeen {
+  matchId: string;
   shown: ReadonlySet<string>;
   unseen: Set<string>;
 }
 
-export const protestsSeen = (): ProtestsSeen => ({ shown: new Set(), unseen: new Set() });
+export const protestsSeen = (matchId: string): ProtestsSeen => ({
+  matchId,
+  shown: new Set(),
+  unseen: new Set(),
+});
 
-/** The screen drew these protests of the Fighter: each one is counted by the draw now. */
-export function protestsShown(seen: ProtestsSeen, shown: ReadonlySet<string>): void {
-  seen.shown = shown;
-  for (const clientUuid of shown) seen.unseen.delete(clientUuid);
+/**
+ * The screen drew these protests of the Fighter in bout `matchId`: each one is
+ * counted by the draw now. It answers the state to keep: the same one, or a
+ * fresh one when the bout changed.
+ */
+export function protestsShown(
+  seen: ProtestsSeen,
+  matchId: string,
+  shown: ReadonlySet<string>,
+): ProtestsSeen {
+  const kept = seen.matchId === matchId ? seen : protestsSeen(matchId);
+  kept.shown = shown;
+  for (const clientUuid of shown) kept.unseen.delete(clientUuid);
+  return kept;
 }
 
 /** A protest was written: the Fighter's count now, with the written ones not drawn yet. */

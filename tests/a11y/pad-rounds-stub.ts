@@ -16,6 +16,7 @@ import {
   roundScore,
   type ProtestRules,
 } from './pad-rounds-score';
+import { answerProtests } from './pad-protest-routes';
 
 const PAD = 'http://localhost:3002';
 const BOUT = 'match-1';
@@ -195,25 +196,6 @@ function answerVoid(stub: Stub, route: Route, path: string) {
   return route.fulfill({ json: {} });
 }
 
-/** A protest is taken between rounds and after the end, in the round that is (or was) open. */
-function answerProtest(stub: Stub, route: Route) {
-  const body = route.request().postDataJSON() as Record<string, unknown>;
-  stub.sent.push('POST /protests');
-  const row = {
-    id: `protest-${stub.protests.length + 1}`,
-    client_uuid: body['clientUuid'],
-    match_id: BOUT,
-    registration_id: body['registrationId'],
-    sequence: body['sequence'],
-    round_number: stub.row.current_round,
-    clock_time_ms: body['clockTimeMs'] ?? null,
-    occurred_at: body['occurredAt'],
-    voided: false,
-  };
-  stub.protests.push(row);
-  return route.fulfill({ status: 201, json: row });
-}
-
 function answerRound(stub: Stub, route: Route, door: 'advance' | 'end') {
   const body = route.request().postDataJSON() as { round: number };
   stub.sent.push(`POST /rounds/${door} ${body.round}`);
@@ -323,7 +305,8 @@ export async function openBestOf(page: Page, start: Start = {}) {
     if (method === 'POST' && path.endsWith('/rounds/end')) return answerRound(stub, route, 'end');
     if (method === 'POST' && path.endsWith('/clock')) return answerClock(stub, route);
     if (method === 'POST' && path.endsWith('/exchanges')) return answerHit(stub, route);
-    if (method === 'POST' && path.endsWith('/protests')) return answerProtest(stub, route);
+    const protestDoor = answerProtests(stub, route, method, path);
+    if (protestDoor) return protestDoor;
     if (method === 'PATCH' && path.endsWith('/void')) return answerVoid(stub, route, path);
     if (method !== 'GET') return route.fulfill({ json: {} });
     if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: penaltyList });
@@ -335,7 +318,6 @@ export async function openBestOf(page: Page, start: Start = {}) {
     if (path.endsWith('/match-config')) return route.fulfill({ json: config() });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
-    if (path.endsWith('/protests')) return route.fulfill({ json: stub.protests });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });
     return route.fulfill({ status: 404, json: {} });
   });

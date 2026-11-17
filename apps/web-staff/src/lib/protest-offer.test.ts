@@ -75,8 +75,8 @@ describe('protestThenOffer', () => {
 
   it('two quick taps with no draw between them: the second, at 3 of 2, offers', async () => {
     // The chip shows 1 and the screen does not draw again before the second tap.
-    const seen = protestsSeen();
-    protestsShown(seen, new Set(['p-0']));
+    const seen = protestsSeen('m-1');
+    protestsShown(seen, 'm-1', new Set(['p-0']));
     const tap = tapsWriting('p-1', 'p-2');
 
     expect(await protestThenOffer({ tap, seen, ...RULES })).toBeNull();
@@ -84,26 +84,39 @@ describe('protestThenOffer', () => {
   });
 
   it('counts a written protest once when the screen draws it', async () => {
-    const seen = protestsSeen();
-    protestsShown(seen, new Set(['p-0']));
+    const seen = protestsSeen('m-1');
+    protestsShown(seen, 'm-1', new Set(['p-0']));
     await protestThenOffer({ tap: tapsWriting('p-1'), seen, ...RULES });
-    protestsShown(seen, new Set(['p-0', 'p-1']));
+    protestsShown(seen, 'm-1', new Set(['p-0', 'p-1']));
 
     // The third protest, not the fourth: p-1 is counted by the draw only.
     expect(protestWritten(seen, 'p-2')).toBe(3);
   });
 
   it('a protest undone after the screen drew it is out of the count', async () => {
-    const seen = protestsSeen();
-    protestsShown(seen, new Set(['p-0', 'p-1']));
-    protestsShown(seen, new Set(['p-0']));
+    const seen = protestsSeen('m-1');
+    protestsShown(seen, 'm-1', new Set(['p-0', 'p-1']));
+    protestsShown(seen, 'm-1', new Set(['p-0']));
 
     expect(protestWritten(seen, 'p-2')).toBe(2);
   });
 
+  it('the next bout starts from nothing: a protest written and never drawn stays in its bout', async () => {
+    const seen = protestsSeen('m-1');
+    protestsShown(seen, 'm-1', new Set(['p-0', 'p-1']));
+    await protestThenOffer({ tap: tapsWriting('p-2'), seen, ...RULES });
+
+    // The pad opens the next bout and draws its protests: none.
+    const next = protestsShown(seen, 'm-2', new Set());
+    expect(next).not.toBe(seen);
+    expect(protestWritten(next, 'q-1')).toBe(1);
+    // The same bout keeps its state.
+    expect(protestsShown(next, 'm-2', new Set())).toBe(next);
+  });
+
   it('a tap ignored as a double tap offers nothing', async () => {
-    const seen = protestsSeen();
-    protestsShown(seen, new Set(['p-0', 'p-1', 'p-2']));
+    const seen = protestsSeen('m-1');
+    protestsShown(seen, 'm-1', new Set(['p-0', 'p-1', 'p-2']));
 
     expect(await protestThenOffer({ tap: tapsWriting(null), seen, ...RULES })).toBeNull();
     expect(seen.unseen.size).toBe(0);

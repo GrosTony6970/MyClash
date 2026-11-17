@@ -27,7 +27,7 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
+import { liveProtestsOf, type ExchangeRow, type MatchProtest, type Penalty } from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
@@ -255,15 +255,17 @@ export function protestCountFor(args: {
   return protestsOf(args).length;
 }
 
-/** The protests the chip counts (`protestCountFor`): the Fighter's live server rows, then the queue's. */
+/**
+ * The protests the chip counts (`protestCountFor`): the Fighter's live server
+ * rows, then the queue's. "Live" is the TV chip's rule too (`liveProtestsOf`).
+ */
 export function protestsOf(args: {
   server: readonly MatchProtest[];
   pending: readonly MatchProtest[];
   registrationId: string;
 }): MatchProtest[] {
   const { server, pending, registrationId } = args;
-  const mine = (p: MatchProtest) => !p.voided && p.registration_id === registrationId;
-  return [...server.filter(mine), ...pending.filter(mine)];
+  return [...liveProtestsOf(server, registrationId), ...liveProtestsOf(pending, registrationId)];
 }
 
 /**

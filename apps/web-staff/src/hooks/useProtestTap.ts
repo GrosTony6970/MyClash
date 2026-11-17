@@ -17,7 +17,7 @@ export type { ProtestTapArgs } from '../lib/protest-tap';
 export function useProtestTap(
   args: ProtestTapArgs,
 ): (corner: 'red' | 'blue') => Promise<string | null> {
-  const inFlight = useRef(false);
-  // The ref is handed over at the tap, never during the draw.
-  return (corner) => protestTap(args, inFlight)(corner);
+  // The corners being written. The ref is read at the tap, never during the draw.
+  const inFlight = useRef(new Set<'red' | 'blue'>());
+  return (corner) => protestTap(args, inFlight.current)(corner);
 }

@@ -183,7 +183,10 @@ export interface MatchProtest {
   match_id: string;
   /** The fighter who protested. */
   registration_id: string;
-  /** The protests table's own counter — a tie-break only, never a number shown. */
+  /**
+   * The pad's one counter of the Match, shared with its hits and its cards
+   * (`UNIQUE(match_id, sequence)` on each table) — a tie-break only, never a number shown.
+   */
   sequence: number;
   /** Null while a protest made between rounds still waits on the tablet. */
   round_number: number | null;

@@ -34,7 +34,7 @@ function tapWith(over: Partial<ProtestTapArgs> = {}) {
     onRecorded: vi.fn(),
     ...over,
   };
-  return { tap: protestTap(args, { current: false }), args };
+  return { tap: protestTap(args, new Set()), args };
 }
 
 describe('a tap of the protest button', () => {
@@ -103,13 +103,29 @@ describe('a tap of the protest button', () => {
     expect(args.onRecorded).toHaveBeenCalledOnce();
   });
 
-  it('a second tap after the first was written records a second protest', async () => {
+  // Both taps read the same `nextSequence`: the screen has not drawn again between them.
+  it('a second tap after the first was written records a second protest, with its own number', async () => {
     const { tap } = tapWith();
 
     await tap('red');
     await tap('red');
 
     expect((await getAllPending()).map((row) => row.sequence)).toEqual([3, 4]);
+  });
+
+  it('two Fighters protest at once: blue’s tap while red’s is written is kept, with its own number', async () => {
+    const { tap, args } = tapWith();
+
+    const answers = await Promise.all([tap('red'), tap('blue')]);
+
+    const rows = await getAllPending();
+    expect(answers.every((answer) => answer !== null)).toBe(true);
+    expect(rows.map((row) => [row.cardedColor, row.registrationId]).sort()).toEqual([
+      ['blue', 'reg-blue'],
+      ['red', 'reg-red'],
+    ]);
+    expect(new Set(rows.map((row) => row.sequence)).size).toBe(2);
+    expect(args.onRecorded).toHaveBeenCalledTimes(2);
   });
 
   it('a protest tapped while the clock runs is saved with the clock’s time at the tap', async () => {

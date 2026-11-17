@@ -530,8 +530,6 @@ export function MatchView({
     eventOver: match.eventOver,
   });
   const clockTimeMs = clockState?.activeMs ?? null;
-  // A protest is tapped while the clock runs too: its time is read at the tap, for every protest button.
-  const protestClockMs = () => clockAtTap(clockState);
 
   // Phase time limit (ms) — drives the corrections drawer's display-anchored
   // time adjust. Null in count-up mode or when no limit is configured.
@@ -741,12 +739,16 @@ export function MatchView({
         color: sideStyle(scoringConfig, closedRound.winnerColor).border,
       }
     : null;
-  // The protest buttons of the round break and of the result: the same tap as the columns'.
+  // The pad's one protest tap: both columns, the round break and the result screen.
+  // Its double-tap guard is per corner: a second tap of a corner while its
+  // protest is being written is ignored, and a tap of the other corner is
+  // written too, with its own number (`protestTap` names the races). A protest
+  // is tapped while the clock runs too, so its time is read at the tap.
   const tapProtest = useProtestTap({
     match,
     nextSequence,
     submit,
-    clockTimeMs: protestClockMs,
+    clockTimeMs: () => clockAtTap(clockState),
     syncEngine,
     onRecorded: moveSequenceOn,
   });
@@ -851,9 +853,8 @@ export function MatchView({
         <ScoringColumn
           side="red"
           matchId={match.id}
-          match={match}
           protestLive={protestLive}
-          protestClockMs={protestClockMs}
+          onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
           registrationId={match.redRegistrationId}
@@ -913,9 +914,8 @@ export function MatchView({
         <ScoringColumn
           side="blue"
           matchId={match.id}
-          match={match}
           protestLive={protestLive}
-          protestClockMs={protestClockMs}
+          onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
           registrationId={match.blueRegistrationId}

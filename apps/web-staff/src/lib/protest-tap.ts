@@ -40,20 +40,30 @@ export function clockAtTap(state: ClockState | null, now = Date.now()): number |
  * or null when it ignored the tap, and rejects when the tablet could not keep
  * the protest.
  *
- * The race is a double tap: two taps before the screen draws again read the
- * same `nextSequence`, and both would be written (the store gives the second
- * the next number), so one tap of a finger records two protests. `inFlight`
- * holds the tap being written: a tap while it is out is ignored, and opens no
- * card offer. A second tap after the first was written records a second protest.
+ * The races, with one tap for both corners of the pad:
+ *
+ *  - A double tap. Two taps of one corner before the screen draws again read
+ *    the same `nextSequence`, and both would be written, so one tap of a finger
+ *    would record two protests. `inFlight` holds the corners being written: a
+ *    tap of a corner while its protest is out is ignored, and opens no card offer.
+ *  - Two Fighters protest at once. A tap of the OTHER corner while a protest is
+ *    being written is never dropped: it is written too, with its own number.
+ *  - A tap after a write, before the screen draws again, reads the old
+ *    `nextSequence`. A second tap of one corner after the first was written
+ *    records a second protest.
+ *
+ * Two writes never share a number, whatever `nextSequence` the tap read: the
+ * store writes one entry at a time and gives each at least the bout's next
+ * number (`enqueue`, `Math.max(entry.sequence, await nextSequence(...))`).
  */
 export function protestTap(
   args: ProtestTapArgs,
-  inFlight: { current: boolean },
+  inFlight: Set<'red' | 'blue'>,
 ): (corner: 'red' | 'blue') => Promise<string | null> {
   const { match, nextSequence, submit, clockTimeMs, syncEngine, onRecorded } = args;
   return async (corner) => {
-    if (inFlight.current) return null;
-    inFlight.current = true;
+    if (inFlight.has(corner)) return null;
+    inFlight.add(corner);
     let written: string;
     try {
       written = await queueProtest({
@@ -66,7 +76,7 @@ export function protestTap(
         cardedColor: corner,
       });
     } finally {
-      inFlight.current = false;
+      inFlight.delete(corner);
     }
     syncEngine?.sendBehind();
     onRecorded();

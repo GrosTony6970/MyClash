@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 import type { MatchProtest } from '../types/match-events';
-import { protestAtLimit, protestChipText } from '../utils/protest-chip';
+import { liveProtestsOf, protestAtLimit, protestChipText } from '../utils/protest-chip';
 import { HandMark } from './hand-mark';
 
 /**
@@ -26,7 +26,7 @@ export function TvProtestChip({
   fighterName: string;
   t: (key: string, params?: Record<string, string>) => string;
 }): React.ReactElement {
-  const count = protests.filter((p) => !p.voided && p.registration_id === registrationId).length;
+  const count = liveProtestsOf(protests, registrationId).length;
   const atLimit = protestAtLimit(count, limit);
   // Like the card chips, the chip fades at zero; the warning wins over the fade.
   const tone = atLimit
