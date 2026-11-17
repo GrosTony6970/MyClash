@@ -303,7 +303,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                       <span className="min-w-0 truncate">{currentEvent.name}</span>
                       {currentEvent.status === 'running' && (
                         <span className="shrink-0 rounded bg-danger/15 px-1 py-px text-[10px] font-bold text-danger">
-                          LIVE
+                          {t('organizer.shell.eventSwitcher.liveBadge')}
                         </span>
                       )}
                     </span>
@@ -341,7 +341,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                             <span className="truncate">{ev.name}</span>
                             {ev.status === 'running' && (
                               <span className="shrink-0 rounded bg-danger/15 px-1 py-px text-[10px] font-bold text-gold">
-                                LIVE
+                                {t('organizer.shell.eventSwitcher.liveBadge')}
                               </span>
                             )}
                           </button>

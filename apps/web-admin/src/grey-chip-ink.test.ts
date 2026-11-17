@@ -60,6 +60,13 @@ describe('the "+R" button and the sidebar LIVE badges', () => {
     );
   });
 
+  // A French organiser read "LIVE" in English: the badge was a literal (known-deviations D31).
+  it('writes both LIVE badges through i18n', () => {
+    const shell = read('OrganizerAdminShell.tsx');
+    expect(shell).not.toMatch(/>\s*LIVE\s*</);
+    expect(shell.match(/t\('organizer\.shell\.eventSwitcher\.liveBadge'\)/g)).toHaveLength(2);
+  });
+
   it('puts both LIVE badges on the lighter red wash', () => {
     const shell = read('OrganizerAdminShell.tsx');
     expect(shell).not.toContain('bg-danger/30');

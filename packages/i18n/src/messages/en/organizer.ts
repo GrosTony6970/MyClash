@@ -279,6 +279,7 @@ export const organizer = {
       noEvents: 'No events yet',
       loadFailed: 'Failed to load events',
       manageAll: 'Manage all events…',
+      liveBadge: 'LIVE',
     },
     nav: {
       overview: 'Overview',

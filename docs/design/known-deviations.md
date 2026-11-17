@@ -828,9 +828,11 @@ stylesheet, in Chromium):
 - **The "+R" red** is a penalty card's colour, not a status, so it stays a palette red (D19) and
   goes one step darker.
 
-**Still open, beside it:** both LIVE badges and the switcher write "LIVE" as a literal English
-string, outside i18n (`OrganizerAdminShell.tsx`). The `inactive` half of the penalty editor's
-`CARD_CLASSES` is never read.
+The two LIVE badges also wrote "LIVE" as a literal English string, outside i18n; since 2026-11-17
+they read `organizer.shell.eventSwitcher.liveBadge` ("EN DIRECT" in French).
+
+**Still open, beside it:** the `inactive` half of the penalty editor's `CARD_CLASSES` is never
+read.
 
 ---
 

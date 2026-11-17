@@ -273,6 +273,7 @@ export const organizer = {
       noEvents: 'Aucun événement',
       loadFailed: 'Échec du chargement des événements',
       manageAll: 'Gérer tous les événements...',
+      liveBadge: 'EN DIRECT',
     },
     nav: {
       overview: 'Vue générale',
