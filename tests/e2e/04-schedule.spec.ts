@@ -33,12 +33,16 @@ test('schedule: generate places pool matches on a lice', async ({ request }) => 
     'create lice',
   );
 
-  // 4 fighters → one round-robin pool (6 matches).
+  // 4 fighters → one round-robin pool (6 matches). The family name carries a
+  // token: Playwright retries this test in the SAME event, and a second person
+  // of an existing name is refused with 409 (persons.service duplicate-name
+  // guard), which would bury the first try's real failure.
+  const token = Date.now().toString(36);
   const personIds: string[] = [];
   for (let i = 0; i < 4; i++) {
     const res = await ok(
       await request.post(api(`events/${eventId}/persons`), {
-        data: { givenName: `E2eFighter${i}`, familyName: 'Testrunner' },
+        data: { givenName: `E2eFighter${i}`, familyName: `Testrunner ${token}` },
       }),
       `create person ${i}`,
     );
@@ -47,7 +51,7 @@ test('schedule: generate places pool matches on a lice', async ({ request }) => 
 
   const tRes = await ok(
     await request.post(api(`events/${eventId}/tournaments`), {
-      data: { name: 'E2E Schedule Cup', slug: `e2e-sched-${Date.now().toString(36)}` },
+      data: { name: 'E2E Schedule Cup', slug: `e2e-sched-${token}` },
     }),
     'create tournament',
   );
