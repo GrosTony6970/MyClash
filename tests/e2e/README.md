@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`42` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`44` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -118,6 +118,7 @@ the pass/fail record.
 | `40` | offline bout             | — always runs                                                                                                                                                                                                            |
 | `41` | next bout, no network    | `E2E_STAFF_URL`                                                                                                                                                                                                          |
 | `42` | swiss status             | `E2E_SWISS`                                                                                                                                                                                                              |
+| `44` | desk screens             | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
 
 </div>
 
@@ -692,6 +693,28 @@ Things worth knowing before touching it:
   pass.
 - It never touches `POST events/:id/passes/mail`: that emails real people.
 
+### The desk and gear screens, tapped (`44`)
+
+`E2E_STAFF=1 pnpm test:e2e:prod tests/e2e/44-desk-screens.spec.ts` drives the
+two pages `33` never opens, signed in with a real PIN on the same kind of Event
+(both build it through `_desk.ts`):
+
+| leg   | what it proves                                                                                                                                            |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| desk  | the tabs count the roster; Not arrived names the next bout; a tap is an arrival `via: 'search'` on the server; a reload keeps it; Undo reaches the server |
+| scan  | the QR lane opens and its "Desk" button comes back (no camera is driven; `33` proves a scanned token)                                                     |
+| gear  | Pass records at once; Conditional cannot be saved without a reason, and the reason reaches the server; a fighter with no weapon says so                   |
+| roles | a scoring account on `/desk` gets "Wrong account for this screen"                                                                                         |
+
+- **The login lands outside the mount.** After a PIN login the page goes to the
+  role's root-absolute path; under the admin host's `/staff` mount that is the
+  admin app's `/desk`, which does not exist. The spec asserts the session, then
+  opens `${staffBase}/desk` itself, as `18` does.
+- **No row has a role or a test id.** The spec types a unique family name into
+  the search so one row is left, then asks for page-level buttons. Every tap is
+  a POST followed by a full roster GET, so the tab counts are the settle signal.
+- Written from the code, not yet seen passing: read its first run as a first run.
+
 ## Workshops: who actually got the seat (opt-in)
 
 `E2E_WORKSHOPS=1 pnpm test:e2e:prod tests/e2e/19-workshops.spec.ts` runs
@@ -1258,6 +1281,7 @@ of the bracket says afterwards:
 | 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                          |
 | 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                  |
 | 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22` |
+| 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33` |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
