@@ -627,6 +627,49 @@ of the printable HTML exports.
 
 ---
 
+> **D26 onward were found in the readability audit of 2026-11-17**, which read the fighter app, the
+> organiser's console and `packages/ui` for ink that does not match its surface. web-staff was not
+> read.
+
+## D26 — FIXED: a fill in the organiser's colour wrote a fixed white
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17.** A solid fill in a Tournament's colour now brings its ink:
+`accentInkClassFor(token)` sits beside `accentClassFor(token)` in
+`packages/ui/src/utils/color-token.ts`. It is white on red, blue, green, purple, black, violet,
+teal and bronze, and `text-slate-900` on yellow, white, gold, silver, slate, amber and orange. A
+fill in a free hex takes `inkOnHex(hex)` (`side-color.ts`), white or black by contrast.
+`theme-ink-contrast.test.ts` measures all fifteen pairs; the lowest are green (4.95:1) and orange
+(4.98:1).
+
+**What it was.** Six places filled a chip with a colour the organiser picks and wrote `text-white`
+on it whatever the colour. Rendered and measured on 2026-11-17 (a static page built from the
+classes and web-admin's production stylesheet, in Chromium, not the running app), white on the
+fill is:
+
+| white | silver | yellow | gold | slate | amber | orange |
+| ----- | ------ | ------ | ---- | ----- | ----- | ------ |
+| 1.10  | 1.49   | 1.57   | 1.72 | 2.63  | 3.20  | 3.58   |
+
+The first four cannot be read at all. The places:
+
+- **web-public:** the selected half of the "Overall / By pool" toggle on a Tournament's Standings
+  (`t/[tournamentSlug]/StandingsView.tsx`); the rank 1 and rank 2 discs, the champion's "1" and the
+  "Season finalized" pill of a league (`leagues/[slug]/StandingsGroups.tsx`, `page.tsx`).
+- **web-admin:** the strip above each run of the detailed schedule
+  (`schedule/DetailedRunHeaders.tsx`); the "Live" pill of the brand preview on the organisation's
+  dashboard (`org/[slug]/page.tsx`), filled with the organisation's own hex.
+- **both:** the winner's score chip of a bracket card (`packages/ui` `bracket/MatchCard.tsx`).
+
+`grey`, `brown` and `pink` side colours are not tokens (D12): they resolve to the neutral slate
+fill, where white was 2.63:1.
+
+**The rule this leaves behind:** D12 said a Tournament's hue is safe as a fill and unsafe as ink.
+The other half is that the fill does not get a fixed ink either. Take both from `color-token.ts`.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

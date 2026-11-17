@@ -221,6 +221,7 @@ export type { CountryOption } from './lib/countries';
 
 export {
   accentClassFor,
+  accentInkClassFor,
   asColorToken,
   tintBgClassFor,
   tintBorderClassFor,
@@ -231,6 +232,7 @@ export type { ColorToken } from './utils/color-token';
 export {
   sideStyle,
   styleForToken,
+  inkOnHex,
   legibleOn,
   outlineInkOn,
   sideColorsFor,

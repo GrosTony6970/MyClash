@@ -218,6 +218,17 @@ export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
 }
 
 /**
+ * Ink for text on a fill of ANY hex — a colour an organiser typed, which no table can pair.
+ *
+ * Returns white or black, whichever has the higher WCAG contrast on that fill. The lower bound is
+ * 4.58:1, reached where the two cross; black rather than slate-900 is what keeps it above 4.5.
+ */
+export function inkOnHex(hex: string): '#ffffff' | '#000000' {
+  const fill = relativeLuminance(hex) + 0.05;
+  return 1.05 / fill >= fill / 0.05 ? '#ffffff' : '#000000';
+}
+
+/**
  * Ink for an OUTLINE control — one painted in a fighter's colour but with no
  * fill behind it (the pad's afterblow buttons).
  *

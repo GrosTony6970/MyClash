@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { resolveMatchWinner } from '@myclash/types';
-import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
+import { accentClassFor, accentInkClassFor, tintBgClassFor } from '../../utils/color-token';
 import { SkillBadge } from '../SkillBadge';
 import type { RoundTranslator } from '../../utils/round-label';
 import { statusLabel } from '../../utils/status-label';
@@ -333,14 +333,14 @@ function FighterRow({
 }) {
   const isTbd = name === null;
   // The row is now tinted with the side colour, so the winner chip
-  // escalates to the solid accent + white text — otherwise the tint-on-
-  // tint blends together and the winner doesn't read. Non-winner chips
+  // escalates to the solid accent + the ink that reads on it — otherwise the
+  // tint-on-tint blends together and the winner doesn't read. Non-winner chips
   // get a translucent white pill so they sit cleanly on top of the row
   // tint without forcing a neutral slate background.
   const scoreChipClasses = isTbd
     ? 'bg-white/60 text-slate-300'
     : highlight
-      ? `${accentClassFor(sideColor)} text-white font-bold`
+      ? `${accentClassFor(sideColor)} ${accentInkClassFor(sideColor)} font-bold`
       : isCompleted
         ? 'bg-white/70 text-slate-500'
         : 'bg-white/70 text-slate-600';

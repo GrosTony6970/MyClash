@@ -34,6 +34,28 @@ const ACCENT_MAP: Record<ColorToken, string> = {
   slate: 'bg-slate-400',
 };
 
+// The ink for text ON an ACCENT_MAP fill. White reads on the deep hues and cannot be read on the
+// light ones (1.1:1 on `white`, 1.5:1 on `yellow`), so the fill brings its ink with it. Every pair
+// is at least 4.5:1, measured by theme-ink-contrast.test.ts.
+// raw-color-exempt — palette definition, as above.
+const ACCENT_INK_MAP: Record<ColorToken, string> = {
+  red: 'text-white',
+  blue: 'text-white',
+  green: 'text-white',
+  yellow: 'text-slate-900',
+  purple: 'text-white',
+  orange: 'text-slate-900',
+  black: 'text-white',
+  white: 'text-slate-900',
+  amber: 'text-slate-900',
+  violet: 'text-white',
+  teal: 'text-white',
+  gold: 'text-slate-900',
+  silver: 'text-slate-900',
+  bronze: 'text-white',
+  slate: 'text-slate-900',
+};
+
 // raw-color-exempt — a token→class map IS the palette definition; see side-color.ts.
 const TINT_BG_MAP: Record<ColorToken, string> = {
   red: 'bg-red-50',
@@ -125,6 +147,16 @@ export function asColorToken(token: ColorToken | string | null | undefined): Col
 /** Solid background class (used for color stripes and accent blocks). */
 export function accentClassFor(token: ColorToken | string | null | undefined): string {
   return ACCENT_MAP[resolve(token)];
+}
+
+/**
+ * Text colour class for anything written ON an `accentClassFor` fill.
+ *
+ * Use it wherever the solid fill carries words or digits. A stripe or a dot has no ink and needs
+ * none.
+ */
+export function accentInkClassFor(token: ColorToken | string | null | undefined): string {
+  return ACCENT_INK_MAP[resolve(token)];
 }
 
 /** Soft tint background class (used for score boxes, pill backgrounds). */

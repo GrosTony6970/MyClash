@@ -19,7 +19,7 @@
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { accentClassFor, standingsColumnLabel } from '@myclash/ui';
+import { accentClassFor, accentInkClassFor, standingsColumnLabel } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
@@ -132,7 +132,7 @@ export function StandingsView({
   // back to red-800 for tournaments without one (preserves the
   // legacy look).
   const activePillClass = colorToken
-    ? `${accentClassFor(colorToken)} text-white`
+    ? `${accentClassFor(colorToken)} ${accentInkClassFor(colorToken)}`
     : 'bg-accent text-accent-foreground';
 
   // Fetch overall standings when the mode is `overall` (or on refresh).

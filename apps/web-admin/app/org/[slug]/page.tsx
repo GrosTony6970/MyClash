@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
-import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
+import { AdminPageHeader, MetricCard, StatsGrid, inkOnHex } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -475,8 +475,8 @@ function BrandColorPreview({
             </span>
           )}
           <span
-            className="rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white"
-            style={{ backgroundColor: accent }}
+            className="rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider"
+            style={{ backgroundColor: accent, color: inkOnHex(accent) }}
           >
             {t('organizer.dashboard.brand.previewLivePill')}
           </span>

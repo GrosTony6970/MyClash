@@ -496,6 +496,7 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Don't** assume dark implies blue. The scopes are orthogonal (see Colors). `/me` is light content + blue accent + dark sidebar.
 - **Don't** tint the accent per event. `/e/*` wears the same accent as every other page (see Event colour); these two lines used to say the opposite, a leftover of the tint that migration 0086 retired.
 - **Do** carry an event's identity in its logo, its hero image and its tournaments' colours.
+- **Don't** write a fixed ink on a fill the organiser picks. White cannot be read on a white, silver, yellow or gold tournament. A solid `accentClassFor(token)` fill takes `accentInkClassFor(token)`; a fill in a free hex takes `inkOnHex(hex)`.
 - **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. **`#b91c1c` is the MyClash red** — it is `--color-accent`. Its shades are tokens too: `#991b1b` is `accent-hover`, `#dc2626` is `danger`. A fourth red, the legacy `#c0392b`, used to be loose in emails, PWA chrome and event pages; it was unified onto `#b91c1c` on 2026-07-17. If you are about to type `#c0392b`, you are copying something that was removed on purpose.
 
 ### Type

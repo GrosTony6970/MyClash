@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { accentClassFor, tintBgClassFor, tintTextClassFor, type ColorToken } from '@myclash/ui';
+import {
+  accentClassFor,
+  accentInkClassFor,
+  tintBgClassFor,
+  tintTextClassFor,
+  type ColorToken,
+} from '@myclash/ui';
 
 describe('accentClassFor', () => {
   const cases: Array<[ColorToken, string]> = [
@@ -33,6 +39,21 @@ describe('accentClassFor', () => {
   it('falls back to neutral slate for null and undefined', () => {
     expect(accentClassFor(null)).toBe('bg-slate-400');
     expect(accentClassFor(undefined)).toBe('bg-slate-400');
+  });
+});
+
+describe('accentInkClassFor', () => {
+  it('writes white on a deep fill and dark ink on a light one', () => {
+    expect(accentInkClassFor('red')).toBe('text-white');
+    expect(accentInkClassFor('bronze')).toBe('text-white');
+    expect(accentInkClassFor('yellow')).toBe('text-slate-900');
+    expect(accentInkClassFor('white')).toBe('text-slate-900');
+  });
+
+  // The unknown fill is neutral slate-400, where white is 2.6:1.
+  it('takes the ink of the neutral slate fill for an unknown or missing token', () => {
+    expect(accentInkClassFor('pink')).toBe('text-slate-900');
+    expect(accentInkClassFor(null)).toBe('text-slate-900');
   });
 });
 

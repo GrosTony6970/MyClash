@@ -70,6 +70,26 @@ describe('MatchCard words', () => {
   });
 });
 
+describe("MatchCard winner's score", () => {
+  // The chip is a solid fill in the side's colour. It wrote white whatever the colour, so the
+  // winning score of a yellow or a white side could not be read (known-deviations D26).
+  const winner = (redColor: 'red' | 'yellow' | 'white') =>
+    renderToStaticMarkup(<MatchCard t={say} slot={slot()} redColor={redColor} blueColor="blue" />);
+
+  it('is white on a deep side colour', () => {
+    expect(winner('red')).toContain('bg-red-700 text-white font-bold');
+  });
+
+  it.each([
+    ['yellow', 'bg-yellow-400'],
+    ['white', 'bg-slate-100'],
+  ] as const)('is dark on a %s side', (color, fill) => {
+    const html = winner(color);
+    expect(html).toContain(`${fill} text-slate-900 font-bold`);
+    expect(html).not.toContain('text-white');
+  });
+});
+
 describe('MatchCard referees', () => {
   it("names a referee duty with no role in the reader's word, never in English", () => {
     const html = renderToStaticMarkup(

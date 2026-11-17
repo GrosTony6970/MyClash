@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { legibleOn, outlineInkOn, sideColorsFor, sideStyle } from './side-color';
+import { inkOnHex, legibleOn, outlineInkOn, sideColorsFor, sideStyle } from './side-color';
+
+describe('inkOnHex', () => {
+  // The organiser types this hex. White was the fixed ink of the brand preview pill, and on a
+  // light brand colour it could not be read (known-deviations D26).
+  it.each([
+    ['#ffffff', '#000000'],
+    ['#eab308', '#000000'],
+    ['#f59e0b', '#000000'],
+    ['#22c55e', '#000000'],
+    ['#b91c1c', '#ffffff'],
+    ['#1d4ed8', '#ffffff'],
+    ['#0f172a', '#ffffff'],
+  ])('on %s the ink is %s', (fill, ink) => {
+    expect(inkOnHex(fill)).toBe(ink);
+  });
+
+  it('takes dark ink on a value it cannot parse, as on the mid grey that value is treated as', () => {
+    expect(inkOnHex('not-a-colour')).toBe('#000000');
+  });
+});
 
 describe('outlineInkOn', () => {
   const SIDES = ['red', 'blue'] as const;

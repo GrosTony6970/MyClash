@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { accentClassFor, tintBgClassFor, tintBorderClassFor } from '@myclash/ui';
+import { accentClassFor, accentInkClassFor, tintBgClassFor, tintBorderClassFor } from '@myclash/ui';
 import { POOL_HEADER_SPAN } from './pool-header-layout';
 import type { DragPayload } from './drag-payload';
 import type { HeaderRunGroup } from './schedule-types';
@@ -107,7 +107,7 @@ export function DetailedRunHeaders({ groups, rowFor, onClearRun, onDragStart, on
                 'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
                 accentClassFor(group.tournamentColor),
                 tintBorderClassFor(group.tournamentColor),
-                'text-white',
+                accentInkClassFor(group.tournamentColor),
               ].join(' ')}
               style={{
                 gridColumn: group.liceIndex + 2,

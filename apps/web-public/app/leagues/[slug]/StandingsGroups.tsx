@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { accentClassFor } from '@myclash/ui';
+import { accentClassFor, accentInkClassFor } from '@myclash/ui';
 import { getServerT } from '@myclash/next-i18n/server';
 
 export interface LeagueDecidingTiebreak {
@@ -59,8 +59,9 @@ export function rankBadge(rank: number): React.ReactNode {
   return (
     <span
       className={[
-        'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm tabular-nums',
+        'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-sm tabular-nums',
         accentClassFor(token),
+        accentInkClassFor(token),
       ].join(' ')}
     >
       {rank}
@@ -139,8 +140,9 @@ export async function StandingsGroups({
                     >
                       <span
                         className={[
-                          'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm tabular-nums',
+                          'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-sm tabular-nums',
                           accentClassFor('gold'),
+                          accentInkClassFor('gold'),
                         ].join(' ')}
                         aria-hidden="true"
                       >

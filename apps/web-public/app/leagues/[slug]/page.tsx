@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
-import { accentClassFor } from '@myclash/ui';
+import { accentClassFor, accentInkClassFor } from '@myclash/ui';
 import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import { getServerT } from '@myclash/next-i18n/server';
 import {
@@ -167,8 +167,9 @@ export default async function PublicLeagueStandingsPage({
             {isFinalized && (
               <span
                 className={[
-                  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm',
+                  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-sm',
                   accentClassFor('gold'),
+                  accentInkClassFor('gold'),
                 ].join(' ')}
               >
                 {t('publicApp.leagues.seasonFinalized')}
