@@ -137,6 +137,31 @@ describe('ink on the dark panel, the initials disc and the stage toggles', () =>
 });
 
 /**
+ * The keyboard focus ring of every Button and dialog button. It was `gold`, 2.06:1 against a light
+ * page, under the 3:1 a focus indicator needs: a keyboard user could barely see where they were
+ * (known-deviations D32). `gold-text` is the deep amber on light and the same bright gold on dark.
+ */
+describe('the keyboard focus ring', () => {
+  const DARK = "[data-theme='dark']";
+  const NON_TEXT = 3;
+
+  it.each([
+    ['a light page', undefined, 'background'],
+    ['a light card', undefined, 'surface'],
+    ['a dark page', DARK, 'background'],
+    ['a dark card', DARK, 'surface'],
+  ])('shows on %s', (_name, scope, surface) => {
+    expect(contrast(token('gold-text', scope), token(surface, scope))).toBeGreaterThanOrEqual(
+      NON_TEXT,
+    );
+  });
+
+  it('did not show as gold on a light page', () => {
+    expect(contrast(token('gold'), token('background'))).toBeLessThan(NON_TEXT);
+  });
+});
+
+/**
  * A solid fill in a colour the organiser picked — the Standings toggle, the winner's score in the
  * bracket, the league medal discs, the run header of the schedule. Each wrote a fixed white, which
  * is 1.1:1 on a white tournament and 1.5:1 on a yellow one (known-deviations D26). The fill and

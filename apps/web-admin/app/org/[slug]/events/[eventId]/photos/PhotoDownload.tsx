@@ -46,7 +46,7 @@ export function PhotoDownload({
             t={t}
             locale={locale}
             label={t('organizer.photos.download.button')}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-text focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
             disabled={busy}
             onExport={(format) => void download(choice, format)}
           />

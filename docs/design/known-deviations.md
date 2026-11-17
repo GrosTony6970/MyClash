@@ -834,6 +834,32 @@ string, outside i18n (`OrganizerAdminShell.tsx`). The `inactive` half of the pen
 
 ---
 
+## D32 — FIXED: the keyboard focus ring could barely be seen on a light page
+
+**Rule broken:** a focus indicator clears 3:1 against what is next to it (WCAG 2.2, 1.4.11).
+
+**Fixed on 2026-11-17, by the operator's ruling: the ring stays gold, the deep one.** Every `Button`,
+every dialog button (`dialog-classes.ts`, `DIALOG_BUTTON`) and the download button of an Event's
+photos ringed in `gold`: amber-500 on a light page, 2.06:1 against the page — a keyboard user could
+barely see which control had focus. They ring in `gold-text`, measured from `theme.css`:
+
+| Surface    | `gold` (was) | `gold-text` (is) |
+| ---------- | ------------ | ---------------- |
+| light page | 2.06         | 6.79             |
+| light card | 2.15         | 7.09             |
+| dark page  | 10.69        | 10.69            |
+| dark card  | 8.76         | 8.76             |
+
+The dark scope does not move: `gold-text` is the same bright gold there. The 2026-07-27 note in D5
+("a deeper amber-500 on light where it needs the contrast") was the step this finishes.
+`theme-ink-contrast.test.ts` measures the ring on the four surfaces; `focus-ring.test.ts` and
+`photo-download-ring.test.ts` hold the three sites.
+
+**Still open, beside it:** the form fields ring in `accent` at 20–40% (`focus:ring-accent/30` and
+its kin, about 120 sites). Those were not measured in this audit.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

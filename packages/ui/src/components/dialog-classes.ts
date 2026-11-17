@@ -23,7 +23,7 @@ export const DIALOG_FIELD =
   'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20';
 
 const DIALOG_BUTTON =
-  'min-h-[44px] rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+  'min-h-[44px] rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-text focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
 
 export const DIALOG_CANCEL = `${DIALOG_BUTTON} border border-border bg-surface text-foreground-secondary hover:bg-background`;
 
