@@ -170,7 +170,7 @@ describe('the collection graph', () => {
   it('keeps every scoring table out of a structure-only archive', () => {
     // The `include` flag replaced an `if (include === 'scoring')` block, and
     // these six are exactly what that block guarded; the copies of a bout's
-    // rules (0229) go with the bouts.
+    // rules (0229) go with the bouts, and so do its protests (0276).
     const scoringOnly = names().filter((table) =>
       rulesOf(table).some(([, rule]) => rule.include === 'scoring'),
     );
@@ -182,6 +182,7 @@ describe('the collection graph', () => {
         'match_events',
         'exchanges',
         'match_penalties',
+        'match_protests',
         'match_forfeits',
         'tournament_penalty_reviews',
       ].sort(),

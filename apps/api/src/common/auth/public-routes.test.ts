@@ -168,6 +168,8 @@ const EXPECTED_PUBLIC = [
   // outsider's neighbours skip an unpublished Tournament's bouts (rulings 81-83).
   'GET /matches/:id/neighbors',
   'GET /matches/:id/penalties',
+  // A bout's protests, read as its cards are: a hidden bout answers [] (0276).
+  'GET /matches/:id/protests',
   'GET /matches/:id/summary',
   // The People hub's search cards, which never need a login (ruling 84): no
   // draft or test Event, no hidden Tournament, the country as the fighter allows.

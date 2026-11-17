@@ -398,6 +398,12 @@ const TABLES = {
     crossOrg: { null: ['ruleset_id', 'ruleset_entry_id'] },
     idMap: 'matchPenalties',
   },
+  // A protest is an entry of its bout's sheet, as a card is (0276); nothing points at one.
+  match_protests: {
+    key: 'matchProtests',
+    collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    freshClientUuid: true,
+  },
 
   match_forfeits: {
     key: 'matchForfeits',

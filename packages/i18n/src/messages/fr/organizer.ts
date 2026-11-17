@@ -3113,6 +3113,7 @@ export const organizer = {
       matchEvents: 'Événements de match',
       exchanges: 'Échanges',
       matchPenalties: 'Pénalités',
+      matchProtests: 'Réclamations',
       matchForfeits: 'Forfaits',
       tournamentPenaltyReviews: 'Revues de pénalité',
       workshops: 'Ateliers',

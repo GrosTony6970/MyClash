@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { nextSequence } from '../matches/timeline-sequence';
 import { unplayedMatchColumns } from '../matches/unplayed-match-columns';
+import { voidResetEntries } from '../matches/void-reset-entries';
 import { matchRulesetForBout } from './match-ruleset';
 
 /**
@@ -55,12 +56,7 @@ export async function revertMatchToUnplayed(
     .eq('voided', false);
   if (voidedExchanges.error) throw new BadRequestException(voidedExchanges.error.message);
 
-  const voidedPenalties = await supabase
-    .from('match_penalties')
-    .update({ voided: true, voided_reason: reason })
-    .eq('match_id', matchId)
-    .eq('voided', false);
-  if (voidedPenalties.error) throw new BadRequestException(voidedPenalties.error.message);
+  await voidResetEntries(supabase, matchId, reason);
 
   await insertResetEvent(supabase, matchId, reason, actor);
 

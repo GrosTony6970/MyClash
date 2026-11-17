@@ -7539,6 +7539,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/matches/{id}/protests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the protests of a match, voided ones included */
+    get: operations['ProtestsController_listMatchProtests'];
+    put?: never;
+    /** Record a protest of a fighter against the referee call */
+    post: operations['ProtestsController_createProtest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/match-protests/{id}/void': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Void a protest without deleting it */
+    patch: operations['ProtestsController_voidProtest'];
+    trace?: never;
+  };
   '/api/v1/notifications/vapid-public-key': {
     parameters: {
       query?: never;
@@ -12647,6 +12682,21 @@ export interface components {
       /** @enum {string} */
       status: 'confirmed' | 'dismissed';
       seenUpdatedAt: string;
+    };
+    CreateProtestDto: {
+      /** Format: uuid */
+      clientUuid: string;
+      sequence: number;
+      /** Format: uuid */
+      registrationId: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** Format: date-time */
+      sentAt?: string;
+      clockTimeMs?: number | null;
+    };
+    VoidProtestDto: {
+      reason?: string;
     };
     SubscribeDto: {
       /** Format: uri */
@@ -24426,6 +24476,71 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProtestsController_listMatchProtests: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProtestsController_createProtest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateProtestDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProtestsController_voidProtest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VoidProtestDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

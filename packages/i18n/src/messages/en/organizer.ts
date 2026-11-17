@@ -3141,6 +3141,7 @@ export const organizer = {
       matchEvents: 'Match events',
       exchanges: 'Exchanges',
       matchPenalties: 'Penalties',
+      matchProtests: 'Protests',
       matchForfeits: 'Forfeits',
       tournamentPenaltyReviews: 'Penalty reviews',
       workshops: 'Workshops',

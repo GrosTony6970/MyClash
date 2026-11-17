@@ -25,6 +25,14 @@ import { scrubPii } from './erasure-redaction';
 /** PostgREST refuses absurd `in` lists; chunk anchor ids well under any limit. */
 const ID_CHUNK = 200;
 
+/** What is recorded on the subject's own matches, by table, and the file each lands in. */
+const FILE_OF_MATCH_TABLE: Readonly<Record<string, string>> = {
+  match_events: 'exchanges.csv',
+  match_penalties: 'penalties.csv',
+  match_protests: 'protests.csv',
+  match_forfeits: 'matches.csv',
+};
+
 /**
  * The subject's identifiers, resolved once and reused for every table.
  *
@@ -68,13 +76,7 @@ export class SubjectExportService {
     // through a column on the row itself. Without these the export omits the
     // one thing a competitor actually cares about: their own fights.
     this.addRows(files, 'matches.csv', 'matches', await this.fetchOwnMatches(anchors));
-    for (const table of ['match_events', 'match_penalties', 'match_forfeits'] as const) {
-      const file =
-        table === 'match_events'
-          ? 'exchanges.csv'
-          : table === 'match_penalties'
-            ? 'penalties.csv'
-            : 'matches.csv';
+    for (const [table, file] of Object.entries(FILE_OF_MATCH_TABLE)) {
       this.addRows(files, file, table, await this.fetchByMatch(table, anchors));
     }
 

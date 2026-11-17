@@ -91,6 +91,13 @@ export const VERDICTS = [
     visible: ['ca000000-0000-4000-8000-00000000000a'],
     hidden: [],
   },
+  // A protest is read as the card beside it (0276).
+  {
+    table: 'match_protests',
+    key: 'id',
+    visible: ['b7000000-0000-4000-8000-00000000000a'],
+    hidden: [],
+  },
   {
     // A bout's copy of its rules is read with its Tournament (0229).
     table: 'match_rules',
@@ -256,6 +263,8 @@ export const API_ONLY_WRITES = [
   { table: 'match_events', key: 'id', row: 'e7000000-0000-4000-8000-00000000000a' },
   { table: 'match_penalties', key: 'id', row: 'ca000000-0000-4000-8000-00000000000a' },
   { table: 'match_forfeits', key: 'id', row: 'f0f00000-0000-4000-8000-00000000000a' },
+  // A protest, past the lock, the frozen results and the reset rule (0276).
+  { table: 'match_protests', key: 'id', row: 'b7000000-0000-4000-8000-00000000000a' },
   // A phase and a Registration, whose delete takes Match rows by cascade (0238, rulings 99 and
   // 100; their inserts and updates, 0247).
   { table: 'phases', key: 'id', row: '99999999-0000-4000-8000-00000000000a' },

@@ -2,7 +2,12 @@ import { ForbiddenException, NotFoundException, UnauthorizedException } from '@n
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
-import { mockSupabase, queriedTables, type TableSeed } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 
 /**
  * The `authorize*` family — the single choke point for every write to a bout.
@@ -186,6 +191,7 @@ interface BuildOpts {
   assigned?: boolean;
   exchange?: PointerSeed;
   penalty?: PointerSeed;
+  protest?: PointerSeed;
   forfeit?: PointerSeed;
 }
 
@@ -201,6 +207,7 @@ function build(opts: BuildOpts = {}) {
   };
   if (opts.exchange) tables['exchanges'] = pointerSeed('exchange-1', opts.exchange);
   if (opts.penalty) tables['match_penalties'] = pointerSeed('penalty-1', opts.penalty);
+  if (opts.protest) tables['match_protests'] = pointerSeed('protest-1', opts.protest);
   if (opts.forfeit) tables['match_forfeits'] = pointerSeed('forfeit-1', opts.forfeit);
 
   const getAuthUser = vi.fn().mockResolvedValue(opts.authUser ?? null);
@@ -574,19 +581,35 @@ describe('authorizeExchangeScoring', () => {
   });
 });
 
-describe('authorizePenaltyScoring', () => {
+describe('authorizeEntryScoring', () => {
   it('resolves the match from the penalty and hands off', async () => {
     const { svc } = build({ penalty: 'found' });
-    await expect(svc.authorizePenaltyScoring(staffRequest(), 'penalty-1')).resolves.toMatchObject({
-      staffAccountId: 'staff-1',
-    });
+    await expect(
+      svc.authorizeEntryScoring(staffRequest(), 'match_penalties', 'penalty-1'),
+    ).resolves.toMatchObject({ staffAccountId: 'staff-1' });
   });
 
   it('404s an unknown penalty without touching the match', async () => {
     const { svc, from } = build({ penalty: 'missing' });
-    await expect(svc.authorizePenaltyScoring(staffRequest(), 'nope')).rejects.toThrow(
-      /Penalty not found/i,
-    );
+    await expect(
+      svc.authorizeEntryScoring(staffRequest(), 'match_penalties', 'nope'),
+    ).rejects.toThrow(/Penalty not found/i);
+    expect(queriedTables(from)).not.toContain('matches');
+  });
+
+  it('resolves the match from the protest and hands off', async () => {
+    const { svc, from } = build({ protest: 'found' });
+    await expect(
+      svc.authorizeEntryScoring(staffRequest(), 'match_protests', 'protest-1'),
+    ).resolves.toMatchObject({ staffAccountId: 'staff-1' });
+    expect(selectsFor(from, 'match_protests')).toEqual(['match_id']);
+  });
+
+  it('404s an unknown protest without touching the match', async () => {
+    const { svc, from } = build({ protest: 'missing' });
+    await expect(
+      svc.authorizeEntryScoring(staffRequest(), 'match_protests', 'nope'),
+    ).rejects.toThrow(/Protest not found/i);
     expect(queriedTables(from)).not.toContain('matches');
   });
 });

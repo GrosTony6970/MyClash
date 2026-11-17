@@ -84,6 +84,8 @@ const EVENT_OF: Readonly<Record<string, Read>> = {
     db.from('match_forfeits').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
   'match-penalties': (db, id) =>
     db.from('match_penalties').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
+  'match-protests': (db, id) =>
+    db.from('match_protests').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
   'tournament-penalty-reviews': (db, id) =>
     db
       .from('tournament_penalty_reviews')

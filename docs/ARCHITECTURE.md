@@ -427,6 +427,36 @@ For fighter F in event E:
 
 **Current implementation (migration 0128): computed on-read** via the `fighter_exchange_stats(tournament_id)` Postgres function, scoped to one tournament. (The original `mv_fighter_exchange_stats` materialized view was dropped: its refresh trigger only `pg_notify`'d a channel with no listener, so it served stale data; the on-read function is always fresh and nets afterblow points correctly for both scoring modes.)
 
+### 5.3a Protests
+
+A protest ("réclamation") is one tap on the scoring pad when a Fighter disputes the referee's
+call. It is its own entry of the Match, beside its Exchanges and cards, in the table
+`match_protests` (migration `0276`): `client_uuid` (unique), `match_id`, `tournament_id`,
+`registration_id` (the Fighter who protests, red or blue), `sequence`, `round_number`,
+`clock_time_ms`, `occurred_at`, `recorded_at`, `by_user_id`, `staff_account_id`, `voided`,
+`voided_reason`.
+
+- **Order.** `sequence` comes from the pad's one counter, which Exchanges and cards already
+  share, so a protest takes its place in the Match's history. The database keeps it unique among
+  the protests of a Match only (`UNIQUE (match_id, sequence)`), as each of the other tables does
+  for its own rows: the pad's counter, not the database, keeps the three apart.
+- **Never the score.** A protest calls no score recompute and no ruleset reads it. The protests
+  service holds no scoring service at all (hard rule 1).
+- **Doors** (`apps/api/src/modules/protests`), in the card's style: `POST matches/:id/protests`
+  records one (a resend with the same `client_uuid` answers the saved row; refused on a bout not
+  started, scored before the last reset, locked, or on an over Event unless a super admin; taken
+  between rounds and on a completed bout, stamped with the bout's `current_round`);
+  `PATCH match-protests/:id/void` voids one (on an over Event, a super admin's only, as a card's
+  void); `GET matches/:id/protests` lists a Match's protests, voided ones included, in `sequence`
+  order. Who may record or void one is who may score the Match (`authorizeMatchScoring`).
+- **Reset.** A Match reset voids its live protests, as it voids its Exchanges and cards
+  (`MatchesService.resetMatch`, `revertMatchToUnplayed`): a Match fought again starts at zero
+  protests.
+- **Read rule.** The readers of `match_penalties`: anyone, for a bout of a published, running or
+  completed Event and Tournament (`match_protests_select`); the API's list answers `[]` for a bout
+  the caller may not see. Only the API writes the table. Live updates carry it (`REPLICA IDENTITY
+FULL`, the `supabase_realtime` publication).
+
 ### 5.4 Match-level statistics (timing)
 
 From `match_events` and `exchanges`:
@@ -1271,7 +1301,7 @@ still see a draft season's standings.
 ### 9.2 Mechanism
 
 - **Read-side**: clients subscribe via Supabase Realtime. Postgres `LISTEN/NOTIFY` on row changes (`exchanges`, `matches`, `match_events`) is bridged to clients with sub-second latency. RLS policies filter what each anonymous subscriber sees; the apps' live clients are anonymous, and a signed-in token's subscription answers "Error 401: Unauthorized" for itself since `0273` (it once froze every viewer's updates, ruling 822).
-- **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent. Only the API writes a Match and what is recorded on it (`matches`, `exchanges`, `match_events`, `match_penalties`, `match_forfeits`) and deletes a phase or a Registration (migration `0238`: no write policy and no write grant for anon or authenticated on the five, no DELETE grant on `phases` and `registrations`).
+- **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent. Only the API writes a Match and what is recorded on it (`matches`, `exchanges`, `match_events`, `match_penalties`, `match_forfeits`, `match_protests`) and deletes a phase or a Registration (migrations `0238` and `0276`: no write policy and no write grant for anon or authenticated on the six, no DELETE grant on `phases` and `registrations`).
 
 ```mermaid
 sequenceDiagram

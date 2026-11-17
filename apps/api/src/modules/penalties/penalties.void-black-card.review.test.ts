@@ -10,14 +10,14 @@ describe('PATCH match-penalties/:id/void: the route the pad’s undo calls', () 
   it('hands the caller "who may score" answered to the forfeit’s void', async () => {
     const { db, service } = setup();
     const staff = {
-      authorizePenaltyScoring: vi.fn().mockResolvedValue({ staffAccountId: 'pad-7' }),
+      authorizeEntryScoring: vi.fn().mockResolvedValue({ staffAccountId: 'pad-7' }),
     };
     const controller = new PenaltiesController(service, db as never, staff as never, {} as never);
     const req = { headers: {} };
 
     await controller.voidPenalty('card-black', { reason: 'wrong fighter' }, req as never);
 
-    expect(staff.authorizePenaltyScoring).toHaveBeenCalledWith(req, 'card-black');
+    expect(staff.authorizeEntryScoring).toHaveBeenCalledWith(req, 'match_penalties', 'card-black');
     expect(writesTo(db, 'match_forfeits')[0]?.row).toMatchObject({
       voided_by_staff_account_id: 'pad-7',
     });

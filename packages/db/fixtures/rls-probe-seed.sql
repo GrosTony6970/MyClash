@@ -92,6 +92,12 @@ INSERT INTO match_penalties
   ('ca000000-0000-4000-8000-00000000000a', 'ca000000-0000-4000-8000-0000000000c1',
    'dddddddd-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
    'cccccccc-0000-4000-8000-00000000000a', 1, 'yellow', '2026-10-01 10:00:00+00');
+-- A protest on the same bout, read as its card is (0276).
+INSERT INTO match_protests
+  (id, client_uuid, match_id, tournament_id, registration_id, sequence, occurred_at) VALUES
+  ('b7000000-0000-4000-8000-00000000000a', 'b7000000-0000-4000-8000-0000000000c1',
+   'dddddddd-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
+   'cccccccc-0000-4000-8000-00000000000a', 2, '2026-10-01 10:00:30+00');
 INSERT INTO match_forfeits
   (id, match_id, tournament_id, forfeiting_registration_id, winner_registration_id, reason,
    score_policy, voided_at) VALUES

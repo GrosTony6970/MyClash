@@ -360,7 +360,7 @@ export class PenaltiesController {
     @Body() dto: VoidPenaltyDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizePenaltyScoring(req, id);
+    const actor = await this.staff.authorizeEntryScoring(req, 'match_penalties', id);
     return this.penalties.voidPenalty(id, dto, actor);
   }
 

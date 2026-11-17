@@ -163,6 +163,11 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'penalties.csv',
     note: 'by_user_id is the ISSUER; penalties RECEIVED by the subject are reached via matches.',
   },
+  match_protests: {
+    reaches: [{ column: 'by_user_id', reach: 'uid' }],
+    file: 'protests.csv',
+    note: 'by_user_id is who RECORDED the protest; protests made in the subject’s own matches are reached via matches.',
+  },
   match_forfeits: {
     reaches: [
       { column: 'by_user_id', reach: 'uid' },

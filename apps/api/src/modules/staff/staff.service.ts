@@ -884,9 +884,9 @@ export class StaffService {
   }
 
   /**
-   * `whenOver` is `'leave-to-handler'` for a hit, a card, a clock press sent
-   * late and a "Start round N+1" sent late, the only WRITES that pass it
-   * (rulings 233, 240, 240a), and for the reads of
+   * `whenOver` is `'leave-to-handler'` for a hit, a card, a protest, a clock
+   * press sent late and a "Start round N+1" sent late, the only WRITES that pass
+   * it (rulings 233, 240, 240a; a protest as a card), and for the reads of
    * `authorizeMatchScoringRead` (259). A pad queues those writes offline and
    * may send them after its Event is completed or archived; their handler
    * answers one the server already holds and refuses a new one with a code the
@@ -1031,14 +1031,23 @@ export class StaffService {
     );
   }
 
-  async authorizePenaltyScoring(req: FastifyRequest, penaltyId: string): Promise<ScoringActor> {
+  /** Who may void an entry of a Match's sheet (a card, a protest): who may score its Match. */
+  async authorizeEntryScoring(
+    req: FastifyRequest,
+    table: 'match_penalties' | 'match_protests',
+    entryId: string,
+  ): Promise<ScoringActor> {
     const { data, error } = await this.supabase.service
-      .from('match_penalties')
+      .from(table)
       .select('match_id')
-      .eq('id', penaltyId)
+      .eq('id', entryId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException('Penalty not found');
+    if (!data) {
+      throw new NotFoundException(
+        table === 'match_penalties' ? 'Penalty not found' : 'Protest not found',
+      );
+    }
     return this.authorizeMatchScoring(
       req,
       (data as { match_id: string }).match_id,

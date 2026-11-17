@@ -32,6 +32,7 @@ function setup(status: string, over: Record<string, TableSeed> = {}) {
       },
       exchanges: { rows: [] },
       match_penalties: { rows: [] },
+      match_protests: { rows: [] },
       match_events: { rows: [] },
       ...over,
     }),
@@ -88,7 +89,13 @@ describe('a reset ends the requests that wait on its hits (ruling 260)', () => {
     await s.service.resetMatch('match-1', RESET, { userId: ORGANISER });
 
     expect(s.seen.atClose).toEqual(['exchanges']);
-    expect(s.seen.atTelling).toEqual(['exchanges', 'match_penalties', 'match_events', 'matches']);
+    expect(s.seen.atTelling).toEqual([
+      'exchanges',
+      'match_penalties',
+      'match_protests',
+      'match_events',
+      'matches',
+    ]);
     expect(s.frozen.tellClosedByReset.mock.calls).toEqual([[CLOSED]]);
   });
 
@@ -103,6 +110,23 @@ describe('a reset ends the requests that wait on its hits (ruling 260)', () => {
 
     expect(s.frozen.rejectPendingEditsForMatch).not.toHaveBeenCalled();
     expect(s.frozen.tellClosedByReset).not.toHaveBeenCalled();
+  });
+
+  it('protests that could not be voided stop the reset with a 400, before its line and the bout', async () => {
+    const s = setup('running', {
+      match_protests: { data: null, error: { message: 'the database is away' } },
+    });
+
+    await expect(s.service.resetMatch('match-1', RESET, { userId: ORGANISER })).rejects.toThrow(
+      BadRequestException,
+    );
+
+    // No `reset_match` line and no bout put back: a resend runs the whole reset again.
+    expect(s.supabase.writes.map((write) => write.table)).toEqual([
+      'exchanges',
+      'match_penalties',
+      'match_protests',
+    ]);
   });
 
   // The close is saved by then, and a second reset finds no request left to tell about.

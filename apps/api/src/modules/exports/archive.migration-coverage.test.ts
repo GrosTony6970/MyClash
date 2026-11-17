@@ -206,6 +206,8 @@ const FK_COLUMNS_NOT_REMAPPED = new Set<string>([
   'match_forfeits.voided_by_staff_account_id',
   'match_penalties.by_user_id',
   'match_penalties.staff_account_id',
+  'match_protests.by_user_id',
+  'match_protests.staff_account_id',
   'matches.locked_by_user_id',
   'matches.locked_by_staff_account_id',
   'matches.scorekeeper_user_id',
@@ -223,10 +225,9 @@ const FK_COLUMNS_NOT_REMAPPED = new Set<string>([
   'referee_compensation_event_settings.plan_id',
   // external identifier
   'persons.hema_ratings_id',
-  // NOT NULL, and the whole row is dropped on a cross-org restore (crossOrg:
-  // 'drop') precisely because this cannot be resolved there. On a same-org
-  // restore the venue exists and the reference is already correct, so there is
-  // nothing to remap in either case.
+  // NOT NULL, and the whole row is dropped on a cross-org restore (crossOrg: 'drop') precisely
+  // because this cannot be resolved there. On a same-org restore the venue exists and the
+  // reference is already correct, so there is nothing to remap in either case.
   'event_venues.venue_id',
 ]);
 

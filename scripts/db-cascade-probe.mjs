@@ -73,7 +73,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 77;
+const EXPECTED_CHECKS = 78;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -118,6 +118,7 @@ const SEEDED = [
   ['matches', 'id', 'ca5c0000-0000-4000-8000-000000000302'],
   ['exchanges', 'id', 'ca5c0000-0000-4000-8000-000000000401'],
   ['match_penalties', 'id', 'ca5c0000-0000-4000-8000-000000000501'],
+  ['match_protests', 'id', 'ca5c0000-0000-4000-8000-000000000521'],
   ['match_forfeits', 'id', 'ca5c0000-0000-4000-8000-000000000601'],
   ['global_persons', 'id', REFEREE],
   ['referee_assignments', 'id', 'ca5c0000-0000-4000-8000-000000000801'],

@@ -55,6 +55,7 @@ describe('the refusal of a locked bout', () => {
     'modules/matches/match-forfeits.service.ts': 2,
     'modules/matches/matches.service.ts': 1,
     'modules/penalties/penalties.service.ts': 1,
+    'modules/protests/protests.service.ts': 1,
   };
 
   const SRC = path.join(__dirname, '..', '..');

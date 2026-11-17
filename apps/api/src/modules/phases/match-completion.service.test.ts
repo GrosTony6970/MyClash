@@ -223,6 +223,7 @@ function uncompleteSupabase(fixture: {
       registrations: { rows: fixture.registrations ?? [] },
       exchanges: { rows: fixture.exchanges ?? [] },
       match_penalties: { rows: fixture.match_penalties ?? [] },
+      match_protests: { rows: [] },
       match_events: { rows: fixture.match_events ?? [] },
     }),
   );
@@ -301,6 +302,27 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     ).rejects.toThrow(ForbiddenException);
 
     expect(supabase.writes).toEqual([]);
+  });
+
+  /** A reset Match starts at zero protests (the protest counter's design, call 3). */
+  it("a reset voids the bout's live protests", async () => {
+    const supabase = uncompleteSupabase(bracketFixture(true));
+
+    await new MatchCompletionService(
+      supabase as never,
+      openEvent() as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
+
+    // `revertMatchToUnplayed` voids the protests of each bout it puts back, as it voids its hits.
+    const reverted = writesTo(supabase, 'exchanges').map((w) => scopedTo(w, 'match_id'));
+    expect(reverted.length).toBeGreaterThan(0);
+    const protests = writesTo(supabase, 'match_protests');
+    expect(protests.map((w) => scopedTo(w, 'match_id'))).toEqual(reverted);
+    for (const write of protests) {
+      expect(write.row).toEqual({ voided: true, voided_reason: expect.any(String) });
+      expect(scopedTo(write, 'voided')).toBe(false);
+    }
   });
 
   it('reverts the fought dependent when an organiser accepts the loss', async () => {

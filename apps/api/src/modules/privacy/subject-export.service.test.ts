@@ -270,6 +270,45 @@ describe('subject table census', () => {
     expect(SUBJECT_EXPORT_TABLES['spar_flag_admin']).toBeUndefined();
   });
 
+  it("a subject's protests are in protests.csv", async () => {
+    // Recorded on the subject's own bout (0276): read by the bout, as its cards are.
+    const supabase = mockSupabase({
+      match_events: { rows: [] },
+      match_penalties: { rows: [] },
+      match_forfeits: { rows: [] },
+      match_protests: {
+        rows: [
+          { id: 'protest-mine', match_id: 'm-mine', registration_id: 'r-1' },
+          { id: 'protest-theirs', match_id: 'm-other', registration_id: 'r-9' },
+        ],
+      },
+    });
+    const service = new SubjectExportService(supabase as never);
+    const internals = service as unknown as Record<string, (...args: unknown[]) => unknown>;
+    internals['resolveAnchors'] = async () => ({
+      uid: 'u-1',
+      globalPersonIds: [],
+      personIds: [],
+      registrationIds: ['r-1'],
+      matchIds: ['m-mine'],
+    });
+    internals['fetchDirect'] = async () => [];
+    internals['fetchOwnMatches'] = async () => [];
+    let packed = new Map<string, { rows: Array<{ id: string }>; tables: string[] }>();
+    internals['pack'] = (_uid: unknown, _anchors: unknown, files: unknown) => {
+      packed = files as typeof packed;
+      return { filename: 'x.zip', buffer: Buffer.alloc(0) };
+    };
+
+    await service.buildBundle('u-1');
+
+    expect(packed.get('protests.csv')).toEqual({
+      rows: [expect.objectContaining({ id: 'protest-mine' })],
+      tables: ['match_protests'],
+    });
+    expect(selectsFor(supabase.from, 'match_protests')).toEqual(['*']);
+  });
+
   it('exports the subject’s league standing even though the archive excludes it', () => {
     // Different question, different answer: cross-event and recomputed for an
     // event archive, but unambiguously about the person for a subject request.

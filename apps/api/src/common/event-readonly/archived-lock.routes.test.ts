@@ -95,6 +95,7 @@ describe('the archived-Event lock, API-wide', () => {
       'PATCH exchanges/:id/void',
       'PATCH match-forfeits/:id/void',
       'PATCH match-penalties/:id/void',
+      'PATCH match-protests/:id/void',
       'PATCH persons/:id',
       'PATCH tournament-penalty-reviews/:id',
       'POST admin/events/:eventId/leagues/recompute',
@@ -115,6 +116,7 @@ describe('the archived-Event lock, API-wide', () => {
       'POST matches/:id/exchanges',
       'POST matches/:id/level-resolution/advance',
       'POST matches/:id/penalties',
+      'POST matches/:id/protests',
       'POST matches/:id/rounds/advance',
       'POST matches/:id/rounds/end',
       'POST workshops/:id/feedback',
@@ -170,7 +172,9 @@ describe('the archived-Event lock, API-wide', () => {
     // path, not the mark.
     // 201: FightBook's `POST me/fightbook/events/:eventId/calls` (slice 5 floor tools), placed
     // by its Event: nobody posts an open call at an archived Event.
-    expect(placed).toHaveLength(201);
+    // 203: a protest's `POST matches/:id/protests` and `PATCH match-protests/:id/void` (0276),
+    // placed by their bout and opted out as a card's are: the count reads the path, not the mark.
+    expect(placed).toHaveLength(203);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

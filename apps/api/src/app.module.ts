@@ -35,6 +35,7 @@ import { PersonsModule } from './modules/persons/persons.module';
 import { CompensationModule } from './modules/compensation/compensation.module';
 import { PenaltiesModule } from './modules/penalties/penalties.module';
 import { PhasesModule } from './modules/phases/phases.module';
+import { ProtestsModule } from './modules/protests/protests.module';
 import { AIProvidersModule } from './modules/ai-providers/ai-providers.module';
 import { AIUsageModule } from './modules/ai-usage/ai-usage.module';
 import { ProgrammeModule } from './modules/programme/programme.module';
@@ -95,6 +96,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     VenuesModule,
     LeaguesModule,
     PenaltiesModule,
+    ProtestsModule,
     RegistrationsModule,
     MatchesModule,
     NotificationsModule,

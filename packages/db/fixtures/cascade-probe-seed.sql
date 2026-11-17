@@ -53,6 +53,10 @@ INSERT INTO match_penalties (id, client_uuid, match_id, tournament_id, registrat
   ('ca5c0000-0000-4000-8000-000000000501', 'ca5c0000-0000-4000-8000-000000000511',
    'ca5c0000-0000-4000-8000-000000000301', 'ca5c0000-0000-4000-8000-0000000000f1',
    'ca5c0000-0000-4000-8000-000000000202', 1, 'yellow', '2026-10-01T10:01:00Z');
+INSERT INTO match_protests (id, client_uuid, match_id, tournament_id, registration_id, sequence, occurred_at) VALUES
+  ('ca5c0000-0000-4000-8000-000000000521', 'ca5c0000-0000-4000-8000-000000000531',
+   'ca5c0000-0000-4000-8000-000000000301', 'ca5c0000-0000-4000-8000-0000000000f1',
+   'ca5c0000-0000-4000-8000-000000000201', 2, '2026-10-01T10:01:30Z');
 INSERT INTO match_forfeits (id, match_id, tournament_id, forfeiting_registration_id, winner_registration_id,
                             reason, score_policy) VALUES
   ('ca5c0000-0000-4000-8000-000000000601', 'ca5c0000-0000-4000-8000-000000000301',

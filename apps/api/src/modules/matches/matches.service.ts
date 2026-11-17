@@ -50,6 +50,7 @@ import type {
 } from './dto/matches.dto';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 import { MatchPlacementService } from './match-placement.service';
+import { voidResetEntries } from './void-reset-entries';
 
 /**
  * Structurally `ScoringActor`. Kept local so this service does not import
@@ -1057,12 +1058,7 @@ export class MatchesService {
     // of the LATER bouts it reverted.
     const closed = await this.frozenResults?.rejectPendingEditsForMatch([matchId], context?.userId);
     try {
-      const voidedPenalties = await this.supabase.service
-        .from('match_penalties')
-        .update({ voided: true, voided_reason: reason })
-        .eq('match_id', matchId)
-        .eq('voided', false);
-      if (voidedPenalties.error) throw new BadRequestException(voidedPenalties.error.message);
+      await voidResetEntries(this.supabase.service, matchId, reason);
       await this.insertMatchEvent(matchId, 'reset_match', reason, context);
       const { data, error } = await this.supabase.service
         .from('matches')

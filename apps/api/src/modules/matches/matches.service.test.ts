@@ -1049,6 +1049,7 @@ describe('MatchesService', () => {
       },
       exchanges: { rows: [] },
       match_penalties: { rows: [] },
+      match_protests: { rows: [] },
       match_events: { rows: [] },
     });
 
@@ -1162,6 +1163,21 @@ describe('MatchesService', () => {
 
       expect(scopedTo(writesTo(supabase, 'exchanges')[0], 'match_id')).toBe('match-1');
       expect(scopedTo(writesTo(supabase, 'match_penalties')[0], 'match_id')).toBe('match-1');
+    });
+
+    /** A reset Match starts at zero protests (the protest counter's design, call 3). */
+    it("a reset voids the bout's live protests", async () => {
+      const { service: resetService, supabase } = makeService(resettableMatch());
+
+      await resetService.resetMatch('match-1', {
+        confirmation: 'RESET MATCH',
+        reason: 'replay the bout',
+      });
+
+      const [write] = writesTo(supabase, 'match_protests');
+      expect(write?.row).toEqual({ voided: true, voided_reason: 'replay the bout' });
+      expect(scopedTo(write, 'match_id')).toBe('match-1');
+      expect(scopedTo(write, 'voided')).toBe(false);
     });
 
     /**

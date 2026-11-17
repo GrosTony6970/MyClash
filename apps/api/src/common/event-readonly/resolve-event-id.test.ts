@@ -50,6 +50,7 @@ const TABLE: Array<[string, string, string, (eventId: string) => object]> = [
   ['registrations', 'registrations', 'tournaments!inner(event_id)', viaTournament],
   ['match-forfeits', 'match_forfeits', 'tournaments!inner(event_id)', viaTournament],
   ['match-penalties', 'match_penalties', 'tournaments!inner(event_id)', viaTournament],
+  ['match-protests', 'match_protests', 'tournaments!inner(event_id)', viaTournament],
   [
     'tournament-penalty-reviews',
     'tournament_penalty_reviews',
@@ -264,6 +265,7 @@ describe('the embeds the lock reads', () => {
     ['registrations', 'tournaments'],
     ['match_forfeits', 'tournaments'],
     ['match_penalties', 'tournaments'],
+    ['match_protests', 'tournaments'],
     ['tournament_penalty_reviews', 'tournaments'],
     ['workshop_sessions', 'workshops'],
   ])('joins %s to %s by exactly one foreign key', (from, to) => {
