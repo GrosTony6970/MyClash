@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -111,6 +112,19 @@ describe('MatchTimeline — a protest row', () => {
   it('still lets a numbered row be spotlit', () => {
     expect(hitRow(rows(1))).toContain('rounded-md -mx-1 px-1');
     expect(protestRow(rows(1))).not.toContain('rounded-md -mx-1 px-1');
+  });
+});
+
+describe('MatchTimeline — quiet states (D40)', () => {
+  // Read as text: the fixture has no queued row and no black card to render.
+  const source = readFileSync(join(__dirname, 'MatchTimeline.tsx'), 'utf8');
+
+  it('does not fade a queued row; its "pending" mark says it', () => {
+    expect(source).not.toMatch(/(?<![\w:-])opacity-60(?![\w-])/);
+  });
+
+  it('gives the black card icon an edge ring', () => {
+    expect(source).toContain("black: 'bg-gray-900 ring-1 ring-inset ring-foreground/50'");
   });
 });
 

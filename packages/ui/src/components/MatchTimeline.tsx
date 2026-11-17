@@ -68,7 +68,8 @@ export interface MatchTimelineProps {
 const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   yellow: 'bg-yellow-500',
   red: 'bg-red-600',
-  black: 'bg-gray-900 border border-gray-600',
+  // The ring is the black card's edge: on the dark pad its fill was 1.01:1 (D40).
+  black: 'bg-gray-900 ring-1 ring-inset ring-foreground/50',
 };
 
 interface ScaleStyles {
@@ -210,10 +211,11 @@ export function MatchTimeline({
             key={ev.id}
             data-event-number={numbered ? ev.number : undefined}
             data-pending={ev.pending ? 'true' : undefined}
-            // Dimmed, not hidden and not styled as an error. A queued row is a
-            // real hit the referee scored; the only thing not yet true about it
-            // is that the server has seen it.
-            className={`${s.row}${active ? ` ${s.rowActive}` : ''}${ev.pending ? ' opacity-60' : ''}`}
+            // Not hidden and not styled as an error. A queued row is a real hit
+            // the referee scored; the only thing not yet true about it is that
+            // the server has seen it, which its own "pending" mark says. It was
+            // dimmed to 60% as well, which took its text to 2.25:1 (D40).
+            className={`${s.row}${active ? ` ${s.rowActive}` : ''}`}
             {...(onHighlightChange && numbered
               ? {
                   onPointerEnter: () => onHighlightChange(ev.number),

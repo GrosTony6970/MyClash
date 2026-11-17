@@ -81,13 +81,38 @@ function refusedWhileWaiting(phase: SyncPhase, rejected: number): boolean {
  * danger for the states that need the operator, and for a refused entry the
  * inbox holds (`refusedWhileWaiting`).
  */
+type SyncBarKind = 'online' | 'syncing' | 'operator' | 'waiting';
+
+function syncBarKind(phase: SyncPhase, rejected: number): SyncBarKind {
+  if (phase === 'online') return 'online';
+  if (phase === 'syncing') return 'syncing';
+  if (needsOperator(phase) || refusedWhileWaiting(phase, rejected)) return 'operator';
+  return 'waiting';
+}
+
+/**
+ * The bar's fill and ink. The washes are 15%, where each status ink reads (D34); at 25% they were
+ * 3.85 to 3.93:1 on the light piste list, and the grey bar wrote the muted ink on a grey wash
+ * (D31's shape), so it takes the secondary ink (D40).
+ */
+const SYNC_BAR_TONE: Record<SyncBarKind, string> = {
+  online: 'bg-success/15 text-success',
+  syncing: 'bg-warning/15 text-warning',
+  operator: 'bg-danger/15 text-danger',
+  waiting: 'bg-muted/15 text-foreground-secondary',
+};
+
 export function syncBarTone(phase: SyncPhase, rejected: number): string {
-  if (phase === 'online') return 'bg-success/25 text-success';
-  if (phase === 'syncing') return 'bg-warning/25 text-warning animate-pulse';
-  if (needsOperator(phase) || refusedWhileWaiting(phase, rejected)) {
-    return 'bg-danger/25 text-danger';
-  }
-  return 'bg-muted/25 text-muted animate-pulse';
+  return SYNC_BAR_TONE[syncBarKind(phase, rejected)];
+}
+
+/**
+ * Whether the bar's mark pulses: while it syncs, and while it waits for the network or the end of
+ * read-only mode. The words never pulse: the whole bar did, to 1.68:1 at the faint end (D40).
+ */
+export function syncBarPulses(phase: SyncPhase, rejected: number): boolean {
+  const kind = syncBarKind(phase, rejected);
+  return kind === 'syncing' || kind === 'waiting';
 }
 
 /** What the inbox holds, in the bar's words: a refused clock press is said first. */

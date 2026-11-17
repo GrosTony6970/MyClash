@@ -9,6 +9,7 @@ import {
   offersAccountSignOut,
   offersRetry,
   syncBarLabel,
+  syncBarPulses,
   syncBarTone,
   syncPhaseOf,
   type SyncPhase,
@@ -112,6 +113,31 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
 }
 
 /**
+ * The bar's words, after their mark (●, ⟳ or ⚠). While the bar syncs or waits, the mark pulses and
+ * the words stay still: the whole bar pulsed, to 1.68:1 at the faint end (D40, D35).
+ */
+function SyncBarWords({
+  label,
+  pulse,
+  pending,
+}: {
+  label: string;
+  pulse: boolean;
+  pending: number;
+}) {
+  const space = label.indexOf(' ');
+  return (
+    <span>
+      <span className={pulse ? 'inline-block motion-safe:animate-pulse' : undefined}>
+        {label.slice(0, space)}
+      </span>
+      {label.slice(space)}
+      {pending > 0 ? ` (${pending})` : ''}
+    </span>
+  );
+}
+
+/**
  * The sync bar of the bout screen and of the piste list: what the queue is
  * doing, and the way out when it needs the operator. Every decision is in `lib/sync-bar.ts`; this draws them.
  */
@@ -141,10 +167,11 @@ export function SyncBar({
       data-rejected={rejected}
       className={`flex flex-wrap items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase, rejected)}`}
     >
-      <span>
-        {syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}
-        {pending > 0 ? ` (${pending})` : ''}
-      </span>
+      <SyncBarWords
+        label={syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}
+        pulse={syncBarPulses(phase, rejected)}
+        pending={pending}
+      />
       <SyncBarActions
         phase={phase}
         rejected={rejected}

@@ -27,8 +27,8 @@ import {
   ConfirmDialog,
   MatchTimeline,
   sideStyle,
+  StatusBadge,
   statusLabelKey,
-  statusPillTone,
 } from '@myclash/ui';
 import {
   clockShouldTick,
@@ -121,7 +121,10 @@ interface ScoringCenterControlsProps {
   onAdvanceLevelResolution?: () => void;
 }
 
-/** Renders MM:SS at full size with the centiseconds (:CS) smaller + muted. */
+/**
+ * Renders MM:SS at full size with the centiseconds (:CS) at half size, never under 10px. They were
+ * also faded to 60%, and half of the 12px "total time" line is 6px (D40).
+ */
 function ClockText({ ms }: { ms: number }) {
   const s = formatClockMs(ms);
   const i = s.lastIndexOf(':');
@@ -129,7 +132,7 @@ function ClockText({ ms }: { ms: number }) {
   return (
     <>
       {s.slice(0, i)}
-      <span className="text-[0.5em] font-bold opacity-60">{s.slice(i)}</span>
+      <span className="text-[max(0.5em,10px)] font-bold">{s.slice(i)}</span>
     </>
   );
 }
@@ -169,8 +172,8 @@ export function ScoringCenterControls({
 }: ScoringCenterControlsProps) {
   const { t } = useI18n();
   // This column IS the pad, so it takes the pad scope. Needed in JS because
-  // statusPillTone picks raw palette classes by argument — they cannot follow
-  // the CSS scope the way a semantic token class does.
+  // StatusBadge picks raw palette classes by its `surface` argument — they
+  // cannot follow the CSS scope the way a semantic token class does.
   const { padScope } = useScoringTheme();
   const status = clockState?.status ?? 'idle';
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -322,21 +325,17 @@ export function ScoringCenterControls({
         </div>
       )}
 
-      {/* Status badge */}
-      {(() => {
-        const tone = statusPillTone(clockStatusSemantic(status), padScope);
-        return (
-          <span
-            data-testid="clock-status"
-            data-status={status}
-            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-widest ${tone.className} ${
-              tone.pulse ? 'animate-pulse' : ''
-            }`}
-          >
-            {t(statusLabelKey('clock', status))}
-          </span>
-        );
-      })()}
+      {/* Status badge: the shared one, whose live state pulses a dot and not the words (D35).
+          A hand-rolled copy here pulsed the whole chip, to 2.06:1 at the faint end (D40). */}
+      <StatusBadge
+        data-testid="clock-status"
+        data-status={status}
+        semantic={clockStatusSemantic(status)}
+        surface={padScope}
+        size="lg"
+      >
+        {t(statusLabelKey('clock', status))}
+      </StatusBadge>
 
       {/* SUDDEN DEATH replaces the numeral with a skull and a count-up. A
           countdown pinned at 00:00 tells the referee nothing, and the one
@@ -371,9 +370,7 @@ export function ScoringCenterControls({
                 ? 'text-foreground'
                 : status === 'halted'
                   ? 'text-warning'
-                  : status === 'ended'
-                    ? 'text-muted'
-                    : 'text-muted/70'
+                  : 'text-muted'
           }`}
         >
           <ClockText ms={shownMs} />

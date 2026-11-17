@@ -1031,6 +1031,33 @@ in any mode of the scoring app.
 
 ---
 
+## D40 — FIXED: the scoring pad faded and pulsed its words
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; quiet by colour, not by fade
+(D29); a live state pulses a mark, not its words (D35).
+
+**Fixed on 2026-11-17, on those rulings.** Measured by the scoring app's audit that day:
+
+| Where                                                  | It was                               | Ratio            | It is                                                   |
+| ------------------------------------------------------ | ------------------------------------ | ---------------- | ------------------------------------------------------- |
+| A "0" card counter                                     | the card's fill at 30%               | 1.22–2.70        | a neutral chip at full ink, a swatch in the card colour |
+| A yellow card's count                                  | white on yellow                      | 1.92             | dark ink on yellow (D26)                                |
+| The clock's "LIVE" chip                                | a hand-rolled chip pulsing its words | 4.79 → 2.06      | `StatusBadge`, whose dot pulses                         |
+| The sync bar while syncing or offline                  | the whole bar pulsing, on a 25% wash | 3.36 → 1.68      | still words, the leading mark pulses, a 15% wash        |
+| The clock's centiseconds                               | 60%; 6px on the "total time" line    | 2.25–3.31        | full ink, at least 10px                                 |
+| The idle clock                                         | the muted ink at 70%                 | 2.66 (light pad) | the muted ink                                           |
+| A queued row of the exchange timeline (`packages/ui`)  | the row at 60%                       | 2.25             | full ink; its "⟳ pending" mark says it is queued        |
+| The black card's icon in the timeline, on the dark pad | `bg-gray-900`, a gray-600 border     | 1.01 / 2.36      | an inset `ring-foreground/50`, as the card chip         |
+
+The sync bar's colour and pulse now come from one `syncBarKind`, so they cannot disagree; its grey
+bar writes the secondary ink on its wash (D31's shape). `pad-quiet-states.test.ts`,
+`held-press.test.ts` and `MatchTimeline.render.test.tsx` hold them.
+
+**Still open, beside it:** `MatchClock.tsx` is never rendered (only its `ClockState` type is
+imported); its `text-foreground` on status fills would be 1.96 to 3.01:1 if it were.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

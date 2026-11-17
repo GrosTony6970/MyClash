@@ -103,7 +103,15 @@ interface ScoringColumnProps {
 const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   yellow: 'bg-yellow-500',
   red: 'bg-red-600',
-  black: 'bg-gray-900 border border-gray-600',
+  black: 'bg-gray-900 ring-1 ring-inset ring-foreground/50',
+};
+
+// The ink each card's fill brings (D26: a fill takes its own ink). White on yellow was 1.92:1.
+// raw-color-exempt -- the inks of the domain colours above.
+const CARD_CHIP_INK: Record<PenaltyCard, string> = {
+  yellow: 'text-slate-900',
+  red: 'text-white',
+  black: 'text-white',
 };
 
 /** A penalty-list entry as a card carries it: its id for the server, its name for a held row. */
@@ -331,11 +339,19 @@ export function ScoringColumn({
                 card: cardWord(card, t),
                 fighter: fighterName,
               })}
-              className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold transition-opacity ${CARD_CHIP_COLOR[card]} text-white ${
-                count === 0 ? 'opacity-30' : ''
+              // At zero the chip turns neutral at full ink and a swatch keeps the card's colour;
+              // it was the card's fill at 30%, 1.2:1 to 2.7:1 (D40: quiet by colour, not by fade).
+              className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold ${
+                count === 0
+                  ? 'border border-border text-foreground-secondary'
+                  : `${CARD_CHIP_COLOR[card]} ${CARD_CHIP_INK[card]}`
               }`}
             >
-              <span className="inline-block h-2 w-2 rounded-sm bg-white/70" />
+              <span
+                className={`inline-block h-2 w-2 rounded-sm ${
+                  count === 0 ? CARD_CHIP_COLOR[card] : 'bg-white/70'
+                }`}
+              />
               {count}
             </span>
           );

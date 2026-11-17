@@ -19,7 +19,7 @@ import {
   heldWhoLine,
 } from './held-hit';
 import { endRefusalMessage, heldReason } from './refusal-copy';
-import { offersRetry, syncBarLabel, syncBarTone } from './sync-bar';
+import { offersRetry, syncBarLabel, syncBarPulses, syncBarTone } from './sync-bar';
 
 const t = (key: string, values?: Record<string, string | number>) =>
   values ? `${key} ${JSON.stringify(values)}` : key;
@@ -236,7 +236,21 @@ describe('the bar over a refused entry with no network', () => {
   });
 
   it('is grey with no refused entry: a hall with no wifi is no fault', () => {
-    expect(grey).toContain('text-muted');
+    // The grey wash with the secondary ink: the muted ink on it was 3.36:1 (D40).
+    expect(grey).toBe('bg-muted/15 text-foreground-secondary');
+  });
+
+  it('pulses its mark while it waits, never once it needs the official', () => {
+    expect(syncBarPulses('offline', 0)).toBe(true);
+    expect(syncBarPulses('syncing', 0)).toBe(true);
+    expect(syncBarPulses('offline', 1)).toBe(false);
+    expect(syncBarPulses('online', 0)).toBe(false);
+  });
+
+  it('never pulses the bar itself', () => {
+    for (const phase of ['online', 'syncing', 'offline', 'error', 'maintenance'] as const) {
+      expect(syncBarTone(phase, 0)).not.toContain('animate-pulse');
+    }
   });
 
   it('says the refusal, and that there is no connection', () => {
