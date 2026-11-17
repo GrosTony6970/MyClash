@@ -56,7 +56,7 @@ export function LiceMatchCard({ match, compact = false }: { match: LiceMatch; co
       className={`block min-h-[44px] rounded-xl border px-4 ${
         compact ? 'py-2' : 'py-3'
       } transition-colors hover:border-muted hover:bg-background ${
-        live ? 'border-accent bg-accent/10' : 'border-border bg-surface'
+        live ? 'border-gold-text bg-accent/10' : 'border-border bg-surface'
       }`}
     >
       <div className="flex items-start justify-between gap-3">

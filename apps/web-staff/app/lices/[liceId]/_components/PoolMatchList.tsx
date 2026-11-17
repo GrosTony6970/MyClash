@@ -153,7 +153,7 @@ function MatchRow({
     <tr
       {...activationProps(open)}
       className={[
-        'border-b border-border last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent',
+        'border-b border-border last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gold-text',
         open ? 'cursor-pointer hover:bg-surface' : '',
         // Completed rows recede; ours stays lit whatever its status.
         mine ? 'bg-accent/10' : played ? 'bg-background text-foreground-secondary' : 'bg-surface',

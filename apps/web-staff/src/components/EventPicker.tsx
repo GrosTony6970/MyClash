@@ -140,13 +140,14 @@ function EventRow({
         'w-full rounded-lg border px-4 py-3 text-left transition-colors',
         // 44px+ target: this is tapped one-handed by someone standing up.
         'min-h-[56px] [touch-action:manipulation]',
-        selected ? 'border-accent bg-accent/10' : 'border-border bg-surface hover:bg-surface/80',
+        // The outline is the only cue: gold-text reads on both themes (D39).
+        selected ? 'border-gold-text bg-accent/10' : 'border-border bg-surface hover:bg-surface/80',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
         <span className="font-semibold text-foreground">{event.name}</span>
         {remembered && (
-          <span className="shrink-0 text-xs font-semibold text-accent">
+          <span className="shrink-0 text-xs font-semibold text-foreground-secondary">
             {t('scoring.login.picker.lastUsed')}
           </span>
         )}

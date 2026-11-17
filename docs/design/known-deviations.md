@@ -1014,6 +1014,23 @@ panel's own ink, or the afterblow button's outline ink.
 
 ---
 
+## D39 — FIXED: the scoring app's red outlines vanished in the dark
+
+**Rule broken:** a focus indicator, and an outline that is the only cue of a state, clear 3:1.
+
+**Fixed on 2026-11-17, by the operator's ruling: gold-text, as the buttons' focus ring (D32).** No
+scope lightens the accent, so in the scoring app's all-dark mode the red `ring-accent` /
+`border-accent` were 2.26 to 2.76:1 against the page or card: the focus ring of the login, desk and
+gear fields and of a pool row, the live bout's card on the piste list, "your pool", and the selected
+event at login, where the outline was the only cue (its fill differed from the others by 1.06:1).
+They take `gold-text`: 6.79:1 on a light page, 10.69:1 on a dark one. The login's "Last used" tag,
+`text-accent` (2.26:1 on the dark form), takes the secondary ink. Live and selected are no longer red
+in any mode of the scoring app.
+
+`accent-outline.test.ts` scans the whole app for the accent as an outline, a ring or an ink.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

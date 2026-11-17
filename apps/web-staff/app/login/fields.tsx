@@ -9,7 +9,7 @@
  * the volunteer's is the one being typed on a borrowed tablet in a noisy hall.
  */
 export const FIELD_CLASS =
-  'w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent';
+  'w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-gold-text focus:border-transparent';
 
 interface LabelledInputProps {
   id: string;

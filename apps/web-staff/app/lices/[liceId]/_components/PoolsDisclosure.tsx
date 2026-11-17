@@ -82,7 +82,7 @@ function PoolCard({
   return (
     <section
       className={`rounded-xl border bg-surface ${
-        summary.anyOnThisLice ? 'border-accent' : 'border-border'
+        summary.anyOnThisLice ? 'border-gold-text' : 'border-border'
       }`}
     >
       <CollapsibleSection
