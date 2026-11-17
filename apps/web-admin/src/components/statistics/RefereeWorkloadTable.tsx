@@ -62,6 +62,9 @@ export function RefereeWorkloadTable({
                 <th className="px-4 py-3 text-center">
                   {t('organizer.eventStats.referees.colCards')}
                 </th>
+                <th className="px-4 py-3 text-center">
+                  {t('organizer.eventStats.referees.colProtests')}
+                </th>
                 <th className="px-4 py-3 text-right">
                   {t('organizer.eventStats.referees.colAvgTime')}
                 </th>
@@ -87,6 +90,7 @@ export function RefereeWorkloadTable({
                       ) : null}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-center text-muted">{r.protests || '—'}</td>
                   <td className="px-4 py-3 text-right font-mono text-muted">
                     {formatDuration(r.averageRefereeTimeMs)}
                   </td>

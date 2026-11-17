@@ -7,7 +7,9 @@ import { useI18n } from '@myclash/next-i18n/client';
 import {
   buildRefereeTree,
   eventKey,
+  protestsFaced,
   roundTier,
+  scopeHistory,
   tournamentKey,
   type RefereeHistoryEntry,
   type RefereeMatchRow,
@@ -104,10 +106,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
   const tree = useMemo(() => buildRefereeTree(history, t('common.unknown')), [history, t]);
 
   // Stat panel scoped to Global (all) or a single event.
-  const scoped = useMemo(
-    () => (scope === 'global' ? history : history.filter((entry) => eventKey(entry) === scope)),
-    [history, scope],
-  );
+  const scoped = useMemo(() => scopeHistory(history, scope), [history, scope]);
 
   const summary = useMemo(() => {
     const durationByMatch = new Map<string, number>();
@@ -167,6 +166,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
       totalTimeMs,
       cards,
       cardsTotal: cards.yellow + cards.red + cards.black,
+      protests: protestsFaced(scoped),
       skills: [...skills.values()]
         .filter((skill) => skill.count > 0)
         .sort((a, b) => b.count - a.count),
@@ -383,6 +383,10 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
           <RefereeStat
             label={t('publicApp.fighterProfile.cardsIssued')}
             value={summary.cardsTotal}
+          />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.protestsFaced')}
+            value={summary.protests}
           />
           {summary.activeSince && (
             <RefereeStat

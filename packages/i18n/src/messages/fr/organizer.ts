@@ -1258,6 +1258,7 @@ export const organizer = {
       colAssessor: 'Assesseur',
       colTable: 'Table',
       colCards: 'Cartons',
+      colProtests: 'Réclamations',
       colAvgTime: 'Temps moy.',
       empty: 'Aucun arbitrage enregistré pour le moment.',
     },

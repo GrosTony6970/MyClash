@@ -749,4 +749,93 @@ describe('buildFighterCareer', () => {
       },
     ]);
   });
+
+  it('places protests made in their event and weapon, only on the private path', () => {
+    const registration = (id: string, eventId: string, eventName: string, weapon: string) => ({
+      id,
+      tournamentId: `t-${id}`,
+      tournamentName: weapon,
+      tournamentSlug: weapon.toLowerCase(),
+      tournamentStatus: 'completed',
+      weapon,
+      eventId,
+      eventName,
+      eventSlug: eventId,
+      eventStatus: 'completed',
+      eventStartDate: '2026-03-01',
+      eventEndDate: '2026-03-02',
+    });
+    const base = {
+      fighterId: 'fighter-1',
+      registrations: [
+        registration('reg-ls', 'event-1', 'FAL 2026', 'Longsword'),
+        registration('reg-rap', 'event-2', 'Winter 2026', 'Rapier'),
+      ],
+      matches: [],
+      exchanges: [],
+      leagueRankings: [],
+    };
+
+    // No protests supplied → the field is omitted (public projection).
+    expect(buildFighterCareer(base)).not.toHaveProperty('protests');
+
+    const career = buildFighterCareer({
+      ...base,
+      protests: [
+        { registrationId: 'reg-ls' },
+        { registrationId: 'reg-rap' },
+        { registrationId: 'reg-ls' },
+        // A protest whose registration isn't in the career set is dropped.
+        { registrationId: 'unknown-reg' },
+      ],
+    });
+
+    const fal = {
+      eventKey: 'event-1',
+      eventId: 'event-1',
+      eventName: 'FAL 2026',
+      weapon: 'Longsword',
+    };
+    const winter = {
+      eventKey: 'event-2',
+      eventId: 'event-2',
+      eventName: 'Winter 2026',
+      weapon: 'Rapier',
+    };
+    expect(career.protests).toEqual([fal, winter, fal]);
+  });
+
+  it('leaves the cards a fighter received as they are, however many protests she made', () => {
+    const base = {
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-ls',
+          tournamentId: 't-ls',
+          tournamentName: 'Longsword',
+          tournamentSlug: 'longsword',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          eventSlug: 'fal-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-03-01',
+          eventEndDate: '2026-03-02',
+        },
+      ],
+      matches: [],
+      exchanges: [],
+      leagueRankings: [],
+      penalties: [{ registrationId: 'reg-ls', card: 'yellow', category: 'Sortie de Lice' }],
+    };
+    const without = buildFighterCareer({ ...base, protests: [] });
+    const withProtests = buildFighterCareer({
+      ...base,
+      protests: Array.from({ length: 5 }, () => ({ registrationId: 'reg-ls' })),
+    });
+    expect(withProtests.protests).toHaveLength(5);
+    expect(withProtests.penalties).toEqual(without.penalties);
+    expect(withProtests.penalties).toHaveLength(1);
+  });
 });

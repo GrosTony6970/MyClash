@@ -58,6 +58,12 @@ export interface CareerPenaltyInput {
   category: string | null;
 }
 
+/** A protest a fighter made, linked back to a career registration. Only passed on the private
+ *  `/me` path, as cards received are (ruling 846). */
+export interface CareerProtestInput {
+  registrationId: string;
+}
+
 /** Raw per-(event × weapon) combat counts. Unlike `byWeapon`/`byYear` these are
  *  NOT finalized (no winLossRatio/doubleHitPercentage) — the client sums the
  *  buckets matching the selected event+weapon scope, then derives the rates. */
@@ -84,6 +90,17 @@ export interface FighterPenalty {
   category: string | null;
 }
 
+/** The event and weapon one career row belongs to, for client-side event+weapon filtering. */
+export interface FighterScope {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+}
+
+/** A protest the fighter made. It carries nothing beyond its event and weapon. */
+export type FighterProtest = FighterScope;
+
 /** A fighter's final placement in one completed tournament, derived from the
  *  shared `computeFinalRanking` (same ordering the public tournament page
  *  shows). `place` is 1-indexed; `totalRanked` is the size of the ranked field. */
@@ -105,6 +122,9 @@ export interface BuildFighterCareerInput {
   /** Received penalty cards. Only provided on the private `/me` dashboard path;
    *  when present, the career emits an enriched `penalties` list. */
   penalties?: CareerPenaltyInput[];
+  /** Protests made. Only provided on the private `/me` dashboard path; when present, the career
+   *  emits an enriched `protests` list. */
+  protests?: CareerProtestInput[];
 }
 
 export interface FighterCareerStats {
@@ -147,6 +167,16 @@ function finalizeStats(stats: FighterCareerStats): FighterCareerStats {
  *  distinct events never collapse when an id is somehow missing). */
 function eventKeyOf(eventId: string, eventName: string): string {
   return eventId || `name:${eventName || 'unknown'}`;
+}
+
+/** The event and weapon a registration places a received card or a protest made in. */
+function scopeOf(registration: CareerRegistrationInput): FighterScope {
+  return {
+    eventKey: eventKeyOf(registration.eventId, registration.eventName),
+    eventId: registration.eventId,
+    eventName: registration.eventName,
+    weapon: registration.weapon ?? 'Unknown',
+  };
 }
 
 export function buildFighterCareer(input: BuildFighterCareerInput) {
@@ -351,18 +381,14 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     ? input.penalties.flatMap((penalty) => {
         const registration = registrationById.get(penalty.registrationId);
         if (!registration) return [];
-        return [
-          {
-            eventKey: eventKeyOf(registration.eventId, registration.eventName),
-            eventId: registration.eventId,
-            eventName: registration.eventName,
-            weapon: registration.weapon ?? 'Unknown',
-            card: penalty.card,
-            category: penalty.category,
-          },
-        ];
+        return [{ ...scopeOf(registration), card: penalty.card, category: penalty.category }];
       })
     : undefined;
+  // Protests made, enriched the same way — only when the caller supplied them (private path).
+  const protests: FighterProtest[] | undefined = input.protests?.flatMap((protest) => {
+    const registration = registrationById.get(protest.registrationId);
+    return registration ? [scopeOf(registration)] : [];
+  });
 
   return {
     recentForm,
@@ -416,5 +442,6 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       byEvent: [...byEvent.values()],
     },
     ...(penalties ? { penalties } : {}),
+    ...(protests ? { protests } : {}),
   };
 }

@@ -28,8 +28,11 @@ import { aggregateTargetValues, type TargetValueRow } from '../stats/target-valu
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import {
   buildRefereeStats,
+  declarantMatchIdsOf,
+  protestsFacedBy,
   type RefereeAssignmentInput,
   type RefereePenaltyInput,
+  type RefereeProtestInput,
   type RefereeMatchDurationInput,
 } from '../fighters/referee-stats';
 import type {
@@ -324,6 +327,7 @@ export class EventStatsService {
     const durations = [...durationByMatch.values()];
 
     const penalties = await this.getEventPenalties(tournamentIds);
+    const protests = await this.getEventProtests(tournamentIds);
     const namesByPerson = await this.resolvePersonNames([
       ...new Set(assignments.map((a) => a.userId)),
     ]);
@@ -339,6 +343,8 @@ export class EventStatsService {
         matchesReffed: s.totalMatches,
         roles: s.roles,
         cards: s.cards,
+        // On the completed Matches this referee led, as cards are (ruling 852: organisers only).
+        protests: protestsFacedBy(declarantMatchIdsOf(assignments, personId), protests).total,
         averageRefereeTimeMs: s.averageRefereeTimeMs,
       };
     });
@@ -363,6 +369,20 @@ export class EventStatsService {
         voided: r.voided,
       }),
     );
+  }
+
+  private async getEventProtests(tournamentIds: string[]): Promise<RefereeProtestInput[]> {
+    if (tournamentIds.length === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('match_protests')
+      .select('match_id, voided')
+      .in('tournament_id', tournamentIds)
+      .eq('voided', false);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<{ match_id: string; voided: boolean }>).map((r) => ({
+      matchId: r.match_id,
+      voided: r.voided,
+    }));
   }
 
   /** Resolve referee identities (person_id = global_persons.id) to display

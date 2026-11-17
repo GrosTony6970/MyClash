@@ -60,6 +60,8 @@ export interface RefereeWorkloadRow {
   matchesReffed: number;
   roles: { arbitre_declarant: number; arbitre_assesseur: number; arbitre_table: number };
   cards: { yellow: number; red: number; black: number };
+  /** Protests on the completed Matches this referee led, voided ones aside. */
+  protests: number;
   averageRefereeTimeMs: number;
 }
 

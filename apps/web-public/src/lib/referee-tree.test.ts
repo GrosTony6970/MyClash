@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildRefereeTree, type RefereeHistoryEntry } from './referee-tree';
+import {
+  buildRefereeTree,
+  protestsFaced,
+  scopeHistory,
+  type RefereeHistoryEntry,
+} from './referee-tree';
 
 let seq = 0;
 function bout(patch: Partial<RefereeHistoryEntry>): RefereeHistoryEntry {
@@ -22,6 +27,7 @@ function bout(patch: Partial<RefereeHistoryEntry>): RefereeHistoryEntry {
     bracketRound: null,
     bracketSize: null,
     cards: { yellow: 0, red: 0, black: 0 },
+    protests: 0,
     sideColors: null,
     coReferees: [],
     redFighterName: null,
@@ -87,5 +93,25 @@ describe('buildRefereeTree order', () => {
     ];
     const [event] = buildRefereeTree(history, '?');
     expect([...event!.tournaments.values()].map((t) => t.name)).toEqual(['Evening', 'Morning']);
+  });
+});
+
+// The referee's own stat panel totals the protests she faced in the scope she picked: all her
+// Events, or one. A Match she held two roles on is in her history twice, and counts once.
+describe('protests faced, per Event scope', () => {
+  const history = [
+    bout({ matchId: 'm-old-1', protests: 2 }),
+    bout({ matchId: 'm-old-2', protests: 1 }),
+    bout({ matchId: 'm-new', eventId: 'ev-new', eventName: 'Cup 2026', protests: 4 }),
+    bout({ matchId: 'm-new', eventId: 'ev-new', eventName: 'Cup 2026', protests: 4 }),
+  ];
+
+  it('sums every Event in the global scope', () => {
+    expect(protestsFaced(scopeHistory(history, 'global'))).toBe(7);
+  });
+
+  it('sums one Event when the panel is scoped to it', () => {
+    expect(protestsFaced(scopeHistory(history, 'ev-old'))).toBe(3);
+    expect(protestsFaced(scopeHistory(history, 'ev-new'))).toBe(4);
   });
 });

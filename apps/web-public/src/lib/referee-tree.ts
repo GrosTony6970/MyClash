@@ -27,6 +27,8 @@ export interface RefereeHistoryEntry {
   bracketRound: number | null;
   bracketSize: number | null;
   cards: { yellow: number; red: number; black: number };
+  /** Protests faced in this match (declarant only, as cards). The private history alone has it. */
+  protests: number;
   /** The tournament's configured fighter-side colour tokens. */
   sideColors: { red: string; blue: string } | null;
   coReferees: {
@@ -64,6 +66,18 @@ export function eventKey(entry: RefereeHistoryEntry): string {
 }
 export function tournamentKey(entry: RefereeHistoryEntry): string {
   return entry.tournamentId ?? `name:${entry.tournamentName ?? 'unknown'}`;
+}
+
+/** The stat panel's scope: every bout for 'global', else the bouts of one Event (by `eventKey`). */
+export function scopeHistory(history: RefereeHistoryEntry[], scope: string): RefereeHistoryEntry[] {
+  return scope === 'global' ? history : history.filter((entry) => eventKey(entry) === scope);
+}
+
+/** Protests faced across these bouts. A Match the referee held two roles on is in the history
+ *  twice and counts once, as its cards do. */
+export function protestsFaced(entries: RefereeHistoryEntry[]): number {
+  const byMatch = new Map(entries.map((entry) => [entry.matchId, entry.protests]));
+  return [...byMatch.values()].reduce((sum, count) => sum + count, 0);
 }
 
 interface SkillRef {

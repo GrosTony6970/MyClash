@@ -1263,6 +1263,7 @@ export const organizer = {
       colAssessor: 'Assessor',
       colTable: 'Table',
       colCards: 'Cards',
+      colProtests: 'Protests',
       colAvgTime: 'Avg. time',
       empty: 'No refereeing recorded yet.',
     },

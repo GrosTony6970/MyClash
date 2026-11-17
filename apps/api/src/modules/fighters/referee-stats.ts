@@ -46,6 +46,12 @@ export interface RefereePenaltyInput {
   voided: boolean;
 }
 
+/** A protest made on a Match. It counts for the Match's declarant referee, as a card does. */
+export interface RefereeProtestInput {
+  matchId: string;
+  voided: boolean;
+}
+
 export interface RefereeBuddyInput {
   userId: string;
   displayName: string | null;
@@ -75,6 +81,8 @@ export interface RefereeStatsInput {
   assignments: RefereeAssignmentInput[];
   durations: RefereeMatchDurationInput[];
   penalties: RefereePenaltyInput[];
+  /** Protests made on the referee's Matches. Private (ruling 850): read for the history only. */
+  protests?: RefereeProtestInput[];
   buddiesByUserId?: Record<string, RefereeBuddyInput>;
   includePrivateDetails?: boolean;
   skillsByRole?: Map<string, RefereeSkillInfo>;
@@ -117,6 +125,9 @@ export interface RefereeHistoryEntry {
    *  (mirrors the top-level `cards` semantics) — lets the FE sum cards per
    *  event when the stat panel is scoped to a single event. */
   cards: { yellow: number; red: number; black: number };
+  /** Protests faced in this match, counted as cards are (declarant only, voided ones aside).
+   *  Private: only the history carries it, and only the referee and organisers read it. */
+  protests: number;
   /** Other referees on the same match (excludes the viewer), each with their
    *  referee skill. Deduped by personId, stably ordered. */
   coReferees: RefereeCoRefereeEntry[];
@@ -147,11 +158,7 @@ const CARD_KEYS: RefereeCard[] = ['yellow', 'red', 'black'];
 export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
   const mine = input.assignments.filter((assignment) => assignment.userId === input.userId);
   const matchIds = new Set(mine.map((assignment) => assignment.matchId));
-  const declarantMatchIds = new Set(
-    mine
-      .filter((assignment) => assignment.role === 'arbitre_declarant')
-      .map((assignment) => assignment.matchId),
-  );
+  const declarantMatchIds = declarantMatchIdsOf(input.assignments, input.userId);
   const durationByMatch = new Map(
     input.durations.map((duration) => [duration.matchId, resolveDurationMs(duration)]),
   );
@@ -181,6 +188,8 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
     perMatch[penalty.card] += 1;
     cardsByMatch.set(penalty.matchId, perMatch);
   }
+
+  const protestsByMatch = protestsFacedBy(declarantMatchIds, input.protests ?? []).byMatch;
 
   // Single source of truth for "who else was on this match" — reused by both
   // the buddy aggregate and the per-match co-referee history below.
@@ -242,6 +251,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               bracketRound: assignment.bracketRound ?? null,
               bracketSize: assignment.bracketSize ?? null,
               cards: cardsByMatch.get(assignment.matchId) ?? { yellow: 0, red: 0, black: 0 },
+              protests: protestsByMatch.get(assignment.matchId) ?? 0,
               coReferees: buildCoReferees(assignmentsByMatch.get(assignment.matchId) ?? [], input),
               redFighterName: fighters?.redName ?? null,
               blueFighterName: fighters?.blueName ?? null,
@@ -253,6 +263,35 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
         }
       : {}),
   };
+}
+
+/** The Matches `userId` led as declarant referee: the ones their cards and protests count on. */
+export function declarantMatchIdsOf(
+  assignments: RefereeAssignmentInput[],
+  userId: string,
+): Set<string> {
+  return new Set(
+    assignments
+      .filter(
+        (assignment) => assignment.userId === userId && assignment.role === 'arbitre_declarant',
+      )
+      .map((assignment) => assignment.matchId),
+  );
+}
+
+/** Protests a referee faced: those on the Matches they led, voided ones aside. */
+export function protestsFacedBy(
+  declarantMatchIds: ReadonlySet<string>,
+  protests: RefereeProtestInput[],
+): { total: number; byMatch: Map<string, number> } {
+  const byMatch = new Map<string, number>();
+  let total = 0;
+  for (const protest of protests) {
+    if (protest.voided || !declarantMatchIds.has(protest.matchId)) continue;
+    total += 1;
+    byMatch.set(protest.matchId, (byMatch.get(protest.matchId) ?? 0) + 1);
+  }
+  return { total, byMatch };
 }
 
 /** Resolve the co-referees on a match: every assignment except the viewer's,

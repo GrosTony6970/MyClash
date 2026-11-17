@@ -7,9 +7,13 @@ import {
 } from '@nestjs/common';
 import type { EventKind } from '@myclash/types';
 import {
+  filtersFor,
   mockSupabase as seededSupabase,
+  queriedTables,
+  selectsFor,
   type ChainResult,
   type SupabaseRow,
+  type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { FightersService, parseBoolCell } from './fighters.service';
 import {
@@ -1388,6 +1392,210 @@ describe('listGlobalPersons projection', () => {
     expect(columns).toContain('clubs(');
   });
 });
+
+// Anna led one Match and assessed another; two protests were made on the first, one (voided) on
+// it as well, and one on the second. Her own page counts two, on the Match she led. Her public page
+// reads no protest and says nothing of one (ruling 850).
+describe("a referee's protests faced", () => {
+  const SPRING = {
+    id: 'e-spring',
+    name: 'Spring Open',
+    event_kind: 'standard',
+    status: 'published',
+  };
+  const duty = (matchId: string, personId: string, role: string) => ({
+    match_id: matchId,
+    person_id: personId,
+    role,
+    scope_type: 'match',
+    matches: {
+      id: matchId,
+      status: 'completed',
+      scheduled_at: null,
+      pool_id: null,
+      bracket_slot_id: null,
+      pools: null,
+      bracket_slots: null,
+      phases: {
+        type: 'pool',
+        config_json: null,
+        tournaments: {
+          id: 't-ls',
+          name: 'Longsword',
+          weapon: 'longsword',
+          scoring_config_json: null,
+          status: 'published',
+          events: SPRING,
+        },
+      },
+    },
+  });
+  const tables = (): Record<string, TableSeed> => ({
+    global_persons: {
+      rows: [
+        { id: 'gp-anna', slug: 'anna', made_outside_roster: true },
+        { id: 'gp-lead', given_name: 'Lea', family_name: 'Lead' },
+      ],
+    },
+    referee_assignments: {
+      rows: [
+        duty('m-led', 'gp-anna', 'arbitre_declarant'),
+        duty('m-assessed', 'gp-anna', 'arbitre_assesseur'),
+        duty('m-assessed', 'gp-lead', 'arbitre_declarant'),
+      ] as never,
+    },
+    matches: {
+      rows: ['m-led', 'm-assessed'].map((id) => ({
+        id,
+        duration_active_ms: 60_000,
+        match_events: [],
+        red_registration_id: null,
+        blue_registration_id: null,
+        red_score: 0,
+        blue_score: 0,
+        winner_registration_id: null,
+      })),
+    },
+    match_penalties: { rows: [{ match_id: 'm-led', card: 'yellow', voided: false }] },
+    match_protests: {
+      rows: [
+        { match_id: 'm-led', voided: false },
+        { match_id: 'm-led', voided: false },
+        { match_id: 'm-led', voided: true },
+        { match_id: 'm-assessed', voided: false },
+      ],
+    },
+    referee_skills: { rows: [] },
+  });
+
+  it('reads no protest on the public page and says nothing of one', async () => {
+    const db = seededSupabase(tables());
+    const stats = await new FightersService(db as never, {} as never).getRefereeStatsBySlug('anna');
+    expect(queriedTables(db.from)).not.toContain('match_protests');
+    expect(JSON.stringify(stats)).not.toMatch(/protest/i);
+    expect(stats.cards).toEqual({ yellow: 1, red: 0, black: 0 });
+  });
+
+  it('counts them per Match in her own history, on the Match she led', async () => {
+    const db = seededSupabase(tables());
+    const service = new FightersService(db as never, {} as never);
+    vi.spyOn(service, 'getMyProfile').mockResolvedValue({ id: 'gp-anna' } as never);
+    const stats = await service.getMyRefereeStats('user-anna');
+    expect(stats.history?.map((entry) => [entry.matchId, entry.protests])).toEqual([
+      ['m-led', 2],
+      ['m-assessed', 0],
+    ]);
+    expect(stats).not.toHaveProperty('protestsFaced');
+    expect(stats.cards).toEqual({ yellow: 1, red: 0, black: 0 });
+    expect(selectsFor(db.from, 'match_protests')).toEqual(['match_id, voided']);
+    expect(filtersFor(db.from, 'match_protests', 'in')).toEqual([
+      ['match_id', ['m-led', 'm-assessed']],
+    ]);
+  });
+
+  // Best-effort, so her page still loads; the failure leaves a trace in the log.
+  it('counts none on a failed read, and says so in the log', async () => {
+    const db = seededSupabase({
+      ...tables(),
+      match_protests: { data: null, error: { message: 'protest read refused' } },
+    });
+    const service = new FightersService(db as never, {} as never);
+    vi.spyOn(service, 'getMyProfile').mockResolvedValue({ id: 'gp-anna' } as never);
+    const warn = vi.spyOn(logOf(service), 'warn').mockImplementation(() => undefined);
+    const stats = await service.getMyRefereeStats('user-anna');
+    expect(stats.history?.map((entry) => entry.protests)).toEqual([0, 0]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('protest read refused');
+  });
+});
+
+// A fighter's own dashboard counts the protests she made (ruling 846: private, like the cards she
+// received). The public career reads none.
+describe("a fighter's protests made", () => {
+  const registration = {
+    id: 'reg-ls',
+    tournament_id: 't-ls',
+    status: 'confirmed',
+    persons: { global_person_id: 'gp-anna' },
+    tournaments: {
+      id: 't-ls',
+      name: 'Longsword',
+      slug: 'longsword',
+      status: 'published',
+      weapon: 'Longsword',
+      events: {
+        id: 'e-spring',
+        name: 'Spring Open',
+        slug: 'spring',
+        status: 'published',
+        start_date: '2026-03-01',
+        end_date: null,
+        event_kind: 'standard',
+      },
+    },
+  };
+  const tables = (): Record<string, TableSeed> => ({
+    registrations: { data: [registration], error: null },
+    matches: { data: [], error: null },
+    league_rankings: { data: [], error: null },
+    match_penalties: { data: [], error: null },
+    match_protests: {
+      data: [
+        { registration_id: 'reg-ls', voided: false },
+        { registration_id: 'reg-ls', voided: false },
+      ],
+      error: null,
+    },
+  });
+
+  it('reads her unvoided protests and places each in its Event and weapon', async () => {
+    const db = seededSupabase(tables());
+    const career = await new FightersService(db as never, {} as never).getCareerForFighter(
+      'gp-anna',
+      {},
+      { includePenalties: true },
+    );
+    const spring = {
+      eventKey: 'e-spring',
+      eventId: 'e-spring',
+      eventName: 'Spring Open',
+      weapon: 'Longsword',
+    };
+    expect(career.protests).toEqual([spring, spring]);
+    expect(selectsFor(db.from, 'match_protests')).toEqual(['registration_id, voided']);
+    expect(filtersFor(db.from, 'match_protests', 'in')).toEqual([['registration_id', ['reg-ls']]]);
+    expect(filtersFor(db.from, 'match_protests', 'eq')).toEqual([['voided', false]]);
+  });
+
+  it('reads none for the public career', async () => {
+    const db = seededSupabase(tables());
+    const career = await new FightersService(db as never, {} as never).getCareerForFighter(
+      'gp-anna',
+      {},
+    );
+    expect(queriedTables(db.from)).not.toContain('match_protests');
+    expect(career).not.toHaveProperty('protests');
+  });
+
+  // Best-effort, so the dashboard still loads; the failure leaves a trace in the log.
+  it('answers none on a failed read, and says so in the log', async () => {
+    const db = seededSupabase({
+      ...tables(),
+      match_protests: { data: null, error: { message: 'protest read refused' } },
+    });
+    const service = new FightersService(db as never, {} as never);
+    const warn = vi.spyOn(logOf(service), 'warn').mockImplementation(() => undefined);
+    const career = await service.getCareerForFighter('gp-anna', {}, { includePenalties: true });
+    expect(career.protests).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('protest read refused');
+  });
+});
+
+/** The service's own logger, to watch a best-effort read leave its trace. */
+function logOf(service: FightersService): { warn: (message: string) => void } {
+  return (service as unknown as { logger: { warn: (message: string) => void } }).logger;
+}
 
 // NOTE: tournament-placement decided-ness tests moved to
 // `../tournament-placement/tournament-placement.service.test.ts` when the

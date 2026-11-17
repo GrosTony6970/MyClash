@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRefereeStats } from './referee-stats';
+import { buildRefereeStats, protestsFacedBy } from './referee-stats';
 
 describe('buildRefereeStats', () => {
   it('counts referee matches, roles, average time, cards credited to declarant, and buddies', () => {
@@ -262,5 +262,64 @@ describe('buildRefereeStats', () => {
     });
 
     expect(stats.averageRefereeTimeMs).toBe(120_000);
+  });
+});
+
+// A protest counts for the referee who led the Match, as a card does. It is private (ruling 850):
+// only the history, which only the referee and the organisers read, carries it.
+describe('protests faced', () => {
+  it('counts only the Matches the referee led, and never a voided protest', () => {
+    const faced = protestsFacedBy(new Set(['m-led', 'm-led-2']), [
+      { matchId: 'm-led', voided: false },
+      { matchId: 'm-led', voided: false },
+      { matchId: 'm-led', voided: true },
+      { matchId: 'm-led-2', voided: false },
+      { matchId: 'm-assessed', voided: false },
+    ]);
+    expect(faced.total).toBe(3);
+    expect([...faced.byMatch]).toEqual([
+      ['m-led', 2],
+      ['m-led-2', 1],
+    ]);
+  });
+
+  const input = {
+    userId: 'ref',
+    assignments: [
+      { matchId: 'm-led', userId: 'ref', role: 'arbitre_declarant' },
+      { matchId: 'm-assessed', userId: 'ref', role: 'arbitre_assesseur' },
+      { matchId: 'm-assessed', userId: 'lead', role: 'arbitre_declarant' },
+    ],
+    durations: [],
+    penalties: [{ matchId: 'm-led', card: 'yellow', voided: false }],
+    protests: [
+      { matchId: 'm-led', voided: false },
+      { matchId: 'm-led', voided: false },
+      { matchId: 'm-led', voided: true },
+      { matchId: 'm-assessed', voided: false },
+    ],
+  };
+
+  it('puts the count on each Match of the private history', () => {
+    const stats = buildRefereeStats({ ...input, includePrivateDetails: true });
+    expect(stats.history?.map((entry) => [entry.matchId, entry.protests])).toEqual([
+      ['m-led', 2],
+      ['m-assessed', 0],
+    ]);
+  });
+
+  it('says nothing of protests in the public payload', () => {
+    const stats = buildRefereeStats({ ...input, includePrivateDetails: false });
+    expect(JSON.stringify(stats)).not.toMatch(/protest/i);
+  });
+
+  it('leaves the cards as they are, however many protests there were', () => {
+    const without = buildRefereeStats({ ...input, protests: [], includePrivateDetails: true });
+    const withProtests = buildRefereeStats({ ...input, includePrivateDetails: true });
+    expect(withProtests.cards).toEqual({ yellow: 1, red: 0, black: 0 });
+    expect(withProtests.cards).toEqual(without.cards);
+    expect(withProtests.history?.map((entry) => entry.cards)).toEqual(
+      without.history?.map((entry) => entry.cards),
+    );
   });
 });

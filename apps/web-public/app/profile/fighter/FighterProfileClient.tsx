@@ -153,6 +153,14 @@ interface FighterPenalty {
   category: string | null;
 }
 
+/** A protest the fighter made, enriched with its event + weapon (private path). */
+interface FighterProtest {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+}
+
 interface DashboardResponse {
   profile: FighterProfile;
   career: {
@@ -187,6 +195,8 @@ interface DashboardResponse {
     // Cards received across the fighter's career, present only on the private
     // `/me` dashboard. Filtered + tallied client-side by the selected scope.
     penalties?: FighterPenalty[];
+    // Protests made, on the same private terms and scoped the same way.
+    protests?: FighterProtest[];
   };
   // Per-weapon HEMA Ratings, surfaced by getMyDashboard when a hema_ratings_id
   // is linked. `ratings[].weapon` may not exactly match the tournament-derived
@@ -1588,6 +1598,7 @@ function FighterStatsCard({
   const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
   const byEvent = career.stats.byEvent ?? [];
   const penaltyList = career.penalties;
+  const protestList = career.protests;
   const manualMedals = dashboard.profile.medals ?? [];
   const [statTab, setStatTab] = useState<string>('global'); // weapon scope
   const [eventTab, setEventTab] = useState<string>('global'); // event scope
@@ -1609,15 +1620,15 @@ function FighterStatsCard({
   })();
 
   // Event filter options: every event the fighter fought a completed match in,
-  // unioned with events they only received a card in (no completed match).
+  // unioned with events they only received a card or made a protest in.
   const eventOptions = (() => {
     const byKey = new Map<string, string>();
     for (const bucket of byEvent) {
       if (bucket.matches > 0 && !byKey.has(bucket.eventKey))
         byKey.set(bucket.eventKey, bucket.eventName);
     }
-    for (const penalty of penaltyList ?? []) {
-      if (!byKey.has(penalty.eventKey)) byKey.set(penalty.eventKey, penalty.eventName);
+    for (const entry of [...(penaltyList ?? []), ...(protestList ?? [])]) {
+      if (!byKey.has(entry.eventKey)) byKey.set(entry.eventKey, entry.eventName);
     }
     return [...byKey.entries()].map(([key, label]) => ({ key, label: label || key }));
   })();
@@ -1671,6 +1682,10 @@ function FighterStatsCard({
   // The whole penalty section shows only when there are cards in the current
   // scope (the field itself is present only on the private `/me` path).
   const hasPenalties = scopedPenalties.length > 0;
+  // Protests made, in the same scope; shown under the penalties when there are any.
+  const scopedProtests = (protestList ?? []).filter(
+    (protest) => inEvent(protest.eventKey) && inWeapon(protest.weapon),
+  );
 
   // Podium placements + imported medals, scoped to the selected event + weapon.
   // Only count tournaments we could actually rank (a decided bracket or pool).
@@ -1925,6 +1940,15 @@ function FighterStatsCard({
               </ul>
             </>
           )}
+        </div>
+      )}
+
+      {scopedProtests.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4">
+          <DashboardStat
+            label={t('publicApp.fighterProfile.protestsMade')}
+            value={scopedProtests.length}
+          />
         </div>
       )}
 

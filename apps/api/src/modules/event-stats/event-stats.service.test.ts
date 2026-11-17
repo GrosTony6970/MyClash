@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  filtersFor,
+  mockSupabase as sharedMockSupabase,
+  selectsFor,
+} from '../../common/testing/supabase-chain';
 import { EventStatsService } from './event-stats.service';
 
 // ── Supabase mock: a universal thenable chain, keyed by table name so tests are
@@ -49,6 +54,7 @@ const overview = (o: Partial<Record<string, unknown>> = {}) => ({
 });
 
 function makeService(opts: {
+  supabase?: unknown;
   orgs?: ReturnType<typeof makeOrgs>;
   overviewByTournament?: Record<string, ReturnType<typeof overview>>;
   standingsHeaderByTournament?: Record<string, Record<string, unknown>>;
@@ -81,7 +87,7 @@ function makeService(opts: {
     })),
   };
   const service = new EventStatsService(
-    mockSupabase as never,
+    (opts.supabase ?? mockSupabase) as never,
     orgs as never,
     events as never,
     stats as never,
@@ -212,8 +218,8 @@ describe('EventStatsService', () => {
     );
   });
 
-  it('aggregates event-wide referee workload (matches, roles, cards) per referee', async () => {
-    setupTables({
+  it('aggregates event-wide referee workload (matches, roles, cards, protests) per referee', async () => {
+    const db = sharedMockSupabase({
       events: {
         data: { id: 'e1', organization_id: 'org-1', slug: 'evt', name: 'Evt' },
         error: null,
@@ -261,6 +267,17 @@ describe('EventStatsService', () => {
         error: null,
       },
       match_penalties: { data: [{ match_id: 'm1', card: 'yellow', voided: false }], error: null },
+      // Canned: the double answers these whatever the read filters on, so the voided filter is
+      // asserted on the read itself below.
+      match_protests: {
+        data: [
+          { match_id: 'm1', voided: false },
+          { match_id: 'm1', voided: false },
+          { match_id: 'm2', voided: false },
+          { match_id: 'm3', voided: false }, // m3 is still running → excluded
+        ],
+        error: null,
+      },
       global_persons: {
         data: [
           { id: 'ref-1', given_name: 'Jane', family_name: 'Doe' },
@@ -271,6 +288,7 @@ describe('EventStatsService', () => {
       persons: { data: [], error: null },
     });
     const { service } = makeService({
+      supabase: db,
       overviewByTournament: { t1: overview({ matchCount: 3, exchangeCount: 10, doublesCount: 1 }) },
       standingsHeaderByTournament: { t1s: { participantCount: 4, completedMatchCount: 2 } },
     });
@@ -284,8 +302,16 @@ describe('EventStatsService', () => {
     expect(jane.roles.arbitre_declarant).toBe(2);
     expect(jane.cards.yellow).toBe(1); // declarant on m1
     expect(jane.averageRefereeTimeMs).toBe(90000); // (60000 + 120000) / 2
+    // Declarant on m1 (2) and m2 (1); m3 is not completed.
+    expect(jane.protests).toBe(3);
+    // Max assessed m2: a protest counts for the declarant only.
+    expect(res.referees.find((r) => r.personId === 'ref-2')!.protests).toBe(0);
     // Sorted by matchesReffed desc — Jane (2) before Max (1).
     expect(res.referees[0]!.personId).toBe('ref-1');
+    // The read: the Event's Tournaments, voided protests left out.
+    expect(selectsFor(db.from, 'match_protests')).toEqual(['match_id, voided']);
+    expect(filtersFor(db.from, 'match_protests', 'in')).toEqual([['tournament_id', ['t1']]]);
+    expect(filtersFor(db.from, 'match_protests', 'eq')).toEqual([['voided', false]]);
   });
 
   it('builds a per-weapon breakdown (deep-target hunters + point distribution) grouped by weapon', async () => {

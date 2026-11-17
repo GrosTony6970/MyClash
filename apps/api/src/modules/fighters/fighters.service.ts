@@ -56,6 +56,7 @@ import {
   type CareerLeagueRankingInput,
   type CareerMatchInput,
   type CareerPenaltyInput,
+  type CareerProtestInput,
   type CareerRegistrationInput,
   type TournamentPlacement,
 } from '@myclash/rules/results';
@@ -65,6 +66,7 @@ import {
   type RefereeAssignmentInput,
   type RefereeMatchDurationInput,
   type RefereePenaltyInput,
+  type RefereeProtestInput,
   type RefereeSkillInfo,
 } from './referee-stats';
 import { sideColorsFromScoringConfig } from '../events/side-colors';
@@ -1127,6 +1129,11 @@ export class FightersService {
       opts.includePenalties && registrationIds.length > 0
         ? await this.fetchFighterPenalties(registrationIds)
         : undefined;
+    // Protests made are private too, on the same terms (ruling 846).
+    const protests =
+      opts.includePenalties && registrationIds.length > 0
+        ? await this.fetchFighterProtests(registrationIds)
+        : undefined;
 
     return buildFighterCareer({
       fighterId,
@@ -1136,6 +1143,7 @@ export class FightersService {
       leagueRankings,
       placementByRegistrationId,
       penalties,
+      protests,
     });
   }
 
@@ -1750,12 +1758,15 @@ export class FightersService {
     const matchFightersByMatchId = includePrivateDetails
       ? await this.fetchMatchFightersByMatch(matchIds)
       : undefined;
+    // Protests faced are private (ruling 850): the public slug path never reads them.
+    const protests = includePrivateDetails ? await this.fetchRefereeProtests(matchIds) : undefined;
 
     return buildRefereeStats({
       userId: personId,
       assignments: allAssignments,
       durations,
       penalties,
+      protests,
       buddiesByUserId,
       includePrivateDetails,
       skillsByRole,
@@ -1984,6 +1995,42 @@ export class FightersService {
       matchId: String(row['match_id']),
       card: String(row['card']),
       voided: Boolean(row['voided']),
+    }));
+  }
+
+  /** Protests made on the referee's Matches (private `/me` path only, ruling 850). Voided ones are
+   *  read and left out by `protestsFacedBy`, as the card read does. Best-effort: a failed read
+   *  counts none so the page still loads, and logs a warning. */
+  private async fetchRefereeProtests(matchIds: string[]): Promise<RefereeProtestInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('match_protests')
+      .select('match_id, voided')
+      .in('match_id', matchIds);
+    if (error) {
+      this.logger.warn(`referee stats: protests not read: ${error.message}`);
+      return [];
+    }
+    return ((data ?? []) as Row[]).map((row) => ({
+      matchId: String(row['match_id']),
+      voided: Boolean(row['voided']),
+    }));
+  }
+
+  /** Protests a fighter MADE, keyed to their career registrations (private `/me` dashboard
+   *  only, ruling 846). Voided ones are left out by the query. Best-effort: a failed read answers
+   *  none so the dashboard still loads, and logs a warning. */
+  private async fetchFighterProtests(registrationIds: string[]): Promise<CareerProtestInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('match_protests')
+      .select('registration_id, voided')
+      .in('registration_id', registrationIds)
+      .eq('voided', false);
+    if (error) {
+      this.logger.warn(`fighter career: protests not read: ${error.message}`);
+      return [];
+    }
+    return ((data ?? []) as Row[]).map((row) => ({
+      registrationId: String(row['registration_id']),
     }));
   }
 

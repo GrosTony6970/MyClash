@@ -91,9 +91,12 @@ export type {
   CareerLeagueRankingInput,
   CareerMatchInput,
   CareerPenaltyInput,
+  CareerProtestInput,
   CareerRegistrationInput,
   FighterCareerStats,
   FighterEventStat,
   FighterPenalty,
+  FighterProtest,
+  FighterScope,
   TournamentPlacement,
 } from './fighter-career';
