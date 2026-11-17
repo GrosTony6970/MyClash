@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useId } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { DOT, isHealthy } from '@/lib/live-board/live-board-state';
+import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { BoardRowDetail } from './BoardRowDetail';
@@ -46,12 +46,11 @@ export function BoardRowView({
   t: T;
 }) {
   const { locale } = useI18n();
-  const dim = isHealthy(state) ? 'opacity-60' : '';
   const cm = row.currentMatch;
   const timing = timingReadout(row, nowMs, locale, t);
   const detailId = useId();
   return (
-    <li className={`py-2 text-sm ${dim}`} data-testid="live-row" data-lice-name={row.lice.name}>
+    <li className="py-2 text-sm" data-testid="live-row" data-lice-name={row.lice.name}>
       {/*
         The expand affordance is an absolutely-positioned overlay button rather
         than a wrapper, because the row still carries real links (the piste, the
@@ -65,7 +64,7 @@ export function BoardRowView({
           aria-expanded={expanded}
           aria-controls={detailId}
           aria-label={t('organizer.live.detail.toggle', { lice: row.lice.name })}
-          className="absolute inset-0 z-0 cursor-pointer rounded-sm hover:bg-surface-2/40"
+          className="absolute inset-0 z-0 cursor-pointer rounded-sm hover:bg-foreground/5"
         />
         <span
           role="img"

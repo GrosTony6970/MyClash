@@ -9,7 +9,7 @@ type T = Translator;
 const PUBLIC_APP_URL = publicAppUrl();
 
 const ACTION_CLASS =
-  'rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-surface-2';
+  'rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-foreground/5';
 
 /**
  * What an organizer can do about the bout they just expanded.

@@ -703,6 +703,30 @@ the drawers or the password panels.
 
 ---
 
+## D28 — FIXED: the Live board faded the pistes that were fine
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; a class names a token that
+exists.
+
+**Fixed on 2026-11-17.** Two faults on the organiser's Live board
+(`/org/[slug]/events/[eventId]/live`), the screen read all day during an Event.
+
+- **A healthy piste was drawn at 60%** (`BoardRowView.tsx`, and the folded list on a phone in
+  `LiveBoard.tsx`), so the piste in trouble would stand out. Most pistes are healthy most of the
+  day. Rendered and measured on 2026-11-17 (a static page from web-admin's production stylesheet,
+  in Chromium), the grey cells of a healthy row — status, scorer, "synced", next bout — were
+  2.25:1, and the names 4.62:1. They are now 4.56:1 and 17.09:1. The state dot, the warning ink and
+  the alert button already mark a piste in trouble; the fade added nothing they did not.
+- **`bg-surface-2` is not a token.** The open row's panel (`BoardRowDetail.tsx`), the row's hover
+  (`BoardRowView.tsx`) and the actions' hover (`BoardRowActions.tsx`) named it. It compiled to
+  nothing: measured, the panel's background was transparent. The panel is now
+  `border border-border bg-surface`; the hovers are `hover:bg-foreground/5`.
+
+`live-board-ink.test.ts` holds both. A scan of both apps and `packages/ui` on 2026-11-17 found no
+other colour utility naming a token `theme.css` lacks.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

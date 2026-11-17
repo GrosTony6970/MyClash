@@ -43,7 +43,7 @@ export function BoardRowDetail({
 }: DetailProps) {
   const cm = row.currentMatch;
   return (
-    <div className="mt-2 grid gap-4 rounded-md bg-surface-2 p-3 text-sm md:grid-cols-3">
+    <div className="mt-2 grid gap-4 rounded-md border border-border bg-surface p-3 text-sm md:grid-cols-3">
       <BoutSection row={row} nowMs={nowMs} t={t} />
       <RefereeSection row={row} t={t} />
       <section className="flex flex-col gap-2">

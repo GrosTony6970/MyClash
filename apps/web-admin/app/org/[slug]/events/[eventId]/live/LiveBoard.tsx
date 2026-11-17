@@ -184,7 +184,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
               <span aria-hidden>{showHealthy ? '▾' : '▸'}</span>
             </button>
             {showHealthy && (
-              <ul className="divide-y divide-border opacity-60">
+              <ul className="divide-y divide-border">
                 {healthy.map((row) => (
                   <BoardCard
                     key={row.lice.id}
