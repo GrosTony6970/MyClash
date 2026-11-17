@@ -341,7 +341,11 @@ On a section heading that is a fair trade; on the title, it is not.
 **Rule broken:** Colours — every colour pair clears WCAG AA for text; components follow the scope
 they sit in.
 
-**Not rendered — inferred from the classes.** `Button`'s `ghost` variant is
+**Rendered and measured on 2026-11-17.** A static page built from the classes below and each
+app's production stylesheet, in Chromium, not the running app: the label and the border both paint
+`#ffffff` on `#ffffff`, a contrast of 1:1, on the admin photo tile, on a FightBook card and in a
+FightBook dialog. The button cannot be seen at all; it still takes its place in the row and still
+takes a click. `Button`'s `ghost` variant is
 `text-white border-white/20 hover:bg-white/10` (`packages/ui/src/components/Button.tsx:30-31`),
 raw white whatever the scope. On a dark surface that is a quiet outlined action, and the dark auth
 panels use it that way. On a light surface it is white text inside a white hairline on
@@ -372,7 +376,12 @@ light call sites to it or put `ghost` itself on tokens; the second is the class 
 
 **Rule broken:** Colours — `stage` takes `stage-foreground`; the scopes decide the ink.
 
-**Not rendered — inferred from the classes.** The organiser's projector wall,
+**Rendered and measured on 2026-11-17.** A static page built from the classes below and
+web-admin's production stylesheet, in Chromium at 1920×1080, not the running app: the piste name
+and the bout line (fighters and score) paint `#0f172a` on `#030712`, a contrast of 1.13:1, and
+cannot be read. The muted cells (status, clock, group label) reach 4.23:1 and the warning cell
+4.01:1; the status dots show. So the wall shows which piste is in trouble and not which piste it
+is. The organiser's projector wall,
 `/display/wall/[eventId]` in web-admin, sits inside `app/display/layout.tsx:14`, which paints
 `bg-stage` (`#030712`) and sets no `data-theme`. Its rows use the page inks:
 `text-foreground` (`WallRow.tsx:39,45`) and `text-muted` (`WallRow.tsx:53,60`,
