@@ -85,17 +85,24 @@ describe('the download over a socket', () => {
     const { url } = await served(held.store);
     const leave = new AbortController();
     const answering = fetch(url, { signal: leave.signal });
-    await wait(50);
-    held.releaseNext();
-    await answering;
-    await wait(50);
-    expect(held.started).toHaveLength(2);
-    leave.abort();
-    await wait(100);
-    held.releaseNext();
-    await wait(100);
-    expect(held.started).toHaveLength(2);
-  });
+    // If a wait below fails first, the abort rejects this fetch with nobody listening.
+    answering.catch(() => undefined);
+    try {
+      await vi.waitFor(() => expect(held.held()).toBe(1), { timeout: 2_000 });
+      held.releaseNext();
+      await answering;
+      await vi.waitFor(() => expect(held.started).toHaveLength(2), { timeout: 2_000 });
+      await vi.waitFor(() => expect(held.held()).toBe(1), { timeout: 2_000 });
+      leave.abort();
+      await wait(100);
+      held.releaseNext();
+      // A "nothing more" claim: a slow machine can only make this pass, never fail.
+      await wait(100);
+      expect(held.started).toHaveLength(2);
+    } finally {
+      leave.abort(); // a failure midway must not leave the download open for the next test
+    }
+  }, 10_000);
 
   it('answers HEAD with the headers only, behind the gate, and reads no photo', async () => {
     const held = heldStore(stored, { auto: true });

@@ -70,7 +70,11 @@ export function heldStore(answers: Record<string, Answer>, { auto = false } = {}
     },
   };
   /** Releases the oldest held read. */
-  const releaseNext = () => pending.shift()!.release();
+  const releaseNext = () => {
+    const next = pending.shift();
+    if (!next) throw new Error('no read is held');
+    next.release();
+  };
   return { store, started, releaseNext, held: () => pending.length };
 }
 

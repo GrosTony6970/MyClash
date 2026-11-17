@@ -120,10 +120,11 @@ describe('a storage that never answers, through the real Supabase client', () =>
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  const client = () =>
+  /** `limit` is the storage limit in ms; a test that expects storage to answer gives it room. */
+  const client = (limit = 100) =>
     createClient(url, 'key', {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { fetch: withStorageTimeout(fetch, url, 100, { warn }) },
+      global: { fetch: withStorageTimeout(fetch, url, limit, { warn }) },
     });
 
   async function within<T>(ms: number, work: PromiseLike<T>): Promise<T> {
@@ -157,14 +158,14 @@ describe('a storage that never answers, through the real Supabase client', () =>
 
   it('a bucket storage says it does not have is created; one it gives no answer about is not', async () => {
     storageCalls.length = 0;
-    const storage = client().storage as never;
-    await ensurePublicBucket(storage, 'fresh', 1024, new Set(['image/png']));
+    // The answered half has room so a slow machine cannot turn an answer into a timeout.
+    await ensurePublicBucket(client(5_000).storage as never, 'fresh', 1024, new Set(['image/png']));
     expect(storageCalls).toEqual(['GET /storage/v1/bucket/fresh', 'POST /storage/v1/bucket']);
 
     storageCalls.length = 0;
     const refusal = within(
       2_000,
-      ensurePublicBucket(storage, 'hung', 1024, new Set(['image/png'])),
+      ensurePublicBucket(client().storage as never, 'hung', 1024, new Set(['image/png'])),
     );
     await expect(refusal).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(storageCalls).toEqual(['GET /storage/v1/bucket/hung']);
