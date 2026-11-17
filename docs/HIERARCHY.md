@@ -19,9 +19,18 @@ Organization
         │           ├── Swiss round    ← one pairing round   (swiss phases)
         │           └── Match          ← always belongs to the Phase directly
         │                 └── Exchange ← the atomic scoring unit
-        └── Workshop           ← a teaching session
-              └── WorkshopSession (recurring slots)
+        └── Workshop           ← a taught class
+              └── Workshop session ← one dated sitting, with its own seats,
+                                     waiting list and roster
 ```
+
+**A Match holds more than Exchanges.** A card (`match_penalties`) and a Protest (`match_protests`)
+are entries of the Match beside its Exchanges, in one shared order. A Protest never reaches the
+score.
+
+**A League is not in this tree.** A League spans Events: it collects the results of Tournaments held
+at different Events, by different Organizations, into the standings of one season. It links to
+Tournaments and owns none.
 
 **A Spar is not in this tree.** A Spar is one friendly, unscored meeting between two fighters,
 arranged through FightBook. It has no Exchanges, no score, no ruleset and no referee, so it is not a
@@ -84,32 +93,56 @@ A person registers once per **event**, then holds a registration per **tournamen
 
 ## Plain-language definitions
 
-| Term              | What it is                                                                                                                                                | Example                             |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **Organization**  | The entity (club, federation, individual) that runs events.                                                                                               | Lyon AMHE; HEMA Bohemia             |
-| **Event**         | The multi-day gathering with a name, date(s), venue, and a roster of participants.                                                                        | "FAL 2026", "Swordfish 2027"        |
-| **Event day**     | One calendar day of an event, measured on the **event's** timezone — never the browser's, never UTC. Derived from a scheduled start; not a stored column. | "Sat 22/05" of a 22–23/05 event     |
-| **Tournament**    | A specific competitive format inside an event: one weapon, one category, one ruleset.                                                                     | "FAL 2026 Longsword Open"           |
-| **Phase**         | A stage of a tournament with one format. `pool`, `single_elim`, `double_elim` or `swiss`.                                                                 | "Pools", then "Top 16"              |
-| **Pool**          | A round-robin group of fighters within a pool phase.                                                                                                      | "Pool A: 6 fighters"                |
-| **Bracket**       | The slot tree of an elimination phase. Not a table — `bracket_slots` rows.                                                                                | Top 16 single-elim                  |
-| **Swiss round**   | One pairing round of a swiss phase.                                                                                                                       | "Round 3 of 5"                      |
-| **Match**         | A single fight between two registrations. Always belongs to a phase.                                                                                      | "Pool A · Match 7"                  |
-| **Exchange**      | The atomic scoring unit.                                                                                                                                  | "Clean hit, fighter A, head"        |
-| **Spar**          | One friendly, unscored meeting between two fighters, with one or more weapons. Not a Match: no Exchanges. Outside the competition tree.                   | "Longsword spar, Sat after Pools"   |
-| **Workshop**      | A teaching session inside an event. Has an instructor, a topic, capacity, and recurring sessions.                                                         | "Beginner Sword & Buckler workshop" |
-| **Venue**         | A place an organization runs events at. May have sub-areas.                                                                                               | "Gymnase Jean Moulin"               |
-| **Lice**          | The fighting area a match is held on. Scoped to an event; optionally placed in a venue and area.                                                          | "Lice 3"                            |
-| **Global Person** | One human, across every event. The cross-event identity.                                                                                                  | Jean Dupont, everywhere             |
-| **Person**        | That human at **one** event. Scoped by `event_id`.                                                                                                        | Jean Dupont at FAL 2026             |
-| **Registration**  | A person entered in **one** tournament.                                                                                                                   | Jean Dupont in the Longsword Open   |
+| Term                 | What it is                                                                                                                                                | Example                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **Organization**     | The entity (club, federation, individual) that runs events.                                                                                               | Lyon AMHE; HEMA Bohemia             |
+| **Event**            | The multi-day gathering with a name, date(s), venue, and a roster of participants.                                                                        | "FAL 2026", "Swordfish 2027"        |
+| **Event day**        | One calendar day of an event, measured on the **event's** timezone — never the browser's, never UTC. Derived from a scheduled start; not a stored column. | "Sat 22/05" of a 22–23/05 event     |
+| **Tournament**       | A specific competitive format inside an event: one weapon, one category, one ruleset.                                                                     | "FAL 2026 Longsword Open"           |
+| **Phase**            | A stage of a tournament with one format. `pool`, `single_elim`, `double_elim` or `swiss`.                                                                 | "Pools", then "Top 16"              |
+| **Pool**             | A round-robin group of fighters within a pool phase.                                                                                                      | "Pool A: 6 fighters"                |
+| **Bracket**          | The slot tree of an elimination phase. Not a table — `bracket_slots` rows.                                                                                | Top 16 single-elim                  |
+| **Swiss round**      | One pairing round of a swiss phase.                                                                                                                       | "Round 3 of 5"                      |
+| **Match**            | A single fight between two registrations. Always belongs to a phase.                                                                                      | "Pool A · Match 7"                  |
+| **Exchange**         | The atomic scoring unit.                                                                                                                                  | "Clean hit, fighter A, head"        |
+| **Card**             | A penalty given to a fighter in a Match, from the penalty list of the ruleset. An entry of the Match, in `match_penalties`.                               | "Yellow card, blue, round 1"        |
+| **Protest**          | One record that a fighter disputed the referee's call. An entry of the Match, in `match_protests`. Counted per fighter; never part of the score.          | "Red protests, 1 of 2"              |
+| **Round**            | One of the N rounds of a best-of-N Match. Not a Swiss round.                                                                                              | "Round 2 of 3"                      |
+| **Forfeit**          | A Match a fighter gives up or is removed from. The penalty ruleset says what it does to the score and to the fighter.                                     | "Injury, 0-X loss"                  |
+| **League**           | Standings across Events: the results of linked Tournaments, counted over one season. Outside the competition tree.                                        | "Classement 2026"                   |
+| **Spar**             | One friendly, unscored meeting between two fighters, with one or more weapons. Not a Match: no Exchanges. Outside the competition tree.                   | "Longsword spar, Sat after Pools"   |
+| **Workshop**         | A taught class inside an event. Has one or more instructors, a topic, and one or more Workshop sessions.                                                  | "Beginner Sword & Buckler workshop" |
+| **Workshop session** | One dated sitting of a Workshop, with its own seats, waiting list and roster. It can be cancelled on its own.                                             | "Sat 10:00, 20 seats"               |
+| **Event photo**      | A photo sent to an Event by someone who was there, shown on the Event's public page and deleted 30 days after the Event.                                  | "Podium, Longsword Open"            |
+| **Venue**            | A place an organization runs events at. May have sub-areas.                                                                                               | "Gymnase Jean Moulin"               |
+| **Lice**             | The fighting area a match is held on. Scoped to an event; optionally placed in a venue and area.                                                          | "Lice 3"                            |
+| **Global Person**    | One human, across every event. The cross-event identity.                                                                                                  | Jean Dupont, everywhere             |
+| **Person**           | That human at **one** event. Scoped by `event_id`.                                                                                                        | Jean Dupont at FAL 2026             |
+| **Registration**     | A person entered in **one** tournament.                                                                                                                   | Jean Dupont in the Longsword Open   |
+
+**The UI says "bout" and "piste".** On screen, in English, a Match is a "bout" and a Lice is a
+"piste". They are the same two things. Code, tables and docs say Match and Lice.
+
+### FightBook words
+
+FightBook is the part of the public app where fighters find a sparring partner. Its words:
+
+| Term                 | What it is                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Spar request**     | One fighter asks another for a Spar. The other answers "Yes" or "Not this time". A "Yes" makes it an agreed Spar.                              |
+| **Open call**        | A post at a running Event ("Longsword at 15:00"). Others at the Event answer "I'm in", and the poster picks one.                               |
+| **Free to spar now** | A mark a fighter sets at a running Event, for one hour.                                                                                        |
+| **Favourite**        | A private mark one fighter keeps on another FightBook user.                                                                                    |
+| **Block**            | One fighter refuses every request from another. To the other it reads like any "no".                                                           |
+| **Thank-you**        | Stars one fighter sends to the partner after a Spar they both had, signed or anonymous.                                                        |
+| **Safety flag**      | A report of a safety problem about the partner of a Spar. It reaches the admins of the Event's club, or the super admins for a free-date Spar. |
+| **Daily limit**      | "At most N spars a day", set by a fighter. A request for a day that is already full ends "Not this time" at once.                              |
 
 ## Roles
 
 | Role                    | Scope                                                       |
 | ----------------------- | ----------------------------------------------------------- |
 | Event organizer         | Owns the event                                              |
-| Tournament admin        | Runs one or more tournaments inside an event                |
 | Instructor              | Teaches a workshop inside an event                          |
 | Scorekeeper             | Records exchanges in matches inside a tournament            |
 | Referee                 | Officiates matches inside a tournament                      |
@@ -128,6 +161,19 @@ fighter listings" — not a statement about any tournament.
 
 **Instructor is the canonical word for the teaching role.** Say _Instructor_, not "Workshop lead", in
 code, UI and docs.
+
+**The roles above are what people do. The stored roles are three separate lists**, and a role name
+alone does not say which list it is from:
+
+- **Organization roles** (`organization_members.role`): `owner`, `admin`, `editor`, `scorekeeper`,
+  `referee`, `workshop_lead` (shown as Instructor), `read_only`. There is no "Tournament admin": a
+  role is held in a club, not in one Tournament.
+- **Event staff jobs** (`event_staff_accounts.role`): `scoring`, `checkin`, `gear`, `photos`. These
+  are the PIN logins of the staff app, one job each, for one Event.
+- **Platform roles** (`platform_roles.role`): `super_admin`, `platform_admin`, `platform_viewer`.
+  Authority over the platform itself, outside any club. A user holds at most one.
+
+A League has its own two role tables (`league_organization_roles`, `league_user_roles`).
 
 ## Referee assignment
 
@@ -148,8 +194,9 @@ Whether a person may referee a Pool or Match is answered at one of three levels:
 ## Code naming (locked-in)
 
 - DB tables: `events`, `tournaments`, `phases`, `pools`, `bracket_slots`, `swiss_rounds`, `matches`,
-  `exchanges`, `registrations`, `persons`, `global_persons`, `workshops`, `workshop_sessions`,
-  `venues`, `venue_areas`, `venue_lices`, `lices`.
+  `exchanges`, `match_penalties`, `match_protests`, `registrations`, `persons`, `global_persons`,
+  `workshops`, `workshop_sessions`, `workshop_instructors`, `venues`, `venue_areas`, `venue_lices`,
+  `lices`, `leagues`, `event_photos`, `spar_requests`.
 - API routes: `/api/v1/events/:id`, `/api/v1/events/:id/tournaments`, `/api/v1/tournaments/:id`,
   `/api/v1/events/:id/workshops`, `/api/v1/events/:id/persons`.
 - App URLs:
@@ -157,7 +204,8 @@ Whether a person may referee a Pool or Match is answered at one of three levels:
   - `app.myclash.fr/e/<event-slug>/t/<tournament-slug>` — a specific tournament inside it
   - `app.myclash.fr/e/<event-slug>/w/<workshop-slug>` — a workshop inside it
   - `app.myclash.fr/fighters/<slug>` — a global person's public profile
-  - `admin.myclash.fr/org/<org-slug>/events/<event-slug>` — organizer admin
+  - `admin.myclash.fr/org/<org-slug>/events/<event-id>` — organizer admin (the Event's id, not its
+    slug)
 
 **Historical naming that does not match this document.** Migration `0023` renamed the `fighters`
 table to `global_persons`, but several identifiers kept the old word and still mean _global person_:

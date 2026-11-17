@@ -5,10 +5,14 @@ production ship.
 
 **These are not the Playwright suites.** An earlier version of this line claimed they were the basis
 for them; no test references a `GP-N` (`grep -rn "GP-[0-9]" tests/` returns nothing), and
-`tests/e2e/` is organised by feature across 36 specs rather than by golden path. The eight paths
+`tests/e2e/` is organised by feature across 42 specs rather than by golden path. The eleven paths
 below do not cover Swiss, leagues, archive/restore, the print pack, the live control room or AI
 settings, all of which have specs. Treat this as the manual checklist it is; `tests/e2e/README.md`
 is the automated inventory.
+
+**No path and no spec yet** for FightBook, Event photos and the TV screens. The protest counter has
+one offline step in `tests/e2e/06-offline-sync.spec.ts` and no path. Check these by hand before a
+ship that touches them; they are named here so the gap is visible.
 
 Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 
@@ -19,9 +23,9 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 **Actor:** Organiser (authenticated, owns at least one organisation)
 **Entry point:** `admin.myclash.fr` → login (the organiser workspace; `playwright.e2e.config.ts` defaults its baseURL here)
 
-1. Sign in via magic-link email
-2. Create a new organisation (if none exists)
-3. Create a new event — name, date, location, discipline
+1. Sign in with a password, or with the link sent by email
+2. The organisation exists already: sign-up made it. Create another only if the test needs one
+3. Create a new event with the four-step wizard — basics (name, dates, city, time zone, Event kind), venue, branding, review
 4. Configure a tournament within the event (format: pools + direct elimination)
 5. Add fighters (manual entry + bulk CSV import)
 6. Assign fighters to pools (auto-populate)
@@ -68,7 +72,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 **Actor:** Super-admin
 **Entry point:** `admin.myclash.fr/admin` (the admin console is a distinct host — `web-admin`, not `app.myclash.fr`)
 
-1. Sign in via magic-link
+1. Sign in with a password, or with the link sent by email
 2. Navigate to `admin.myclash.fr/admin/organizations`
 3. Find a pending organisation awaiting approval
 4. Inspect the org detail page
@@ -105,7 +109,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 
 **Actor:** Any authenticated user
 
-1. Sign in via magic-link
+1. Sign in with a password, or with the link sent by email
 2. Close browser tab
 3. Re-open the app — session should be restored (no re-login required within token TTL)
 4. Sign out explicitly
@@ -128,6 +132,50 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 
 ---
 
+## GP-9 — Scorekeeper: a whole bout, and the next one, with no network
+
+**Actor:** Scorekeeper, signed in with the Event code, a username and a PIN
+**Entry point:** `staff.myclash.fr`
+**Automated twin:** `tests/e2e/40-offline-bout.spec.ts`, `tests/e2e/41-next-bout-no-network.spec.ts`
+
+1. Sign in and open the first bout of the piste while online
+2. Disable network entirely
+3. Start the bout, pause it, score exchanges, end it
+4. Reload the page in the middle of a bout
+5. Tap "Next match" to open the next bout of the piste
+6. Re-enable network
+7. **Expected result:** the reload opens the bout from the tablet's own copy; the next bout opens with no network; after reconnect the server holds both bouts, in order
+
+---
+
+## GP-10 — Front desk: check a person in, check their gear
+
+**Actor:** Volunteer with a check-in or gear-check staff login
+**Entry point:** `staff.myclash.fr`
+**Automated twin:** `tests/e2e/33-staff-desk.spec.ts`
+
+1. Sign in with the Event code, the username and the PIN of a check-in login
+2. Find a person by name and tick them in
+3. Scan another person's Event pass (the QR code on their phone) and tick them in
+4. Sign in with a gear-check login and record a person's gear as checked
+5. **Expected result:** each tick shows on the desk and survives a reload; a scoring login reaches neither the desk nor the gear table
+
+---
+
+## GP-11 — Attendee: book a Workshop session
+
+**Actor:** A signed-in person on the Event's roster
+**Entry point:** `app.myclash.fr/e/[eventSlug]/workshops`
+**Automated twin:** `tests/e2e/19-workshops.spec.ts`
+
+1. Open the Workshop catalogue and filter it
+2. Open a Workshop and book one of its sessions
+3. Book a session that is full
+4. As the first person, cancel the booking of the full session
+5. **Expected result:** the first booking shows in My Schedule; the full session puts the person on the waiting list; the cancellation promotes them to a seat
+
+---
+
 ## Failure classification
 
 | Result             | Meaning                                                                        |
@@ -136,4 +184,4 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 | **Pass with note** | Minor deviation logged (e.g. slow load on 3G, cosmetic glitch) — not a blocker |
 | **Blocker**        | Flow cannot be completed; production ship paused                               |
 
-All GP-1 through GP-4 are **required passes** before ship. GP-5 through GP-8 are required passes or pass-with-note.
+All GP-1 through GP-4 are **required passes** before ship. GP-5 through GP-11 are required passes or pass-with-note.
