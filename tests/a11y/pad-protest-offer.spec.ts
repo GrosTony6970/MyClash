@@ -87,13 +87,13 @@ test('past the limit, the pad offers the chosen penalty: No gives nothing, Yes g
   });
   const chip = protestChip(page, 'red');
   await expect(chip).toHaveText('0/2');
-  await expect(chip).not.toHaveClass(/bg-warning\/20/);
+  await expect(chip).not.toHaveClass(/bg-warning\/15/);
 
   await tapProtest(page, 1);
   await tapProtest(page, 2);
   // At the limit: the chip warns, and no question was asked (the next tap could not land under one).
   await expect(chip).toHaveText('2/2');
-  await expect(chip).toHaveClass(/bg-warning\/20/);
+  await expect(chip).toHaveClass(/bg-warning\/15/);
 
   await tapProtest(page, 3);
   await expect(dialog(page)).toBeVisible();
@@ -104,7 +104,7 @@ test('past the limit, the pad offers the chosen penalty: No gives nothing, Yes g
   await dialog(page).getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog(page)).toHaveCount(0);
   await expect(chip).toHaveText('3/2');
-  await expect(chip).toHaveClass(/bg-warning\/20/);
+  await expect(chip).toHaveClass(/bg-warning\/15/);
   await expect(chip).toHaveClass(/text-warning/);
   await expect(chip).toHaveClass(/border-warning/);
   await expect
@@ -147,7 +147,7 @@ test('on the round-break screen, a protest past the limit is recorded and warns,
   }
 
   await expect(red).toContainText('3/2');
-  await expect(red).toHaveClass(/bg-warning\/20/);
+  await expect(red).toHaveClass(/bg-warning\/15/);
   await expect.poll(() => stub.sent.filter((call) => call === 'POST /protests')).toHaveLength(3);
   // The one dialog is the round break itself: no offer opened over it.
   await expect(page.getByRole('dialog')).toHaveCount(1);

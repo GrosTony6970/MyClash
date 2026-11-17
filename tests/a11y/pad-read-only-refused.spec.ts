@@ -72,7 +72,8 @@ test('read-only mode with no refused entry stays grey', async ({ page }) => {
   await page.getByTestId('clock-primary-button').click();
 
   await expect(bar(page)).toHaveAttribute('data-sync', 'maintenance');
-  await expect(bar(page)).toHaveClass(/text-muted/);
+  // Grey: the muted wash with the secondary ink (the muted ink on it was 3.36:1, D40).
+  await expect(bar(page)).toHaveClass(/bg-muted\/15/);
   await expect(bar(page)).not.toHaveClass(/text-danger/);
   await expect(page.getByTestId('review-refused')).toHaveCount(0);
 });
