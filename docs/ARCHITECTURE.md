@@ -261,6 +261,19 @@ server-side.
 | `traefik`           | Reverse proxy + TLS termination (Let's Encrypt). Routes by hostname to every public-facing service.                                                                                                                                                                                                                                               |
 | `ops-runner`        | Bearer-authed sidecar with `/var/run/docker.sock` mounted. Backups, restore, container lifecycle. See §17.4.                                                                                                                                                                                                                                      |
 
+**The worker's own rules.** Its night jobs run on UTC (`workers/cron-zone.ts` `utcCron`, ruling
+829). The system page's queue tile counts each queue's consumers; a queue read at 0 is read again
+once, ~3 s later, and turns red only if it is still 0 (ruling 840). Each Redis-backed read gives
+up after 5 s (`common/bounded-call.ts`, ruling 842): the Redis read or a queue's job counts make their
+tile "Redis did not answer in time"; a consumer read shows "Consumers cannot be read". From the stop signal
+on, the worker is stopping (`common/graceful-stop.ts` `isStopping`): the health monitor runs no
+check then, so it sends no alarm (a draining worker would read its own queues as unworked). The auto-lock scan (`modules/matches/match-auto-lock.service.ts`, every 60 s)
+locks a finished Pool, or a whole finished non-pool phase, once the Tournament's delay has passed
+since its last write. It reads page by page (PostgREST cuts a read at 1000 rows), skips Events
+that are over (completed or archived: their results are frozen, ruling 841), runs one scan at a
+time, logs a lock the database refuses and goes on, and a stop waits for the scan (ruling 831): read
+as "the scan ends after the lock in progress", the wait capped at 30 s (`AUTO_LOCK_STOP_WAIT_MS`).
+
 > The three frontends could be a single Next.js app with route-based feature flags. **Decision: keep them as three apps in the monorepo**, sharing UI components via a `packages/ui` workspace. This isolates the scoring app (offline-first, very different UX) and the admin app (heavier, desktop-first) from the lean public PWA.
 >
 > Neither stack includes Kong. Earlier Supabase self-hosting setups used Kong as an API gateway; MyClash fronts every Supabase service directly through Traefik labels in **both** production and local dev. Kong was removed from the dev compose along with `infra/supabase/kong.yml`, so dev now exercises the same edge path that serves production.
@@ -1093,7 +1106,8 @@ after it is decided as it was fought (operator ruling "TF_v1 version", 2026-10-1
 ### 8.3 Export formats
 
 - **HTML** — static page, like the reference, generated server-side.
-- **PDF** — via Puppeteer in the worker.
+- **PDF** — no server-side PDF: a printable report opens in its own window and the browser prints
+  it (the final ranking's print, `apps/web-admin/src/lib/print-window.ts`).
 - **CSV** — full match + exchange dump.
 - **JSON** — full event data (for archival, HEMA Ratings submission).
 - **HEMA Ratings format** — see §11.
@@ -4134,13 +4148,14 @@ flowchart TD
   ADM -.->|"SSR only"| API
   SCO -.->|"SSR only"| API
 
-  API --> DB
+  API -->|"SUPABASE_URL, via traefik"| REST & STOR
   API --> RDS
   API -->|"internal auth"| AUTH
   API -->|"bearer"| OPS
-  WRK --> DB
+  WRK -->|"SUPABASE_URL, via traefik"| REST & STOR
   WRK --> RDS
-  WRK --> AUTH
+  WRK -->|"internal auth"| AUTH
+  WRK -->|"bearer, GET /disk"| OPS
 
   AUTH --> DB
   REST --> DB
@@ -4150,6 +4165,10 @@ flowchart TD
 
   OPS -->|"/var/run/docker.sock"| HOST(["Docker daemon"])
 ```
+
+The `api` and the `worker` reach PostgREST and Storage at `SUPABASE_URL` (`https://app.${DOMAIN}`),
+which Traefik answers on the internal network under that alias. Who connects to `db` itself, and
+as which user: §17.7.
 
 The dotted edges are **server-side rendering only** — via `API_URL_INTERNAL=http://api:4000`. Browser
 traffic from those same apps goes back out and in through Traefik instead. That distinction matters
@@ -4223,7 +4242,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                                      |
 | `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted**, on `myclash-dbadmin` only: nothing routes to it and only `supabase-studio` uses it. |
 | `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                                         |
-| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                                             |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Starts after `db`, `redis`; no database URL (§17.7).                  |
 | `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | Every BullMQ consumer (the ten queues of the `worker` row above) and the auto-lock scan; `/health` alone, on 127.0.0.1.      |
 | `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                                               |
 | `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                                                 |
