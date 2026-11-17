@@ -67,8 +67,8 @@ const EXPECTED: Record<string, string> = {
   'src/components/MatchClock.tsx': 'apiRequest 2',
   // drill: the five corrections that post, and "Edit as no exchange".
   'src/components/MatchCorrectionsDrawer.tsx': 'padRequest 2',
-  // open: the read of the next sequence. drill: Reopen and Reset, and Unlock.
-  'src/components/MatchView.tsx': 'apiRequest 1, padRequest 2',
+  // drill: Reopen and Reset, and Unlock.
+  'src/components/MatchView.tsx': 'padRequest 2',
   // open: who is signed in.
   'src/components/StaffScreen.tsx': 'apiRequest 1',
   // open: the heartbeat goes during a drill, and reports the waiting entries.
@@ -86,6 +86,8 @@ const EXPECTED: Record<string, string> = {
   'src/lib/bout-read.ts': 'fetchFn 2',
   // open: the read of a whole piste, which the tablet keeps for a cut of the network.
   'src/lib/piste-read.ts': 'fetchFn 1',
+  // open: the read of the next sequence, from the bout's hits, cards and protests.
+  'src/lib/sequence-seed.ts': 'apiRequest 1',
   // drill: the undo's read of the server, so the undo works on the tablet alone.
   'src/lib/server-entries.ts': 'padRequest 4',
   // open: the read of the bout's status. Its void is `askVoid`, below.

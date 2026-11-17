@@ -48,8 +48,8 @@ import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from '.
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
 import { endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
-import { apiRequest } from '@myclash/api-client';
 import { padRequest } from '../offline/drill-request';
+import { serverNextSequence } from '../lib/sequence-seed';
 
 export interface MatchInfo {
   id: string;
@@ -152,27 +152,19 @@ export function MatchView({
   const syncState = useSyncState(syncEngine ?? null);
   const [nextSequence, setNextSequence] = useState(1);
   // Seed the sequence counter — a fresh mount must NOT restart at 1 when the
-  // match already has exchanges (mid-match reload, device swap, second pad):
+  // match already has entries (mid-match reload, device swap, second pad):
   // a stale sequence collides with UNIQUE(match_id, sequence) server-side and
-  // the offline outbox drops the 400 terminally — the scored hit vanishes.
-  // The IndexedDB outbox/synced seed covers offline same-device reloads; the
-  // server fetch covers device swaps. Functional max keeps taps recorded
+  // the entry lands in the held inbox. The IndexedDB outbox/synced seed covers
+  // offline same-device reloads; the server's hits, cards and protests cover
+  // device swaps (`serverNextSequence`). Functional max keeps taps recorded
   // before seeding completes monotonic.
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     void (async () => {
       const seeds = [await outboxNextSequence(match.id)];
-      // Offline is the ordinary case here and says nothing: the IndexedDB seed
-      // alone is correct for a same-device reload.
-      const result = await apiRequest<Array<{ sequence?: number | null }>>(
-        apiUrl,
-        `/api/v1/matches/${match.id}/exchanges`,
-        { signal: controller.signal },
-      );
-      if (result.ok) {
-        seeds.push(result.data.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0) + 1);
-      }
+      const server = await serverNextSequence(apiUrl, match.id, controller.signal);
+      if (server !== null) seeds.push(server);
       if (!cancelled) setNextSequence((n) => Math.max(n, ...seeds));
     })();
     return () => {
