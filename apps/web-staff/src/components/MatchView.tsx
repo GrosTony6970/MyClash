@@ -790,7 +790,7 @@ export function MatchView({
             type="button"
             disabled={unlockBusy}
             onClick={() => void handleUnlock()}
-            className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30 disabled:opacity-40"
+            className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/15 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30 disabled:opacity-40"
           >
             ↻ {unlockBusy ? t('scoring.match.reopening') : t('scoring.match.reopen')}
           </button>

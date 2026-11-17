@@ -17,8 +17,7 @@ test('scoring screen - axe clean and keyboard operable', async ({ page }) => {
   await page.goto('http://localhost:3002/lices/test-lice');
   await waitForPageMain(page);
 
-  // The scoring app was not in the 2026-11-17 contrast audit; its contrast is not gated yet.
-  await expectNoCriticalAxeViolations(page, { contrast: false });
+  await expectNoCriticalAxeViolations(page);
 
   // The back control is a <Link>, so its role is `link` — not `button`.
   const licesLink = page.getByRole('link', { name: /lices/i });

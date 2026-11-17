@@ -48,7 +48,7 @@ export function AskFirstDialog({
             type="button"
             data-testid="ask-first-confirm"
             onClick={onConfirm}
-            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
+            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/15 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
           >
             {confirmLabel}
           </button>

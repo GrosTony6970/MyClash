@@ -387,9 +387,11 @@ export function ScoringColumn({
                 onClick={() => submit.submitClean(side, btn)}
                 disabled={submit.submitting || !canScore}
                 className="min-h-[56px] rounded-xl border-2 font-black text-xl disabled:opacity-40 transition-colors touch-manipulation"
+                // The border is the button's edge: clamped, so a black corner's
+                // button shows on the dark pad (1.13:1 raw) and a white one on light (D41).
                 style={{
                   backgroundColor: style.panel,
-                  borderColor: style.border,
+                  borderColor: legibleOn(style.border, padScope),
                   color: style.text,
                 }}
               >
@@ -479,7 +481,7 @@ export function ScoringColumn({
           </p>
 
           {penaltyError && (
-            <p className="rounded-lg bg-danger/20 px-3 py-2 text-xs text-danger">{penaltyError}</p>
+            <p className="rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">{penaltyError}</p>
           )}
 
           {quickEntries.length > 0 && (
@@ -601,7 +603,7 @@ function PenaltyEntryRow({
           {entry.ref_number}. {entry.short_name}
         </span>
         <span className="block text-[10px] text-muted truncate">
-          <span className="mr-1.5 rounded bg-border px-1 py-0.5 font-semibold text-muted">
+          <span className="mr-1.5 rounded bg-border px-1 py-0.5 font-semibold text-foreground-secondary">
             {groupLabel} {entry.group_number}
           </span>
           {entry.description}

@@ -126,11 +126,12 @@ function CardChips({
           data-card={card}
           disabled={disabled}
           onClick={() => onPick(card)}
-          className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 bg-surface px-2 py-2 text-xs font-bold uppercase text-foreground hover:bg-background disabled:opacity-40"
-          style={{ borderColor: DIRECT_CARD_HEX[card] }}
+          // A neutral edge and a ringed swatch: a border in the card's own colour vanished,
+          // black on the dark drawer (1.21:1) and yellow on the light one (1.92:1) (D41).
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 border-border bg-surface px-2 py-2 text-xs font-bold uppercase text-foreground hover:bg-background disabled:opacity-40"
         >
           <span
-            className="inline-block h-3 w-3 rounded-sm"
+            className="inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-foreground/50"
             style={{ backgroundColor: DIRECT_CARD_HEX[card] }}
           />
           {cardWord(card, t)}

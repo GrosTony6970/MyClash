@@ -52,7 +52,7 @@ export function EndEarlyDialog({ open, onClose, onEndMatch }: EndEarlyDialogProp
             type="button"
             data-testid="end-early-confirm"
             onClick={onEndMatch}
-            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
+            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/15 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
           >
             {t('scoring.clock.endMatch')}
           </button>
@@ -110,14 +110,14 @@ export function ResumeGuardDialog({
           <button
             type="button"
             onClick={onEnd}
-            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
+            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/15 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
           >
             {t(endsRound ? 'scoring.rounds.endRound' : 'scoring.resumeGuard.endMatch')}
           </button>
           <button
             type="button"
             onClick={onContinue}
-            className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30"
+            className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/15 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30"
           >
             {t('scoring.resumeGuard.continueAnyway')}
           </button>
@@ -311,7 +311,7 @@ function RoundBreakButtons({
         type="button"
         data-testid="start-next-round"
         onClick={onStart}
-        className="min-h-[44px] rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30"
+        className="min-h-[44px] rounded-lg border-2 border-info bg-info/15 px-6 py-2 text-sm font-bold text-info hover:bg-info/30"
       >
         {t('scoring.rounds.startRound', { round: String(round + 1) })} →
       </button>

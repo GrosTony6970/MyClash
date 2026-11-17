@@ -71,7 +71,7 @@ function PersonAvatar({ person }: { person: RosterEntry }) {
 
   if (!person.photoUrl) {
     return (
-      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-foreground/10 text-sm font-bold text-muted">
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-foreground/10 text-sm font-bold text-foreground-secondary">
         {initials}
       </div>
     );

@@ -250,8 +250,8 @@ export function ScoringCenterControls({
         : null;
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
-    if (doubleCount >= maxDoubles) return 'bg-danger/20 text-danger border border-danger';
-    if (doubleCount >= maxDoubles - 1) return 'bg-warning/20 text-warning border border-warning';
+    if (doubleCount >= maxDoubles) return 'bg-danger/15 text-danger border border-danger';
+    if (doubleCount >= maxDoubles - 1) return 'bg-warning/15 text-warning border border-warning';
     return 'bg-surface text-foreground-secondary';
   })();
 
@@ -393,7 +393,7 @@ export function ScoringCenterControls({
         <p
           role="alert"
           data-testid="clock-press-held"
-          className="w-full rounded-lg bg-danger/20 px-3 py-2 text-center text-sm font-semibold text-danger"
+          className="w-full rounded-lg bg-danger/15 px-3 py-2 text-center text-sm font-semibold text-danger"
         >
           {heldPressNotice}
         </p>
@@ -404,7 +404,7 @@ export function ScoringCenterControls({
         <p
           role="alert"
           data-testid="hit-not-saved"
-          className="w-full rounded-lg bg-danger/20 px-3 py-2 text-center text-sm font-semibold text-danger"
+          className="w-full rounded-lg bg-danger/15 px-3 py-2 text-center text-sm font-semibold text-danger"
         >
           {t('scoring.lice.hitNotSaved')}
         </p>
@@ -439,7 +439,7 @@ export function ScoringCenterControls({
                 data-testid="clock-end-button"
                 disabled={clockLoading}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
-                className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
+                className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/15 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
                 {isBestOf ? t('scoring.rounds.endRound') : t('scoring.clock.endMatch')}
               </button>
@@ -457,7 +457,7 @@ export function ScoringCenterControls({
                 data-remedy={offeredRemedy.kind}
                 disabled={clockLoading}
                 onClick={onAdvanceLevelResolution}
-                className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
+                className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/15 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
               >
                 {offeredRemedy.kind === 'extra_time'
                   ? t('scoring.level.playExtraTime', { seconds: offeredRemedy.seconds })
@@ -588,7 +588,7 @@ export function ScoringCenterControls({
               // `info`, not `danger`: undoing the last entry is a routine
               // correction a referee makes constantly, and the cyan this
               // replaces existed only to read as "not one of the red actions".
-              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-info bg-info/20 px-4 py-2 text-sm font-bold text-info hover:bg-info/30 active:bg-info/40 disabled:opacity-40 touch-manipulation"
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-info bg-info/15 px-4 py-2 text-sm font-bold text-info hover:bg-info/30 active:bg-info/40 disabled:opacity-40 touch-manipulation"
             >
               ↶ {t('scoring.corrections.clearLastExchange')}
             </button>

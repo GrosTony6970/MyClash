@@ -35,7 +35,7 @@ export function ProtestButton({
   const { t } = useI18n();
   const text = protestChipText(count, limit);
   const tone = protestAtLimit(count, limit)
-    ? 'bg-warning/20 text-warning border-warning'
+    ? 'bg-warning/15 text-warning border-warning'
     : 'bg-surface text-foreground-secondary border-border';
   return (
     <button

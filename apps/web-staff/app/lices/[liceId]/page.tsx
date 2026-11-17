@@ -167,7 +167,7 @@ export default function LiceMatchListPage() {
           know which piste this is, but fixed chrome leaves the flow and paints
           over whatever the root layout puts above it. */}
       {/* `bg-background` on the wrapper is load-bearing: the bar's tint is
-          see-through (`bg-success/25`), so without an opaque backdrop the match
+          see-through (`bg-success/15`), so without an opaque backdrop the match
           list would scroll visibly through it. */}
       <div className="sticky top-0 z-sticky bg-background">
         <SyncBar

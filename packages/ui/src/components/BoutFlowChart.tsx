@@ -36,6 +36,17 @@ import { BOUT_FLOW_STYLES, CHART_W, boutFlowGeometry } from './bout-flow-geometr
 import type { BoutFlowScale } from './bout-flow-geometry';
 import { Axes, Crosshair, EventMarkers, LeadBands, StepLine } from './bout-flow-marks';
 import { describeBoutFlow, describeBoutFlowPoint } from './bout-flow-caption';
+
+/** A fighter's colour beside their number, never as its ink (D38). The ring is its edge. */
+function SideDot({ hex }: { hex: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-inset ring-foreground/50"
+      style={{ backgroundColor: hex }}
+    />
+  );
+}
 import { useBoutFlowScrub } from './use-bout-flow-scrub';
 
 export type { BoutFlowScale } from './bout-flow-geometry';
@@ -88,11 +99,14 @@ export function BoutFlowChart({
     <div className={`w-full ${styles.panel} ${className ?? ''}`}>
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <p className={styles.title}>{t('scoring.boutFlow.title')}</p>
-        {/* The score at the scrubbed point, in each fighter's own colour. */}
-        <p className={styles.score}>
-          <span style={{ color: colors.red }}>{shown.red}</span>
-          <span className={styles.label}> : </span>
-          <span style={{ color: colors.blue }}>{shown.blue}</span>
+        {/* The score at the scrubbed point, each beside its fighter's colour. The colour was the
+            numbers' ink: 3.45:1 for blue on the dark pad (known-deviations D41, ruling of D38). */}
+        <p className={`inline-flex items-center gap-1 ${styles.score}`}>
+          <SideDot hex={colors.red} />
+          {shown.red}
+          <span className={styles.label}>:</span>
+          {shown.blue}
+          <SideDot hex={colors.blue} />
         </p>
       </div>
 

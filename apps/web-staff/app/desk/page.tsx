@@ -192,7 +192,7 @@ function DeskSearch({
       onChange={(event) => onQueryChange(event.target.value)}
       placeholder={t('scoring.desk.searchPlaceholder')}
       aria-label={t('scoring.desk.searchPlaceholder')}
-      className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-lg text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-gold-text"
+      className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-lg text-foreground focus:outline-none focus:ring-2 focus:ring-gold-text"
     />
   );
 }

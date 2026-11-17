@@ -197,6 +197,9 @@
 
 /* Dark surface — dark sidebars (both apps), web-public /me + auth. */
 [data-theme='dark'] {
+  /* Native controls follow the scope: without it a <select>'s popup opened in a
+   * dark scope is the browser's white list, with the scope's light ink on it. */
+  color-scheme: dark;
   --color-background: #0f172a; /* slate-900 */
   --color-surface: #1e293b; /* slate-800 */
   --color-foreground: #f1f5f9; /* slate-100 */
@@ -278,6 +281,7 @@
  * region. The two lists are checked against each other by
  * theme-scope-parity.test.ts. */
 [data-theme='light'] {
+  color-scheme: light;
   --color-background: #fafaf9; /* stone-50 */
   --color-surface: #ffffff; /* white */
   --color-foreground: #0f172a; /* slate-900 */
@@ -321,4 +325,15 @@
 [data-accent='personal'] {
   --color-accent: #1d4ed8; /* blue-700 */
   --color-accent-hover: #2563eb; /* blue-600 */
+}
+
+/* A placeholder is the muted ink, in every scope. Tailwind's preflight makes it
+ * half of the text colour, 3.4:1 on a light field, and Tailwind 4 has no
+ * `placeholder-{colour}` class, so the scoring app's `placeholder-muted` drew
+ * nothing (known-deviations D41). In the base layer, so a `placeholder:` class
+ * still wins. */
+@layer base {
+  ::placeholder {
+    color: var(--color-muted);
+  }
 }

@@ -69,7 +69,8 @@ describe('the protest button', () => {
     );
     expect(button).not.toContain('raw-color-exempt');
     expect(button).toMatch(
-      /const tone = protestAtLimit\(count, limit\)\s+\? 'bg-warning\/20 text-warning border-warning'\s+: 'bg-surface text-foreground-secondary border-border';/,
+      // 15%: the warning ink reads on its own wash up to there (D34, D41).
+      /const tone = protestAtLimit\(count, limit\)\s+\? 'bg-warning\/15 text-warning border-warning'\s+: 'bg-surface text-foreground-secondary border-border';/,
     );
     expect(tag).toContain('rounded-lg border px-2.5');
     expect(tag).toContain('${tone}');

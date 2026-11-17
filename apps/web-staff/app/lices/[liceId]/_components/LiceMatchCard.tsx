@@ -61,7 +61,7 @@ export function LiceMatchCard({ match, compact = false }: { match: LiceMatch; co
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs font-bold uppercase tracking-widest text-muted">
+          <p className="font-mono text-xs font-bold uppercase tracking-widest text-foreground-secondary">
             {match.roundCode ?? match.matchNumberLabel ?? '—'}
           </p>
           <div className="mt-1">
@@ -80,7 +80,9 @@ export function LiceMatchCard({ match, compact = false }: { match: LiceMatch; co
               <CornerDot hex={blueColor} />
             </p>
           )}
-          {time && <p className="font-mono text-sm tabular-nums text-muted">{time}</p>}
+          {time && (
+            <p className="font-mono text-sm tabular-nums text-foreground-secondary">{time}</p>
+          )}
           <MatchStatusPill status={match.status} />
         </div>
       </div>

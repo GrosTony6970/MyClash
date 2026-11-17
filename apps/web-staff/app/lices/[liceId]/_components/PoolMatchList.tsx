@@ -129,6 +129,20 @@ function activationProps(open: (() => void) | undefined) {
 }
 
 /**
+ * A row's quiet cell, its code or its piste. The secondary ink, not the muted one: on the tinted
+ * row of your own piste the muted ink was 4.01:1 (D41).
+ */
+function QuietCell({ mono = false, children }: { mono?: boolean; children: React.ReactNode }) {
+  return (
+    <td
+      className={`whitespace-nowrap px-3 py-2 text-xs text-foreground-secondary${mono ? ' font-mono' : ''}`}
+    >
+      {children}
+    </td>
+  );
+}
+
+/**
  * One bout.
  *
  * Rows on another lice are NOT links: they are not this operator's to score,
@@ -161,9 +175,7 @@ function MatchRow({
         .filter(Boolean)
         .join(' ')}
     >
-      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted">
-        {match.roundCode || match.match_number_label || '—'}
-      </td>
+      <QuietCell mono>{match.roundCode || match.match_number_label || '—'}</QuietCell>
       <FighterCell
         name={match.red_name}
         club={match.red_club_abbrev}
@@ -178,7 +190,7 @@ function MatchRow({
         color={sideColors.blue}
         isWinner={winner === 'blue'}
       />
-      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted">{match.lice_name ?? '—'}</td>
+      <QuietCell>{match.lice_name ?? '—'}</QuietCell>
       <td className="whitespace-nowrap px-3 py-2">
         <MatchStatusPill status={match.status} />
       </td>

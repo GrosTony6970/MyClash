@@ -213,6 +213,32 @@ describe('a warning on the stage', () => {
 });
 
 /**
+ * A field's placeholder and a native control's popup (known-deviations D41). Tailwind's preflight
+ * made the placeholder half the text colour, 3.4:1 on a light field, and Tailwind 4 has no
+ * `placeholder-{colour}` class; a `<select>` opened in a dark scope showed the browser's white
+ * popup under the scope's light ink. theme.css sets both.
+ */
+describe('placeholders and native controls', () => {
+  const DARK = "[data-theme='dark']";
+
+  it.each([
+    ['a light field', undefined],
+    ['a dark field', DARK],
+  ])('a placeholder in the muted ink reads on %s', (_name, scope) => {
+    expect(contrast(token('muted', scope), token('surface', scope))).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('sets the placeholder in the base layer, so a placeholder: class still wins', () => {
+    expect(THEME_CSS).toMatch(/@layer base \{\s*::placeholder \{\s*color: var\(--color-muted\);/);
+  });
+
+  it('gives each scope its colour-scheme, so native controls follow it', () => {
+    expect(scopeBody(DARK)).toContain('color-scheme: dark;');
+    expect(scopeBody("[data-theme='light']")).toContain('color-scheme: light;');
+  });
+});
+
+/**
  * The keyboard focus ring of every Button and dialog button. It was `gold`, 2.06:1 against a light
  * page, under the 3:1 a focus indicator needs: a keyboard user could barely see where they were
  * (known-deviations D32). `gold-text` is the deep amber on light and the same bright gold on dark.

@@ -952,7 +952,8 @@ build:
   `motion-safe:animate-pulse` dot when the status is live. The two status pickers of the console
   are `<select>`s styled with that class; a select cannot hold a dot, so they no longer pulse.
 
-The scoring app's spec passes `{ contrast: false }`: web-staff was not audited.
+The scoring app's spec passed `{ contrast: false }` until web-staff was audited the same day; since
+D41 the check holds in all three apps and the option is gone.
 
 ---
 
@@ -1055,6 +1056,41 @@ bar writes the secondary ink on its wash (D31's shape). `pad-quiet-states.test.t
 
 **Still open, beside it:** `MatchClock.tsx` is never rendered (only its `ClockState` type is
 imported); its `text-foreground` on status fills would be 1.96 to 3.01:1 if it were.
+
+---
+
+## D41 — FIXED: the scoring app's small inks, washes, placeholders and native controls
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; a shape that carries meaning
+clears 3:1.
+
+**Fixed on 2026-11-17, on the rulings already made (D26, D31, D34, D38).** The rest of the scoring
+app's audit, measured that day:
+
+- **Status washes behind words**, 20% and 25%: the pad's alerts, its End / remedy / Undo / Reopen
+  buttons, the dialogs' End match / End round / Start round buttons, the protest button at its limit,
+  and the sync bar. 3.85 to 4.23:1 on light, 4.14 to 4.18:1 in the dark dialogs. All at 15%, where
+  each status ink is measured at 4.5:1 or more in both scopes (D34, D37).
+- **The muted ink on a tint** (D31's shape): the live bout card's code and time, a pool row of your
+  piste, the desk's initials, a penalty's group chip. 3.79 to 4.27:1. They take the secondary ink.
+- **Placeholders.** Tailwind's preflight makes a placeholder half the text colour (3.41:1 on a
+  light field), and Tailwind 4 has no `placeholder-{colour}` class, so the desk, gear and login
+  fields' `placeholder-muted` generated nothing. `theme.css` sets `::placeholder` to the muted ink
+  in the base layer, for all three apps (4.76:1 light, about 5.7:1 dark); a `placeholder:` class
+  still wins. The three dead classes are gone.
+- **Native controls.** No scope set `color-scheme`, so a `<select>` opened in a dark scope could
+  show the browser's white popup under the scope's light ink. The two scopes now set it.
+- **Edges.** A black corner's hit buttons blended into the dark pad (1.13:1) and a white one into a
+  light pad (1.42:1); their border takes the clamped corner colour. The drawer's card buttons had a
+  border in the card's own colour (black 1.21:1 on dark, yellow 1.92:1 on light); the border is
+  neutral and the swatch takes an edge ring.
+- **The bout chart's score readout** (`packages/ui` `BoutFlowChart`) wrote its numbers in the side
+  colours, 3.45 and 3.70:1 on the dark pad; they take the surrounding ink, each beside a dot. The
+  chart is also on the public bout page and the projector.
+
+The scoring app now holds its own `type-floor.test.ts` and `grey-chip-ink.test.ts`, and
+`status-wash.test.ts` fails on a resting wash above 15%. The browser suite's contrast check covers
+the scoring app too: its spec no longer opts out.
 
 ---
 
