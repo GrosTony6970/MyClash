@@ -15,12 +15,13 @@ This document records the production-review security posture for MyClash. It is 
   - `https://app.${DOMAIN}`
   - `https://admin.${DOMAIN}`
   - `https://staff.${DOMAIN}`
+  - `https://marketing.${DOMAIN}`, which only dev uses: in production the marketing site is the apex above, and this host resolves nowhere
   - localhost ports 3001, 3002, and 3003 for development only
 - Wildcard CORS is not used.
 - Swagger/OpenAPI is disabled when `NODE_ENV=production`.
-- Throttling is globally enabled through `ThrottlerModule` and `ThrottlerGuard`. Three throttlers are registered (`apps/api/src/common/throttling/throttler-options.ts`): `global` (120 req/min per client IP, overridden per route via `@Throttle` — auth actions drop to 10/hour), `auth-email` (10 login attempts/hour per email address, on routes marked `@ThrottleByEmail`), and `auth-account` (10 checks of a current password/hour per signed-in account, on the password change and the account deletion, marked `@ThrottleByAccount`). Staff PIN sign-in is bounded by `@ThrottleByStaffAccount`, an interceptor and not a throttler: 10 **wrong** PINs/hour per event + username, keyed on the account rather than `req.ip` because an entire venue shares one NAT'd address; a good PIN never counts (operator, 2026-10-16). IPs in `THROTTLE_IP_WHITELIST` skip all of them. See ARCHITECTURE.md §14.3 for the full table.
+- Throttling is globally enabled through `ThrottlerModule` and `ThrottlerGuard`. Eight throttlers are registered (`apps/api/src/common/throttling/throttler-options.ts`): `global` (120 req/min per client IP, overridden per route via `@Throttle` — auth actions drop to 10/hour), `auth-email` (10 login attempts/hour per email address, on routes marked `@ThrottleByEmail`), `auth-mail` (10 mails/hour per email address, on the doors that mail one, marked `@ThrottleMailByEmail`; a bucket apart from `auth-email`), `auth-account` (10 checks of a current password/hour per signed-in account, on the password change and the account deletion, marked `@ThrottleByAccount`), and four FightBook ones, each per signed-in account in its own bucket: `fightbook-ask` (20 spar requests/hour), `fightbook-call` (20 open calls/hour), `fightbook-scan` (20 QR scans/hour) and `fightbook-qr-mint` (60 QR codes/hour). Staff PIN sign-in is bounded by `@ThrottleByStaffAccount`, an interceptor and not a throttler: 10 **wrong** PINs/hour per event + username, keyed on the account rather than `req.ip` because an entire venue shares one NAT'd address; a good PIN never counts (operator, 2026-10-16). IPs in `THROTTLE_IP_WHITELIST` skip all of them. See ARCHITECTURE.md §14.3 for the full table.
 - The throttler store is in-memory, so counters are per API container and reset on redeploy. There is no account lockout — login is protected by the throttlers above plus Supabase GoTrue's own internal limits.
-- Traefik adds a **Fail2Ban** backstop at the edge, deliberately looser than the app throttler and aimed only at the two surfaces the throttler cannot reach: `/auth/v1/*` (proxied straight to GoTrue, so `ThrottlerGuard` is never in that path) and staff PIN login, where the app-side wrong-PIN count is keyed on the account rather than the IP, so the jail is the volumetric layer behind it. It counts 401/429 responses — 20/10m on auth, 60/10m on the scoring PIN, where an entire venue shares one NAT'd IP. Its allowlist is derived from `THROTTLE_IP_WHITELIST`, so both layers honour one trusted-IP list. Ban state is in-memory and per-Traefik-process. See INFRASTRUCTURE_REVIEW.md § "Edge plugins".
+- Traefik adds a **Fail2Ban** backstop at the edge, deliberately looser than the app throttler and aimed only at the two surfaces the throttler cannot reach: `/auth/v1/*` (proxied straight to GoTrue, so `ThrottlerGuard` is never in that path) and staff PIN login, where the app-side wrong-PIN count is keyed on the account rather than the IP, so the jail is the volumetric layer behind it. It counts 401/403/429 responses — 20/10m on auth, 60/10m on the scoring PIN, where an entire venue shares one NAT'd IP. Its allowlist is derived from `THROTTLE_IP_WHITELIST`, so both layers honour one trusted-IP list. Ban state is in-memory and per-Traefik-process. See INFRASTRUCTURE_REVIEW.md § "Edge plugins".
 - Traefik also applies **GeoBlock**: a country allow-list (FR + neighbours) on admin surfaces that fails closed, and a block-list on public surfaces that fails open so a geo-IP API outage cannot dark the site.
 - Authentication is global. `AuthGuard` (`apps/api/src/common/auth/`) runs on every request and rejects
   callers with no identity unless the route is marked `@Public()`, so forgetting a guard fails closed.
@@ -63,7 +64,7 @@ CSRF posture for v1:
 
 - Supabase Auth handles claimed-user identity, refresh tokens, and session lifetime.
 - Server-side Supabase access is isolated in `SupabaseService` and uses `SUPABASE_SERVICE_ROLE_KEY` only inside the API/server scripts.
-- Frontend packages must only use `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_API_URL`.
+- Frontend packages read only public values: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`, the four app addresses (`NEXT_PUBLIC_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_STAFF_URL`, `NEXT_PUBLIC_MARKETING_URL`) and the `NEXT_PUBLIC_SENTRY_*` keys (a DSN per app, environment, release, trace sample rate). None is a secret.
 - `pnpm security:client-secrets` scans frontend source for server-only secret env keys.
 - Guest and staff JWTs use separate secrets from Supabase JWTs. Existing tests confirm guest tokens cannot be verified with the Supabase secret; staff tests cover separate staff-token validation.
 - Logout/revoke flows clear the local cookie. Supabase refresh-token revocation depends on Supabase Auth session semantics and should be verified against the production Supabase project during final sign-off.
@@ -142,12 +143,18 @@ self-hosted database where the blast radius far exceeds the benefit.
 ## Supply Chain And Containers
 
 - CI runs `pnpm audit --audit-level high`. An advisory with no fixed release that reaches no running
-  service is listed, with its reason, under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`.
-- Dependabot is enabled for npm, GitHub Actions, and Docker.
+  service is listed, with its reason, under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`. That
+  list is empty since 2026-11-17.
+- The same CI job runs `pnpm security:repo-advisories` (`scripts/check-repo-advisories.mjs`): it reads
+  the advisories each direct dependency's own GitHub repository publishes, and fails on a high or
+  critical one that holds a locked version before GitHub's global database, which `pnpm audit` reads,
+  lists it. GitHub out of reach is a warning, not a red. It shares the ignore list above.
+- Dependabot is enabled for npm and GitHub Actions. Its Docker entry watches `/infra/ops-runner` only;
+  the apps' Dockerfiles and the images named in the compose files are not watched.
 - Gitleaks scans committed secrets.
 - Trivy scans production images for high/critical vulnerabilities.
 - Production Dockerfiles are multi-stage and run as non-root users.
-- Known issue: app Dockerfiles currently use `node:22-alpine` style base tags through `ARG NODE_VERSION=22`. Pinning by digest is recommended before final production sign-off if the review requires zero mutable-base exceptions.
+- Known issue: app Dockerfiles currently use `node:26-alpine` style base tags through `ARG NODE_VERSION=26`. Pinning by digest is recommended before final production sign-off if the review requires zero mutable-base exceptions.
 
 ## Phase 2 Verification Commands
 

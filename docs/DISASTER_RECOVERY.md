@@ -14,6 +14,13 @@ Each nightly run produces a timestamped **set** of two artifacts (optionally
 | `db-<TS>.sql.gz`      | `pg_dump` of the **entire** `myclash` database. Because the Supabase `auth`, `storage`, and `_realtime` schemas live inside that database, **users (`auth.users`), storage object rows, RLS policies, functions, sequences and every `public` table are all captured** in one consistent MVCC snapshot. |
 | `storage-<TS>.tar.gz` | The contents of the named Docker volume `myclash-storage-data` (uploaded files: org logos, event assets), archived via a helper container.                                                                                                                                                              |
 
+**Event photos are in neither artifact.** Their images live in a separate Scaleway bucket
+(`PHOTO_BUCKET_*`) that the API reaches directly, and `backup.sh` and `restore.sh` never read or
+write it. The database dump holds only their rows (`event_photos`). See "Known limitations" below.
+
+`deploy.sh` also takes a database-only copy before each update, in `backups/pre-deploy/`; it is
+what `rollback.sh` restores. The nightly backup deletes the copies older than 30 days.
+
 Cluster-level **roles** (`anon`, `authenticated`, `supabase_auth_admin`, …) and their
 settings are not in a per-database dump. On a fresh cluster the `db` container creates them at
 init: the image's own `migrate.sh` creates the Supabase roles, `infra/db/init/01-supabase-roles.sh`
@@ -25,12 +32,15 @@ same-cluster and fresh-cluster restores have the roles they need, as long as `.e
 ## What restore does (`infra/scripts/restore.sh`)
 
 1. Decrypts (if `.gpg`) and **integrity-checks** both archives (`gunzip -t`) — aborts here, before any disruption, if an archive is corrupt.
-2. Stops **every service that holds a DB connection** — `api web-* worker` **and** the Supabase sidecars `supabase-auth`, `supabase-rest`, `supabase-realtime`, `supabase-storage`. (Skipping the sidecars is why an unpatched restore fails: `DROP DATABASE` is refused while any session is connected.)
+2. Stops **every service that holds a DB connection** — `api web-* worker` **and** the Supabase sidecars `supabase-auth`, `supabase-rest`, `supabase-realtime`, `supabase-storage`, `supabase-meta`, with `supabase-studio` beside it. (Skipping the sidecars is why an unpatched restore fails: `DROP DATABASE` is refused while any session is connected.) The stop waits 10 s, not the worker's 5 minutes of grace: the database is dropped next, so a job in flight could not finish anyway.
 3. `DROP DATABASE … WITH (FORCE)` + `CREATE DATABASE`.
 4. Replays the dump with `psql -v ON_ERROR_STOP=1 --single-transaction`. **Atomic:** a truncated or corrupt dump rolls the fresh database back to empty rather than leaving a half-restored, incoherent database reported as "success".
 5. **Validates** the result: the `public`/`auth`/`storage` schemas exist, `auth.users` is present, and there are a sane number of `public` tables. Fails the operation otherwise.
 6. Clears and re-extracts the storage archive into the `myclash-storage-data` volume.
 7. `docker compose up -d` restarts the whole stack.
+8. Warns that **data deleted after the backup was made is back**: accounts, anonymised names and
+   photos deleted since then. Nothing in the restored database remembers those deletions, so the
+   operator deletes them again. `rollback.sh` prints the same warning.
 
 `--storage-only <file>` does steps 1, 6 and 7 for the images alone: it stops and restarts
 `supabase-storage` only (the one service that mounts the volume) and never touches the
@@ -111,6 +121,12 @@ infra/scripts/restore.sh --storage-only <storage-file>   # images only, same nig
   hashes the value before sending it, so it reaches neither the db log (a mistyped role name logs
   the failed statement in full) nor `pg_stat_statements` (ruling 427).
 
+- **Event photos have no backup and no recovery path.** The photo bucket is outside the system
+  backup, has versioning off (a delete must really delete), and expires every object after 120
+  days. If the bucket is lost, the photos are lost. A database restore also leaves the two out of
+  step: a photo deleted after the backup has its row back and no image, and a photo sent after the
+  backup has an image and no row, which the hourly-grace orphan sweep
+  (`apps/api/src/modules/photos/photo-cleanup.ts`) then deletes from the bucket.
 - **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window. Nothing mitigates it: the quiesce lock designed in `docs/superpowers/archive/specs/2026-05-19-consistent-backups-design.md` was never built, and that spec is marked superseded.
 - **Integrity is truncation/corruption-level (`gunzip -t` / `gzip -t`), not a SHA-256 manifest.** A per-set checksum manifest is a deferred enhancement; it was intentionally left out of the current pass to avoid destabilizing the tested retention/listing logic.
 - **GPG key escrow:** if `BACKUP_GPG_RECIPIENT` is set, store the matching private key off-box. Without it, encrypted backups cannot be restored.

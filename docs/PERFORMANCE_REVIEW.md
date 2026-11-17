@@ -72,9 +72,13 @@ Use this method on staging before final production sign-off:
 
 Chosen v1 default: direct Postgres/Supabase connections, no PgBouncer yet.
 
-- The API opens no direct Postgres connections — it goes through PostgREST over HTTP. Only
-  `packages/db/scripts/migrate.mjs` connects with `postgres.js`, as a one-off deploy container.
+- The API opens no direct Postgres connections — it goes through PostgREST over HTTP. The direct
+  `postgres.js` connections are deploy's one-off containers, which exit:
+  `packages/db/scripts/migrate.mjs`, and `scripts/bootstrap-super-admin.mjs` and
+  `scripts/create-demo-org.mjs` (through `createRunSql`).
 - Supabase Auth, Realtime, Storage, and PostgREST use direct internal DB access.
+- The worker is its own container: the API image started with `--worker`. It runs every background
+  job and, like the API, opens no direct Postgres connection. The API runs no queue consumer.
 - Worker and API are expected to run as single replicas for v1.
 
 Add PgBouncer or Supabase pooler when `pg_stat_activity` consistently exceeds 60% of `max_connections`, connection acquisition appears in p95 latency, or additional API/worker replicas are introduced.
@@ -85,11 +89,11 @@ Add PgBouncer or Supabase pooler when `pg_stat_activity` consistently exceeds 60
 | --------------------- | ----------: | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Marketing static JS   | 200 KB gzip | In CI (Astro inlines this site's few KB of script, so the emitted-JS count is normally 0 — the binding budget is the first-paint assertion below)     |
 | Public page load      | 360 KB gzip | In CI. Measured 331,280 B on 2026-08-13                                                                                                               |
-| Scoring page load     | 320 KB gzip | In CI. Measured 297,578 B on 2026-08-13                                                                                                               |
-| Admin page load       | 460 KB gzip | In CI. Measured 428,992 B on 2026-08-13                                                                                                               |
+| Staff (pad) page load | 330 KB gzip | In CI. Raised from 320 on 2026-10-17, when the pad measured 327,694 B (the offline bout)                                                              |
+| Admin page load       | 470 KB gzip | In CI. Raised from 460 on 2026-10-20, when it measured 471,031 B (ruling 55)                                                                          |
 | Marketing first paint | 250 KB gzip | `pnpm --filter @myclash/web-marketing test` — document + stylesheets + smallest hero candidate. Currently 39 KB, down from ~4.7 MB of unoptimised PNG |
 
-All four run on every push. web-public used to budget its own root shell inside its `test` script, from `apps/web-public/scripts/landing-bundle-budget.mjs` with its own build harness; both are gone, because that measured the shell half and the page-load budget above measures all of it. The headroom is about 10%, which catches roughly a barrel import — re-baseline deliberately when a feature genuinely grows the payload, and record the measurement here as above.
+All four run on every push. web-public used to budget its own root shell inside its `test` script, from `apps/web-public/scripts/landing-bundle-budget.mjs` with its own build harness; both are gone, because that measured the shell half and the page-load budget above measures all of it. The headroom was set at about 10%, which catches roughly a barrel import; the two raises above left the pad about 3% and the admin about 2% at the time. Re-baseline deliberately when a feature genuinely grows the payload, and record the measurement here as above.
 
 ## Web Vitals
 
@@ -104,7 +108,7 @@ Automated Playwright coverage measures LCP and CLS for:
 - Public landing page.
 - Public event page.
 - Admin unauthenticated shell.
-- Scoring shell.
+- Staff (pad) shell, `web-staff`.
 
 Those checks run on `next dev`, not a production build, so their LCP budget is 3 s
 (`LCP_BUDGET_MS` in `tests/perf/web-public.spec.ts`); the 2.5 s target above is for

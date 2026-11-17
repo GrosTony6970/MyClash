@@ -9,10 +9,10 @@ Phase 6 uses Sentry Cloud for error tracking, external uptime monitoring for pub
 
 Configured services:
 
-- API: `SENTRY_DSN_API`
+- API: `SENTRY_DSN_API`. The worker is the same image started with `--worker` and reports under the same DSN.
 - Admin app: `NEXT_PUBLIC_SENTRY_DSN_ADMIN`
 - Public app: `NEXT_PUBLIC_SENTRY_DSN_PUBLIC`
-- Scoring app: `NEXT_PUBLIC_SENTRY_DSN_SCORING`
+- Staff app (`web-staff`, the scoring pad): `NEXT_PUBLIC_SENTRY_DSN_SCORING`
 
 Shared metadata:
 
@@ -35,7 +35,7 @@ Two notes for anyone changing it:
   key is missing entirely, and defaulting an outbound-data setting to _off_ when
   unconfigured is the right fail-safe. `.env` is the single owner of the rate.
 
-Empty DSNs disable capture safely. API 5xx responses, unhandled rejections, and uncaught exceptions are sent to Sentry when configured. An uncaught exception, a start that fails and a start not finished within 60 seconds also end the API process: it logs the failure, reports it, waits up to 2 seconds for Sentry to send, then exits 1 (operator rulings 781 and 788-790, 2026-11-15; `common/start-or-exit.ts`, `common/process-failure-handlers.ts`). An unhandled rejection is logged and reported, and the process runs on. Next.js apps initialize the Sentry SDK for browser and server runtime capture.
+Empty DSNs disable capture safely. API 5xx responses, unhandled rejections, and uncaught exceptions are sent to Sentry when configured. An uncaught exception, a start that fails and a start not finished within 60 seconds also end the API process: it logs the failure, reports it, waits up to 2 seconds for Sentry to send, then exits 1 (operator rulings 781 and 788-790, 2026-11-15; `common/start-or-exit.ts`, `common/process-failure-handlers.ts`). An unhandled rejection is logged and reported, and the process runs on. The worker follows the same rules: it starts from the same `main.ts`. Next.js apps initialize the Sentry SDK for browser and server runtime capture.
 
 What a report, a trace or a breadcrumb may carry is set in one place, `packages/types/src/sentry-data-collection.ts`, and every one of the seven inits takes its setting and its three hooks from there. It is the privacy policy's §7.1 in code: no cookie, no body, no query string, no URL fragment, no token in a path, no IP on server reports; the browser records the visitor's IP (policy §7.1). Sentry 10's "no personal data" switch sent cookies, tokens, bodies and queries anyway, so an option's name is not evidence: `pnpm observability:review` checks the wiring, and the Sentry 11 slice proved what leaves with an envelope sink. Browser tracing stays on: the `removeTracing` / `excludeTracing` flags would switch it off since Sentry 11, and the gate refuses them.
 
@@ -56,6 +56,10 @@ External uptime checks must be configured by the owner for:
 - `https://staff.myclash.fr/`
 
 Expected alert routing: owner phone/email through Better Stack, UptimeRobot, or equivalent. Phase 6 intentionally does not add Prometheus, Grafana, or node_exporter.
+
+The worker has no public address: it serves `/health` on `127.0.0.1` only, so no external check reaches it. Docker's healthcheck and the queue tile below watch it. The Event-photo bucket (Scaleway, `PHOTO_BUCKET_*`) is an external dependency of the API and the worker; the photo-storage tile below is its only check.
+
+The Runtime Health card (`/admin/system-versions`, super admin) reads five collectors in `apps/api/src/modules/admin/runtime-health/`: the database, the disk, photo storage, the queues and Redis. A job in the worker runs the same collection every 5 minutes and emails the operator when a metric reaches the configured alert level. The queue tile names each queue and who works it, and goes red when a queue has no consumer; a queue read at 0 is read once more before it counts (ruling 840). A worker that is stopping sends no such alarm (ruling 830).
 
 VPS-local evidence remains:
 
@@ -142,7 +146,7 @@ OAuth/email outage:
 
 | Data class                   |                RTO target |               RPO target | Evidence                                              |
 | ---------------------------- | ------------------------: | -----------------------: | ----------------------------------------------------- |
-| Postgres tournament data     |                   4 hours | 24 hours, PITR preferred | Phase 4 restore drill plus production PITR owner task |
+| Postgres tournament data     |                30 minutes | 24 hours, PITR preferred | Phase 4 restore drill plus production PITR owner task |
 | Supabase storage uploads     |                   8 hours |                 24 hours | Backup archive and restore procedure                  |
 | Scoring offline device queue | Event-day manual recovery |   Best effort until sync | Offline-first scoring design and device retry         |
 | Logs and Sentry events       |                  24 hours |              Best effort | Sentry Cloud retention and Docker rotation            |

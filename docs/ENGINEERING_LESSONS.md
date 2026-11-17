@@ -18,7 +18,12 @@ here.
   cross-cutting Global Person / Club) belongs in Postgres, not a document store. See
   [`HIERARCHY.md`](HIERARCHY.md) — it is authoritative for these terms.
 - Use Supabase for what it is good at (auth, storage, realtime, the DB) and NestJS for business
-  logic. Don't push domain code into Postgres functions.
+  logic. Domain code lives in the API. The exception is a decision that must read and write in one
+  transaction: merging fighters, settling a fighter's status, Swiss pairing, FightBook asks. Each
+  is a Postgres function, proven on a replayed database by a CI probe (`pnpm db:merge-probe`,
+  `pnpm db:fightbook-probe`, `pnpm db:fightbook-race-probe`; the status and Swiss functions inside
+  `pnpm db:rls-probe`). A rule moved into SQL is one no API test can see, so it gets a probe or it
+  does not move.
 - Separate frontend apps over a shared `packages/ui` beats one mega-app, because the staff app has
   materially different constraints (offline-first PWA). Three consume `packages/ui` — web-public,
   web-staff, web-admin. The fourth, web-marketing, is Astro and shares the palette by copy rather
@@ -192,7 +197,7 @@ here.
   so the wrong order gives `TS2307: Cannot find module` despite a successful `pnpm install`.
   Local `pnpm typecheck` cannot catch this — it builds in topological order automatically; only
   Docker does it by hand.
-- NestJS module cycles (`A → B → C → A`) can boot fine under vitest and `pnpm start:dev` yet crash
+- NestJS module cycles (`A → B → C → A`) can boot fine under vitest and `pnpm dev` yet crash
   in Docker with `UndefinedModuleException: The module at index [N] is undefined`. The cycle is
   often already present — adding any service that participates in cross-module DI just shifts init
   order. Fix by wrapping **one** side in `forwardRef(() => OtherModule)`, choosing the side where
@@ -292,7 +297,7 @@ here.
 ## Observability
 
 - **A Sentry project slug lives at sentry.io, not in this repo.** `web-scoring` in
-  `apps/web-staff/next.config.ts` and `NEXT_PUBLIC_SENTRY_DSN_SCORING` across six files are
+  `apps/web-staff/next.config.ts` and `NEXT_PUBLIC_SENTRY_DSN_SCORING` across nine files are
   deliberately stale after the `web-scoring` → `web-staff` rename. Renaming them repo-side first
   points uploads at a project that does not exist, and nothing fails loudly — the gap only shows
   when a stack trace is needed and arrives unminified. Rename at sentry.io and reissue the DSN
@@ -319,7 +324,7 @@ here.
 - Expose both `poolCount` and `targetSize` for pools, and `bracketSize` for brackets — organizers
   think in target sizes, not counts.
 - Keep scheduling algorithms as pure functions in `packages/rules/src/scheduling/`; the NestJS
-  layer (`pool-generator.ts`) does DB access and orchestration. That keeps them independently
+  layer (`apps/api/src/modules/phases/`) does DB access and orchestration. That keeps them independently
   testable and usable in a Web Worker. The referee assigner and the fighter/referee conflict check
   stay in `packages/rulesets/src/scheduling/` — they read staff availability and registration
   identities, which is resolution, not application.

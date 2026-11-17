@@ -29,6 +29,19 @@ Repo-verified controls:
 - Services use `json-file` log rotation with `max-size: 10m` and `max-file: 3`.
 - Public app/API services run behind the private `myclash` Docker bridge and are
   exposed only through Traefik labels.
+- The database console has a second bridge, `myclash-dbadmin`: only Postgres,
+  `supabase-meta`, `supabase-studio` and Traefik are on it. `supabase-meta`
+  answers unauthenticated as the superuser, so no service on `myclash` can reach
+  it or Studio.
+- Three Supabase services log in to Postgres as their own user, each with its own
+  password: PostgREST as `authenticator`, GoTrue as `supabase_auth_admin`, Storage
+  as `supabase_storage_admin` (`infra/db/init/supabase-service-roles.sh`). Realtime
+  and `supabase-meta` still log in as `POSTGRES_USER`. CI proves the three logins
+  with `scripts/check-service-db-users.sh`.
+- `worker` runs the same image as `api` with `--worker`. It alone runs the
+  background jobs; the `api` runs none. It serves `/health` only, on `127.0.0.1`,
+  and has no Traefik router. Its `stop_grace_period` is 5 minutes, so a job in
+  flight can finish.
 - App Dockerfiles use multi-stage builds and non-root runtime users.
 - `ops-runner` remains internal-only, has no Traefik router labels, and is
   documented as the privileged backup/restore exception because it mounts the
@@ -50,6 +63,13 @@ Repo-verified controls:
 - HSTS preload is intentionally disabled for v1.
 - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and
   `Referrer-Policy: strict-origin-when-cross-origin` are configured at Traefik.
+- The edge refuses GoTrue's own `POST /auth/v1/signup` for everyone: router
+  `myclash-auth-signup` chains an `ipallowlist` of one TEST-NET address. Our
+  sign-ups go through the API, which stores no password before the mail is
+  confirmed. `pnpm infra:review` pins it in the prod and dev files.
+- Of Realtime's REST routes, the edge forwards `/realtime/v1/api/ping` and nothing
+  else (router `myclash-realtime-api`). The others are Realtime's tenant
+  management. `pnpm infra:review` pins the rule and its rewrite.
 
 ### Edge plugins: GeoBlock + Fail2Ban
 
@@ -98,7 +118,8 @@ tabs left open would have banned the hall for 15 minutes. The heartbeat now stop
 on a signed-out answer, but a jail one client bug away from that does not belong
 in front of an app surface.
 
-Rate control there is now the API's own `ThrottlerGuard` (600/min per IP) plus
+Rate control there is now the API's own `ThrottlerGuard` (120/min per IP, raised
+to 600/min on the read routes a whole venue polls) plus
 `@ThrottleByStaffAccount` on the login route — both answer `429` to the one
 caller instead of banning the address for everyone behind it.
 `check-infra-review.mjs` pins the removal as a refusal, in the prod and dev files
@@ -209,6 +230,9 @@ pnpm infra:edge -- --domain myclash.fr
 
 This checks apex, `www`, `api`, `app`, `admin`, and `staff` HTTP-to-HTTPS
 redirects, TLS certificate expiry, HSTS headers, and `https://api.myclash.fr/health`.
+When `app` is among the hosts it also probes `/realtime/v1/api/ping`, which proves
+Realtime resolves its tenant from the `app.` Host, as the live socket does
+(`scripts/lib/realtime-edge-probe.mjs`).
 
 Observed on 2026-05-13 before deploy: `pnpm infra:edge -- --domain myclash.fr`
 failed because apex/`www` resolve to an OVH parking-style host and app/API
@@ -222,8 +246,8 @@ stack is probed successfully.
   digest-pinned. Registry access is needed to resolve and maintain digests.
   Current mitigation: the five app images' runner stages run `apk upgrade`,
   and CI's Trivy legs scan a fresh build of each for high/critical findings.
-  Dependabot's Docker entry watches only `infra/`, so it does not cover the app
-  bases. Owner target: pin by digest before final production sign-off
+  Dependabot's Docker entry watches only `infra/ops-runner`, so it does not cover
+  the app bases or the images the compose files name. Owner target: pin by digest before final production sign-off
   if zero supply-chain exceptions are required.
 - Live TLS evidence is not repo-local. It must be recorded from the deployed
   `myclash.fr` stack with `pnpm infra:edge -- --domain myclash.fr`.
