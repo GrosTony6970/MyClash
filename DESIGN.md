@@ -293,11 +293,13 @@ The single recurring mark is the **FoilMark** (`packages/ui/src/components/FoilM
 
 ### Where the truth lives
 
-**Token source of truth: `packages/ui/src/theme.css`.** Tailwind v4 `@theme`, plain and deliberately not `@theme inline`, so the generated utilities resolve through `var(--color-*)` and the runtime scopes can override them. Every value in the front matter above is mirrored from that file and is checked against it by `pnpm quality:design-drift`.
+**Token source of truth: `packages/ui/src/theme.css`.** Tailwind v4 `@theme`, plain and deliberately not `@theme inline`, so the generated utilities resolve through `var(--color-*)` and the runtime scopes can override them. The `colors:` in the front matter above are mirrored from that file and checked against it by `pnpm quality:design-drift`, in the base, dark and personal scopes; of each font stack it checks the first fallback family, and that every app defines the font variables.
+
+**Nothing checks the rest of the front matter.** The type sizes and weights, `rounded`, `spacing` and every `components:` entry are a specification, not a mirror. Several `spacing` keys (`touch-min`, the gutters, the containers) have no variable in `theme.css` at all — they exist only as the Tailwind classes this file names — and where a `components:` entry and the built component disagree, the register below says so.
 
 **There is no second token package.** `packages/design-tokens/` used to exist, called itself the "canonical source of truth", described a Cinzel + Inter design, and was imported by nothing. It was deleted on 2026-07-17. If you find a doc, comment or memory that points at it, that doc is stale — fix it.
 
-**The executable contract is `/admin/design-system`** (`apps/web-admin/app/admin/design-system/page.tsx`) — this language in one page, in real components. Code can rot against a markdown file; it cannot rot against a route.
+**The executable contract is `/admin/design-system`** (`apps/web-admin/app/admin/design-system/page.tsx`) — the admin signature in one page, in real components. Code can rot against a markdown file; it cannot rot against a route. It is a partial contract: it renders `AdminPageHeader`, `StatusBadge`, `DataTable`, `Button`, `FormField` and `FoilMark`, and the palette. Everything else in the Components list below has no specimen there, and the hex labels beside its swatches are typed by hand ([D5](docs/design/known-deviations.md#d5--style-guide--component-retokenization-mostly-fixed)).
 
 **Per-surface deltas:** `docs/design/{web-admin,web-public,web-staff,display-kiosk,marketing}.md`. Each states only what its surface changes.
 
@@ -333,16 +335,18 @@ They are not merged into one darker token because the amber that passes AA as te
 That is a checked claim, not an aspiration — `pnpm design:lint` runs the contrast rule over the front matter. Two consequences worth knowing:
 
 - **`success` and `warning` are red-700-era darks** (`#15803d`, `#b45309`), not the green-600/amber-600 you might reach for. Those failed at 3.30:1 and 3.19:1.
-- **On dark, a bright chip takes dark ink.** The dark scope lightens every status hue so it reads as text on a dark surface — which makes it useless as a fill under _white_ text (white on dark `success` is 2.28:1). So the dark scope also flips `--color-*-foreground` to `#0f172a`. This is the same move `strong` already makes: it is the only other token the dark scope lightens, and it inverts its foreground for the same reason.
+- **On dark, a bright chip takes dark ink.** The dark scope lightens every status hue so it reads as text on a dark surface — which makes it useless as a fill under _white_ text (white on dark `success` is 2.28:1). So the dark scope also flips `--color-*-foreground` to `#0f172a`. This is the same move `strong` already makes: the dark scope lightens it and inverts its foreground for the same reason. (The scope lightens `gold`, the corner defaults and the chart series too; none of those carries a foreground to flip.)
 
 ### The two scopes are orthogonal
 
 This is the single most important structural fact about the colour system, and the one most likely to be got wrong.
 
 ```
-[data-theme='dark']      → swaps the SURFACE   (background, surface, foreground, border, statuses, strong, corners)
+[data-theme='dark']      → swaps the SURFACE   (background, surface, foreground, border, gold, statuses, strong, corners, chart)
 [data-accent='personal'] → swaps the ACCENT    (accent, accent-hover)
 ```
+
+`[data-theme='light']` is the surface switch's other position, not a third scope. The light values are the defaults on `:root`, which is enough while dark is only ever set at the top of a tree. A light region _nested inside_ a dark one needs a selector of its own to restore them — the staff app's chrome over its dark scoring pad is that case (`docs/design/web-staff.md`). The block restores every token the dark scope sets, and `theme-scope-parity.test.ts` holds the two lists equal. `pnpm quality:design-drift` does not read it.
 
 They compose freely and neither implies the other. You can read this off the token list itself:
 
@@ -365,11 +369,11 @@ Do not reintroduce a per-event tint by inlining `var(--event-*, …)` in a compo
 
 Three faces, referenced indirectly, so a font swap is one edit. Their files are in the repo (`packages/ui/src/fonts/`, SIL Open Font License): a build asks no font server. Each app's layout loads the Latin file through `next/font/local`; the other subsets (latin-ext, Cyrillic, Greek, Vietnamese) are declared once, in `packages/ui/src/fonts/subsets.css`, under a family that opens each stack of `theme.css`:
 
-| Face               | Role                                                                                                                    | Loaded as                                            |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Fraunces**       | Display — H1, H2, ruleset and league names. A variable serif with an `opsz` axis, so optical sizing is free. The voice. | `--font-fraunces` → `--font-display`                 |
-| **Geist**          | Body, labels, tables, numbers. Distinctive but neutral; read fast and at an angle.                                      | `--font-geist` → `--font-body`                       |
-| **JetBrains Mono** | Codes, slugs, IDs.                                                                                                      | `--font-jetbrains` → `--font-display`'s mono sibling |
+| Face               | Role                                                                                                                    | Loaded as                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Fraunces**       | Display — H1, H2, ruleset and league names. A variable serif with an `opsz` axis, so optical sizing is free. The voice. | `--font-fraunces` → `--font-display` |
+| **Geist**          | Body, labels, tables, numbers. Distinctive but neutral; read fast and at an angle.                                      | `--font-geist` → `--font-body`       |
+| **JetBrains Mono** | Codes, slugs, IDs.                                                                                                      | `--font-jetbrains` → `--font-mono`   |
 
 The indirection has a failure mode worth naming: `theme.css` declares `--font-display: 'Fraunces Subsets', var(--font-fraunces), …, Georgia, serif`. An app that imports `theme.css` but never defines `--font-fraunces` produces **valid CSS with correct colours that silently renders in Georgia**. `pnpm quality:design-drift` asserts every app defines the font variables it references, because this shipped once already.
 
@@ -384,6 +388,10 @@ The indirection has a failure mode worth naming: `theme.css` declares `--font-di
 | Body            | `text-sm text-foreground` (secondary: `text-muted`)             | Content                  |
 
 Admin has a tighter eyebrow: `text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500`. **The label is the smallest text on screen; the input value is the loudest.** That pairing is what makes a form field read like an entry in a tournament programme rather than a row in an admin panel.
+
+### The stage scale
+
+The projector surfaces have a type scale of their own, and it is the only set of `--text-*` keys in `theme.css`: `--text-stage-score`, `-clock`, `-verdict`, `-name`, `-subtitle`, `-club`, `-row`, `-label` and `-meta`, used as `text-stage-score` and so on. Each is a `clamp()` built by one rule — the cap is the fixed size it replaced, the slope is the cap ÷ 19.2 in `vw` — so it resolves to exactly the old size on a 1920px projector and shrinks in a smaller window instead of overflowing its column. The score and the clock also cap against `vh`. They belong to the stage (`TVScoreboard`, `LiceWaitingDisplay`, the display wall) and nowhere else: app chrome uses the table above. See [`docs/design/display-kiosk.md`](docs/design/display-kiosk.md).
 
 ## Layout
 
@@ -418,7 +426,7 @@ Stacking layers are tokenized (`--z-index-*` in `theme.css`), because "which num
 | `z-overlay`   | 50    | Modals, dialog backdrops, popovers |
 | `z-skip-link` | 60    | The skip link, above everything    |
 
-The unambiguous sites (dialog backdrops, shells, skip-links, sticky sub-headers — 35 of them) now use the named tokens. What stays on bare numbers is deliberate: a private stacking ladder like the schedule grid's (`z-10` time labels under `z-20` handles under `z-30` header cells) is self-contained and would only be *mis*described by the page-level names. So the mapping is not mechanical — `z-50` covers both a dialog backdrop and an inline dropdown, and a `z-30` can be a page header or a grid cell. Use the named tokens in new code; where an existing number is part of a local ladder, leave it. The deviations register lists what was intentionally left.
+The unambiguous sites (dialog backdrops, shells, skip-links, sticky sub-headers — 39 uses on 2026-11-17, beside 60 bare numbers) use the named tokens. What stays on bare numbers is deliberate: a private stacking ladder like the schedule grid's (`z-10` time labels under `z-20` handles under `z-30` header cells) is self-contained and would only be *mis*described by the page-level names. So the mapping is not mechanical — `z-50` covers both a dialog backdrop and an inline dropdown, and a `z-30` can be a page header or a grid cell. Use the named tokens in new code; where an existing number is part of a local ladder, leave it. The deviations register lists what was intentionally left.
 
 ## Elevation & Depth
 
@@ -426,7 +434,7 @@ This is the shortest section on purpose.
 
 **Paper, not glass.** Depth comes from a hairline (`border-border`) and a half-step of background (`background` → `surface`). That is the whole mechanism.
 
-`shadow-sm` is the **ceiling**, not the starting point — it accounts for roughly 165 of ~205 shadow usages in the codebase, and that ratio is the design, not an accident. There is no shadow token and there will not be one: a `--shadow-*` token would be an invitation to add shadows, and Tailwind inlines shadow values at build time anyway, so a shadow could never respond to the dark scope even if we wanted it to.
+`shadow-sm` is the **ceiling**, not the starting point — it accounts for 194 of about 250 shadow usages in the codebase (2026-11-17), and that ratio is the design, not an accident. The 44 usages above the ceiling are a deviation, not a second tier ([D15](docs/design/known-deviations.md#d15--shadows-above-the-shadow-sm-ceiling)). There is no shadow token and there will not be one: a `--shadow-*` token would be an invitation to add shadows, and Tailwind inlines shadow values at build time anyway, so a shadow could never respond to the dark scope even if we wanted it to.
 
 If a card needs a shadow to be legible, the layout underneath it is wrong.
 
@@ -447,17 +455,29 @@ The FoilMark is the only ornament. That is the budget.
 
 ## Components
 
-Build from `@myclash/ui`. What each component is _for_ — the class lists live in the code, and the rendered truth lives at `/admin/design-system`:
+Build from `@myclash/ui`. What each component is _for_ — the class lists live in the code, and six of them have a rendered specimen at `/admin/design-system`:
 
-- **`Button`** — `primary` is the accent-filled one live action. `strong` is the dark-neutral alternative when a page's accent is already spent. `danger` is destructive. `gold` is a flourish, not a CTA. `outline` is the quiet neutral action beside the content (Share), on tokens in both scopes.
+- **`Button`** — `primary` is the accent-filled one live action. `strong` is the dark-neutral alternative when a page's accent is already spent. `danger` is destructive. `gold` is a flourish, not a CTA. `outline` is the quiet neutral action beside the content (Share), on tokens in both scopes. The component as built differs from this line: it has no `strong` variant, and it carries `secondary`, `ghost`, `back` and `cancel`, which nothing here specifies ([D18](docs/design/known-deviations.md#d18--button-and-the-field-are-not-built-as-specified), [D13](docs/design/known-deviations.md#d13--the-ghost-button-is-white-ink-and-it-is-used-on-light-pages)).
 - **`Card`** — `surface` on `background`, hairline border, `rounded-xl`. The panel of the booklet.
 - **`FormField`** — the light admin field: quiet 11px eyebrow label, loud value. The tournament-programme entry.
-- **`StatusBadge` / `Badge`** — the same chip; `StatusBadge` defaults to the light surface, `Badge` to dark. Status inks only.
+- **`StatusBadge`** — the status chip, and the only one: there is no `Badge` component (a dark sibling existed and was deleted unused). Pick the colour with `semantic` (`pending`, `ready`, `live`, `paused`, `done`, `archived`, `danger`), which the per-domain mappers produce from a real status — `tournamentStatusSemantic`, `matchStatusSemantic`, `workshopStatusSemantic` and their siblings. The older `variant` prop still works and maps onto the same palette. `surface` is `light` by default and must be passed as `dark` on a dark region: the palette is chosen in JavaScript, so it cannot follow the `[data-theme]` cascade. `size` and `shape` cover the chips the code already drew by hand; `statusPillClass` gives the same classes to an element that cannot be a `StatusBadge`. Status inks only.
 - **`DataTable`** — hairline separators, no header fill, small-caps muted header, `hover:bg-background`. A timetable, not a spreadsheet.
 - **`AdminPageHeader`** — the signature: eyebrow in small-caps accent, FoilMark hairline beneath, H1 in Fraunces, subtitle in Geist.
 - **`Modal` / `ConfirmDialog` / `PromptDialog`** — portal, focus trap, Escape. Never `window.confirm`.
 - **`EmptyState`** — every zero-state. Carries the FoilMark.
 - **`MatchScoreboard` / `TVScoreboard`** — the corners come from the tournament's configured `sideColors` via `sideColorsFor()`. Not yours to restyle, and not yours to hardcode.
+
+The list above is the signature, not the inventory. The barrel (`packages/ui/src/index.ts`) also exports, and a new screen should reach for these before writing its own:
+
+- **Controls and feedback** — `SegmentedTabs` (a tabbed list, with the count in the label), `Switch`, `ToastProvider` / `useToast`, `Skeleton`, `Spinner`, `Pill`, `Avatar`, `Divider`, `CollapsibleSection`, `HelpTooltip`, `StatusHelp`, `PasswordChecklist`, `CountryCombobox`, `ClubCombobox`.
+- **Tables and ledgers** — `MetricCard`, `StatsGrid`, `BulkActionBar`, `RowActionButton`, `SortableHeader`, `CsvExportMenu`.
+- **Chrome** — `AuthPanel` (every sign-in page), `NavIcon`, `LegalFooter`, `MaintenanceBanner`, `SimulatedTimeBadge` (shown only while a super admin runs the clock off real time), `FreshnessChip` (says when a live screen has stopped hearing from the server).
+- **Domain** — `BracketView`, `MedalPodium`, `MatchTimeline`, `BoutFlowChart`, `RatingHistoryChart`, `LiceWaitingDisplay`, `TournamentColorDot`, `SkillBadge`, `EventKindBadge`, `AiKeysManager`.
+- **`HandMark`** — a raised hand, the mark of a protest, on the pad's protest button, the TV chip and the Match history. It is an icon with a meaning, drawn in `currentColor`; the FoilMark is still the only ornament.
+- **Screen hooks** — `useWakeLock`, `useFullscreen` and `useDisplayMirror`, for a pad or a projector that must stay awake, fill the screen and swap sides.
+- **`@myclash/ui/scan`** — `useCameraScanner`, the camera QR scanner. It is a subpath on purpose: the root barrel ships to every app, and only the screens that scan should carry the decoder.
+
+`Input` is still exported and nothing renders it ([D6](docs/design/known-deviations.md#d6--three-input-styles)).
 
 ## Do's and Don'ts
 
@@ -474,8 +494,8 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Don't** collapse `strong`, `accent` and `foreground` into "the dark one". Three tokens, three jobs — and on dark, `strong` **inverts** while `accent` does not move at all. Code that treats them as interchangeable breaks on exactly one surface, which is how it ships.
 - **Don't** restyle the corners, and **don't** paint `corner-red` / `corner-blue` at a call site. The corner is rule semantics AND per-tournament data — resolve it with `sideStyle()` / `sideColorsFor()`. The raw tokens are the defaults those helpers fall back to, nothing more. Theme the chrome around a scoreboard; leave the corners to the organiser.
 - **Don't** assume dark implies blue. The scopes are orthogonal (see Colors). `/me` is light content + blue accent + dark sidebar.
-- **Do** let event colour tint the accent on `/e/*`.
-- **Don't** treat event colour as a third surface.
+- **Don't** tint the accent per event. `/e/*` wears the same accent as every other page (see Event colour); these two lines used to say the opposite, a leftover of the tint that migration 0086 retired.
+- **Do** carry an event's identity in its logo, its hero image and its tournaments' colours.
 - **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. **`#b91c1c` is the MyClash red** — it is `--color-accent`. Its shades are tokens too: `#991b1b` is `accent-hover`, `#dc2626` is `danger`. A fourth red, the legacy `#c0392b`, used to be loose in emails, PWA chrome and event pages; it was unified onto `#b91c1c` on 2026-07-17. If you are about to type `#c0392b`, you are copying something that was removed on purpose.
 
 ### Type

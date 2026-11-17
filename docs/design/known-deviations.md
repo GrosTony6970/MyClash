@@ -4,7 +4,7 @@ Where the code disagrees with [`/DESIGN.md`](../../DESIGN.md).
 
 **This is a bug list, not a permission slip.** Every entry is something we intend to fix. If you are about to copy an existing pattern, check here first — the thing you are copying may be the thing we are removing. Nothing on this page is licence to add a new instance.
 
-Each entry names the rule it breaks, the files that break it, and why it hasn't been fixed yet. When you fix one, delete the entry.
+Each entry names the rule it breaks, the files that break it, and why it hasn't been fixed yet. When you fix one, mark its heading **FIXED** and keep the entry: entries are cited by number from other files (`CLAUDE.md` cites D2), so one is never deleted and never renumbered. A new entry takes the next free number.
 
 ---
 
@@ -29,9 +29,9 @@ background tweak silently re-breaks it.
 
 `--color-gold` (`#f59e0b`) is **2.06:1** against a light page. That clears nothing, but the three remaining light-surface `text-gold` sites are all ★ rating glyphs, not prose:
 
-- `apps/web-public/app/me/instructor/InstructorDashboard.tsx:462` — `Stars`, `aria-hidden="true"` (an accessible equivalent exists)
-- `apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx:272` — star buttons, each with an `aria-label`
-- `apps/web-admin/app/org/[slug]/events/[eventId]/referees/page.tsx:194` — same star-rating control
+- `apps/web-public/app/me/instructor/InstructorDashboard.tsx:546` — `Stars`, `aria-hidden="true"` (an accessible equivalent exists)
+- `apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx:362` — star buttons, each with an `aria-label`
+- `apps/web-admin/app/org/[slug]/events/[eventId]/referees/page.tsx:218` — same star-rating control
 
 They are left gold deliberately: a star rating **is** the medal-ink use case, and `gold-text` (`#92400e`) would render brown stars. But be precise about what that costs — WCAG **1.4.11** wants 3:1 for non-text, and 2.06:1 misses it. So they are exempt from 1.4.3 (they are graphics with accessible names), not from 1.4.11.
 
@@ -92,9 +92,9 @@ Worth remembering _why_ it was dangerous rather than merely dead: its radius sca
 Two specific defects on top of the font stack:
 
 1. **Its brand red is the danger value.** `--red: #dc2626` is used as the brand red while `--red-dark: #b91c1c` — the product's actual accent — is demoted to secondary. Inverted.
-2. **~~Its body font never loaded.~~** — _fixed_: `family=Cormorant+Garant` was a typo for \*Cormorant **Garamond\*** in all 6 HTML files. Google Fonts **silently drops an unknown family from a combined request** rather than erroring — the request returned `HTTP 200` with only Cinzel (860 bytes vs 2136 after the fix), so there was no 400, no console error, and no signal of any kind. Cinzel loaded; the body copy fell back to Times for months. Corrected; kept here as context for the migration, and as a reminder that a font can be silently absent.
+2. **~~Its body font never loaded.~~** — _fixed_: `family=Cormorant+Garant` was a typo for \*Cormorant **Garamond\*** in all 6 HTML files. Google Fonts **silently drops an unknown family from a combined request** rather than erroring — the request returned `HTTP 200` with only Cinzel (860 bytes vs 2136 after the fix), so there was no 400, no console error, and no signal of any kind. Cinzel loaded; the body copy fell back to Times for months. Corrected; kept here as context for the migration, and as a reminder that a font can be silently absent. Since the Astro rebuild (2026-08-11) neither the six HTML files nor the Google Fonts request exists: both faces are self-hosted through `@fontsource` (`src/styles/fonts.css`).
 
-It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, `#f1f5f9`, `#64748b`, `#b91c1c`, `#f59e0b` all appear in `theme.css`). Sharing values is not sharing a system: when `theme.css` moves, this app does not follow.
+It shares the product palette **by copy, not by import**. Of the thirteen colours in `src/styles/base.css`, eleven have a value that also appears in `theme.css` (`#ffffff`, `#0f172a`, `#1e293b`, `#f1f5f9`, `#e2e8f0`, `#64748b`, `#b91c1c`, `#dc2626`, `#f59e0b`, `#1d4ed8`, `#3b82f6`); two match nothing there — `--blue-dark: #1e40af` and `--banner-navy: #010f33`, the navy baked into the banner image, added 2026-11-09. Sharing values is not sharing a system: when `theme.css` moves, this app does not follow.
 
 **The technical excuse has expired.** This entry used to say the copying was "an accepted cost of having no build step". The Astro migration gave the app a real build, so importing `theme.css` is now ordinary work, not an architectural change.
 
@@ -147,20 +147,31 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 
 - The eyebrow is `text-accent`, as DESIGN.md's `page-header-eyebrow` says — not `text-accent-hover`,
   the value-exact `#991b1b`, because a hover colour used at rest is the wrong token. It moved
-  red-800 → red-700 on the 22 web-admin pages that use the header. The rule under the header is
+  red-800 → red-700 on the 22 web-admin pages that used the header then (27 files render it on
+  2026-11-17). The rule under the header is
   `border-border` (`#e7e5e4`) instead of `border-slate-200` (`#e2e8f0`).
   `admin-page-header-render.test.tsx` holds both. The FoilMark's `text-slate-300` stays (below).
 
 **Still open (each needs a value-shift decision or a new token — not a silent sweep):**
 
-- **A second `EmptyState` exists.** `web-admin` carries an unrelated local
+- **A second and a third `EmptyState` exist.** `web-admin` carries an unrelated local
   `function EmptyState()` at
-  `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:486`. It is fully
+  `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:495`. It is fully
   tokenized and imports nothing from `@myclash/ui` — a name collision rather than a divergent copy,
   but one grep away from being mistaken for the shared component, and it did not gain the FoilMark.
+  `web-staff` has the same collision at `apps/web-staff/app/desk/page.tsx:250`.
 
 - **`FoilMark` / FormField input border** `text-slate-300` / `border-slate-300` (`#cbd5e1`): **no token has this value.** The system has no control-border tier distinct from the card hairline, and no placeholder tier (`slate-400`). Adding those tiers is a token decision.
-- **`FormField`** (its only consumer is the design-system showcase, not shipped chrome): its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap.
+- **`FormField`**: its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap. This entry used to say the design-system showcase was the component's only consumer. Since 2026-11-10 (`cc4018137`) it is shipped chrome in the organiser's Workshops screens — `InstructorDetailsPanel.tsx:100,110`, `RosterMessage.tsx:29,35` and `RosterAddPerson.tsx:49` under `apps/web-admin/app/org/[slug]/events/[eventId]/workshops/` — so the accent-red error text and the raw `slate-*` border and label now reach an organiser.
+- **`/admin/design-system` is a partial specimen, and part of it can still rot.** It renders six
+  primitives (`AdminPageHeader`, `StatusBadge`, `DataTable`, `Button`, `FormField`, `FoilMark`) of
+  the 55 component files in `packages/ui/src/components` — no `Modal`, `EmptyState`, `Card` or
+  scoreboard.
+  Three of its swatches are raw palette classes with no token behind them (`bg-amber-50`,
+  `bg-indigo-50`, `bg-green-50`, `page.tsx:110-124`), its two FoilMark colour examples are
+  `text-red-800` and `text-amber-700` (`:165-166`), every swatch's hex label is a hand-typed string
+  (`:81-147`), and `StatusBadge` is shown only through the legacy `variant` prop (`:212`). The
+  2026-07-17 fix above put the swatch _fills_ on tokens; the labels beside them are still prose.
 - **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-staff (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.
 - ~~**`Button.tsx:69` `ring-offset-gray-900`**~~ **FIXED (2026-07-27)** — it was painting a near-black halo around every focused button on the light admin pages. Now `ring-offset-background`, which tracks the `[data-theme]` scope instead of assuming one. The ring hue went `ring-amber-400` → `ring-gold` in the same pass: identical on dark, a deeper amber-500 on light where it needs the contrast.
 - **`Card` `CardBody`** the removed `#d1d5db` fallback shows the original intent was a _muted_ body; the var choice (`--color-foreground`) silently flattened title and body to one colour. `CardBody` should probably be `foreground-secondary` — a deliberate (visible) change, so deferred.
@@ -171,25 +182,53 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 
 **Rule broken:** Components — build from `@myclash/ui`.
 
-| Style                     | What                                                                                                                                                                | Where                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `@myclash/ui` `Input`     | **Dark** field (`bg-gray-900 border-gray-700 text-white`, red-600 focus). Uses `gray-*` while the whole system uses `slate-*`/`stone-*`. Predates the token system. | ~15 uses in **light** admin pages — a visible mismatch                               |
-| `@myclash/ui` `FormField` | The light admin-red field. The intended one.                                                                                                                        | admin forms                                                                          |
-| raw tokenized inputs      | No shared component; hand-rolled `border border-border bg-surface … focus:ring-accent`                                                                              | `/me` pages, e.g. `apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx:287` |
+| Style                     | What                                                                                                                                                                | Where                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `@myclash/ui` `Input`     | **Dark** field (`bg-gray-900 border-gray-700 text-white`, red-600 focus). Uses `gray-*` while the whole system uses `slate-*`/`stone-*`. Predates the token system. | **Nowhere.** Exported from the barrel, rendered by no app or package (2026-11-17). This row used to say "~15 uses in light admin pages". |
+| `@myclash/ui` `FormField` | The light admin-red field. The intended one.                                                                                                                        | The design-system page and three organiser Workshops panels (five call sites; see D5). Every other admin form hand-rolls its field.      |
+| raw tokenized inputs      | No shared component; hand-rolled `border border-border bg-surface … focus:ring-accent`                                                                              | `/me` pages, e.g. `apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx:378`, and the admin forms `FormField` never reached      |
 
-**Why not fixed:** needs a real decision (extend `FormField` to cover dark? retire `Input`?), not a sweep.
+The third row keeps growing, which is the cost of leaving the decision open. Each of these is a
+field helper local to one feature, written since the entry was opened:
+
+- **FightBook's `Field` + `inputClass`** — `apps/web-public/src/components/fightbook/AskSparFields.tsx:8-24`
+  (`dafb865aa`, 2026-11-12), reused by `AskSparDialog`, `AllOfFightBook`, `FindTab`,
+  `PostOpenCall`, `QrScan` and `FightBookSettingsPanel`. Its label is
+  `text-sm font-semibold text-foreground`: as loud as the value, which breaks "the label is the
+  smallest text on screen".
+- **The instructor's "my details"** — `apps/web-public/app/me/instructor/MyDetailsPanel.tsx:21`,
+  a local `INPUT` on `bg-background`.
+- **The runtime-health alert settings** —
+  `apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:444`, a local `inputClass`.
+
+**Why not fixed:** needs a real decision (extend `FormField` to cover dark and the public app? retire `Input`?), not a sweep.
 
 ---
 
-## D7 — FIXED: the kiosk stage is now a token (and a projector bug fixed with it)
+## D7 — the kiosk stage is a token (mostly FIXED; `TVScoreboard` is not on it)
 
-Added `--color-stage` (`#030712`) + `--color-stage-foreground`, and migrated all the projector surfaces off `bg-gray-950`:
+Added `--color-stage` (`#030712`) + `--color-stage-foreground`, and migrated three projector surfaces off `bg-gray-950`:
 
 - `apps/web-admin/app/display/layout.tsx`
 - `apps/web-public/app/e/[eventSlug]/match/[matchId]/display/display-view.tsx`
 - `packages/ui/src/components/LiceWaitingDisplay.tsx` (the lice route renders this bare when idle)
 
 The stage is deliberately deeper than `dark-background` (`#0f172a`) so the corner colours carry across a hall, and it is scope-independent — always this near-black on any theme, which is why it is its own token rather than a dark-scope override.
+
+**Still open — this entry used to say "all the projector surfaces", and that was never true.**
+`packages/ui/src/components/TVScoreboard.tsx` paints `bg-gray-950 text-white` on its root (`:298`)
+and on its two full-screen states, loading and error (`:215`, `:230`), and has done since it was
+written (`03a62565a`, 2026-06-07). `gray-950` is `#030712`, the token's own value, so a hall sees
+no difference today — the two wrappers that host it are on `bg-stage` and the component paints the
+same colour over them. It is parity by coincidence, not by token: move `--color-stage` and the
+scoreboard stays behind. The file is on the `packages/ui` raw-palette exemption list (D21), which is
+why no lint says so.
+
+The light strips on the stage are raw palette too: the scoreboard's header and footer
+(`TVScoreboard.tsx:386`, `:820`) and the waiting screen's header (`LiceWaitingDisplay.tsx:68`) are
+`bg-white` with `slate-*` ink, not `bg-surface` under a light scope.
+
+**Why not fixed:** found in the 2026-11-17 docs sweep; not fixed in that sweep.
 
 **Bug fixed in passing:** `LiceWaitingDisplay` had the stage background but was **missing `cursor-none`** — so a mouse pointer sat visible on the projection during the between-matches waiting state, which is the state a hall screen sits in longest. The two `<div>` wrappers had `cursor-none`; the component everyone forgot did not. Added.
 
@@ -201,9 +240,11 @@ The stage is deliberately deeper than `dark-background` (`#0f172a`) so the corne
 
 32 of those were **value-preserving renames** (`z-overlay`=50, `z-sidebar`=40, `z-header`=30, `z-sticky`=20, `z-raised`=10 — same numbers), so stacking order did not move; verified every named utility emits its expected value in the built CSS. The 3 skip-links were the one real change: `focus:z-50` → `z-skip-link` (50→60), a correction so a focused skip-link sits **above** an open modal instead of tying with it (the two shells were already at 60).
 
-**Left on bare numbers on purpose (~47 sites):** private, self-contained stacking ladders where a page-level name would *mis*describe the element. The largest is the schedule grid (`grid.tsx`): its `z-10` time-label column < `z-20` resize handles < `z-30` venue header cells is an internal ladder, not the page's header/sticky layers. Renaming those to `z-header`/`z-sticky` would be value-identical but semantically wrong, and would invite someone to "fix" the grid against the page's z-order. Also left: a handful of dropdown menus rendered _inside_ an already-stacked fixed parent (their number only competes with a sibling backdrop, so the page-level token doesn't apply). New code should use the named tokens; a number that is part of a local ladder is fine.
+**Left on bare numbers on purpose (~47 sites then):** private, self-contained stacking ladders where a page-level name would *mis*describe the element. The largest is the schedule grid: its `z-10` time-label column < `z-20` resize handles < `z-30` venue header cells is an internal ladder, not the page's header/sticky layers. (It lived in `grid.tsx` when this was written; the grid has since been split, and the ladder is now in `BlockGridView.tsx` and the `Detailed*.tsx` files beside it — 19 bare sites between them.) Renaming those to `z-header`/`z-sticky` would be value-identical but semantically wrong, and would invite someone to "fix" the grid against the page's z-order. Also left: a handful of dropdown menus rendered _inside_ an already-stacked fixed parent (their number only competes with a sibling backdrop, so the page-level token doesn't apply). New code should use the named tokens; a number that is part of a local ladder is fine.
 
-**Latent bug the audit found — FIXED (2026-07-27):** `BulkActionBar.tsx:46` (`z-30`, top-sticky) tied with the fixed shell header (also `z-30`) and, being later in the DOM, painted over it when pinned. Now `z-sticky` (20), which is what a sticky sub-header is: it slides **under** the page header. The `bottom-floating` variant took the value-preserving rename `z-40` → `z-sidebar` at the same time.
+**Recount, 2026-11-17:** 39 named uses and 60 bare `z-10`…`z-60` uses across the three apps and `packages/ui` (tests excluded). The bare tail grew by about thirteen, and most of the growth is new local ladders of the kind described above: the organiser's Workshops board (`WorkshopScheduleBoard.tsx:749,822,838,936,1015`), the public Workshop grid (`WorkshopScheduleGrid.tsx:125,144,179`) and the live control room's rows (`BoardRowView.tsx`, 8 sites). One new site is **not** a ladder and should have been a token: the fixed toast on the public Workshop page, `apps/web-public/app/e/[eventSlug]/w/[workshopSlug]/page.tsx:234` (`z-50`) — see D23. The comment above `--z-index-*` in `theme.css` still says the migration "needs an audit"; the audit is the one recorded here.
+
+**Latent bug the audit found — FIXED (2026-07-27):** `BulkActionBar.tsx` (`z-30`, top-sticky; now line 51) tied with the fixed shell header (also `z-30`) and, being later in the DOM, painted over it when pinned. Now `z-sticky` (20), which is what a sticky sub-header is: it slides **under** the page header. The `bottom-floating` variant took the value-preserving rename `z-40` → `z-sidebar` at the same time.
 
 Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, deliberately un-aliased (see `DESIGN.md` → Shapes).
 
@@ -288,6 +329,283 @@ because `colorTokenToHex` and `ColorToken` cover different sets: a tournament ma
 `grey`, `brown` or `pink`, none of which is a token, so all three resolve to neutral slate through
 `asColorToken`. Tinting the title would have taken the hue off those three tournaments' own name.
 On a section heading that is a fair trade; on the title, it is not.
+
+---
+
+> **D13 to D25 were found in the docs sweep of 2026-11-17**, which compared `DESIGN.md` with the
+> code and fixed none of what it found. Each shares the same "why not fixed": it was found in that
+> sweep and not fixed in it. Line numbers are as of that day.
+
+## D13 — the `ghost` button is white ink, and it is used on light pages
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text; components follow the scope
+they sit in.
+
+**Not rendered — inferred from the classes.** `Button`'s `ghost` variant is
+`text-white border-white/20 hover:bg-white/10` (`packages/ui/src/components/Button.tsx:30-31`),
+raw white whatever the scope. On a dark surface that is a quiet outlined action, and the dark auth
+panels use it that way. On a light surface it is white text inside a white hairline on
+`#ffffff` or `#fafaf9`, and no stylesheet in the repo overrides it.
+
+It is used on light surfaces in two apps:
+
+- **web-admin:** Delete on each photo of the moderation queue
+  (`src/components/photos/PhotoQueue.tsx:207`, inside the `bg-surface` tile at `:132`; `ea20edef8`,
+  2026-11-07), "New link" on the organiser's Photos page
+  (`app/org/[slug]/events/[eventId]/photos/PhotoLinkPanel.tsx:101`) and "Details" in the audit log
+  (`src/components/PayloadCell.tsx:160`).
+- **web-public**, on the light content of `/me` and in the light `Modal`: FightBook's
+  `InboxTab.tsx:79,130`, `OpenCallCards.tsx:117`, `QrPanel.tsx:30,38`, `QrScan.tsx:146`,
+  `QrTools.tsx:35,38` and `SparFlag.tsx:118` under `app/me/fightbook/`,
+  `src/components/fightbook/AskSparDialog.tsx:252`, and "Remove photo" at
+  `app/profile/fighter/FighterProfileClient.tsx:828`.
+
+In the same photo queue, Approve and Keep use `secondary`, a raw `bg-blue-700`
+(`PhotoQueue.tsx:190,200`), on the surface whose accent is "always red" (`web-admin.md`).
+
+**Fix:** the token-driven neutral already exists — `outline` follows both scopes. Either move the
+light call sites to it or put `ghost` itself on tokens; the second is the class fix.
+
+---
+
+## D14 — the display wall writes page ink on the stage
+
+**Rule broken:** Colours — `stage` takes `stage-foreground`; the scopes decide the ink.
+
+**Not rendered — inferred from the classes.** The organiser's projector wall,
+`/display/wall/[eventId]` in web-admin, sits inside `app/display/layout.tsx:14`, which paints
+`bg-stage` (`#030712`) and sets no `data-theme`. Its rows use the page inks:
+`text-foreground` (`WallRow.tsx:39,45`) and `text-muted` (`WallRow.tsx:53,60`,
+`LiveWall.tsx:15,55`). With no dark scope above them those resolve to the base values, `#0f172a`
+and `#64748b`, on a near-black stage. It has been like this since the wall was written
+(`62e2fb281`, 2026-08-06).
+
+**Fix:** `text-stage-foreground` and an opacity step of it, as `TvProtestChip` does — or a
+`data-theme="dark"` on the wall's root, which is the smaller change.
+
+---
+
+## D15 — shadows above the `shadow-sm` ceiling
+
+**Rule broken:** Elevation & Depth — "`shadow-sm` is the ceiling"; Do's and Don'ts — "Don't exceed
+`shadow-sm`".
+
+44 class sites carry `shadow-md`, `-lg`, `-xl`, `-2xl` or an arbitrary `shadow-[…]`, against 194
+`shadow-sm`. Four of the 44 are not elevation at all: an `inset` shadow used as a hairline that
+survives `position: sticky` (`persons/page.tsx:1516,1613`, `pools/_tabs/MatchesTab.tsx:38,39`).
+Three more are the skip link of each app's `layout.tsx`, visible only on focus. The other 37 lift
+something off the paper:
+
+- **`packages/ui`:** `Modal.tsx:87` (xl), `AuthPanel.tsx:145` (2xl), `BulkActionBar.tsx:51,52`
+  (md, lg), `CsvExportMenu.tsx:171` (xl), `HelpTooltip.tsx:49`, `ClubCombobox.tsx:182`,
+  `CountryCombobox.tsx:141` (lg), `LiceWaitingDisplay.tsx:86` (2xl), `bracket/MatchCard.tsx:148`
+  (md), and the gold glow on `Button.tsx:33`.
+- **Shells and drawers:** `SuperAdminShell.tsx:285,433`, `OrganizerAdminShell.tsx:315,579`,
+  `WorkspaceSwitcher.tsx:128`, `PublicPersonalShell.tsx:226,308`,
+  `MatchCorrectionsDrawer.tsx:214`, `MatchResultOverlay.tsx:337`, `PasswordPanel.tsx:14`,
+  `DisplayControls.tsx:109`.
+- **Popovers and floating panels in web-admin:** `admin/fighters/page.tsx:877`,
+  `admin/hema-ratings/page.tsx:571`, `admin/users/AccountsTable.tsx:43`, `IsoDatePicker.tsx:94`,
+  `standings/StandingsHeaderCell.tsx:78`, and under the Event: `referees/page.tsx:1992`,
+  `referees/_components/SkillCatalog.tsx:320`, `referees/_components/StaffingTab.tsx:507`,
+  `schedule/grid.tsx:2417`, `schedule/DetailedRunHeaders.tsx:107`,
+  `schedule/DetailedGridView.tsx:147` (a red glow on the "now" line),
+  `workshops/WorkshopScheduleBoard.tsx:749`.
+- **web-public:** `PoolsCompositionView.tsx:165`, `PersonalSpaceDashboard.tsx:462`, and the toast
+  of D23.
+
+**Why it matters:** a dialog, a drawer or a popover over the page is the one place a shadow has a
+case. If that case is accepted, `DESIGN.md` should say so and name the layers; today it says "paper
+doesn't float" and the shared `Modal` floats.
+
+---
+
+## D16 — the auth panel's glow
+
+**Rule broken:** Overview — "uncoated stock means nothing floats", no glass, no glow; Colours —
+status inks are for badges and alerts only.
+
+`packages/ui/src/components/AuthPanel.tsx:147` fills the hero half of every sign-in page with two
+radial gradients over a linear one: `--color-accent` at 35% and `--color-warning` at 24%. The second
+is a status colour used as decoration, and the whole is the glow the Overview rules out. The panel
+around it is `shadow-2xl` (D15). It is the first screen of web-admin and of the personal space.
+
+---
+
+## D17 — page titles outside the display face
+
+**Rule broken:** Type — "exactly one H1 on a page, in `font-display`"; "don't drop `font-display`
+on dark pages".
+
+Seventeen `<h1>` elements carry no `font-display` (single-line elements only; a few public pages
+split the tag over several lines and were not counted):
+
+- **`packages/ui`:** `AuthPanel.tsx:158` (`text-4xl font-black`), the title of every sign-in page —
+  exactly the dark-page case `web-public.md` forbids; `MatchScoreboard.tsx:223`.
+- **web-public:** `src/components/PasswordPanel.tsx:15`, `app/auth/oauth/callback/page.tsx:172,193`,
+  `app/auth/signed-in/page.tsx:29`, `src/components/NotFoundCard.tsx:62`,
+  `src/components/RouteErrorCard.tsx:36`.
+- **web-staff:** `app/login/page.tsx:59`, `app/lices/page.tsx:183,204`,
+  `app/lices/[liceId]/_components/LiceHeader.tsx:25`, `app/offline/page.tsx:11`,
+  `src/components/MatchView.tsx:1069,1097`.
+- **web-admin:** `app/admin/error.tsx:23`, `app/org/[slug]/error.tsx:23`.
+
+The staff desks, gear check, photos and scan screens do carry it, so the app is split down the
+middle rather than deliberately plain.
+
+---
+
+## D18 — `Button` and the field are not built as specified
+
+**Rule broken:** Shapes — "`rounded-md`: controls — buttons, inputs, selects"; Components — the
+`Button` variants; the front matter's `components.button-*` and `components.input`.
+
+Four places where `DESIGN.md` specifies a control and `packages/ui` builds another:
+
+- **Radius.** Only the `sm` size is `rounded-md`. The default `md` is `rounded-lg` and `lg` / `xl`
+  are `rounded-xl` (`Button.tsx:43-46`), so nearly every button in the product wears the panel or
+  the card radius.
+- **There is no `strong` variant.** `DESIGN.md` names it twice — "`strong` is the dark-neutral
+  alternative when a page's accent is already spent", "reach for `strong`" — and specifies
+  `button-strong`. `ButtonVariant` is `primary | secondary | ghost | danger | gold | back | cancel |
+outline` (`Button.tsx:3-4`). The `strong` _tokens_ exist and are used at call sites
+  (`bg-strong text-strong-foreground`); the variant was never written.
+- **Four variants nobody specified.** `secondary` (raw blue-700), `ghost` (raw white, D13), `back`
+  and `cancel` (raw slate) are in the code and were absent from `DESIGN.md` until the 2026-11-17
+  sweep named them. `gold` is described there and has no call site.
+- **The 44px field.** `components.input` gives the field `height: {spacing.touch-min}`. `FormField`
+  is `px-3 py-2 text-sm` with no minimum height (`FormField.tsx:48-53`), and `theme.css` defines no
+  `--spacing-touch-min`: the staff app writes the literal `min-h-[44px]` instead (60 sites).
+
+**Why not a one-line fix:** the radius touches every button on every surface, and the variant list
+is a decision about which neutral the system keeps (`strong`, `outline`, `back` and `cancel` are
+four answers to one question).
+
+---
+
+## D19 — a status ink used as decoration
+
+**Rule broken:** Colours — "`danger` / `success` / `warning` / `info` are badge and alert inks".
+
+FightBook's favourite heart is `text-danger` when it is on
+(`apps/web-public/src/components/fightbook/FavouriteHeart.tsx:75`, `0d6509612`, 2026-11-12). A
+favourite is not an error. The same file uses `text-danger` correctly a few lines lower, on the
+refusal message, which is what makes the first one read as a mistake rather than a choice.
+
+---
+
+## D20 — a tooltip on a screen with no pointer
+
+**Rule broken:** `display-kiosk.md` — "don't add a hover state, a tooltip, or anything requiring a
+pointer".
+
+`packages/ui/src/components/TvProtestChip.tsx:37` puts a `title=` on the protest chip of the TV
+scoreboard (`bd9502771`, 2026-11-17). The stage is `cursor-none`; nobody can hover it. The chip
+shows a hand and a number, and the sentence that says what they mean exists only in that tooltip.
+A screen reader does read a `title`, so it is not worthless — but for a spectator the explanation
+is unreachable.
+
+---
+
+## D21 — 26 files of `packages/ui` are exempt from the raw-palette lint
+
+**Rule broken:** Components — shared components read tokens, not raw palette classes (D5).
+
+`packages/ui/eslint.config.mjs:31-58` lists 26 files in `PRE_EXISTING_PALETTE_DEBT`, a ratchet that
+"may only shrink": `no-raw-palette-color` does not run on them. D5 and D6 name five of them
+(`Button`, `FormField`, `FoilMark`, `AdminPageHeader`, `Input`). The other 21 are open debt this register did
+not record: `TVScoreboard`, `MatchScoreboard`, `MatchTimeline`, `LiceWaitingDisplay`, `BracketView`,
+`bracket/MatchCard`, `bracket/MedalPodium`, `bout-flow-geometry.ts`, `AiKeyFormDialog`,
+`BulkActionBar`, `CountryCombobox`, `Divider`, `HelpTooltip`, `MaintenanceBanner`, `MetricCard`,
+`Pill`, `RowActionButton`, `SortableHeader`, `StatusHelp`, `Toast` and `utils/status-pill.ts`.
+
+The last one matters most: `status-pill.ts` is where `StatusBadge` gets every colour it paints, so
+the chip the whole product uses for status is on raw palette classes chosen in JavaScript, not on
+the status tokens. That is also why it needs a `surface` prop — it cannot follow the `[data-theme]`
+cascade.
+
+---
+
+## D22 — page containers off the four widths
+
+**Rule broken:** Layout — "pick exactly one container width per page", from `max-w-[110rem]`,
+`max-w-7xl`, `max-w-6xl`, `max-w-2xl`.
+
+At least 23 pages open a container at `max-w-3xl`, `max-w-4xl` or `max-w-5xl` (counted in
+`page.tsx` files only):
+
+- **web-admin, 20 pages.** Under `/admin`: `ai`, `ai/keys`, `ai/models`, `weapons`, `leagues/new`,
+  `leagues/[id]/edit`, `organizations/[id]`, `rulesets/penalty/new`, `rulesets/scoring/new`. Under
+  `/org/[slug]`: `settings`, `settings/ai`, `rulesets/penalty/new`, `rulesets/scoring/new`,
+  `rulesets/scoring/[id]/edit`, and under the Event `hema-ratings`, `matches/[matchId]`,
+  `notifications`, `penalties`, `print`, `tournaments/[tournamentId]/settings`. Several of them also
+  pad with `p-8` instead of the console's `px-6 py-8 lg:px-8`.
+- **web-public, 3 pages:** the photos page (`e/[eventSlug]/photos/page.tsx:38`, `max-w-5xl`), the
+  display hub (`e/[eventSlug]/display/page.tsx:97`, `max-w-4xl`) and the tournaments list
+  (`e/[eventSlug]/tournaments/page.tsx:32`, `max-w-5xl lg:max-w-6xl`).
+
+Most of the admin ones are forms and settings, where `max-w-[110rem]` would be wrong and
+`max-w-2xl` too narrow. That is a sign the scale is missing a step, not only that the pages are
+wrong.
+
+---
+
+## D23 — hand-rolled copies of shared primitives
+
+**Rule broken:** Components — build from `@myclash/ui`.
+
+- **A toast.** The public Workshop page draws its own:
+  `apps/web-public/app/e/[eventSlug]/w/[workshopSlug]/page.tsx:234`, a fixed `z-50` `shadow-lg`
+  chip, where `useToast` exists. It also breaks D8 (a bare number where `z-overlay` belongs) and
+  D15.
+- **A status pill.** `apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:110` defines a
+  local `StatusPill`. It is tokenized, and it is a second owner for what `StatusBadge` does.
+- **Field helpers** — three of them, listed under D6.
+- **`EmptyState`** — two local functions of that name, listed under D5.
+
+---
+
+## D24 — motion without a reduced-motion guard, and keyframes only one app defines
+
+**Rule broken:** Layout and motion — "wrap every animation in a `prefers-reduced-motion` guard".
+
+Two separate things.
+
+**Unguarded utilities.** 43 elements use Tailwind's `animate-pulse` or `animate-spin` with no
+`motion-safe:` prefix; 7 of them add `motion-reduce:animate-none`, which leaves about 36 that keep
+moving for a user who asked for less motion. No app's stylesheet has a global guard. On the scoring
+pad they are the clock and the centre controls at time-up (`MatchClock.tsx:178`,
+`ScoringCenterControls.tsx:332`) and the result overlay (`MatchResultOverlay.tsx:155`) — three
+pulses whose whole job is to be noticed in peripheral vision, which is a case for an exception
+written down, not for silence.
+
+**Keyframes that exist in one app.** The shared `Modal`, `AiKeyFormDialog`, `Toast` and
+`BulkActionBar` put `dialog-card-enter`, `toast-enter` and `bulk-bar-enter` on their roots. Those
+classes and their `@keyframes` are defined only in `apps/web-admin/src/styles/globals.css:46-110`
+(with a reduced-motion guard). In web-public and web-staff the class names match nothing, so the
+same component enters with motion in one app and without it in the two others. Harmless to look at,
+and exactly the `var(--event-primary, …)` shape: a shared component depending on something only one
+consumer produces.
+
+---
+
+## D25 — raw hex in app code
+
+**Rule broken:** Colour — "don't write a raw hex in app code. The only hex lives in
+`packages/ui/src/theme.css`".
+
+Chrome painted with a literal, all in the organiser's schedule grid, where the lines are inline
+`style` objects that no class lint reads:
+
+- `schedule/BlockGridView.tsx:477,489,499` — slot rules `#f8fafc`, `#e5e7eb`, `#f1f5f9`; `:851` —
+  the "now" line, `#ef4444`.
+- `schedule/DetailedSlotCells.tsx:55,75` — hour rules `#d1d5db`.
+- `schedule/DetailedGridView.tsx:147` — `rgba(220,38,38,0.6)` in a glow (also D15).
+
+Not counted, because they are data rather than chrome: the swatch lists an organiser picks a
+colour from (`ColorSwatchPicker.tsx`, `workshops/page.tsx:1897`), the default colour of a new piste
+(`schedule/grid.tsx:612`), the hand-typed hex labels of `/admin/design-system`, and the stylesheets
+of the printable HTML exports.
 
 ---
 
