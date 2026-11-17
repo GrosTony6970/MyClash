@@ -295,7 +295,7 @@ function FollowGroupSection({
         <h2 className="min-w-0 flex-1 truncate font-display text-base font-bold text-foreground">
           {title}
         </h2>
-        <span className="flex-shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold text-muted">
+        <span className="flex-shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold text-foreground-secondary">
           {count}
         </span>
       </div>

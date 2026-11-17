@@ -88,7 +88,7 @@ const TONE: Record<Freshness['kind'], { chip: string; dot: string }> = {
   live: { chip: 'bg-success/15 text-success', dot: 'bg-success' },
   polling: { chip: 'bg-info/15 text-info', dot: 'bg-info' },
   stale: { chip: 'bg-warning/15 text-warning', dot: 'bg-warning' },
-  disabled: { chip: 'bg-muted/15 text-muted', dot: 'bg-muted' },
+  disabled: { chip: 'bg-muted/15 text-foreground-secondary', dot: 'bg-muted' },
 };
 
 /** Literal keys, one per state — never assembled from a template. */

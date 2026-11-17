@@ -801,6 +801,39 @@ brown side (`#92400e`) is about 2.9:1. web-staff and the projector were not audi
 
 ---
 
+## D31 — FIXED: grey on grey, a dot with no edge, and three small inks
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text (4.5:1), and a shape that
+carries meaning clears 3:1.
+
+**Fixed on 2026-11-17.** Rendered and measured that day (static pages from web-admin's production
+stylesheet, in Chromium):
+
+| Where                                                                                    | It was                          | Ratio     | It is                       | Ratio     |
+| ---------------------------------------------------------------------------------------- | ------------------------------- | --------- | --------------------------- | --------- |
+| A grey chip: `text-muted` on `bg-border`, `bg-foreground/10` or `bg-muted/10`–`/15` (20) | the muted ink                   | 3.79–3.95 | `text-foreground-secondary` | 6.04–6.29 |
+| The "+R" button of the penalty editor                                                    | white on `red-500`              | 3.81      | white on `red-700`          | 6.42      |
+| The LIVE badge of the dark sidebar                                                       | `text-danger` on a 30% red wash | 3.95      | on a 15% wash               | 5.26      |
+| The same badge on the selected row of the Event switcher                                 | `text-gold` on a 30% red wash   | 3.71      | on a 15% wash               | about 4.7 |
+
+- **The grey chips**, 20 sites: "Paused" on live bout cards, a Workshop's duration and language
+  tags, "pending" and "lost" on `/me`, a club's member count, notifications "Off", a "draw" result,
+  the step circles of the Event wizard and of the import, the "no venue" band of the detailed
+  schedule, the weapon and clock-report chips, the "disabled" freshness chip and the club picker's
+  count. `bg-background` with the muted ink is 4.56:1 and was left alone. `grey-chip-ink.test.ts`
+  scans each app and `packages/ui` for the shape, so a new one goes red; a class string with
+  `cursor-not-allowed` is a disabled stand-in and is let through.
+- **`TournamentColorDot`** had no edge: a white, silver, yellow or gold dot on a white card was 1.1
+  to 1.7:1 and showed no shape. It takes `ring-1 ring-inset ring-foreground/50`.
+- **The "+R" red** is a penalty card's colour, not a status, so it stays a palette red (D19) and
+  goes one step darker.
+
+**Still open, beside it:** both LIVE badges and the switcher write "LIVE" as a literal English
+string, outside i18n (`OrganizerAdminShell.tsx`). The `inactive` half of the penalty editor's
+`CARD_CLASSES` is never read.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

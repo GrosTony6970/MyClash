@@ -60,7 +60,7 @@ export function DetailedHeaderBands({ visibleLices, slug, onPlaceLice }: Props) 
         return (
           <div
             key={`no-venue-${groupIndex}`}
-            className="sticky top-0 z-30 bg-border border-b border-border border-l border-l-border px-2 flex items-center justify-center text-sm italic text-muted truncate"
+            className="sticky top-0 z-30 bg-border border-b border-border border-l border-l-border px-2 flex items-center justify-center text-sm italic text-foreground-secondary truncate"
             style={{
               gridColumn: `${startCol} / span ${group.span}`,
               gridRow: 1,

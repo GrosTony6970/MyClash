@@ -1579,7 +1579,7 @@ function formChipClass(outcome: 'win' | 'loss' | 'draw'): string {
   const base = 'inline-flex h-6 w-6 items-center justify-center rounded text-xs font-bold';
   if (outcome === 'win') return `${base} bg-success/15 text-success`;
   if (outcome === 'loss') return `${base} bg-danger/15 text-danger`;
-  return `${base} bg-foreground/10 text-muted`;
+  return `${base} bg-foreground/10 text-foreground-secondary`;
 }
 
 /** Career statistics card with a Global / per-weapon dropdown. The combat tiles

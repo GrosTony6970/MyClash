@@ -1105,7 +1105,7 @@ export default function NewEventPage() {
                     ? 'bg-accent text-accent-foreground'
                     : done
                       ? 'bg-success text-success-foreground'
-                      : 'bg-border text-muted',
+                      : 'bg-border text-foreground-secondary',
                 ].join(' ')}
               >
                 {done ? (

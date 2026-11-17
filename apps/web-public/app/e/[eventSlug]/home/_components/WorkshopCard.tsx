@@ -75,7 +75,7 @@ export function WorkshopCard({
               </span>
             )}
             {w.durationMinutes != null && (
-              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-muted">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-foreground-secondary">
                 {t('publicApp.fighterProfile.minutes', { count: w.durationMinutes })}
               </span>
             )}

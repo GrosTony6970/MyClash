@@ -27,7 +27,7 @@ function LiveBadge({ paused = false }: { paused?: boolean }) {
   const { t } = useI18n();
   if (paused) {
     return (
-      <span className="inline-flex items-center bg-border text-muted text-xs font-bold px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center bg-border text-foreground-secondary text-xs font-bold px-2 py-0.5 rounded-full">
         {t('publicApp.live.paused')}
       </span>
     );

@@ -58,8 +58,8 @@ function stripeFor(
 const toneClasses: Record<StatusTone, string> = {
   done: 'bg-success/15 text-success',
   live: 'bg-danger/15 text-danger',
-  pending: 'bg-foreground/10 text-muted',
-  lost: 'bg-foreground/10 text-muted',
+  pending: 'bg-foreground/10 text-foreground-secondary',
+  lost: 'bg-foreground/10 text-foreground-secondary',
   draw: 'bg-warning/15 text-warning',
 };
 

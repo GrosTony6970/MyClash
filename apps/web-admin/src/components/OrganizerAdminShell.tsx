@@ -302,7 +302,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                     <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span className="min-w-0 truncate">{currentEvent.name}</span>
                       {currentEvent.status === 'running' && (
-                        <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-danger">
+                        <span className="shrink-0 rounded bg-danger/15 px-1 py-px text-[10px] font-bold text-danger">
                           LIVE
                         </span>
                       )}
@@ -340,7 +340,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                           >
                             <span className="truncate">{ev.name}</span>
                             {ev.status === 'running' && (
-                              <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-gold">
+                              <span className="shrink-0 rounded bg-danger/15 px-1 py-px text-[10px] font-bold text-gold">
                                 LIVE
                               </span>
                             )}

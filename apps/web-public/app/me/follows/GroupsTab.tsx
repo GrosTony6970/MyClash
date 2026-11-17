@@ -112,7 +112,7 @@ function GroupSection({
               <h2 className="truncate font-display text-lg font-bold text-foreground">
                 {group.name}
               </h2>
-              <span className="flex-shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold text-muted">
+              <span className="flex-shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold text-foreground-secondary">
                 {t('publicApp.me.groups.memberCount', { count: group.members.length })}
               </span>
             </div>

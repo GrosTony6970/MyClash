@@ -154,7 +154,7 @@ function ConfidenceBadge({ confidence }: { confidence: ClockConfidence }) {
       ? 'bg-warning/15 text-warning'
       : confidence === 'ok'
         ? 'bg-success/15 text-success'
-        : 'bg-muted/15 text-muted';
+        : 'bg-muted/15 text-foreground-secondary';
 
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase ${tone}`}>

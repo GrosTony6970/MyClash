@@ -374,7 +374,7 @@ export default function PersonProfilePage() {
                           outcome === 'win'
                             ? 'bg-success/10 text-success'
                             : outcome === 'draw'
-                              ? 'bg-muted/10 text-muted'
+                              ? 'bg-muted/10 text-foreground-secondary'
                               : 'bg-danger/10 text-danger',
                         ].join(' ')}
                       >

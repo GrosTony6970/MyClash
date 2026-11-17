@@ -155,7 +155,7 @@ export function PersonContextDetails({
       {ctx.tournament && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           {ctx.tournament.weapon && (
-            <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[11px] font-medium text-muted">
+            <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[11px] font-medium text-foreground-secondary">
               {ctx.tournament.weapon}
             </span>
           )}

@@ -32,7 +32,8 @@ const CARD_CLASSES: Record<PenaltyCard, { active: string; inactive: string }> = 
     inactive: 'bg-yellow-100/50 text-yellow-700/60',
   },
   red: {
-    active: 'bg-red-500 text-white ring-red-700',
+    // red-700: white on red-500 was 3.81:1 on the "+R" button (known-deviations D31).
+    active: 'bg-red-700 text-white ring-red-800',
     inactive: 'bg-red-100/50 text-red-600/60',
   },
   black: {

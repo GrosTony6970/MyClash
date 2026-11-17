@@ -48,7 +48,7 @@ export function LiveMatchCard({ match, href, pausedLabel, t }: LiveMatchCardProp
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs text-muted">{meta}</p>
         {pausedLabel && (
-          <span className="shrink-0 rounded-full bg-border px-2 py-0.5 text-xs font-bold text-muted">
+          <span className="shrink-0 rounded-full bg-border px-2 py-0.5 text-xs font-bold text-foreground-secondary">
             {pausedLabel}
           </span>
         )}

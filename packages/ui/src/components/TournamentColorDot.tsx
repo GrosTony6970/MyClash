@@ -31,9 +31,13 @@ export function TournamentColorDot({
       aria-hidden={title ? undefined : true}
       role={title ? 'img' : undefined}
       title={title}
-      className={['inline-block shrink-0 rounded-full', SIZE_MAP[size], accentClassFor(color)].join(
-        ' ',
-      )}
+      // The inset ring gives a light colour an edge: a white, silver, yellow or gold dot was
+      // 1.1:1 to 1.7:1 against a white card and showed no shape (known-deviations D31).
+      className={[
+        'inline-block shrink-0 rounded-full ring-1 ring-inset ring-foreground/50',
+        SIZE_MAP[size],
+        accentClassFor(color),
+      ].join(' ')}
     />
   );
 }

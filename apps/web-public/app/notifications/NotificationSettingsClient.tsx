@@ -235,7 +235,7 @@ export default function NotificationSettingsClient() {
           </div>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              enabled ? 'bg-success/15 text-success' : 'bg-foreground/10 text-muted'
+              enabled ? 'bg-success/15 text-success' : 'bg-foreground/10 text-foreground-secondary'
             }`}
           >
             {enabled ? t('publicApp.notifications.enabled') : t('publicApp.notifications.off')}

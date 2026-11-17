@@ -200,7 +200,7 @@ export default function AdminWeaponsPage() {
                       {t('admin.weapons.active')}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center rounded-full bg-muted/15 px-2 py-0.5 text-xs font-semibold text-muted">
+                    <span className="inline-flex items-center rounded-full bg-muted/15 px-2 py-0.5 text-xs font-semibold text-foreground-secondary">
                       {t('admin.weapons.inactive')}
                     </span>
                   )}

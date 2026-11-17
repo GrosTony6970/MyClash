@@ -62,10 +62,12 @@ function IntroTags({ workshop }: { workshop: Workshop }) {
       )}
       {workshop.level && <span className={`${TAG} bg-info/10 text-info`}>{workshop.level}</span>}
       {workshop.language && (
-        <span className={`${TAG} bg-border text-muted`}>{workshop.language.toUpperCase()}</span>
+        <span className={`${TAG} bg-border text-foreground-secondary`}>
+          {workshop.language.toUpperCase()}
+        </span>
       )}
       {workshop.durationMinutes != null && (
-        <span className={`${TAG} bg-border text-muted`}>
+        <span className={`${TAG} bg-border text-foreground-secondary`}>
           {t('publicApp.workshops.durationMinutes', { count: workshop.durationMinutes })}
         </span>
       )}

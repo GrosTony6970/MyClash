@@ -202,7 +202,7 @@ export function ClubCombobox({
                 >
                   <span className="truncate">{opt.name}</span>
                   {opt.abbreviation && (
-                    <span className="ml-auto rounded bg-foreground/10 px-1.5 py-0.5 text-[11px] text-muted">
+                    <span className="ml-auto rounded bg-foreground/10 px-1.5 py-0.5 text-[11px] text-foreground-secondary">
                       {opt.abbreviation}
                     </span>
                   )}

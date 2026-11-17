@@ -309,7 +309,7 @@ export default function CsvImportPage() {
                   ? 'bg-accent text-accent-foreground'
                   : i < ['upload', 'preview', 'done'].indexOf(step)
                     ? 'bg-success text-success-foreground'
-                    : 'bg-border text-muted',
+                    : 'bg-border text-foreground-secondary',
               ].join(' ')}
             >
               {i + 1}
