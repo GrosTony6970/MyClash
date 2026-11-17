@@ -270,24 +270,13 @@ overrides:
 # published, or after the advisory is withdrawn. Delete the entry the day
 # `pnpm view <name> version` shows the patched version, then bump the lockfile.
 # The list was empty from 2026-10-31 (both earlier entries, braces and
-# http-cache-semantics, were advisories GitHub withdrew) until ruling 839's entry.
+# http-cache-semantics, were advisories GitHub withdrew) until ruling 839's entry,
+# and is empty again since 2026-11-17: that entry (GHSA-gmhr-r4mc-w935,
+# @fastify/multipart < 10.1.9) went with the bump to 10.1.9.
 #
 # It serves two checks: `pnpm audit` and `scripts/check-repo-advisories.mjs`, which
 # reads the advisories a direct dependency's own repository publishes before
 # GitHub's global database lists them (rulings 776-777). An entry made for the
 # second one follows the same rules.
-#
-# One exception (ruling 839, 2026-11-16): GHSA-gmhr-r4mc-w935, @fastify/multipart
-# < 10.1.9. It breaks both rules above: its fix, 10.1.9, was published 2026-11-16
-# 11:11 UTC, inside the one-day release gate, and the running API loads the
-# package. Trivy does not read this list: the api image's scan fails if GitHub's
-# global database lists the advisory before the bump. The entry stands on one
-# argument, that the advisory cannot apply here: the forged file needs the plugin
-# registered with `attachFieldsToBody` and a call to `saveRequestFiles()`. The
-# API registers it with `limits` alone (apps/api/src/common/http-bootstrap.ts)
-# and reads every upload through `read-upload.ts` with `file()` or `parts()`
-# (`read-upload.guard.test.ts` refuses `saveRequestFiles` anywhere else). Delete
-# this entry with the bump to 10.1.9, after 2026-11-17 11:11 UTC.
 auditConfig:
-  ignoreGhsas:
-    - GHSA-gmhr-r4mc-w935
+  ignoreGhsas: []
