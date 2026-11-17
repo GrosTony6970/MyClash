@@ -62,7 +62,7 @@ export type StatusSurface = 'light' | 'dark';
 export interface StatusPillTone {
   /** Tailwind class string: bg + text + border (no padding / radius). */
   className: string;
-  /** Whether to add `animate-pulse` for liveness. */
+  /** Whether the status is live: `StatusBadge` then pulses a dot beside the words. */
   pulse: boolean;
 }
 
@@ -119,8 +119,10 @@ const SIZE_CLASS: Record<StatusPillSize, string> = {
 };
 
 /**
- * Geometry + palette + the liveness pulse for a status chip, as one class
- * string.
+ * Geometry + palette for a status chip, as one class string. It carries no
+ * pulse: a pulsing chip fades its own words to 2.7:1 at the faint end of the
+ * beat (known-deviations D35). `StatusBadge` pulses a dot for a live status
+ * instead; a `<select>` picker cannot hold one and does not pulse.
  *
  * Exists because not every status chip can BE a `StatusBadge`. Two of them
  * are `<select>` elements styled to look like pills (the tournament and
@@ -140,13 +142,7 @@ export function statusPillClass(
 ): string {
   const { size = 'md', shape = 'pill' } = options;
   const tone = statusPillTone(semantic, surface);
-  return [
-    'border',
-    shape === 'flag' ? 'rounded' : 'rounded-full',
-    SIZE_CLASS[size],
-    tone.className,
-    tone.pulse ? 'animate-pulse' : '',
-  ]
+  return ['border', shape === 'flag' ? 'rounded' : 'rounded-full', SIZE_CLASS[size], tone.className]
     .filter(Boolean)
     .join(' ');
 }

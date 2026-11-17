@@ -136,13 +136,28 @@ async function describePage(page: Page): Promise<string> {
   }
 }
 
-export async function expectNoCriticalAxeViolations(page: Page) {
+/**
+ * Fails on a `critical` axe violation, and on `color-contrast`.
+ *
+ * axe rates contrast `serious`, so a filter on `critical` alone threw every contrast finding away:
+ * white on a white card and dark ink on the projector stage shipped with this suite green
+ * (known-deviations D13, D14, D26-D34). The fighter app and the organiser's console were audited
+ * and fixed on 2026-11-17. The scoring app was not: its specs pass `{ contrast: false }` until it
+ * is.
+ */
+export async function expectNoCriticalAxeViolations(
+  page: Page,
+  { contrast = true }: { contrast?: boolean } = {},
+) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
-  const critical = results.violations.filter((violation) => violation.impact === 'critical');
+  const failing = results.violations.filter(
+    (violation) =>
+      violation.impact === 'critical' || (contrast && violation.id === 'color-contrast'),
+  );
 
-  expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
+  expect(failing, JSON.stringify(failing, null, 2)).toEqual([]);
 }
 
 export async function focusUntil(page: Page, target: Locator, maxTabs = 20) {

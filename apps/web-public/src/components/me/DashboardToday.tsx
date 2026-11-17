@@ -54,7 +54,7 @@ export function DashboardToday() {
           <span className="block text-sm font-bold text-foreground">
             {t('publicApp.me.enableAlerts.title')}
           </span>
-          <span className="mt-0.5 block text-xs text-muted">
+          <span className="mt-0.5 block text-xs text-foreground-secondary">
             {t('publicApp.me.enableAlerts.body')}
           </span>
         </span>

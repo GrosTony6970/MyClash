@@ -410,7 +410,7 @@ export default function MySchedulePage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       {/* Time */}
-                      <p className="text-xs text-muted mb-0.5">
+                      <p className="text-xs text-foreground-secondary mb-0.5">
                         {formatTime(item.time, tz, t, locale)}
                         {item.kind === 'match' && item.data.liceName && (
                           <span className="ml-1">· {item.data.liceName}</span>
@@ -426,7 +426,7 @@ export default function MySchedulePage() {
                           <p className="font-semibold text-foreground">
                             {item.data.matchNumberLabel}
                           </p>
-                          <p className="text-muted text-xs mt-0.5">
+                          <p className="text-foreground-secondary text-xs mt-0.5">
                             {t('publicApp.mySchedule.vs')}{' '}
                             {item.data.opponentName ?? t('publicApp.mySchedule.tbd')}
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
@@ -436,7 +436,7 @@ export default function MySchedulePage() {
                               <span style={{ color: scoreColors(item.data).red }}>
                                 {item.data.redScore}
                               </span>
-                              <span className="text-muted mx-1">–</span>
+                              <span className="text-foreground-secondary mx-1">–</span>
                               <span style={{ color: scoreColors(item.data).blue }}>
                                 {item.data.blueScore}
                               </span>

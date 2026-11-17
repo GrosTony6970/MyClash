@@ -111,17 +111,19 @@ function LiveCard({
             </span>
           )}
         </div>
-        {where && <span className="mt-0.5 text-sm text-muted">{where}</span>}
+        {where && <span className="mt-0.5 text-sm text-foreground-secondary">{where}</span>}
         <p className="mt-2 text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
         <p className="mt-0.5 text-sm text-foreground-secondary">
           {nameOrUnknown(match.redFighterName, 'fighter', t)}{' '}
-          <span className="text-xs text-muted">{t('scoring.liveMatch.versus')}</span>{' '}
+          <span className="text-xs text-foreground-secondary">{t('scoring.liveMatch.versus')}</span>{' '}
           {nameOrUnknown(match.blueFighterName, 'fighter', t)}
         </p>
         <p className="mt-1 text-sm font-bold text-foreground">
           {match.redScore} – {match.blueScore}
         </p>
-        {match.tournamentName && <p className="mt-1 text-xs text-muted">{match.tournamentName}</p>}
+        {match.tournamentName && (
+          <p className="mt-1 text-xs text-foreground-secondary">{match.tournamentName}</p>
+        )}
         <span className="mt-2 text-sm font-semibold text-accent">
           {t('publicApp.display.openDisplay')} →
         </span>

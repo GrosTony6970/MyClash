@@ -332,7 +332,7 @@ They are not merged into one darker token because an amber dark enough to pass A
 
 ### Every colour pair here clears WCAG AA for text
 
-That is a checked claim, not an aspiration — `pnpm design:lint` runs the contrast rule over the front matter. Two consequences worth knowing:
+That is a checked claim, not an aspiration — `pnpm design:lint` runs the contrast rule over the front matter, `theme-ink-contrast.test.ts` measures the pairs components actually put together (an ink on its own wash, a fill and the ink it brings), and the browser accessibility suite fails on an axe `color-contrast` finding on every fighter-app and console page it visits (the scoring app is not gated yet). Two consequences worth knowing:
 
 - **The four status inks are not palette steps** (`#be2121`, `#137337`, `#a24b08`, `#225bd7`). A chip or an alert writes the ink on a 10% or 15% wash of itself, and red-600 / green-700 / amber-700 / blue-600 were 3.67:1 to 4.50:1 there. One palette step darker would have landed `danger` on `accent`, `warning` on `gold-text` and `info` on the personal accent, so each is about 10% darker than its step, same hue. Before 2026-07-17 `success` and `warning` were green-600/amber-600, 3.30:1 and 3.19:1 under white.
 - **The stage takes the dark scope for a status ink.** The projector sets no scope, so a bare `text-warning` there is the light page's amber on near-black. The two status elements of the stage — the protest chip and the Live wall's "behind" cell — set `data-theme="dark"` on themselves.

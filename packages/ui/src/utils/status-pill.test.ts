@@ -129,8 +129,11 @@ describe('statusPillClass', () => {
     expect(statusPillClass('paused', 'light')).toContain('rounded-full');
   });
 
-  it('pulses only for live, matching statusPillTone', () => {
-    expect(statusPillClass('live', 'light')).toContain('animate-pulse');
+  // The words never pulse: a pulsing chip fades its own text to 2.7:1 at the faint end of the
+  // beat (known-deviations D35). `StatusBadge` pulses a dot for `live` instead; the two status
+  // pickers that use this class directly are `<select>`s, which cannot hold a dot.
+  it('never pulses the chip, live included', () => {
+    expect(statusPillClass('live', 'light')).not.toContain('animate-pulse');
     expect(statusPillClass('ready', 'light')).not.toContain('animate-pulse');
   });
 

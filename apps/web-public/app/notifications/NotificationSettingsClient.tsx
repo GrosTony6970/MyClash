@@ -294,14 +294,14 @@ export default function NotificationSettingsClient() {
                     {t(`publicApp.notifications.${broadcast.severity}`)}
                   </span>
                   {broadcast.eventName && (
-                    <span className="text-xs opacity-80">
+                    <span className="text-xs">
                       {t('publicApp.notifications.fromEvent', { event: broadcast.eventName })}
                     </span>
                   )}
                 </div>
                 <h3 className="mt-2 font-semibold">{broadcast.title}</h3>
-                <p className="mt-1 text-sm opacity-90">{broadcast.body}</p>
-                <time dateTime={broadcast.createdAt} className="mt-2 block text-xs opacity-80">
+                <p className="mt-1 text-sm">{broadcast.body}</p>
+                <time dateTime={broadcast.createdAt} className="mt-2 block text-xs">
                   {formatInZone(
                     broadcast.createdAt,
                     broadcast.eventTimezone,

@@ -925,6 +925,35 @@ surfaces, under white, and the stage's warning; `TvProtestChip.render.test.tsx` 
 
 ---
 
+## D35 — FIXED: what the browser contrast check found after the audit
+
+**Rule broken:** Colours — every colour pair clears WCAG AA for text.
+
+**Fixed on 2026-11-17.** The browser accessibility suite now fails on an axe `color-contrast`
+finding (`tests/a11y/helpers.ts`); it used to keep only `critical` findings, and axe rates contrast
+`serious`. Its first run, on the fighter app and the console after D26 to D34, failed 12 specs on
+five shapes the audit had missed or rated "likely". Measured by axe in Chromium, against the dev
+build:
+
+| Where                                                                           | It was                                    | Ratio                      | It is                         | Ratio     |
+| ------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------- | ----------------------------- | --------- |
+| The password panel, "Set a password" and the reset link                         | `text-accent`, blue on the dark card      | 2.18                       | `text-foreground`, underlined | 13.35     |
+| `/me`, the notifications prompt                                                 | `text-muted` on `bg-accent/5`             | 4.21                       | `text-foreground-secondary`   | 6.71      |
+| `/me` inbox, an organiser's warning broadcast: its Event, body and time         | the warning ink at 80% and 90%            | 3.58–4.30                  | full ink                      | 5.13      |
+| my-schedule cards and the display hub's "Now live" cards: time, piste, opponent | `text-muted` on a red, blue or amber wash | 3.86–3.94                  | `text-foreground-secondary`   | 6.15–6.28 |
+| A "Running" Tournament pill on an Event's home                                  | the whole chip pulsing                    | 2.72–3.04 at the faint end | still words, a pulsing dot    | 4.72      |
+
+- **A, D and E** are the shapes of D27, D29 and D31: the accent as ink on a dark panel, a state
+  set back by opacity, the muted ink on a wash.
+- **The pulse**, by the operator's ruling: a live status pulses a dot, not its words.
+  `statusPillClass` no longer adds `animate-pulse`; `StatusBadge` draws a
+  `motion-safe:animate-pulse` dot when the status is live. The two status pickers of the console
+  are `<select>`s styled with that class; a select cannot hold a dot, so they no longer pulse.
+
+The scoring app's spec passes `{ contrast: false }`: web-staff was not audited.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

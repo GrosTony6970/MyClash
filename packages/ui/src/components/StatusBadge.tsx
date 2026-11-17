@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
   statusPillClass,
+  statusPillTone,
   type StatusPillShape,
   type StatusPillSize,
   type StatusSemantic,
@@ -97,6 +98,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         .join(' ')}
       {...props}
     >
+      {/* Live pulses a dot, not the words: a pulsing chip faded its own text to 2.7:1 (D35). */}
+      {statusPillTone(resolved, surface).pulse && (
+        <span
+          aria-hidden="true"
+          className="mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current motion-safe:animate-pulse"
+        />
+      )}
       {children}
     </span>
   );

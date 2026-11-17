@@ -22,7 +22,9 @@ import {
 type Translate = (key: string) => string;
 type Shown = 'form' | 'sign-in' | 'not-saved' | 'unknown';
 
-const LINK_CLASS = 'mt-4 block text-sm font-semibold text-accent hover:underline';
+// The panel's ink with a standing underline, as on sign-in: the panel is a dark scope and the
+// accent does not lighten there, so the blue link was 2.18:1 (known-deviations D35).
+const LINK_CLASS = 'mt-4 block text-sm font-semibold text-foreground underline underline-offset-2';
 
 /**
  * The page a sign-up's mail opens (ruling "Pre-takeover"): she chooses her password here,
