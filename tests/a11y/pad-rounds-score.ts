@@ -72,6 +72,43 @@ export const rulesOf = (countdown: boolean, pointCap: number) => ({
   },
 });
 
+/** A Tournament's protest limit, and the ref of the penalty offered past it (`display.protests`). */
+export interface ProtestRules {
+  limit: number | null;
+  offerPenaltyRef: string;
+}
+
+/** The Tournament's rules as `/match-config` gives them, with its protest rules when it has some. */
+export function matchConfigOf(countdown: boolean, pointCap: number, protests?: ProtestRules) {
+  const rules = rulesOf(countdown, pointCap);
+  if (!protests) return rules;
+  const display = { ...rules.scoringConfig.display, protests };
+  return { ...rules, scoringConfig: { ...rules.scoringConfig, display } };
+}
+
+/**
+ * The penalty list: none, or the one entry the protest rules offer, its ref as text as the API
+ * sends it. A break screen that offered a card would find it.
+ */
+export const penaltyListOf = (protests?: ProtestRules) =>
+  protests
+    ? {
+        id: 'list-1',
+        name: 'House list',
+        accumulation_scope: 'match',
+        penalty_ruleset_entries: [
+          {
+            id: 'entry-offered',
+            group_number: 8,
+            ref_number: protests.offerPenaltyRef,
+            short_name: 'Contestation abusive',
+            description: 'Contestation abusive, in full',
+            sanctions: ['red'],
+          },
+        ],
+      }
+    : null;
+
 /** The same rules as a bout read carries them (`rules`, ruling K), pinning the built-in cards. */
 export const boutRules = (countdown: boolean, pointCap: number) => {
   const { scoringConfig, matchFormat } = rulesOf(countdown, pointCap);

@@ -153,7 +153,8 @@ describe('the Display tab', () => {
     const values = [
       ...document.body.querySelectorAll<HTMLInputElement>('input[type="number"]'),
     ].map((i) => i.value);
-    expect(values).toEqual(['3']);
+    // The +3, then the protest limit: none stored, so none in force.
+    expect(values).toEqual(['3', '']);
 
     await save();
     expect(opened.saved).toEqual([]);
@@ -166,6 +167,74 @@ describe('the Display tab', () => {
     await save();
     expect(opened.saved).toEqual([
       { scoringConfig: { display: { sideColors: { red: 'green' } } } },
+    ]);
+  });
+
+  it('sets a protest limit and the penalty it offers, and says when none is offered', async () => {
+    const NO_OFFER = 'The pad will count and warn, and offer no penalty.';
+    opened = await openTab('display');
+    expect(valueOf('Protest limit')).toBe('');
+    expect(valueOf('Penalty offered past the limit')).toBe('');
+    expect(document.body.textContent).not.toContain(NO_OFFER);
+
+    await set('Protest limit', '2');
+    expect(document.body.textContent).toContain(NO_OFFER);
+    // The penalty list's own entries, valued by their ref.
+    await set('Penalty offered past the limit', '1');
+    expect(document.body.textContent).not.toContain(NO_OFFER);
+
+    await save();
+    expect(opened.saved).toEqual([
+      { scoringConfig: { display: { protests: { limit: 2, offerPenaltyRef: '1' } } } },
+    ]);
+  });
+
+  const INVALID_LIMIT = 'A whole number, 0 or more.';
+
+  it.each(['2.5', '-1'])('a protest limit of %s blocks the Save and says why', async (limit) => {
+    opened = await openTab('display');
+    await set('Protest limit', limit);
+    expect(document.body.textContent).toContain(INVALID_LIMIT);
+
+    await save();
+    expect(opened.saved).toEqual([]);
+  });
+
+  it.each([
+    ['', null],
+    ['3', 3],
+  ])('a protest limit of "%s" saves', async (typed, limit) => {
+    // Stored 2, so an empty limit is a change too.
+    const scoring = {
+      ...EFFECTIVE_RULES.scoring,
+      display: { ...EFFECTIVE_RULES.scoring.display, protests: { limit: 2, offerPenaltyRef: '1' } },
+    };
+    opened = await openTab('display', { effectiveRules: { scoring } });
+    await set('Protest limit', typed);
+    expect(document.body.textContent).not.toContain(INVALID_LIMIT);
+
+    await save();
+    expect(opened.saved).toEqual([{ scoringConfig: { display: { protests: { limit } } } }]);
+  });
+
+  it('shows a stored penalty the list no longer holds, says the pad offers nothing, and clears it', async () => {
+    const scoring = {
+      ...EFFECTIVE_RULES.scoring,
+      display: { ...EFFECTIVE_RULES.scoring.display, protests: { limit: 2, offerPenaltyRef: '8' } },
+    };
+    opened = await openTab('display', { effectiveRules: { scoring } });
+    const select = control('Penalty offered past the limit') as HTMLSelectElement;
+    expect(select.value).toBe('8');
+    expect(select.selectedOptions[0]?.textContent).toBe('8 (not in the penalty list)');
+    expect(document.body.textContent).toContain(
+      'The pad will count and warn, and offer no penalty.',
+    );
+
+    // "None" is a real change now.
+    await set('Penalty offered past the limit', '');
+    await save();
+    expect(opened.saved).toEqual([
+      { scoringConfig: { display: { protests: { offerPenaltyRef: null } } } },
     ]);
   });
 });

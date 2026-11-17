@@ -10,6 +10,7 @@ import { expect, type Page } from '@playwright/test';
 
 const PAD = 'http://localhost:3002';
 const BOUT = 'match-1';
+const TOURNAMENT = 'tournament-1';
 const ROW = {
   id: BOUT,
   match_number_label: 'M1',
@@ -76,7 +77,7 @@ interface Stub {
   /** False: a dead network, as the pad's service worker answers it. Writes stay in the queue. */
   savesReach: boolean;
   row: typeof ROW;
-  summary: typeof SUMMARY & { eventOver?: boolean };
+  summary: typeof SUMMARY & { eventOver?: boolean; tournamentId?: string };
   /** The list entry of every card the pad sent. */
   cards: string[];
   /** Every protest the server took, as it lists it back. */
@@ -84,6 +85,12 @@ interface Stub {
   /** How many reads of the protests were answered, and how many before the last protest was taken. */
   protestReads: number;
   readsAtTake: number;
+  /** The bout's writes, in order, as `POST /protests`: the pad's heartbeat is not one. */
+  sent: string[];
+  /** The penalty list the pad reads. */
+  penaltyList: unknown;
+  /** The Tournament's `/match-config`, or null: the bout has no Tournament, and it is never read. */
+  matchConfig: unknown;
 }
 
 /** A protest the server takes: saved once by its `clientUuid`, as the API does. */
@@ -111,6 +118,9 @@ async function serve(page: Page, stub: Stub) {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
     if (method !== 'GET') {
+      if (path.includes(`/matches/${BOUT}/`)) {
+        stub.sent.push(`${method} ${path.slice(path.lastIndexOf('/'))}`);
+      }
       if (path.endsWith(`/matches/${BOUT}/penalties`)) {
         const body = route.request().postDataJSON() as { rulesetEntryId?: string };
         stub.cards.push(body.rulesetEntryId ?? 'no entry');
@@ -126,7 +136,10 @@ async function serve(page: Page, stub: Stub) {
     }
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: stub.row });
     if (path.endsWith('/summary')) return route.fulfill({ json: stub.summary });
-    if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: PENALTY_LIST });
+    if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: stub.penaltyList });
+    if (path.endsWith(`/tournaments/${TOURNAMENT}/match-config`) && stub.matchConfig) {
+      return route.fulfill({ json: stub.matchConfig });
+    }
     if (path.endsWith('/penalty-scope')) return route.fulfill({ json: PRIORS });
     if (path.endsWith('/protests')) {
       stub.protestReads += 1;
@@ -149,6 +162,9 @@ const newStub = (savesReach: boolean): Stub => ({
   protests: [],
   protestReads: 0,
   readsAtTake: 0,
+  sent: [],
+  penaltyList: PENALTY_LIST,
+  matchConfig: null,
 });
 
 /** Opens a running bout. Returns the list entry of every card the pad sent. */
@@ -164,15 +180,27 @@ export async function openBout(page: Page, savesReach = true) {
  * Opens the running bout for the protest stories, on the stub's record. The
  * bout may be locked, or its Event over. `online`: what `navigator.onLine`
  * says, as the browser would; with false, no write reaches the server.
+ * `rules`: the bout is of a Tournament, and the stub answers its
+ * `/match-config` and the penalty list with these.
  */
 export async function openProtestBout(
   page: Page,
-  bout: { lockedAt?: string; eventOver?: boolean; online?: boolean } = {},
+  bout: {
+    lockedAt?: string;
+    eventOver?: boolean;
+    online?: boolean;
+    rules?: { matchConfig: unknown; penaltyList: unknown };
+  } = {},
 ) {
   const online = bout.online ?? true;
   const stub = newStub(online);
   stub.row = { ...ROW, locked_at: bout.lockedAt ?? null };
   stub.summary = { ...SUMMARY, eventOver: bout.eventOver ?? false };
+  if (bout.rules) {
+    stub.summary.tournamentId = TOURNAMENT;
+    stub.matchConfig = bout.rules.matchConfig;
+    stub.penaltyList = bout.rules.penaltyList;
+  }
   await page.addInitScript((isOnline) => {
     (window as unknown as { padOnline: boolean }).padOnline = isOnline;
     Object.defineProperty(Navigator.prototype, 'onLine', {

@@ -6,6 +6,7 @@ import {
   scoringButtonsOf,
   TOURNAMENT_SIDE_COLORS,
   type TournamentLockConfig,
+  type TournamentProtestRules,
   type TournamentScoringConfig,
   type TournamentSideColor,
 } from '@myclash/types';
@@ -24,6 +25,28 @@ function parseSideColor(value: unknown, fallback: TournamentSideColor): Tourname
     return value as TournamentSideColor;
   }
   throw new BadRequestException(`Unsupported fighter side color: ${String(value)}`);
+}
+
+/** The longest penalty ref the protest offer takes. */
+const MAX_PENALTY_REF_LENGTH = 20;
+
+/**
+ * `display.protests` as stored: a whole limit of 0 or more or null, and a penalty ref that is
+ * non-empty text of 20 characters at most, or null. A ref is text: refs like `R7a` exist.
+ */
+function parseProtestRules(value: unknown): TournamentProtestRules {
+  const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  if (!raw) throw new BadRequestException(`Unsupported protest rules: ${String(value)}`);
+  const limit = raw['limit'] ?? null;
+  if (limit !== null && !(typeof limit === 'number' && Number.isInteger(limit) && limit >= 0)) {
+    throw new BadRequestException(`Unsupported protest limit: ${String(limit)}`);
+  }
+  const ref = raw['offerPenaltyRef'] ?? null;
+  const refFits = typeof ref === 'string' && ref.length > 0 && ref.length <= MAX_PENALTY_REF_LENGTH;
+  if (ref !== null && !refFits) {
+    throw new BadRequestException(`Unsupported protest penalty ref: ${String(ref)}`);
+  }
+  return { limit, offerPenaltyRef: ref as string | null };
 }
 
 export function normalizeTournamentScoringConfig(input: unknown): TournamentScoringConfig {
@@ -51,6 +74,10 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
         blue: parseSideColor(sideColors['blue'], DEFAULT_SCORING_CONFIG.display.sideColors.blue),
       },
       quickPenalties,
+      // Absent on a Tournament saved before the limit: it stays absent (no limit).
+      ...(display['protests'] === undefined
+        ? {}
+        : { protests: parseProtestRules(display['protests']) }),
     },
   };
 }

@@ -414,6 +414,9 @@ export const scoring = {
     undoneProtest: 'Protest by {fighter}',
     protestButtonLabel: 'Record a protest by {fighter} ({count} so far)',
     protestsChipTooltip: 'Protests by {fighter}',
+    protestOfferTitle: 'Protest limit passed',
+    protestOfferBody: 'Give {penalty} ({card}) to {fighter}?',
+    protestOfferConfirm: 'Give the card',
   },
   match: {
     unavailableTitle: 'Match unavailable',

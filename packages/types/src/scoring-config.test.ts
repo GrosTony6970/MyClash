@@ -4,6 +4,7 @@ import {
   pointCapWinnerColor,
   DEFAULT_MATCH_FORMAT_CONFIG,
   EDITION_2026_10,
+  protestRulesOf,
   type MatchFormatConfig,
 } from './scoring-config';
 
@@ -102,5 +103,28 @@ describe('pointCapWinnerColor', () => {
         pointCapWinnerColor({ redScore: 0, blueScore: 0 }, reverseCap5, EDITION_2026_10),
       ).toBeNull();
     });
+  });
+});
+
+describe('protestRulesOf', () => {
+  it('reads a Tournament saved before the protest limit as no limit and no offer', () => {
+    expect(protestRulesOf({ sideColors: { red: 'red', blue: 'blue' } })).toEqual({
+      limit: null,
+      offerPenaltyRef: null,
+    });
+  });
+
+  it('reads no display at all as no limit and no offer', () => {
+    expect(protestRulesOf(null)).toEqual({ limit: null, offerPenaltyRef: null });
+    expect(protestRulesOf(undefined)).toEqual({ limit: null, offerPenaltyRef: null });
+  });
+
+  it('reads the limit and the penalty the organiser chose', () => {
+    expect(
+      protestRulesOf({
+        sideColors: { red: 'red', blue: 'blue' },
+        protests: { limit: 2, offerPenaltyRef: '8' },
+      }),
+    ).toEqual({ limit: 2, offerPenaltyRef: '8' });
   });
 });

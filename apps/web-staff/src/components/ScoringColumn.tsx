@@ -22,8 +22,8 @@
  * hardcoded.
  */
 
-import { useMemo, useState } from 'react';
-import type { TournamentScoringConfig } from '@myclash/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { protestRulesOf, type TournamentScoringConfig } from '@myclash/types';
 import { afterblowButtonPoints } from './afterblow-button';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
@@ -33,6 +33,8 @@ import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
+import { protestsSeen, protestsShown, protestThenOffer } from '../lib/protest-offer';
+import { protestsOf } from '../offline/pending-events';
 import { useProtestTap, type ProtestTapArgs } from '../hooks/useProtestTap';
 import { queueCard } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
@@ -235,6 +237,42 @@ export function ScoringColumn({
     syncEngine,
     onRecorded: onPenaltyRecorded,
   });
+  const protestRules = protestRulesOf(config.display);
+  // The penalty a protest past the limit offers, and the card it would give, waiting for a yes.
+  const [offered, setOffered] = useState<{
+    entry: PenaltyRulesetEntry;
+    card: PenaltyCard | undefined;
+  } | null>(null);
+
+  // The Fighter's protests the screen drew, and the ones written since (`ProtestsSeen` names the race).
+  const seenProtests = useRef(protestsSeen());
+  const shownKey = protestsOf({
+    server: scoring.activeProtests,
+    pending: scoring.pendingProtests,
+    registrationId,
+  })
+    .map((row) => row.client_uuid)
+    .join(' ');
+  useEffect(() => {
+    protestsShown(seenProtests.current, new Set(shownKey.split(' ').filter(Boolean)));
+  }, [shownKey]);
+
+  /**
+   * A protest is recorded first; then, past the limit and while the pad takes
+   * a card, the organiser's penalty is offered (`protestThenOffer`), on the
+   * count after this tap. A tap ignored as a double tap offers nothing.
+   */
+  async function protest() {
+    const entry = await protestThenOffer({
+      tap: () => tapProtest(side),
+      seen: seenProtests.current,
+      limit: protestRules.limit,
+      offerPenaltyRef: protestRules.offerPenaltyRef,
+      entries,
+      cardEntryLive: scoringEnabled,
+    });
+    if (entry) setOffered({ entry, card: resolveCard(entry, registrationId) });
+  }
 
   // A red or black card of the list waits here for the referee's yes.
   const [askedCard, setAskedCard] = useState<{
@@ -367,11 +405,10 @@ export function ScoringColumn({
         })}
         <ProtestButton
           count={scoring.protestCountFor(registrationId)}
+          limit={protestRules.limit}
           fighterName={fighterName}
           disabled={!protestLive || readOnly}
-          onTap={() =>
-            void tapProtest(side).catch(() => setPenaltyError(t('scoring.lice.hitNotSaved')))
-          }
+          onTap={() => void protest().catch(() => setPenaltyError(t('scoring.lice.hitNotSaved')))}
           size="pad"
         />
       </div>
@@ -569,6 +606,28 @@ export function ScoringColumn({
             : ''
         }
         confirmLabel={t('scoring.lice.directCardConfirm')}
+      />
+
+      {/* The offer IS the confirmation: its yes gives the card, with no second question. */}
+      <AskFirstDialog
+        open={offered !== null}
+        onClose={() => setOffered(null)}
+        onConfirm={() => {
+          const offer = offered;
+          setOffered(null);
+          if (offer) void submitPenalty(listedCard(offer.entry));
+        }}
+        title={t('scoring.lice.protestOfferTitle')}
+        message={
+          offered
+            ? t('scoring.lice.protestOfferBody', {
+                penalty: offered.entry.short_name,
+                card: offered.card ? cardWord(offered.card, t) : '—',
+                fighter: fighterName,
+              })
+            : ''
+        }
+        confirmLabel={t('scoring.lice.protestOfferConfirm')}
       />
 
       {/* Silence unused warning — otherStyle reserved for cross-side UI hooks. */}

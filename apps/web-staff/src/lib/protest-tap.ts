@@ -36,24 +36,27 @@ export function clockAtTap(state: ClockState | null, now = Date.now()): number |
 }
 
 /**
- * The tap of one corner. It rejects when the tablet could not keep the protest.
+ * The tap of one corner. It answers the `clientUuid` of the protest it wrote,
+ * or null when it ignored the tap, and rejects when the tablet could not keep
+ * the protest.
  *
  * The race is a double tap: two taps before the screen draws again read the
  * same `nextSequence`, and both would be written (the store gives the second
  * the next number), so one tap of a finger records two protests. `inFlight`
- * holds the tap being written: a tap while it is out is ignored. A second tap
- * after the first was written records a second protest.
+ * holds the tap being written: a tap while it is out is ignored, and opens no
+ * card offer. A second tap after the first was written records a second protest.
  */
 export function protestTap(
   args: ProtestTapArgs,
   inFlight: { current: boolean },
-): (corner: 'red' | 'blue') => Promise<void> {
+): (corner: 'red' | 'blue') => Promise<string | null> {
   const { match, nextSequence, submit, clockTimeMs, syncEngine, onRecorded } = args;
   return async (corner) => {
-    if (inFlight.current) return;
+    if (inFlight.current) return null;
     inFlight.current = true;
+    let written: string;
     try {
-      await queueProtest({
+      written = await queueProtest({
         matchId: match.id,
         sequence: nextSequence,
         registrationId: corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
@@ -67,5 +70,6 @@ export function protestTap(
     }
     syncEngine?.sendBehind();
     onRecorded();
+    return written;
   };
 }

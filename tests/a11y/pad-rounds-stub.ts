@@ -9,7 +9,13 @@
  * answer the pad's service worker gives: a 503 with `{ error: 'offline' }`.
  */
 import { expect, type Page, type Route } from '@playwright/test';
-import { roundOver, roundScore, rulesOf } from './pad-rounds-score';
+import {
+  matchConfigOf,
+  penaltyListOf,
+  roundOver,
+  roundScore,
+  type ProtestRules,
+} from './pad-rounds-score';
 
 const PAD = 'http://localhost:3002';
 const BOUT = 'match-1';
@@ -272,6 +278,8 @@ interface Start {
   countdown?: boolean;
   /** The bout was started before, and its clock is halted at this time. */
   haltedAtMs?: number;
+  /** The Tournament's protest limit, and the penalty list holds its offered penalty. */
+  protestRules?: ProtestRules;
 }
 
 function newStub(start: Start): Stub {
@@ -301,6 +309,8 @@ function newStub(start: Start): Stub {
 /** Opens the best-of-3 bout with the network up. Returns the stub's switches and its record. */
 export async function openBestOf(page: Page, start: Start = {}) {
   const stub = newStub(start);
+  const config = () => matchConfigOf(stub.countdown, stub.cap, start.protestRules);
+  const penaltyList = penaltyListOf(start.protestRules);
   await page.route('**/api/**', async (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
@@ -316,14 +326,13 @@ export async function openBestOf(page: Page, start: Start = {}) {
     if (method === 'POST' && path.endsWith('/protests')) return answerProtest(stub, route);
     if (method === 'PATCH' && path.endsWith('/void')) return answerVoid(stub, route, path);
     if (method !== 'GET') return route.fulfill({ json: {} });
-    if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: null });
+    if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: penaltyList });
     if (path.endsWith(`/matches/${BOUT}`)) {
       if (stub.holdRow) await stub.holdRow;
       return route.fulfill({ json: stub.row });
     }
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
-    if (path.endsWith('/match-config'))
-      return route.fulfill({ json: rulesOf(stub.countdown, stub.cap) });
+    if (path.endsWith('/match-config')) return route.fulfill({ json: config() });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
     if (path.endsWith('/protests')) return route.fulfill({ json: stub.protests });

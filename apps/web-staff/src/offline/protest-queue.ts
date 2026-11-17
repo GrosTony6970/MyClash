@@ -4,9 +4,10 @@ import { enqueue } from './outbox';
 /**
  * A protest's row in the queue: one Fighter's protest, tapped on the pad,
  * written before any network call, as a card is (`queueCard`). Its Fighter's
- * corner rides in `cardedColor`, for the inbox to name them.
+ * corner rides in `cardedColor`, for the inbox to name them. Answers the
+ * protest's `clientUuid`: the pad counts it before the screen shows it.
  */
-export function queueProtest(p: {
+export async function queueProtest(p: {
   matchId: string;
   sequence: number;
   registrationId: string;
@@ -14,11 +15,13 @@ export function queueProtest(p: {
   round: number;
   bout: BoutNames;
   cardedColor: 'red' | 'blue';
-}): Promise<number> {
-  return enqueue({
+}): Promise<string> {
+  const clientUuid = crypto.randomUUID();
+  await enqueue({
     kind: 'protest',
-    clientUuid: crypto.randomUUID(),
+    clientUuid,
     occurredAt: new Date().toISOString(),
     ...p,
   });
+  return clientUuid;
 }

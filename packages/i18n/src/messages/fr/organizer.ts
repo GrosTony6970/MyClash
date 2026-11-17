@@ -821,6 +821,13 @@ export const organizer = {
       quickPenaltiesHelp:
         'Les pénalités épinglées apparaissent en accès rapide sur le tableau de score.',
       quickPenaltiesEmpty: 'Aucune entrée de barème de pénalités pour ce tournoi.',
+      protestLimit: 'Limite de réclamations',
+      protestLimitHelp: 'Par combattant, par match. Vide : pas de limite.',
+      protestOfferPenalty: 'Pénalité proposée au-delà de la limite',
+      protestLimitInvalid: 'Un nombre entier, 0 ou plus.',
+      protestOfferNone: 'Aucune',
+      protestOfferMissing: '{ref} (absent de la liste de pénalités)',
+      protestNoOfferNote: 'La tablette comptera et avertira, sans proposer de pénalité.',
       sideFighter1: 'Combattant 1',
       sideFighter2: 'Combattant 2',
       colorLabel: 'Couleur du tournoi',

@@ -7,7 +7,7 @@ import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { DISPLAY_FORM } from '../../../_shared/display-form';
+import { DISPLAY_FORM, protestLimitValid } from '../../../_shared/display-form';
 import { RulesFormState } from '../../../_shared/RulesFormState';
 import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
@@ -37,6 +37,8 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
   const rules = useTabRules(tournamentId, DISPLAY_FORM, props);
   const { form: data, setForm: setData, saving } = rules;
   const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
+  // The list was read: a stored ref it lacks is said to be missing, not merely unknown.
+  const [penaltyListRead, setPenaltyListRead] = useState(false);
   // Set by an upload or a removal; until then, the row's own.
   const [newLogo, setNewLogo] = useState<string | null | undefined>(undefined);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -51,6 +53,7 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
       const entries = [...(r.ok ? (r.data.penalty_ruleset_entries ?? []) : [])];
       entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
       setPenaltyEntries(entries);
+      setPenaltyListRead(r.ok);
     });
   }, [tournamentId]);
 
@@ -120,6 +123,14 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
       setUploadingLogo(false);
     }
   }
+
+  // The protest fields: a limit the API would refuse blocks the Save, and a stored penalty the
+  // list no longer holds is shown as such (the pad offers nothing for it).
+  const limitInvalid = !protestLimitValid(data.protestLimit);
+  const offerRef = data.protestOfferRef;
+  const offerListed = penaltyEntries.some((e) => String(e.ref_number) === offerRef);
+  const offerMissing = offerRef !== null && !offerListed && penaltyListRead;
+  const noOffer = data.protestLimit !== '' && (offerRef === null || offerMissing);
 
   const toggleQuick = (ref: number) => {
     const pinned = data.quickPenalties;
@@ -475,9 +486,68 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
         )}
       </fieldset>
 
+      {/* The protest limit, and the penalty of the same list the pad offers past it. */}
+      <div className="space-y-2">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <label className="sm:w-48">
+            <span className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.tournaments.settings.protestLimit')}
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={data.protestLimit}
+              onChange={(e) => setData({ ...data, protestLimit: e.target.value })}
+              aria-invalid={limitInvalid}
+              className="w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="flex-1">
+            <span className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.tournaments.settings.protestOfferPenalty')}
+            </span>
+            <select
+              value={offerRef ?? ''}
+              onChange={(e) => setData({ ...data, protestOfferRef: e.target.value || null })}
+              className="w-full rounded-md border border-border px-3 py-2 text-sm"
+            >
+              <option value="">{t('organizer.tournaments.settings.protestOfferNone')}</option>
+              {offerRef !== null && !offerListed && (
+                <option value={offerRef}>
+                  {offerMissing
+                    ? t('organizer.tournaments.settings.protestOfferMissing', { ref: offerRef })
+                    : offerRef}
+                </option>
+              )}
+              {penaltyEntries.map((e) => (
+                <option key={e.id} value={String(e.ref_number)}>
+                  {`${e.ref_number} · ${e.short_name}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {limitInvalid && (
+          <p role="alert" className="text-[11px] text-danger">
+            {t('organizer.tournaments.settings.protestLimitInvalid')}
+          </p>
+        )}
+        <p className="text-[11px] text-muted">
+          {t('organizer.tournaments.settings.protestLimitHelp')}
+        </p>
+        {noOffer && (
+          <p className="text-[11px] text-warning">
+            {t('organizer.tournaments.settings.protestNoOfferNote')}
+          </p>
+        )}
+      </div>
+
       <button
         type="button"
-        onClick={() => void rules.saveTab()}
+        onClick={() => {
+          if (!limitInvalid) void rules.saveTab();
+        }}
         disabled={saving || readOnly}
         title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"

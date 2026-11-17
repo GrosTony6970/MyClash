@@ -252,9 +252,18 @@ export function protestCountFor(args: {
   pending: readonly MatchProtest[];
   registrationId: string;
 }): number {
+  return protestsOf(args).length;
+}
+
+/** The protests the chip counts (`protestCountFor`): the Fighter's live server rows, then the queue's. */
+export function protestsOf(args: {
+  server: readonly MatchProtest[];
+  pending: readonly MatchProtest[];
+  registrationId: string;
+}): MatchProtest[] {
   const { server, pending, registrationId } = args;
   const mine = (p: MatchProtest) => !p.voided && p.registration_id === registrationId;
-  return server.filter(mine).length + pending.filter(mine).length;
+  return [...server.filter(mine), ...pending.filter(mine)];
 }
 
 /**

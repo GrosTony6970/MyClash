@@ -395,6 +395,9 @@ export const scoring = {
     undoneProtest: 'Réclamation de {fighter}',
     protestButtonLabel: "Enregistrer une réclamation de {fighter} ({count} jusqu'ici)",
     protestsChipTooltip: 'Réclamations de {fighter}',
+    protestOfferTitle: 'Limite de réclamations dépassée',
+    protestOfferBody: 'Donner {penalty} ({card}) à {fighter} ?',
+    protestOfferConfirm: 'Donner le carton',
   },
   match: {
     unavailableTitle: 'Assaut indisponible',

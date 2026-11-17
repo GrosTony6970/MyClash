@@ -32,7 +32,7 @@ import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import { pointCapWinnerColor } from '@myclash/types';
+import { pointCapWinnerColor, protestRulesOf } from '@myclash/types';
 import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import { editionOf } from '../lib/bout-edition';
 import type { PadBoutRules } from '../lib/bout-read';
@@ -757,6 +757,7 @@ export function MatchView({
       scoring.protestCountFor(
         corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
       ),
+    limit: protestRulesOf(scoringConfig.display).limit,
     live: protestLive,
     onTap: (corner) =>
       void tapProtest(corner).catch(() => setClockError(t('scoring.lice.hitNotSaved'))),

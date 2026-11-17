@@ -229,9 +229,12 @@ describe('the screens', () => {
   it('a card is queued with the name of the list entry the referee tapped', () => {
     const column = read('components', 'ScoringColumn.tsx');
     expect(column).toMatch(/rulesetEntryId: entry\.id,\s+cardName: entry\.short_name,/);
-    // Its two ways out: the tap of a yellow card, and the yes to a red or black one.
-    expect(column.match(/void submitPenalty\(listedCard\((asked\.)?entry\)\)/g)).toHaveLength(2);
-    expect(column.match(/submitPenalty\(/g)).toHaveLength(3);
+    // Its three ways out: the tap of a yellow card, the yes to a red or black one, and the yes to
+    // the penalty a protest past the limit offers.
+    expect(
+      column.match(/void submitPenalty\(listedCard\((asked\.|offer\.)?entry\)\)/g),
+    ).toHaveLength(3);
+    expect(column.match(/submitPenalty\(/g)).toHaveLength(4);
     expect(column).toMatch(/await queueCard\(\{[^}]*\.\.\.payload,[^}]*\}\);/);
   });
 

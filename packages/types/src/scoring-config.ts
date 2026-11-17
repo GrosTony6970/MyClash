@@ -90,6 +90,34 @@ export interface TournamentDisplayConfig {
    * bumps; the scoreboard skips any ref that no longer exists.
    */
   quickPenalties?: number[];
+  /**
+   * The protest limit, per Fighter per Match, and the penalty the pad offers
+   * past it, by the entry's `ref_number` (text: refs like `R7a` exist). Absent
+   * on a Tournament saved before the limit existed. Read through
+   * `protestRulesOf`, never directly.
+   */
+  protests?: TournamentProtestRules;
+}
+
+export interface TournamentProtestRules {
+  /** A whole number of protests, 0 or more; null: no limit. */
+  limit: number | null;
+  /** The penalty offered past the limit; null: none, the pad counts and warns only. */
+  offerPenaltyRef: string | null;
+}
+
+/**
+ * A Tournament's protest rules: the ONE reader of `display.protests`, for the
+ * pad, the TV scoreboard and the settings. A Tournament saved before the limit
+ * existed has none, and reads as no limit and no offer.
+ */
+export function protestRulesOf(
+  display: TournamentDisplayConfig | null | undefined,
+): TournamentProtestRules {
+  return {
+    limit: display?.protests?.limit ?? null,
+    offerPenaltyRef: display?.protests?.offerPenaltyRef ?? null,
+  };
 }
 
 export interface CleanButton {

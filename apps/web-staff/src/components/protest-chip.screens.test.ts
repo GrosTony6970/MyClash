@@ -45,31 +45,40 @@ describe('the protest button', () => {
     expect(tag).toContain('onClick={onTap}');
   });
 
-  // The aria-label replaces the visible text: it says the count too.
+  // The aria-label replaces the visible text: it says the count too, over the limit when there is one.
   it('names the Fighter it records a protest for, and the count so far', () => {
+    expect(button).toContain('const text = protestChipText(count, limit);');
     expect(tag).toContain(
-      "aria-label={t('scoring.lice.protestButtonLabel', {\n        fighter: fighterName,\n        count: String(count),\n      })}",
+      "aria-label={t('scoring.lice.protestButtonLabel', { fighter: fighterName, count: text })}",
     );
+    expect(tag.slice(tag.lastIndexOf('/>'))).toContain('{text}');
   });
 
   it('has the touch size of the pad’s other buttons, and the hand of the history', () => {
     expect(tag).toContain('min-h-[44px]');
     expect(tag).toContain('<HandMark');
-    expect(button).toContain("import { HandMark } from '@myclash/ui';");
+    expect(button).toContain(
+      "import { HandMark, protestAtLimit, protestChipText } from '@myclash/ui';",
+    );
   });
 
-  it('is drawn with tokens only: no raw palette class', () => {
+  it('is drawn with tokens only: no raw palette class, and the warning from the limit on', () => {
     expect(button).not.toMatch(
       /\b(?:bg|text|border)-(?:white|black|(?:red|blue|yellow|gray|green|amber|slate|zinc)-\d{2,3})\b/,
     );
     expect(button).not.toContain('raw-color-exempt');
-    expect(tag).toContain('bg-surface text-foreground-secondary border border-border');
+    expect(button).toMatch(
+      /const tone = protestAtLimit\(count, limit\)\s+\? 'bg-warning\/20 text-warning border-warning'\s+: 'bg-surface text-foreground-secondary border-border';/,
+    );
+    expect(tag).toContain('rounded-lg border px-2.5');
+    expect(tag).toContain('${tone}');
   });
 
   it('offers one button to each Fighter on a break screen', () => {
     const pair = button.slice(button.indexOf('export function ProtestPair'));
     expect(pair).toContain("(['red', 'blue'] as const).map((corner) =>");
     expect(pair).toContain('<ProtestButton');
+    expect(pair).toContain('limit={limit}');
     expect(pair).toContain('size="dialog"');
   });
 });
@@ -80,8 +89,31 @@ describe('the pad', () => {
     const chip = element(column, '<ProtestButton');
     expect(column.indexOf('<ProtestButton')).toBeGreaterThan(chips);
     expect(chip).toContain('count={scoring.protestCountFor(registrationId)}');
+    expect(chip).toContain('limit={protestRules.limit}');
+    expect(column).toContain('const protestRules = protestRulesOf(config.display);');
     expect(chip).toContain('disabled={!protestLive || readOnly}');
     expect(chip).toContain('size="pad"');
+  });
+
+  // A completed bout whose result screen was closed shows the columns: the button is live there,
+  // card entry is not, and the offer must keep to card entry.
+  it('offers the penalty after the tap, only while the pad takes a card', () => {
+    const tap = column.slice(column.indexOf('async function protest()'));
+    const body = tap.slice(0, tap.indexOf('\n  }\n'));
+    expect(body).toContain('const entry = await protestThenOffer({');
+    expect(body).toContain('tap: () => tapProtest(side),');
+    expect(body).toContain('seen: seenProtests.current,');
+    expect(body).toContain('cardEntryLive: scoringEnabled,');
+  });
+
+  // The count after a tap is the drawn protests plus the written ones not drawn yet: the draw the
+  // column tells it is the chip's own rows (`protestsOf`, the owner of the chip's count).
+  it('tells the offer which protests the screen drew, from the chip’s own rows', () => {
+    expect(column).toMatch(
+      /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+registrationId,\s+\}\)/,
+    );
+    expect(column).toContain('protestsShown(seenProtests.current,');
+    expect(column).toContain('}, [shownKey]);');
   });
 
   it('taps through the one tap handler, reading the clock at the tap', () => {
@@ -118,8 +150,9 @@ describe('the round-break screen', () => {
     expect(footer.indexOf('<RoundBreakButtons')).toBeLessThan(footer.indexOf('<ProtestPair'));
   });
 
-  it('is handed the protests by the page', () => {
+  it('is handed the protests by the page, with the Tournament’s limit', () => {
     expect(element(view, '<RoundBreakDialog')).toContain('protests={protestPair}');
+    expect(view).toContain('limit: protestRulesOf(scoringConfig.display).limit,');
   });
 });
 
@@ -127,6 +160,7 @@ describe('the result screen', () => {
   it('offers both Fighters’ buttons, counted from the server and the tablet', () => {
     const pair = element(result, '<ProtestPair');
     expect(pair).toContain('scoring.protestCountFor(');
+    expect(pair).toContain('limit={protestRulesOf(props.scoringConfig.display).limit}');
     expect(pair).toContain('live={props.protestLive}');
     expect(pair).toContain('onTap={props.onProtest}');
   });

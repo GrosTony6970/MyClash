@@ -27,7 +27,7 @@ import { sideStyle } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
-import { resolveMatchWinner } from '@myclash/types';
+import { protestRulesOf, resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 import { isDoubleLoss } from './is-double-loss';
 import { ProtestPair } from './ProtestButton';
@@ -293,6 +293,7 @@ function ResultProtests(
     | 'redRegistrationId'
     | 'blueRegistrationId'
     | 'scoring'
+    | 'scoringConfig'
     | 'protestLive'
     | 'onProtest'
   >,
@@ -307,6 +308,7 @@ function ResultProtests(
             corner === 'red' ? props.redRegistrationId : props.blueRegistrationId,
           )
         }
+        limit={protestRulesOf(props.scoringConfig.display).limit}
         live={props.protestLive}
         onTap={props.onProtest}
       />

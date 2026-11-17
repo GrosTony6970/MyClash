@@ -10,8 +10,13 @@ import { protestTap, type ProtestTapArgs } from '../lib/protest-tap';
 
 export type { ProtestTapArgs } from '../lib/protest-tap';
 
-/** Answers the tap of one corner. It rejects when the tablet could not keep the protest. */
-export function useProtestTap(args: ProtestTapArgs): (corner: 'red' | 'blue') => Promise<void> {
+/**
+ * Answers the tap of one corner: the `clientUuid` of the protest it wrote, or
+ * null when it ignored the tap. It rejects when the tablet could not keep the protest.
+ */
+export function useProtestTap(
+  args: ProtestTapArgs,
+): (corner: 'red' | 'blue') => Promise<string | null> {
   const inFlight = useRef(false);
   // The ref is handed over at the tap, never during the draw.
   return (corner) => protestTap(args, inFlight)(corner);

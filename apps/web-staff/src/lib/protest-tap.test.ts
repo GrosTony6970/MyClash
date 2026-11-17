@@ -95,9 +95,11 @@ describe('a tap of the protest button', () => {
   it('a second tap while the first is being written records nothing', async () => {
     const { tap, args } = tapWith();
 
-    await Promise.all([tap('red'), tap('red')]);
-
-    expect(await getAllPending()).toHaveLength(1);
+    // The tap answers what it wrote: the ignored one answers nothing, and opens no card offer.
+    const answers = await Promise.all([tap('red'), tap('red')]);
+    const rows = await getAllPending();
+    expect(rows).toHaveLength(1);
+    expect(answers).toEqual([rows[0]?.clientUuid, null]);
     expect(args.onRecorded).toHaveBeenCalledOnce();
   });
 

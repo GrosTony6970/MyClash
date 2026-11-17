@@ -33,6 +33,64 @@ describe('tournament config validation', () => {
     ).toThrow(BadRequestException);
   });
 
+  describe('the protest limit (display.protests)', () => {
+    const withProtests = (protests: unknown) =>
+      normalizeTournamentScoringConfig({
+        ...DEFAULT_SCORING_CONFIG,
+        display: { sideColors: { red: 'red', blue: 'blue' }, quickPenalties: [3], protests },
+      });
+
+    it('keeps a limit and a penalty ref, numeric or not, and every key it kept before', () => {
+      expect(withProtests({ limit: 2, offerPenaltyRef: '8' }).display).toEqual({
+        sideColors: { red: 'red', blue: 'blue' },
+        quickPenalties: [3],
+        protests: { limit: 2, offerPenaltyRef: '8' },
+      });
+      expect(withProtests({ limit: 2, offerPenaltyRef: 'R7a' }).display.protests).toEqual({
+        limit: 2,
+        offerPenaltyRef: 'R7a',
+      });
+    });
+
+    it('keeps no limit and no penalty', () => {
+      expect(withProtests({ limit: null, offerPenaltyRef: null }).display.protests).toEqual({
+        limit: null,
+        offerPenaltyRef: null,
+      });
+    });
+
+    it('omits the key when the Tournament stores none', () => {
+      const display = normalizeTournamentScoringConfig({
+        display: { sideColors: { red: 'red', blue: 'blue' } },
+      }).display;
+      expect(display).not.toHaveProperty('protests');
+      expect(normalizeTournamentScoringConfig(null).display).not.toHaveProperty('protests');
+    });
+
+    it.each([
+      ['a negative limit', { limit: -1, offerPenaltyRef: null }],
+      ['a fractional limit', { limit: 1.5, offerPenaltyRef: null }],
+      ['a limit that is text', { limit: '2', offerPenaltyRef: null }],
+      ['a ref that is a number', { limit: 2, offerPenaltyRef: 8 }],
+      ['an empty ref', { limit: 2, offerPenaltyRef: '' }],
+      ['a ref over 20 characters', { limit: 2, offerPenaltyRef: 'x'.repeat(21) }],
+      ['protests that are not an object', 'two'],
+    ])('refuses %s', (_name, protests) => {
+      expect(() => withProtests(protests)).toThrow(BadRequestException);
+    });
+
+    it('a saved limit is cleared by a PATCH that sends no limit', () => {
+      const stored = withProtests({ limit: 2, offerPenaltyRef: '8' });
+      const merged = deepMergeJson(stored, {
+        display: { protests: { limit: null, offerPenaltyRef: '8' } },
+      });
+      expect(normalizeTournamentScoringConfig(merged).display.protests).toEqual({
+        limit: null,
+        offerPenaltyRef: '8',
+      });
+    });
+  });
+
   it('validates shared match-format ruleset config', () => {
     const config = validateTournamentRulesetConfig('TF_v1', {
       matchFormat: {
