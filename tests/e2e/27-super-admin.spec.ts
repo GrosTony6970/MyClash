@@ -75,13 +75,20 @@ const GUARDED_ROUTES = [
   { method: 'GET', path: 'admin/data-quality/scans' },
   { method: 'GET', path: 'admin/exchange-edit-requests' },
   { method: 'GET', path: 'admin/feature-flags' },
+  { method: 'GET', path: 'admin/fightbook/flags' },
   { method: 'GET', path: 'admin/global-person-claim-requests' },
   { method: 'GET', path: 'admin/hema-ratings/health' },
   { method: 'GET', path: 'admin/notifications/summary' },
   { method: 'GET', path: 'admin/organizations' },
+  { method: 'GET', path: 'admin/photos/events' },
   { method: 'GET', path: 'admin/platform-log' },
   { method: 'GET', path: 'admin/review-queue' },
   { method: 'GET', path: 'admin/system-versions' },
+  // Both answer 200 with an "unavailable" body rather than failing when their
+  // source (GitHub, the host sidecar) is out of reach, so the console read
+  // below holds on any deploy.
+  { method: 'GET', path: 'admin/system/ci-health' },
+  { method: 'GET', path: 'admin/system/host-info' },
   { method: 'GET', path: 'admin/system/runtime-health' },
   { method: 'GET', path: 'admin/system/tls-status' },
   { method: 'GET', path: 'admin/users' },
@@ -96,6 +103,10 @@ const GUARDED_ROUTES = [
   // loudly, without a row being created — the same reasoning that keeps
   // `13-privacy`'s anonymise probe pointed at an id that belongs to nobody.
   { method: 'POST', path: 'admin/league-scoring-systems' },
+  // A controller with no GET at all: its one route silences a tripped query.
+  // The id belongs to nobody — a guard runs before the UUID pipe and before any
+  // read, so a missing guard shows as 404, never as a resolved row.
+  { method: 'PATCH', path: 'admin/query-errors/00000000-0000-4000-8000-000000000000/resolve' },
 ] as const;
 
 /**
@@ -189,7 +200,9 @@ test.describe('super admin', () => {
       const response =
         route.method === 'GET'
           ? await api.get(route.path)
-          : await api.post(route.path, { data: {} });
+          : route.method === 'PATCH'
+            ? await api.patch(route.path, { data: {} })
+            : await api.post(route.path, { data: {} });
       expect(
         response.status(),
         `${route.method} ${route.path} must be super-admin only (403). A 404 means the route moved; ` +
