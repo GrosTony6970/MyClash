@@ -8,14 +8,11 @@ import {
   protestWritten,
 } from './protest-offer';
 
-/**
- * An entry as the API sends it: `ref_number` is TEXT since migration 0071, so
- * it arrives as a string whatever the pad's type says.
- */
+/** An entry as the API sends it: `ref_number` is TEXT since migration 0071. */
 const entry = (id: string, ref: string, name: string): PenaltyRulesetEntry => ({
   id,
   group_number: 8,
-  ref_number: ref as unknown as number,
+  ref_number: ref,
   short_name: name,
   description: `${name}, in full`,
   sanctions: ['red'],

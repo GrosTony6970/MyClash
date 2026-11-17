@@ -22,7 +22,7 @@ const RULES: PadBoutRules = {
 const TOURNAMENT = {
   afterblowMode: 'full',
   buttons: { clean: [button(2), button(1)], afterblow: [] },
-  display: { sideColors: { red: 'white', blue: 'black' }, quickPenalties: [3] },
+  display: { sideColors: { red: 'white', blue: 'black' }, quickPenalties: ['3'] },
 } as unknown as TournamentScoringConfig;
 const config = (fresh: boolean): HeldMatchConfig => ({
   scoringConfig: TOURNAMENT,

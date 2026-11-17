@@ -4,7 +4,14 @@ import type * as ApiClient from '@myclash/api-client';
 import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { type } from '../../../archived-page.fixtures';
 import { button, EFFECTIVE_RULES } from './page.fixtures';
-import { control, labelled, openTab, rowOf, type OpenedTab } from './page.rules.fixtures';
+import {
+  control,
+  labelled,
+  openTab,
+  rowOf,
+  TOURNAMENT,
+  type OpenedTab,
+} from './page.rules.fixtures';
 
 /**
  * The Match format, Display and Advanced tabs show the rules in force the API answers
@@ -187,6 +194,33 @@ describe('the Display tab', () => {
     expect(opened.saved).toEqual([
       { scoringConfig: { display: { protests: { limit: 2, offerPenaltyRef: '1' } } } },
     ]);
+  });
+
+  it('pins a quick-pick penalty by its ref as text, and saves it', async () => {
+    const penaltyList = {
+      penalty_ruleset_entries: [
+        { id: 'pe-1', ref_number: '2', short_name: 'Late', group_number: 1, sanctions: [] },
+        { id: 'pe-2', ref_number: 'R7a', short_name: 'Halt', group_number: 1, sanctions: [] },
+        { id: 'pe-3', ref_number: '10', short_name: 'Brutal', group_number: 1, sanctions: [] },
+      ],
+    };
+    opened = await openTab('display', {
+      reads: { [`${TOURNAMENT}/penalty-ruleset`]: penaltyList },
+    });
+    // Sorted as a person reads them: 2 before 10, the letter ref after the numbers.
+    const pinned = [...document.body.querySelectorAll('fieldset')].find((f) =>
+      f.querySelector('legend')?.textContent?.includes('Quick-pick penalties'),
+    );
+    const boxes = [...pinned!.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes.map((b) => b.closest('label')?.textContent)).toEqual([
+      '2Late',
+      '10Brutal',
+      'R7aHalt',
+    ]);
+
+    await act(async () => boxes[2]!.click());
+    await save();
+    expect(opened.saved).toEqual([{ scoringConfig: { display: { quickPenalties: ['R7a'] } } }]);
   });
 
   const INVALID_LIMIT = 'A whole number, 0 or more.';

@@ -4,9 +4,24 @@ import {
   pointCapWinnerColor,
   DEFAULT_MATCH_FORMAT_CONFIG,
   EDITION_2026_10,
+  comparePenaltyEntries,
   protestRulesOf,
   type MatchFormatConfig,
 } from './scoring-config';
+
+describe('comparePenaltyEntries', () => {
+  const at = (group_number: number, ref_number: string) => ({ group_number, ref_number });
+
+  it('orders by group, then by ref as a person reads it: 2 before 10, letters after', () => {
+    const list = [at(2, '1'), at(1, 'R7a'), at(1, '10'), at(1, '2')];
+    expect([...list].sort(comparePenaltyEntries)).toEqual([
+      at(1, '2'),
+      at(1, '10'),
+      at(1, 'R7a'),
+      at(2, '1'),
+    ]);
+  });
+});
 
 const normalCap5: MatchFormatConfig = {
   ...DEFAULT_MATCH_FORMAT_CONFIG,

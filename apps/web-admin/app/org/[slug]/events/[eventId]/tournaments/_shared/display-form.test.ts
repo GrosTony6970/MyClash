@@ -11,6 +11,16 @@ describe('displayForm', () => {
     expect(form.quickPenalties).toEqual([]);
   });
 
+  it('keeps the quick-pick refs as text, from the Tournament to the body', () => {
+    const form = displayForm({
+      ...DEFAULT_SCORING_CONFIG,
+      display: { ...DEFAULT_SCORING_CONFIG.display, quickPenalties: ['8', 'R7a'] },
+    });
+    expect(form.quickPenalties).toEqual(['8', 'R7a']);
+    const body = displayBody(form) as { scoringConfig: { display: { quickPenalties: unknown } } };
+    expect(body.scoringConfig.display.quickPenalties).toEqual(['8', 'R7a']);
+  });
+
   it('reads a Tournament saved before the protest limit as no limit and no penalty', () => {
     const form = displayForm(DEFAULT_SCORING_CONFIG);
     expect(form.protestLimit).toBe('');

@@ -3,7 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useRef, useState } from 'react';
 import { useToast, statusLabel } from '@myclash/ui';
-import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
+import { comparePenaltyEntries, TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -16,7 +16,7 @@ const apiUrl = getPublicApiUrl();
 
 interface PenaltyEntry {
   id: string;
-  ref_number: number;
+  ref_number: string;
   short_name: string;
   group_number: number;
   sanctions: string[];
@@ -51,7 +51,7 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
       `/api/v1/tournaments/${tournamentId}/penalty-ruleset`,
     ).then((r) => {
       const entries = [...(r.ok ? (r.data.penalty_ruleset_entries ?? []) : [])];
-      entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
+      entries.sort(comparePenaltyEntries);
       setPenaltyEntries(entries);
       setPenaltyListRead(r.ok);
     });
@@ -128,11 +128,11 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
   // list no longer holds is shown as such (the pad offers nothing for it).
   const limitInvalid = !protestLimitValid(data.protestLimit);
   const offerRef = data.protestOfferRef;
-  const offerListed = penaltyEntries.some((e) => String(e.ref_number) === offerRef);
+  const offerListed = penaltyEntries.some((e) => e.ref_number === offerRef);
   const offerMissing = offerRef !== null && !offerListed && penaltyListRead;
   const noOffer = data.protestLimit !== '' && (offerRef === null || offerMissing);
 
-  const toggleQuick = (ref: number) => {
+  const toggleQuick = (ref: string) => {
     const pinned = data.quickPenalties;
     setData({
       ...data,
@@ -521,7 +521,7 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: Ta
                 </option>
               )}
               {penaltyEntries.map((e) => (
-                <option key={e.id} value={String(e.ref_number)}>
+                <option key={e.id} value={e.ref_number}>
                   {`${e.ref_number} · ${e.short_name}`}
                 </option>
               ))}

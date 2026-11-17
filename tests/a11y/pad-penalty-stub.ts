@@ -45,9 +45,10 @@ const CLOCK = {
   startedAt: '2026-01-01T10:00:00.000Z',
   levelResolutionSteps: 0,
 };
-const entry = (id: string, ref: number, name: string, sanctions: string[]) => ({
+/** An entry as the API sends it: `ref_number` is TEXT (migration 0071), the group a number. */
+const entry = (id: string, ref: string, name: string, sanctions: string[]) => ({
   id,
-  group_number: ref,
+  group_number: Number.parseInt(ref, 10),
   ref_number: ref,
   short_name: name,
   description: `${name}, in full`,
@@ -58,10 +59,10 @@ const PENALTY_LIST = {
   name: 'House list',
   accumulation_scope: 'match',
   penalty_ruleset_entries: [
-    entry('entry-yellow', 1, 'Late on guard', ['yellow']),
-    entry('entry-red', 2, 'Strike after halt', ['red']),
-    entry('entry-black', 3, 'Brutality', ['black']),
-    entry('entry-second', 4, 'Leaving the piste', ['yellow', 'red']),
+    entry('entry-yellow', '1', 'Late on guard', ['yellow']),
+    entry('entry-red', '2', 'Strike after halt', ['red']),
+    entry('entry-black', '3', 'Brutality', ['black']),
+    entry('entry-second', '4', 'Leaving the piste', ['yellow', 'red']),
   ],
 };
 /** Bo Blue already left the piste once in this bout: his second time is a red card. */

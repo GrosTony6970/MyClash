@@ -73,9 +73,9 @@ test('a bout whose Tournament’s config is not held scores with its own rules, 
   await expect(notice(page)).toBeVisible();
 });
 
-const entry = (id: string, ref: number, name: string) => ({
+const entry = (id: string, ref: string, name: string) => ({
   id,
-  group_number: ref,
+  group_number: Number(ref),
   ref_number: ref,
   short_name: name,
   description: `${name}, in full`,
@@ -85,13 +85,13 @@ const CARDS_A = {
   id: 'cards-a',
   name: 'House rules',
   accumulation_scope: 'match',
-  penalty_ruleset_entries: [entry('entry-a', 1, 'Late on guard')],
+  penalty_ruleset_entries: [entry('entry-a', '1', 'Late on guard')],
 };
 const CARDS_B = {
   id: 'cards-b',
   name: 'Club rules',
   accumulation_scope: 'match',
-  penalty_ruleset_entries: [entry('entry-b', 1, 'Leaving the piste')],
+  penalty_ruleset_entries: [entry('entry-b', '1', 'Leaving the piste')],
 };
 const entryButton = (page: Page, id: string) =>
   page.locator(`[data-side="red"] [data-testid="penalty-entry-button"][data-entry-id="${id}"]`);

@@ -25,8 +25,7 @@ export function protestOffer(args: {
   const { countAfterTap, limit, offerPenaltyRef, entries, cardEntryLive } = args;
   if (!cardEntryLive || limit === null || offerPenaltyRef === null) return null;
   if (countAfterTap <= limit) return null;
-  // The API sends a ref as text (TEXT since migration 0071), whatever the entry's type says.
-  return entries.find((entry) => String(entry.ref_number) === offerPenaltyRef) ?? null;
+  return entries.find((entry) => entry.ref_number === offerPenaltyRef) ?? null;
 }
 
 /**

@@ -25,7 +25,7 @@ export interface DisplayState {
   sideColors: { red: string; blue: string };
   buttons: { clean: CleanButton[]; afterblow: AfterblowButton[] };
   /** Ruleset-entry ref_numbers pinned as scoreboard quick-pick chips. */
-  quickPenalties: number[];
+  quickPenalties: string[];
   /** The protest limit as typed: `''` is no limit. */
   protestLimit: string;
   /** The ref of the penalty offered past the limit; null: none. */

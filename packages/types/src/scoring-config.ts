@@ -87,9 +87,10 @@ export interface TournamentDisplayConfig {
   /**
    * Ruleset-entry `ref_number`s pinned (in admin) as quick-pick penalty chips
    * on the scoreboard. Keyed by ref_number so pins survive ruleset-version
-   * bumps; the scoreboard skips any ref that no longer exists.
+   * bumps; the scoreboard skips any ref that no longer exists. Text, as the
+   * column is (migration 0071): refs like `8` and `R7a` exist.
    */
-  quickPenalties?: number[];
+  quickPenalties?: string[];
   /**
    * The protest limit, per Fighter per Match, and the penalty the pad offers
    * past it, by the entry's `ref_number` (text: refs like `R7a` exist). Absent
@@ -118,6 +119,20 @@ export function protestRulesOf(
     limit: display?.protests?.limit ?? null,
     offerPenaltyRef: display?.protests?.offerPenaltyRef ?? null,
   };
+}
+
+/**
+ * The ONE order of a penalty list, for the pad and the settings: by group, then by ref as a
+ * person reads it (`"2"` before `"10"`; a ref is TEXT, `"R7a"` exists).
+ */
+export function comparePenaltyEntries(
+  a: { group_number: number; ref_number: string },
+  b: { group_number: number; ref_number: string },
+): number {
+  return (
+    a.group_number - b.group_number ||
+    a.ref_number.localeCompare(b.ref_number, undefined, { numeric: true })
+  );
 }
 
 export interface CleanButton {

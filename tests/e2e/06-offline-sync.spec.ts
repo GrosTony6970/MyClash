@@ -196,14 +196,18 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
    * The column picker here; the corrections drawer's direct card goes through
    * the same outbox, and step 2c gives one.
    */
-  type WireEntry = { id: string; group_number: number; ref_number: number; sanctions: string[] };
+  type WireEntry = { id: string; group_number: number; ref_number: string; sanctions: string[] };
   const ruleset = await json<{ penalty_ruleset_entries?: WireEntry[] } | null>(
     await ok(await request.get(api(`matches/${match.id}/penalty-ruleset`)), 'load penalty ruleset'),
   );
   // The picker sorts by (group, ref) and renders the first 30 only, so an entry
   // past that window has no button to click.
   const redFirst = [...(ruleset?.penalty_ruleset_entries ?? [])]
-    .sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number)
+    .sort(
+      (a, b) =>
+        a.group_number - b.group_number ||
+        a.ref_number.localeCompare(b.ref_number, undefined, { numeric: true }),
+    )
     .slice(0, 30)
     .find((e) => e.sanctions?.[0] === 'red');
 

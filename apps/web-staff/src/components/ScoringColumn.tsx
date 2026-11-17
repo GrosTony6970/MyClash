@@ -33,6 +33,7 @@ import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
+import { quickEntriesOf, searchedEntries, sortedEntries } from '../lib/penalty-entries';
 import { queueCard } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
@@ -148,17 +149,11 @@ export function ScoringColumn({
   // red's numeral too, because the count was the whole match's.
   const queuedCards = scoring.queuedCardsFor(registrationId);
 
-  const entries = useMemo(
-    () =>
-      [...(ruleset?.penalty_ruleset_entries ?? [])].sort(
-        (a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number,
-      ),
-    [ruleset],
-  );
+  const entries = useMemo(() => sortedEntries(ruleset?.penalty_ruleset_entries ?? []), [ruleset]);
 
   // Admin-pinned quick-pick penalties (config.display.quickPenalties = ref_numbers).
   const quickEntries = useMemo(
-    () => entries.filter((e) => (config.display.quickPenalties ?? []).includes(e.ref_number)),
+    () => quickEntriesOf(entries, config.display.quickPenalties),
     [entries, config.display.quickPenalties],
   );
 
@@ -167,16 +162,10 @@ export function ScoringColumn({
   const [penaltySubmitting, setPenaltySubmitting] = useState(false);
   const penaltyDisabled = !scoringEnabled || penaltySubmitting;
 
-  const filteredEntries = useMemo(() => {
-    const q = penaltyQuery.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
-      (entry) =>
-        entry.short_name.toLowerCase().includes(q) ||
-        entry.description.toLowerCase().includes(q) ||
-        String(entry.ref_number).includes(q),
-    );
-  }, [entries, penaltyQuery]);
+  const filteredEntries = useMemo(
+    () => searchedEntries(entries, penaltyQuery),
+    [entries, penaltyQuery],
+  );
 
   /**
    * Record a card — durable-first, exactly like a hit.

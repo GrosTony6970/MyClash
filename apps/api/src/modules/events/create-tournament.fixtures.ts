@@ -35,7 +35,7 @@ export interface SeededScoringConfig {
     clean: Array<{ label: string; value: number }>;
     afterblow: Array<{ label: string }>;
   };
-  display: { sideColors: { red: string; blue: string }; quickPenalties: number[] };
+  display: { sideColors: { red: string; blue: string }; quickPenalties: string[] };
 }
 
 // tournaments: the slug existence check (maybeSingle → null) then the INSERT

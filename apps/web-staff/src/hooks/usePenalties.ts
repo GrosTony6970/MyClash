@@ -17,7 +17,8 @@ export type { PenaltyCard, MatchPenalty };
 export interface PenaltyRulesetEntry {
   id: string;
   group_number: number;
-  ref_number: number;
+  /** TEXT since migration 0071: `"8"`, `"R7a"`. */
+  ref_number: string;
   short_name: string;
   description: string;
   /** Card colours this entry triggers (subset of the ruleset's card set). */

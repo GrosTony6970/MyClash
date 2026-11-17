@@ -56,7 +56,7 @@ const RULESET = {
     {
       id: 'entry-red',
       group_number: 1,
-      ref_number: 1,
+      ref_number: '1',
       short_name: 'Straight red',
       description: 'Always a red card',
       sanctions: ['red'] as PenaltyCard[],
@@ -64,7 +64,7 @@ const RULESET = {
     {
       id: 'entry-ladder',
       group_number: 2,
-      ref_number: 2,
+      ref_number: '2',
       short_name: 'Escalates',
       description: 'Yellow, then red',
       sanctions: ['yellow', 'red'] as PenaltyCard[],

@@ -27,7 +27,7 @@ function parseSideColor(value: unknown, fallback: TournamentSideColor): Tourname
   throw new BadRequestException(`Unsupported fighter side color: ${String(value)}`);
 }
 
-/** The longest penalty ref the protest offer takes. */
+/** The longest penalty ref an entry may have: the protest offer and the quick-pick pins take no more. */
 const MAX_PENALTY_REF_LENGTH = 20;
 
 /**
@@ -49,6 +49,18 @@ function parseProtestRules(value: unknown): TournamentProtestRules {
   return { limit, offerPenaltyRef: ref as string | null };
 }
 
+/**
+ * One pinned ref, as text, or nothing. A ref is TEXT (migration 0071); a number is a Tournament
+ * saved before the pins were text, so it reads as its text. Anything else is no ref.
+ */
+function quickPenaltyRef(value: unknown): string[] {
+  if (typeof value === 'number') return Number.isFinite(value) ? [String(value)] : [];
+  if (typeof value !== 'string') return [];
+  const ref = value.trim();
+  // No entry has a longer ref (penalties.service.ts replaceEntries). Dropped, not refused: this runs on read too.
+  return ref === '' || ref.length > MAX_PENALTY_REF_LENGTH ? [] : [ref];
+}
+
 export function normalizeTournamentScoringConfig(input: unknown): TournamentScoringConfig {
   const raw = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   const display =
@@ -60,9 +72,7 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
       ? (display['sideColors'] as Record<string, unknown>)
       : {};
   const quickPenalties = Array.isArray(display['quickPenalties'])
-    ? (display['quickPenalties'] as unknown[]).filter(
-        (n): n is number => typeof n === 'number' && Number.isFinite(n),
-      )
+    ? [...new Set((display['quickPenalties'] as unknown[]).flatMap(quickPenaltyRef))]
     : [];
 
   return {

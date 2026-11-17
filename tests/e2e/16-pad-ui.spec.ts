@@ -56,7 +56,7 @@ interface PenaltyRow {
 interface PenaltyEntry {
   id: string;
   group_number: number;
-  ref_number: number;
+  ref_number: string;
   sanctions: string[];
 }
 
@@ -491,7 +491,11 @@ async function aCardingEntry(api: Api, matchId: string): Promise<PenaltyEntry> {
     await api.get(`matches/${matchId}/penalty-ruleset`),
   );
   const onScreen = [...(ruleset?.penalty_ruleset_entries ?? [])]
-    .sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number)
+    .sort(
+      (a, b) =>
+        a.group_number - b.group_number ||
+        a.ref_number.localeCompare(b.ref_number, undefined, { numeric: true }),
+    )
     .slice(0, PICKER_VISIBLE_ENTRIES);
   const carding = onScreen.find((e) => (e.sanctions ?? []).length > 0);
   expect(

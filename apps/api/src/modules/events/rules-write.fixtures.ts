@@ -42,7 +42,7 @@ export const OWN_SCORING = {
     ],
     afterblow: [{ label: '2-1', attackerPts: 2, defenderPts: 1, visible: true }],
   },
-  display: { sideColors: { red: 'blue', blue: 'red' }, quickPenalties: [1] },
+  display: { sideColors: { red: 'blue', blue: 'red' }, quickPenalties: ['1'] },
 };
 
 /**

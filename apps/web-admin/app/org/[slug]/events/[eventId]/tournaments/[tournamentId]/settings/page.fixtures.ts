@@ -91,7 +91,7 @@ export const TOURNAMENT_READS: Record<string, unknown> = {
   [`${TOURNAMENT}/ruleset-drift`]: { drifted: true },
   [`${TOURNAMENT}/penalty-ruleset`]: {
     penalty_ruleset_entries: [
-      { id: 'pe-1', ref_number: 1, short_name: 'Late', group_number: 1, sanctions: [] },
+      { id: 'pe-1', ref_number: '1', short_name: 'Late', group_number: 1, sanctions: [] },
     ],
   },
   [`${TOURNAMENT}/phase-venues`]: {

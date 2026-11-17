@@ -33,17 +33,48 @@ describe('tournament config validation', () => {
     ).toThrow(BadRequestException);
   });
 
+  describe('the quick-pick penalties (display.quickPenalties)', () => {
+    const quickOf = (quickPenalties: unknown) =>
+      normalizeTournamentScoringConfig({ display: { quickPenalties } }).display.quickPenalties;
+
+    it('keeps a ref as text, numeric or not', () => {
+      expect(quickOf(['8', 'R7a'])).toEqual(['8', 'R7a']);
+    });
+
+    it('reads a ref a Tournament stored as a number as text', () => {
+      expect(quickOf([8, '9'])).toEqual(['8', '9']);
+    });
+
+    it('drops what is no ref', () => {
+      expect(quickOf([null, '', '   ', Number.NaN, Infinity, {}, ['8'], true, 'R7a'])).toEqual([
+        'R7a',
+      ]);
+    });
+
+    it('drops a ref no penalty entry may have: over 20 characters', () => {
+      expect(quickOf(['x'.repeat(21), 'x'.repeat(20)])).toEqual(['x'.repeat(20)]);
+    });
+
+    it('keeps a ref once, the first, a number and its text being the same ref', () => {
+      expect(quickOf(['8', 'R7a', 8, ' R7a ', '8'])).toEqual(['8', 'R7a']);
+    });
+
+    it('trims a ref', () => {
+      expect(quickOf([' R7a '])).toEqual(['R7a']);
+    });
+  });
+
   describe('the protest limit (display.protests)', () => {
     const withProtests = (protests: unknown) =>
       normalizeTournamentScoringConfig({
         ...DEFAULT_SCORING_CONFIG,
-        display: { sideColors: { red: 'red', blue: 'blue' }, quickPenalties: [3], protests },
+        display: { sideColors: { red: 'red', blue: 'blue' }, quickPenalties: ['3'], protests },
       });
 
     it('keeps a limit and a penalty ref, numeric or not, and every key it kept before', () => {
       expect(withProtests({ limit: 2, offerPenaltyRef: '8' }).display).toEqual({
         sideColors: { red: 'red', blue: 'blue' },
-        quickPenalties: [3],
+        quickPenalties: ['3'],
         protests: { limit: 2, offerPenaltyRef: '8' },
       });
       expect(withProtests({ limit: 2, offerPenaltyRef: 'R7a' }).display.protests).toEqual({
