@@ -796,8 +796,8 @@ stylesheet, in Chromium):
 `side-color.test.ts` measures every side colour; `hue-ink.test.ts` (one in each app) and
 `light-page-ink.test.ts` hold the rest.
 
-**Still open, beside it:** `legibleOn(hex, 'dark')` still clamps only near-black. On the stage, the
-brown side (`#92400e`) is about 2.9:1. web-staff and the projector were not audited.
+The dark half, `legibleOn(hex, 'dark')`, clamped only near-black; brown was 2.84:1 on the stage.
+It is D36.
 
 ---
 
@@ -953,6 +953,23 @@ build:
   are `<select>`s styled with that class; a select cannot hold a dot, so they no longer pulse.
 
 The scoring app's spec passes `{ contrast: false }`: web-staff was not audited.
+
+---
+
+## D36 — FIXED: a brown side on the projector
+
+**Rule broken:** Colours — a shape that carries meaning, and large text, clear 3:1.
+
+**Fixed on 2026-11-17.** `legibleOn(hex, 'dark')` (`packages/ui` `side-color.ts`) rescued only a
+near-black side colour. A brown side (`#92400e`) passed through: on the projector stage its score,
+its initials ring and its timeline dots were 2.84:1, and 2.52:1 on the dark page. On dark the
+helper now lightens a mid tone, keeping its hue, until it is 3:1 on the dark page; brown becomes
+`#9b4f21`, 3.00:1 there and 3.39:1 on the stage. 3:1, not 4.5:1, because on dark the side colour is
+large or non-text. Every other side colour already cleared it and is returned unchanged, the red
+and blue defaults included. `side-color.test.ts` measures all eleven on the dark page and the stage.
+
+**Still open, beside it:** on a dark _card_ (`#1e293b`), blue is 2.83:1 and purple 2.72:1. The
+dark cards that draw side colours are in the scoring app, audited separately.
 
 ---
 

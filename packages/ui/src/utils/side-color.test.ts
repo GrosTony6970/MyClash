@@ -106,6 +106,62 @@ describe('legibleOn, on a light surface', () => {
   });
 });
 
+describe('legibleOn, on a dark surface', () => {
+  // On the projector the side colour is the score, the initials ring and the timeline dots: large
+  // or non-text, so the bar is 3:1. Brown was 2.84:1 on the stage and 2.52:1 on the dark page
+  // (known-deviations D36).
+  const DARK_PAGE = '#0f172a';
+  const STAGE = '#030712';
+  const ratio = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const [r, g, b2] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      }) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+    };
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const TOKENS = [
+    'white',
+    'black',
+    'grey',
+    'yellow',
+    'red',
+    'blue',
+    'green',
+    'brown',
+    'pink',
+    'orange',
+    'purple',
+  ] as const;
+
+  it.each(TOKENS)('shows on the dark page and the stage: %s', (token) => {
+    const ink = legibleOn(sideStyle(withSidesFor(token), 'red').border, 'dark');
+    expect(ratio(ink, DARK_PAGE)).toBeGreaterThanOrEqual(3);
+    expect(ratio(ink, STAGE)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('leaves the default corners and every colour that already shows untouched', () => {
+    for (const token of ['red', 'blue', 'purple', 'grey', 'pink', 'green', 'orange'] as const) {
+      const border = sideStyle(withSidesFor(token), 'red').border;
+      expect(legibleOn(border, 'dark')).toBe(border);
+    }
+  });
+
+  it('keeps the hue when it lightens: brown stays a brown', () => {
+    const ink = legibleOn('#92400e', 'dark');
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(ink.slice(i, i + 2), 16)) as [
+      number,
+      number,
+      number,
+    ];
+    expect(r).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(b);
+  });
+});
+
 describe('legibleOn', () => {
   it('replaces a near-black colour with a light fallback on a dark surface', () => {
     // black token border (#334155) would be near-invisible as a score on

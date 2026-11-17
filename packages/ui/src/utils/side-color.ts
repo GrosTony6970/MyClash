@@ -212,17 +212,49 @@ function relativeLuminance(hex: string): number {
  * 2.8:1 to 4.3:1 until 2026-11-17 (known-deviations D30). A colour that
  * already reads — red, blue, purple, brown, grey, black — is returned
  * as it is.
+ *
+ * On dark, a mid tone is lightened, keeping its hue, until it shows at
+ * 3:1 on the dark page (#0f172a; the projector stage is darker still).
+ * 3:1, not 4.5: on dark the side colour is the stage's score, initials
+ * ring and timeline dots — large or non-text. Only brown was under it,
+ * 2.84:1 on the stage (D36); the default corners are returned as they are.
  */
 export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
   const lum = relativeLuminance(hex);
   if (bg === 'dark' && lum < 0.08) return '#e2e8f0'; // too dark on dark → light slate
   if (bg === 'light' && lum > 0.6) return '#1f2937'; // too light on light → dark slate
   if (bg === 'light') return darkenUntilReadable(hex);
-  return hex;
+  return lightenUntilVisible(hex);
 }
 
 /** Relative luminance of #fafaf9, the light page. */
 const LIGHT_PAGE_LUM = relativeLuminance('#fafaf9');
+
+/** Relative luminance of #0f172a, the dark page. */
+const DARK_PAGE_LUM = relativeLuminance('#0f172a');
+
+/** Mix a hex toward white in small steps until it is 3:1 on the dark page. */
+function lightenUntilVisible(hex: string): string {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const rgb = [m[1]!, m[2]!, m[3]!].map((h) => parseInt(h, 16));
+  const toHex = (t: number) =>
+    '#' +
+    rgb
+      .map((c) =>
+        Math.round(c + (255 - c) * t)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('');
+  for (let t = 0; t < 1; t += 0.02) {
+    const candidate = toHex(t);
+    if ((relativeLuminance(candidate) + 0.05) / (DARK_PAGE_LUM + 0.05) >= 3) {
+      return t === 0 ? hex : candidate;
+    }
+  }
+  return '#ffffff';
+}
 
 /** Scale a hex toward black in small steps until it is 4.5:1 on the light page. */
 function darkenUntilReadable(hex: string): string {
