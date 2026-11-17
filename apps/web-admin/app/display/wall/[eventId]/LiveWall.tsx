@@ -12,7 +12,7 @@ import { WallRow } from './WallRow';
 /** Readable from across a hall — the wall never shows a bare spinner. */
 function StageMessage({ children }: { children: React.ReactNode }) {
   return (
-    <p className="p-12 text-muted" style={{ fontSize: 'var(--text-stage-subtitle)' }}>
+    <p className="p-12 text-stage-foreground/60" style={{ fontSize: 'var(--text-stage-subtitle)' }}>
       {children}
     </p>
   );
@@ -52,7 +52,7 @@ export function LiveWall({ eventId }: { eventId: string }) {
         <section key={group.key} className="mb-6">
           {group.label && (
             <h2
-              className="mb-1 uppercase tracking-wide text-muted"
+              className="mb-1 uppercase tracking-wide text-stage-foreground/60"
               style={{ fontSize: 'var(--text-stage-label)' }}
             >
               {group.label}

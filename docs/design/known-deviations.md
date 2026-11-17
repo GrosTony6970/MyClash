@@ -375,25 +375,31 @@ It was used on light surfaces in two apps:
 
 ---
 
-## D14 — the display wall writes page ink on the stage
+## D14 — FIXED: the display wall wrote page ink on the stage
 
 **Rule broken:** Colours — `stage` takes `stage-foreground`; the scopes decide the ink.
 
-**Rendered and measured on 2026-11-17.** A static page built from the classes below and
-web-admin's production stylesheet, in Chromium at 1920×1080, not the running app: the piste name
-and the bout line (fighters and score) paint `#0f172a` on `#030712`, a contrast of 1.13:1, and
-cannot be read. The muted cells (status, clock, group label) reach 4.23:1 and the warning cell
-4.01:1; the status dots show. So the wall shows which piste is in trouble and not which piste it
-is. The organiser's projector wall,
-`/display/wall/[eventId]` in web-admin, sits inside `app/display/layout.tsx:14`, which paints
-`bg-stage` (`#030712`) and sets no `data-theme`. Its rows use the page inks:
-`text-foreground` (`WallRow.tsx:39,45`) and `text-muted` (`WallRow.tsx:53,60`,
-`LiveWall.tsx:15,55`). With no dark scope above them those resolve to the base values, `#0f172a`
-and `#64748b`, on a near-black stage. It has been like this since the wall was written
-(`62e2fb281`, 2026-08-06).
+**Fixed on 2026-11-17.** The wall writes the stage ink: `text-stage-foreground` for the piste name
+and the bout line, `text-stage-foreground/60` for the quiet cells, the group label and the
+messages, `border-stage-foreground/30` for the row divider (`WallRow.tsx`, `LiveWall.tsx`).
+`wall-ink.test.tsx` holds both files free of page ink, and `theme-ink-contrast.test.ts` measures
+the two inks on the stage. A `data-theme="dark"` on the wall's root was the smaller change and was
+not taken: the stage is scope-independent by rule, and under a dark scope the row divider drops to
+about 1.2:1.
 
-**Fix:** `text-stage-foreground` and an opacity step of it, as `TvProtestChip` does — or a
-`data-theme="dark"` on the wall's root, which is the smaller change.
+**What it was.** Rendered and measured on 2026-11-17 (a static page built from the classes and
+web-admin's production stylesheet, in Chromium at 1920×1080, not the running app): the piste name
+and the bout line (fighters and score) painted `#0f172a` on `#030712`, a contrast of 1.13:1, and
+could not be read. The muted cells (status, clock, group label) reached 4.23:1 and the warning cell
+4.01:1; the status dots showed. So the wall showed which piste was in trouble and not which piste
+it was. The organiser's projector wall, `/display/wall/[eventId]` in web-admin, sits inside
+`app/display/layout.tsx:14`, which paints `bg-stage` (`#030712`) and sets no `data-theme`. Its rows
+used the page inks, which with no dark scope above them resolve to the base values, `#0f172a` and
+`#64748b`, on a near-black stage. It had been like this since the wall was written (`62e2fb281`,
+2026-08-06).
+
+**Still open, beside it:** the "behind" cell keeps `text-warning`, 4.01:1 on the stage at the
+wall's small meta size.
 
 ---
 

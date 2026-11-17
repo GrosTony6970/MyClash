@@ -50,7 +50,7 @@ None — but the stage has its own token. `bg-stage` (`--color-stage: #030712`) 
 
 Use `bg-stage` for a projector surface and nothing else — it is not a card, not content, not a fifth surface you reach for because you want "extra dark".
 
-Because no scope is set, **the page inks are wrong here**: `text-foreground` and `text-muted` resolve to their light-page values, dark on near-black. Write `text-stage-foreground`, and an opacity step of it for the quiet text. The wall does not, yet ([D14](known-deviations.md#d14--the-display-wall-writes-page-ink-on-the-stage)), and `TVScoreboard` still paints the stage's value as a raw class rather than through the token ([D7](known-deviations.md#d7--the-kiosk-stage-is-a-token-mostly-fixed-tvscoreboard-is-not-on-it)).
+Because no scope is set, **the page inks are wrong here**: `text-foreground` and `text-muted` resolve to their light-page values, dark on near-black. Write `text-stage-foreground`, and an opacity step of it for the quiet text. The wall does since 2026-11-17; before that it could not be read ([D14](known-deviations.md#d14--fixed-the-display-wall-wrote-page-ink-on-the-stage)). `TVScoreboard` still paints the stage's value as a raw class rather than through the token ([D7](known-deviations.md#d7--the-kiosk-stage-is-a-token-mostly-fixed-tvscoreboard-is-not-on-it)).
 
 ## The stage type scale
 
@@ -77,7 +77,7 @@ Never use these for app chrome, and never size stage type with the breakpoint sc
 - **`TVScoreboard`** — the read-only projector view of one Match: a light header strip (Event, piste, bout code, what is next) and a light footer strip, the two corners with score, name, club, card chips and a protest chip each, the clock and the verdict between them, and under them the bout-flow chart and the Match history. A `FreshnessChip` appears when the screen has stopped hearing from the server.
 - **The protest chip** (`TvProtestChip`) — a raised hand and a count beside the card chips, or `count/limit` when the Tournament sets a limit. It fades at zero like the card chips, and takes the warning tone (`bg-warning/20 text-warning`) from the limit on; the component records the contrast it was checked at. It carries a `title` nobody on a stage can hover ([D20](known-deviations.md#d20--a-tooltip-on-a-screen-with-no-pointer)).
 - **`LiceWaitingDisplay`** — a white branded header strip over a full-bleed dark stage, for when there's no live match. Its verdict and "up next" accents are `amber-400`, a raw class.
-- **The wall** (`LiveWall`, `WallRow`) — one row per piste, worst first: a state dot, the piste, the two fighters and the score, the Match status and clock, and how late the piste runs, sized with `--text-stage-row` and `--text-stage-meta`. A `SimulatedTimeBadge` shows when a super admin runs the clock off real time, so nobody reads a rehearsal as the real day.
+- **The wall** (`LiveWall`, `WallRow`) — one row per piste, worst first: a state dot, the piste, the two fighters and the score, the Match status and clock, and how late the piste runs, sized with `--text-stage-row` and `--text-stage-meta`, in the stage ink (`text-stage-foreground`, and its 60% step for the quiet cells). A `SimulatedTimeBadge` shows when a super admin runs the clock off real time, so nobody reads a rehearsal as the real day.
 - The corners are the tournament's configured `sideColors`, via `sideColorsFor(config, 'dark')`; `corner-red` / `corner-blue` at their dark values are just the fallback. **Not yours to restyle or to hardcode** — across a hall the corner colour is the only thing a spectator can read, so it has to be the colour the organiser announced.
 
 ## Don't
@@ -89,4 +89,4 @@ Never use these for app chrome, and never size stage type with the breakpoint sc
 
 ## Deviations on this surface
 
-[D7](known-deviations.md#d7--the-kiosk-stage-is-a-token-mostly-fixed-tvscoreboard-is-not-on-it) · [D14](known-deviations.md#d14--the-display-wall-writes-page-ink-on-the-stage) · [D15](known-deviations.md#d15--shadows-above-the-shadow-sm-ceiling) · [D20](known-deviations.md#d20--a-tooltip-on-a-screen-with-no-pointer) · [D21](known-deviations.md#d21--26-files-of-packagesui-are-exempt-from-the-raw-palette-lint)
+[D7](known-deviations.md#d7--the-kiosk-stage-is-a-token-mostly-fixed-tvscoreboard-is-not-on-it) · [D14](known-deviations.md#d14--fixed-the-display-wall-wrote-page-ink-on-the-stage) · [D15](known-deviations.md#d15--shadows-above-the-shadow-sm-ceiling) · [D20](known-deviations.md#d20--a-tooltip-on-a-screen-with-no-pointer) · [D21](known-deviations.md#d21--26-files-of-packagesui-are-exempt-from-the-raw-palette-lint)

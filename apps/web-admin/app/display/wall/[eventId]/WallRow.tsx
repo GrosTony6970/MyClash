@@ -15,6 +15,10 @@ type T = Translator;
  * no ack button and no expansion, and it sizes on the stage type scale instead
  * of the admin one. Sharing the row would mean threading a `variant` prop
  * through every cell to switch off most of them.
+ *
+ * Its ink is the stage's, never the page's: the stage sets no scope, so a page
+ * ink stays dark on near-black. The wall could not be read for that reason
+ * until 2026-11-17 (known-deviations D14; `wall-ink.test.tsx`).
  */
 interface WallRowProps {
   row: BoardRow;
@@ -29,20 +33,20 @@ export function WallRow({ row, state, nowMs, locale, t }: WallRowProps) {
   const timing = timingReadout(row, nowMs, locale, t);
 
   return (
-    <li className="flex items-center gap-4 border-b border-border/40 py-3">
+    <li className="flex items-center gap-4 border-b border-stage-foreground/30 py-3">
       <span
         role="img"
         aria-label={t(`organizer.live.state.${state}`)}
         className={`h-4 w-4 shrink-0 rounded-full ${DOT[state]}`}
       />
       <span
-        className="w-40 shrink-0 truncate font-semibold text-foreground"
+        className="w-40 shrink-0 truncate font-semibold text-stage-foreground"
         style={{ fontSize: 'var(--text-stage-row)' }}
       >
         {row.lice.name}
       </span>
       <span
-        className="min-w-0 flex-1 truncate text-foreground"
+        className="min-w-0 flex-1 truncate text-stage-foreground"
         style={{ fontSize: 'var(--text-stage-row)' }}
       >
         {cm
@@ -50,14 +54,14 @@ export function WallRow({ row, state, nowMs, locale, t }: WallRowProps) {
           : t('organizer.live.state.idle')}
       </span>
       <span
-        className="w-40 shrink-0 truncate text-right tabular-nums text-muted"
+        className="w-40 shrink-0 truncate text-right tabular-nums text-stage-foreground/60"
         style={{ fontSize: 'var(--text-stage-meta)' }}
       >
         {cm ? statusLabel('match', cm.status, t) : ''}
         {timing.clock ? ` · ${timing.clock}` : ''}
       </span>
       <span
-        className={`w-48 shrink-0 truncate text-right ${timing.warn ? 'text-warning' : 'text-muted'}`}
+        className={`w-48 shrink-0 truncate text-right ${timing.warn ? 'text-warning' : 'text-stage-foreground/60'}`}
         style={{ fontSize: 'var(--text-stage-meta)' }}
       >
         {timing.behind ?? ''}

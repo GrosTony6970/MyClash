@@ -67,3 +67,20 @@ describe('the ghost button label, on every surface it sits on', () => {
     expect(contrast([255, 255, 255], token('surface'))).toBeLessThan(1.1);
   });
 });
+
+describe('text on the stage', () => {
+  const stage = token('stage');
+  const ink = token('stage-foreground');
+
+  it('reads in the stage ink', () => {
+    expect(contrast(ink, stage)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('reads in the quiet step of the stage ink the display wall uses, 60%', () => {
+    expect(contrast(over(ink, 0.6, stage), stage)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('does not read in the page ink: the stage sets no scope, so that ink stays dark', () => {
+    expect(contrast(token('foreground'), stage)).toBeLessThan(1.5);
+  });
+});
