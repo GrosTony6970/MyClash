@@ -320,10 +320,19 @@ Fighters are a dedicated `League NN` roster (not the shared `Seed NN` one) becau
 club standings needs club affiliations: seeds 1–3 in one club, 4–5 in another,
 6–8 unaffiliated. Both clubs are created once by name and reused on every rerun.
 
-> A league is not owned by an event, so it survives the throwaway event's
-> teardown. The spec returns it to `draft` before finishing — nothing it creates
-> is ever left publicly visible — and deletes both leagues when `E2E_CLEANUP` is
-> set, printing their admin URLs otherwise.
+> The spec plays in its **own `standard` Event** and publishes it and each
+> Tournament once played: a draft Tournament, or any Tournament of a draft Event,
+> earns no league points (ruling 178), and the shared throwaway Event must stay a
+> draft for the specs after `11`. Publishing announces the Event to the
+> organisation's followers once; the E2E organisation has none. Spec `29` does
+> the same with its three Events, through the same `publishTournamentAndEvent`
+> helper.
+>
+> A league is not owned by an event, so it survives any Event's teardown. The
+> spec returns it to `draft` before finishing and deletes both leagues when
+> `E2E_CLEANUP` is set, printing their admin URLs otherwise. Its Event is flipped
+> to `test` at the end, which takes it off the public site and makes it
+> deletable (`E2E_CLEANUP`, or later `pnpm e2e:cleanup`).
 
 ## Generate and parse every export (opt-in)
 

@@ -2,7 +2,11 @@ import { test, expect, request as apiRequest } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
 import { ensureClub, ensureRoster, personName, type Person } from './_bracket';
-import { playTournamentToChampion, type FinishedTournament } from './_tournament';
+import {
+  playTournamentToChampion,
+  publishTournamentAndEvent,
+  type FinishedTournament,
+} from './_tournament';
 
 /**
  * League standings, end to end against a real database (run with E2E_LEAGUE=1).
@@ -28,10 +32,15 @@ import { playTournamentToChampion, type FinishedTournament } from './_tournament
  * proved with nothing new to count. It also covers multi-tournament aggregation
  * (participation counts, summed points), which nothing else does.
  *
- * Runs against the shared throwaway event and, when `E2E_CLEANUP` is set, deletes
- * the leagues it created (they outlive the event otherwise: a league is not
- * owned by an event). The league is returned to `draft` before the run ends, so
- * nothing this spec creates is ever left publicly visible.
+ * Runs in its OWN `standard` Event, published once each Tournament is played: a
+ * draft Tournament, or any Tournament of a draft Event, earns no league points
+ * (ruling 178), and the shared throwaway Event must stay a draft for the specs
+ * after this one. Publishing announces the Event to the organisation's
+ * followers, which the E2E organisation does not have (operator ruling,
+ * 2026-11-17). The Event is flipped to `test` at the end — the only way a
+ * standard Event holding results can be deleted — and, when `E2E_CLEANUP` is
+ * set, deleted together with the leagues (a league is not owned by an Event).
+ * The league is returned to `draft` before the run ends.
  */
 const LEAGUE = ['1', 'true', 'yes'].includes((process.env.E2E_LEAGUE ?? '').toLowerCase());
 const CLEANUP = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase());
@@ -164,6 +173,8 @@ let fixture: Fixture;
 
 /** Every league this spec created, for teardown. */
 const createdLeagueIds: string[] = [];
+/** The spec's own standard Event, for teardown. */
+const createdEventIds: string[] = [];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -224,14 +235,32 @@ test.describe('league', () => {
   }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { eventId, orgId, eventSlug } = runContext();
+    const { orgId, eventSlug } = runContext();
+    const token = Date.now().toString(36);
+
+    const event = await api.json<{ id: string }>(
+      await api.post(`organizations/${orgId}/events`, {
+        data: {
+          name: `E2E TEST (auto) league — ${token}`,
+          slug: `e2e-league-${token}`,
+          startDate: '2098-04-01',
+          endDate: '2098-04-02',
+          city: 'Testville',
+          country: 'FR',
+          eventKind: 'standard',
+        },
+      }),
+    );
+    createdEventIds.push(event.id);
+    const eventId = event.id;
 
     const fighters = await leagueRoster(api, eventId);
     const firstTournament = await playTournamentToChampion(api, eventId, {
       name: 'League season — event 1',
-      slug: `league-t1-${Date.now().toString(36)}`,
+      slug: `league-t1-${token}`,
       fighters,
     });
+    await publishTournamentAndEvent(api, eventId, firstTournament.id);
 
     // The bracket decided this, not the league: seed 1 beat everyone, so the
     // league leader below must be this exact person or the placement is wrong.
@@ -396,6 +425,9 @@ test.describe('league', () => {
       slug: `league-t2-${Date.now().toString(36)}`,
       fighters,
     });
+    // Published, or it would earn nothing and "stays put while frozen" below
+    // would pass for the wrong reason.
+    await publishTournamentAndEvent(api, eventId, secondTournament.id);
     await api.ok(
       await api.post(`admin/leagues/${league.id}/tournaments/${secondTournament.id}/link`, {
         data: { groupId },
@@ -492,32 +524,48 @@ test.describe('league', () => {
   });
 
   /**
-   * A league outlives the throwaway event (nothing links it to one), so it has to
-   * clean up after itself. Deleting cascades its groups, links, results and
-   * rankings. Preserved by default, like the event, so a local run can be
-   * inspected — and harmless either way, since the league is left as a draft.
+   * A league outlives its Events (nothing links it to one), so it has to clean
+   * up after itself. Deleting cascades its groups, links, results and rankings.
+   *
+   * The spec's own Event is `standard`, published and holds scored matches, so
+   * it refuses a hard delete. Flipping it to `test` is what makes it disposable,
+   * and it also takes it off the public site, so it happens on every run. Both
+   * are preserved by default, like the shared Event, so a local run can be
+   * inspected; `pnpm e2e:cleanup` collects the Event later by its `e2e-` slug.
    */
   test.afterAll(async () => {
-    if (createdLeagueIds.length === 0) return;
+    if (createdLeagueIds.length === 0 && createdEventIds.length === 0) return;
     const { baseURL, orgSlug } = runContext();
+    const ctx = await apiRequest.newContext({
+      baseURL,
+      ignoreHTTPSErrors: true,
+      storageState: 'tests/e2e/.auth/admin.json',
+    });
+    const api = apiFor(ctx);
+    for (const id of createdEventIds) {
+      const flipped = await api.patch(`events/${id}`, { data: { eventKind: 'test' } });
+      if (!flipped.ok()) {
+        console.warn(`[e2e] could not flip event ${id} to test kind: ${flipped.status()}`);
+        continue;
+      }
+      if (!CLEANUP) continue;
+      const deleted = await api.delete(`events/${id}?mode=hard`);
+      if (!deleted.ok()) console.warn(`[e2e] could not delete event ${id}: ${deleted.status()}`);
+    }
     if (!CLEANUP) {
       console.log(
         `[e2e] leagues PRESERVED — open them in the admin UI:\n` +
           createdLeagueIds
             .map((id) => `        ${baseURL}/org/${orgSlug}/leagues/${id}`)
             .join('\n') +
+          `\n        league event PRESERVED (kind=test): ${createdEventIds.join(', ')}` +
           `\n        (run with E2E_CLEANUP=1 to delete them instead)`,
       );
-      return;
-    }
-    const ctx = await apiRequest.newContext({
-      baseURL,
-      ignoreHTTPSErrors: true,
-      storageState: 'tests/e2e/.auth/admin.json',
-    });
-    for (const id of createdLeagueIds) {
-      const res = await ctx.delete(`/api/v1/admin/leagues/${id}`);
-      if (!res.ok()) console.warn(`[e2e] could not delete league ${id}: ${res.status()}`);
+    } else {
+      for (const id of createdLeagueIds) {
+        const res = await api.delete(`admin/leagues/${id}`);
+        if (!res.ok()) console.warn(`[e2e] could not delete league ${id}: ${res.status()}`);
+      }
     }
     await ctx.dispose();
   });

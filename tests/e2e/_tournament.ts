@@ -103,3 +103,27 @@ export async function playTournamentToChampion(
     fighters,
   };
 }
+
+/**
+ * Publish a played Tournament and its Event, so the Tournament counts toward
+ * league standings and statistics.
+ *
+ * A draft Tournament, or any Tournament of a draft Event, earns no league
+ * points until it is published (ruling 178, `isPublicTournamentEmbed` in
+ * `leagues.service.ts`). `playTournamentToChampion` leaves both as drafts
+ * because most callers (exports, compensation) need nothing public.
+ *
+ * Never call it on the shared throwaway Event: later specs read that Event as a
+ * draft. A league spec builds its own Event. Publishing a `standard` Event
+ * announces it, once, to the organisation's followers; the E2E organisation
+ * has no real followers (operator ruling, 2026-11-17). Republishing is a
+ * no-op, so it is safe to call once per Tournament of one Event.
+ */
+export async function publishTournamentAndEvent(
+  api: Api,
+  eventId: string,
+  tournamentId: string,
+): Promise<void> {
+  await api.ok(await api.post(`events/${eventId}/publish`, { data: {} }));
+  await api.ok(await api.post(`tournaments/${tournamentId}/publish`, { data: {} }));
+}

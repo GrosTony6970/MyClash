@@ -3,7 +3,11 @@ import { test, expect, request as apiRequest } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
 import { ensureClub, ensureRoster, personName, type Person } from './_bracket';
-import { playTournamentToChampion, type FinishedTournament } from './_tournament';
+import {
+  playTournamentToChampion,
+  publishTournamentAndEvent,
+  type FinishedTournament,
+} from './_tournament';
 
 /**
  * A league that spans SEVERAL EVENTS, and the scoring that aggregates them.
@@ -281,8 +285,10 @@ test.describe('league across several events', () => {
 
     // ── Three events, each holding one played tournament ─────────────────────
     // `standard` because that is the only kind `countsTowardStats` accepts, and
-    // never published: publishing a standard event announces it to the
-    // organisation's followers, and league scoring does not need it.
+    // published once played: a draft Tournament, or any Tournament of a draft
+    // Event, earns no league points (ruling 178). Publishing announces each
+    // Event to the organisation's followers, which the E2E organisation does
+    // not have (operator ruling, 2026-11-17).
     const tournaments = new Map<string, FinishedTournament>();
     const eventIdByKey = new Map<string, string>();
     const personsByKey = new Map<string, Person[]>();
@@ -310,14 +316,13 @@ test.describe('league across several events', () => {
       );
       personsByKey.set(lineup.key, fighters);
 
-      tournaments.set(
-        lineup.key,
-        await playTournamentToChampion(api, event.id, {
-          name: `Multi league ${lineup.key}`,
-          slug: `multi-league-${lineup.key.toLowerCase()}-${token}`,
-          fighters,
-        }),
-      );
+      const played = await playTournamentToChampion(api, event.id, {
+        name: `Multi league ${lineup.key}`,
+        slug: `multi-league-${lineup.key.toLowerCase()}-${token}`,
+        fighters,
+      });
+      await publishTournamentAndEvent(api, event.id, played.id);
+      tournaments.set(lineup.key, played);
     }
 
     // The premise of every sum below: the same human is the same fighter in all
