@@ -27,7 +27,7 @@ Organization
 arranged through FightBook. It has no Exchanges, no score, no ruleset and no referee, so it is not a
 Match. It keys on Global Persons, not on Registrations. It may name an Event day, or a free date and
 place outside any Event. See
-[the FightBook design](superpowers/specs/2026-11-10-fightbook-design.md).
+[the FightBook design](superpowers/archive/specs/2026-11-10-fightbook-design.md).
 
 **Phase is a real tier, not a synonym for Pool.** `matches.phase_id` is `NOT NULL` — every match
 belongs to a phase. `pool_id`, `bracket_slot_id` and `swiss_round_id` are all _nullable_, and which

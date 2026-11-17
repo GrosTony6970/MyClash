@@ -1,5 +1,5 @@
 /**
- * fightbook.controller.ts — FightBook, slice 1 (docs/superpowers/specs/2026-11-10-fightbook-design.md)
+ * fightbook.controller.ts — FightBook, slice 1 (docs/superpowers/archive/specs/2026-11-10-fightbook-design.md)
  *
  * GET   /me/fightbook/settings  — the caller's switch, and whether they have a fighter profile
  * PATCH /me/fightbook/settings  — save the switch, the stars, the daily limit

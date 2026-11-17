@@ -111,6 +111,6 @@ infra/scripts/restore.sh --storage-only <storage-file>   # images only, same nig
   hashes the value before sending it, so it reaches neither the db log (a mistyped role name logs
   the failed statement in full) nor `pg_stat_statements` (ruling 427).
 
-- **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window; the `docs/superpowers/specs/2026-05-19-consistent-backups-design.md` quiesce lock is the planned mitigation.
+- **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window. Nothing mitigates it: the quiesce lock designed in `docs/superpowers/archive/specs/2026-05-19-consistent-backups-design.md` was never built, and that spec is marked superseded.
 - **Integrity is truncation/corruption-level (`gunzip -t` / `gzip -t`), not a SHA-256 manifest.** A per-set checksum manifest is a deferred enhancement; it was intentionally left out of the current pass to avoid destabilizing the tested retention/listing logic.
 - **GPG key escrow:** if `BACKUP_GPG_RECIPIENT` is set, store the matching private key off-box. Without it, encrypted backups cannot be restored.
