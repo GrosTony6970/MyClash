@@ -70,7 +70,7 @@ async function openBout(page: Page, bout: Bout = {}) {
     if (path.endsWith('/summary')) {
       return route.fulfill({ json: { ...SUMMARY, bestOf: bout.bestOf ?? 1 } });
     }
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: { ...HALTED, ...bout.clock } });

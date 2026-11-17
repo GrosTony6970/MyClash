@@ -1,7 +1,13 @@
-import type { ClockSnapshot, DisplayMatch, ExchangeRow, Penalty } from '../types/match-events';
+import type {
+  ClockSnapshot,
+  DisplayMatch,
+  ExchangeRow,
+  MatchProtest,
+  Penalty,
+} from '../types/match-events';
 
 /**
- * The four reads behind a live scoreboard (`useLiveMatch`), run together.
+ * The five reads behind a live scoreboard (`useLiveMatch`), run together.
  *
  * The bout decides: a refused bout is an error, reported in the API's own
  * words. A side read that fails is left out, so the scoreboard keeps what it
@@ -16,6 +22,7 @@ export type LiveMatchRead =
       ok: true;
       match: DisplayMatch;
       penalties?: Penalty[];
+      protests?: MatchProtest[];
       exchanges?: ExchangeRow[];
       clock?: ClockSnapshot;
     }
@@ -30,9 +37,10 @@ export async function readLiveMatch(
 ): Promise<LiveMatchRead> {
   const url = (path: string) => `${apiBaseUrl}/api/v1/matches/${matchId}/${path}`;
   try {
-    const [matchRes, penaltyRes, exchangeRes, clockRes] = await Promise.all([
+    const [matchRes, penaltyRes, protestRes, exchangeRes, clockRes] = await Promise.all([
       fetchImpl(url('display'), READ),
       fetchImpl(url('penalties'), READ),
+      fetchImpl(url('protests'), READ),
       fetchImpl(url('exchanges'), READ),
       fetchImpl(url('clock'), READ),
     ]);
@@ -53,6 +61,7 @@ export async function readLiveMatch(
     }
     const read: LiveMatchRead = { ok: true, match: (await matchRes.json()) as DisplayMatch };
     if (penaltyRes.ok) read.penalties = (await penaltyRes.json()) as Penalty[];
+    if (protestRes.ok) read.protests = (await protestRes.json()) as MatchProtest[];
     if (exchangeRes.ok) read.exchanges = (await exchangeRes.json()) as ExchangeRow[];
     if (clockRes.ok) read.clock = (await clockRes.json()) as ClockSnapshot;
     return read;

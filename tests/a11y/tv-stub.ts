@@ -84,7 +84,7 @@ export interface LiveBout {
   hangs?: boolean;
 }
 
-/** One bout's four reads. */
+/** One bout's five reads. */
 export async function stubBout(page: Page, id: string, bout: object, clock: object) {
   await stubLiveBout(page, id, { bout, clock });
 }
@@ -95,7 +95,7 @@ async function stubLiveBout(page: Page, id: string, live: LiveBout) {
     live.hangs ? undefined : route.fulfill({ json: json() });
   await page.route(`**/api/v1/matches/${id}/display`, (route) => answer(route, () => live.bout));
   await page.route(`**/api/v1/matches/${id}/clock`, (route) => answer(route, () => live.clock));
-  for (const list of ['penalties', 'exchanges']) {
+  for (const list of ['penalties', 'protests', 'exchanges']) {
     await page.route(`**/api/v1/matches/${id}/${list}`, (route) => answer(route, () => []));
   }
 }

@@ -50,7 +50,7 @@ async function openRunningBout(page: Page) {
       return route.fulfill({ status: 503, json: { error: 'offline', status: 503 } });
     }
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: ROW });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });

@@ -9,28 +9,28 @@ import { getSupabaseBrowser } from '@/lib/supabase-browser';
 type T = Translator;
 
 /**
- * The exchange + penalty feed for the expanded bout.
+ * The exchange + penalty + protest feed for the expanded bout.
  *
  * This is the only reason to expand a row rather than read it: "three doubles
  * in the last ninety seconds" is the ops signal that a bout is going sideways,
  * and nothing else on the board carries it.
  *
  * Mounted ONLY while a row is expanded, and the board allows exactly one
- * expansion at a time — so this hook, its channel and its four fetches exist
+ * expansion at a time — so this hook, its channel and its five fetches exist
  * for one bout at a time by construction, never per row.
  */
 export function BoardRowTimeline({ matchId, t }: { matchId: string; t: T }) {
   // pollMs is deliberately omitted. useLiveMatch polls only when given one (a
-  // down channel, a hidden bout), and it refetches four endpoints each time — on a degraded socket
-  // that is 4x the load of the board's own 7s poll, which already covers
+  // down channel, a hidden bout), and it refetches five endpoints each time — on a degraded socket
+  // that is 5x the load of the board's own 7s poll, which already covers
   // everything the collapsed row shows. A panel open for twenty seconds does
   // not justify that, so a dead socket surfaces as a note instead.
-  const { match, exchanges, penalties, connected, loadError } = useLiveMatch(
+  const { match, exchanges, penalties, protests, connected, loadError } = useLiveMatch(
     getPublicApiUrl(),
     matchId,
     getSupabaseBrowser(),
   );
-  const events = useTimelineEvents(match, exchanges, penalties, t);
+  const events = useTimelineEvents(match, exchanges, penalties, protests, t);
 
   if (loadError) {
     return <p className="text-xs text-muted">{t('organizer.live.detail.timelineError')}</p>;
@@ -68,6 +68,7 @@ function useTimelineEvents(
   match: LiveMatch['match'],
   exchanges: LiveMatch['exchanges'],
   penalties: LiveMatch['penalties'],
+  protests: LiveMatch['protests'],
   t: T,
 ) {
   const redName = match?.redFighterName ?? '—';
@@ -78,6 +79,7 @@ function useTimelineEvents(
       buildUnifiedTimeline({
         exchanges,
         penalties,
+        protests,
         redName,
         blueName,
         // Optional on DisplayMatch. Without them penalties render with no side
@@ -87,6 +89,6 @@ function useTimelineEvents(
         t,
         config,
       }),
-    [exchanges, penalties, redName, blueName, match, t, config],
+    [exchanges, penalties, protests, redName, blueName, match, t, config],
   );
 }

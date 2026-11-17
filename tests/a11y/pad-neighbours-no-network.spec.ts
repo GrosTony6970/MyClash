@@ -56,7 +56,7 @@ async function openBout(page: Page) {
     if (route.request().method() !== 'GET') return route.fulfill({ status: 201, json: {} });
     if (path.endsWith('/neighbors')) return route.fulfill({ json: state.neighbours });
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: ROW });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });

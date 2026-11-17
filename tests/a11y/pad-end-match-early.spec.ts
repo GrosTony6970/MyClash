@@ -73,7 +73,7 @@ async function openBout(page: Page, bout: Bout = {}) {
       return route.fulfill({ json: { ...ROW, red_score: bout.redScore ?? ROW.red_score } });
     }
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: clock });

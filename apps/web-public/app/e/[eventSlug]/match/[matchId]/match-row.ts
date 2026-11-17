@@ -8,14 +8,14 @@
  */
 
 import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
-import type { ExchangeRow, ExchangeType, Penalty } from '@myclash/ui';
+import type { ExchangeRow, ExchangeType, MatchProtest, Penalty } from '@myclash/ui';
 
 // The exchange + penalty wire shapes are declared once in @myclash/ui
 // (packages/ui/src/types/match-events.ts), because the shared timeline builder
 // this page renders through needs them too. Re-exported under this module's
 // long-standing names so the server page and the client view are unchanged.
 // `export type` is required — isolatedModules is on.
-export type { ExchangeRow, ExchangeType };
+export type { ExchangeRow, ExchangeType, MatchProtest };
 export type MatchPenaltyRow = Penalty;
 
 export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';

@@ -19,6 +19,7 @@
  *     `scoreDelta`, `defenderDelta`). Afterblow deltas are already netted
  *     server-side, so clients render them verbatim.
  *   - `GET /matches/:id/penalties` → raw `match_penalties` columns (snake_case).
+ *   - `GET /matches/:id/protests` → raw `match_protests` columns (snake_case).
  *
  * Note the deliberate spelling split: exchange rows carry camelCase
  * `occurredAt` (an API-added alias), penalty rows carry raw `occurred_at`.
@@ -167,6 +168,29 @@ export interface Penalty {
    * Queued on the tablet, not yet on the server. Never set by the API — only
    * by the referee pad when it merges its outbox in. See `UnifiedEvent.pending`.
    */
+  pending?: boolean;
+}
+
+/**
+ * One row of `GET /matches/:id/protests` (a raw `match_protests` record): a
+ * fighter disputed the referee's call. It scores nothing and carries no `#N`
+ * in the Match's history.
+ */
+export interface MatchProtest {
+  id: string;
+  /** The idempotency key the pad sends; the dedupe key against its outbox. */
+  client_uuid: string;
+  match_id: string;
+  /** The fighter who protested. */
+  registration_id: string;
+  /** The protests table's own counter — a tie-break only, never a number shown. */
+  sequence: number;
+  /** Null while a protest made between rounds still waits on the tablet. */
+  round_number: number | null;
+  clock_time_ms: number | null;
+  occurred_at: string;
+  voided: boolean;
+  /** Queued on the tablet, not yet on the server. See `UnifiedEvent.pending`. */
   pending?: boolean;
 }
 

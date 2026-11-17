@@ -5,7 +5,8 @@
  * (clean / afterblow incl. net-zero 1-1 / double / no-exchange) and penalties
  * (cards) are merged, ordered chronologically, and numbered contiguously 1..N.
  * Cards therefore count as exchanges; a net-zero afterblow stays visible +
- * numbered.
+ * numbered. Protests take their place in the same order with NO number, so
+ * they never move the `#N` of a hit or a card.
  *
  * Voided rows are filtered HERE, not by callers: numbering them would desync
  * the `#`s between surfaces, which is the one invariant this module exists to
@@ -19,19 +20,23 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { formatMatchClock } from './format-match-clock';
 import { sideStyle } from './side-color';
 import { exchangeDeltaLabel, afterblowDefenderLabel } from './exchange-delta-label';
-import type { ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
+import type { ExchangeRow, MatchProtest, Penalty, PenaltyCard } from '../types/match-events';
 
 export interface UnifiedEvent {
-  /** Stable React key (`ex-<id>` / `pen-<id>`). */
+  /** Stable React key (`ex-<id>` / `pen-<id>` / `pro-<id>`). */
   id: string;
   /** Which table the row came from — the drawer only selects exchanges. */
-  kind: 'exchange' | 'penalty';
-  /** Underlying exchange/penalty id (what the drawer voids/edits). */
+  kind: 'exchange' | 'penalty' | 'protest';
+  /** Underlying exchange/penalty/protest id (what the drawer voids/edits). */
   rawId: string;
   /** Stored sequence — tie-break only; NOT the displayed number. */
   seq: number;
-  /** Contiguous 1..N display number, assigned across the whole timeline. */
-  number: number;
+  /**
+   * Contiguous 1..N display number, assigned across the hits and cards. Null
+   * for a protest: it takes its place in time but no number, so hit #5 is
+   * hit #5 with or without a protest before it.
+   */
+  number: number | null;
   occurredAt: string;
   timeLabel: string;
   /** Side the row belongs to. Surfaces that paint sides from design tokens
@@ -144,10 +149,12 @@ function instant(occurredAt: string): number {
 export function ascendingWithNumbers<T extends { occurredAt: string; seq: number }>(
   rows: T[],
 ): (T & { number: number })[] {
-  const ascending = [...rows].sort(
-    (a, b) => instant(a.occurredAt) - instant(b.occurredAt) || a.seq - b.seq,
-  );
-  return ascending.map((r, i) => ({ ...r, number: i + 1 }));
+  return [...rows].sort(byTimeThenSeq).map((r, i) => ({ ...r, number: i + 1 }));
+}
+
+/** Chronological, tie-broken by stored `seq` — the one order of the history. */
+function byTimeThenSeq(a: { occurredAt: string; seq: number }, b: typeof a): number {
+  return instant(a.occurredAt) - instant(b.occurredAt) || a.seq - b.seq;
 }
 
 /**
@@ -163,6 +170,8 @@ export function orderedWithNumbers<T extends { occurredAt: string; seq: number }
 export interface BuildTimelineArgs {
   exchanges: ExchangeRow[];
   penalties: Penalty[];
+  /** Rows with no number: they never shift the `#N` of a hit or a card. */
+  protests: MatchProtest[];
   redName: string;
   blueName: string;
   redRegId: string;
@@ -174,6 +183,7 @@ export interface BuildTimelineArgs {
 export function buildUnifiedTimeline({
   exchanges,
   penalties,
+  protests,
   redName,
   blueName,
   redRegId,
@@ -263,17 +273,52 @@ export function buildUnifiedTimeline({
       };
     });
 
-  return orderedWithNumbers([...exchangeRows, ...penaltyRows]);
+  // Hits and cards are numbered alone, exactly as before; a protest then takes
+  // its place by the same order, with no number of its own.
+  const numbered: UnifiedEvent[] = ascendingWithNumbers([...exchangeRows, ...penaltyRows]);
+  const protestRows = protests
+    .filter((p) => !p.voided)
+    .map((p) => protestRow(p, { redName, blueName, redRegId, blueRegId, t, config }));
+  return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
+}
+
+/** A protest as a row: the fighter, the word, an icon. No points and no number. */
+function protestRow(
+  p: MatchProtest,
+  a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
+): UnifiedEvent {
+  const side: 'red' | 'blue' | null =
+    p.registration_id === a.redRegId ? 'red' : p.registration_id === a.blueRegId ? 'blue' : null;
+  return {
+    id: `pro-${p.id}`,
+    kind: 'protest',
+    rawId: p.id,
+    seq: p.sequence,
+    number: null,
+    occurredAt: p.occurred_at,
+    timeLabel: formatMatchClock(p.clock_time_ms),
+    side,
+    sideColor: side ? sideStyle(a.config, side).border : null,
+    fighterLabel: side === 'red' ? a.redName : side === 'blue' ? a.blueName : '—',
+    typeLabel: a.t('scoring.lice.eventRowProtest'),
+    // No glyph: `MatchTimeline` draws the protest's hand as an SVG, by `kind`.
+    icon: null,
+    card: null,
+    delta: null,
+    pending: p.pending ?? false,
+  };
 }
 
 /**
  * One-line label for a Corrections-drawer `<option>` — the shared display
- * number plus the exchange info (time · fighter · type · delta).
+ * number plus the exchange info (time · fighter · type · delta). A protest has
+ * no number, so its line starts at the time.
  */
 export function exchangeOptionLabel(
   ev: Pick<UnifiedEvent, 'number' | 'timeLabel' | 'fighterLabel' | 'typeLabel' | 'delta'>,
 ): string {
-  const base = [`#${ev.number}`, ev.timeLabel, ev.fighterLabel, ev.typeLabel]
+  const number = ev.number === null ? '' : `#${ev.number}`;
+  const base = [number, ev.timeLabel, ev.fighterLabel, ev.typeLabel]
     .filter((part) => part !== '')
     .join(' · ');
   return ev.delta ? `${base} ${ev.delta}` : base;

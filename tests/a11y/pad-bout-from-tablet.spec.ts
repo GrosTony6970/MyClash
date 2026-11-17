@@ -145,6 +145,7 @@ async function openBoutOnline(page: Page, lists: { hits?: unknown[]; cards?: unk
     }
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: stub.cards });
+    if (path.endsWith('/protests')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });
     if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
     return route.fulfill({ status: 404, json: {} });

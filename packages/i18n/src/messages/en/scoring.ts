@@ -405,6 +405,8 @@ export const scoring = {
     eventRowClean: 'Clean hit',
     eventRowDouble: 'Double',
     eventRowNoExchange: 'No exchange',
+    eventRowProtest: 'Protest',
+    undoneProtest: 'Protest by {fighter}',
   },
   match: {
     unavailableTitle: 'Match unavailable',

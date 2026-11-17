@@ -1,16 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import {
-  BoutFlowChart,
-  FreshnessChip,
-  MatchTimeline,
-  buildBoutFlow,
-  sideColorsFor,
-  buildUnifiedTimeline,
-  statusLabelKey,
-} from '@myclash/ui';
-import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { useCallback, useState } from 'react';
+import { FreshnessChip, sideColorsFor, statusLabelKey } from '@myclash/ui';
+import { apiRequest } from '@myclash/api-client';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
@@ -19,10 +11,12 @@ import { ShareButton } from '@/components/ShareButton';
 import { useI18n } from '@myclash/next-i18n/client';
 import { resolveMatchWinner } from '@myclash/types';
 import { useMatchLiveChannel } from './use-match-live-channel';
+import { MatchEventFeed } from './match-event-feed';
 import {
   mapMatchRow,
   type ExchangeRow,
   type MatchPenaltyRow,
+  type MatchProtest,
   type MatchRow,
   type MatchSummary,
 } from './match-row';
@@ -148,117 +142,6 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   );
 }
 
-function MatchEventFeed({
-  exchanges,
-  penalties,
-  match,
-  summary,
-  redName,
-  blueName,
-}: {
-  exchanges: ExchangeRow[];
-  penalties: MatchPenaltyRow[];
-  match: MatchRow;
-  summary: MatchSummary;
-  redName: string;
-  blueName: string;
-}) {
-  const { t } = useI18n();
-  const [highlight, setHighlight] = useState<number | null>(null);
-  // The tournament's own config now reaches this page (via /summary), so the
-  // timeline paints the operator's side colours like every other surface.
-  const config = summary.scoringConfig ?? DEFAULT_SCORING_CONFIG;
-
-  // The same builder the referee pad and the TV display use, so a spectator's
-  // "#6" is the operator's "#6": exchanges and cards in ONE contiguous 1..N
-  // sequence, newest first. Voided rows are dropped by the builder; they are
-  // still counted below so the page keeps disclosing that they existed.
-  const events = useMemo(
-    () =>
-      buildUnifiedTimeline({
-        exchanges,
-        penalties,
-        redName,
-        blueName,
-        redRegId: match.redRegistrationId,
-        blueRegId: match.blueRegistrationId,
-        t,
-        config,
-      }),
-    [
-      exchanges,
-      penalties,
-      redName,
-      blueName,
-      match.redRegistrationId,
-      match.blueRegistrationId,
-      config,
-      t,
-    ],
-  );
-
-  // The same rows read as momentum. No pause markers: they need the clock
-  // endpoint, which this page does not fetch (and which is not yet @Public).
-  const flow = useMemo(
-    () =>
-      buildBoutFlow({
-        exchanges,
-        penalties,
-        redRegId: match.redRegistrationId,
-        blueRegId: match.blueRegistrationId,
-        matchFormat: summary.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
-        phaseType: summary.phaseType,
-        endReason: match.endReason,
-        bestOf: summary.bestOf,
-        currentRound: match.currentRound,
-      }),
-    [exchanges, penalties, match, summary],
-  );
-
-  // Exchange-scoped ON PURPOSE: the string says "voided exchanges", so folding
-  // voided cards into the same number would misreport them as exchanges.
-  const voidedExchanges = exchanges.filter((e) => e.voided).length;
-  const header = t('scoring.lice.eventsHeader');
-
-  return (
-    <div className="mt-4">
-      <BoutFlowChart
-        series={flow}
-        config={config}
-        redName={redName}
-        blueName={blueName}
-        surface="light"
-        scale="page"
-        highlightNumber={highlight}
-        onHighlightChange={setHighlight}
-        t={t}
-        className="mb-4"
-      />
-
-      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">{header}</h2>
-
-      <MatchTimeline
-        events={events}
-        scale="page"
-        emptyLabel={t('scoring.liveMatch.noExchanges')}
-        ariaLabel={header}
-        highlightNumber={highlight}
-        onHighlightChange={setHighlight}
-        t={t}
-      />
-
-      {voidedExchanges > 0 && (
-        <p className="mt-3 text-center text-xs text-muted">
-          {t('scoring.liveMatch.voidedHidden', {
-            count: String(voidedExchanges),
-            plural: voidedExchanges > 1 ? 's' : '',
-          })}
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ── Main client component ────────────────────────────────────────────────────
 
 interface Props {
@@ -267,6 +150,7 @@ interface Props {
   initialSummary: MatchSummary;
   initialExchanges: ExchangeRow[];
   initialPenalties: MatchPenaltyRow[];
+  initialProtests: MatchProtest[];
   /** Where the top back-link leads (validated root-relative path). */
   backHref: string;
   /** What the back-link says, as a key: `backLabelKey` of `@/lib/bout-page` decides. */
@@ -281,6 +165,7 @@ export function MatchLiveView({
   initialSummary,
   initialExchanges,
   initialPenalties,
+  initialProtests,
   backHref,
   backLabelKey,
   sharePath,
@@ -294,6 +179,7 @@ export function MatchLiveView({
   const [summary, setSummary] = useState<MatchSummary>(initialSummary);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>(initialExchanges);
   const [penalties, setPenalties] = useState<MatchPenaltyRow[]>(initialPenalties);
+  const [protests, setProtests] = useState<MatchProtest[]>(initialProtests);
   // disable_realtime kill-switch — when on, the channel hook degrades to polling.
   const realtimeDisabled = useRealtimeDisabled();
 
@@ -303,20 +189,22 @@ export function MatchLiveView({
   /**
    * Volatile state only. `/summary` is deliberately absent: fighter names,
    * clubs, referees, `scoringConfig`, `bestOf` and `matchFormat` do not change
-   * mid-bout, and leaving it out takes the fallback poll from four requests to
-   * three — see FALLBACK_POLL_MS for why that margin matters at a venue, where
+   * mid-bout, and leaving it out takes the fallback poll from five requests to
+   * four — see FALLBACK_POLL_MS for why that margin matters at a venue, where
    * every phone shares one public IP.
    */
   const refreshLive = useCallback(async () => {
     try {
-      const [matchRes, exRes, penaltyRes] = await Promise.all([
+      const [matchRes, exRes, penaltyRes, protestRes] = await Promise.all([
         fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
+        apiRequest<MatchProtest[]>(apiUrl, `/api/v1/matches/${matchId}/protests`),
       ]);
       if (matchRes.ok) setMatch(mapMatchRow((await matchRes.json()) as Record<string, unknown>));
       if (exRes.ok) setExchanges((await exRes.json()) as ExchangeRow[]);
       if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as MatchPenaltyRow[]);
+      if (protestRes.ok) setProtests(protestRes.data);
     } catch {
       // network failure — stay with current state
     }
@@ -352,6 +240,7 @@ export function MatchLiveView({
     setMatch,
     setExchanges,
     setPenalties,
+    setProtests,
   });
 
   return (
@@ -378,6 +267,7 @@ export function MatchLiveView({
       <MatchEventFeed
         exchanges={exchanges}
         penalties={penalties}
+        protests={protests}
         match={match}
         summary={summary}
         redName={summary.redName || t('scoring.liveMatch.red')}

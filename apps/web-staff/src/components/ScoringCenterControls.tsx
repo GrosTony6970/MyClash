@@ -174,7 +174,8 @@ export function ScoringCenterControls({
   const status = clockState?.status ?? 'idle';
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [noExchangeOpen, setNoExchangeOpen] = useState(false);
-  const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
+  const { activeExchanges, activePenalties, activeProtests, pendingExchanges, pendingPenalties } =
+    scoring;
 
   // Live ticker — runs while running AND while halted so the wall-clock
   // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
@@ -253,6 +254,8 @@ export function ScoringCenterControls({
         // and the `#` numbers stay the shared ones every other surface uses.
         exchanges: [...activeExchanges, ...pendingExchanges],
         penalties: [...activePenalties, ...pendingPenalties],
+        // The server's only: the pad queues no protest yet.
+        protests: activeProtests,
         redName,
         blueName,
         redRegId: redRegistrationId,
@@ -263,6 +266,7 @@ export function ScoringCenterControls({
     [
       activeExchanges,
       activePenalties,
+      activeProtests,
       pendingExchanges,
       pendingPenalties,
       redName,
@@ -273,6 +277,10 @@ export function ScoringCenterControls({
       config,
     ],
   );
+
+  // Hits and cards: a protest is a row of the list, not an exchange. The undo
+  // below keeps reading the whole list: a protest is an entry of the bout.
+  const entriesCounted = events.filter((e) => e.kind !== 'protest').length;
 
   const primary = primaryAction(status);
 
@@ -557,7 +565,7 @@ export function ScoringCenterControls({
           {/* Exchanges count + Undo last entry */}
           <div className="flex flex-col items-center gap-1 mt-3 w-full">
             <p className="text-xs text-muted">
-              {t('scoring.lice.exchangesCount', { count: String(events.length) })}
+              {t('scoring.lice.exchangesCount', { count: String(entriesCounted) })}
             </p>
             <button
               type="button"

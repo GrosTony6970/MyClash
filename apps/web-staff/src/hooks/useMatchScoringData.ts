@@ -13,7 +13,7 @@
  * which is the network this app exists to survive.
  *
  * Now `MatchView` calls this once and hands the result down as one prop. Four
- * requests per hit.
+ * requests per hit, five since the protests are read too (`useProtests`).
  *
  * WHY A PROP AND NOT A CONTEXT. Every consumer is a DIRECT child of
  * `MatchView`, so there is no drilling depth for a context to remove — and a
@@ -29,9 +29,10 @@
  */
 
 import { useMemo } from 'react';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useExchanges } from './useExchanges';
+import { useProtests } from './useProtests';
 import {
   usePenalties,
   type PenaltyCard,
@@ -58,6 +59,8 @@ export interface MatchScoringData {
    */
   activeExchanges: ExchangeRow[];
   activePenalties: Penalty[];
+  /** The server's protests, by the same rule. They number nothing in the history. */
+  activeProtests: MatchProtest[];
 
   // ── What the tablet is still holding ───────────────────────────────────────
   /** Queued rows the server has not acknowledged, deduped on `client_uuid`. */
@@ -141,8 +144,10 @@ export function useMatchScoringData(args: {
     ruleSetCards,
     active: serverPenalties,
   } = usePenalties(apiUrl, matchId, refreshKey, args.tournamentId, args.cardKey);
+  const { active: serverProtests } = useProtests(apiUrl, matchId, refreshKey);
   const activeExchanges = notTakenBack(serverExchanges, takenBack);
   const activePenalties = notTakenBack(serverPenalties, takenBack);
+  const activeProtests = notTakenBack(serverProtests, takenBack);
 
   const { entries: pendingEntries, held: boutHeld } = usePendingOutbox(
     matchId,
@@ -200,6 +205,7 @@ export function useMatchScoringData(args: {
     ruleSetCards,
     activeExchanges,
     activePenalties,
+    activeProtests,
     pendingExchanges: pending.exchanges,
     pendingPenalties: pending.penalties,
     unpricedCards: pending.unpricedCardUuids.length,

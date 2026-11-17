@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from './db';
 import { forgetBout, keepBout, keepList, keptBout, keptList } from './kept-bout';
+import { readBoutList } from '../lib/bout-list-read';
 import type { MatchInfo } from '../components/MatchView';
 
 const BOUT: MatchInfo = {
@@ -108,17 +109,50 @@ describe('the copy of a bout the tablet keeps', () => {
     expect(await keptList('bout-2', 'exchanges')).toBeNull();
   });
 
-  it('forgets the hits and the cards with the bout', async () => {
+  it('forgets the hits, the cards and the protests with the bout', async () => {
     await keepBout(BOUT, Date.now(), undefined);
     await keepList('bout-1', 'exchanges', [{ id: 'hit-1' }]);
     await keepList('bout-1', 'penalties', [{ id: 'card-1' }]);
+    await keepList('bout-1', 'protests', [{ id: 'protest-1' }]);
     await keepList('bout-2', 'exchanges', [{ id: 'hit-2' }]);
 
     await forgetBout('bout-1');
 
     expect(await keptList('bout-1', 'exchanges')).toBeNull();
     expect(await keptList('bout-1', 'penalties')).toBeNull();
+    expect(await keptList('bout-1', 'protests')).toBeNull();
     expect(await keptList('bout-2', 'exchanges')).toEqual([{ id: 'hit-2' }]);
+  });
+
+  // The pad's history lists the bout's protests: opened with no network, it
+  // lists the ones the server gave at its last good read.
+  it('answers a read of the protests from the kept copy when there is no network', async () => {
+    const asked: string[] = [];
+    const server = async (url: string | URL | Request) => {
+      asked.push(String(url));
+      return new Response(JSON.stringify([{ id: 'protest-1' }]), { status: 200 });
+    };
+    const noNetwork = async (url: string | URL | Request) => {
+      asked.push(String(url));
+      throw new TypeError('Failed to fetch');
+    };
+
+    const online = await readBoutList('https://api.test', 'bout-1', 'protests', undefined, server);
+    await vi.waitFor(async () => expect(await keptList('bout-1', 'protests')).not.toBeNull());
+    const offline = await readBoutList(
+      'https://api.test',
+      'bout-1',
+      'protests',
+      undefined,
+      noNetwork,
+    );
+
+    expect(asked).toEqual([
+      'https://api.test/api/v1/matches/bout-1/protests',
+      'https://api.test/api/v1/matches/bout-1/protests',
+    ]);
+    expect(online).toEqual({ kind: 'server', rows: [{ id: 'protest-1' }] });
+    expect(offline).toEqual({ kind: 'tablet', rows: [{ id: 'protest-1' }] });
   });
 
   it('shares its table with the rules the tablet keeps, and touches none of them', async () => {

@@ -82,6 +82,7 @@ async function openBout(page: Page, bout: { phaseType: string; bestOf: number; h
     }
     if (path.endsWith('/exchanges')) return route.fulfill({ json: bout.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
+    if (path.endsWith('/protests')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: HALTED });
     return route.fulfill({ status: 404, json: {} });
   });

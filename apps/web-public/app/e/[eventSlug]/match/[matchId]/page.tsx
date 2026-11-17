@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { apiRequest } from '@myclash/api-client';
 import { isOwnSitePath } from '@myclash/types';
 import { getServerApiUrl } from '@/lib/api-url';
 import { backLabelKey, boutPagePath } from '@/lib/bout-page';
@@ -12,6 +13,7 @@ import {
   mapMatchRow,
   type ExchangeRow,
   type MatchPenaltyRow,
+  type MatchProtest,
   type MatchRow,
   type MatchSummary,
 } from './match-row';
@@ -79,6 +81,14 @@ async function fetchPenalties(matchId: string, login: LoginHeaders): Promise<Mat
   return (await res.json()) as MatchPenaltyRow[];
 }
 
+async function fetchProtests(matchId: string, login: LoginHeaders): Promise<MatchProtest[]> {
+  const result = await apiRequest<MatchProtest[]>(API_URL, `/api/v1/matches/${matchId}/protests`, {
+    next: { revalidate: 0 },
+    headers: login,
+  });
+  return result.ok ? result.data : [];
+}
+
 /**
  * The bout and its summary, read ONCE per request: the page and its title both
  * ask (`cache`), with the viewer's login.
@@ -98,10 +108,11 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const { return: returnParam } = await searchParams;
 
   const login = loginCookieHeader(await cookies());
-  const [[match, summary], exchanges, penalties] = await Promise.all([
+  const [[match, summary], exchanges, penalties, protests] = await Promise.all([
     readBout(matchId),
     fetchExchanges(matchId, login),
     fetchPenalties(matchId, login),
+    fetchProtests(matchId, login),
   ]);
 
   if (!match) notFound();
@@ -119,6 +130,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
       initialSummary={summary}
       initialExchanges={exchanges}
       initialPenalties={penalties}
+      initialProtests={protests}
       backHref={backHref}
       backLabelKey={backLabelKey(validReturn, eventSlug)}
       sharePath={boutPagePath(eventSlug, matchId)}

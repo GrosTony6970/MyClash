@@ -19,6 +19,7 @@ import {
   exchangeOptionLabel,
   type BuildTimelineArgs,
   type ExchangeRow,
+  type MatchProtest,
   type Penalty,
 } from '@myclash/ui';
 import type { UndoneEntry } from './clear-last';
@@ -30,6 +31,7 @@ interface BoutOnScreen {
     pendingExchanges: ExchangeRow[];
     activePenalties: Penalty[];
     pendingPenalties: Penalty[];
+    activeProtests: MatchProtest[];
   };
   match: {
     redRegistrationId: string;
@@ -43,14 +45,16 @@ interface BoutOnScreen {
 
 /**
  * The entry an undo took, worded as the bout's list words it, with the number
- * it has there (`exchangeOptionLabel`, the one owner of that line). Null when
- * this screen's list does not hold it: another tablet scored it a moment ago.
+ * it has there (`exchangeOptionLabel`, the one owner of that line). A protest
+ * has no number there, so it is named by its fighter alone. Null when this
+ * screen's list does not hold it: another tablet scored it a moment ago.
  */
 export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null {
   const { scoring, match, config, t } = bout;
   const list = buildUnifiedTimeline({
     exchanges: [...scoring.activeExchanges, ...scoring.pendingExchanges],
     penalties: [...scoring.activePenalties, ...scoring.pendingPenalties],
+    protests: scoring.activeProtests,
     redName: match.redFighterName ?? t('scoring.lice.red'),
     blueName: match.blueFighterName ?? t('scoring.lice.blue'),
     redRegId: match.redRegistrationId,
@@ -60,7 +64,10 @@ export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null
   });
   // A line of the server's is found by the server's id, a waiting one by the tablet's.
   const line = list.find((row) => row.rawId === entry.id || row.rawId === entry.clientUuid);
-  return line ? exchangeOptionLabel(line) : null;
+  if (!line) return null;
+  return line.kind === 'protest'
+    ? t('scoring.lice.undoneProtest', { fighter: line.fighterLabel })
+    : exchangeOptionLabel(line);
 }
 
 /** "Cancelled: <entry>. Round N stays closed." With no name when the list did not hold the entry. */

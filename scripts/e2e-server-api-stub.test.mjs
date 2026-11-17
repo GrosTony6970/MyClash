@@ -125,17 +125,18 @@ test("a public Event's lists answer anybody", () => {
 });
 
 test('the bout that is not there answers 404 on each of its reads', () => {
-  for (const path of ['', '/summary', '/exchanges', '/penalties']) {
+  for (const path of ['', '/summary', '/exchanges', '/penalties', '/protests']) {
     assert.equal(answerFor('GET', `/api/v1/matches/no-such-bout${path}`, undefined).status, 404);
   }
 });
 
-test('a bout answers its row, its two names, and two empty lists', () => {
+test('a bout answers its row, its two names, and three empty lists', () => {
   assert.equal(answerFor('GET', '/api/v1/matches/bout-1', undefined).json.status, 'completed');
   const summary = answerFor('GET', '/api/v1/matches/bout-1/summary', undefined).json;
   assert.deepEqual([summary.redName, summary.blueName], ['Jean Dupont', 'Paul Martin']);
   assert.deepEqual(answerFor('GET', '/api/v1/matches/bout-1/exchanges', undefined).json, []);
   assert.deepEqual(answerFor('GET', '/api/v1/matches/bout-1/penalties', undefined).json, []);
+  assert.deepEqual(answerFor('GET', '/api/v1/matches/bout-1/protests', undefined).json, []);
   assert.equal(
     answerFor('GET', '/api/v1/matches/bout-nameless/summary', undefined).json.redName,
     '',

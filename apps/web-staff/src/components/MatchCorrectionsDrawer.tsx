@@ -120,7 +120,7 @@ export function MatchCorrectionsDrawer({
   // SERVER rows, not the merged ones: the exchange picker offers rows the
   // correction endpoints can actually act on, and a queued hit has no server id
   // to void or edit.
-  const { activeExchanges, activePenalties, ruleSetCards } = scoring;
+  const { activeExchanges, activePenalties, activeProtests, ruleSetCards } = scoring;
   const [cardDraft, setCardDraft] = useState(NO_DIRECT_CARD_DRAFT);
 
   // The same numbered timeline as the centre history; the picker only offers
@@ -131,6 +131,7 @@ export function MatchCorrectionsDrawer({
       buildUnifiedTimeline({
         exchanges: activeExchanges,
         penalties: activePenalties,
+        protests: activeProtests,
         redName,
         blueName,
         redRegId: redRegistrationId,
@@ -141,6 +142,7 @@ export function MatchCorrectionsDrawer({
     [
       activeExchanges,
       activePenalties,
+      activeProtests,
       redName,
       blueName,
       redRegistrationId,

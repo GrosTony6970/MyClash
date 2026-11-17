@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ClockSnapshot, DisplayMatch, ExchangeRow, Penalty } from '../types/match-events';
+import type {
+  ClockSnapshot,
+  DisplayMatch,
+  ExchangeRow,
+  MatchProtest,
+  Penalty,
+} from '../types/match-events';
 import { deriveFreshness, livePollMs, type Freshness } from './realtime-freshness';
 import { readLiveMatch } from './live-match-read';
 import { createCoalescer, type Coalescer } from './coalesce';
@@ -15,6 +21,7 @@ export type {
   ClockSnapshot,
   DisplayMatch,
   ExchangeRow,
+  MatchProtest,
   MatchStatus,
   Penalty,
   PenaltyCard,
@@ -23,6 +30,8 @@ export type {
 export interface UseLiveMatchResult {
   match: DisplayMatch | null;
   penalties: Penalty[];
+  /** The bout's protests. Includes voided rows — the timeline filters them. */
+  protests: MatchProtest[];
   /** Scoring exchanges, oldest-first. Includes voided rows — the unified
    *  timeline filters them so numbering stays consistent across surfaces. */
   exchanges: ExchangeRow[];
@@ -60,19 +69,20 @@ function computeElapsedMs(state: ClockSnapshot): number {
 /**
  * Subscribe to a match's display state and keep it live.
  *
- * Resolves four endpoints in parallel:
+ * Resolves five endpoints in parallel:
  *   - `GET /api/v1/matches/:id/display`   (canonical scoreboard payload)
  *   - `GET /api/v1/matches/:id/penalties` (per-side card list)
+ *   - `GET /api/v1/matches/:id/protests`  (per-side protests, history rows)
  *   - `GET /api/v1/matches/:id/exchanges` (scoring timeline rows)
  *   - `GET /api/v1/matches/:id/clock`     (state machine + activeMs)
- * All four are `@Public()` — `/clock` was not, and resolved for an anonymous
+ * All five are `@Public()` — `/clock` was not, and resolved for an anonymous
  * projector only because the global AuthGuard runs in shadow mode; enforcing
  * the guard would have 401'd it into the `clockRes.ok` guard below, which
  * swallows the failure and leaves a frozen clock with no error. The @Public()
  * set is pinned in apps/api/src/common/auth/public-routes.test.ts.
  *
  * Subscribes to Supabase realtime postgres_changes on the `matches`,
- * `exchanges`, `match_penalties`, and `match_events` tables filtered
+ * `exchanges`, `match_penalties`, `match_protests` and `match_events` tables filtered
  * to this matchId. Any change triggers a refetch. `pollMs` is the
  * fallback for when that channel cannot carry the bout — see the parameter docs.
  *
@@ -122,6 +132,7 @@ export function useLiveMatch(
 ): UseLiveMatchResult {
   const [match, setMatch] = useState<DisplayMatch | null>(null);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
+  const [protests, setProtests] = useState<MatchProtest[]>([]);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>([]);
   const [clock, setClock] = useState<ClockSnapshot | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -152,6 +163,7 @@ export function useLiveMatch(
     setLastUpdateAt(Date.now());
     setMatch(read.match);
     if (read.penalties) setPenalties(read.penalties);
+    if (read.protests) setProtests(read.protests);
     if (read.exchanges) setExchanges(read.exchanges);
     if (read.clock) {
       setClock(read.clock);
@@ -168,8 +180,8 @@ export function useLiveMatch(
   /**
    * Realtime signals go through a coalescer; nothing else does.
    *
-   * The channel binds four tables with `event: '*'`, and each handler used to
-   * call `refresh` — four HTTP requests — directly. A bulk write like resetting
+   * The channel binds five tables with `event: '*'`, and each handler used to
+   * call `refresh` — five HTTP requests today — directly. A bulk write like resetting
    * a 16-exchange match therefore fired ~64 requests at EVERY subscribed
    * display. See `coalesce.ts` for why the leading edge is kept.
    *
@@ -211,6 +223,16 @@ export function useLiveMatch(
           event: '*',
           schema: 'public',
           table: 'match_penalties',
+          filter: `match_id=eq.${matchId}`,
+        },
+        () => scheduleRefresh(),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_protests',
           filter: `match_id=eq.${matchId}`,
         },
         () => scheduleRefresh(),
@@ -314,6 +336,7 @@ export function useLiveMatch(
   return {
     match,
     penalties,
+    protests,
     exchanges,
     clock,
     elapsedMs,

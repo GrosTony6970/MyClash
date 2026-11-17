@@ -222,15 +222,15 @@ function boutSummary(id) {
   };
 }
 
-/** The four reads of a bout's page: `rest` is what follows `/matches/`. */
+/** The five reads of a bout's page: `rest` is what follows `/matches/`. */
 function boutAnswer([id, read, ...more]) {
   if (more.length > 0) return null;
-  // A bout that is not there: each of the four reads says so.
+  // A bout that is not there: each of the five reads says so.
   if (id === 'no-such-bout') return NOT_FOUND;
   if (!BOUTS[id]) return null;
   if (read === undefined) return ok(boutRow(id));
   if (read === 'summary') return ok(boutSummary(id));
-  return read === 'exchanges' || read === 'penalties' ? ok([]) : null;
+  return read === 'exchanges' || read === 'penalties' || read === 'protests' ? ok([]) : null;
 }
 
 const LEAGUE = { id: 'lg-1', name: 'Coupe de Lyon', season_year: 2026 };

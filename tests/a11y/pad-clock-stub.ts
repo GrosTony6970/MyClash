@@ -241,6 +241,7 @@ export async function openBout(page: Page, start: Start = {}) {
     if (start.rules && path.endsWith('/match-config')) return route.fulfill({ json: start.rules });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: start.sheet ?? [] });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
+    if (path.endsWith('/protests')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });
     return route.fulfill({ status: 404, json: {} });
   });

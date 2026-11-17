@@ -386,6 +386,8 @@ export const scoring = {
     eventRowClean: 'Touche propre',
     eventRowDouble: 'Double',
     eventRowNoExchange: 'Aucun échange',
+    eventRowProtest: 'Réclamation',
+    undoneProtest: 'Réclamation de {fighter}',
   },
   match: {
     unavailableTitle: 'Assaut indisponible',

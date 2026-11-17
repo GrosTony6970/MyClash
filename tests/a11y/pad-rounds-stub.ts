@@ -304,6 +304,7 @@ export async function openBestOf(page: Page, start: Start = {}) {
       return route.fulfill({ json: rulesOf(stub.countdown, stub.cap) });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
+    if (path.endsWith('/protests')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });
     return route.fulfill({ status: 404, json: {} });
   });

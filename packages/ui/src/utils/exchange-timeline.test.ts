@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { buildUnifiedTimeline, exchangeOptionLabel, orderedWithNumbers } from './exchange-timeline';
-import type { ExchangeRow, Penalty } from '../types/match-events';
+import type { ExchangeRow, MatchProtest, Penalty } from '../types/match-events';
 
 function row<E extends object>(seq: number, occurredAt: string, extra: E = {} as E) {
   return { seq, occurredAt, ...extra };
@@ -124,7 +124,22 @@ describe('buildUnifiedTimeline', () => {
     };
   }
 
+  function pro(
+    over: Partial<MatchProtest> & Pick<MatchProtest, 'id' | 'sequence' | 'occurred_at'>,
+  ): MatchProtest {
+    return {
+      client_uuid: `uuid-${over.id}`,
+      match_id: 'match-1',
+      registration_id: 'reg-blue',
+      round_number: 1,
+      clock_time_ms: 12_000,
+      voided: false,
+      ...over,
+    };
+  }
+
   const base = {
+    protests: [] as MatchProtest[],
     redName: 'Red Fighter',
     blueName: 'Blue Fighter',
     redRegId: 'reg-red',
@@ -208,6 +223,92 @@ describe('buildUnifiedTimeline', () => {
     });
     expect(event?.fighterLabel).toBe('');
     expect(event?.typeLabel).toBe('scoring.lice.eventRowDouble');
+  });
+
+  describe('a protest', () => {
+    const hits = [1, 2, 3, 4].map((n) => ex({ id: `e${n}`, sequence: n }));
+    const card = pen({ id: 'p1', sequence: 5 });
+    // Between hit 2 (10:02) and hit 3 (10:03). Its sequence is its own table's.
+    const protest = pro({ id: 'pr1', sequence: 1, occurred_at: '2027-06-21T10:02:30.000Z' });
+
+    it('carries no number, and the hits and cards around it keep theirs', () => {
+      const without = buildUnifiedTimeline({ ...base, exchanges: hits, penalties: [card] });
+      const withIt = buildUnifiedTimeline({
+        ...base,
+        exchanges: hits,
+        penalties: [card],
+        protests: [protest],
+      });
+
+      const numbers = (rows: typeof withIt) =>
+        rows.filter((e) => e.kind !== 'protest').map((e) => `${e.rawId}:${e.number}`);
+      expect(numbers(withIt)).toEqual(numbers(without));
+      expect(numbers(withIt)).toEqual(['p1:5', 'e4:4', 'e3:3', 'e2:2', 'e1:1']);
+
+      const row = withIt.find((e) => e.kind === 'protest');
+      expect(row).toMatchObject({
+        id: 'pro-pr1',
+        kind: 'protest',
+        rawId: 'pr1',
+        number: null,
+        delta: null,
+        card: null,
+        side: 'blue',
+        fighterLabel: 'Blue Fighter',
+        typeLabel: 'scoring.lice.eventRowProtest',
+        timeLabel: '00:12',
+        pending: false,
+      });
+      // Newest first, in its place by time.
+      expect(withIt.map((e) => e.rawId)).toEqual(['p1', 'e4', 'e3', 'pr1', 'e2', 'e1']);
+    });
+
+    it('takes its place by time, then by sequence', () => {
+      const out = buildUnifiedTimeline({
+        ...base,
+        exchanges: [ex({ id: 'e1', sequence: 1 }), ex({ id: 'e2', sequence: 2 })],
+        penalties: [],
+        protests: [
+          pro({ id: 'pA', sequence: 1, occurred_at: '2027-06-21T10:02:00.000Z' }),
+          pro({ id: 'pB', sequence: 3, occurred_at: '2027-06-21T10:02:00.000Z' }),
+          pro({ id: 'pC', sequence: 9, occurred_at: '2027-06-21T10:00:30.000Z' }),
+        ],
+      });
+      expect(out.map((e) => e.rawId)).toEqual(['pB', 'e2', 'pA', 'e1', 'pC']);
+      expect(out.map((e) => e.number)).toEqual([null, 2, null, 1, null]);
+    });
+
+    it('is dropped when voided', () => {
+      const out = buildUnifiedTimeline({
+        ...base,
+        exchanges: hits,
+        penalties: [],
+        protests: [{ ...protest, voided: true }],
+      });
+      expect(out.some((e) => e.kind === 'protest')).toBe(false);
+    });
+
+    it('carries pending: true when it waits on the tablet', () => {
+      const out = buildUnifiedTimeline({
+        ...base,
+        exchanges: [],
+        penalties: [],
+        protests: [{ ...protest, pending: true }],
+      });
+      expect(out[0]?.pending).toBe(true);
+    });
+
+    it('is worded for the drawer with no #null', () => {
+      const [row] = buildUnifiedTimeline({
+        ...base,
+        exchanges: [],
+        penalties: [],
+        protests: [protest],
+      });
+      const label = exchangeOptionLabel(row!);
+      expect(label).not.toContain('#');
+      expect(label).toBe('00:12 · Blue Fighter · scoring.lice.eventRowProtest');
+    });
   });
 });
 

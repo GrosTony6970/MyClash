@@ -139,7 +139,7 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
     return route.fulfill({ json: row(bout, stub.redScore, stub.boutRules, stub.statuses[bout]) });
   }
   if (path.endsWith('/summary')) return route.fulfill({ json: summary(bout) });
-  if (path.endsWith('/exchanges') || path.endsWith('/penalties'))
+  if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests'))
     return route.fulfill({ json: [] });
   if (path.endsWith('/clock')) return route.fulfill({ json: stub.clocks[bout] ?? CLOCK });
   if (path.endsWith('/penalty-ruleset'))

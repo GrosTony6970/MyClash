@@ -1,6 +1,6 @@
 /**
- * One read of a bout's hits or cards, and which rows the bout screen shows
- * after it.
+ * One read of a bout's hits, cards or protests, and which rows the bout screen
+ * shows after it.
  *
  * The server's rows are kept on the tablet at each good read
  * (`offline/kept-bout.ts`). A read that finds no network gives that copy, so a

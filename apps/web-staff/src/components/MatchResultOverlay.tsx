@@ -208,11 +208,13 @@ function BoutReview({
   // SERVER rows only. `buildBoutFlow` charts the bout that happened; a queued
   // row is one the server has not accepted, and plotting it would draw a point
   // that may yet be refused.
-  const { activeExchanges: exchanges, activePenalties: penalties } = scoring;
+  const { activeExchanges: exchanges, activePenalties: penalties, activeProtests } = scoring;
 
   const events = buildUnifiedTimeline({
     exchanges,
     penalties,
+    // History rows only: the chart below draws no mark for a protest.
+    protests: activeProtests,
     redName,
     blueName,
     redRegId: redRegistrationId,

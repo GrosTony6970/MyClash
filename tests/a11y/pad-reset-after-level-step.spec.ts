@@ -52,7 +52,7 @@ async function openBout(page: Page, levelResolutionSteps: number) {
     if (route.request().method() !== 'GET') return route.fulfill({ json: {} });
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: ROW });
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: clock });

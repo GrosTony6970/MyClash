@@ -91,7 +91,7 @@ export async function openBout(page: Page, savesReach = true) {
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
     if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: PENALTY_LIST });
     if (path.endsWith('/penalty-scope')) return route.fulfill({ json: PRIORS });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });

@@ -42,7 +42,7 @@ async function openBout(page: Page, code: string, detail: string, clock = CLOCK)
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: ROW });
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
+    if (path.endsWith('/exchanges') || path.endsWith('/penalties') || path.endsWith('/protests')) {
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/clock') && method === 'GET') return route.fulfill({ json: clock });

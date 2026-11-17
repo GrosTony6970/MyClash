@@ -319,6 +319,7 @@ export type {
   DisplayMatch,
   MatchStatus,
   Penalty,
+  MatchProtest,
   ClockSnapshot,
   UseLiveMatchResult,
 } from './hooks/useLiveMatch';

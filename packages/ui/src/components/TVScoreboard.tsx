@@ -36,7 +36,7 @@ import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveM
 import { isFreshnessAlarming } from '../hooks/realtime-freshness';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { FreshnessChip } from './FreshnessChip';
-import type { ClockEvent, ExchangeRow } from '../types/match-events';
+import type { ClockEvent, ExchangeRow, MatchProtest } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
@@ -136,7 +136,7 @@ export function TVScoreboard({
   // this board asks about the DATA. A polling surface reports connected:false
   // while being perfectly fresh, which is exactly the ambiguity that let a dead
   // websocket look healthy here for weeks.
-  const { match, penalties, exchanges, clock, elapsedMs, loadError, freshness, refresh } =
+  const { match, penalties, protests, exchanges, clock, elapsedMs, loadError, freshness, refresh } =
     useLiveMatch(apiBaseUrl, matchId, supabaseClient, pollMs);
 
   // ── Auto-rollover state machine ────────────────────────────────
@@ -309,6 +309,7 @@ export function TVScoreboard({
           clockStatus={clockStatus}
           elapsedMs={elapsedMs}
           penalties={penalties}
+          protests={protests}
           exchanges={exchanges}
           countdownRemaining={countdownRemaining}
           clockEvents={clock?.events}
@@ -547,6 +548,7 @@ function CenterColumn({
   clockStatus,
   elapsedMs,
   penalties,
+  protests,
   exchanges,
   countdownRemaining,
   clockEvents,
@@ -558,6 +560,7 @@ function CenterColumn({
   clockStatus: 'idle' | 'running' | 'halted' | 'ended';
   elapsedMs: number;
   penalties: Penalty[];
+  protests: MatchProtest[];
   exchanges: ExchangeRow[];
   countdownRemaining: number | null;
   clockEvents: ClockEvent[] | undefined;
@@ -612,6 +615,7 @@ function CenterColumn({
       buildUnifiedTimeline({
         exchanges,
         penalties,
+        protests,
         redName,
         blueName,
         redRegId: match.redRegistrationId ?? '',
@@ -622,6 +626,7 @@ function CenterColumn({
     [
       exchanges,
       penalties,
+      protests,
       redName,
       blueName,
       match.redRegistrationId,

@@ -10,7 +10,7 @@
 import { createTranslator } from '@myclash/i18n/runtime';
 import { messages } from '@myclash/i18n/staff';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
 import { describe, expect, it } from 'vitest';
 import { entryLine, roundStaysClosed } from './undone-line';
 
@@ -51,6 +51,7 @@ const screen = {
     pendingExchanges: [{ ...hit('uuid-3', 3, 'red', 1), client_uuid: 'uuid-3', pending: true }],
     activePenalties: [card],
     pendingPenalties: [],
+    activeProtests: [] as MatchProtest[],
   },
   match: {
     redRegistrationId: 'reg-red',
@@ -96,6 +97,29 @@ describe('entryLine', () => {
     const scoring = { ...screen.scoring, pendingPenalties: [{ ...waits, pending: true }] };
     expect(entryLine({ id: 'ex-2', clientUuid: 'uuid-ex-2' }, { ...screen, scoring })).toBe(
       '#3 · 00:02 · Bo Blue · Clean hit +1',
+    );
+  });
+
+  // A protest has no number in the bout's list, so its line is a sentence of its own.
+  it('names a protest by its fighter, with no number, and the hits keep theirs', () => {
+    const protest: MatchProtest = {
+      id: 'protest-1',
+      client_uuid: 'uuid-protest-1',
+      match_id: 'bout-1',
+      registration_id: 'reg-blue',
+      sequence: 1,
+      round_number: 1,
+      clock_time_ms: 1500,
+      occurred_at: '2026-10-11T10:01:30.000Z',
+      voided: false,
+    };
+    const scoring = { ...screen.scoring, activeProtests: [protest] };
+    const taken = { id: 'protest-1', clientUuid: 'uuid-protest-1' };
+
+    expect(entryLine(taken, { ...screen, scoring })).toBe('Protest by Bo Blue');
+    expect(entryLine(taken, { ...screen, scoring, t: fr })).toBe('Réclamation de Bo Blue');
+    expect(entryLine({ id: 'ex-2', clientUuid: 'uuid-ex-2' }, { ...screen, scoring })).toBe(
+      '#2 · 00:02 · Bo Blue · Clean hit +1',
     );
   });
 

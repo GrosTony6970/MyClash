@@ -77,6 +77,7 @@ async function openDrawer(page: Page, redName = SUMMARY.redName) {
     if (path.endsWith('/summary')) return route.fulfill({ json: { ...SUMMARY, redName } });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: [HIT] });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
+    if (path.endsWith('/protests')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });
     if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
     return route.fulfill({ status: 404, json: {} });

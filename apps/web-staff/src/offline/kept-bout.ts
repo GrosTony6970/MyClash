@@ -23,8 +23,8 @@ import { db } from './db';
 const keyOf = (matchId: string) => `bout/${matchId}`;
 const clockKeyOf = (matchId: string) => `clock/${matchId}`;
 
-/** The two lists of a bout the tablet keeps, named as their routes are. */
-export type BoutListName = 'exchanges' | 'penalties';
+/** The three lists of a bout the tablet keeps, named as their routes are. */
+export type BoutListName = 'exchanges' | 'penalties' | 'protests';
 const listKeyOf = (matchId: string, list: BoutListName) => `${list}/${matchId}`;
 
 export interface KeptBout {
@@ -97,11 +97,12 @@ export async function forgetBout(matchId: string): Promise<void> {
     clockKeyOf(matchId),
     listKeyOf(matchId, 'exchanges'),
     listKeyOf(matchId, 'penalties'),
+    listKeyOf(matchId, 'protests'),
   ]);
 }
 
 /**
- * Keeps the hits or the cards the server just listed for a bout. A bout opened
+ * Keeps the hits, the cards or the protests the server just listed for a bout. A bout opened
  * with no network shows them under the tablet's queue: without them the
  * timeline, the doubles count and the card counts hold the queue alone, and a
  * hit the server already has is counted again from the queue.

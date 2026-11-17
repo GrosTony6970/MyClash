@@ -47,6 +47,7 @@ const SCANNED = ['src', 'app'];
 const SINGLE_READER = [
   { hook: 'usePenalties', module: 'usePenalties', owner: 'src/hooks/useMatchScoringData.ts' },
   { hook: 'useExchanges', module: 'useExchanges', owner: 'src/hooks/useMatchScoringData.ts' },
+  { hook: 'useProtests', module: 'useProtests', owner: 'src/hooks/useMatchScoringData.ts' },
   // Same fault, different shape: `MatchView` and `MatchHeader` both called this
   // with the same arguments, so `/neighbors` was fetched twice per hit. It is
   // imported from `@myclash/ui`. Its one reader is the pad's own hook, which

@@ -11,7 +11,8 @@
  *
  * The `#N` numbering comes from the builder and is identical on all three, so
  * an operator on the pad and a spectator on the projector are looking at the
- * same event when they say "number 6".
+ * same event when they say "number 6". A protest row has no number and shows
+ * none.
  *
  * OVERFLOW: the TV centre grid track is `minmax(380px, 28%)`, which resolves to
  * a hard 380px on any projector under ~1405px wide, inside a `w-screen
@@ -27,6 +28,7 @@ import { useEffect, useRef } from 'react';
 import type { UnifiedEvent } from '../utils/exchange-timeline';
 import type { PenaltyCard } from '../types/match-events';
 import { legibleOn } from '../utils/side-color';
+import { HandMark } from './hand-mark';
 
 export type MatchTimelineScale = 'compact' | 'tv' | 'page';
 
@@ -197,24 +199,28 @@ export function MatchTimeline({
         // Card severity is otherwise carried by colour alone — unreadable to a
         // colour-blind viewer, and `title` never fires on touch.
         const cardLabel = ev.card ? t(`scoring.penalties.cards.${ev.card}`) : null;
-        const active = ev.number === highlightNumber;
+        // A protest has no number: it is never the spotlit row (null would
+        // equal "nothing spotlit") and pointing at it lights nothing.
+        const numbered = ev.number !== null;
+        const active = numbered && ev.number === highlightNumber;
         return (
           <li
             key={ev.id}
-            data-event-number={ev.number}
+            data-event-number={numbered ? ev.number : undefined}
             data-pending={ev.pending ? 'true' : undefined}
             // Dimmed, not hidden and not styled as an error. A queued row is a
             // real hit the referee scored; the only thing not yet true about it
             // is that the server has seen it.
             className={`${s.row}${active ? ` ${s.rowActive}` : ''}${ev.pending ? ' opacity-60' : ''}`}
-            {...(onHighlightChange
+            {...(onHighlightChange && numbered
               ? {
                   onPointerEnter: () => onHighlightChange(ev.number),
                   onPointerLeave: () => onHighlightChange(null),
                 }
               : {})}
           >
-            <span className={s.num}>#{ev.number}</span>
+            {/* Kept empty on a protest, so the time column stays aligned. */}
+            <span className={s.num}>{numbered ? `#${ev.number}` : ''}</span>
             <span className={s.time}>{ev.timeLabel}</span>
             {dot && <span {...dot} />}
             {ev.fighterLabel && <span className={s.name}>{ev.fighterLabel}</span>}
@@ -234,6 +240,7 @@ export function MatchTimeline({
                 {ev.icon}
               </span>
             )}
+            {ev.kind === 'protest' && <HandMark className={`${s.icon} h-[1em] w-[1em]`} />}
             <span className={s.type}>
               {ev.typeLabel}
               {ev.note ? ` — ${ev.note}` : ''}

@@ -10,6 +10,7 @@ import {
   type ExchangeRow,
   type ExchangeType,
   type MatchPenaltyRow,
+  type MatchProtest,
   type MatchRow,
 } from './match-row';
 
@@ -119,10 +120,11 @@ export interface MatchLiveChannelOptions {
   setMatch: Dispatch<SetStateAction<MatchRow>>;
   setExchanges: Dispatch<SetStateAction<ExchangeRow[]>>;
   setPenalties: Dispatch<SetStateAction<MatchPenaltyRow[]>>;
+  setProtests: Dispatch<SetStateAction<MatchProtest[]>>;
 }
 
 /**
- * Keeps the public match page live: a Supabase realtime channel with five
+ * Keeps the public match page live: a Supabase realtime channel with seven
  * `postgres_changes` bindings, plus a polling fallback for when that channel
  * cannot connect.
  *
@@ -164,6 +166,7 @@ export function useMatchLiveChannel({
   setMatch,
   setExchanges,
   setPenalties,
+  setProtests,
 }: MatchLiveChannelOptions): Freshness {
   // Optimistic: the chip must not flash in the moment before the channel
   // reports SUBSCRIBED.
@@ -271,6 +274,36 @@ export function useMatchLiveChannel({
           setPenalties((prev) => prev.map((penalty) => (penalty.id === raw.id ? raw : penalty)));
         },
       )
+      // A protest's raw row is its wire shape: merged by id, as a card's is.
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'match_protests',
+          filter: `match_id=eq.${matchId}`,
+        },
+        (payload) => {
+          const raw = payload.new as MatchProtest;
+          setProtests((prev) => {
+            if (prev.some((protest) => protest.id === raw.id)) return prev;
+            return [...prev, raw];
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'match_protests',
+          filter: `match_id=eq.${matchId}`,
+        },
+        (payload) => {
+          const raw = payload.new as MatchProtest;
+          setProtests((prev) => prev.map((protest) => (protest.id === raw.id ? raw : protest)));
+        },
+      )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
@@ -298,7 +331,16 @@ export function useMatchLiveChannel({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [matchId, isFinal, realtimeDisabled, refresh, setMatch, setExchanges, setPenalties]);
+  }, [
+    matchId,
+    isFinal,
+    realtimeDisabled,
+    refresh,
+    setMatch,
+    setExchanges,
+    setPenalties,
+    setProtests,
+  ]);
 
   // Re-derived on every render rather than stored: `stale` is a function of how
   // long ago the last payload landed, so a stored value would only ever change
