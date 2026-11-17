@@ -43,8 +43,14 @@ import { ensureRoster } from './_bracket';
  *      `truncated` when it bites. On the shared event that is still one big
  *      answer whose contents nothing in this spec controls.
  *
- * The event is `event_kind: 'test'`, which stays hard-deletable, and this spec
- * deletes it — `global-teardown` only ever removes the run's shared event.
+ * The event is `event_kind: 'club'` and published, with its Tournament
+ * published too. The pass leg needs both: a participant who mints a guest
+ * session is outside the organisation, and to them a `test` Event is hidden
+ * (`isPublicEvent`) and a person entered only in a draft Tournament is unknown
+ * (`hiddenEntrantIds`). A club Event publishes silently and stays
+ * hard-deletable. This spec deletes it with `E2E_CLEANUP`, and otherwise flips
+ * it to `test` so it leaves the public site — `global-teardown` only ever
+ * removes the run's shared event.
  */
 
 const STAFF = ['1', 'true', 'yes'].includes((process.env.E2E_STAFF ?? '').toLowerCase());
@@ -156,6 +162,9 @@ test.describe('staff desk', () => {
     const ctx = await organizerContext(playwright, baseURL);
     for (const id of createdEventIds) {
       if (!cleanup) {
+        // Off the public site, still inspectable by the organisation.
+        const hidden = await ctx.patch(`/api/v1/events/${id}`, { data: { eventKind: 'test' } });
+        if (!hidden.ok()) console.warn(`[e2e] could not hide desk event ${id}: ${hidden.status()}`);
         console.log(`[e2e] desk event PRESERVED: ${baseURL}/org/${orgSlug}/events/${id}`);
         continue;
       }
@@ -501,7 +510,7 @@ async function buildFixture(api: Api, orgId: string): Promise<Fixture> {
   };
 }
 
-/** A disposable `test`-kind event with a four-person roster. */
+/** A disposable, published `club`-kind event with a four-person roster. */
 async function createDeskEvent(
   api: Api,
   orgId: string,
@@ -519,7 +528,8 @@ async function createDeskEvent(
         endDate: '2099-06-02',
         city: 'Testville',
         country: 'FR',
-        eventKind: 'test',
+        // Public to the participant of the pass leg, and silent on publish.
+        eventKind: 'club',
       },
     }),
   );
@@ -580,6 +590,10 @@ async function scheduleOneBout(
       data: { liceId: lice.id, scheduledAt: '2099-06-01T10:00:00.000Z' },
     }),
   );
+  // Published last, as an organiser does once the draw is set. A person entered
+  // only in a draft Tournament reads as unknown outside the organisation, and
+  // the pass holder is entered in this one alone.
+  await api.ok(await api.post(`tournaments/${tournament.id}/publish`, { data: {} }));
 }
 
 /** One account per role, each asserted to have been created with it. */
