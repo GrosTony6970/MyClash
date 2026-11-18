@@ -1,24 +1,28 @@
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import {
   INSTALL_CAPTURE_SCRIPT,
   askToInstall,
-  captureInstallOffer,
   noInstallOffer,
   readInstallOffer,
   subscribeInstallOffer,
   type InstallHost,
 } from './install-offer';
 
-/** A window as far as the offer goes: it sends events and keeps one. */
+/**
+ * A window as far as the offer goes: it sends events and keeps one. The inline
+ * script runs on it as its TEXT, as the browser runs it, so the script and the
+ * store are held to the same names.
+ */
 function browser() {
   const host: InstallHost = new EventTarget();
-  captureInstallOffer(host);
+  runInNewContext(INSTALL_CAPTURE_SCRIPT, { window: host, Event });
   const changed = vi.fn();
   subscribeInstallOffer(changed, host);
-  /** Chrome says the app can be installed. Answers the event, and whether Chrome may show its own bar. */
-  const offer = () => {
+  /** Chrome says the app can be installed. Answers the event. */
+  const offer = (prompt = vi.fn(() => Promise.resolve())) => {
     const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
-      prompt: vi.fn(() => Promise.resolve()),
+      prompt,
     });
     host.dispatchEvent(event);
     return event;
@@ -35,7 +39,7 @@ describe('the install offer', () => {
 
     expect(readInstallOffer(host)).toBe(event);
     expect(event.defaultPrevented).toBe(true);
-    // The button hears it: the capture and the store agree on the event name.
+    // The button hears it: the script and the store agree on the event name.
     expect(changed).toHaveBeenCalledTimes(1);
   });
 
@@ -49,6 +53,18 @@ describe('the install offer', () => {
     expect(event.prompt).toHaveBeenCalledTimes(1);
     expect(readInstallOffer(host)).toBeNull();
     expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('says in the console, and throws nothing, when Chrome refuses to open the dialog', async () => {
+    const { host, offer } = browser();
+    const refusal = new DOMException('not now', 'NotAllowedError');
+    offer(vi.fn(() => Promise.reject(refusal)));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(askToInstall(host)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[install]'), refusal);
+    warn.mockRestore();
   });
 
   it('comes back when Chrome offers again after a "no"', async () => {
@@ -73,7 +89,7 @@ describe('the install offer', () => {
 
   it('stops telling a listener that unsubscribed', () => {
     const host: InstallHost = new EventTarget();
-    captureInstallOffer(host);
+    runInNewContext(INSTALL_CAPTURE_SCRIPT, { window: host, Event });
     const listener = vi.fn();
     const stop = subscribeInstallOffer(listener, host);
 
@@ -85,13 +101,5 @@ describe('the install offer', () => {
 
   it('is never on the server', () => {
     expect(noInstallOffer()).toBeNull();
-  });
-
-  it('is caught by an inline script that runs the capture on the page window', () => {
-    expect(INSTALL_CAPTURE_SCRIPT.startsWith('(function captureInstallOffer(')).toBe(true);
-    expect(INSTALL_CAPTURE_SCRIPT.endsWith(')(window);')).toBe(true);
-    // Its text stands alone: the key and the event name are literals in it.
-    expect(INSTALL_CAPTURE_SCRIPT).toContain('__myclashInstallOffer');
-    expect(INSTALL_CAPTURE_SCRIPT).toContain('myclash:install-offer');
   });
 });

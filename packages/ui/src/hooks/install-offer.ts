@@ -21,39 +21,43 @@ export interface InstallPromptEvent extends Event {
   prompt(): Promise<unknown>;
 }
 
-/** Where the offer is kept, and the events it is told by. A `window`, or a test's double. */
-export interface InstallHost extends EventTarget {
-  __myclashInstallOffer?: InstallPromptEvent | null;
-}
+/** Where on `window` the offer is kept. */
+const KEPT = '__myclashInstallOffer';
 
 /** Sent on the host each time the kept offer changes. */
 const CHANGED = 'myclash:install-offer';
 
-/**
- * Keeps the browser's offer, and drops it once the app is installed.
- *
- * Written out as the text of an inline script, so it uses nothing from outside
- * its own body: the key and the event name are written here as literals, in
- * step with `CHANGED` and `InstallHost` above (the tests hold that).
- */
-export function captureInstallOffer(host: InstallHost): void {
-  host.addEventListener('beforeinstallprompt', function (event) {
-    event.preventDefault();
-    host.__myclashInstallOffer = event as InstallPromptEvent;
-    host.dispatchEvent(new Event('myclash:install-offer'));
-  });
-  host.addEventListener('appinstalled', function () {
-    host.__myclashInstallOffer = null;
-    host.dispatchEvent(new Event('myclash:install-offer'));
-  });
+/** Where the offer is kept, and the events it is told by. A `window`, or a test's double. */
+export interface InstallHost extends EventTarget {
+  [KEPT]?: InstallPromptEvent | null;
 }
 
-/** The inline script of a root layout: runs `captureInstallOffer` on the page's window. */
-export const INSTALL_CAPTURE_SCRIPT = `(${captureInstallOffer.toString()})(window);`;
+/**
+ * The inline script of a root layout: keeps the browser's offer, and drops it
+ * once the app is installed.
+ *
+ * TEXT, not a function turned into text. It was `captureInstallOffer.toString()`,
+ * and the apps' production minifier rewrites that function: had it ever moved a
+ * literal out of the body, the script would have thrown in the browser, and no
+ * test would have gone red (the browser suite runs `next dev`). A minifier never
+ * changes the inside of a string. The names come from `KEPT` and `CHANGED`, so
+ * the script and the store cannot disagree.
+ */
+export const INSTALL_CAPTURE_SCRIPT = `(function (w) {
+  w.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    w.${KEPT} = e;
+    w.dispatchEvent(new Event('${CHANGED}'));
+  });
+  w.addEventListener('appinstalled', function () {
+    w.${KEPT} = null;
+    w.dispatchEvent(new Event('${CHANGED}'));
+  });
+})(window);`;
 
 /** The offer kept on the host, or null. The same object until it changes: a stable snapshot. */
 export function readInstallOffer(host: InstallHost = window): InstallPromptEvent | null {
-  return host.__myclashInstallOffer ?? null;
+  return host[KEPT] ?? null;
 }
 
 /** The server has no browser, so no offer. */
@@ -72,11 +76,19 @@ export function subscribeInstallOffer(
  * Opens Chrome's install dialog. An event opens it once, so the offer is
  * dropped first: a second tap never asks a spent event. When the person says
  * no, Chrome may send a new offer later, and the button comes back with it.
+ *
+ * A dialog Chrome refuses to open is said in the console, not thrown: it is
+ * the browser's answer, not a fault of the app, and an uncaught rejection went
+ * to Sentry as one.
  */
-export function askToInstall(host: InstallHost = window): Promise<unknown> {
+export async function askToInstall(host: InstallHost = window): Promise<void> {
   const offer = readInstallOffer(host);
-  if (!offer) return Promise.resolve();
-  host.__myclashInstallOffer = null;
+  if (!offer) return;
+  host[KEPT] = null;
   host.dispatchEvent(new Event(CHANGED));
-  return offer.prompt();
+  try {
+    await offer.prompt();
+  } catch (err) {
+    console.warn('[install] Chrome did not open its install dialog:', err);
+  }
 }
