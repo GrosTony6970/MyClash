@@ -1,6 +1,21 @@
 # Organiser guide, part 2: concepts and the scoring pad — design
 
-Status: approved by the operator on 2026-11-18. Not built yet.
+Status: approved by the operator on 2026-11-18. Shipped 2026-11-18.
+
+What the build found against this spec:
+
+- **The scorekeeper sheet has no picture.** With one screenshot it printed on three pages; without
+  it, it prints on one A4 page in both languages (checked as a PDF).
+- **The import does not always pre-choose "create new"**: the server pre-chooses link or create
+  per row. The script now requires the end state ("18 will link", or "18 will create" on a first
+  run) and stops otherwise. Before that held, three runs created 54 more invented profiles
+  (about 90 on the stack).
+- **Docs corrected to the code** (the operator's standing rule): CLAUDE.md hard rule 8 (six
+  switchable referee rules), and ARCHITECTURE.md, GOLDEN_PATHS.md and design/web-staff.md on
+  the pad, pool ties, the pool populator, bracket generation and offline actions.
+- **Reported, not changed (UI copy, not docs):** the new-ruleset page says a ruleset is "created
+  as draft"; the code publishes it at once. The Event Staff page describes its accounts as being
+  for "table referees" only.
 
 Builds on the shipped organiser guide
 (`docs/superpowers/archive/specs/2026-11-18-organiser-guide-design.md`): same site
