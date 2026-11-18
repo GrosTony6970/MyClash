@@ -70,8 +70,8 @@ test('the contents list groups pages by section, in reading order', () => {
     const headings = [...toc.matchAll(/class="guide-toc__section"[^>]*>([^<]+)</gu)].map((m) =>
       m[1].trim(),
     );
-    const expected = sectionLabels(locale).filter((label) => headings.includes(label));
-    assert.ok(headings.length >= 1, `${route}: the contents list has no section heading`);
+    const expected = sectionLabels(locale);
+    assert.equal(expected.length, 3, `${route}: the copy table lost a section label`);
     assert.deepEqual(headings, expected, `${route}: section headings missing or out of order`);
   }
 });
