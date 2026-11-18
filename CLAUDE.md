@@ -16,7 +16,8 @@ This file is the agent contract. It holds the rules that cannot be inferred from
    `packages/rulesets/test/fixtures/fal2026.json`) means the engine is wrong — fix the engine,
    never the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline
-   functionality, and the offline E2E tests must pass.
+   functionality, and the offline tests must pass: `tests/e2e/06-offline-sync`,
+   `08-offline-custom-ruleset`, `40-offline-bout` and `tests/a11y/pad-offline-drill`.
 4. **RLS on, on every table; signed-in users go through the API.** Every new table enables RLS.
    Add a read rule only where the public (`anon`) may read the rows — RLS on with no rule is a
    closed table, on purpose. No web role writes, and a signed-in token reads nothing through the
@@ -45,12 +46,14 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 
 ## Where authority lives
 
-| File                   | Authoritative for                                                                                                                                                                                                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/HIERARCHY.md`    | **Vocabulary** — Event / Tournament / Workshop / Pool / Match / Exchange. Read before writing code or docs that use these terms.                                                                                                                                       |
-| `docs/ARCHITECTURE.md` | **Technical design** — data model, modules, rulesets. Read the relevant sections before any non-trivial change.                                                                                                                                                        |
-| `DESIGN.md`            | **UI** — the "Tournament Manual" language. Per-surface deltas in `docs/design/`, known gaps in `docs/design/known-deviations.md`, token values in `packages/ui/src/theme.css` (gated by `pnpm quality:design-drift`). The rendered contract is `/admin/design-system`. |
-| `myclash.md`           | **Product / UX** — what the app does and feels like, per persona.                                                                                                                                                                                                      |
+- `docs/HIERARCHY.md` — **Vocabulary**: Event / Tournament / Workshop / Pool / Match / Exchange.
+  Read before writing code or docs that use these terms.
+- `docs/ARCHITECTURE.md` — **Technical design**: data model, modules, rulesets. Read the relevant
+  sections before any non-trivial change.
+- `DESIGN.md` — **UI**, the "Tournament Manual" language. Per-surface deltas in `docs/design/`,
+  known gaps in `docs/design/known-deviations.md`, token values in `packages/ui/src/theme.css`
+  (gated by `pnpm quality:design-drift`). The rendered contract is `/admin/design-system`.
+- `myclash.md` — **Product / UX**: what the app does and feels like, per persona.
 
 `docs/ENGINEERING_LESSONS.md` collects hard-won rules per area (auth, Docker, testing, scheduling,
 deployment). Read the relevant section before working in that area.
@@ -113,19 +116,17 @@ Work is slice-based and paced by the operator, who runs a live test event and re
 lands directly on `main`; there is no branch-per-task or PR ritual. The git history is the build
 record; there is no task queue to pick from.
 
-- **Conventional Commits are enforced** by commitlint through the `commit-msg` hook
-  (`feat(scope): …`, `fix(scope): …`). A commit message in any other shape is rejected.
 - **The operator wipes and redeploys the whole stack every few commits.** There is no
   backwards-compatibility tax on internal contracts — schema changes, renames and prop reshaping
   all land cleanly. Prefer root-cause and class-of-bug fixes over patches.
 - **Several agent sessions commit to this repo concurrently.** Check `git log --oneline -1` before
   staging, `git fetch` before pushing, and stage explicit paths — never `git add -A`.
-- **Any edit or script containing a backslash goes through the Write or Edit tool, never a Bash or
-  Python heredoc** — a regex, a `\n` in a replace anchor, an escaped quote, a Windows path. Through a
-  heredoc it arrives collapsed: an anchor stops matching with no error, `\b` lands as a backspace byte
-  in a regex that then never matches, or a Python script writes a broken file.
-- If a task is ambiguous or contradicts the architecture, **stop and ask**. If it needs something
-  only the operator can do — a DNS record, a third-party account, a decision about the real event —
+- **Write every script and every commit message to a file with the Write tool, then run it**
+  (`node file.mjs`, `git commit -F file`); change files with Write or Edit. The `no-heredoc` hook
+  refuses heredocs, `python -` / `node -` stdin scripts and bare `cat >`, because through a heredoc
+  a backslash arrives collapsed: an anchor stops matching with no error, and `\b` lands as a
+  backspace byte in a regex that then never matches.
+- If a task needs something only the operator can do — a DNS record, a third-party account, a decision about the real event —
   **stop and notify** rather than improvising around it.
 - **Hand a session over with the `myclash-handover` skill**: when asked for a handover, and before
   ending a session that leaves work uncommitted.
@@ -136,15 +137,14 @@ record; there is no task queue to pick from.
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-eight
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs about thirty
 further steps, and shared packages must be built in the right order or a local pass means nothing.
 
 Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from
 `.github/workflows/ci.yml` plus the build-ordering traps. Run it before every push. Coverage and
 the E2E suite are separate CI jobs and go red on their own; the skill does not cover them.
 
-A task is done when its acceptance criteria pass with automated tests where possible and the gate
-chain is green. You are measured by tasks closed cleanly, not lines written.
+A task is done when its acceptance criteria pass (hard rule 10) and the gate chain is green.
 
 ---
 
@@ -160,42 +160,18 @@ Ask questions in ELI5 style, with a concrete story before the ruling.
 
 ---
 
-## BMad planning toolkit
-
-BMad (planning/PRD/architecture toolkit, v6.9.0) is **not installed in this repo** — it lives in
-the user's home dir. When running any `bmad-*` skill from this project, resolve its path variables
-against the home install (don't assume `_bmad/` is in the repo):
-
-- `{project-root}` → `C:\Users\Tony` (the parent of `_bmad`)
-- `{skill-root}` → `C:\Users\Tony\.claude\skills\<skill-name>`
-- Scripts → `uv run C:/Users/Tony/_bmad/scripts/<script>.py` (e.g. `memlog.py`;
-  `resolve_config.py` needs `--project-root C:/Users/Tony`)
-- Central config → `C:\Users\Tony\_bmad\bmm\config.yaml` (project_name `MyClash`, English)
-- Planning output → `C:\Users\Tony\_bmad-output\planning-artifacts\` (PRDs under `.../prds/`)
-
-`resolve_customization.py` auto-discovers this by walking up from the skill dir until it finds
-`_bmad/` or `.git/`, so it lands on `C:\Users\Tony` on its own — but the home-dir location is
-non-obvious, so check here first.
-
----
-
 ## Subagent routing
 
 Delegate without being asked when the work matches a row below. Prefer a skill when one covers the
 area — skills load in context and know this repo's conventions; an agent starts cold and is worth it
 when the task needs an independent pass over many files.
 
-| Work                                                                         | Delegate to                                                                                             |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Reviewing a finished slice before commit                                     | `code-architecture-reviewer`                                                                            |
-| Reviewing a plan before implementation                                       | `myclash-plan-review` skill; `plan-reviewer` agent for a cold pass on a large multi-file plan           |
-| Architecture or trade-off calls on a non-trivial change                      | `principal-engineer`                                                                                    |
-| Planning a multi-file refactor                                               | `refactor-planner`                                                                                      |
-| Advanced TypeScript type-system work (`packages/types`, generics, inference) | `voltagent-lang:typescript-pro`                                                                         |
-| App Router / RSC boundary work in `apps/web-*`                               | `voltagent-lang:nextjs-developer` — targets Next 14, this repo is 16; cross-check `next-best-practices` |
-| React render/perf work in `packages/ui`                                      | `voltagent-lang:react-specialist` — targets React 18, this repo is 19                                   |
-| Postgres query and index optimisation                                        | `sql-pro` skill first; `voltagent-lang:sql-pro` for a deep pass                                         |
+| Work                                                    | Delegate to                                                                                   |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Reviewing a finished slice before commit                | `code-architecture-reviewer`                                                                  |
+| Reviewing a plan before implementation                  | `myclash-plan-review` skill; `plan-reviewer` agent for a cold pass on a large multi-file plan |
+| Architecture or trade-off calls on a non-trivial change | `principal-engineer`                                                                          |
+| Planning a multi-file refactor                          | `refactor-planner`                                                                            |
 
 Not a fit here — don't route to an agent for these: the NestJS API (use the `nestjs-best-practices`
-skill; no NestJS agent exists), gate failures (`myclash-gates`), and the `voltagent-meta:*`
-orchestration agents.
+skill; no NestJS agent exists) and gate failures (`myclash-gates`).
