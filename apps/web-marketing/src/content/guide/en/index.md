@@ -24,3 +24,10 @@ The journey:
 8. Event day: the scoring pad
 9. The bracket
 10. The final ranking and the results
+
+Then two more sections:
+
+- **Understand MyClash**: how it works, the formats, what it does by itself, rulesets, and staff
+  access. Read it once you have run a test event.
+- **Scoring pad**: a sheet to print and leave by each tablet, and the full reference of the pad
+  for you, to train your scorekeepers.

@@ -24,3 +24,10 @@ Le parcours :
 8. Le jour J : la tablette de score
 9. Le tableau final
 10. Le classement final et les résultats
+
+Puis deux autres sections :
+
+- **Comprendre MyClash** : comment il fonctionne, les formats, ce qu'il fait seul, les règlements,
+  et les accès. À lire une fois que vous avez fait tourner un événement de test.
+- **Tablette de score** : une fiche à imprimer et à laisser près de chaque tablette, et la
+  référence complète de la tablette pour vous, pour former vos marqueurs.
