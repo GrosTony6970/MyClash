@@ -133,6 +133,11 @@ export default function AdminClubsPage() {
   const [error, setError] = useState<string | null>(null);
   const [requests, setRequests] = useState<ClubReviewRequest[]>([]);
   const [requestLoading, setRequestLoading] = useState(true);
+  // The club-requests read keeps its own message. Sharing `error` with the club
+  // list was a race: whichever read answered last won, so a requests read that
+  // succeeded AFTER a failed list cleared the list's reason, and the screen said
+  // "No clubs found." over a list that never loaded.
+  const [requestsError, setRequestsError] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [linkQueryByRequest, setLinkQueryByRequest] = useState<Record<string, string>>({});
   const [linkMatchesByRequest, setLinkMatchesByRequest] = useState<Record<string, ClubRow[]>>({});
@@ -223,11 +228,11 @@ export default function AdminClubsPage() {
       .then((r) => {
         if (r.ok) {
           setRequests(r.data);
-          setError(null);
+          setRequestsError(null);
           return;
         }
         const message = failureMessage(r, t, t('admin.clubs.requestsLoadError'));
-        if (message) setError(message);
+        if (message) setRequestsError(message);
       })
       .finally(() => setRequestLoading(false));
     return () => controller.abort();
@@ -722,10 +727,11 @@ export default function AdminClubsPage() {
       const r = await fetchRequests();
       if (r.ok) {
         setRequests(r.data);
+        setRequestsError(null);
         return;
       }
       const message = failureMessage(r, t, t('admin.clubs.requestsLoadError'));
-      if (message) setError(message);
+      if (message) setRequestsError(message);
     } finally {
       setRequestLoading(false);
     }
@@ -842,6 +848,14 @@ export default function AdminClubsPage() {
             {t('actions.refresh')}
           </button>
         </div>
+        {requestsError && (
+          <p
+            role="alert"
+            className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+          >
+            {requestsError}
+          </p>
+        )}
         {requests.length === 0 ? (
           <div className="rounded-md border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted">
             {requestLoading ? t('common.loading') : t('admin.clubs.requestsEmpty')}
