@@ -27,6 +27,9 @@ profiles earlier runs made.
   what) is checked against the code, with the file:line noted in the task's ledger line.
 - The screenshot Event is `eventKind: 'test'`, never published, deleted in `finally`. Ask the
   operator before each run on the deployed stack.
+- **A repo doc that disagrees with the code gets corrected to match the code** (operator,
+  2026-11-18): CLAUDE.md, ARCHITECTURE.md, ADRs, READMEs, specs. One commit per correction, the
+  code reference in the message. Never change the code to match a doc in this slice.
 - No new dependency. One concern per commit; commit messages lower-case after the scope
   (commitlint `subject-case`).
 - `myclash-gates` before the push.
