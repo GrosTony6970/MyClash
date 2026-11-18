@@ -11,6 +11,7 @@ import {
 } from '../e2e/_bracket';
 import { playTournamentToChampion } from '../e2e/_tournament';
 import { createPoolTournament, playPoolPhase, readPoolMatches } from '../e2e/_pool';
+import { shootPadStates } from './_pad-states';
 
 /**
  * The organiser guide's screenshots (docs/superpowers/specs/2026-11-18-organiser-guide-design.md).
@@ -314,61 +315,7 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     // ── Scoring pad reference: one bout through every state (selectors from 16-pad-ui) ─
     const padBout = (await readPoolMatches(api, tournament.id))[1];
     expect(padBout, 'the pools produced no second bout').toBeTruthy();
-    const exchangesOn = async (): Promise<number> =>
-      (await api.json<unknown[]>(await api.get(`matches/${padBout!.id}/exchanges`))).length;
-    const column = (side: 'red' | 'blue') =>
-      page.locator(`[data-testid="scoring-column"][data-side="${side}"]`);
-    const cleanHit = (side: 'red' | 'blue', label: string) =>
-      column(side).getByTestId('clean-hit-button').filter({ hasText: label }).first();
-    const primaryClock = page.getByTestId('clock-primary-button');
-    const clockStatus = page.getByTestId('clock-status');
-    const network = page.getByTestId('network-bar');
-    const tabletShot = async (name: string) => {
-      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-      await page.screenshot({ path: `${OUT}/${name}.png` });
-    };
-
-    await page.goto(`${staffBase}/matches/${padBout!.id}`);
-    await expect(network).toHaveAttribute('data-network', 'online');
-    await primaryClock.click(); // Start
-    await expect(clockStatus).toHaveAttribute('data-status', 'running');
-    await primaryClock.click(); // Pause
-    await expect(clockStatus).toHaveAttribute('data-status', 'halted');
-    await cleanHit('red', '+2').click();
-    await cleanHit('blue', '+1').click();
-    await expect.poll(exchangesOn).toBe(2);
-    await primaryClock.click(); // Resume
-    await expect(clockStatus).toHaveAttribute('data-status', 'running');
-    await tabletShot('13-pad-running');
-
-    await primaryClock.click(); // Pause
-    await expect(clockStatus).toHaveAttribute('data-status', 'halted');
-    const penaltySearch = column('red').getByPlaceholder('Search penalties');
-    await penaltySearch.scrollIntoViewIfNeeded();
-    await penaltySearch.fill('e');
-    await tabletShot('13-pad-penalties');
-    await penaltySearch.fill('');
-    await page.evaluate(() => window.scrollTo(0, 0));
-
-    await page.getByTestId('open-corrections').click();
-    await tabletShot('13-pad-corrections');
-    await page.keyboard.press('Escape');
-
-    // The wifi drops: the bar turns grey. Then it comes back, and the script waits
-    // until the tablet has nothing left to send before it ends the bout.
-    await page.context().setOffline(true);
-    await expect(network).toHaveAttribute('data-network', 'offline');
-    await tabletShot('13-pad-offline');
-    await page.context().setOffline(false);
-    await expect(network).toHaveAttribute('data-network', 'online');
-    await expect(network).not.toContainText('queued', { timeout: 30_000 });
-    expect(await exchangesOn(), 'the two hits reached the server').toBe(2);
-
-    await page.getByTestId('clock-end-button').click();
-    const endEarly = page.getByTestId('end-early-confirm');
-    if (await endEarly.isVisible().catch(() => false)) await endEarly.click();
-    await expect(page.getByTestId('match-result-overlay')).toBeVisible();
-    await tabletShot('13-pad-ended');
+    await shootPadStates(page, api, padBout!.id, staffBase, OUT);
     await page.setViewportSize(DESKTOP);
     await shot(page, '07-live', `${at}/live`, /pistes ·/u);
 
