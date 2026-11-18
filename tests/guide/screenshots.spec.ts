@@ -166,7 +166,19 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     const org = `/org/${orgSlug}`;
     await shot(page, '11-rulesets', `${org}/rulesets`);
     await shot(page, '11-ruleset-new', `${org}/rulesets/scoring/new`);
-    await shot(page, '11-org-members', `${org}/settings`);
+    // The members page lists emails. Only the E2E account may appear in the public
+    // guide (operator ruling): if anyone else has joined this organisation, stop.
+    await page.goto(`${org}/settings`, { waitUntil: 'networkidle' });
+    const shownEmails =
+      (await page.locator('main').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
+    const e2eEmail = (process.env.E2E_ADMIN_EMAIL ?? '').toLowerCase();
+    expect(
+      shownEmails.filter(
+        (email) => email.toLowerCase() !== e2eEmail && !email.endsWith('@club.org'),
+      ),
+      'the members page shows someone other than the E2E account — not taking that screenshot',
+    ).toEqual([]);
+    await shot(page, '11-org-members');
 
     // ── Page 3: the roster, imported through the screen ─────────────────────
     await page.goto(`${at}/persons/import`, { waitUntil: 'networkidle' });
