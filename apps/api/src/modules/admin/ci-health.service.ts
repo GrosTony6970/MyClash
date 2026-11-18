@@ -153,9 +153,10 @@ export class AdminCiHealthService {
   }
 
   private async fetchAnswer(): Promise<CiHealthResponseDto> {
-    const repo = this.config.get<string>('GITHUB_REPO') ?? DEFAULT_REPO;
-    const token = this.config.get<string>('GITHUB_TOKEN') ?? null;
-    const branch = this.config.get<string>('GITHUB_DEFAULT_BRANCH') ?? DEFAULT_BRANCH;
+    // `||`, not `??`: compose passes a blank .env line as '', which `??` keeps.
+    const repo = this.config.get<string>('GITHUB_REPO')?.trim() || DEFAULT_REPO;
+    const token = this.config.get<string>('GITHUB_TOKEN')?.trim() || null;
+    const branch = this.config.get<string>('GITHUB_DEFAULT_BRANCH')?.trim() || DEFAULT_BRANCH;
     const client = this.clientFactory
       ? this.clientFactory(repo, token)
       : new GithubClient(repo, token);

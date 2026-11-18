@@ -260,4 +260,22 @@ describe('AdminCiHealthService', () => {
     expect(answer.repo).toBe('someone/fork');
     expect(factory).toHaveBeenCalledWith('someone/fork', null);
   });
+
+  // Compose passes `${GITHUB_REPO:-}`: a blank .env line arrives as '', not as missing.
+  // An empty repo asked GitHub for /repos//actions/... and the card read "GitHub answered 404".
+  it('reads a blank setting as unset, the way compose passes an empty .env line', async () => {
+    const latestRun = vi.fn().mockResolvedValue({ data: RUN, rateLimitRemaining: 58 });
+    const factory = vi.fn().mockReturnValue(clientOf({ latestRun }));
+    const service = new AdminCiHealthService(
+      configOf({ GITHUB_REPO: '', GITHUB_TOKEN: ' ', GITHUB_DEFAULT_BRANCH: '' }),
+      factory,
+      () => 1_000_000,
+    );
+
+    const answer = await service.collect();
+    expect(answer.repo).toBe('GrosTony6970/MyClash');
+    expect(answer.authenticated).toBe(false);
+    expect(factory).toHaveBeenCalledWith('GrosTony6970/MyClash', null);
+    expect(latestRun).toHaveBeenCalledWith('main');
+  });
 });
