@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: './tests',
   // Prod E2E specs live in tests/e2e and run via playwright.e2e.config.ts
   // (they hit a deployed env + write data). Keep them out of the local harness.
-  testIgnore: ['**/e2e/**'],
+  // tests/guide is the same kind of script (playwright.guide.config.ts): it writes
+  // to the deployed stack and overwrites the guide's committed screenshots.
+  testIgnore: ['**/e2e/**', '**/guide/**'],
   timeout: 30_000,
   workers: 1,
   // Order is the contract. Playwright ends reporters one at a time, in this order, and
