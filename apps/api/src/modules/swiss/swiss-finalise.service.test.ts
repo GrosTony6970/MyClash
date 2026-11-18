@@ -96,6 +96,20 @@ describe('SwissFinaliseService — freezing the standings', () => {
     expect(finalized).toMatchObject({ atRound: 2 });
   });
 
+  it('finalising before any round is fought writes a config that still reads back', async () => {
+    // The Finalise button shows as soon as the phase exists. With no round
+    // fought the freeze is at round 0, and the schema once demanded at least 1:
+    // the phase became unreadable — unviewable, unpairable, and not resumable.
+    const { supabase, service } = build({
+      swiss_rounds: { rows: [swissRound({ id: 'sr1', round_number: 1, status: 'pending' })] },
+    });
+
+    const finalized = await service.finalise('p1', null);
+
+    expect(finalized).toMatchObject({ atRound: 0 });
+    expect(parseSwissConfig(writtenConfig(supabase))?.finalized).toMatchObject({ atRound: 0 });
+  });
+
   it('leaves a phase that is already frozen exactly as it was', async () => {
     // Freezing twice must not restamp the moment: the first freeze IS the
     // result, and a later timestamp would misreport when the podium was set.

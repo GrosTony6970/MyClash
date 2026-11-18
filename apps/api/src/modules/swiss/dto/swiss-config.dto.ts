@@ -105,7 +105,10 @@ export const swissConfigSchema = z
       // request that was properly authenticated. Storing '' for that case wrote
       // a config this very schema then refused, which made the WHOLE phase
       // unreadable — unpairable, unviewable and impossible to resume.
-      .object({ atRound: z.number().int().min(1), at: z.string(), byUserId: z.uuid().nullable() })
+      // `atRound` counts the rounds FOUGHT, so 0 is a phase finalised before its
+      // first round ended (the button shows as soon as the phase exists). Once
+      // `min(1)`, which made such a phase unreadable for good — Resume included.
+      .object({ atRound: z.number().int().min(0), at: z.string(), byUserId: z.uuid().nullable() })
       .strict()
       .nullable()
       .optional(),
