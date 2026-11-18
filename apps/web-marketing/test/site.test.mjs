@@ -9,41 +9,17 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { join, dirname, resolve, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve, relative } from 'node:path';
+import { HERE, DIST, htmlFiles, routeOf, loadPages } from './built-site.mjs';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const DIST = resolve(HERE, '..', 'dist');
 const REPO_ROOT = resolve(HERE, '..', '..', '..');
-
-/** Every .html file under dist/, as repo-relative-ish route + contents. */
-function htmlFiles(dir = DIST, acc = []) {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) htmlFiles(full, acc);
-    else if (entry.endsWith('.html')) acc.push(full);
-  }
-  return acc;
-}
-
-/** `dist/terms/index.html` -> `/terms`, `dist/index.html` -> `/`. */
-function routeOf(file) {
-  const rel = relative(DIST, file).split('\\').join('/');
-  const withoutIndex = rel.replace(/(^|\/)index\.html$/u, '$1').replace(/\.html$/u, '');
-  const route = `/${withoutIndex}`.replace(/\/+$/u, '');
-  return route === '' ? '/' : route;
-}
 
 let pages;
 
 before(() => {
-  assert.ok(
-    existsSync(DIST),
-    'dist/ is missing — run `pnpm --filter @myclash/web-marketing build` first.',
-  );
-  pages = new Map(htmlFiles().map((file) => [routeOf(file), readFileSync(file, 'utf8')]));
+  pages = loadPages();
   assert.ok(pages.size >= 11, `expected at least 11 built pages, found ${pages.size}`);
 });
 
@@ -346,63 +322,4 @@ test('the banner is shown whole, not cropped to a strip', () => {
     !/\.banner-section\{[^}]*height:240px/u.test(bundled),
     'the banner is back to a fixed-height strip, which forces a crop',
   );
-});
-
-/*
- * The organiser guide (docs/superpowers/specs/2026-11-18-organiser-guide-design.md).
- * One Markdown file per page per language, under src/content/guide/{fr,en}.
- */
-const GUIDE_SRC = join(HERE, '..', 'src', 'content', 'guide');
-const guideRoutes = (prefix) =>
-  [...pages.keys()].filter((r) => r === prefix || r.startsWith(`${prefix}/`));
-
-test('guide pages exist in both languages, one per Markdown file', () => {
-  const fr = guideRoutes('/guide');
-  const en = guideRoutes('/en/guide').map((r) => r.slice(3));
-  const frFiles = readdirSync(join(GUIDE_SRC, 'fr')).filter((f) => f.endsWith('.md'));
-  const enFiles = readdirSync(join(GUIDE_SRC, 'en')).filter((f) => f.endsWith('.md'));
-  assert.deepEqual(enFiles.sort(), frFiles.sort(), 'the FR and EN guide sources differ');
-  assert.ok(frFiles.length >= 2, `expected at least the index and page 0, found ${frFiles.length}`);
-  assert.equal(fr.length, frFiles.length, 'a French guide source built no page');
-  assert.deepEqual(en.sort(), fr.sort(), 'the FR and EN guides do not build the same pages');
-});
-
-test('every guide page but the last links to the next one', () => {
-  for (const prefix of ['/guide', '/en/guide']) {
-    const routes = guideRoutes(prefix);
-    const withNext = routes.filter((r) => /class="guide-next"/u.test(pages.get(r)));
-    assert.equal(withNext.length, routes.length - 1, `${prefix}: next-step links`);
-  }
-});
-
-test('every image on a guide page was emitted', () => {
-  for (const route of [...guideRoutes('/guide'), ...guideRoutes('/en/guide')]) {
-    const html = pages.get(route);
-    const srcs = [
-      ...[...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gu)].map((m) => m[1]),
-      ...[...html.matchAll(/\bsrcset="([^"]+)"/gu)].flatMap((m) =>
-        m[1].split(',').map((c) => c.trim().split(/\s+/u)[0]),
-      ),
-    ];
-    for (const src of srcs) {
-      assert.ok(existsSync(join(DIST, src.split('?')[0])), `${route} shows ${src}, not in dist/`);
-    }
-  }
-});
-
-test('the sitemap lists every guide page', () => {
-  const sitemap = readdirSync(DIST)
-    .filter((f) => /^sitemap-\d+\.xml$/u.test(f))
-    .map((f) => readFileSync(join(DIST, f), 'utf8'))
-    .join('\n');
-  const routes = [...guideRoutes('/guide'), ...guideRoutes('/en/guide')];
-  assert.ok(routes.length > 0, 'no guide page was built');
-  for (const route of routes) {
-    assert.ok(sitemap.includes(`https://myclash.fr${route}<`), `sitemap misses ${route}`);
-  }
-});
-
-test('the nav links to the guide in each language', () => {
-  assert.match(pages.get('/'), /<nav[\s\S]*?href="\/guide"[\s\S]*?<\/nav>/u);
-  assert.match(pages.get('/en'), /<nav[\s\S]*?href="\/en\/guide"[\s\S]*?<\/nav>/u);
 });
