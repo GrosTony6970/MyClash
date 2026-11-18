@@ -246,16 +246,37 @@ body {
 /* The scorekeeper sheet is meant to be printed and left by the tablet: only
    the page itself, black on white, no site chrome. */
 @media print {
+  /* !important: chrome.css sets `.nav { display: flex }` with the same
+     specificity and can load after this file, so a plain rule loses. */
   .nav,
   .footer,
   .skip-link,
   .guide-toc,
   .guide-next {
-    display: none;
+    display: none !important;
   }
   body {
     background: var(--white);
     color: var(--dark);
+    font-size: 10.5pt;
+  }
+  .guide__title {
+    font-size: 18pt;
+    margin-bottom: 6pt;
+  }
+  .guide__body h2 {
+    margin: 10pt 0 3pt;
+    font-size: 10.5pt;
+  }
+  .guide__body p,
+  .guide__body ul,
+  .guide__body ol {
+    font-size: 10.5pt;
+    line-height: 1.35;
+    margin-bottom: 4pt;
+  }
+  .guide__body li {
+    margin-bottom: 1pt;
   }
   .guide {
     display: block;
