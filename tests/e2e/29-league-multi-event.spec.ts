@@ -531,16 +531,16 @@ test.describe('league across several events', () => {
     );
 
     // The bottom of the ladder: Charlie and Echo are level on all four rungs, so
-    // nothing the league is configured with can separate them. They must land
-    // ADJACENT — the ladder placing anything between two fighters it cannot tell
-    // apart would mean it separated them on something it does not claim to use.
+    // nothing the league is configured with can separate them. They SHARE a
+    // place — standard competition numbering (1, 2, 2, 4, `tiedOnChain` in
+    // `league-scoring.ts`). A table giving them two places would have separated
+    // them on something it does not claim to use.
     expect(Number(at('Echo').double_hit_average), 'the last rung needs equal averages').toBe(
       Number(at('Charlie').double_hit_average),
     );
-    expect(
-      Math.abs(at('Charlie').rank - at('Echo').rank),
-      'two fighters level on every rung must be adjacent',
-    ).toBe(1);
+    expect(at('Echo').rank, 'two fighters level on every rung must share a place').toBe(
+      at('Charlie').rank,
+    );
 
     // ── The table, tier by tier ──────────────────────────────────────────────
     expect([...new Set(full.rows.map((row) => row.ranking_group_key))]).toEqual([GROUP_KEY]);
@@ -557,11 +557,16 @@ test.describe('league across several events', () => {
       cursor += tier.length;
     }
 
-    // Every rank distinct: `compareRankings` never returns 0 for two different
-    // fighters, so the equal-rank branch of the ranker is unreachable in practice.
-    expect(full.rows.map((row) => row.rank)).toEqual(
-      Array.from({ length: EXPECTED_SIZE }, (_, i) => i + 1),
-    );
+    // Each tier is a group of fighters level on every rung, so it shares the place
+    // of its first member and the next tier skips the places it took (1, 2, 2,
+    // 2, 5, …). Asked of `tiedOnChain`, not of `compareRankings`, which never
+    // calls two fighters equal; before that fix every rank was distinct.
+    const expectedRanks: number[] = [];
+    for (const tier of EXPECTED_TIERS) {
+      const place = expectedRanks.length + 1;
+      expectedRanks.push(...tier.map(() => place));
+    }
+    expect(full.rows.map((row) => row.rank)).toEqual(expectedRanks);
 
     // Within a tier the ladder has nothing left to compare, so the configured
     // last resort decides: alphabetical order.

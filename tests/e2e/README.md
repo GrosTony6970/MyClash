@@ -935,6 +935,10 @@ Three things worth knowing before touching it:
   fighters are ordered by their global person **UUID**. Arbitrary, but stable;
   the spec pins the tier boundaries and then that the order does not reshuffle
   on a second recompute.
+- **A tier shares one place.** Fighters level on every configured rung get the
+  same rank, and the next tier skips the places they took (1, 2, 2, 2, 5 —
+  `tiedOnChain` in `league-scoring.ts`). The spec builds the expected ranks from
+  the tiers.
 
 > **It found a real defect on its first run.** `removeEventTournamentLinks`
 > marked links `removed` and nothing more — it never dropped that tournament's
