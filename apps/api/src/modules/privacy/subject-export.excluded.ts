@@ -30,6 +30,7 @@ export const SUBJECT_EXPORT_EXCLUDED_TABLES = new Set<string>([
   'fighter_ai_keys',
   'organization_ai_keys',
   'platform_ai_keys',
+  'agent_keys', // a machine key's hash; holds no fact about a person
 
   // org / platform assets the subject merely authored, published or reviewed
   'events',
