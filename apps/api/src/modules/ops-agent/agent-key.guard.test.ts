@@ -127,6 +127,20 @@ describe('AgentKeyGuard — last used', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('catches a stamp that throws instead of answering, so no rejection escapes', async () => {
+    const escaped = vi.fn();
+    process.on('unhandledRejection', escaped);
+    try {
+      updateEq.mockRejectedValue(new Error('socket hang up'));
+      readResult = { data: { id: 'k1', revoked_at: null, last_used_at: null }, error: null };
+      await expect(guard().canActivate(contextFor(request()))).resolves.toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(escaped).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', escaped);
+    }
+  });
+
   it('still lets the key in when the stamp fails', async () => {
     updateEq.mockResolvedValue({ error: { message: 'timeout' } });
     readResult = { data: { id: 'k1', revoked_at: null, last_used_at: null }, error: null };

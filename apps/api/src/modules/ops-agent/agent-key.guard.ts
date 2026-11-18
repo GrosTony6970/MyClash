@@ -60,9 +60,14 @@ export class AgentKeyGuard implements CanActivate {
         .from('agent_keys')
         .update({ last_used_at: new Date().toISOString() })
         .eq('id', row.id),
-    ).then(({ error }) => {
-      if (error) this.logger.warn(`agent key last-used stamp failed: ${error.message}`);
-    });
+    )
+      .then(({ error }) => {
+        if (error) this.logger.warn(`agent key last-used stamp failed: ${error.message}`);
+      })
+      // A client that throws instead of answering must not become an unhandled rejection.
+      .catch((err: unknown) =>
+        this.logger.warn(`agent key last-used stamp failed: ${String(err)}`),
+      );
   }
 }
 
