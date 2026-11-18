@@ -137,11 +137,11 @@ Reference design: `DESIGN.md` at the repo root (the "Tournament Manual" language
 Used at each Lice by a designated scorekeeper. One device per Lice. Functions:
 
 - View current match assignment (red vs blue, weapon, ruleset).
-- Match clock (start/pause/halt/resume).
-- Per-exchange entry: clean hit (red/blue, 1pt/2pt), afterblow (with retaliation value), double, no-exchange.
+- Match clock: one primary button that reads Start, Pause, Resume, or Re-open once the bout has ended (`ScoringCenterControls.tsx`).
+- Per-exchange entry: clean hit (red/blue, with the hit buttons the ruleset gives), afterblow (with retaliation value), double, no-exchange.
 - Undo last entry (a hit or a card).
-- Finalize match → push to backend.
-- Works fully offline; queues exchanges to IndexedDB; syncs when network returns.
+- End match → the server records the result.
+- Scoring works offline; it queues exchanges to IndexedDB and syncs when the network returns. Re-open, clock Reset, Unlock and the corrections drawer need the network.
 
 ### 2.3 Organizer Admin (responsive web, desktop-first)
 
@@ -674,7 +674,7 @@ Sort fighters by:
 2. `wins(F)` descending
 3. `doubles(F)` ascending
 4. `times_hit(F)` ascending
-5. Stable: `registration.seed` ascending (or `bib_number` as fallback)
+5. Stable: the fighter's display name, then the registration id, by code point (`applyRanking`, `packages/rules/src/results/standings.ts`). This last step is never named as the deciding tiebreak.
 
 ### 6.4 Cross-check with reference page
 
@@ -2350,15 +2350,19 @@ fighter, drops it (§11septies.10).
 
 This is a v1 feature. The organizer admin gets two assistant tools — pool populator and referee assigner — both **constraint-driven and configurable**, both producing **assignments + a feasibility report** so the organizer always knows what worked, what failed, and why.
 
-### 11quater.1 Pool Populator — not built
+### 11quater.1 Pool Populator
 
-The version of this section that stood here specified an algorithm (`K = max(50, fighters * 2)`
-iterations), an endpoint (`POST /events/:id/populate-pools`) and a UI (`/pool-populator`, with
-live cost recomputation on drag). **None of the three exists in the repo.** It was a design
-sketch presented as a shipped v1 feature, which is worse than an absent section.
+`POST /api/v1/tournaments/:tournamentId/generate-pools` fills the Pools
+(`generatePools`, `apps/api/src/modules/phases/phases.service.ts`). It deals the fighters into
+the Pools in a snake by seed (`snakeSeed`, `packages/rules/src/scheduling/snake-seeding.ts`).
+Then it swaps fighters between Pools to lower a cost (`localSearch`,
+`packages/rules/src/scheduling/local-search.ts`). The cost keeps fighters of one club apart and
+balances skill by HEMA Ratings; the request can turn either off. The search makes
+`max(50, fighters * 2)` swap attempts from a fixed seed, so the same entries give the same Pools.
+The cost report is stored on the phase and returned with the Pools; no screen shows it. There is
+no `/pool-populator` page and no live cost recomputation on drag.
 
-Pools are generated today by `apps/api/src/modules/phases/` — see `berger.ts` for the round
-construction and the pool match labels.
+See `berger.ts` for the round construction and the pool match labels.
 
 ### 11quater.2 Referee Assignment
 
@@ -2451,7 +2455,7 @@ The auto-assign is **one-click + always overridable**. The expected workflow:
 
 ### 11sexies.1 Overview
 
-When a match completes, `BracketAdvanceService.onMatchCompleted(matchId)` fires automatically (fire-and-forget, errors logged). It looks up the match's `bracket_slot_id`, resolves the slot's position within the phase, and writes the winner (and loser, for bronze/LB routes) into downstream `bracket_slots`. When both sides of a slot are filled, a new `scheduled` match is created for that slot. This gives referees a zero-touch experience: complete match → next match appears automatically.
+When a match completes, `BracketAdvanceService.onMatchCompleted(matchId)` fires automatically (fire-and-forget, errors logged). It looks up the match's `bracket_slot_id`, resolves the slot's position within the phase, and writes the winner (and loser, for bronze/LB routes) into downstream `bracket_slots`. Bracket generation already created a `scheduled` match for every slot that is not a bye, so the schedule grid can place it early; advancement writes the fighters into that match (`syncMatchToSlot`, `bracket-match-sync.ts`). Only the double-elimination reset slot has no match at generation; it gets one when both its sides are filled. This gives referees a zero-touch experience: complete match → next match appears automatically.
 
 ### 11sexies.2 Bracket types
 
@@ -2496,7 +2500,7 @@ Setting a value to `null` cancels the assignment and voids the downstream match 
 
 ### 11sexies.6 Bye handling
 
-Bye slots (`source_b_type = 'bye'`) have `registration_a_id` pre-filled by the generator. `advanceByeSlots(phaseId)` runs immediately after bracket generation to propagate seeded fighters into their downstream slots so round-2 matches can form as soon as the other seed completes.
+Bye slots (`source_b_type = 'bye'`) get their `registration_a_id` from `populateBracket`, which seeds round 1 (the generator leaves every slot empty). `advanceByeSlots(phaseId)` runs at the end of `populateBracket`, not at bracket generation. It propagates seeded fighters into their downstream slots so round-2 matches can form as soon as the other seed completes.
 
 ---
 
