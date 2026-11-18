@@ -121,6 +121,12 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.backups',
         icon: 'backups',
       },
+      {
+        href: '/admin/agent-keys',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.agentKeys',
+        icon: 'aiKeys',
+      },
       { href: '/admin/audit-log', labelKey: 'admin.shell.nav.auditLog', icon: 'auditLog' },
     ],
   },

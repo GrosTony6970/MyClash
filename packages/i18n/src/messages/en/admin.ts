@@ -687,6 +687,7 @@ export const admin = {
       pendingClaims: 'Profile claims',
       systemVersions: 'System',
       backups: 'Backups',
+      agentKeys: 'Ops agent key',
       leagues: 'Leagues',
       aiDashboard: 'AI Dashboard',
       aiKeys: 'API Keys',
@@ -2507,6 +2508,37 @@ export const admin = {
       countryLabel: 'Country',
       countryError: 'A valid country is required.',
     },
+  },
+  agentKeys: {
+    title: 'Ops agent key',
+    description:
+      "The key Claude's cloud run uses to read the platform's health. It opens five read-only views and nothing else, and it never sees a person's email, phone or date of birth.",
+    howTo:
+      'Revoking stops the key at once, and a revoked key never comes back. To give the agent a new key, put a new value for OPS_AGENT_KEY in the VPS .env and deploy. To turn the agent off, empty OPS_AGENT_KEY and deploy.',
+    notConfigured:
+      'No key yet. The deploy creates it from OPS_AGENT_KEY in the VPS .env: that value is empty, or no deploy has run since it was set.',
+    loading: 'Loading the keys…',
+    loadError: 'The keys could not be loaded.',
+    accessDenied: 'Only a super admin can see the ops agent key.',
+    never: 'Never',
+    table: {
+      label: 'Key',
+      created: 'Created',
+      lastUsed: 'Last used',
+      status: 'Status',
+      actions: 'Actions',
+    },
+    status: {
+      live: 'Active',
+      revoked: 'Revoked',
+    },
+    revoke: 'Revoke',
+    confirmTitle: 'Revoke the ops agent key?',
+    confirmBody:
+      'The ops agent loses access at once. This key can never be used again: a new one needs a new value in the VPS .env and a deploy.',
+    confirm: 'Revoke key',
+    revoked: 'Key revoked.',
+    revokeFailed: 'The key could not be revoked.',
   },
   backups: {
     title: 'Backup Management',

@@ -693,6 +693,7 @@ export const admin = {
       pendingClaims: 'Revendications de profil',
       systemVersions: 'Système',
       backups: 'Sauvegardes',
+      agentKeys: "Clé de l'agent ops",
       leagues: 'Ligues',
       aiDashboard: 'Tableau de bord IA',
       aiKeys: 'Clés API',
@@ -2517,6 +2518,37 @@ export const admin = {
       countryLabel: 'Pays',
       countryError: 'Un pays valide est requis.',
     },
+  },
+  agentKeys: {
+    title: "Clé de l'agent ops",
+    description:
+      "La clé avec laquelle la session cloud de Claude lit l'état de la plateforme. Elle ouvre cinq vues en lecture seule et rien d'autre, et ne voit jamais l'e-mail, le téléphone ni la date de naissance d'une personne.",
+    howTo:
+      "Révoquer arrête la clé aussitôt, et une clé révoquée ne revient jamais. Pour donner une nouvelle clé à l'agent, mettez une nouvelle valeur pour OPS_AGENT_KEY dans le .env du VPS et déployez. Pour éteindre l'agent, videz OPS_AGENT_KEY et déployez.",
+    notConfigured:
+      "Aucune clé pour l'instant. Le déploiement la crée à partir d'OPS_AGENT_KEY dans le .env du VPS : cette valeur est vide, ou aucun déploiement n'a eu lieu depuis qu'elle a été posée.",
+    loading: 'Chargement des clés…',
+    loadError: "Les clés n'ont pas pu être chargées.",
+    accessDenied: "Seul un super admin peut voir la clé de l'agent ops.",
+    never: 'Jamais',
+    table: {
+      label: 'Clé',
+      created: 'Créée',
+      lastUsed: 'Dernier usage',
+      status: 'Statut',
+      actions: 'Actions',
+    },
+    status: {
+      live: 'Active',
+      revoked: 'Révoquée',
+    },
+    revoke: 'Révoquer',
+    confirmTitle: "Révoquer la clé de l'agent ops ?",
+    confirmBody:
+      "L'agent ops perd l'accès aussitôt. Cette clé ne pourra plus jamais servir : une nouvelle demande une nouvelle valeur dans le .env du VPS et un déploiement.",
+    confirm: 'Révoquer la clé',
+    revoked: 'Clé révoquée.',
+    revokeFailed: "La clé n'a pas pu être révoquée.",
   },
   backups: {
     title: 'Gestion des sauvegardes',
