@@ -141,7 +141,7 @@ Used at each Lice by a designated scorekeeper. One device per Lice. Functions:
 - Per-exchange entry: clean hit (red/blue, with the hit buttons the ruleset gives), afterblow (with retaliation value), double, no-exchange.
 - Undo last entry (a hit or a card).
 - End match → the server records the result.
-- Scoring works offline; it queues exchanges to IndexedDB and syncs when the network returns. Re-open, clock Reset, Unlock and the corrections drawer need the network.
+- Scoring works offline; it queues exchanges to IndexedDB and syncs when the network returns. Re-open, clock Reset, Unlock and the corrections drawer need the network, except the direct card in the drawer, which is queued like a hit.
 
 ### 2.3 Organizer Admin (responsive web, desktop-first)
 

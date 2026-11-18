@@ -94,7 +94,7 @@ Scoring never sets `data-accent`. The accent is red.
 
 ## Don't
 
-- **Don't** assume a network. Scoring a bout must work offline and reconcile later. A few actions need the network and are refused without it: the corrections drawer (`MatchCorrectionsDrawer`), Re-open and Reset of the clock, and Unlock of a locked Match (`MatchView`).
+- **Don't** assume a network. Scoring a bout must work offline and reconcile later. A few actions need the network and are refused without it: the corrections drawer (`MatchCorrectionsDrawer`; its direct card is queued like a hit), Re-open and Reset of the clock, and Unlock of a locked Match (`MatchView`).
 - **Don't** add a hover state and rely on it. This is a touch device; there is no pointer.
 - **Don't** shrink a target below 44px, ever, for any reason.
 - **Don't** restyle the corners.
