@@ -81,7 +81,7 @@ Scoring never sets `data-accent`. The accent is red.
 
 ## On the pad
 
-- **Protests.** Each fighter's column has a protest button in its card-chip row (`ProtestButton`, with the `HandMark` glyph). One tap records a protest, with no question, offline like a hit, and it can be undone. The button shows the count, or `count/limit` when the Tournament sets a limit, and from the limit on it turns to the warning tone (`bg-warning/20 text-warning border-warning`) and the pad offers the penalty the Tournament configured (`ProtestControl`). The same button is on the round-break and result screens. It is drawn with tokens only: unlike a card, a protest has no colour of its own.
+- **Protests.** Each fighter's column has a protest button in its card-chip row (`ProtestButton`, with the `HandMark` glyph). One tap records a protest, with no question, offline like a hit, and it can be undone. The button shows the count, or `count/limit` when the Tournament sets a limit, and from the limit on it turns to the warning tone (`bg-warning/15 text-warning border-warning`). Past the limit (with a limit of 2, at the third protest and each one after it), the pad offers the penalty the Tournament configured (`ProtestControl`, `lib/protest-offer.ts`). The same button is on the round-break and result screens. It is drawn with tokens only: unlike a card, a protest has no colour of its own.
 - **The sync bar.** `SyncBar`, on the pad and on the piste screen, is a thin line while all is sent, and a 44px bar with a button when the scorekeeper must act; it turns to `danger` when the server refused a press. `QuarantineInbox` is the dialog that lists what the tablet is holding back — hits, cards, whole bouts — and lets the scorekeeper retry or discard each. The sign-in screen says when the tablet still holds unsent entries (`UnsentHitsNotice`).
 - **The offline drill.** `StartOfflineDrill`, on the piste list and deliberately not on the pad, puts the tablet off the network on purpose for a set time, and `OfflineDrillBanner` says so until it ends; the queue is sent then with no tap.
 - **Stay awake.** The pad holds a wake lock (`useWakeLock`) for as long as a Match is open.
@@ -94,7 +94,7 @@ Scoring never sets `data-accent`. The accent is red.
 
 ## Don't
 
-- **Don't** assume a network. Every interaction must work offline and reconcile later.
+- **Don't** assume a network. Scoring a bout must work offline and reconcile later. A few actions need the network and are refused without it: the corrections drawer (`MatchCorrectionsDrawer`), Re-open and Reset of the clock, and Unlock of a locked Match (`MatchView`).
 - **Don't** add a hover state and rely on it. This is a touch device; there is no pointer.
 - **Don't** shrink a target below 44px, ever, for any reason.
 - **Don't** restyle the corners.
