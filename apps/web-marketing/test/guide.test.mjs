@@ -31,6 +31,21 @@ test('guide pages exist in both languages, one per Markdown file', () => {
   assert.deepEqual(en.sort(), fr.sort(), 'the FR and EN guides do not build the same pages');
 });
 
+test('a guide page has the same place in the reading order in both languages', () => {
+  // `order` drives the contents list and the "Next step" chain; a page placed
+  // differently in one language would send its readers through another route.
+  const orderOf = (locale) =>
+    Object.fromEntries(
+      readdirSync(join(GUIDE_SRC, locale))
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => {
+          const front = readFileSync(join(GUIDE_SRC, locale, f), 'utf8');
+          return [f, Number(/^order:\s*(\d+)\s*$/mu.exec(front)?.[1])];
+        }),
+    );
+  assert.deepEqual(orderOf('en'), orderOf('fr'), 'a page has a different order in EN and FR');
+});
+
 test('every guide page but the last links to the next one', () => {
   for (const prefix of ['/guide', '/en/guide']) {
     const routes = guideRoutes(prefix);

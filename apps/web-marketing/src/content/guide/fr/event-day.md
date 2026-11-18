@@ -25,7 +25,7 @@ deux minutes qui montre au marqueur la tablette sans wifi.
 
 ## Marquer un combat
 
-![La tablette de score : un combat de poule prêt à démarrer](../../../assets/guide/07-pad.png)
+![La tablette de score : un combat de poule en pause à 0–0, avec le bouton Reprendre](../../../assets/guide/07-pad.png)
 
 - **Démarrer** lance le chrono ; **Pause** l'arrête ; **Reprendre** le relance.
 - Chaque combattant a des boutons **Touche propre** (+2, +1) et **Contre-frappe** (2-1, 1-1),
@@ -41,7 +41,7 @@ tournoi.
 ## Quand le wifi tombe
 
 La barre en haut de la tablette affiche **EN LIGNE** en vert. Quand le réseau tombe, elle devient
-grise et indique que les échanges sont en attente sur la tablette. **Continuez à marquer** : les
+grise et indique que les échanges sont en attente sur la tablette. Continuez à marquer : les
 touches, les cartons et le chrono sont gardés sur la tablette et envoyés dès que le réseau
 revient. Seules les corrections (dans **Actions du match**) ont besoin du réseau.
 

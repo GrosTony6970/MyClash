@@ -27,10 +27,8 @@ body {
 /* ── CONTENTS ─────────────────────────────────── */
 .guide-toc ol {
   list-style: none;
-  counter-reset: guide;
 }
 .guide-toc li {
-  counter-increment: guide;
   margin-bottom: 0.4rem;
 }
 .guide-toc a {

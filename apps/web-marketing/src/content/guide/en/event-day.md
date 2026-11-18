@@ -24,7 +24,7 @@ the scorekeeper what the pad looks like without wifi.
 
 ## Score a bout
 
-![The scoring pad on a tablet, a pool bout ready to start](../../../assets/guide/07-pad.png)
+![The scoring pad on a tablet: a pool bout paused at 0–0, with the Resume button](../../../assets/guide/07-pad.png)
 
 - **Start** runs the clock; **Pause** stops it; **Resume** starts it again.
 - Each fighter has **Clean hit** buttons (+2, +1) and **Afterblow** buttons (2-1, 1-1), as the
@@ -40,7 +40,7 @@ ruleset.
 ## When the wifi drops
 
 The bar at the top of the pad says **ONLINE** in green. When the network goes, it turns grey and
-says that the exchanges are queued on the tablet. **Keep scoring**: hits, cards and clock presses
+says that the exchanges are queued on the tablet. Keep scoring: hits, cards and clock presses
 are kept on the tablet and sent as soon as the network comes back. Only the corrections (in
 **Match actions**) need the network.
 

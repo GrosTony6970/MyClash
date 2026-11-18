@@ -33,7 +33,8 @@ On your event, open **Tournaments** and click **Create tournament**. The form ha
 
 ## Change the settings later
 
-Every tournament has a **Settings** page with the same tabs, plus **Auto-lock** and **Recap**.
+Every tournament has a settings page with the same tabs, plus **Venues**, **Auto-lock** and
+**Recap**.
 Change what you need and click **Save changes**.
 
 ![The settings page of a tournament](../../../assets/guide/02-tournament-settings.png)

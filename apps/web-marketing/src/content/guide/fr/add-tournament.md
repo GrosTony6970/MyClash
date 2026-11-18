@@ -35,7 +35,8 @@ quatre étapes : **Bases**, **Format des matchs**, **Affichage**, **Avancé**.
 
 ## Modifier les réglages plus tard
 
-Chaque tournoi a une page de **réglages** avec les mêmes onglets, plus **Verrouillage auto** et
+Chaque tournoi a une page **Paramètres du tournoi** avec les mêmes onglets, plus **Lieux**,
+**Verrouillage auto** et
 **Récap**. Modifiez ce qu'il faut et cliquez sur **Enregistrer**.
 
 ![La page de réglages d'un tournoi](../../../assets/guide/02-tournament-settings.png)
