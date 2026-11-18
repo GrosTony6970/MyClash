@@ -32,6 +32,7 @@ import { describe, expect, it } from 'vitest';
 import { AIDataQualityController } from '../ai-data-quality.controller';
 import { AuditLogAdminController } from '../audit-log.controller';
 import { BackupsAdminController } from '../backups.controller';
+import { AdminAgentKeysController } from '../../ops-agent/admin-agent-keys.controller';
 import { ClaimRequestsAdminController } from '../claim-requests.controller';
 import { CustomRulesetsAdminController } from '../custom-rulesets/custom-rulesets.controller';
 import { AdminDashboardStatsController } from '../dashboard-stats.controller';
@@ -67,6 +68,7 @@ type Ctor = new (...args: never[]) => object;
 
 /** Every controller that attaches PlatformRoleGuard, at class or method level. */
 const CONTROLLERS: Ctor[] = [
+  AdminAgentKeysController,
   AIDataQualityController,
   AuditLogAdminController,
   BackupsAdminController,
@@ -125,6 +127,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['DELETE /admin/weapons/:id', 'platform_admin'],
   ['DELETE /clubs/:id', 'platform_admin'],
   ['DELETE /clubs/:id/logo', 'platform_admin'],
+  ['GET /admin/agent-keys', 'super_admin'],
   ['GET /admin/ai-keys', 'super_admin'],
   ['GET /admin/ai-settings', 'super_admin'],
   ['GET /admin/ai-usage/summary', 'platform_viewer'],
@@ -191,6 +194,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['PATCH /clubs/:id/unverify', 'platform_admin'],
   ['PATCH /clubs/:id/verify', 'platform_admin'],
   ['PATCH /global-persons/:id', 'platform_admin'],
+  ['POST /admin/agent-keys/:id/revoke', 'super_admin'],
   ['POST /admin/ai-keys', 'super_admin'],
   ['POST /admin/ai-keys/:id/activate', 'super_admin'],
   ['POST /admin/ai-keys/:id/model-sync', 'super_admin'],
@@ -345,6 +349,7 @@ describe('platform tier coverage', () => {
       'GET /admin/users/:id/temp-password', // returns a plaintext credential
       'GET /admin/audit-log/export.csv', // bulk personal data leaving the platform
       'GET /admin/ai-keys', // BYOK secret values
+      'POST /admin/agent-keys/:id/revoke', // switches the ops agent off
       'GET /admin/feature-flags', // the lockdown + read-only kill switches
       'GET /admin/backups/:backupId/download', // streams the database
       'GET /admin/data-retention', // GDPR configuration

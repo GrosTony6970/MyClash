@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from '../admin/admin.module';
+import { AdminAgentKeysController } from './admin-agent-keys.controller';
 import { AgentKeyGuard } from './agent-key.guard';
+import { AgentKeysService } from './agent-keys.service';
 import { OpsAgentController } from './ops-agent.controller';
 
 /**
@@ -9,7 +11,7 @@ import { OpsAgentController } from './ops-agent.controller';
  */
 @Module({
   imports: [AdminModule],
-  controllers: [OpsAgentController],
-  providers: [AgentKeyGuard],
+  controllers: [OpsAgentController, AdminAgentKeysController],
+  providers: [AgentKeyGuard, AgentKeysService],
 })
 export class OpsAgentModule {}
