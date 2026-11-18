@@ -174,9 +174,8 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
       (await page.locator('main').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
     const e2eEmail = (process.env.E2E_ADMIN_EMAIL ?? '').toLowerCase();
     expect(
-      shownEmails.filter(
-        (email) => email.toLowerCase() !== e2eEmail && !email.endsWith('@club.org'),
-      ),
+      // innerText never holds the form's placeholder, so no address is exempt.
+      shownEmails.filter((email) => email.toLowerCase() !== e2eEmail),
       'the members page shows someone other than the E2E account — not taking that screenshot',
     ).toEqual([]);
     await shot(page, '11-org-members');
@@ -220,6 +219,15 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
         page.getByText(new RegExp(`^\\s*${rows}\\s*will link`, 'u')).first(),
         `not all ${rows} rows link to an existing profile — refusing to create duplicates`,
       ).toBeVisible();
+    } else {
+      // No duplicate seen: a first run on this stack. Commit only when the preview
+      // really says every row is new — a late-rendering duplicates section (the
+      // race that once added 54 profiles) shows up here as a missing "will create".
+      await expect(
+        page.getByText(new RegExp(`^\\s*${rows}\\s*will create`, 'u')).first(),
+        `the preview does not show ${rows} new rows — not committing the import`,
+      ).toBeVisible();
+      await expect(page.getByText(/^\s*0\s*will link/u).first()).toBeVisible();
     }
     await shot(page, '03-import-preview');
     await commit.click();
