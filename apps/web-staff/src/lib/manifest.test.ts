@@ -19,7 +19,19 @@ const manifest = JSON.parse(readFileSync(join(publicDir, 'manifest.json'), 'utf8
   orientation?: string;
   display: string;
   start_url: string;
+  theme_color: string;
+  background_color: string;
+  description?: string;
 };
+
+/** A token's value in one block of the shared theme: `@theme` (light) or `[data-theme='dark']`. */
+function themeToken(block: string, name: string): string | undefined {
+  const css = readFileSync(join(__dirname, '../../../../packages/ui/src/theme.css'), 'utf8');
+  const start = css.indexOf(`${block} {`);
+  if (start === -1) throw new Error(`theme.css has no ${block} block`);
+  const body = css.slice(start, css.indexOf('\n}', start));
+  return new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(body)?.[1];
+}
 
 /** Width x height from the PNG's IHDR chunk. */
 function pngSize(src: string): string {
@@ -43,5 +55,16 @@ describe('the staff manifest', () => {
     expect(manifest.display).toBe('standalone');
     expect(manifest.start_url).toBe('/');
     expect(manifest.orientation).toBeUndefined();
+  });
+
+  // A manifest is a static file: it cannot follow these when a token moves.
+  it('takes its colours from the theme: the accent, and the dark page the pad opens on', () => {
+    expect(manifest.theme_color).toBe(themeToken('@theme', '--color-accent'));
+    expect(manifest.background_color).toBe(themeToken("[data-theme='dark']", '--color-background'));
+  });
+
+  // Nothing in it goes through i18n (hard rule 6): a sentence would be in one language only.
+  it('carries no description, which could not be translated', () => {
+    expect(manifest.description).toBeUndefined();
   });
 });
