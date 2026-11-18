@@ -42,6 +42,7 @@ const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
       note in chrome.css. */}
   <div class="nav__panel" id="nav-panel">
     <ul class="nav__links">
+      <li><a href={localePath(locale, '/guide')}>{t.navGuide}</a></li>
       <li><a href={anchor(SECTION_IDS.features)}>{t.navFeatures}</a></li>
       <li><a href={anchor(SECTION_IDS.howItWorks)}>{t.navHowItWorks}</a></li>
       {/* Same link and same attributes as the footer's — the app was reachable

@@ -46,6 +46,10 @@ interface Chrome {
   /** Label for the link that switches to the *other* language. */
   readonly switchLabel: string;
   readonly switchAria: string;
+  /** The organiser guide: its nav and footer link, and the guide layout's own labels. */
+  readonly navGuide: string;
+  readonly guideContents: string;
+  readonly guideNext: string;
 }
 
 export const CHROME: Readonly<Record<Locale, Chrome>> = {
@@ -68,6 +72,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     badgeHema: 'AMHE',
     switchLabel: 'English',
     switchAria: 'Switch to English',
+    navGuide: 'Guide',
+    guideContents: 'Sommaire',
+    guideNext: 'Étape suivante',
   },
   en: {
     htmlLang: 'en',
@@ -88,6 +95,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     badgeHema: 'HEMA',
     switchLabel: 'Français',
     switchAria: 'Passer en français',
+    navGuide: 'Guide',
+    guideContents: 'Contents',
+    guideNext: 'Next step',
   },
 };
 

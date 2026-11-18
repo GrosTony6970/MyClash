@@ -15,15 +15,21 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 
 ## Pages
 
-| Path                | Source                             | Language |
-| ------------------- | ---------------------------------- | -------- |
-| `/`                 | `src/pages/index.astro`            | FR       |
-| `/en`               | `src/pages/en/index.astro`         | EN       |
-| `/privacypolicy`    | `src/pages/privacypolicy.astro`    | FR       |
-| `/en/privacypolicy` | `src/pages/en/privacypolicy.astro` | EN       |
-| `/terms`            | `src/pages/terms.astro`            | FR       |
-| `/en/terms`         | `src/pages/en/terms.astro`         | EN       |
-| any unknown path    | `src/pages/404.astro`              | FR + EN  |
+| Path                | Source                               | Language |
+| ------------------- | ------------------------------------ | -------- |
+| `/`                 | `src/pages/index.astro`              | FR       |
+| `/en`               | `src/pages/en/index.astro`           | EN       |
+| `/privacypolicy`    | `src/pages/privacypolicy.astro`      | FR       |
+| `/en/privacypolicy` | `src/pages/en/privacypolicy.astro`   | EN       |
+| `/terms`            | `src/pages/terms.astro`              | FR       |
+| `/en/terms`         | `src/pages/en/terms.astro`           | EN       |
+| `/guide/…`          | `src/pages/guide/[...slug].astro`    | FR       |
+| `/en/guide/…`       | `src/pages/en/guide/[...slug].astro` | EN       |
+| any unknown path    | `src/pages/404.astro`                | FR + EN  |
+
+The organiser guide's pages are Markdown, one file per page per language, in
+`src/content/guide/{fr,en}/` (collection in `src/content.config.ts`, paths in `src/lib/guide.ts`,
+layout `src/layouts/Guide.astro`). A page added in one language only fails `test/site.test.mjs`.
 
 **`/terms` and `/privacypolicy` are load-bearing URLs.** `LEGAL_POLICIES[kind].path` in
 `packages/types/src/legal.ts` publishes them, and `legal-url.ts` in `web-public` and `web-admin`

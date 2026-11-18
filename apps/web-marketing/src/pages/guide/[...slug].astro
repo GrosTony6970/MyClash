@@ -1,0 +1,10 @@
+---
+import Guide from '../../layouts/Guide.astro';
+import { guideStaticPaths } from '../../lib/guide';
+
+export const getStaticPaths = () => guideStaticPaths('fr');
+
+const { entry, pages } = Astro.props;
+---
+
+<Guide locale="fr" entry={entry} pages={pages} />

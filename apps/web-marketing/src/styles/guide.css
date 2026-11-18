@@ -1,0 +1,235 @@
+/*
+ * guide.css — the organiser guide pages only.
+ *
+ * A light document, like the landing page: the guide is read beside the app,
+ * and its screenshots are light screens.
+ */
+
+body {
+  background: var(--white);
+  color: var(--dark);
+}
+
+.guide {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 3rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: calc(var(--nav-h) + 3rem) 5% 5rem;
+}
+
+.guide__main {
+  min-width: 0;
+  max-width: 75ch;
+}
+
+/* ── CONTENTS ─────────────────────────────────── */
+.guide-toc ol {
+  list-style: none;
+  counter-reset: guide;
+}
+.guide-toc li {
+  counter-increment: guide;
+  margin-bottom: 0.4rem;
+}
+.guide-toc a {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  border-left: 2px solid var(--grey-mid);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--dark-mid);
+  text-decoration: none;
+}
+.guide-toc a:hover,
+.guide-toc a:focus-visible {
+  color: var(--blue);
+  border-left-color: var(--blue-light);
+}
+.guide-toc a[aria-current='page'] {
+  color: var(--blue);
+  font-weight: 700;
+  border-left-color: var(--blue);
+}
+
+.guide-toc__title,
+.guide-toc summary {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 0.8rem;
+}
+
+.guide-toc--wide {
+  position: sticky;
+  top: calc(var(--nav-h) + 2rem);
+  align-self: start;
+}
+
+.guide-toc--narrow {
+  display: none;
+  margin-bottom: 2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--grey-mid);
+  border-radius: 6px;
+  background: var(--grey-light);
+}
+.guide-toc--narrow summary {
+  cursor: pointer;
+  margin-bottom: 0;
+}
+.guide-toc--narrow[open] summary {
+  margin-bottom: 0.8rem;
+}
+
+/* ── BODY ─────────────────────────────────────── */
+.guide__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--dark);
+  margin-bottom: 1.5rem;
+}
+
+.guide__body h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin: 2.5rem 0 1rem;
+}
+.guide__body h3 {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dark-mid);
+  margin: 2rem 0 0.8rem;
+}
+.guide__body p,
+.guide__body ul,
+.guide__body ol {
+  font-size: 1.1rem;
+  line-height: 1.75;
+  margin-bottom: 1rem;
+}
+.guide__body ul,
+.guide__body ol {
+  padding-left: 1.5rem;
+}
+.guide__body li {
+  margin-bottom: 0.35rem;
+}
+.guide__body a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+.guide__body strong {
+  color: var(--dark);
+}
+.guide__body code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--grey-light);
+}
+.guide__body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem 0;
+  border: 1px solid var(--grey-mid);
+  border-radius: 6px;
+}
+
+/* Tables scroll inside themselves, never the page. */
+.guide__body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem;
+  font-size: 1rem;
+}
+.guide__body th {
+  background: var(--dark-mid);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+}
+.guide__body td {
+  border: 1px solid var(--grey-mid);
+  padding: 0.55rem 0.8rem;
+  line-height: 1.5;
+  vertical-align: top;
+}
+
+/* "Hard to undo" callouts, written as <aside class="guide-warn"> in the Markdown. */
+.guide-warn {
+  margin: 1.5rem 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--grey-mid);
+  border-left: 4px solid var(--red);
+  border-radius: 0 6px 6px 0;
+  background: var(--grey-light);
+}
+.guide-warn p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── NEXT STEP ────────────────────────────────── */
+.guide-next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 3rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--grey-mid);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--dark);
+}
+.guide-next:hover,
+.guide-next:focus-visible {
+  border-color: var(--blue);
+}
+.guide-next__label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.guide-next__title {
+  font-size: 1.2rem;
+  color: var(--blue);
+}
+
+/* ── PHONE ────────────────────────────────────── */
+@media (max-width: 48rem) {
+  .guide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-top: calc(var(--nav-h) + 1.5rem);
+  }
+  .guide-toc--wide {
+    display: none;
+  }
+  .guide-toc--narrow {
+    display: block;
+  }
+}

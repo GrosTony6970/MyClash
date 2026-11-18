@@ -1,0 +1,89 @@
+---
+/**
+ * One page of the organiser guide, in either language.
+ *
+ * The contents list is rendered twice from one array: as a sidebar on a wide
+ * screen and inside a closed <details> on a phone. A single <details> cannot be
+ * forced open by CSS on desktop in every browser, so the two are swapped by a
+ * media query instead.
+ */
+import { render } from 'astro:content';
+import Base from './Base.astro';
+import { CHROME, localePath, type Locale } from '../i18n/ui';
+import { guideRoute, type GuideEntry } from '../lib/guide';
+import '../styles/guide.css';
+
+interface Props {
+  locale: Locale;
+  entry: GuideEntry;
+  /** This language's guide pages, sorted by `order`. */
+  pages: GuideEntry[];
+}
+
+const { locale, entry, pages } = Astro.props;
+const t = CHROME[locale];
+const { Content } = await render(entry);
+
+const route = guideRoute(entry);
+const next = pages[pages.findIndex((page) => page.id === entry.id) + 1];
+const toc = pages.map((page) => ({
+  href: localePath(locale, guideRoute(page)),
+  title: page.data.title,
+  current: page.id === entry.id,
+}));
+---
+
+<Base
+  locale={locale}
+  route={route}
+  title={`${entry.data.title} — MyClash`}
+  description={entry.data.description}
+>
+  <div class="guide">
+    <nav class="guide-toc guide-toc--wide" aria-label={t.guideContents}>
+      <p class="guide-toc__title">{t.guideContents}</p>
+      <ol>
+        {
+          toc.map((item) => (
+            <li>
+              <a href={item.href} aria-current={item.current ? 'page' : undefined}>
+                {item.title}
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </nav>
+
+    <main class="guide__main" id="main-content">
+      <details class="guide-toc guide-toc--narrow">
+        <summary>{t.guideContents}</summary>
+        <ol>
+          {
+            toc.map((item) => (
+              <li>
+                <a href={item.href} aria-current={item.current ? 'page' : undefined}>
+                  {item.title}
+                </a>
+              </li>
+            ))
+          }
+        </ol>
+      </details>
+
+      <h1 class="guide__title">{entry.data.title}</h1>
+      <div class="guide__body">
+        <Content />
+      </div>
+
+      {
+        next && (
+          <a class="guide-next" href={localePath(locale, guideRoute(next))}>
+            <span class="guide-next__label">{t.guideNext}</span>
+            <span class="guide-next__title">{next.data.title} →</span>
+          </a>
+        )
+      }
+    </main>
+  </div>
+</Base>
