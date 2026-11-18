@@ -127,12 +127,15 @@ The operator picked A, and added watched SSH (decision 5), which needs nothing b
   the key (the house pattern of `person-email-change.service.ts`: `randomBytes(32)` base64url, the
   raw value is never stored), `created_at`, `last_used_at`, `revoked_at`. RLS on, no rule (hard
   rule 4).
-- **A fifth identity kind, `agent`.** The global guard resolves a bearer value that matches a live
-  key to `{ kind: 'agent', userId }`. A key has a fixed prefix so the guard tells it from a login
-  token without a database read on every request.
-- **The wall.** Only the agent routes (section 2) accept the `agent` kind. Every other route treats
-  it as it treats a stranger. Masking is therefore a list of routes Claude may call, not a list of
-  fields to hide on 755 operations.
+- **A dedicated guard, not a fifth identity kind** (built in slice 1; this design first described
+  an `agent` kind in the global guard, and left the choice to the builder). `@AgentDoor()` is
+  `@Public()` plus `AgentKeyGuard`, which accepts a live key from the `Authorization` header only.
+  Eleven places branch on the identity kind, and every other reader of the bearer already refuses a
+  key that is not a login, so a fifth kind would have touched all of them for nothing. A key has a
+  fixed prefix (`mca_`) so the guard refuses a login token before reading the table.
+- **The wall.** Only the agent routes (section 2) accept the key. Every other route treats it as an
+  expired login. Masking is therefore a list of routes Claude may call, not a list of fields to hide
+  on 755 operations. `docs/ARCHITECTURE.md` §17.8 says how it is held.
 - **The key survives a wipe.** The operator wipes and redeploys the whole stack every few commits,
   and a wipe empties the key table. So the deploy seeds the account and the key's hash from one
   value in the VPS `.env`, the way `bootstrap-super-admin.mjs` seeds the first super admin from
@@ -381,7 +384,9 @@ Two facts the build must respect:
    through, the edge lets the cloud's address in, the payload arrives, the Resend network secret
    works. If the certificate is refused, the fallback of decision 8 applies (guide step G0). If
    the edge refuses the cloud, the choice of approach goes back to the operator.
-1. **Account, key, identity kind, the door's health reads, the console's key screen.**
+1. **Account, key, the door's guard, the door's health reads, the console's key screen.** Built
+   2026-11-18 (`153b18b05`…), plan `docs/superpowers/plans/2026-11-18-ops-agent-slice1.md`; live
+   check with the operator's guide step G4 after the redeploy.
 2. **Ops-runner log and status reads, exposed on the door with free-text masking.**
 3. **The skill, the cloud task, the daily round, the email report.**
 4. **Actions on the door, the "is an Event running" read, and the push.**
