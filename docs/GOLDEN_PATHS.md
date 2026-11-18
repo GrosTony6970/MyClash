@@ -47,7 +47,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 2. Select assigned Lice
 3. Open the current match
 4. Record 5 exchanges (mix of clean hits, afterblows, doubles)
-5. Submit final score
+5. Press "End match"
 6. **Expected result (online):** Match result appears on spectator app within 2 seconds
 7. **Expected result (offline):** Score saved locally; reconnect wifi → result syncs automatically
 
@@ -125,8 +125,8 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 
 1. Load the scorekeeper app while online
 2. Disable network entirely
-3. Score a complete match (multiple exchanges, submit)
-4. Verify app shows "offline — pending sync" indicator
+3. Score a complete match (multiple exchanges, then "End match")
+4. Verify the sync bar shows "OFFLINE - exchanges queued locally"
 5. Re-enable network
 6. **Expected result:** Pending exchanges sync within 10 seconds; match result visible on spectator app
 
@@ -142,7 +142,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 2. Disable network entirely
 3. Start the bout, pause it, score exchanges, end it
 4. Reload the page in the middle of a bout
-5. Tap "Next match" to open the next bout of the piste
+5. Tap "NEXT" (the next-bout tile in the pad header, or the button on the result screen) to open the next bout of the piste
 6. Re-enable network
 7. **Expected result:** the reload opens the bout from the tablet's own copy; the next bout opens with no network; after reconnect the server holds both bouts, in order
 
