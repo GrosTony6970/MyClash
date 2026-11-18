@@ -24,6 +24,7 @@
     "test:scripts": "node --import tsx --test \"scripts/*.test.mjs\" \"scripts/lib/*.test.mjs\" \"infra/ops-runner/*.test.mjs\" \"eslint-rules/*.test.mjs\"",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:prod": "playwright test -c playwright.e2e.config.ts",
+    "guide:screenshots": "playwright test -c playwright.guide.config.ts",
     "security:client-secrets": "node scripts/check-client-secret-boundaries.mjs",
     "security:audit": "pnpm audit --audit-level high",
     "security:repo-advisories": "node scripts/check-repo-advisories.mjs",

@@ -1359,6 +1359,23 @@ through every surface that reads it, on a real Match of its own published
   bracket and Swiss bouts.
 - Written from the code, not yet seen passing: read its first run as a first run.
 
+## The organiser guide's screenshots (by hand)
+
+`tests/guide/screenshots.spec.ts` is not part of this suite. It has its own config,
+`playwright.guide.config.ts`, and reuses this suite's login (`global-setup.ts`) and helpers.
+
+```bash
+E2E_CLEANUP=1 pnpm guide:screenshots
+```
+
+- It builds one `test` Event named "Testville Open 2099". It never publishes it and never changes
+  its kind. It imports the invented roster in `tests/guide/fixtures/guide-roster.csv` through the
+  import screen, plays the Pools and a bracket to a champion, and saves PNGs to
+  `apps/web-marketing/src/assets/guide/`. Then it hard-deletes the Event, even after a failure.
+- `E2E_CLEANUP=1` also deletes the throwaway Event that `global-setup.ts` creates.
+- It writes to the stack that `E2E_BASE_URL` names. Re-run it when a screen the guide shows
+  changes, and look at every PNG before committing: English UI, no real person.
+
 ## Status
 
 | #   | Flow                                    | Spec                                | State                                                 |

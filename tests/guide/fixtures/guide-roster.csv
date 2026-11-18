@@ -1,0 +1,19 @@
+given_name;family_name;display_name;club;club_abv;club_city;hema_ratings_id;email;date_of_birth;is_fighter;is_referee;is_workshop_participant
+Camille;Brindevent;Camille Brindevent;Salle d'Armes de Testville;SAT;Testville;;;;1;0;0
+Hugo;Morlacq;Hugo Morlacq;Salle d'Armes de Testville;SAT;Testville;;;;1;0;0
+Léa;Quernuvel;Léa Quernuvel;Salle d'Armes de Testville;SAT;Testville;;;;1;0;0
+Nathan;Ostrevaux;Nathan Ostrevaux;Salle d'Armes de Testville;SAT;Testville;;;;1;0;0
+Inès;Valtorbe;Inès Valtorbe;Cercle Exemple;CEX;Testville;;;;1;0;0
+Lucas;Ferrandille;Lucas Ferrandille;Cercle Exemple;CEX;Testville;;;;1;0;0
+Chloé;Gravemontel;Chloé Gravemontel;Cercle Exemple;CEX;Testville;;;;1;0;0
+Théo;Pluvinard;Théo Pluvinard;Cercle Exemple;CEX;Testville;;;;1;0;0
+Manon;Escarvelle;Manon Escarvelle;Les Lames Fictives;LLF;Testville;;;;1;0;0
+Jules;Torvignac;Jules Torvignac;Les Lames Fictives;LLF;Testville;;;;1;0;0
+Sarah;Lamebrune;Sarah Lamebrune;Les Lames Fictives;LLF;Testville;;;;1;0;0
+Malo;Fictorel;Malo Fictorel;Les Lames Fictives;LLF;Testville;;;;1;0;0
+Élise;Sablerond;Élise Sablerond;Salle d'Armes de Testville;SAT;Testville;;;;0;1;0
+Antoine;Croisefer;Antoine Croisefer;Salle d'Armes de Testville;SAT;Testville;;;;0;1;0
+Margot;Tiercelame;Margot Tiercelame;Cercle Exemple;CEX;Testville;;;;0;1;0
+Paul;Contrequarte;Paul Contrequarte;Cercle Exemple;CEX;Testville;;;;0;1;0
+Anaïs;Pommeval;Anaïs Pommeval;Les Lames Fictives;LLF;Testville;;;;0;1;0
+Victor;Gardehaute;Victor Gardehaute;Les Lames Fictives;LLF;Testville;;;;0;1;0

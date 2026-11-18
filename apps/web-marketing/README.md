@@ -30,6 +30,8 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 The organiser guide's pages are Markdown, one file per page per language, in
 `src/content/guide/{fr,en}/` (collection in `src/content.config.ts`, paths in `src/lib/guide.ts`,
 layout `src/layouts/Guide.astro`). A page added in one language only fails `test/site.test.mjs`.
+Its screenshots are in `src/assets/guide/`, taken by `pnpm guide:screenshots` from the repo root
+(see `tests/e2e/README.md`).
 
 **`/terms` and `/privacypolicy` are load-bearing URLs.** `LEGAL_POLICIES[kind].path` in
 `packages/types/src/legal.ts` publishes them, and `legal-url.ts` in `web-public` and `web-admin`
