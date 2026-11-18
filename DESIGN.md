@@ -521,3 +521,10 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Do** let every page open its own container. No shell pads its content region.
 - **Do** keep motion between 120–420ms and wrap every animation in a `prefers-reduced-motion` guard.
 - **Don't** tokenize the animation easing. The hand-written keyframes use the CSS keyword `ease-out` (`cubic-bezier(0,0,0.58,1)`); Tailwind's `--ease-out` is `cubic-bezier(0,0,0.2,1)`. They are different curves.
+
+### Content
+
+- **Don't** show a database id to a person. An organiser reads `custom-bed9d10f-a1b2c3` as broken UI, not as data. Render the human field: the display override, then the name, then a composed `given_name family_name` (`formatPersonName()` in `apps/api/src/modules/staff/lice-matches.ts`).
+- **Do** load the name in the same query as the id. A payload that carries only `{ id, …Ids }` gets its names added on the server, not looked up again in the client.
+- **Do** hand a component a resolved label, the way `SkillBadge` takes `label`, never an id for it to resolve.
+- **Do** treat the raw id as the last link of the chain, there only so a screen is never blank. When it shows, the chain upstream is incomplete: fix the chain. The same holds for an id in a `title` or an `aria-label`.
