@@ -12,7 +12,9 @@
  * added at hydration would miss it; the inline capture keeps it.
  */
 import { test, expect, type Page } from '@playwright/test';
+import { stubPublicApi } from './helpers';
 import { PAD, stubSignIn } from './pad-sign-in-stub';
+import { PUBLIC } from './public-pages-stub';
 
 /**
  * Chromium's reasons not to install the page, once its manifest is read.
@@ -77,6 +79,30 @@ test.describe('Chromium installs', () => {
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.json');
 
     await expect.poll(() => installabilityErrors(page)).toEqual([]);
+  });
+
+  test('the public catalogue', async ({ page }) => {
+    await stubPublicApi(page);
+    await page.goto(`${PUBLIC}/`);
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.json');
+
+    await expect.poll(() => installabilityErrors(page)).toEqual([]);
+  });
+});
+
+test.describe('the public app', () => {
+  test('the footer offers to install, once', async ({ page }) => {
+    await stubPublicApi(page);
+    await offerAtLoad(page);
+    await page.goto(`${PUBLIC}/`);
+
+    await page
+      .locator('footer')
+      .getByRole('button', { name: /install the app/i })
+      .click();
+
+    expect(await prompted(page)).toBe(1);
+    await expect(installButton(page)).toHaveCount(0);
   });
 });
 

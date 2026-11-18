@@ -119,6 +119,17 @@ The **"My Schedule"** view is the unified personal view (matches the beta compan
 - Day filter (Saturday/Sunday)
 - "Focus on me" vs "Show all" toggle
 
+**Installing it.** Android installs the public app from its manifest
+(`apps/web-public/public/manifest.json`, linked by the root layout's metadata).
+The public app has no offline copy: installing it gives a home-screen icon and
+a window with no address bar, nothing more. Chrome says an app can be installed
+with ONE event, `beforeinstallprompt`, soon after load; an inline script
+(`InstallOfferCapture`, `packages/ui/src/hooks/install-offer.ts`) keeps it
+before React runs, and cancels Chrome's own bar, so the app's button is the
+only ask. `InstallAppButton` shows while an offer is kept: here in the footer
+of every page but the TV displays, on the staff app on its sign-in screen
+(§10.4). Safari sends no such event, so an iPhone never sees the button.
+
 Reference design: `DESIGN.md` at the repo root (the "Tournament Manual" language: Fraunces, Geist and JetBrains Mono, tokens in `packages/ui/src/theme.css`). It is **canonical**. The prototype HTML this line used to name (Cinzel + Inter) was deleted on 2026-08-06; only the marketing site still carries that older look (`docs/design/known-deviations.md`, D4). Beta companion app at `https://myfal.lyonamhe.fr/` is the reference for "My Schedule" interaction.
 
 ### 2.2 Scorekeeper App (PWA, tablet-first, offline-tolerant)
@@ -1908,7 +1919,17 @@ bouts is where an official sees that entries still wait.
   named after the new commit, and a bout opens from it with no network.
   `tests/e2e/41-next-bout-no-network.spec.ts` is the same story against a
   deployed stack.
-- Manifest installs as standalone tablet app.
+- **Android installs the staff app from `staff.${DOMAIN}` only.** The manifest
+  (`public/manifest.json`: icons of 192 and 512 px plus a maskable 512, no
+  orientation lock) is linked by `ManifestLink`, decided in the browser as the
+  worker registration is: `manifestHrefFor` (`src/lib/nav.ts`) gives no link
+  under the organiser site's `/staff`, where `/manifest.json` is the organiser
+  app's and the pad's bare navigations would leave its folder (operator ruling,
+  2026-11-18). The sign-in screen shows `InstallAppButton` while Chrome offers
+  to install; the offer itself is kept before React runs (§2.1 says how).
+  `tests/a11y/install-offer.spec.ts` asks Chromium's own verdict
+  (`Page.getInstallabilityErrors`) of the FULL browser: Playwright's default
+  headless shell gives no verdict at all.
 - The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The states are `SyncStatus` in `offline/sync.ts`: `idle`, `syncing`, `offline`, `maintenance`, `error`, `signed-out` and the three refusals of the caller (see the state machine in §10.2).
 
 ### 10.5 The offline drill
