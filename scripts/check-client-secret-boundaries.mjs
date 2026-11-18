@@ -31,6 +31,8 @@ export const forbiddenEnvKeys = [
   'MYCLASH_STAFF_JWT_SECRET',
   'AI_KEY_SECRET',
   'OPS_RUNNER_SECRET',
+  // The ops agent's key: its name lives in packages/i18n messages, never under apps/web-*.
+  'OPS_AGENT_KEY',
   'RESEND_API_KEY',
   // The Resend API key, as GoTrue's SMTP password. It replaces SMTP_PASSWORD, a name nothing
   // declares, which therefore never matched anything (ruling 511).

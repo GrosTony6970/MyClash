@@ -782,6 +782,29 @@ else
   ok "Super admin account already exists — bootstrap roles verified"
 fi
 
+# ── Ops agent key ─────────────────────────────────────────────────
+# The ops agent's key from .env (docs/superpowers/specs/2026-11-18-ops-agent-design.md).
+# An empty OPS_AGENT_KEY turns the agent off: every agent key is revoked. The key
+# goes in by name only (ruling 425); the script prints its state, never the key. A
+# failure warns and never stops the deploy.
+hdr "Ops agent key"
+OPS_AGENT_RESULT=$("${COMPOSE[@]}" \
+  run --rm \
+  -e SUPABASE_URL="http://supabase-auth:9999" \
+  -e DATABASE_URL \
+  -e DOMAIN \
+  -e OPS_AGENT_KEY \
+  api node /app/scripts/bootstrap-ops-agent.mjs || true)
+OPS_AGENT_STATE=$(node -e "try{console.log(JSON.parse(process.argv[1]).state||'unknown')}catch{console.log('unknown')}" "$OPS_AGENT_RESULT")
+OPS_AGENT_ERROR=$(node -e "try{console.log(JSON.parse(process.argv[1]).error||'')}catch{console.log('')}" "$OPS_AGENT_RESULT")
+case "$OPS_AGENT_STATE" in
+  not-configured) ok "agent: not configured (OPS_AGENT_KEY is empty; every agent key is revoked)" ;;
+  created) ok "agent: key active (created)" ;;
+  existing) ok "agent: key active" ;;
+  revoked) warn "agent: key revoked — set a new OPS_AGENT_KEY in .env" ;;
+  *) warn "agent: the key seed reported an issue: ${OPS_AGENT_ERROR:-no result}" ;;
+esac
+
 # Loads .env.e2e for the opt-in E2E steps below. $1 names the flag that needs it.
 load_env_e2e() {
   if [[ ! -f .env.e2e ]]; then
