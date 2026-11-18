@@ -2,6 +2,7 @@ import { test, expect, type APIResponse } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
+import { isolateRoster, linkedNames } from './_roster';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
@@ -157,11 +158,27 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const csv = existsSync(LOCAL_CSV)
       ? LOCAL_CSV
       : (process.env.E2E_PARTICIPANTS_CSV ?? SAMPLE_CSV);
+    // Outside `step()` on purpose: `step` swallows errors, and a roster that
+    // could not be made safe must stop the run, never be imported as it is.
+    // Only the people named in E2E_POPULATE_LINKED keep what links them to a
+    // real profile and account; everyone else is a fresh profile no notice can
+    // reach (`_roster.ts`).
+    const roster = isolateRoster(
+      readFileSync(csv, 'utf8'),
+      linkedNames(process.env.E2E_POPULATE_LINKED),
+    );
+    console.log(
+      `  → roster ${csv}: ${roster.isolated} isolated, ${roster.kept} kept linked (E2E_POPULATE_LINKED)`,
+    );
     await step(`import roster (${csv})`, async () =>
       reqOk(
         await post(`events/${eventId}/persons/import`, {
           multipart: {
-            file: { name: 'roster.csv', mimeType: 'text/csv', buffer: readFileSync(csv) },
+            file: {
+              name: 'roster.csv',
+              mimeType: 'text/csv',
+              buffer: Buffer.from(roster.csv, 'utf8'),
+            },
           },
         }),
       ),

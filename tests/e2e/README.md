@@ -204,6 +204,21 @@ end prints links to the tournament / schedule / referees / workshops tabs.
 It **scores matches**, so the event can no longer be hard-deleted (by the
 recorded-results guard) — keep it for inspection or recreate the env.
 
+**The roster it imports cannot reach real people.** Importing sends nothing, but
+each row is matched to an existing profile by HEMA Ratings id, name + club, or
+email, and a row whose address matches an account is claimed by it at once. A
+real roster on prod would then send the demo's duty, bout, Workshop and results
+notices to those people, alert their followers, and leave their addresses on rows
+a broadcast or the pass mail-out can email. So before uploading, `_roster.ts`
+blanks `email`, `hema_ratings_id`, `club`, `club_abv` and `club_city` on every
+row **except** the people named in `E2E_POPULATE_LINKED` (`"Given Family"`,
+separated by `;`, in `.env.e2e` — never in the repo). Those few agreed to be
+linked and to get the demo's notices; each must match exactly one row, or the run
+stops before importing. Everyone else becomes a fresh profile with no account
+and no address, and no club. The demo's bouts are dated 2027: hide or delete the
+demo Event before then, or the bout reminders of the linked people and their
+followers fire.
+
 Each workshop also gets a **random set of attendees** enrolled (most seats filled,
 some waitlisted), with David / Robin / Anthony each guaranteed a seat in a workshop
 they don't teach — via the organizer enroll endpoint
