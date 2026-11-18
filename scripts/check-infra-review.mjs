@@ -58,6 +58,7 @@
 import path from 'node:path';
 
 import { argvSecretFindings } from './lib/argv-secrets.mjs';
+import { gitCommitExportFinding } from './lib/git-commit-export.mjs';
 import {
   runnerStageWorkspaces,
   runtimeWorkspaces,
@@ -1853,7 +1854,7 @@ requireContains(startText, 'infra/scripts/start.sh', 'mc_ensure_system_versions_
 // Rolled-back images used to bake GIT_COMMIT=unknown: deploy.sh and redeploy.sh
 // both export it for Compose to interpolate, rollback.sh did not.
 requireContains(rollbackText, 'infra/scripts/rollback.sh', 'export GIT_COMMIT="$PREV_COMMIT"');
-// And each exports it AFTER its last `source ./.env`: .env.example ships an empty
+// And each exports it AFTER its last load of `.env`: .env.example ships an empty
 // `GIT_COMMIT=`, and a later load emptied deploy.sh's export, so every container
 // of a full deploy said "unknown" and the pad's offline cache never moved.
 for (const [label, text] of [
@@ -1861,14 +1862,8 @@ for (const [label, text] of [
   ['infra/scripts/redeploy.sh', redeployText],
   ['infra/scripts/rollback.sh', rollbackText],
 ]) {
-  const exported = text.search(/^export GIT_COMMIT\b/m);
-  const lastLoad = [...text.matchAll(/^\s*source \.\/\.env\s*$/gm)].at(-1)?.index ?? -1;
-  if (exported === -1) errors.push(`${label} must export GIT_COMMIT for Compose.`);
-  else if (lastLoad > exported) {
-    errors.push(
-      `${label} must export GIT_COMMIT after its last \`source ./.env\`, which empties it.`,
-    );
-  }
+  const finding = gitCommitExportFinding(text);
+  if (finding) errors.push(`${label} must hand Compose its commit: ${finding}.`);
 }
 // Ruling 500: a rollback restores the pre-deploy copy, so data deleted since then is back.
 requireContains(
