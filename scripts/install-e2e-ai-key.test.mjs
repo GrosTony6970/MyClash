@@ -45,6 +45,13 @@ function makeApi(existing = {}) {
       text: async () => JSON.stringify(data),
     });
 
+    // Fastify refuses a POST or PATCH with a JSON content-type and no body.
+    const hasJsonType = init.headers['Content-Type'] === 'application/json';
+    if (init.method !== 'GET' && hasJsonType && !init.body) {
+      return reply(400, {
+        detail: "Body cannot be empty when content-type is set to 'application/json'",
+      });
+    }
     if (requestPath === 'organizations/slug/test-ai-org') return reply(200, { id: 'org-1' });
     const scope = Object.keys(lists).find(
       (s) => requestPath === s || requestPath.startsWith(`${s}/`),

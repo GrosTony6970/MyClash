@@ -84,9 +84,12 @@ async function signIn(gotrue, email, password) {
 
 function createApiClient({ apiUrl, token, fetchImpl }) {
   return async function api(method, requestPath, body) {
+    // Fastify answers 400 to a JSON content-type with no body (the activate call).
+    const headers = { Authorization: `Bearer ${token}` };
+    if (body) headers['Content-Type'] = 'application/json';
     const res = await fetchImpl(`${apiUrl}/${requestPath}`, {
       method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
