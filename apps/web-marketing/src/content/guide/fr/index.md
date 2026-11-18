@@ -2,6 +2,7 @@
 title: Guide de l'organisateur
 description: 'Organiser un tournoi AMHE avec MyClash, de la création du compte à la publication des résultats.'
 order: 0
+section: steps
 ---
 
 Ce guide s'adresse aux organisateurs qui découvrent MyClash. Il suit le parcours complet d'un

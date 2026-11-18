@@ -31,19 +31,72 @@ test('guide pages exist in both languages, one per Markdown file', () => {
   assert.deepEqual(en.sort(), fr.sort(), 'the FR and EN guides do not build the same pages');
 });
 
-test('a guide page has the same place in the reading order in both languages', () => {
-  // `order` drives the contents list and the "Next step" chain; a page placed
-  // differently in one language would send its readers through another route.
-  const orderOf = (locale) =>
+test('a guide page has the same order and section in both languages', () => {
+  // `order` drives the "Next step" chain and `section` the contents groups; a page
+  // placed differently in one language would send its readers another route.
+  const placeOf = (locale) =>
     Object.fromEntries(
       readdirSync(join(GUIDE_SRC, locale))
         .filter((f) => f.endsWith('.md'))
         .map((f) => {
           const front = readFileSync(join(GUIDE_SRC, locale, f), 'utf8');
-          return [f, Number(/^order:\s*(\d+)\s*$/mu.exec(front)?.[1])];
+          return [
+            f,
+            {
+              order: Number(/^order:\s*(\d+)\s*$/mu.exec(front)?.[1]),
+              section: /^section:\s*(\w+)\s*$/mu.exec(front)?.[1],
+            },
+          ];
         }),
     );
-  assert.deepEqual(orderOf('en'), orderOf('fr'), 'a page has a different order in EN and FR');
+  assert.deepEqual(placeOf('en'), placeOf('fr'), 'a page has a different place in EN and FR');
+});
+
+/** The section labels, read from the copy table so a renamed label cannot drift from the test. */
+const SECTION_KEYS = ['guideSectionSteps', 'guideSectionConcepts', 'guideSectionPad'];
+const sectionLabels = (locale) => {
+  const ui = readFileSync(join(HERE, '..', 'src', 'i18n', 'ui.ts'), 'utf8');
+  const block = ui.slice(ui.indexOf(`  ${locale}: {`));
+  return SECTION_KEYS.map((key) => new RegExp(`${key}: '([^']+)'`, 'u').exec(block)?.[1]);
+};
+
+test('the contents list groups pages by section, in reading order', () => {
+  for (const [locale, route] of [
+    ['fr', '/guide'],
+    ['en', '/en/guide'],
+  ]) {
+    const html = pages.get(route);
+    const toc = /<nav class="guide-toc guide-toc--wide"[\s\S]*?<\/nav>/u.exec(html)?.[0] ?? '';
+    const headings = [...toc.matchAll(/class="guide-toc__section"[^>]*>([^<]+)</gu)].map((m) =>
+      m[1].trim(),
+    );
+    const expected = sectionLabels(locale).filter((label) => headings.includes(label));
+    assert.ok(headings.length >= 1, `${route}: the contents list has no section heading`);
+    assert.deepEqual(headings, expected, `${route}: section headings missing or out of order`);
+  }
+});
+
+test('printing a guide page hides the site chrome', () => {
+  // Astro links large stylesheets and inlines small ones: read both.
+  const html = pages.get('/guide');
+  const css = [
+    ...[...html.matchAll(/href="(\/_astro\/[^"]+\.css)"/gu)].map(([, href]) =>
+      readFileSync(join(DIST, href), 'utf8'),
+    ),
+    ...[...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gu)].map(([, inline]) => inline),
+  ]
+    .join('\n')
+    .replace(/\s+/gu, '');
+  const print = /@mediaprint\{([\s\S]*?\})\}/u.exec(css)?.[1] ?? '';
+  assert.ok(print, 'no @media print block reaches the guide pages');
+  const hidden = new Set(
+    [...print.matchAll(/([^{}]+)\{([^}]*)\}/gu)]
+      .filter(([, , body]) => /display:none/u.test(body))
+      .flatMap(([, selectors]) => selectors.split(',')),
+  );
+  for (const selector of ['.nav', '.footer', '.guide-toc', '.guide-next']) {
+    assert.ok(hidden.has(selector), `printing still shows ${selector}`);
+  }
 });
 
 test('every guide page but the last links to the next one', () => {

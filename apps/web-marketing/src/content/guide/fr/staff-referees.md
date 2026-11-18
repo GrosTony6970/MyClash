@@ -2,6 +2,7 @@
 title: Le staff et les arbitres
 description: 'Créer les comptes des tablettes de score, ajouter vos arbitres, et les affecter aux poules.'
 order: 7
+section: steps
 ---
 
 **Ce que vous allez faire :** donner un compte à chaque tablette de score, ajouter vos arbitres,

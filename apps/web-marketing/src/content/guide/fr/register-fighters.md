@@ -2,6 +2,7 @@
 title: Inscrire les combattants
 description: 'Ajouter les combattants un par un ou importer un fichier CSV, puis les inscrire à un tournoi.'
 order: 4
+section: steps
 ---
 
 **Ce que vous allez faire :** mettre vos combattants sur la liste de l'événement, puis les

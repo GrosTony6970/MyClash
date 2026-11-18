@@ -2,6 +2,7 @@
 title: Créer l'événement
 description: 'Créer votre événement en quatre étapes : bases, lieu et lices, identité visuelle, validation.'
 order: 2
+section: steps
 ---
 
 **Ce que vous allez faire :** créer l'événement : son nom, ses dates, son type, son lieu et ses

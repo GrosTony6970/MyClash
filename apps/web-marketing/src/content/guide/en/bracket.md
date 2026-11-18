@@ -2,6 +2,7 @@
 title: The bracket
 description: 'Generate the elimination bracket and fill it from the pool standings.'
 order: 9
+section: steps
 ---
 
 **What you'll do:** create the elimination bracket and fill it with the best fighters from the

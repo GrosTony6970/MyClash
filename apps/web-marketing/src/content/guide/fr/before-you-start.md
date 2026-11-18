@@ -2,6 +2,7 @@
 title: Avant de commencer
 description: "Créer votre compte organisateur et choisir le bon type d'événement : standard, test ou club."
 order: 1
+section: steps
 ---
 
 **Ce que vous allez faire :** créer votre compte et votre organisation, puis choisir le type de

@@ -26,11 +26,24 @@ const { Content } = await render(entry);
 
 const route = guideRoute(entry);
 const next = pages[pages.findIndex((page) => page.id === entry.id) + 1];
-const toc = pages.map((page) => ({
-  href: localePath(locale, guideRoute(page)),
-  title: page.data.title,
-  current: page.id === entry.id,
-}));
+const sectionLabel = {
+  steps: t.guideSectionSteps,
+  concepts: t.guideSectionConcepts,
+  pad: t.guideSectionPad,
+} as const;
+/** The contents, grouped by section in reading order; a section with no page is left out. */
+const toc = (['steps', 'concepts', 'pad'] as const)
+  .map((key) => ({
+    label: sectionLabel[key],
+    items: pages
+      .filter((page) => page.data.section === key)
+      .map((page) => ({
+        href: localePath(locale, guideRoute(page)),
+        title: page.data.title,
+        current: page.id === entry.id,
+      })),
+  }))
+  .filter((section) => section.items.length > 0);
 ---
 
 <Base
@@ -42,33 +55,43 @@ const toc = pages.map((page) => ({
   <div class="guide">
     <nav class="guide-toc guide-toc--wide" aria-label={t.guideContents}>
       <p class="guide-toc__title">{t.guideContents}</p>
-      <ol>
-        {
-          toc.map((item) => (
-            <li>
-              <a href={item.href} aria-current={item.current ? 'page' : undefined}>
-                {item.title}
-              </a>
-            </li>
-          ))
-        }
-      </ol>
+      {
+        toc.map((section) => (
+          <>
+            <p class="guide-toc__section">{section.label}</p>
+            <ol>
+              {section.items.map((item) => (
+                <li>
+                  <a href={item.href} aria-current={item.current ? 'page' : undefined}>
+                    {item.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </>
+        ))
+      }
     </nav>
 
     <main class="guide__main" id="main-content">
       <details class="guide-toc guide-toc--narrow">
         <summary>{t.guideContents}</summary>
-        <ol>
-          {
-            toc.map((item) => (
-              <li>
-                <a href={item.href} aria-current={item.current ? 'page' : undefined}>
-                  {item.title}
-                </a>
-              </li>
-            ))
-          }
-        </ol>
+        {
+          toc.map((section) => (
+            <>
+              <p class="guide-toc__section">{section.label}</p>
+              <ol>
+                {section.items.map((item) => (
+                  <li>
+                    <a href={item.href} aria-current={item.current ? 'page' : undefined}>
+                      {item.title}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ))
+        }
       </details>
 
       <h1 class="guide__title">{entry.data.title}</h1>

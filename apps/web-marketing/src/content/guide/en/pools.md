@@ -2,6 +2,7 @@
 title: Make the pools
 description: 'Generate the pools of a tournament, adjust them, and show them to the fighters.'
 order: 5
+section: steps
 ---
 
 **What you'll do:** split a tournament's fighters into pools, adjust them by hand, and make them

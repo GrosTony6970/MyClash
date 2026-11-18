@@ -2,6 +2,7 @@
 title: 'Event day: the scoring pad'
 description: 'Check you are ready, sign the tablets in, score the bouts, and keep going when the wifi drops.'
 order: 8
+section: steps
 ---
 
 **What you'll do:** check that everything is ready, sign the tablets in, score the bouts, and

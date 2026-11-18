@@ -2,6 +2,7 @@
 title: Register the fighters
 description: 'Add fighters one by one or import a CSV file, then enter them in a tournament.'
 order: 4
+section: steps
 ---
 
 **What you'll do:** put your fighters on the event's roster, then enter them in a tournament.

@@ -50,6 +50,10 @@ interface Chrome {
   readonly navGuide: string;
   readonly guideContents: string;
   readonly guideNext: string;
+  /** The guide's contents groups, in reading order (`section` in src/content.config.ts). */
+  readonly guideSectionSteps: string;
+  readonly guideSectionConcepts: string;
+  readonly guideSectionPad: string;
 }
 
 export const CHROME: Readonly<Record<Locale, Chrome>> = {
@@ -75,6 +79,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navGuide: 'Guide',
     guideContents: 'Sommaire',
     guideNext: 'Étape suivante',
+    guideSectionSteps: 'Pas à pas',
+    guideSectionConcepts: 'Comprendre MyClash',
+    guideSectionPad: 'Tablette de score',
   },
   en: {
     htmlLang: 'en',
@@ -98,6 +105,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navGuide: 'Guide',
     guideContents: 'Contents',
     guideNext: 'Next step',
+    guideSectionSteps: 'Step by step',
+    guideSectionConcepts: 'Understand MyClash',
+    guideSectionPad: 'Scoring pad',
   },
 };
 

@@ -2,6 +2,7 @@
 title: Build the schedule
 description: 'Place the bouts on the pistes and the clock: day hours, bout length, breaks.'
 order: 6
+section: steps
 ---
 
 **What you'll do:** decide when and on which piste each bout is fought.

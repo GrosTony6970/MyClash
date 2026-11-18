@@ -2,6 +2,7 @@
 title: Le classement final et les résultats
 description: 'Lire le classement final, rendre les résultats publics, et les envoyer à HEMA Ratings.'
 order: 10
+section: steps
 ---
 
 **Ce que vous allez faire :** vérifier le classement final, rendre votre événement et ses

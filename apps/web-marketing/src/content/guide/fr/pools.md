@@ -2,6 +2,7 @@
 title: Faire les poules
 description: "Générer les poules d'un tournoi, les ajuster, et les montrer aux combattants."
 order: 5
+section: steps
 ---
 
 **Ce que vous allez faire :** répartir les combattants d'un tournoi en poules, les ajuster à la

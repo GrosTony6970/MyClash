@@ -2,6 +2,7 @@
 title: The final ranking and the results
 description: 'Read the final ranking, make the results public, and send them to HEMA Ratings.'
 order: 10
+section: steps
 ---
 
 **What you'll do:** check the final ranking, make your event and its results public, and send

@@ -2,6 +2,7 @@
 title: 'Le jour J : la tablette de score'
 description: 'Vérifier que tout est prêt, connecter les tablettes, marquer les combats, et continuer quand le wifi tombe.'
 order: 8
+section: steps
 ---
 
 **Ce que vous allez faire :** vérifier que tout est prêt, connecter les tablettes, marquer les

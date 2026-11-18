@@ -2,6 +2,7 @@
 title: Create the event
 description: 'Create your event in four steps: basics, venue and pistes, branding, review.'
 order: 2
+section: steps
 ---
 
 **What you'll do:** create the event: its name, dates, kind, venue and pistes.

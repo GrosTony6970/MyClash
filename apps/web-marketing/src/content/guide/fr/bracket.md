@@ -2,6 +2,7 @@
 title: Le tableau final
 description: "Générer le tableau d'élimination et le remplir à partir du classement des poules."
 order: 9
+section: steps
 ---
 
 **Ce que vous allez faire :** créer le tableau d'élimination et le remplir avec les meilleurs

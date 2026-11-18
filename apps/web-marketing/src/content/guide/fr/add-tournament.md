@@ -2,6 +2,7 @@
 title: Ajouter un tournoi
 description: 'Ajouter un tournoi à votre événement : arme, règlement, format des matchs.'
 order: 3
+section: steps
 ---
 
 **Ce que vous allez faire :** ajouter un tournoi à votre événement et choisir son arme, son

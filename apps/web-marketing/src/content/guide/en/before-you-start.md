@@ -2,6 +2,7 @@
 title: Before you start
 description: 'Create your organiser account and pick the right kind of event: standard, test or club.'
 order: 1
+section: steps
 ---
 
 **What you'll do:** create your account and your organization, then choose the kind of your first

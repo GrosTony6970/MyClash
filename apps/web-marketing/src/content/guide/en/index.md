@@ -2,6 +2,7 @@
 title: Organiser guide
 description: 'Run a HEMA tournament with MyClash, from creating your account to publishing the results.'
 order: 0
+section: steps
 ---
 
 This guide is for organisers who are new to MyClash. It follows one event from start to finish,

@@ -2,6 +2,7 @@
 title: Staff and referees
 description: 'Create the scoring tablet accounts, add your referees, and assign them to the pools.'
 order: 7
+section: steps
 ---
 
 **What you'll do:** give each scoring tablet an account, add your referees, and let MyClash

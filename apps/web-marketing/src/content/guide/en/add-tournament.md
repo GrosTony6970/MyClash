@@ -2,6 +2,7 @@
 title: Add a tournament
 description: 'Add a tournament to your event: weapon, ruleset, match format.'
 order: 3
+section: steps
 ---
 
 **What you'll do:** add a tournament to your event and choose its weapon, ruleset and match

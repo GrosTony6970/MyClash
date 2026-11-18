@@ -2,6 +2,7 @@
 title: Construire le planning
 description: 'Placer les combats sur les lices et dans la journée : horaires, durée des combats, pauses.'
 order: 6
+section: steps
 ---
 
 **Ce que vous allez faire :** décider quand et sur quelle lice chaque combat a lieu.
