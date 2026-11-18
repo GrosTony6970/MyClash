@@ -260,6 +260,12 @@ const RULE: Array<[string, Shape, RouteVerdict]> = [
     'platform-guard',
   ],
   ['another guard', { classDecorators: '@UseGuards(ThrottlerGuard)' }, 'undecided'],
+  ['the agent door on the class', { classDecorators: '@AgentDoor()' }, 'agent-door'],
+  [
+    'the agent door on the class, though a handler also says @Public()',
+    { classDecorators: '@AgentDoor()', methodDecorators: '@Public()' },
+    'agent-door',
+  ],
   [
     'a route declared with @All, read like any other',
     {
