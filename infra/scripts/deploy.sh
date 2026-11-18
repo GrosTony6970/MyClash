@@ -407,7 +407,6 @@ NEW_COMMIT="$PULLED_COMMIT"
 CURRENT_COMMIT="$(mc_manifest_deployed_commit)"
 [[ "$CURRENT_COMMIT" == "unknown" ]] && CURRENT_COMMIT="$PRE_PULL_COMMIT"
 [[ "$CURRENT_COMMIT" != "$NEW_COMMIT" ]] && PULL_WAY_BACK="$CURRENT_COMMIT"
-export GIT_COMMIT="$NEW_COMMIT"
 
 # ── Validate config ──────────────────────────────────────────────
 hdr "Validating configuration"
@@ -555,6 +554,12 @@ hdr "Building images"
 
 # From here a failure has its own recovery messages (migrations, rollback.sh).
 PULL_WAY_BACK=""
+
+# Compose gives every container this commit (`${GIT_COMMIT:-unknown}`). Exported
+# HERE, after the last `source ./.env`: the empty `GIT_COMMIT=` of .env.example
+# emptied an earlier export, and every container said "unknown" — the pad's
+# offline cache then never followed a deploy. check-infra-review pins the order.
+export GIT_COMMIT="$NEW_COMMIT"
 
 "${COMPOSE[@]}" build
 ok "Images built"
