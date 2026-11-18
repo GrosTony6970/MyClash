@@ -45,14 +45,19 @@ export async function aMatch(
     /** 0 = no limit, so `timeIsFinished` is true at once and the level-at-time
      *  chain can be driven without waiting out a real phase clock. */
     timeLimitsSeconds?: { pool: number; bracket: number; finals: number };
+    /** The Event to build in. Defaults to the run's shared throwaway Event; a
+     *  spec that reads its Match on the public site passes its own published one. */
+    eventId?: string;
   } = {},
 ): Promise<{
   tournamentId: string;
+  /** Its slug, for the public Tournament page. */
+  tournamentSlug: string;
   matchId: string;
   redRegistrationId: string;
   blueRegistrationId: string;
 }> {
-  const { eventId } = runContext();
+  const eventId = opts.eventId ?? runContext().eventId;
   const roster: Person[] = await ensurePersons(api, eventId, 2);
   const token = `${key}-${Date.now().toString(36)}`;
 
@@ -102,6 +107,7 @@ export async function aMatch(
 
   return {
     tournamentId: tournament.id,
+    tournamentSlug: `pad-${token}`,
     matchId: slot!.matchId as string,
     redRegistrationId: slot!.redRegistrationId as string,
     blueRegistrationId: slot!.blueRegistrationId as string,

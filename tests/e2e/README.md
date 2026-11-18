@@ -118,6 +118,7 @@ the pass/fail record.
 | `40` | offline bout             | — always runs                                                                                                                                                                                                            |
 | `41` | next bout, no network    | `E2E_STAFF_URL`                                                                                                                                                                                                          |
 | `42` | swiss status             | `E2E_SWISS`                                                                                                                                                                                                              |
+| `43` | protests                 | `E2E_CLEANUP`, `E2E_PROTESTS`, `E2E_PUBLIC_URL`, `E2E_STAFF_URL`                                                                                                                                                         |
 | `44` | desk screens             | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
 
 </div>
@@ -1235,6 +1236,28 @@ of the bracket says afterwards:
   must not block yet must still name the final as affected; once the final has been
   fought it must say so, and the reset then needs an explicit confirmation.
 
+## Protests, from the settings to the TV (opt-in)
+
+`E2E_PROTESTS=1 pnpm test:e2e:prod tests/e2e/43-protests.spec.ts` runs a protest
+through every surface that reads it, on a real Match of its own published
+`club` Event (public, silent on publish):
+
+| step     | what it proves                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------- |
+| settings | the Display tab stores `display.protests = { limit: 2, offerPenaltyRef }` from the admin app         |
+| API      | a bout not started refuses (409 `bout_not_started`); a stranger refuses (400); a void sticks, once   |
+| pad      | the chip reads `2/2`, a voided protest does not count, and the tap past the limit offers the penalty |
+| TV       | the display shows the same `3/2` and `0/2`                                                           |
+| history  | the public Match history has one "Protest" row per live protest, and none of them carries a number   |
+
+- **The server never enforces the limit.** A protest past it is saved like any
+  other; the limit is the pad's, which offers the card. The spec declines the
+  offer and checks that no card was given.
+- **Not covered:** the referee statistics' protest count. It counts only bouts
+  with a match-scope head referee, which only auto-assign writes, and only for
+  bracket and Swiss bouts.
+- Written from the code, not yet seen passing: read its first run as a first run.
+
 ## Status
 
 | #   | Flow                                    | Spec                                | State                                     |
@@ -1281,6 +1304,7 @@ of the bracket says afterwards:
 | 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                          |
 | 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                  |
 | 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22` |
+| 43  | Protests, settings to TV                | `43-protests.spec.ts`               | opt-in (`E2E_PROTESTS=1`); see below      |
 | 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33` |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The

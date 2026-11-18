@@ -106,6 +106,7 @@ jobs:
           E2E_DRIFT: '1' # 34
           E2E_FORFEIT: '1' # 35
           E2E_UNCOMPLETE: '1' # 36
+          E2E_PROTESTS: '1' # 43 — ~1 min
           # 41 runs the piste on the staff app's own address (a PIN session's
           # piste pages live there only), so it skips until this variable is set.
           E2E_STAFF_URL: ${{ vars.E2E_STAFF_URL }}
