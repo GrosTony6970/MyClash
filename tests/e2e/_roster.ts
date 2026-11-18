@@ -62,10 +62,8 @@ export function linkedNames(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-export function isolateRoster(
-  csv: string,
-  linked: readonly string[],
-): { csv: string; isolated: number; kept: number } {
+/** The roster's lines and its header, read with the importer's separator and column names. */
+function readRoster(csv: string) {
   const lines = csv
     .replace(/^﻿/, '')
     .split(/\r?\n/)
@@ -85,7 +83,25 @@ export function isolateRoster(
   const given = columns.indexOf('given_name');
   const family = columns.indexOf('family_name');
   if (given < 0 || family < 0) throw new Error('[e2e] roster has no given and family name columns');
+  return { lines, header, delimiter, columns, given, family };
+}
 
+/** Each linked name was found exactly once: a typo or a shared name stops the run. */
+function assertEachFoundOnce(wanted: ReadonlyMap<string, number>): void {
+  const wrong = [...wanted].filter(([, count]) => count !== 1);
+  if (wrong.length > 0) {
+    throw new Error(
+      `[e2e] E2E_POPULATE_LINKED must name people found exactly once in the roster: ` +
+        wrong.map(([name, count]) => `"${name}" × ${count}`).join(', '),
+    );
+  }
+}
+
+export function isolateRoster(
+  csv: string,
+  linked: readonly string[],
+): { csv: string; isolated: number; kept: number } {
+  const { lines, header, delimiter, columns, given, family } = readRoster(csv);
   const wanted = new Map(linked.map((name) => [fold(name), 0]));
   let isolated = 0;
   const out = [header];
@@ -105,13 +121,6 @@ export function isolateRoster(
     out.push(cells.map((cell, i) => (columns[i] ? cell : '')).join(delimiter));
     isolated++;
   }
-
-  const wrong = [...wanted].filter(([, count]) => count !== 1);
-  if (wrong.length > 0) {
-    throw new Error(
-      `[e2e] E2E_POPULATE_LINKED must name people found exactly once in the roster: ` +
-        wrong.map(([name, count]) => `"${name}" × ${count}`).join(', '),
-    );
-  }
+  assertEachFoundOnce(wanted);
   return { csv: `${out.join('\n')}\n`, isolated, kept: linked.length };
 }
