@@ -128,9 +128,9 @@ test.describe('protests', () => {
     const limitInput = page.getByLabel('Protest limit', { exact: true });
     await expect(limitInput).toBeVisible({ timeout: 30_000 });
     await limitInput.fill(String(LIMIT));
-    await page
-      .getByLabel('Penalty offered past the limit', { exact: true })
-      .selectOption(offered!.ref_number);
+    // Not `exact`: the select sits inside its <label>, so its accessible name also
+    // carries the chosen option's text ("Penalty offered past the limit None").
+    await page.getByLabel('Penalty offered past the limit').selectOption(offered!.ref_number);
     await page.getByRole('button', { name: 'Save changes' }).click();
 
     await expect
@@ -179,15 +179,19 @@ test.describe('protests', () => {
 
     // ── 3. The pad counts against the limit, and offers the penalty ───────
     await page.goto(`${staffBase(baseURL)}/matches/${match.matchId}`);
-    const redChip = page.locator(
-      '[data-testid="scoring-column"][data-side="red"] [data-testid="protest-chip"]',
-    );
+    const redColumn = page.locator('[data-testid="scoring-column"][data-side="red"]');
+    const redChip = redColumn.getByTestId('protest-chip');
     const blueChip = page.locator(
       '[data-testid="scoring-column"][data-side="blue"] [data-testid="protest-chip"]',
     );
     await expect(redChip).toHaveText(`${LIMIT}/${LIMIT}`, { timeout: 30_000 });
     // The voided one does not count.
     await expect(blueChip).toHaveText(`0/${LIMIT}`);
+    // The offer is decided AT the tap, from the penalty list the pad holds then.
+    // The list loads on its own read, after the protests; a tap before it lands
+    // records the protest and offers nothing. The column listing the chosen
+    // penalty is the settle signal.
+    await expect(redColumn.getByText(offered!.short_name).first()).toBeVisible({ timeout: 30_000 });
 
     // The tap that passes the limit records the protest, then offers the card.
     await redChip.click();

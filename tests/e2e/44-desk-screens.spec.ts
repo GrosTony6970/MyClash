@@ -94,12 +94,13 @@ test.describe('desk screens', () => {
       await expect(tabs.getByRole('tab', { name: 'Arrived (0)' })).toBeVisible();
 
       // ── The Not arrived tab says when each person fights next ──────────────
-      // Only people[0] has a scheduled bout. Its line names the Tournament and
-      // the piste; the time is in the browser's zone, so it is not asserted.
+      // The one scheduled bout is people[0] against people[1], so exactly two
+      // rows name its Tournament and piste; the other two are not scheduled.
+      // The time is in the browser's zone, so it is not asserted.
       await tabs.getByRole('tab', { name: 'Not arrived (4)' }).click();
-      await expect(page.getByText(f.tournamentName, { exact: false })).toBeVisible();
-      await expect(page.getByText(f.liceName, { exact: false })).toBeVisible();
-      await expect(page.getByText('Not scheduled yet').first()).toBeVisible();
+      await expect(page.getByText(f.tournamentName, { exact: false })).toHaveCount(2);
+      await expect(page.getByText(f.liceName, { exact: false })).toHaveCount(2);
+      await expect(page.getByText('Not scheduled yet', { exact: true })).toHaveCount(2);
       await tabs.getByRole('tab', { name: 'All (4)' }).click();
 
       // ── Mark one arrival, through the search ──────────────────────────────
