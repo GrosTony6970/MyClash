@@ -17,10 +17,17 @@ const CSV = process.env.E2E_PARTICIPANTS_CSV ?? (existsSync(LOCAL_CSV) ? LOCAL_C
 test('import participants from a CSV file', async ({ page }) => {
   const { orgSlug, eventId } = runContext();
 
-  await page.goto(`/org/${orgSlug}/events/${eventId}/persons/import`);
+  // `networkidle`, then a count of one: for ~120 ms after navigation the wizard
+  // holds a streamed copy and a client copy of every field, and a strict
+  // locator landing in that window resolves to two (same fix as `02` and `03`).
+  await page.goto(`/org/${orgSlug}/events/${eventId}/persons/import`, {
+    waitUntil: 'networkidle',
+  });
+  const fileInput = page.getByTestId('import-file-input');
+  await expect(fileInput).toHaveCount(1);
 
   // Upload → validate (server dry-run preview).
-  await page.getByTestId('import-file-input').setInputFiles(CSV);
+  await fileInput.setInputFiles(CSV);
   await page.getByTestId('import-validate').click();
 
   // Preview renders; commit becomes enabled once there are rows to create/link.
