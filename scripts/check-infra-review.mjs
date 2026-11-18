@@ -89,6 +89,7 @@ const startPath = path.join(rootDir, 'infra', 'scripts', 'start.sh');
 const traefikEnvLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'traefik-env.sh');
 const systemVersionsLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'system-versions.sh');
 const workerDrainLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'worker-drain.sh');
+const composeLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'compose.sh');
 const systemActionsServicePath = path.join(
   rootDir,
   'apps',
@@ -629,6 +630,7 @@ const restoreText = await pinned.readPinnedFile(restorePath);
 const rollbackText = await pinned.readPinnedFile(rollbackPath);
 const vpsBootstrapText = await pinned.readPinnedFile(vpsBootstrapPath);
 const workerDrainLibText = await pinned.readPinnedFile(workerDrainLibPath);
+const composeLibText = await pinned.readPinnedFile(composeLibPath);
 const systemActionsServiceText = await pinned.readPinnedFile(systemActionsServicePath);
 const publicRootPageText = await pinned.readPinnedFile(publicRootPagePath);
 const publicLoginPageText = await pinned.readPinnedFile(publicLoginPagePath);
@@ -2926,17 +2928,15 @@ if (/^\s+command:/mu.test(stagingCertsComposeText)) {
       'Select the staging CA with ACME_CA_SERVER / ACME_STORAGE_FILE instead.',
   );
 }
-for (const script of [
-  { name: 'deploy.sh', text: deployText },
-  { name: 'redeploy.sh', text: redeployText },
+// The certificate mode has one owner, lib/compose.sh (TLS_CERTS in .env); every ops script
+// builds its compose command there (scripts/compose-lib.test.mjs holds them to it).
+for (const expected of [
+  'export ACME_STORAGE_FILE=acme-staging.json',
+  'export ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory',
+  'COMPOSE+=(-f infra/docker-compose.staging-certs.yml)',
 ]) {
-  for (const expected of [
-    'export ACME_STORAGE_FILE=acme-staging.json',
-    'export ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory',
-  ]) {
-    if (!script.text.includes(expected)) {
-      errors.push(`${script.name} must export ${expected} under --dev-certs.`);
-    }
+  if (!composeLibText.includes(expected)) {
+    errors.push(`infra/scripts/lib/compose.sh must hold \`${expected}\` for TLS_CERTS=staging.`);
   }
 }
 

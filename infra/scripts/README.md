@@ -50,6 +50,7 @@ answer that prompt for you. Use `--dry-run` to see what it would do.
 | `lib/db-running.sh`                    | Sourced helper: "is the database container running?", told apart from a `docker compose ps` that failed (`backup.sh`, `deploy.sh`)                                                             | —                |
 | `lib/system-versions.sh`               | Sourced helper: writes the deploy manifest `data/system-versions.json` the admin board reads (`deploy.sh`, `redeploy.sh`, `rollback.sh`, `start.sh`)                                           | —                |
 | `lib/traefik-env.sh`                   | Sourced helper: the Traefik edge variables the compose file reads from the invoking shell (every script that runs compose)                                                                     | —                |
+| `lib/compose.sh`                       | Sourced helper: the one `COMPOSE` array and the certificate mode (`TLS_CERTS` in `.env`), for every script                                                                                     | —                |
 
 `deploy.sh` takes `--dev-certs`, `--skip-backup` and `--skip-migrations` (both for iterating, never
 in production), and three flags that provision the E2E sandbox from `.env.e2e` after the deploy:
@@ -93,10 +94,16 @@ both covered in [`docs/ARCHITECTURE.md` §17.6](../../docs/ARCHITECTURE.md#176-r
   consistent output and helpers. Colors auto-disable when stdout isn't a TTY.
 - **`.env`** — loaded with `set -a; source ./.env; set +a`. Compose is always invoked with
   `--env-file "$ROOT_DIR/.env"` (absolute) so build args interpolate regardless of cwd.
-- **Compose command** — built once as an array:
-  `COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)`.
-  `--dev-certs` appends the `infra/docker-compose.staging-certs.yml` overlay
-  (Let's Encrypt **staging** certs — use while iterating to avoid rate limits).
+- **Compose command and certificate mode** — every script builds its `COMPOSE` array in
+  `lib/compose.sh` (`mc_compose_init`), from `TLS_CERTS` in `.env`: `staging` appends the
+  `infra/docker-compose.staging-certs.yml` overlay and selects Traefik's staging CA (Let's Encrypt
+  **staging** certs — use while iterating to avoid rate limits); `production` is the plain file.
+  The scripts that create containers (`deploy`, `redeploy`, `start`, `rollback`, `restore`) stop
+  when the mode is missing; the others warn and go on. `--dev-certs` still works: it means
+  staging, writes `TLS_CERTS=staging` into `.env` when no mode is set yet, and is refused
+  against `TLS_CERTS=production`. The mode used to live only in that flag, so a `redeploy.sh`
+  without it recreated the API without the overlay and every database read failed
+  (2026-11-18). `scripts/compose-lib.test.mjs` holds every script to the helper.
   Staging certs break **realtime**, not just page loads: a browser lets you click
   through the interstitial to navigate, but does not extend that exception to the
   WebSocket handshake, so every live surface sits on "Reconnecting…". Devices that

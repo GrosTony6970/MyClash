@@ -57,12 +57,21 @@ test("CI's job runs deploy.sh's and redeploy.sh's migrate command, from the prod
   const job = end === -1 ? rest : rest.slice(0, end + 1);
 
   const redeploy = readFileSync(join(root, 'infra', 'scripts', 'redeploy.sh'), 'utf8');
+  const composeLib = readFileSync(join(root, 'infra', 'scripts', 'lib', 'compose.sh'), 'utf8');
+  assert.ok(
+    composeLib.includes(
+      'COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)',
+    ),
+    'lib/compose.sh builds compose from another file',
+  );
   for (const [name, text] of [
     ['deploy.sh', deploy],
     ['redeploy.sh', redeploy],
   ]) {
     assert.ok(text.includes(command), `${name} no longer runs "${command}"`);
-    assert.ok(text.includes('-f infra/docker-compose.prod.yml)'), `${name}: another compose file`);
+    // The compose command is built in lib/compose.sh, from the prod file (plus the
+    // staging-certs overlay under TLS_CERTS=staging, which touches no migration).
+    assert.ok(text.includes('source "$SCRIPT_DIR/lib/compose.sh"'), `${name}: another compose`);
     assert.ok(text.includes(urlHelper), `${name} does not build DATABASE_URL with ${urlHelper}`);
   }
   // CI builds the URL the way deploy does, from .env.example: --env-file feeds only compose.

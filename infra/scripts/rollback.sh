@@ -91,7 +91,9 @@ set +a
 : "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
+mc_require_cert_mode
 
 # ── Stop every service holding a DB connection (keep db running) ──
 # DROP DATABASE fails while ANY session is connected. The Supabase sidecars

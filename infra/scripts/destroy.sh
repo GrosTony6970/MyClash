@@ -81,7 +81,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
 
 # ── Selective mode: remove only the named containers ─────────────
 if [[ "${#SERVICES[@]}" -gt 0 ]]; then

@@ -51,7 +51,8 @@ done
 
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
 
 if [[ $# -eq 0 ]]; then
   SERVICES=(api web-public web-staff web-admin web-marketing worker)

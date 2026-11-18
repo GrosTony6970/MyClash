@@ -31,7 +31,9 @@ case "${1:-}" in
   -h|--help) usage; exit 0 ;;
 esac
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
+mc_require_cert_mode
 
 hdr "Validating configuration"
 [[ -f .env ]] || { err "Missing .env"; exit 1; }

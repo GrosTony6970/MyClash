@@ -96,7 +96,8 @@ fi
 BACKUP_DIR="$ROOT_DIR/backups/nightly"
 mkdir -p "$BACKUP_DIR"
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
 
 # Supabase Storage objects live in this named Docker volume (see
 # docker-compose.prod.yml), NOT a host directory. We archive the

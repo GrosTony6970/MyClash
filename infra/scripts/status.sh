@@ -45,7 +45,8 @@ done
 
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
 
 # ── Log viewer helpers ──────────────────────────────────────────
 # Drop request-log noise: the verbose Nest middleware lines that

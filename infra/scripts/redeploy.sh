@@ -123,16 +123,11 @@ mc_lock_deploy "$LOCK_FILE" "Another deploy/redeploy is already running."
 trap 'rm -f "$LOCK_FILE"' EXIT
 
 # ── Compose file selection ───────────────────────────────────────
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
-if [[ "$USE_DEV_CERTS" -eq 1 ]]; then
-  COMPOSE+=(-f infra/docker-compose.staging-certs.yml)
-  # The overlay no longer redefines traefik's command; it selects the staging CA
-  # through these two vars instead. Exported (not passed via --env-file) so they
-  # win over .env in Compose's interpolation precedence.
-  export ACME_STORAGE_FILE=acme-staging.json
-  export ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory
-  warn "Using Let's Encrypt staging certificates (--dev-certs)"
-fi
+# Certificate mode from TLS_CERTS in .env; --dev-certs records staging there.
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
+mc_require_cert_mode
+[[ "$MC_TLS_CERTS" == staging ]] && warn "Using Let's Encrypt staging certificates (TLS_CERTS=staging)"
 
 hdr "Redeploying: ${SERVICES[*]}"
 

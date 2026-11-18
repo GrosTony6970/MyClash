@@ -82,7 +82,11 @@ function sandbox() {
   for (const lib of readdirSync(join(REPO, 'infra/scripts/lib'))) {
     copyFileSync(join(REPO, 'infra/scripts/lib', lib), join(scripts, 'lib', lib));
   }
-  writeFileSync(join(root, '.env'), 'POSTGRES_USER=postgres\nPOSTGRES_DB=myclash\n');
+  // TLS_CERTS: restore.sh creates containers, so lib/compose.sh requires a certificate mode.
+  writeFileSync(
+    join(root, '.env'),
+    'POSTGRES_USER=postgres\nPOSTGRES_DB=myclash\nTLS_CERTS=production\n',
+  );
   mkdirSync(join(root, 'bin'));
   for (const [name, body] of [
     ['docker', DOCKER],

@@ -70,7 +70,9 @@ set +a
 : "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+source "$SCRIPT_DIR/lib/compose.sh"
+mc_compose_init
+mc_require_cert_mode
 
 # Supabase Storage objects live in this named Docker volume (see
 # docker-compose.prod.yml), NOT in a host directory. Backup/restore
