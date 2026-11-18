@@ -2,7 +2,14 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { runContext } from '../e2e/_context';
 import { apiFor, type Api } from '../e2e/_api';
-import { openForScoring, readBracket, scoreMatch, type Person } from '../e2e/_bracket';
+import {
+  createBracketTournament,
+  openForScoring,
+  readBracket,
+  scoreMatch,
+  type Person,
+} from '../e2e/_bracket';
+import { playTournamentToChampion } from '../e2e/_tournament';
 import { createPoolTournament, playPoolPhase, readPoolMatches } from '../e2e/_pool';
 
 /**
@@ -155,6 +162,12 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, '01-event-form');
 
+    // ── Concepts: rulesets and access (organisation screens, nothing written) ─
+    const org = `/org/${orgSlug}`;
+    await shot(page, '11-rulesets', `${org}/rulesets`);
+    await shot(page, '11-ruleset-new', `${org}/rulesets/scoring/new`);
+    await shot(page, '11-org-members', `${org}/settings`);
+
     // ── Page 3: the roster, imported through the screen ─────────────────────
     await page.goto(`${at}/persons/import`, { waitUntil: 'networkidle' });
     const fileInput = page.getByTestId('import-file-input');
@@ -167,9 +180,34 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     await page.getByTestId('import-validate').click();
     const commit = page.getByTestId('import-commit');
     await expect(commit).toBeEnabled();
-    // Invented people are new people: never link one to an existing profile.
-    const allNew = page.getByRole('button', { name: /^Create all as new/ });
-    if ((await allNew.count()) > 0 && (await allNew.isEnabled())) await allNew.click();
+    // Earlier runs left these invented people as profiles, and the preview offers
+    // each row as a duplicate with "create new" pre-chosen. Never create them
+    // again (operator ruling, part 2 spec): link when EVERY row is suggested, and
+    // otherwise STOP — a partial match may be a stranger with the same name, and
+    // creating is how five runs left ~90 invented profiles behind. Only a roster
+    // with no duplicate at all (the very first run on a stack) is created.
+    //
+    // Wait for the preview to settle first: the commit button enables before the
+    // duplicates section renders, and reading it then saw no duplicates at all.
+    const rows = readRoster().length;
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+    const duplicates = page.getByText('Duplicates (need a decision)').first();
+    const hasDuplicates = await duplicates
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (hasDuplicates) {
+      // The server pre-chooses each row: sometimes "link", sometimes "create new".
+      // "Link all suggested" is enabled only while some row is not linked yet.
+      const linkAll = page.getByRole('button', { name: /^Link all suggested/ }).first();
+      if (await linkAll.isEnabled()) await linkAll.click();
+      // Whatever the default was, every row must now link — or the run stops here,
+      // before the import is committed.
+      await expect(
+        page.getByText(new RegExp(`^\\s*${rows}\\s*will link`, 'u')).first(),
+        `not all ${rows} rows link to an existing profile — refusing to create duplicates`,
+      ).toBeVisible();
+    }
     await shot(page, '03-import-preview');
     await commit.click();
     await expect(page.getByText(/Import complete/i)).toBeVisible();
@@ -260,6 +298,65 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     await expect(page.getByTestId('network-bar')).toHaveAttribute('data-network', 'online');
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
     await page.screenshot({ path: `${OUT}/07-pad.png` });
+
+    // ── Scoring pad reference: one bout through every state (selectors from 16-pad-ui) ─
+    const padBout = (await readPoolMatches(api, tournament.id))[1];
+    expect(padBout, 'the pools produced no second bout').toBeTruthy();
+    const exchangesOn = async (): Promise<number> =>
+      (await api.json<unknown[]>(await api.get(`matches/${padBout!.id}/exchanges`))).length;
+    const column = (side: 'red' | 'blue') =>
+      page.locator(`[data-testid="scoring-column"][data-side="${side}"]`);
+    const cleanHit = (side: 'red' | 'blue', label: string) =>
+      column(side).getByTestId('clean-hit-button').filter({ hasText: label }).first();
+    const primaryClock = page.getByTestId('clock-primary-button');
+    const clockStatus = page.getByTestId('clock-status');
+    const network = page.getByTestId('network-bar');
+    const tabletShot = async (name: string) => {
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
+      await page.screenshot({ path: `${OUT}/${name}.png` });
+    };
+
+    await page.goto(`${staffBase}/matches/${padBout!.id}`);
+    await expect(network).toHaveAttribute('data-network', 'online');
+    await primaryClock.click(); // Start
+    await expect(clockStatus).toHaveAttribute('data-status', 'running');
+    await primaryClock.click(); // Pause
+    await expect(clockStatus).toHaveAttribute('data-status', 'halted');
+    await cleanHit('red', '+2').click();
+    await cleanHit('blue', '+1').click();
+    await expect.poll(exchangesOn).toBe(2);
+    await primaryClock.click(); // Resume
+    await expect(clockStatus).toHaveAttribute('data-status', 'running');
+    await tabletShot('13-pad-running');
+
+    await primaryClock.click(); // Pause
+    await expect(clockStatus).toHaveAttribute('data-status', 'halted');
+    const penaltySearch = column('red').getByPlaceholder('Search penalties');
+    await penaltySearch.scrollIntoViewIfNeeded();
+    await penaltySearch.fill('e');
+    await tabletShot('13-pad-penalties');
+    await penaltySearch.fill('');
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    await page.getByTestId('open-corrections').click();
+    await tabletShot('13-pad-corrections');
+    await page.keyboard.press('Escape');
+
+    // The wifi drops: the bar turns grey. Then it comes back, and the script waits
+    // until the tablet has nothing left to send before it ends the bout.
+    await page.context().setOffline(true);
+    await expect(network).toHaveAttribute('data-network', 'offline');
+    await tabletShot('13-pad-offline');
+    await page.context().setOffline(false);
+    await expect(network).toHaveAttribute('data-network', 'online');
+    await expect(network).not.toContainText('queued', { timeout: 30_000 });
+    expect(await exchangesOn(), 'the two hits reached the server').toBe(2);
+
+    await page.getByTestId('clock-end-button').click();
+    const endEarly = page.getByTestId('end-early-confirm');
+    if (await endEarly.isVisible().catch(() => false)) await endEarly.click();
+    await expect(page.getByTestId('match-result-overlay')).toBeVisible();
+    await tabletShot('13-pad-ended');
     await page.setViewportSize(DESKTOP);
     await shot(page, '07-live', `${at}/live`, /pistes ·/u);
 
@@ -286,6 +383,35 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     );
     expect(unfinished, 'the bracket did not play to a champion').toEqual([]);
     await shot(page, '09-final-ranking', `${at}/finalranking`);
+
+    // ── Formats: a double elimination played through, and a Swiss round drawn ─
+    await playTournamentToChampion(api, eventId, {
+      name: 'Double Elimination Cup',
+      slug: `de-cup-${token}`,
+      fighters: fighters.slice(0, 8),
+    });
+    await page.goto(`${at}/bracket`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Double Elimination Cup' }).first().click();
+    await shot(page, '12-double-elim');
+
+    const swiss = await createBracketTournament(api, eventId, {
+      name: 'Swiss Cup',
+      slug: `swiss-cup-${token}`,
+      fighters: fighters.slice(0, 8),
+    });
+    await api.ok(
+      await api.post(`tournaments/${swiss.id}/generate-swiss`, {
+        data: { roundCount: 3, seedingStrategy: 'random' },
+      }),
+    );
+    await page.goto(`${at}/swiss`, { waitUntil: 'domcontentloaded' });
+    // A click before hydration does nothing, so click until the breadcrumb names
+    // the Swiss tournament too (its name then shows twice: chip + breadcrumb).
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Swiss Cup' }).first().click();
+      await expect(page.getByText('Swiss Cup', { exact: true })).toHaveCount(2, { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    await shot(page, '12-swiss');
   } finally {
     // A test Event may be hard-deleted with results in it (`allowsDirectHardDelete`).
     // Logged, not asserted, here: an assertion in `finally` would replace the

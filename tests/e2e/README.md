@@ -1370,8 +1370,14 @@ E2E_CLEANUP=1 pnpm guide:screenshots
 
 - It builds one `test` Event named "Testville Open 2099". It never publishes it and never changes
   its kind. It imports the invented roster in `tests/guide/fixtures/guide-roster.csv` through the
-  import screen, plays the Pools and a bracket to a champion, and saves PNGs to
+  import screen, plays the Pools and a bracket to a champion, drives one bout on the scoring pad
+  through its states (running, paused, penalties, corrections, offline, ended), plays a double
+  elimination and draws a Swiss round, and saves 26 PNGs to
   `apps/web-marketing/src/assets/guide/`. Then it hard-deletes the Event, even after a failure.
+- **The import links, it never duplicates.** Deleting the Event leaves its people as profiles, so
+  every run after the first finds all 18 as duplicates. The script makes every row link to the
+  existing profile, and stops (before committing the import) when not all 18 can link. Earlier
+  versions created them anew: about 90 invented profiles were left on the stack that way.
 - `E2E_CLEANUP=1` also deletes the throwaway Event that `global-setup.ts` creates.
 - It writes to the stack that `E2E_BASE_URL` names. Re-run it when a screen the guide shows
   changes, and look at every PNG before committing: English UI, no real person.
