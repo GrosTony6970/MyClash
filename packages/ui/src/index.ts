@@ -331,6 +331,9 @@ export type {
 
 export { LegalFooter } from './components/LegalFooter';
 export type { LegalFooterProps, LegalFooterLink } from './components/LegalFooter';
+export { InstallAppButton } from './components/InstallAppButton';
+export type { InstallAppButtonProps } from './components/InstallAppButton';
+export { InstallOfferCapture } from './components/InstallOfferCapture';
 
 // ── Runtime feature-flags consumed by every app (banner + realtime) ──────
 

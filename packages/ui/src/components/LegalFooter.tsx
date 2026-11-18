@@ -10,6 +10,8 @@ export interface LegalFooterProps {
   links: readonly LegalFooterLink[];
   /** Line above the links, e.g. "© 2026 MyClash — AGPL-3.0". */
   note?: string;
+  /** Drawn above the links, e.g. the public app's `InstallAppButton`. Owns its own margin. */
+  action?: React.ReactNode;
   className?: string;
 }
 
@@ -27,12 +29,13 @@ export interface LegalFooterProps {
  * `legal-url.ts`). Rendered outside the main landmark, so a screen reader's
  * document outline is unaffected.
  */
-export const LegalFooter = ({ links, note, className = '' }: LegalFooterProps) => (
+export const LegalFooter = ({ links, note, action, className = '' }: LegalFooterProps) => (
   <footer
     className={['border-t border-border px-4 py-6 text-center text-xs text-muted', className].join(
       ' ',
     )}
   >
+    {action}
     <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
       {links.map((link) => (
         <li key={link.href}>
