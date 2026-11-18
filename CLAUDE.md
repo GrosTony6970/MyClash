@@ -16,8 +16,9 @@ This file is the agent contract. It holds the rules that cannot be inferred from
    `packages/rulesets/test/fixtures/fal2026.json`) means the engine is wrong — fix the engine,
    never the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline
-   functionality, and the offline tests must pass: `tests/e2e/06-offline-sync`,
-   `08-offline-custom-ruleset`, `40-offline-bout` and `tests/a11y/pad-offline-drill`.
+   functionality, and the offline tests must pass: `tests/e2e/06-offline-sync.spec.ts`,
+   `tests/e2e/08-offline-custom-ruleset.spec.ts`, `tests/e2e/40-offline-bout.spec.ts` and
+   `tests/a11y/pad-offline-drill.spec.ts`.
 4. **RLS on, on every table; signed-in users go through the API.** Every new table enables RLS.
    Add a read rule only where the public (`anon`) may read the rows — RLS on with no rule is a
    closed table, on purpose. No web role writes, and a signed-in token reads nothing through the
@@ -62,7 +63,8 @@ Two more places hold decisions, below the four files above. A code comment that 
 names one of the operator's numbered rulings: the register is `docs/notes/quick-wins-2026-10-08.md`
 (and `docs/notes/workshops-rulings.md` for the Workshops work). A feature's design is its spec in
 `docs/superpowers/` — `specs/` while it is not built, `archive/specs/` once it shipped; an archived
-spec explains why, and `ARCHITECTURE.md` says what the code does now.
+spec explains why, and `ARCHITECTURE.md` says what the code does now. The slice's closing commit
+moves its spec to `archive/specs/` and deletes its plan.
 
 If something conflicts with `HIERARCHY.md` or `ARCHITECTURE.md`, ask before deviating. If
 `ARCHITECTURE.md` is silent on a decision, ask — don't guess and write 500 lines that need
@@ -97,6 +99,9 @@ so the "fallback" was the only path that ever ran and shipped as the real accent
 (`docs/design/known-deviations.md`, D2). `t('k') || 'fallback'` is the same shape — `t()` returns a
 truthy `[k]`, so the `||` never fires and a French organiser gets English.
 
+**Trust the caller, not the annotation.** A comment, docstring, decorator or hand-kept list is not
+evidence that a safety check holds. Read the guard that runs. `@ApiBearerAuth()` enforces nothing.
+
 **One owner per behaviour.** Rewrite the existing component before adding a second one. A second
 copy diverges silently, and a docstring claiming to be "the only copy" is usually the one that is
 wrong.
@@ -120,14 +125,18 @@ record; there is no task queue to pick from.
   backwards-compatibility tax on internal contracts — schema changes, renames and prop reshaping
   all land cleanly. Prefer root-cause and class-of-bug fixes over patches.
 - **Several agent sessions commit to this repo concurrently.** Check `git log --oneline -1` before
-  staging, `git fetch` before pushing, and stage explicit paths — never `git add -A`.
+  staging, `git fetch` before pushing, and stage explicit paths — never `git add -A`. Never run a
+  bare `git stash pop`: the stash list holds other sessions' lint-staged backups, and a bare pop
+  takes theirs.
+- **A finished session commits and pushes to `main` without asking**, once the `myclash-gates`
+  chain is green. A red gate gets fixed, or reported to the operator, before the push.
 - **Write every script and every commit message to a file with the Write tool, then run it**
   (`node file.mjs`, `git commit -F file`); change files with Write or Edit. The `no-heredoc` hook
   refuses heredocs, `python -` / `node -` stdin scripts and bare `cat >`, because through a heredoc
   a backslash arrives collapsed: an anchor stops matching with no error, and `\b` lands as a
   backspace byte in a regex that then never matches.
-- If a task needs something only the operator can do — a DNS record, a third-party account, a decision about the real event —
-  **stop and notify** rather than improvising around it.
+- If a task needs something only the operator can do — a DNS record, a third-party account, a
+  decision about the real event — **stop and notify** rather than improvising around it.
 - **Hand a session over with the `myclash-handover` skill**: when asked for a handover, and before
   ending a session that leaves work uncommitted.
 - **`pnpm dev` runs no job.** Work on a job (a notification, a clean-up, a monitor) needs the
@@ -137,7 +146,7 @@ record; there is no task queue to pick from.
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs about thirty
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-eight
 further steps, and shared packages must be built in the right order or a local pass means nothing.
 
 Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from
@@ -145,6 +154,11 @@ Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from
 the E2E suite are separate CI jobs and go red on their own; the skill does not cover them.
 
 A task is done when its acceptance criteria pass (hard rule 10) and the gate chain is green.
+
+**A test must be able to go red.** A test that guards a fix fails without it: remove the fix, watch
+the test go red, then restore with `git restore` — a scripted reverse find-and-replace can put the
+old text back in the wrong places. The Supabase mocks ignore `.select()` columns and `.rpc()`
+arguments, so assert the select string and the arguments themselves.
 
 ---
 
