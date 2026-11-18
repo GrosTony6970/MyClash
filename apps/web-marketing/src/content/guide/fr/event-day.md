@@ -28,7 +28,7 @@ deux minutes qui montre au marqueur la tablette sans wifi.
 
 ![La tablette de score : un combat de poule en pause à 0–0, avec le bouton Reprendre](../../../assets/guide/07-pad.png)
 
-- **Démarrer** lance le chrono ; **Pause** l'arrête ; **Reprendre** le relance.
+- **Démarrer** lance le chrono ; **Pause** l'arrête ; **Reprendre** le relance. Les boutons d'échange ne marchent que chrono en pause : l'arbitre arrête, vous mettez en pause, saisissez l'échange, et reprenez.
 - Chaque combattant a des boutons **Touche propre** (+2, +1) et **Contre-frappe** (2-1, 1-1),
   tels que le règlement du tournoi les définit.
 - **Double** enregistre une double touche, **Aucun échange** un échange sans touche valable.

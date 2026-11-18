@@ -27,7 +27,7 @@ the scorekeeper what the pad looks like without wifi.
 
 ![The scoring pad on a tablet: a pool bout paused at 0–0, with the Resume button](../../../assets/guide/07-pad.png)
 
-- **Start** runs the clock; **Pause** stops it; **Resume** starts it again.
+- **Start** runs the clock; **Pause** stops it; **Resume** starts it again. The exchange buttons work only while the clock is paused: the referee halts, you pause, enter the exchange, and resume.
 - Each fighter has **Clean hit** buttons (+2, +1) and **Afterblow** buttons (2-1, 1-1), as the
   tournament's ruleset defines them.
 - **Double** records a double hit, **No exchange** an exchange with no valid hit.
