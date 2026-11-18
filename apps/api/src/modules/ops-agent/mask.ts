@@ -5,6 +5,35 @@ import type {
   BackupStatusDto,
 } from '../admin/dto/admin-backups.dto';
 import type { SystemVersionsResponseDto } from '../admin/dto/system-versions.dto';
+import { RUNTIME_HEALTH_TIMEOUT } from '@myclash/types';
+
+/** What stands in for an error text the door does not pass. */
+export const WITHHELD_ERROR = 'withheld';
+
+/** Error values the API itself writes as codes, not free text: they may pass. */
+const ERROR_CODES: ReadonlySet<string> = new Set([RUNTIME_HEALTH_TIMEOUT]);
+
+/**
+ * Replaces every string under a key named `error`, at any depth, with `withheld`, unless it is
+ * one of the API's own codes. Runtime health, host facts and certificates carry raw
+ * `Error.message` texts there (a Postgres message can quote a row; the ops runner's can be shell
+ * output). The field stays, so the agent still sees that a part is down. Slice 2's scrub may pass
+ * scrubbed text instead.
+ */
+export function withoutErrorText<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item: unknown) => withoutErrorText(item)) as T;
+  if (value === null || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, field] of Object.entries(value)) {
+    out[key] =
+      key === 'error' && typeof field === 'string'
+        ? ERROR_CODES.has(field)
+          ? field
+          : WITHHELD_ERROR
+        : withoutErrorText(field);
+  }
+  return out as T;
+}
 
 /**
  * What the ops agent may see of the admin reads (the ops agent's design, section 2: no person, and

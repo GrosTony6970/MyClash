@@ -14,14 +14,16 @@ import { AgentDoor } from './agent-door.decorator';
 import {
   maskBackups,
   maskVersions,
+  withoutErrorText,
   type AgentBackupStatusDto,
   type AgentVersionsDto,
 } from './mask';
 
 /**
  * The ops agent's door: five reads of the platform's health (the ops agent's design, section 2).
- * Only the agent key opens it (`AgentDoor`). Alert settings are not here: they list the email
- * addresses of the people who receive alerts.
+ * Only the agent key opens it (`AgentDoor`). No free text passes: error texts are withheld
+ * (`withoutErrorText`) until slice 2 brings the scrub. Alert settings are not here: they list the
+ * email addresses of the people who receive alerts.
  */
 @ApiTags('ops-agent')
 @Controller('ops-agent')
@@ -40,14 +42,14 @@ export class OpsAgentController {
   @ApiOperation({
     summary: 'Runtime health of the database, Redis, queues, disk and photo storage',
   })
-  runtimeHealth(): Promise<RuntimeHealthResponseDto> {
-    return this.runtime.collect();
+  async runtimeHealth(): Promise<RuntimeHealthResponseDto> {
+    return withoutErrorText(await this.runtime.collect());
   }
 
   @Get('host')
   @ApiOperation({ summary: 'Host facts: OS, kernel, Docker, CPU, memory and disk' })
-  host(): Promise<HostInfoResponseDto> {
-    return this.hostInfo.collect();
+  async host(): Promise<HostInfoResponseDto> {
+    return withoutErrorText(await this.hostInfo.collect());
   }
 
   @Get('versions')
@@ -64,7 +66,7 @@ export class OpsAgentController {
 
   @Get('tls')
   @ApiOperation({ summary: 'Certificate state of every public host' })
-  tls(): Promise<TlsStatusResponseDto> {
-    return this.tlsStatus.probeAll();
+  async tls(): Promise<TlsStatusResponseDto> {
+    return withoutErrorText(await this.tlsStatus.probeAll());
   }
 }

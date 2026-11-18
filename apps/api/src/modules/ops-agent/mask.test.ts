@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BackupStatusDto } from '../admin/dto/admin-backups.dto';
 import type { SystemVersionsResponseDto } from '../admin/dto/system-versions.dto';
-import { maskBackups, maskVersions } from './mask';
+import { maskBackups, maskVersions, withoutErrorText } from './mask';
 
 const LOGIN = 'marker-login-7f3';
 
@@ -134,5 +134,38 @@ describe('maskBackups', () => {
     const masked = maskBackups({ ...backups(), lastBackup: null, runningOperation: null });
     expect(masked.lastBackup).toBeNull();
     expect(masked.runningOperation).toBeNull();
+  });
+});
+
+describe('withoutErrorText', () => {
+  // A Postgres or shell message can quote a row: free text waits for slice 2's scrub.
+  const health = {
+    checkedAt: '2026-11-18T10:00:00Z',
+    overall: 'unavailable',
+    database: { status: 'unavailable', error: 'duplicate key (email)=(marker@example.test)' },
+    redis: { status: 'unavailable', error: 'timeout' },
+    disk: { status: 'unavailable', error: 'ops runner said: marker-shell-line' },
+    queues: { status: 'healthy', queues: [{ name: 'q', active: 1, reason: null }] },
+  };
+
+  it('withholds every error text, however deep, and says that it did', () => {
+    const masked = withoutErrorText(health);
+    const text = JSON.stringify(masked);
+    expect(text).not.toContain('marker');
+    expect(masked.database.error).toBe('withheld');
+    expect(masked.disk.error).toBe('withheld');
+  });
+
+  it("keeps the API's own error codes, and every other field", () => {
+    const masked = withoutErrorText(health);
+    expect(masked.redis.error).toBe('timeout');
+    expect(masked.database.status).toBe('unavailable');
+    expect(masked.queues).toEqual(health.queues);
+    expect(masked.checkedAt).toBe('2026-11-18T10:00:00Z');
+  });
+
+  it('reaches errors inside lists, as the certificate read has one per host', () => {
+    const tls = { hosts: [{ host: 'app.example.test', reachable: false, error: 'marker-tls' }] };
+    expect(withoutErrorText(tls).hosts[0]!.error).toBe('withheld');
   });
 });

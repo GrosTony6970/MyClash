@@ -54,6 +54,19 @@ describe('OpsAgentController', () => {
     expect(tls.probeAll).toHaveBeenCalledTimes(1);
   });
 
+  it('withholds the error text of runtime health, host facts and certificates', async () => {
+    const { controller, runtime, host, tls } = build();
+    runtime.collect.mockResolvedValue({ disk: { status: 'unavailable', error: 'marker-1' } });
+    host.collect.mockResolvedValue({ hostname: 'vps', error: 'marker-2' });
+    tls.probeAll.mockResolvedValue({ hosts: [{ reachable: false, error: 'marker-3' }] });
+    const text = JSON.stringify([
+      await controller.runtimeHealth(),
+      await controller.host(),
+      await controller.tls(),
+    ]);
+    expect(text).not.toContain('marker');
+  });
+
   it('masks versions and backups on the way out', async () => {
     const { controller, versions, backups } = build();
     const v = await controller.versions();
