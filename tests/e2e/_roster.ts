@@ -10,19 +10,49 @@
  * followers get its alerts, and the real address on the roster row can be
  * mailed by a broadcast, a Workshop notice, the pass mail-out or a claim link.
  *
- * So every row NOT named in `linked` loses the three things a match is made on:
- * `email`, `hema_ratings_id`, and the club (`club`, `club_abv`, `club_city` —
- * clubs are found by fuzzy name, so a renamed club could still match). Such a
- * row can only mint a fresh profile with no account and no address.
+ * So every row NOT named in `linked` keeps only the columns in `SURVIVES` — its
+ * name and role — and loses EVERY other cell, a column this file does not know
+ * included. An allowlist, not a denylist: a column the importer learns later (or
+ * an alias such as `courriel`) is blanked by default. Such a row can only mint a
+ * fresh profile with no account, no address and no club.
+ *
+ * Headers are read the way the importer reads them (`csv-columns.ts`: lower
+ * case, accents off, spaces / hyphens / apostrophes as `_`, English or French
+ * name), and the separator is chosen by its rule (`detectCsvDelimiter`). Both
+ * are copied, not imported: the e2e runner does not load app code. A copy that
+ * falls behind only blanks more — it can never let an address through.
  *
  * `linked` names people, as "Given Family", who agreed to be linked and to get
  * the demo's notices. Each must match exactly one row, or this throws: a typo
  * must not silently isolate someone, nor link two people of one name.
  */
-const CONTACT_COLUMNS = ['email', 'hema_ratings_id', 'club', 'club_abv', 'club_city'] as const;
+
+/** The importer's names for the columns a non-linked row keeps (`HEADER_NAMES`). */
+const SURVIVES: Record<string, readonly string[]> = {
+  given_name: ['given_name', 'first_name', 'firstname', 'prenom'],
+  family_name: ['family_name', 'last_name', 'lastname', 'surname', 'nom', 'nom_de_famille'],
+  display_name: ['display_name', 'nom_affiche'],
+  weapons: ['weapons', 'armes'],
+  is_fighter: ['is_fighter', 'combattant'],
+  is_referee: ['is_referee', 'arbitre'],
+  is_workshop_participant: ['is_workshop_participant', 'participant_atelier'],
+};
+
+const COLUMN_BY_KEY = new Map(
+  Object.entries(SURVIVES).flatMap(([column, names]) => names.map((name) => [name, column])),
+);
+
+/** `headerKey` of `csv-columns.ts`. */
+const headerKey = (header: string): string =>
+  header
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-'’]+/gu, '_');
 
 const fold = (name: string): string =>
-  name.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ').toLowerCase();
+  name.normalize('NFD').replace(/\p{M}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** The names in `E2E_POPULATE_LINKED`: "Given Family" entries, separated by `;`. */
 export function linkedNames(value: string | undefined): string[] {
@@ -36,35 +66,44 @@ export function isolateRoster(
   csv: string,
   linked: readonly string[],
 ): { csv: string; isolated: number; kept: number } {
-  const lines = csv.replace(/^﻿/, '').split(/\r?\n/);
+  const lines = csv
+    .replace(/^﻿/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== '');
   const header = lines[0] ?? '';
-  // The importer auto-detects `;` or `,`. Quoted cells are refused rather than
-  // mis-split: a shifted column would blank the wrong field and keep an address.
-  const delimiter = header.includes(';') ? ';' : ',';
+  // Quoted cells are refused rather than mis-split: a shifted column would
+  // blank the wrong field and keep an address.
   if (lines.some((line) => line.includes('"'))) {
     throw new Error('[e2e] isolateRoster reads unquoted CSV only; this roster has quoted cells');
   }
-  const columns = header.split(delimiter).map((c) => c.trim().toLowerCase());
-  const at = (name: string) => columns.indexOf(name);
-  const given = at('given_name');
-  const family = at('family_name');
-  if (given < 0 || family < 0) throw new Error('[e2e] roster has no given_name/family_name');
-  const blanks = CONTACT_COLUMNS.map(at).filter((index) => index >= 0);
+  // `detectCsvDelimiter`: ';' only when it strictly outnumbers ',' on the first line.
+  const semis = header.split(';').length - 1;
+  const commas = header.split(',').length - 1;
+  const delimiter = semis > commas ? ';' : ',';
+
+  const columns = header.split(delimiter).map((h) => COLUMN_BY_KEY.get(headerKey(h)) ?? null);
+  const given = columns.indexOf('given_name');
+  const family = columns.indexOf('family_name');
+  if (given < 0 || family < 0) throw new Error('[e2e] roster has no given and family name columns');
 
   const wanted = new Map(linked.map((name) => [fold(name), 0]));
   let isolated = 0;
   const out = [header];
-  for (const line of lines.slice(1)) {
-    if (line.trim() === '') continue;
+  for (const [index, line] of lines.slice(1).entries()) {
     const cells = line.split(delimiter);
-    const name = fold(`${cells[given] ?? ''} ${cells[family] ?? ''}`);
+    if (cells.length !== columns.length) {
+      throw new Error(
+        `[e2e] roster line ${index + 2} has ${cells.length} cells, its header ${columns.length}`,
+      );
+    }
+    const name = fold(`${cells[given]} ${cells[family]}`);
     if (wanted.has(name)) {
       wanted.set(name, wanted.get(name)! + 1);
-    } else {
-      for (const index of blanks) if (index < cells.length) cells[index] = '';
-      isolated++;
+      out.push(line);
+      continue;
     }
-    out.push(cells.join(delimiter));
+    out.push(cells.map((cell, i) => (columns[i] ? cell : '')).join(delimiter));
+    isolated++;
   }
 
   const wrong = [...wanted].filter(([, count]) => count !== 1);
