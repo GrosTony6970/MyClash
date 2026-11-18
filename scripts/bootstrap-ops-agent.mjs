@@ -6,13 +6,17 @@
  * design, docs/superpowers/specs/2026-11-18-ops-agent-design.md, section 1). A wipe empties the
  * key table, so the deploy, not a person, puts the key back.
  *
- *   OPS_AGENT_KEY empty or unset → every live key is revoked (the off switch). No GoTrue call:
- *                                  turning the agent off must work while the login service is down.
- *   OPS_AGENT_KEY not an mca_ key → failed; nothing is touched.
- *   OPS_AGENT_KEY set             → the account `ops-agent@${DOMAIN}` exists (created with no
- *                                  password), is banned again (so nobody signs in as it, even after
- *                                  a ban lifted on the console), and the key's sha256 is stored. Any
- *                                  other live key of the account is revoked in the same statement.
+ * What dies never waits for GoTrue: turning the agent off, or replacing a leaked key, must work
+ * while the login service is down.
+ *
+ *   OPS_AGENT_KEY empty or unset  → every live key is revoked (the off switch).
+ *   OPS_AGENT_KEY not an mca_ key → every live key is revoked, and the state is `failed`: a typo
+ *                                   must not leave the key it was meant to replace alive.
+ *   OPS_AGENT_KEY set             → first, every live key with another hash is revoked; then the
+ *                                   account `ops-agent@${DOMAIN}` is found by SQL or created
+ *                                   through GoTrue with no password, banned again (so nobody signs
+ *                                   in as it, even after a ban lifted on the console), and the
+ *                                   key's sha256 is stored.
  *
  * A key revoked on the console is never revived: the insert does nothing on a known hash, and the
  * result says `revoked` so the deploy can ask for a new value.
@@ -33,17 +37,14 @@ const DISPLAY_NAME = 'Claude (ops agent)';
 const KEY_LABEL = 'Claude ops agent';
 const BAN = { ban_duration: '876000h' };
 
-const STORE_KEY_SQL = `WITH revoked AS (
-  UPDATE agent_keys SET revoked_at = now()
-  WHERE user_id = $1 AND token_hash <> $2 AND revoked_at IS NULL
-  RETURNING id
-), inserted AS (
-  INSERT INTO agent_keys (user_id, label, token_hash) VALUES ($1, $3, $2)
+const REVOKE_ALL_SQL =
+  'UPDATE agent_keys SET revoked_at = now() WHERE revoked_at IS NULL RETURNING id';
+const REVOKE_OTHERS_SQL = `UPDATE agent_keys SET revoked_at = now()
+  WHERE revoked_at IS NULL AND token_hash <> $1
+  RETURNING id`;
+const INSERT_KEY_SQL = `INSERT INTO agent_keys (user_id, token_hash, label) VALUES ($1, $2, $3)
   ON CONFLICT (token_hash) DO NOTHING
-  RETURNING id
-)
-SELECT (SELECT count(*) FROM revoked)::int AS revoked_others,
-       (SELECT count(*) FROM inserted)::int AS inserted`;
+  RETURNING id`;
 
 class SeedError extends Error {}
 
@@ -51,11 +52,10 @@ function hashKey(raw) {
   return createHash('sha256').update(raw).digest('hex');
 }
 
-async function ensureAccount(gotrue, email) {
-  const list = await gotrue('GET', '/admin/users?page=1&per_page=1000');
-  if (!list.ok) throw new SeedError('Failed to list users');
-  const existing = (list.data?.users ?? []).find((u) => u.email?.toLowerCase() === email);
-  let userId = existing?.id;
+/** The account by SQL (no paged GoTrue list), created through GoTrue when absent, then banned. */
+async function ensureAccount(gotrue, runSql, email) {
+  const [found] = await runSql('SELECT id FROM auth.users WHERE lower(email) = $1', [email]);
+  let userId = found?.id;
   if (!userId) {
     const created = await gotrue('POST', '/admin/users', {
       email,
@@ -70,21 +70,20 @@ async function ensureAccount(gotrue, email) {
   return userId;
 }
 
-async function seed(env, gotrueOverride, runSqlOverride) {
+async function seed(env, gotrueOverride, runSqlOverride, progress) {
   const key = env['OPS_AGENT_KEY'] ?? '';
   const databaseUrl = env['DATABASE_URL'];
   if (!databaseUrl) throw new SeedError('Missing DATABASE_URL');
   const runSql = runSqlOverride ?? createRunSql({ databaseUrl });
 
-  if (key === '') {
-    const revoked = await runSql(
-      'UPDATE agent_keys SET revoked_at = now() WHERE revoked_at IS NULL RETURNING id',
-    );
-    return { state: 'not-configured', revokedOthers: revoked.length };
-  }
-  if (!OPS_AGENT_KEY_PATTERN.test(key)) {
+  if (key === '' || !OPS_AGENT_KEY_PATTERN.test(key)) {
+    progress.revokedOthers = (await runSql(REVOKE_ALL_SQL)).length;
+    if (key === '') return { state: 'not-configured', revokedOthers: progress.revokedOthers };
     throw new SeedError('OPS_AGENT_KEY is not an mca_ key (mca_ and 43 base64url characters)');
   }
+
+  const hash = hashKey(key);
+  progress.revokedOthers = (await runSql(REVOKE_OTHERS_SQL, [hash])).length;
 
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DOMAIN } = env;
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !DOMAIN) {
@@ -93,22 +92,25 @@ async function seed(env, gotrueOverride, runSqlOverride) {
   const gotrue =
     gotrueOverride ??
     createGotrueClient({ supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY });
-  const userId = await ensureAccount(gotrue, `ops-agent@${DOMAIN}`.toLowerCase());
+  const userId = await ensureAccount(gotrue, runSql, `ops-agent@${DOMAIN}`.toLowerCase());
 
-  const hash = hashKey(key);
-  const [stored] = await runSql(STORE_KEY_SQL, [userId, hash, KEY_LABEL]);
-  // A second statement: the CTE's own snapshot cannot see the row it inserted.
+  const inserted = await runSql(INSERT_KEY_SQL, [userId, hash, KEY_LABEL]);
   const [row] = await runSql('SELECT revoked_at FROM agent_keys WHERE token_hash = $1', [hash]);
-  const state = row?.revoked_at ? 'revoked' : stored?.inserted > 0 ? 'created' : 'existing';
-  return { state, revokedOthers: stored?.revoked_others ?? 0 };
+  const state = row?.revoked_at ? 'revoked' : inserted.length > 0 ? 'created' : 'existing';
+  return { state, revokedOthers: progress.revokedOthers };
 }
 
 export async function bootstrapOpsAgent({ env = process.env, gotrue, runSql } = {}) {
+  const progress = { revokedOthers: 0 };
   try {
-    return await seed(env, gotrue, runSql);
+    return await seed(env, gotrue, runSql, progress);
   } catch (err) {
     // A GoTrue or database message, never the key: the key is only ever hashed.
-    return { state: 'failed', revokedOthers: 0, error: String(err?.message ?? err) };
+    return {
+      state: 'failed',
+      revokedOthers: progress.revokedOthers,
+      error: String(err?.message ?? err),
+    };
   }
 }
 
