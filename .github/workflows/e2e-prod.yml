@@ -107,6 +107,13 @@ jobs:
           E2E_FORFEIT: '1' # 35
           E2E_UNCOMPLETE: '1' # 36
           E2E_PROTESTS: '1' # 43 — ~1 min
+          E2E_WORKSHOP_JOIN: '1' # 46 — skips without the fighter accounts below
+          # 46 and 47 sign in as two personal accounts with claimed fighter
+          # profiles. Absent these, both SKIP and name what is missing.
+          E2E_FIGHTER_A_EMAIL: ${{ secrets.E2E_FIGHTER_A_EMAIL }}
+          E2E_FIGHTER_A_PASSWORD: ${{ secrets.E2E_FIGHTER_A_PASSWORD }}
+          E2E_FIGHTER_B_EMAIL: ${{ secrets.E2E_FIGHTER_B_EMAIL }}
+          E2E_FIGHTER_B_PASSWORD: ${{ secrets.E2E_FIGHTER_B_PASSWORD }}
           # 41 runs the piste on the staff app's own address (a PIN session's
           # piste pages live there only), so it skips until this variable is set.
           E2E_STAFF_URL: ${{ vars.E2E_STAFF_URL }}

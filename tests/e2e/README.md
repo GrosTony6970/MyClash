@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`45` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`46` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -121,6 +121,7 @@ the pass/fail record.
 | `43` | protests                 | `E2E_CLEANUP`, `E2E_PROTESTS`, `E2E_PUBLIC_URL`, `E2E_STAFF_URL`                                                                                                                                                         |
 | `44` | desk screens             | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
 | `45` | forfeit settings         | `E2E_FORFEIT`                                                                                                                                                                                                            |
+| `46` | workshop join            | `E2E_CLEANUP`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`, `E2E_WORKSHOP_JOIN`                                                                   |
 
 </div>
 
@@ -1254,6 +1255,39 @@ The default injury rule keeps the score as it stood, so a forfeit under it on a
 bout with no hits would read 0 – 0: a 0 – 7 can come only from the saved rule.
 Written from the code, not yet seen passing: read its first run as a first run.
 
+## The fighter accounts (`46`, `47`)
+
+Every other spec runs as the organisation's owner. The fighter-side specs need
+**personal accounts holding a claimed fighter profile**, and FightBook needs two.
+The operator provisions them once and sets `E2E_FIGHTER_A_EMAIL`/`_PASSWORD` and
+`E2E_FIGHTER_B_EMAIL`/`_PASSWORD` (locally in `.env.e2e`, in CI as secrets):
+
+- each account's claim on a fighter profile is **approved** (a claim waits for
+  a super admin's review);
+- neither is a member of the E2E organisation, and neither holds a platform role;
+- FightBook sends real push/email notices to both, through the worker.
+
+Without all four, `46` and `47` skip and say which variables are missing.
+`_fighters.ts` signs each in once per spec, in a context with no organizer
+cookie, and reads its profile id from `me/personal-space`.
+
+## Joining an Event from a Workshop page (opt-in)
+
+`E2E_WORKSHOP_JOIN=1 pnpm test:e2e:prod tests/e2e/46-workshop-join.spec.ts`, on
+its own published `club` Event with two Workshops (Longsword with an instructor,
+Sabre without):
+
+| step    | what it proves                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------- |
+| closed  | fighter B's join is refused, 409 `SELF_JOIN_CLOSED`, while the switch is off                    |
+| switch  | the organiser turns "People may join this Event by themselves" on, and it reaches the Event     |
+| filters | the public Workshops list filters by weapon and by instructor                                   |
+| join    | B, not on the roster, taps Register → "Join and book": on the roster with their profile, seated |
+| again   | a second join answers `joined: 'already'` with the same row                                     |
+
+The instructor is a throwaway roster person: adding an instructor marks a profile
+an instructor for good. Written from the code, not yet seen passing.
+
 ## Protests, from the settings to the TV (opt-in)
 
 `E2E_PROTESTS=1 pnpm test:e2e:prod tests/e2e/43-protests.spec.ts` runs a protest
@@ -1278,53 +1312,54 @@ through every surface that reads it, on a real Match of its own published
 
 ## Status
 
-| #   | Flow                                    | Spec                                | State                                     |
-| --- | --------------------------------------- | ----------------------------------- | ----------------------------------------- |
-| 1   | CSV participant import                  | `01-participants-import.spec.ts`    | active                                    |
-| 2   | Create tournament (wizard step 1)       | `02-create-tournament.spec.ts`      | active                                    |
-| 3   | Create event (wizard)                   | `03-create-event.spec.ts`           | active (step 1 + full happy path)         |
-| 4   | Schedule / programme                    | `04-schedule.spec.ts`               | active (page load + generate)             |
-| 5   | Referee auto-assign board               | `05-referee-board.spec.ts`          | active                                    |
-| 6   | Offline scoring sync (PWA)              | `06-offline-sync.spec.ts`           | active                                    |
-| 7   | Populate rich demo event                | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above      |
-| 8   | Offline scoring on a custom ruleset     | `08-offline-custom-ruleset.spec.ts` | active                                    |
-| 9   | Double-elimination playthrough          | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above   |
-| 10  | Scoring-pad server contract             | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)              |
-| 11  | League season                           | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above        |
-| 12  | Exports + HEMA Ratings bundle           | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above       |
-| 13  | Subject export + deletion requests      | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above       |
-| 14  | Referee compensation                    | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above  |
-| 15  | Public site on real data                | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above   |
-| 16  | The pad's other buttons + the clock     | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above        |
-| 17  | Archive export → restore round-trip     | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above       |
-| 18  | Staff PIN login + the staff rules       | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above         |
-| 19  | Workshops: seats, waitlist, staff       | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above     |
-| 20  | Schedule generator invariants           | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above      |
-| 21  | Referee qualification + availability    | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above      |
-| 22  | Swiss rounds, auto-advance, the cut     | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above         |
-| 23  | Swiss seeding refusals + set-sides      | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above         |
-| 24  | Swiss admin route + public tab render   | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above         |
-| 25  | Swiss archive + HEMA Ratings labels     | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above         |
-| 26  | Print pack route builds its document    | `26-print-pack.spec.ts`             | always                                    |
-| 27  | Platform tier sweep + the console       | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above   |
-| 28  | Live control room + its realtime        | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above    |
-| 29  | League across several events            | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above        |
-| 30  | AI keys, budgets, kill-switches         | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above            |
-| 31  | AI generation against a real provider   | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**     |
-| 32  | Organiser AI tools + their pages        | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**     |
-| 33  | Check-in desk, gear table, passes       | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above         |
-| 34  | Bracket seeding drift, all 4 states     | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above         |
-| 35  | Pool forfeit cascade + re-record        | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above       |
-| 36  | Un-completing a bracket match           | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above    |
-| 37  | The api-failure seam, `/admin` consoles | `37-api-failure-seam.spec.ts`       | needs super-admin; skips without it       |
-| 38  | The api-failure seam, org + public      | `38-api-failure-seam-org.spec.ts`   | always                                    |
-| 39  | The tablet's presses, sent twice        | `39-late-presses.spec.ts`           | opt-in (`E2E_SCORING_PAD=1`); see `16`    |
-| 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                          |
-| 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                  |
-| 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22` |
-| 43  | Protests, settings to TV                | `43-protests.spec.ts`               | opt-in (`E2E_PROTESTS=1`); see below      |
-| 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33` |
-| 45  | Forfeit rules set on screen, audited    | `45-forfeit-settings.spec.ts`       | opt-in (`E2E_FORFEIT=1`), runs with `35`  |
+| #   | Flow                                    | Spec                                | State                                                 |
+| --- | --------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
+| 1   | CSV participant import                  | `01-participants-import.spec.ts`    | active                                                |
+| 2   | Create tournament (wizard step 1)       | `02-create-tournament.spec.ts`      | active                                                |
+| 3   | Create event (wizard)                   | `03-create-event.spec.ts`           | active (step 1 + full happy path)                     |
+| 4   | Schedule / programme                    | `04-schedule.spec.ts`               | active (page load + generate)                         |
+| 5   | Referee auto-assign board               | `05-referee-board.spec.ts`          | active                                                |
+| 6   | Offline scoring sync (PWA)              | `06-offline-sync.spec.ts`           | active                                                |
+| 7   | Populate rich demo event                | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above                  |
+| 8   | Offline scoring on a custom ruleset     | `08-offline-custom-ruleset.spec.ts` | active                                                |
+| 9   | Double-elimination playthrough          | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above               |
+| 10  | Scoring-pad server contract             | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)                          |
+| 11  | League season                           | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above                    |
+| 12  | Exports + HEMA Ratings bundle           | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above                   |
+| 13  | Subject export + deletion requests      | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above                   |
+| 14  | Referee compensation                    | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above              |
+| 15  | Public site on real data                | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above               |
+| 16  | The pad's other buttons + the clock     | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above                    |
+| 17  | Archive export → restore round-trip     | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above                   |
+| 18  | Staff PIN login + the staff rules       | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above                     |
+| 19  | Workshops: seats, waitlist, staff       | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above                 |
+| 20  | Schedule generator invariants           | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above                  |
+| 21  | Referee qualification + availability    | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above                  |
+| 22  | Swiss rounds, auto-advance, the cut     | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above                     |
+| 23  | Swiss seeding refusals + set-sides      | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above                     |
+| 24  | Swiss admin route + public tab render   | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above                     |
+| 25  | Swiss archive + HEMA Ratings labels     | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above                     |
+| 26  | Print pack route builds its document    | `26-print-pack.spec.ts`             | always                                                |
+| 27  | Platform tier sweep + the console       | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above               |
+| 28  | Live control room + its realtime        | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above                |
+| 29  | League across several events            | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above                    |
+| 30  | AI keys, budgets, kill-switches         | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above                        |
+| 31  | AI generation against a real provider   | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**                 |
+| 32  | Organiser AI tools + their pages        | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**                 |
+| 33  | Check-in desk, gear table, passes       | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above                     |
+| 34  | Bracket seeding drift, all 4 states     | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above                     |
+| 35  | Pool forfeit cascade + re-record        | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above                   |
+| 36  | Un-completing a bracket match           | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above                |
+| 37  | The api-failure seam, `/admin` consoles | `37-api-failure-seam.spec.ts`       | needs super-admin; skips without it                   |
+| 38  | The api-failure seam, org + public      | `38-api-failure-seam-org.spec.ts`   | always                                                |
+| 39  | The tablet's presses, sent twice        | `39-late-presses.spec.ts`           | opt-in (`E2E_SCORING_PAD=1`); see `16`                |
+| 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                                      |
+| 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                              |
+| 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22`             |
+| 43  | Protests, settings to TV                | `43-protests.spec.ts`               | opt-in (`E2E_PROTESTS=1`); see below                  |
+| 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33`             |
+| 45  | Forfeit rules set on screen, audited    | `45-forfeit-settings.spec.ts`       | opt-in (`E2E_FORFEIT=1`), runs with `35`              |
+| 46  | Join an Event from a Workshop page      | `46-workshop-join.spec.ts`          | opt-in (`E2E_WORKSHOP_JOIN=1`) + the fighter accounts |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
