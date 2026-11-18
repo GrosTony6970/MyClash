@@ -1,6 +1,18 @@
 # Organiser guide — design
 
-Status: approved by the operator on 2026-11-18. Not built yet.
+Status: approved by the operator on 2026-11-18. Shipped 2026-11-18.
+
+What the build found against this spec:
+
+- **Sign-up does not wait for approval.** The self-service sign-up creates the club `active`
+  (`apps/api/src/modules/organizations/onboarding.service.ts`); `pending_approval` is another
+  route (`POST /organizations`). Page 0 says the organiser starts at once. The row for page 0
+  below is kept as approved, and is wrong on this point.
+- **Referee rules.** The code and ADR-016 have six checks plus a daily cap that an organiser can
+  switch off, not two. The guide follows the code. CLAUDE.md hard rule 8 still says "two soft
+  rules", which is for the operator to reconcile.
+- **16 screenshots, not 15**: the event form gets one shot for the kind choice and one for its
+  top. The "Hard to undo" label is written in each page, not in `CHROME` (no MDX).
 
 ## Context — intent and the why
 
