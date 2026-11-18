@@ -513,9 +513,10 @@ that takes a Lice id from its caller (`apps/api/src/modules/lices/lices-in-event
 **A Venue Lice is not a Lice**: it is setup data that event creation copies from, and nothing is
 ever scheduled onto one. Served by `apps/api/src/modules/venues/`.
 
-**`events.event_kind` is `standard | test | club`** (migration `0162`). It is not cosmetic: `test`
-and `club` events are excluded from public listings, and a `test` Event is hidden from the public
-as a draft is. `GET /events/:slug` returning 404 for a test Event to anybody outside its club is
+**`events.event_kind` is `standard | test | club`** (migration `0162`). It is not cosmetic: a
+`test` Event is hidden from the public as a draft is, and left out of public listings. A `club`
+Event is public and listed, but its results reach no ranking, career statistic, League or HEMA
+Ratings export (the predicates in `packages/types/src/event-kind.ts`). `GET /events/:slug` returning 404 for a test Event to anybody outside its club is
 the policy working; a member of its club reads it (`isPublicEvent`, `assertCanReadEventRow`: ONE
 rule for a draft and a test Event, operator ruling 2026-10-13). Anything counting or listing
 events has to say which kinds it means.
