@@ -14,14 +14,14 @@ Un membre se connecte avec son propre compte MyClash et travaille dans l'espace 
 **rôle** décide de ce qu'il peut faire. Chaque rôle peut tout ce que peuvent les rôles en dessous
 de lui.
 
-| Rôle                         | Ce qu'il ajoute                                                                                                                  |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Propriétaire**             | Les réglages de l'organisation ; ajouter et retirer des membres ; changer un règlement verrouillé                                |
-| **Administrateur**           | Les règlements de score et de pénalités ; la liste des membres ; le logo                                                         |
-| **Éditeur**                  | Faire tourner les événements : lices, poules, tableaux, planning, arbitres, comptes des tablettes ; rouvrir un combat verrouillé |
-| **Instructeur**, **Arbitre** | Leurs ateliers et leurs arbitrages                                                                                               |
-| **Teneur de score**          | Marquer les combats sur la tablette avec son propre compte, sur n'importe quelle lice, sans PIN ; la salle de contrôle en direct |
-| **Lecture seule**            | Voir les événements de l'organisation, brouillons compris                                                                        |
+| Rôle                         | Ce qu'il ajoute                                                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Propriétaire**             | Les réglages de l'organisation ; ajouter et retirer des membres ; changer un règlement verrouillé                                                                                                      |
+| **Administrateur**           | Créer des événements ; générer et modifier les poules, les tableaux et les rondes suisses ; les qualifications des arbitres ; les règlements de score et de pénalités ; la liste des membres ; le logo |
+| **Éditeur**                  | Faire tourner les événements : lices, planning, affectations d'arbitres, comptes des tablettes ; rouvrir un combat verrouillé                                                                          |
+| **Instructeur**, **Arbitre** | Leurs ateliers et leurs arbitrages                                                                                                                                                                     |
+| **Teneur de score**          | Marquer les combats sur la tablette avec son propre compte, sur n'importe quelle lice, sans PIN ; la salle de contrôle en direct                                                                       |
+| **Lecture seule**            | Voir les événements de l'organisation, brouillons compris                                                                                                                                              |
 
 Pour ajouter un membre, ouvrez **Membres de l'organisation**. Saisissez
 l'**Email d'un compte MyClash existant**, choisissez le **Rôle**, et cliquez sur

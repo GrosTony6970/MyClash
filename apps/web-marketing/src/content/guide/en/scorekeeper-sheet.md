@@ -38,14 +38,15 @@ For anything older, call the organiser.
 
 ## 5. End the bout
 
-Reaching the point cap does not end the bout: tap **End match**. Check the score before you do;
-the result screen then offers **NEXT** for the next bout.
+With the network, the bout ends by itself when a hit reaches the point cap. When time is up, or
+without network, tap **End match**; check the score first. The result screen then offers
+**NEXT** for the next bout.
 
 ## 6. The wifi drops
 
 The bar at the top turns grey: **OFFLINE - exchanges queued locally**. _Keep going._ Everything
-you enter is sent when the network comes back. Only the corrections, and reopening an ended bout,
-wait for the network.
+you enter is sent when the network comes back. Only the corrections and reopening an ended bout
+need the network: they are refused until it comes back.
 
 ## Call the organiser when
 

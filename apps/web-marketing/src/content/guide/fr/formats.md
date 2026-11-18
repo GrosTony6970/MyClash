@@ -9,7 +9,7 @@ section: concepts
 les changent, et lequel choisir.
 
 Un tournoi est fait de **phases**. La forme habituelle : des poules, puis un tableau. Vous pouvez
-aussi ne faire que des poules, que un tableau, ou des rondes suisses.
+aussi ne faire que des poules, qu'un tableau, ou des rondes suisses.
 
 ## Les poules
 
@@ -57,7 +57,7 @@ tableau des repêchages.
 - Une fois généré, seul **Grande finale avec reset** se modifie encore. Pour le reste, cliquez
   sur **Régénérer le tableau**.
 
-![Un tableau à double élimination et ses réglages](../../../assets/guide/12-double-elim.png)
+![Les réglages d'un tableau à double élimination](../../../assets/guide/12-double-elim.png)
 
 ## Les rondes suisses
 
@@ -70,8 +70,8 @@ Personne n'est éliminé ; le classement sort des résultats.
 - **Appariement au sein d'un groupe** : **Plié - moitié haute contre moitié basse** ou
   **Adjacent - 1c2, 3c4**. MyClash évite les revanches et donne une exemption au combattant le
   moins bien classé qui n'en a pas encore eu.
-- Les points : une victoire vaut 3, un nul 1, une défaite 0, une exemption 3. Les égalités se
-  départagent au Buchholz, puis au Sonneborn-Berger, puis selon l'ordre du règlement.
+- Les points, par défaut : une victoire vaut 3, un nul 1, une défaite 0, une exemption 3. Les égalités se
+  départagent au Buchholz, puis au Sonneborn-Berger, puis selon l'ordre du règlement. L'onglet **Configurer** permet de changer les deux.
 - La ronde suivante s'apparie seule quand le dernier combat de la ronde se termine.
 
 ![Les réglages des rondes suisses d'un tournoi](../../../assets/guide/12-swiss.png)

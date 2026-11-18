@@ -13,14 +13,14 @@ accounts, and how referees fit in.
 A member signs in with their own MyClash account and works in the organiser workspace. Their
 **role** decides what they can do. Each role can do everything the roles below it can.
 
-| Role                        | What it adds                                                                                              |
-| --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Owner**                   | The organisation's settings; adding and removing members; changing a locked ruleset                       |
-| **Admin**                   | Scoring and penalty rulesets; the member list; the logo                                                   |
-| **Editor**                  | Running events: pistes, pools, brackets, the schedule, referees, tablet accounts; reopening a locked bout |
-| **Instructor**, **Referee** | Their workshops and referee duties                                                                        |
-| **Scorekeeper**             | Scoring bouts on the pad with their own account, on any piste, without a PIN; the live room               |
-| **Read only**               | Seeing the organisation's events, drafts included                                                         |
+| Role                        | What it adds                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Owner**                   | The organisation's settings; adding and removing members; changing a locked ruleset                                                                        |
+| **Admin**                   | Creating events; generating and changing pools, brackets and Swiss rounds; referee qualifications; scoring and penalty rulesets; the member list; the logo |
+| **Editor**                  | Running events: pistes, the schedule, referee assignments, tablet accounts; reopening a locked bout                                                        |
+| **Instructor**, **Referee** | Their workshops and referee duties                                                                                                                         |
+| **Scorekeeper**             | Scoring bouts on the pad with their own account, on any piste, without a PIN; the live room                                                                |
+| **Read only**               | Seeing the organisation's events, drafts included                                                                                                          |
 
 To add a member, open **Org Members**. Type the **Email of an existing MyClash account**, choose
 the **Role**, and click **Add member**. Only the owner can add or **Remove** members. The person

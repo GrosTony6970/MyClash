@@ -40,14 +40,15 @@ wifi. Pour une erreur plus ancienne, appelez l'organisateur.
 
 ## 5. Terminer le combat
 
-Atteindre la limite de points ne termine pas le combat : touchez **Terminer le match**. Vérifiez
-le score avant ; l'écran de résultat propose ensuite le combat suivant.
+Avec le réseau, le combat se termine seul quand une touche atteint la limite de points. À la fin
+du temps, ou sans réseau, touchez **Terminer le match** ; vérifiez le score avant. L'écran de
+résultat propose ensuite le combat suivant.
 
 ## 6. Le wifi tombe
 
 La barre du haut devient grise : **HORS LIGNE - échanges en attente locale**. _Continuez._ Tout ce
-que vous saisissez est envoyé au retour du réseau. Seules les corrections, et la réouverture d'un
-combat terminé, attendent le réseau.
+que vous saisissez est envoyé au retour du réseau. Seules les corrections et la réouverture d'un
+combat terminé demandent le réseau : elles sont refusées jusqu'à son retour.
 
 ## Appelez l'organisateur quand
 

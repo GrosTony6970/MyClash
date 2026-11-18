@@ -33,15 +33,15 @@ du combat, le tournoi, la phase et la lice, les deux combattants, leur contrôle
 
 ## Ce qui marche dans quel état
 
-| Commande                                                            | Pas commencé             | Chrono en cours | En pause                                                   | Terminé                                  |
-| ------------------------------------------------------------------- | ------------------------ | --------------- | ---------------------------------------------------------- | ---------------------------------------- |
-| Bouton principal du chrono                                          | **Démarrer**             | **Pause**       | **Reprendre**                                              | **Rouvrir le match** (demande le réseau) |
-| **Terminer le match** (ou **Terminer la manche**)                   | —                        | oui             | oui                                                        | —                                        |
-| **Réinitialiser** (le chrono seulement, demande d'abord)            | —                        | —               | oui, jusqu'au début de la prolongation (demande le réseau) | —                                        |
-| **Touche propre**, **Contre-frappe**, **Double**, **Aucun échange** | éteints                  | _éteints_       | oui                                                        | éteints                                  |
-| Pénalités                                                           | éteintes                 | oui             | oui                                                        | éteintes                                 |
-| Réclamations                                                        | éteintes                 | oui             | oui                                                        | oui                                      |
-| **Annuler la dernière saisie**                                      | dès qu'une saisie existe |                 |                                                            |                                          |
+| Commande                                                            | Pas commencé             | Chrono en cours | En pause                                                           | Terminé                                  |
+| ------------------------------------------------------------------- | ------------------------ | --------------- | ------------------------------------------------------------------ | ---------------------------------------- |
+| Bouton principal du chrono                                          | **Démarrer**             | **Pause**       | **Reprendre**                                                      | **Rouvrir le match** (demande le réseau) |
+| **Terminer le match** (ou **Terminer la manche**)                   | —                        | oui             | oui                                                                | —                                        |
+| **Réinitialiser** (le chrono seulement, demande d'abord)            | —                        | —               | oui, jusqu'à la prolongation ou la mort subite (demande le réseau) | —                                        |
+| **Touche propre**, **Contre-frappe**, **Double**, **Aucun échange** | éteints                  | _éteints_       | oui                                                                | éteints                                  |
+| Pénalités                                                           | éteintes                 | oui             | oui                                                                | éteintes                                 |
+| Réclamations                                                        | éteintes                 | oui             | oui                                                                | oui                                      |
+| **Annuler la dernière saisie**                                      | dès qu'une saisie existe |                 |                                                                    |                                          |
 
 Les boutons d'échange sont éteints pendant que le chrono tourne : l'arbitre arrête, le marqueur
 met en pause, saisit l'échange, et reprend.
@@ -54,14 +54,16 @@ fenêtre est ouverte ou qu'on écrit dans un champ.
 
 - Les boutons **Touche propre** et **Contre-frappe** viennent du règlement du tournoi : leurs
   libellés et leurs valeurs sont ceux du règlement.
-- **Double** compte pour la limite affichée **Doubles** x/max. À la limite, le combat se termine en
-  double défaite.
+- En poules et en rondes suisses, **Double** compte pour la limite affichée **Doubles** x/max. À la
+  limite, le combat se termine comme le disent les réglages du tournoi : double défaite, nul, ou le
+  score reste.
 - **Aucun échange** demande la raison : **Sortie de lice**, **Arrêt simultané**,
   **Pas de touche valide** ou une autre.
 - Sous chaque combattant : le score, et le score face à la limite de points. À la limite, le score
   passe en or. Tant que des échanges attendent d'être envoyés, la tablette dit combien.
-- _La limite de points ne termine pas le combat sur la tablette_ : touchez **Terminer le match**.
-  Terminer avant la limite ou la fin du temps demande d'abord une confirmation.
+- _Avec le réseau, le combat se termine seul quand une touche atteint la limite de points_ : les
+  boutons s'éteignent et le résultat s'affiche. Sans réseau, touchez **Terminer le match** à la
+  limite. Terminer avant la limite ou la fin du temps demande d'abord une confirmation.
 
 ## Pénalités et réclamations
 

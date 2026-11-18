@@ -53,7 +53,7 @@ repechage).
 - Once generated, only **Grand final reset** can still change. For the rest, click
   **Regenerate bracket**.
 
-![A double elimination bracket and its settings](../../../assets/guide/12-double-elim.png)
+![The settings of a double elimination bracket](../../../assets/guide/12-double-elim.png)
 
 ## Swiss rounds
 
@@ -64,8 +64,8 @@ Nobody is eliminated; the ranking comes from the standings.
 - **Round 1 draw**: random, by rating, or by pool rank (this one needs a finished pool phase).
 - **Pairing inside a group**: **Fold - top half against bottom half** or **Adjacent - 1v2, 3v4**.
   MyClash avoids rematches, and gives a bye to the lowest-ranked fighter who has not had one yet.
-- Points: a win is 3, a draw 1, a loss 0, a bye 3. Ties are broken by Buchholz, then
-  Sonneborn-Berger, then the ruleset's own order.
+- Points, by default: a win is 3, a draw 1, a loss 0, a bye 3. Ties are broken by Buchholz, then
+  Sonneborn-Berger, then the ruleset's own order. The **Configure** tab can change both.
 - The next round pairs itself when the last bout of the round ends.
 
 ![The Swiss rounds settings of a tournament](../../../assets/guide/12-swiss.png)

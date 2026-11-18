@@ -31,15 +31,15 @@ theme button switches between Hybrid, Dark and Light.
 
 ## What works in which state
 
-| Control                                                   | Not started                    | Clock running | Paused                                           | Ended                                 |
-| --------------------------------------------------------- | ------------------------------ | ------------- | ------------------------------------------------ | ------------------------------------- |
-| Main clock button                                         | **Start**                      | **Pause**     | **Resume**                                       | **Re-open match** (needs the network) |
-| **End match** (or **End round**)                          | —                              | yes           | yes                                              | —                                     |
-| **Reset** (the clock only, asks first)                    | —                              | —             | yes, until extra time starts (needs the network) | —                                     |
-| **Clean hit**, **Afterblow**, **Double**, **No exchange** | off                            | _off_         | yes                                              | off                                   |
-| Penalties                                                 | off                            | yes           | yes                                              | off                                   |
-| Protests                                                  | off                            | yes           | yes                                              | yes                                   |
-| **Undo last entry**                                       | whenever something was entered |               |                                                  |                                       |
+| Control                                                   | Not started                    | Clock running | Paused                                                           | Ended                                 |
+| --------------------------------------------------------- | ------------------------------ | ------------- | ---------------------------------------------------------------- | ------------------------------------- |
+| Main clock button                                         | **Start**                      | **Pause**     | **Resume**                                                       | **Re-open match** (needs the network) |
+| **End match** (or **End round**)                          | —                              | yes           | yes                                                              | —                                     |
+| **Reset** (the clock only, asks first)                    | —                              | —             | yes, until extra time or sudden death starts (needs the network) | —                                     |
+| **Clean hit**, **Afterblow**, **Double**, **No exchange** | off                            | _off_         | yes                                                              | off                                   |
+| Penalties                                                 | off                            | yes           | yes                                                              | off                                   |
+| Protests                                                  | off                            | yes           | yes                                                              | yes                                   |
+| **Undo last entry**                                       | whenever something was entered |               |                                                                  |                                       |
 
 The exchange buttons are off while the clock runs: the referee halts, the scorekeeper pauses,
 enters the exchange, and resumes.
@@ -51,14 +51,15 @@ U undoes the last entry. Keys do nothing while a dialog is open or a field is be
 
 - **Clean hit** and **Afterblow** buttons come from the tournament's ruleset: their labels and
   values are the ruleset's.
-- **Double** counts towards the limit shown as **Doubles** x/max. At the limit, the bout ends as a
-  double loss.
+- In pools and Swiss rounds, **Double** counts towards the limit shown as **Doubles** x/max. At the
+  limit the bout ends as the tournament's settings say: a double loss, a draw, or the score stands.
 - **No exchange** asks for the reason: **Out of bounds**, **Simultaneous stop**,
   **No valid hit** or another one.
 - Under each fighter: the score, and the score against the point cap. At the cap the score turns
   gold. While exchanges wait to be sent, the pad says how many are not sent yet.
-- _The point cap does not end the bout on the pad_: tap **End match**. Ending before the cap or
-  the time asks "End the match now?" first.
+- _With the network, the bout ends by itself when a hit reaches the point cap_: the buttons turn
+  off and the result appears. Without network, tap **End match** at the cap. Ending before the
+  cap or the time asks "End the match now?" first.
 
 ## Penalties and protests
 
