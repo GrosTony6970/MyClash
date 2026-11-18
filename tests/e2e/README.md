@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`44` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`45` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -120,6 +120,7 @@ the pass/fail record.
 | `42` | swiss status             | `E2E_SWISS`                                                                                                                                                                                                              |
 | `43` | protests                 | `E2E_CLEANUP`, `E2E_PROTESTS`, `E2E_PUBLIC_URL`, `E2E_STAFF_URL`                                                                                                                                                         |
 | `44` | desk screens             | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
+| `45` | forfeit settings         | `E2E_FORFEIT`                                                                                                                                                                                                            |
 
 </div>
 
@@ -1236,6 +1237,23 @@ of the bracket says afterwards:
   must not block yet must still name the final as affected; once the final has been
   fought it must say so, and the reset then needs an explicit confirmation.
 
+## Forfeit rules, set on screen and audited (opt-in)
+
+`E2E_FORFEIT=1 pnpm test:e2e:prod tests/e2e/45-forfeit-settings.spec.ts` drives
+the organiser's forfeit rules on a Tournament's Basics tab, on one Match of the
+shared Event:
+
+| step       | what it proves                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| plain save | before a bout runs, a changed injury rule (a loss at 9, the fighter continues) saves and reads back     |
+| audit      | once a bout runs, Save opens the audit dialog; confirm stays disabled until a reason and the typed name |
+| disclosure | the change lands, and the Tournament's public header lists it (`kind: 'settings'`) with its reason      |
+| decision   | an injury forfeit then reads 0 – 7, the opponent wins, `end_reason: 'forfeit'`, the record `fixed_loss` |
+
+The default injury rule keeps the score as it stood, so a forfeit under it on a
+bout with no hits would read 0 – 0: a 0 – 7 can come only from the saved rule.
+Written from the code, not yet seen passing: read its first run as a first run.
+
 ## Protests, from the settings to the TV (opt-in)
 
 `E2E_PROTESTS=1 pnpm test:e2e:prod tests/e2e/43-protests.spec.ts` runs a protest
@@ -1306,6 +1324,7 @@ through every surface that reads it, on a real Match of its own published
 | 42  | Swiss pairings follow the status        | `42-swiss-status.spec.ts`           | opt-in (`E2E_SWISS=1`), it runs with `22` |
 | 43  | Protests, settings to TV                | `43-protests.spec.ts`               | opt-in (`E2E_PROTESTS=1`); see below      |
 | 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33` |
+| 45  | Forfeit rules set on screen, audited    | `45-forfeit-settings.spec.ts`       | opt-in (`E2E_FORFEIT=1`), runs with `35`  |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
