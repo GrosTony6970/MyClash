@@ -1925,8 +1925,10 @@ bouts is where an official sees that entries still wait.
   worker registration is: `manifestHrefFor` (`src/lib/nav.ts`) gives no link
   under the organiser site's `/staff`, where `/manifest.json` is the organiser
   app's and the pad's bare navigations would leave its folder (operator ruling,
-  2026-11-18). The sign-in screen shows `InstallAppButton` while Chrome offers
-  to install; the offer itself is kept before React runs (§2.1 says how).
+  2026-11-18). The link exists only after hydration, so here Chrome's offer
+  cannot come before React runs; the shared capture (§2.1) keeps it all the
+  same. The sign-in screen shows `InstallAppButton` while Chrome offers to
+  install.
   `tests/a11y/install-offer.spec.ts` asks Chromium's own verdict
   (`Page.getInstallabilityErrors`) of the FULL browser: Playwright's default
   headless shell gives no verdict at all.

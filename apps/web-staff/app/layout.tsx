@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import { InstallOfferCapture, MaintenanceBanner } from '@myclash/ui';
+import { MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
-import { ManifestLink } from '../src/components/ManifestLink';
+import { HomeScreenHead } from '../src/components/HomeScreenHead';
 import { OfflineDrillBanner } from '../src/components/OfflineDrillBanner';
 import { ServiceWorkerRegistration } from '../src/components/ServiceWorkerRegistration';
 import { I18nProvider } from '../src/i18n/I18nProvider';
@@ -87,9 +87,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       className={`${fraunces.variable} ${geist.variable} ${jetbrainsMono.variable}`}
     >
       <head>
-        <link rel="apple-touch-icon" href="/brand/Logomini_nobackground.png" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <InstallOfferCapture />
+        <HomeScreenHead />
       </head>
       <body
         data-theme={padScopeFor(themeMode)}
@@ -119,7 +117,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </ThemeProvider>
         </I18nProvider>
         <ServiceWorkerRegistration />
-        <ManifestLink />
       </body>
     </html>
   );
