@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`46` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`47` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -122,6 +122,7 @@ the pass/fail record.
 | `44` | desk screens             | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
 | `45` | forfeit settings         | `E2E_FORFEIT`                                                                                                                                                                                                            |
 | `46` | workshop join            | `E2E_CLEANUP`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`, `E2E_WORKSHOP_JOIN`                                                                   |
+| `47` | fightbook                | `E2E_CLEANUP`, `E2E_FIGHTBOOK`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`                                                                       |
 
 </div>
 
@@ -1288,6 +1289,35 @@ Sabre without):
 The instructor is a throwaway roster person: adding an instructor marks a profile
 an instructor for good. Written from the code, not yet seen passing.
 
+## FightBook between two fighters (opt-in)
+
+`E2E_FIGHTBOOK=1 pnpm test:e2e:prod tests/e2e/47-fightbook.spec.ts`: fighter A
+asks fighter B for a spar on a published `club` Event of its own, dated **today**
+on its own clock (an Event spar falls on one of the Event's days, and "we
+sparred" opens on the spar's day). A joins the Event by themselves first: only
+the asker must be on the roster.
+
+| step    | what it proves                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------- |
+| on      | both switch FightBook on; A's `/me/fightbook` shows the FightBook tabs with "Use FightBook" checked   |
+| ask     | asking oneself is 400 `self`; A asks B; a second ask while one is pending is 409 `already_asked`      |
+| yes     | B's Inbox shows the request on screen; B taps Yes; both read the spar as `agreed`                     |
+| heart   | A hearts B and takes it back (`askable` reads `favourite`)                                            |
+| sparred | "we sparred" reaches B as `done`; undo; then cancel, so no public "sparred N times" is left           |
+| flag    | A flags the spar; the organisation's list shows it unhandled, then handled                            |
+| block   | B blocks A: A's next ask answers 201 and is stored as `not_this_time` — a block is silent; B unblocks |
+| limit   | B's daily limit reads back                                                                            |
+
+- **Both accounts' FightBook settings are read first and restored at the end.**
+- **The safety flag alerts every admin of the E2E organisation** (push, or
+  email). Run it only on an organisation whose admins expect that.
+- The ask, the yes and "we sparred" send notices to the two fighter accounts.
+- **Not covered:** "free to spar now", open calls and the QR log (they need the
+  Event open on the real clock at the venue), the 10-minute reminder and the
+  end-of-day expiry (both in the worker), and thank-yous (a review opens only
+  two days after the spar).
+- Written from the code, not yet seen passing: read its first run as a first run.
+
 ## Protests, from the settings to the TV (opt-in)
 
 `E2E_PROTESTS=1 pnpm test:e2e:prod tests/e2e/43-protests.spec.ts` runs a protest
@@ -1360,6 +1390,7 @@ through every surface that reads it, on a real Match of its own published
 | 44  | Desk and gear screens, tapped           | `44-desk-screens.spec.ts`           | opt-in (`E2E_STAFF=1`), it runs with `33`             |
 | 45  | Forfeit rules set on screen, audited    | `45-forfeit-settings.spec.ts`       | opt-in (`E2E_FORFEIT=1`), runs with `35`              |
 | 46  | Join an Event from a Workshop page      | `46-workshop-join.spec.ts`          | opt-in (`E2E_WORKSHOP_JOIN=1`) + the fighter accounts |
+| 47  | FightBook between two fighters          | `47-fightbook.spec.ts`              | opt-in (`E2E_FIGHTBOOK=1`) + the fighter accounts     |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
