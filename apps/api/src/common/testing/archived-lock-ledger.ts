@@ -34,6 +34,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
       'PATCH admin/users/:id/disable',
       'PATCH admin/users/:id/enable',
       'PATCH admin/users/:id/organizations/:orgId',
+      'POST admin/agent-keys/:id/revoke',
       'POST admin/ai-keys',
       'POST admin/ai-keys/:id/activate',
       'POST admin/ai-keys/:id/model-sync',
