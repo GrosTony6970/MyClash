@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useSyncExternalStore } from 'react';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
+import { InstallAppButton } from '@myclash/ui';
 import { MagicLinkForm } from './MagicLinkForm';
 import { StaffPinForm } from './StaffPinForm';
 import { UnsentHitsNotice } from './UnsentHitsNotice';
@@ -63,6 +64,9 @@ export default function StaffLoginPage() {
         <UnsentHitsNotice />
         <StaffPinForm linkedEvent={linkedEvent} linkedUsername={linkedUsername} />
         <MagicLinkForm />
+        <div className="mt-8 text-center">
+          <InstallAppButton label={t('common.installApp')} />
+        </div>
       </div>
     </main>
   );

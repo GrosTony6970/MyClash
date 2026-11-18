@@ -6,6 +6,7 @@ import {
   displayUrlForMatch,
   idFromPath,
   isExternalHref,
+  manifestHrefFor,
   safeReturnHref,
   staffRoutePrefix,
   scoreboardPopupFeatures,
@@ -87,6 +88,20 @@ describe('staffRoutePrefix', () => {
   it('returns empty string on the canonical staff subdomain (root mount)', () => {
     expect(staffRoutePrefix('/matches/abc')).toBe('');
     expect(staffRoutePrefix('/lices/abc')).toBe('');
+  });
+});
+
+// Android installs the pad from the staff site only: under the organiser site's
+// `/staff`, `/manifest.json` is the organiser app's 404 (operator ruling, 2026-11-18).
+describe('manifestHrefFor', () => {
+  it('links the manifest on the staff site', () => {
+    expect(manifestHrefFor('/login')).toBe('/manifest.json');
+    expect(manifestHrefFor('/')).toBe('/manifest.json');
+  });
+
+  it('links none under the organiser site', () => {
+    expect(manifestHrefFor('/staff/login')).toBeNull();
+    expect(manifestHrefFor('/staff/matches/bout-1')).toBeNull();
   });
 });
 

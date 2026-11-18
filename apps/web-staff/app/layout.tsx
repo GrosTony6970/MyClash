@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import { MaintenanceBanner } from '@myclash/ui';
+import { InstallOfferCapture, MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
+import { ManifestLink } from '../src/components/ManifestLink';
 import { OfflineDrillBanner } from '../src/components/OfflineDrillBanner';
 import { ServiceWorkerRegistration } from '../src/components/ServiceWorkerRegistration';
 import { I18nProvider } from '../src/i18n/I18nProvider';
@@ -51,7 +52,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t('metadata.scoringTitle'),
     description: t('metadata.scoringDescription'),
-    manifest: '/manifest.json',
+    // No `manifest` here: it is the staff site's alone (`ManifestLink`).
     icons: {
       icon: '/brand/Logomini_nobackground.png',
       apple: '/brand/Logomini_nobackground.png',
@@ -88,6 +89,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head>
         <link rel="apple-touch-icon" href="/brand/Logomini_nobackground.png" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <InstallOfferCapture />
       </head>
       <body
         data-theme={padScopeFor(themeMode)}
@@ -117,6 +119,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </ThemeProvider>
         </I18nProvider>
         <ServiceWorkerRegistration />
+        <ManifestLink />
       </body>
     </html>
   );

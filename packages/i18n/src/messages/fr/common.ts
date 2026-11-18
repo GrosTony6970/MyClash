@@ -24,6 +24,7 @@ export const common = {
   identityUnverified:
     'Impossible de confirmer votre session. Vous êtes toujours connecté — le menu peut être incomplet.',
   identityRetry: 'Réessayer',
+  installApp: 'Installer l’application',
   identityUnchecked: 'Nous n’avons pas pu vérifier qui est connecté. Réessayez dans un instant.',
   loading: 'Chargement...',
   passwordRules: {

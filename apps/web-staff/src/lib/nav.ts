@@ -84,6 +84,17 @@ export function idFromPath(pathname: string, route: 'matches' | 'lices'): string
 export const SHELL_ID = '_';
 
 /**
+ * The manifest that lets Android install the pad, or null: only on the staff
+ * site's root mount. Under the organiser site's `/staff`, `/manifest.json` is
+ * the organiser app's address (a 404), and an app installed there would leave
+ * its folder at its first bare navigation (`/lices`, `/login`), so that mount
+ * offers no install (operator ruling, 2026-11-18).
+ */
+export function manifestHrefFor(pathname: string): string | null {
+  return staffRoutePrefix(pathname) === '' ? '/manifest.json' : null;
+}
+
+/**
  * The sign-in screen of the mount the pad is served under. Through the admin
  * proxy a bare `/login` would leave the pad for the admin app.
  */

@@ -48,6 +48,8 @@ export const common = {
   identityUnverified:
     'Could not confirm your session. You are still signed in — the menu may be incomplete.',
   identityRetry: 'Try again',
+  // Shown while the browser offers to put the app on the home screen (InstallAppButton).
+  installApp: 'Install the app',
   // The whole screen of a landing page that could not read /me (ruling 295a).
   // It never says "signed in" or "signed out": the page does not know which.
   identityUnchecked: 'We could not check who is signed in. Try again in a moment.',
