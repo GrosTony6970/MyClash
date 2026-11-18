@@ -1,0 +1,138 @@
+import { describe, expect, it } from 'vitest';
+import type { BackupStatusDto } from '../admin/dto/admin-backups.dto';
+import type { SystemVersionsResponseDto } from '../admin/dto/system-versions.dto';
+import { maskBackups, maskVersions } from './mask';
+
+const LOGIN = 'marker-login-7f3';
+
+function versions(): SystemVersionsResponseDto {
+  return {
+    generatedAt: '2026-11-18T10:00:00Z',
+    deploy: {
+      kind: 'deploy',
+      previousCommit: 'aaa111',
+      deployedCommit: 'bbb222',
+      deployedAt: '2026-11-18T09:00:00Z',
+      deployedBy: LOGIN,
+      backupFile: 'db-20261118T085900Z.sql.gz',
+    },
+    groups: [
+      {
+        key: 'app',
+        label: 'Application',
+        components: [
+          { key: 'myclash', label: 'MyClash app', version: '1.2.3', source: 'manifest' },
+        ],
+      },
+      {
+        key: 'deploy',
+        label: 'Deploy',
+        components: [
+          { key: 'deployedCommit', label: 'Deployed commit', version: 'bbb222', source: 'deploy' },
+          { key: 'deployedBy', label: 'Deployed by', version: LOGIN, source: 'deploy' },
+          {
+            key: 'backupFile',
+            label: 'Backup file',
+            version: 'db-20261118T085900Z.sql.gz',
+            source: 'deploy',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('maskVersions', () => {
+  it('leaves out who deployed, in the deploy block and in the deploy group', () => {
+    const text = JSON.stringify(maskVersions(versions()));
+    expect(text).not.toContain(LOGIN);
+    expect(text).not.toContain('deployedBy');
+  });
+
+  it('keeps every other deploy field and component', () => {
+    const masked = maskVersions(versions());
+    expect(masked.deploy).toEqual({
+      kind: 'deploy',
+      previousCommit: 'aaa111',
+      deployedCommit: 'bbb222',
+      deployedAt: '2026-11-18T09:00:00Z',
+      backupFile: 'db-20261118T085900Z.sql.gz',
+    });
+    expect(masked.generatedAt).toBe('2026-11-18T10:00:00Z');
+    expect(masked.groups.map((g) => g.components.map((c) => c.key))).toEqual([
+      ['myclash'],
+      ['deployedCommit', 'backupFile'],
+    ]);
+  });
+});
+
+function backups(): BackupStatusDto {
+  return {
+    generatedAt: '2026-11-18T10:00:00Z',
+    cloudConfigured: true,
+    lastBackup: {
+      timestamp: '20261118T030000Z',
+      status: 'failed',
+      finishedAt: '2026-11-18T03:04:00Z',
+      error: 'marker-error',
+      code: 'scheduled_backup_missed',
+      localAvailable: true,
+      cloudAvailable: false,
+    },
+    runningOperation: {
+      id: 'op-1',
+      kind: 'backup',
+      status: 'running',
+      startedAt: '2026-11-18T10:00:00Z',
+      finishedAt: '2026-11-18T10:05:00Z',
+      source: 'local',
+      backupId: '20261118T100000Z',
+      logTail: ['marker-line'],
+      error: 'marker-error',
+      code: null,
+    },
+    // The ops runner's JSON arrives untyped (backups.service.ts): an extra key must not pass.
+    ...({ extra: 'marker-extra' } as object),
+  } as BackupStatusDto;
+}
+
+describe('maskBackups', () => {
+  it('leaves out the shell output, both error texts and anything it does not know', () => {
+    const text = JSON.stringify(maskBackups(backups()));
+    expect(text).not.toContain('marker-line');
+    expect(text).not.toContain('marker-error');
+    expect(text).not.toContain('marker-extra');
+    expect(text).not.toContain('logTail');
+  });
+
+  it('keeps the fields that say how backups stand', () => {
+    expect(maskBackups(backups())).toEqual({
+      generatedAt: '2026-11-18T10:00:00Z',
+      cloudConfigured: true,
+      lastBackup: {
+        timestamp: '20261118T030000Z',
+        status: 'failed',
+        finishedAt: '2026-11-18T03:04:00Z',
+        code: 'scheduled_backup_missed',
+        localAvailable: true,
+        cloudAvailable: false,
+      },
+      runningOperation: {
+        id: 'op-1',
+        kind: 'backup',
+        status: 'running',
+        startedAt: '2026-11-18T10:00:00Z',
+        finishedAt: '2026-11-18T10:05:00Z',
+        source: 'local',
+        backupId: '20261118T100000Z',
+        code: null,
+      },
+    });
+  });
+
+  it('passes "nothing running" and "no backup yet" through as null', () => {
+    const masked = maskBackups({ ...backups(), lastBackup: null, runningOperation: null });
+    expect(masked.lastBackup).toBeNull();
+    expect(masked.runningOperation).toBeNull();
+  });
+});

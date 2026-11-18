@@ -24,7 +24,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import 'reflect-metadata';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
@@ -187,6 +187,14 @@ const EXPECTED_PUBLIC = [
   // `canReadPhase` is what makes this safe to open — a draft Event or Tournament
   // lists nothing to everyone outside its club and staff, anonymous or not.
   'GET /phases/:phaseId/matches',
+  // The ops agent's door (ops agent design, section 2): public to the login check because the
+  // agent has no login, and closed by AgentKeyGuard, which asks for the agent key. The test
+  // "closes every agent-door route with the key guard" below holds that no door route lacks it.
+  'GET /ops-agent/backups',
+  'GET /ops-agent/host',
+  'GET /ops-agent/runtime-health',
+  'GET /ops-agent/tls',
+  'GET /ops-agent/versions',
   // Published AI content only: each content type decides who may read its
   // entity — a hidden Tournament's recap and an erased fighter's insight answer
   // null, exactly like nothing published (rulings 81-83).
@@ -245,7 +253,13 @@ const PUBLIC_POST_ALLOWLIST = new Set([
   'POST /staff-auth/logout',
 ]);
 
-type Row = { route: string; verb: string; isPublic: boolean };
+type Row = { route: string; verb: string; isPublic: boolean; guards: string[] };
+
+/** The names of the guards `@UseGuards` put on a class or a handler. */
+function guardNames(target: object): string[] {
+  const guards = (Reflect.getMetadata(GUARDS_METADATA, target) ?? []) as Array<{ name?: string }>;
+  return guards.map((g) => g.name ?? '');
+}
 
 function controllerFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -296,6 +310,7 @@ async function collectRoutes(): Promise<Row[]> {
           route: `${verb} ${full}`,
           verb,
           isPublic: classPublic || Reflect.getMetadata(IS_PUBLIC_KEY, handler) === true,
+          guards: [...guardNames(exported), ...guardNames(handler)],
         });
       }
     }
@@ -322,6 +337,12 @@ describe('@Public() route surface', () => {
       .map((r) => r.route)
       .sort();
     expect(actual).toEqual(EXPECTED_PUBLIC);
+  });
+
+  it('closes every agent-door route with the key guard', () => {
+    const door = rows.filter((r) => r.isPublic && r.route.startsWith('GET /ops-agent/'));
+    expect(door.length).toBe(5);
+    expect(door.filter((r) => !r.guards.includes('AgentKeyGuard')).map((r) => r.route)).toEqual([]);
   });
 
   it('never exposes a destructive verb publicly', () => {

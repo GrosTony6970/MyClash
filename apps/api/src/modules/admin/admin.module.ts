@@ -197,6 +197,10 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AdminRuntimeHealthService,
     RuntimeHealthAlertSettingsService,
     RuntimeHealthSamplesService,
+    // Read by the ops agent's door (modules/ops-agent).
+    AdminSystemVersionsService,
+    AdminHostInfoService,
+    AdminBackupsService,
   ],
 })
 export class AdminModule {}

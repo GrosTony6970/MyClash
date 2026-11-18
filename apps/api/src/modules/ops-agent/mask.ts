@@ -1,0 +1,86 @@
+import type {
+  BackupLocation,
+  BackupOperationKind,
+  BackupOperationStatus,
+  BackupStatusDto,
+} from '../admin/dto/admin-backups.dto';
+import type { SystemVersionsResponseDto } from '../admin/dto/system-versions.dto';
+
+/**
+ * What the ops agent may see of the admin reads (the ops agent's design, section 2: no person, and
+ * no free text until slice 2 brings the scrub).
+ */
+export type AgentVersionsDto = Omit<SystemVersionsResponseDto, 'deploy'> & {
+  deploy: Omit<SystemVersionsResponseDto['deploy'], 'deployedBy'>;
+};
+
+export interface AgentBackupStatusDto {
+  generatedAt: string;
+  cloudConfigured: boolean;
+  lastBackup: {
+    timestamp: string;
+    status: 'success' | 'failed' | 'unknown';
+    finishedAt: string | null;
+    code: string | null;
+    localAvailable: boolean;
+    cloudAvailable: boolean;
+  } | null;
+  runningOperation: {
+    id: string;
+    kind: BackupOperationKind;
+    status: BackupOperationStatus;
+    startedAt: string;
+    finishedAt: string | null;
+    source: BackupLocation | null;
+    backupId: string | null;
+    code: string | null;
+  } | null;
+}
+
+/** Leaves out who deployed: the server login (`deploy.sh`'s `SUDO_USER`), in both places. */
+export function maskVersions(dto: SystemVersionsResponseDto): AgentVersionsDto {
+  const { deployedBy: _deployedBy, ...deploy } = dto.deploy;
+  return {
+    generatedAt: dto.generatedAt,
+    deploy,
+    groups: dto.groups.map((group) => ({
+      ...group,
+      components: group.components.filter((component) => component.key !== 'deployedBy'),
+    })),
+  };
+}
+
+/**
+ * Built field by field: the ops runner's JSON reaches `AdminBackupsService` untyped, so a spread
+ * would pass on whatever it adds. The shell's log lines and both error texts stay out.
+ */
+export function maskBackups(dto: BackupStatusDto): AgentBackupStatusDto {
+  const last = dto.lastBackup;
+  const op = dto.runningOperation;
+  return {
+    generatedAt: dto.generatedAt,
+    cloudConfigured: dto.cloudConfigured,
+    lastBackup: last
+      ? {
+          timestamp: last.timestamp,
+          status: last.status,
+          finishedAt: last.finishedAt ?? null,
+          code: last.code ?? null,
+          localAvailable: last.localAvailable,
+          cloudAvailable: last.cloudAvailable,
+        }
+      : null,
+    runningOperation: op
+      ? {
+          id: op.id,
+          kind: op.kind,
+          status: op.status,
+          startedAt: op.startedAt,
+          finishedAt: op.finishedAt ?? null,
+          source: op.source ?? null,
+          backupId: op.backupId ?? null,
+          code: op.code ?? null,
+        }
+      : null,
+  };
+}

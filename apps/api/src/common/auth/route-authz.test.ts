@@ -40,9 +40,18 @@ describe('route authorization, API-wide', () => {
   it('finds the routes, so an empty sweep cannot pass as a clean one', () => {
     expect(handlers.length).toBeGreaterThanOrEqual(600);
     // Every kind is present, or a verdict is exempting everything or nothing.
-    for (const kind of ['public', 'platform-guard', 'decides', 'self', 'undecided']) {
+    for (const kind of ['public', 'platform-guard', 'agent-door', 'decides', 'self', 'undecided']) {
       expect(handlers.filter((h) => h.verdict === kind).length, kind).toBeGreaterThan(0);
     }
+  });
+
+  it('opens the agent door on exactly the five ops-agent reads', () => {
+    const door = handlers.filter((h) => h.verdict === 'agent-door').map((h) => h.key);
+    expect(door.sort()).toEqual(
+      ['backups', 'host', 'runtimeHealth', 'tls', 'versions'].map(
+        (m) => `modules/ops-agent/ops-agent.controller.ts#OpsAgentController.${m}`,
+      ),
+    );
   });
 
   it('lets no new route act without anything that can refuse the caller', () => {
