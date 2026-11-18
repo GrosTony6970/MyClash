@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sleep, type Api } from './_api';
+import { runContext } from './_context';
 
 // The API client moved to `_api.ts` once specs beyond this one needed it.
 // Re-exported so existing call sites keep importing it from here.
@@ -128,10 +129,17 @@ export async function ensureClub(api: Api, name: string): Promise<string> {
   // `q` is a substring search, so filter for the exact name.
   const exact = matches.find((club) => club.name === name);
   if (exact) return exact.id;
-  const created = await api.json<{ id: string }>(
-    await api.post('clubs', { data: { name, city: 'Testville', countryCode: 'FR' } }),
+  // Not `POST clubs`: that creates a VERIFIED catalogue club and is platform-admin
+  // only since operator ruling 38 (1d28ac336). An organiser's door is the club
+  // request, which creates the club UNVERIFIED — listed by the search above, so
+  // every later run finds it — and queues one review for a super admin. It is
+  // scoped to an Event; the run's shared one serves, and the club outlives it.
+  const { club } = await api.json<{ club: { id: string } }>(
+    await api.post(`events/${runContext().eventId}/club-requests`, {
+      data: { name, city: 'Testville', countryCode: 'FR' },
+    }),
   );
-  return created.id;
+  return club.id;
 }
 
 // ── Tournament ───────────────────────────────────────────────────────────────
