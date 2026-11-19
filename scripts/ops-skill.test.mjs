@@ -16,7 +16,6 @@ import { describe, it } from 'node:test';
 import { AGENT_LOG_SERVICES } from '../apps/api/src/modules/ops-agent/agent-log-services.ts';
 import {
   DOOR_HOST,
-  DOOR_ROUTES,
   describeOutcome,
   doorRequestOptions,
   logServices,
@@ -52,28 +51,22 @@ describe('the staging root the run trusts', () => {
 });
 
 describe('the round', () => {
-  it("reads the door controller's routes", () => {
-    const controller = readFileSync(
-      'apps/api/src/modules/ops-agent/ops-agent.controller.ts',
-      'utf8',
-    );
-    const routes = [...controller.matchAll(/@Get\('([^']+)'\)/g)].map((m) => m[1]).sort();
-    assert.ok(routes.length > 0, 'the controller has routes');
-    assert.deepEqual([...DOOR_ROUTES].sort(), routes);
-  });
+  // The door's routes, verb and path, are held to the controller in ops-skill-act.test.mjs.
 
   it('reads the log services AGENT_LOG_SERVICES lists, from its source', () => {
     assert.deepEqual(logServices(SERVICES_SOURCE), [...AGENT_LOG_SERVICES]);
   });
 
-  it('reads the health first, then the error lines of each log service', () => {
+  it('reads the health and whether an Event is live, then the error lines of each log service', () => {
     const reads = roundReads(['api', 'worker']);
+    assert.equal(reads.find((r) => r.route === 'events/live')?.name, 'events-live');
     assert.deepEqual(
       reads.map((r) => r.route),
       [
         'versions',
         'runtime-health',
         'containers',
+        'events/live',
         'backups',
         'tls',
         'host',
@@ -145,7 +138,8 @@ describe('the round', () => {
       request,
       save: async (name) => saved.push(name),
     });
-    assert.equal(calls, 7);
+    // Six health reads, the live-Event read, one log.
+    assert.equal(calls, 8);
     assert.equal(result.end, 'done');
     assert.equal(result.lines[1], '500 error');
     assert.equal(saved.includes('runtime-health'), false);
@@ -300,6 +294,9 @@ describe('the skill', () => {
 
   for (const text of [
     'node .claude/skills/myclash-ops/door.mjs round /tmp/myclash-ops',
+    'node .claude/skills/myclash-ops/door.mjs act restart <service> /tmp/myclash-ops',
+    'node .claude/skills/myclash-ops/door.mjs act backup /tmp/myclash-ops',
+    'node .claude/skills/myclash-ops/door.mjs act renew-certs /tmp/myclash-ops',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',
