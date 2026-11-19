@@ -238,6 +238,17 @@ describe('NestJS module graph', () => {
     ).not.toContain('SwissModule');
   });
 
+  // Ruling 892: each of the three doors injects TournamentCompletionService as @Optional() and
+  // returns quietly without it, so a module that stops importing the leaf would stop completing
+  // Tournaments with no error. The leaf itself must stay one: it imports only the scheduling leaf.
+  it('every door that completes a Tournament imports the completion leaf, which stays a leaf', () => {
+    const graph = buildGraph();
+    for (const door of ['PhasesModule', 'EventsModule', 'WorkersModule']) {
+      expect(graph.get(door) ?? [], door).toContain('TournamentCompletionModule');
+    }
+    expect(graph.get('TournamentCompletionModule')).toEqual(['NotificationSchedulingModule']);
+  });
+
   it('RefereesModule reaches notification services without importing WorkersModule', () => {
     const graph = buildGraph();
     const referees = graph.get('RefereesModule') ?? [];

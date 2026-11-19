@@ -23,7 +23,7 @@ export const statusHelp = {
     },
     running: {
       means: "L'événement est en cours. Score, planning et affichage live sont actifs.",
-      next: 'Il passe à terminé une fois les combats finis.',
+      next: 'Il passe à terminé une fois les combats finis. Ses tournois encore ouverts se terminent avec lui, et leurs combattants apprennent que les résultats sont publiés.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     completed: {
@@ -51,7 +51,7 @@ export const statusHelp = {
     },
     running: {
       means: "Des combats sont en train d'être scorés dans ce tournoi.",
-      next: 'Il passe à terminé quand la finale a été combattue.',
+      next: "Il passe à terminé tout seul quand son tableau n'a plus de combat à disputer, ou quand l'événement se termine. Vous pouvez aussi le terminer à la main.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
     completed: {

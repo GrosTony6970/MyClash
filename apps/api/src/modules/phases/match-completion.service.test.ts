@@ -126,6 +126,48 @@ describe('MatchCompletionService.onMatchCompleted', () => {
       ),
     ).resolves.toBeUndefined();
   });
+
+  // Ruling 892: the bout that ends a bracket completes its Tournament. Asked of THIS bout's
+  // Tournament (the seeded second bout is in another one), and after the advance, which is what
+  // makes a grand-final reset that the result asks for.
+  it("asks this bout's Tournament to complete, after the bracket advanced", async () => {
+    const order: string[] = [];
+    const bracketAdvance = {
+      onMatchCompleted: vi.fn(async () => void order.push('advance')),
+    };
+    const completion = {
+      settleAfterBout: vi.fn(async () => (order.push('complete'), true)),
+    };
+
+    await new MatchCompletionService(
+      supabaseFor(BRACKET) as never,
+      openEvent() as never,
+      bracketAdvance as never,
+      undefined,
+      undefined,
+      completion as never,
+    ).onMatchCompleted('m1');
+
+    expect(completion.settleAfterBout).toHaveBeenCalledWith('t1');
+    expect(order).toEqual(['advance', 'complete']);
+  });
+
+  it('never throws when the completion fails', async () => {
+    const completion = {
+      settleAfterBout: vi.fn().mockRejectedValue(new Error('down')),
+    };
+    await expect(
+      new MatchCompletionService(
+        supabaseFor(BRACKET) as never,
+        openEvent() as never,
+        undefined,
+        undefined,
+        undefined,
+        completion as never,
+      ).onMatchCompleted('m1'),
+    ).resolves.toBeUndefined();
+    expect(completion.settleAfterBout).toHaveBeenCalled();
+  });
 });
 
 // ── onMatchUncompleted ────────────────────────────────────────────────────────
@@ -232,6 +274,30 @@ function uncompleteSupabase(fixture: {
 const ORGANISER = { userId: 'organiser-1', canDiscardDependentResults: true };
 
 describe('MatchCompletionService.onMatchUncompleted', () => {
+  // Ruling 892: a bout reopened in a completed Tournament runs it again (the service checks that
+  // the Event is not over), after every step of the reopen held.
+  it('asks its Tournament to run again, once the reopen has done its work', async () => {
+    const order: string[] = [];
+    const bracketAdvance = {
+      clearDownstreamOf: vi.fn(async () => void order.push('clear')),
+    };
+    const completion = {
+      reopenForBoutUndone: vi.fn(async () => void order.push('reopen')),
+    };
+
+    await new MatchCompletionService(
+      uncompleteSupabase(bracketFixture(false)) as never,
+      openEvent() as never,
+      bracketAdvance as never,
+      undefined,
+      undefined,
+      completion as never,
+    ).onMatchUncompleted('match-r1p1');
+
+    expect(completion.reopenForBoutUndone).toHaveBeenCalledWith('t1');
+    expect(order).toEqual(['clear', 'reopen']);
+  });
+
   it('clears what the match fed when no later bout has been fought', async () => {
     const supabase = uncompleteSupabase(bracketFixture(false));
     const bracketAdvance = { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) };

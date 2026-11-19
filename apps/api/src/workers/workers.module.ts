@@ -15,6 +15,7 @@ import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-heal
 import { RuntimeHealthSamplesService } from '../modules/admin/runtime-health-samples.service';
 import { createRuntimeHealthRedis } from '../modules/admin/runtime-health/redis-connection';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
+import { TournamentCompletionModule } from '../modules/tournament-completion/tournament-completion.module';
 import { MailService } from '../modules/mail/mail.service';
 import { NotificationSchedulingModule } from '../modules/notifications/notification-scheduling.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
@@ -125,6 +126,8 @@ import { isStopping } from '../common/graceful-stop';
     // module-graph.test.ts.
     NotificationSchedulingModule,
     LeaguesModule,
+    // Ruling 892: the ticker completes the open Tournaments of the Events it completes. A leaf.
+    TournamentCompletionModule,
     // forwardRef breaks the WorkersModule → AdminModule → MatchesModule
     // → WorkersModule cycle. AdminModule's services (AIDataQualityService,
     // AdminFeatureFlagsService) are constructor-injected into workers, but

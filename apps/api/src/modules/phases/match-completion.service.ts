@@ -10,6 +10,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { PhasesService } from './phases.service';
 import { SwissAdvanceService } from '../swiss/swiss-advance.service';
+import { TournamentCompletionService } from '../tournament-completion/tournament-completion.service';
 import { FrozenResultsGuard, type ExchangeEditRequestRow } from '../matches/frozen-results.guard';
 import { clearDependentPairing, dependentClosure, type DependentBout } from './bracket-dependents';
 import { restampAfterInsert } from './match-ruleset';
@@ -77,6 +78,7 @@ export class MatchCompletionService {
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
     @Optional() private readonly phases?: PhasesService,
     @Optional() private readonly swissAdvance?: SwissAdvanceService,
+    @Optional() private readonly tournamentCompletion?: TournamentCompletionService,
   ) {}
 
   /**
@@ -91,6 +93,47 @@ export class MatchCompletionService {
     await this.advance(matchId);
     await this.maybePopulateBracket(matchId);
     await this.maybeAdvanceSwiss(matchId);
+    // After the advance: a bout whose result asks for a grand-final reset has made it by now, so
+    // the Tournament is not "finished" while that reset is still to fight.
+    await this.maybeCompleteTournament(matchId);
+  }
+
+  /**
+   * Ruling 892: a Tournament whose bracket has a champion completes by itself, and a completed one
+   * that a correction gave a bout to fight (a grand-final reset) runs again.
+   */
+  private async maybeCompleteTournament(matchId: string): Promise<void> {
+    if (!this.tournamentCompletion) return;
+    try {
+      const tournamentId = await this.tournamentOfMatch(matchId);
+      if (tournamentId) await this.tournamentCompletion.settleAfterBout(tournamentId);
+    } catch (err) {
+      this.logger.warn(`Tournament completion after match ${matchId} failed: ${describe(err)}`);
+    }
+  }
+
+  /** Ruling 892: a bout reopened in a completed Tournament runs it again, while its Event is live. */
+  private async maybeReopenTournament(matchId: string): Promise<void> {
+    if (!this.tournamentCompletion) return;
+    try {
+      const tournamentId = await this.tournamentOfMatch(matchId);
+      if (tournamentId) await this.tournamentCompletion.reopenForBoutUndone(tournamentId);
+    } catch (err) {
+      this.logger.warn(`Tournament reopen after match ${matchId} failed: ${describe(err)}`);
+    }
+  }
+
+  private async tournamentOfMatch(matchId: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('phases!inner(tournament_id)')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const embed = (data as { phases?: unknown } | null)?.phases;
+    // Many-to-one embeds are objects; normalize defensively (embed-flip gotcha).
+    const phase = (Array.isArray(embed) ? embed[0] : embed) as { tournament_id?: string } | null;
+    return phase?.tournament_id ?? null;
   }
 
   /**
@@ -160,6 +203,8 @@ export class MatchCompletionService {
       // Last: no step waits on a notice. Told on a failure too: the close is saved.
       await this.frozenResults.tellClosedByReset(closed);
     }
+    // Only once every step above held: the bout is about to be fought again.
+    await this.maybeReopenTournament(matchId);
   }
 
   /**

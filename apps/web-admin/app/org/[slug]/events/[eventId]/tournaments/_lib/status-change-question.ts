@@ -7,9 +7,11 @@ import type { Translator } from '@myclash/next-i18n/client';
  *
  * Two statuses ask. "completed" tells the Tournament's fighters who have an
  * account that its results are out, and a notice that left cannot be taken back.
- * "archived" takes the Tournament off the public pages. Every door to those two
- * writes asks through here: the status menus of the Tournaments page and of the
- * Event dashboard, and the Archive button.
+ * "archived" takes the Tournament off the public pages. Every organiser's door to
+ * those two writes asks through here: the status menus of the Tournaments page and
+ * of the Event dashboard, and the Archive button. A Tournament also completes by
+ * itself, with no question (ruling 892): when its bracket has a champion, and when
+ * its Event completes; the Event's status help says so.
  */
 export function statusChangeQuestion(
   next: string,

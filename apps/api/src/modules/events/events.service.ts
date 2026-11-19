@@ -108,6 +108,7 @@ import { tournamentCardRules } from '../penalties/card-rules-pin';
 // Value imports ON PURPOSE: `import type` erases the DI metadata of a constructor parameter.
 import { FighterStatusService } from '../matches/fighter-status.service';
 import { EntityLabelService } from '../entity-label/entity-label.service';
+import { TournamentCompletionService } from '../tournament-completion/tournament-completion.service';
 import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
@@ -220,6 +221,9 @@ export class EventsService {
     @Optional() private readonly fighterStatus?: FighterStatusService,
     // Optional for the same reason; global (EntityLabelModule). Names the Fighters it moves.
     @Optional() private readonly entityLabels?: EntityLabelService,
+    // Optional for the same reason; provided via TournamentCompletionModule. An Event saved as
+    // completed completes its open Tournaments (ruling 892).
+    @Optional() private readonly tournamentCompletion?: TournamentCompletionService,
   ) {}
 
   /**
@@ -782,6 +786,23 @@ export class EventsService {
     // directions. Fighter stats need no action: compact_fighter_stats (0162) and
     // the fighters.service career filters read event_kind live, so a kind change
     // is reflected on the next request.
+    //
+    // An Event that completes completes every Tournament still open (ruling 892), before the
+    // recompute reads them; silently when it went straight from draft (old news, ruling 190).
+    // Not best effort, as the results notice it sends: a failure fails the save, the failed
+    // Tournament's status goes back, and saving again completes and announces it. An Event put
+    // back from completed runs again each Tournament that has a bout left.
+    const wasStatus = (event as { status?: string }).status;
+    if (dto.status === 'completed') {
+      await this.tournamentCompletion?.completeOpenTournaments(eventId, {
+        announce: wasStatus !== 'draft',
+      });
+    } else if (
+      wasStatus === 'completed' &&
+      (dto.status === 'published' || dto.status === 'running')
+    ) {
+      await this.tournamentCompletion?.reopenUnfinishedOfEvent(eventId);
+    }
     if (dto.status === 'completed' || statsEligibilityChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }

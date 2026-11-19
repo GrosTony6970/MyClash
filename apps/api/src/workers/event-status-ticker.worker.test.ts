@@ -30,18 +30,24 @@ const event = (
   timezone = PARIS,
 ) => ({ id, status, start_date, end_date, timezone });
 
-function build(events: TableSeed, options: { withLeagues?: boolean } = { withLeagues: true }) {
-  const supabase = mockSupabase({ events });
+function build(
+  events: TableSeed,
+  options: { withLeagues?: boolean; tournaments?: TableSeed } = { withLeagues: true },
+) {
+  // The open Tournaments of Events already completed (ruling 892): none unless a test says so.
+  const supabase = mockSupabase({ events, tournaments: options.tournaments ?? { data: [] } });
   const leagues = { recomputeForEvent: vi.fn().mockResolvedValue(undefined) };
+  const completion = { completeOpenTournaments: vi.fn().mockResolvedValue([]) };
   const worker = new EventStatusTickerWorker(
     {} as never,
     supabase as never,
     options.withLeagues ? (leagues as never) : undefined,
+    completion as never,
   );
   const logger = (worker as unknown as { logger: Logger }).logger;
   const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
   vi.spyOn(logger, 'log').mockImplementation(() => undefined);
-  return { worker, supabase, leagues, warn };
+  return { worker, supabase, leagues, completion, warn };
 }
 
 /** Each write to `events`: the Event it named and the status it set. */
@@ -284,5 +290,43 @@ describe('EventStatusTickerWorker', () => {
     );
 
     await expect(worker.tick()).resolves.toEqual({ toRunning: 0, toCompleted: 1 });
+  });
+
+  // Ruling 892: an Event that completes completes its open Tournaments, and an Event completed
+  // before whose Tournaments are still open is swept again, or nothing would ever retry it.
+  it('completes the open Tournaments of the Events it completes, and of earlier ones left open', async () => {
+    vi.setSystemTime(new Date('2026-11-08T12:00:00Z'));
+    const { worker, supabase, completion } = build(
+      { rows: [event('ev-12', 'running', '2026-11-06', '2026-11-07')] },
+      { withLeagues: true, tournaments: { data: [{ event_id: 'ev-old' }, { event_id: 'ev-12' }] } },
+    );
+
+    await worker.tick();
+
+    expect(completion.completeOpenTournaments.mock.calls).toEqual([['ev-12'], ['ev-old']]);
+    expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([
+      ['status', ['published', 'running']],
+    ]);
+    expect(filtersFor(supabase.from, 'tournaments', 'eq')).toEqual([
+      ['events.status', 'completed'],
+    ]);
+    // `!inner` is what makes the embedded filter drop rows: without it the sweep would read the
+    // open Tournaments of every Event, live ones included, and complete them every hour.
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['event_id, events!inner(status)']);
+  });
+
+  it('carries on to the next Event when completing its Tournaments fails', async () => {
+    vi.setSystemTime(new Date('2026-11-08T12:00:00Z'));
+    const { worker, completion, warn } = build({
+      rows: [
+        event('ev-13', 'running', '2026-11-06', '2026-11-07'),
+        event('ev-14', 'running', '2026-11-06', '2026-11-07'),
+      ],
+    });
+    completion.completeOpenTournaments.mockRejectedValueOnce(new Error('down'));
+
+    await expect(worker.tick()).resolves.toMatchObject({ toCompleted: 2 });
+    expect(completion.completeOpenTournaments.mock.calls).toEqual([['ev-13'], ['ev-14']]);
+    expect(warned(warn).some((line) => line.includes('ev-13'))).toBe(true);
   });
 });

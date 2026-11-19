@@ -9,6 +9,7 @@ import { MatchesModule } from '../matches/matches.module';
 import { RulesetResolverModule } from '../matches/ruleset-resolver.module';
 import { RulesetHashModule } from '../ruleset-hash/ruleset-hash.module';
 import { RulesetsModule } from '../rulesets/rulesets.module';
+import { TournamentCompletionModule } from '../tournament-completion/tournament-completion.module';
 import { EventsController } from './events.controller';
 import { EventThemesService } from './event-themes.service';
 import { EventsService } from './events.service';
@@ -32,6 +33,8 @@ import { ClockReconciliationService } from './clock-reconciliation.service';
     // accepts only a pair the picker offers. Imports Organizations and the
     // resolver only, so no cycle.
     RulesetsModule,
+    // Ruling 892: an Event saved as completed completes its open Tournaments. A leaf.
+    TournamentCompletionModule,
     // RulesetHashService — stamps the tournament's effective content-hash on
     // create/update/re-pin. Leaf module (Supabase only), so no cycle.
     RulesetHashModule,

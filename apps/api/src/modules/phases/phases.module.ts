@@ -14,6 +14,7 @@ import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 import { SwissCoreModule } from '../swiss/swiss-core.module';
 import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 import { MatchPlacementModule } from '../matches/match-placement.module';
+import { TournamentCompletionModule } from '../tournament-completion/tournament-completion.module';
 
 @Module({
   // SwissCoreModule, never SwissModule: MatchCompletionService has to invoke
@@ -36,6 +37,8 @@ import { MatchPlacementModule } from '../matches/match-placement.module';
     SwissCoreModule,
     NotificationSchedulingModule,
     MatchPlacementModule,
+    // Ruling 892: a bout that ends the bracket completes its Tournament. A leaf.
+    TournamentCompletionModule,
   ],
   controllers: [
     PhasesController,

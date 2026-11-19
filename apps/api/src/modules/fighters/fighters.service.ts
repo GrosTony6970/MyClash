@@ -1159,7 +1159,8 @@ export class FightersService {
    * Callers pass only registrations the fighter actually fought in. Whether a
    * placement is *awarded* turns on the tournament being decided (the service
    * returns `decided:false` until the Final is settled), never on
-   * `tournaments.status` — nothing sets that to `completed` automatically.
+   * `tournaments.status`: a Tournament also completes when its Event does (ruling 892), whatever
+   * its bracket holds, so its status is no proof that a placement is decided.
    */
   private async computeTournamentPlacements(
     registrations: CareerRegistrationInput[],

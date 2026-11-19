@@ -20,7 +20,7 @@ export const statusHelp = {
     },
     running: {
       means: 'The event is under way. Scoring, schedule and live boards are active.',
-      next: 'It moves to completed once the fighting is over.',
+      next: 'It moves to completed once the fighting is over. Its tournaments still open complete with it, and their fighters are told the results are out.',
       who: 'An organisation admin or owner.',
     },
     completed: {
@@ -48,7 +48,7 @@ export const statusHelp = {
     },
     running: {
       means: 'Fights are being scored in this tournament right now.',
-      next: 'It moves to completed when the final has been fought.',
+      next: 'It moves to completed by itself once its bracket has no bout left to fight, or when the event completes. You can also complete it by hand.',
       who: 'An organisation admin or owner.',
     },
     completed: {

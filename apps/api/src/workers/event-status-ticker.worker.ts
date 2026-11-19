@@ -14,8 +14,10 @@
  *   - completed → not the ticker's (the auto-archive takes it from there, ruling 156)
  *   - archived  → terminal
  *
- * When an event flips to `completed` we mirror the same side-effect that
- * `EventsService.updateEvent()` runs for that case — `leagues.recomputeForEvent(id)`.
+ * When an event flips to `completed` we mirror the same side-effects that
+ * `EventsService.updateEvent()` runs for that case — its open Tournaments complete (ruling 892;
+ * a completed Event's open Tournaments are swept on every tick, so a failure is retried) and
+ * `leagues.recomputeForEvent(id)`.
  * The recompute is best-effort: a failure inside one event does not abort
  * the rest of the batch.
  *
@@ -39,6 +41,7 @@ import { addDays } from '@myclash/time';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { LeaguesService } from '../modules/leagues/leagues.service';
+import { TournamentCompletionService } from '../modules/tournament-completion/tournament-completion.service';
 import { unknownZoneWarning } from '../common/event-clock';
 import { eventOpenWindow } from '../common/event-open-window';
 
@@ -79,6 +82,7 @@ export class EventStatusTickerWorker extends SentryReportingWorkerHost implement
     @InjectQueue(EVENT_STATUS_TICK_QUEUE) private readonly queue: Queue,
     private readonly supabase: SupabaseService,
     @Optional() private readonly leagues?: LeaguesService,
+    @Optional() private readonly tournamentCompletion?: TournamentCompletionService,
   ) {
     super();
   }
@@ -117,6 +121,7 @@ export class EventStatusTickerWorker extends SentryReportingWorkerHost implement
       }
     }
 
+    await this.completeTournaments(moved.completed);
     await this.recomputeLeagues(moved.completed);
 
     const toRunning = moved.running.length;
@@ -145,6 +150,36 @@ export class EventStatusTickerWorker extends SentryReportingWorkerHost implement
       return [];
     }
     return (data ?? []) as CandidateRow[];
+  }
+
+  /**
+   * An Event that completes completes every Tournament still open (ruling 892), as
+   * `EventsService.updateEvent()` does on an organiser's save. Also the Events completed before
+   * whose Tournaments are still open: a failed completion on an earlier tick, or one this rule
+   * came after. Nothing else would ever retry them, and the archive waits for every Tournament.
+   * Best effort per Event: a failure is logged and the next tick tries it again.
+   */
+  private async completeTournaments(completedIds: string[]): Promise<void> {
+    if (!this.tournamentCompletion) return;
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id, events!inner(status)')
+      .in('status', ['published', 'running'])
+      .eq('events.status', 'completed');
+    if (error)
+      this.logger.warn(`Open Tournaments of completed Events: read failed: ${error.message}`);
+    const leftovers = ((data ?? []) as Array<{ event_id: string }>).map((row) => row.event_id);
+    for (const eventId of new Set([...completedIds, ...leftovers])) {
+      try {
+        await this.tournamentCompletion.completeOpenTournaments(eventId);
+      } catch (err) {
+        this.logger.warn(
+          `Tournament completion failed for completed event ${eventId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
   }
 
   /**

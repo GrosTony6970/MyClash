@@ -555,6 +555,12 @@ fighter is out of the Tournament; the rounds they missed count nothing (`missed_
 >
 > `tournaments.status` is looser still: it has **no `CHECK` constraint at all**, as noted in migration
 > `0138`. Its values (`draft`, `published`, `running`, `completed`) exist only in application code.
+> A published or running Tournament completes by hand, or by itself (ruling 892,
+> `TournamentCompletionService`): once its bracket has no bout left to fight (asked by
+> `MatchCompletionService` as each bout ends), and when its Event completes (the organiser's save,
+> or the status ticker, which also sweeps a completed Event's Tournaments left open). A Tournament
+> does not record whether a bracket follows its pools, so a pools-only or Swiss-only one completes
+> with its Event. Each completion publishes its results.
 
 **Event** — the organiser-facing publish flow. `archived` is reachable from any state (an event can be
 shelved before it ever runs).
