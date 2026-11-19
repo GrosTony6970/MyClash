@@ -75,7 +75,7 @@ A **problem** waits for the operator and causes a push. A **note** goes in the e
 | ------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | The round                | Any last line but `end done`, or no `end` line; any non-2xx on `versions`, `runtime-health` or `containers` | A non-2xx on `backups`, `tls`, `host`, `events/live` or a log read        |
 | A repair (§7)            | It failed, or a symptom was held back (a live Event, a deploy, read-only, busy)                             | A container stopped on purpose (exit code 0 or 143)                       |
-| `runtime-health.overall` | `critical` or `unavailable`                                                                                 | `warning` (name the metric)                                               |
+| `runtime-health.overall` | `critical` or `unavailable`                                                                                 | `warning` (name the metric); a disk `warning` is also a repair (§7)       |
 | `containers[]`           | `state` is not `running` (but see the note), `health` is `unhealthy`, or an expected service is missing     | `exited` with exit code 0 or 143: stopped on purpose (ruling 887)         |
 | `backups`                | `lastBackup.status` is `failed`, or `runningOperation.status` is `failed`                                   | No backup at all, `cloudConfigured: false`, last backup older than 8 days |
 | `tls.certificates[]`     | `reachable: false`, or `daysUntilExpiry` below `tls.minDays` (whatever `health` says)                       | —                                                                         |
@@ -150,6 +150,7 @@ Repair only on a symptom of this table; anything else is reported, never attempt
 | `runtime-health.redis.status` is `critical` or `unavailable`, and the `redis` container looks fine              | `act restart redis` | no: a problem, push    |
 | `backups.lastBackup.status` is `failed`, or there is no backup of the last 8 days                               | `act backup`        | no: a note             |
 | A certificate's `daysUntilExpiry` is below `tls.minDays`                                                        | `act renew-certs`   | no: a problem, push    |
+| `runtime-health.disk.status` is `warning` or `critical` (not `unavailable`: an unread disk is no symptom)       | `act prune`         | yes                    |
 
 The commands:
 
@@ -158,6 +159,7 @@ node .claude/skills/myclash-ops/door.mjs act restart <service> /tmp/myclash-ops
 node .claude/skills/myclash-ops/door.mjs act start <service> /tmp/myclash-ops
 node .claude/skills/myclash-ops/door.mjs act backup /tmp/myclash-ops
 node .claude/skills/myclash-ops/door.mjs act renew-certs /tmp/myclash-ops
+node .claude/skills/myclash-ops/door.mjs act prune /tmp/myclash-ops
 ```
 
 Give the Bash tool its longest timeout (600000 ms) for each. Each prints the action's line, one
@@ -168,8 +170,12 @@ Give the Bash tool its longest timeout (600000 ms) for each. Each prints the act
   `supabase-storage`, `supabase-rest`, `supabase-meta`, `supabase-studio`. Never act on `api`, `db`,
   `traefik` or `ops-runner`: report them.
 - **An Event is live** when `events-live.json` says `live: true`, or when that read failed: an
-  unknown answer is live. While one is, act only on the rows marked "yes" (a dead container). A
+  unknown answer is live. While one is, act only on the rows marked "yes" (a dead container, or a
+  full disk: a prune stops no container, and a full disk stops the scoring, ruling 896). A
   container that runs but whose part is degraded is a problem: push, hands off (ruling 864).
+- **The prune** empties Docker's build cache and removes the dangling images (ruling 884). It frees
+  only what old builds hold: when the disk is full of data, it heals nothing. Prune at most once
+  per run.
 - **A stop on purpose stays** (ruling 887): a container `exited` with exit code 0 or 143 was stopped
   by a person or a deploy. Write it as a note; do not start it.
 - **An unknown exit code (`null`) is a note**: do not start that container, report it.
@@ -180,9 +186,10 @@ Give the Bash tool its longest timeout (600000 ms) for each. Each prints the act
   someone else is acting: report it. `503 read_only_mode` means the operator froze the platform: act
   no more this run, and report it.
 - **Healed** means the `after` line is `after running healthy` or `after running none` for a
-  container, `after success` for a backup, and every certificate's days at or above `tls.minDays`
-  for a renewal. Any other `after` line, or an `end` other than `end done`, is a failed repair: a
-  problem, so the push of §6.
+  container, `after success` for a backup, every certificate's days at or above `tls.minDays` for a
+  renewal, and `after healthy …` for a prune (`after warning 83%` is a failed prune). Any other
+  `after` line, or an `end` other than `end done`, is a failed repair: a problem, so the push of
+  §6.
 
 ## 8. A watched SSH session
 

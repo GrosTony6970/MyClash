@@ -3,7 +3,7 @@
  *
  *   node .claude/skills/myclash-ops/door.mjs round <dir>
  *   node .claude/skills/myclash-ops/door.mjs act restart|start <service> <dir>
- *   node .claude/skills/myclash-ops/door.mjs act backup|renew-certs <dir>
+ *   node .claude/skills/myclash-ops/door.mjs act backup|renew-certs|prune <dir>
  *
  * `round` does the whole daily round in one process, one read after another (the ops runner
  * serves one log read at a time): the health reads, whether an Event is live, then the error
@@ -12,7 +12,8 @@
  * appended to `<dir>/round.txt` as it comes, then `end <how>`.
  *
  * `act` makes one repair (slice 4), then reads how it ended: a container until it has run
- * steadily, a backup until its operation is over, the certificates once Traefik is back. It prints
+ * steadily, a backup until its operation is over, the certificates once Traefik is back, the disk
+ * after a prune (slice 4b). It prints
  * the action's line, one `after …` line, then `end <how>`, also appended to `<dir>/act.txt`. A
  * refusal (busy, deploy, read-only, a bad request) is printed and nothing is read after it.
  *
@@ -223,10 +224,11 @@ export function parseAct([what, ...rest]) {
     }
     return { kind: 'container', action: what, service, dir };
   }
-  if ((what === 'backup' || what === 'renew-certs') && rest[0] && rest.length === 1) {
-    return { kind: what === 'backup' ? 'backup' : 'renew', dir: rest[0] };
+  const kinds = { backup: 'backup', 'renew-certs': 'renew', prune: 'prune' };
+  if (Object.hasOwn(kinds, what ?? '') && rest[0] && rest.length === 1) {
+    return { kind: kinds[what], dir: rest[0] };
   }
-  throw new Error('usage: act restart|start <service> <dir> | act backup|renew-certs <dir>');
+  throw new Error('usage: act restart|start <service> <dir> | act backup|renew-certs|prune <dir>');
 }
 
 const parsed = (body) => {
@@ -281,47 +283,63 @@ async function renewAfter({ request, sleep }) {
   return `after ${certificates.map((c) => `${c.host}:${c.daysUntilExpiry ?? '?'}`).join(' ')}`;
 }
 
+/** What `act` reads after a prune: the disk's state and use, once. */
+async function pruneAfter({ request }) {
+  const disk = parsed(
+    (await request('runtime-health', { method: 'GET', timeout: READ_TIMEOUT_MS })).body,
+  )?.disk;
+  if (typeof disk?.usePercent !== 'number') return 'after unknown';
+  return `after ${disk.status} ${disk.usePercent}%`;
+}
+
+/** Each action's route, its long-action flag (a 300 s budget; a cut is read, not refused), and its after-read. */
+const ACTIONS = {
+  container: {
+    route: (act) => `containers/${act.service}/${act.action}`,
+    long: true,
+    after: (act, result, deps) => containerAfter(act, deps),
+  },
+  backup: {
+    route: () => 'backups',
+    long: false,
+    after: (act, result, deps) => backupAfter(result, deps),
+  },
+  renew: { route: () => 'tls/renew', long: false, after: (act, result, deps) => renewAfter(deps) },
+  prune: { route: () => 'disk/prune', long: true, after: (act, result, deps) => pruneAfter(deps) },
+};
+
 /**
  * One repair, then how it ended. `deps` = { request(route, { method, timeout }), save(name, body),
  * note(line), sleep(ms), now() }. Ends: `done`, `refused-<code>`, `refused`, `unreachable`.
  */
 export async function runAct(act, deps) {
   const { request, save, note } = deps;
-  const container = act.kind === 'container';
-  const route = container
-    ? `containers/${act.service}/${act.action}`
-    : act.kind === 'backup'
-      ? 'backups'
-      : 'tls/renew';
-  const label = container ? `${act.action} ${act.service}` : act.kind;
+  const action = ACTIONS[act.kind];
+  const route = action.route(act);
+  const label = act.kind === 'container' ? `${act.action} ${act.service}` : act.kind;
   const result = await request(route, {
     method: 'POST',
-    timeout: container ? CONTAINER_ACTION_TIMEOUT_MS : READ_TIMEOUT_MS,
+    timeout: action.long ? CONTAINER_ACTION_TIMEOUT_MS : READ_TIMEOUT_MS,
   });
   const outcome = describeOutcome(route, result);
   const ok = outcome.ok;
   await note(ok ? `${result.status} act ${label}` : outcome.line);
   if (ok) await save(`act-${label.replace(' ', '-')}`, result.body);
-  if (result.status === undefined && !container) {
+  if (result.status === undefined && !action.long) {
     await note('end unreachable');
     return { end: 'unreachable' };
   }
   const code = result.status === 401 ? null : codeOf(result.body);
-  // On a long restart the likely cut is a gateway's 5xx, or the API's own uncoded 503: the action
+  // On a long action the likely cut is a gateway's 5xx, or the API's own uncoded 503: the action
   // probably ran. Only a 4xx or a coded 5xx (busy, deploy, read-only, key store) is a refusal.
-  const cutOnTheWay = container && result.status >= 500 && code === null;
+  const cutOnTheWay = action.long && result.status >= 500 && code === null;
   if (result.status !== undefined && !ok && !cutOnTheWay) {
     const end = code ? `refused-${code}` : 'refused';
     await note(`end ${end}`);
     return { end };
   }
-  // A container action cut on the way (D8) still reads what came of it.
-  const after = container
-    ? await containerAfter(act, deps)
-    : act.kind === 'backup'
-      ? await backupAfter(result, deps)
-      : await renewAfter(deps);
-  await note(after);
+  // A long action cut on the way (D8) still reads what came of it.
+  await note(await action.after(act, result, deps));
   await note('end done');
   return { end: 'done' };
 }

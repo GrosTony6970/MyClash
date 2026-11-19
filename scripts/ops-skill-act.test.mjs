@@ -223,6 +223,64 @@ describe('door.mjs act: a backup and a renewal', () => {
   });
 });
 
+// Slice 4b: the disk prune (rulings 884, 895, 896).
+describe('door.mjs act: a disk prune', () => {
+  const disk = (value) => json(200, { overall: 'ok', disk: value });
+
+  it('reads its form, and refuses one with no folder or a word too many', () => {
+    assert.deepEqual(parseAct(['prune', '/tmp/o']), { kind: 'prune', dir: '/tmp/o' });
+    assert.throws(() => parseAct(['prune']));
+    assert.throws(() => parseAct(['prune', 'docker', '/tmp/o']));
+  });
+
+  it('posts disk/prune with the long budget, then reads the disk once', async () => {
+    const { deps, asked, lines } = door({
+      'disk/prune': [json(200, { ok: true, service: 'docker', action: 'prune' })],
+      'runtime-health': [disk({ status: 'healthy', usePercent: 61 })],
+    });
+    const { end } = await runAct(parseAct(['prune', 'd']), deps);
+    assert.deepEqual(
+      asked.map((a) => `${a.method} ${a.route} ${a.timeout}`),
+      ['POST disk/prune 300000', 'GET runtime-health 60000'],
+    );
+    assert.deepEqual(lines, ['200 act prune', 'after healthy 61%', 'end done']);
+    assert.equal(end, 'done');
+  });
+
+  it('a disk it could not read says so', async () => {
+    const { deps, lines } = door({
+      'disk/prune': [json(200, { ok: true })],
+      'runtime-health': [disk({ status: 'unavailable' })],
+    });
+    await runAct(parseAct(['prune', 'd']), deps);
+    assert.deepEqual(lines.slice(-2), ['after unknown', 'end done']);
+  });
+
+  it('a held lock is a refusal, and nothing is read after', async () => {
+    const { deps, asked, lines } = door({ 'disk/prune': [refusal(409, 'ops_busy')] });
+    const { end } = await runAct(parseAct(['prune', 'd']), deps);
+    assert.deepEqual(lines, ['409 ops_busy', 'end refused-ops_busy']);
+    assert.equal(end, 'refused-ops_busy');
+    assert.equal(asked.length, 1);
+  });
+
+  // A prune runs up to 280 s: like a long restart, an answer cut on the way is no refusal.
+  for (const [label, answer, first] of [
+    ['a gateway 504', { status: 504, body: '<html>' }, '504 error'],
+    ['a cut with no answer at all', { error: { code: 'ECONNRESET' } }, 'unreachable ECONNRESET'],
+  ]) {
+    it(`${label} still reads the disk after`, async () => {
+      const { deps, lines } = door({
+        'disk/prune': [answer],
+        'runtime-health': [disk({ status: 'warning', usePercent: 83 })],
+      });
+      const { end } = await runAct(parseAct(['prune', 'd']), deps);
+      assert.deepEqual(lines, [first, 'after warning 83%', 'end done']);
+      assert.equal(end, 'done');
+    });
+  }
+});
+
 describe('door.mjs: the routes', () => {
   it("are the door controller's routes, verb and path", () => {
     const controller = readFileSync(
