@@ -32,6 +32,13 @@ export default defineConfig({
     // the app's own locale cookie, which outranks this header.
     locale: 'en-GB',
     viewport: { width: 1280, height: 800 },
+    // A page load that never settles must fail on its own, well inside the test's
+    // 10 minutes: otherwise the test timeout fires first, the browser closes, and the
+    // spec's `finally` cannot delete its Event (it did, 2026-11-19).
+    navigationTimeout: 60_000,
+    // The same for an action on an element that never appears (a missing <main>
+    // hung `innerText()` for the whole 10 minutes, 2026-11-19).
+    actionTimeout: 60_000,
     screenshot: 'off',
     trace: 'retain-on-failure',
   },

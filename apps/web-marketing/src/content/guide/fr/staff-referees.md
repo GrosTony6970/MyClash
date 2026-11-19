@@ -26,6 +26,14 @@ votre accueil, votre contrôle du matériel et la modération des photos.
 
 ![Staff événement : le lien de connexion et son QR code, et un compte de scoring](../../../assets/guide/06-staff.png)
 
+Imprimez la [fiche de l'accueil](/guide/welcome-desk-sheet) et la
+[fiche du contrôle du matériel](/guide/gear-check-sheet) pour ces bénévoles. Voici ce
+qu'affichent leurs tablettes (en anglais ici) :
+
+![La tablette de l'accueil : une personne arrivée, les autres avec leur bouton Arrivé](../../../assets/guide/14-desk.png)
+
+![La tablette du contrôle du matériel : une épée longue conforme, l'arme du combattant suivant pas encore contrôlée](../../../assets/guide/14-gear.png)
+
 Un compte ne se supprime pas, il se désactive. L'identifiant d'un compte désactivé ne peut pas
 être réutilisé.
 

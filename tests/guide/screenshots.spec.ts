@@ -12,6 +12,7 @@ import {
 import { playTournamentToChampion } from '../e2e/_tournament';
 import { createPoolTournament, playPoolPhase, readPoolMatches } from '../e2e/_pool';
 import { shootPadStates } from './_pad-states';
+import { shootEventDay } from './_event-day';
 
 /**
  * The organiser guide's screenshots (docs/superpowers/specs/2026-11-18-organiser-guide-design.md).
@@ -169,9 +170,12 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     await shot(page, '11-ruleset-new', `${org}/rulesets/scoring/new`);
     // The members page lists emails. Only the E2E account may appear in the public
     // guide (operator ruling): if anyone else has joined this organisation, stop.
-    await page.goto(`${org}/settings`, { waitUntil: 'networkidle' });
+    // Read the emails only once a member row has rendered, or the check reads nothing.
+    await page.goto(`${org}/settings`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('row').nth(1)).toBeVisible();
     const shownEmails =
-      (await page.locator('main').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
+      // The whole page, sidebar included: this page has no <main>, and waiting for one hung.
+      (await page.locator('body').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
     const e2eEmail = (process.env.E2E_ADMIN_EMAIL ?? '').toLowerCase();
     expect(
       // innerText never holds the form's placeholder, so no address is exempt.
@@ -325,6 +329,8 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     expect(padBout, 'the pools produced no second bout').toBeTruthy();
     await shootPadStates(page, api, padBout!.id, staffBase, OUT);
     await page.setViewportSize(DESKTOP);
+    // ── Event day: the desk and gear tablets, and the venue screens ──────────
+    await shootEventDay(page, browser, api, eventId, firstBout!.id, OUT);
     await shot(page, '07-live', `${at}/live`, /pistes ·/u);
 
     // ── Pages 8 and 9: the bracket from the pool standings, then the ranking ─

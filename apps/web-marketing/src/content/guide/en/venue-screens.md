@@ -26,6 +26,8 @@ seconds. With nothing left on the piste it shows **Waiting for next match...**.
 - It updates live. If the connection drops, it keeps the last picture and shows **Not updating**
   (or **Slower updates**) until it catches up.
 
+![A venue screen: the bout on Piste 1, paused before its first hit, and the next bout at the top right](../../../assets/guide/15-venue-scoreboard.png)
+
 ## The list of screens
 
 `app.myclash.fr/e/<your event>/display` opens **Displays**: the bouts **Now live**, and **Choose
@@ -51,6 +53,8 @@ of the bout, the clock and how late the piste runs. It refreshes every few secon
 - **Address:** `admin.myclash.fr/display/wall/<event number>`. The event number is the long code
   after `/events/` in your workspace address. No button leads to this screen: type it.
 - It needs a sign-in to your workspace with the **Scorekeeper** role or above.
+
+![The wall: Piste 1 with a bout paused, Piste 2 with a bout scheduled](../../../assets/guide/15-live-wall.png)
 
 ## For phones: the Live page
 

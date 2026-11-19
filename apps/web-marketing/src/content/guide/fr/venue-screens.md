@@ -28,6 +28,8 @@ assaut...**.
 - Il se met à jour en direct. Si la connexion tombe, il garde la dernière image et affiche **Plus
   de mise à jour** (ou **Mises à jour ralenties**) jusqu'à ce qu'il rattrape son retard.
 
+![Un écran de salle : le combat de la lice 1, en pause avant sa première touche, et le combat suivant en haut à droite](../../../assets/guide/15-venue-scoreboard.png)
+
 ## La liste des écrans
 
 `app.myclash.fr/e/<votre événement>/display` ouvre **Affichages** : les combats **En direct**, et
@@ -56,6 +58,8 @@ secondes.
   l'événement est le long code après `/events/` dans l'adresse de votre espace. Aucun bouton ne
   mène à cet écran : tapez l'adresse.
 - Il faut être connecté à votre espace avec le rôle **Teneur de score** ou plus.
+
+![Le mur : la lice 1 avec un combat en pause, la lice 2 avec un combat programmé](../../../assets/guide/15-live-wall.png)
 
 ## Pour les téléphones : la page En direct
 

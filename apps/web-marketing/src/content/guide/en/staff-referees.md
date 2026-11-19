@@ -25,6 +25,14 @@ your equipment check and your photo moderators.
 
 ![Event Staff: the sign-in link and QR code, and one scoring account](../../../assets/guide/06-staff.png)
 
+Print the [Welcome desk sheet](/en/guide/welcome-desk-sheet) and the
+[Gear check sheet](/en/guide/gear-check-sheet) for those volunteers. This is what their tablets
+show:
+
+![The welcome desk tablet: one person arrived, the others with their Arrived button](../../../assets/guide/14-desk.png)
+
+![The gear check tablet: one longsword passed, the next fighter's weapon not checked yet](../../../assets/guide/14-gear.png)
+
 An account cannot be deleted, only disabled. A disabled account's username cannot be reused.
 
 ## The referees
