@@ -53,6 +53,26 @@ describe('scrubForAgent masks', () => {
       '?token_hash=[redacted]&code=[redacted]&access_token=[redacted]&refresh_token=[redacted]&apikey=[redacted]',
     ],
     [
+      'an IPv4 address that ends a sentence',
+      'banned 82.66.103.92. Next.',
+      'banned 82.66.x.x. Next.',
+    ],
+    [
+      "an event pass's own parameter",
+      '/e/fal-2026/pass?t=PassCode123',
+      '/e/fal-2026/pass?t=[redacted]',
+    ],
+    [
+      'a secret after an ampersand Go wrote as \\u0026',
+      '"referer":"https://app.myclash.fr/x?a=1\\u0026token=SECRET1"',
+      '"referer":"https://app.myclash.fr/x?a=1\\u0026token=[redacted]"',
+    ],
+    [
+      "a pre-signed storage link's secrets",
+      '?X-Amz-Credential=AKIA1&X-Amz-Signature=abc123&X-Amz-Security-Token=tok&X-Amz-Expires=300',
+      '?X-Amz-Credential=[redacted]&X-Amz-Signature=[redacted]&X-Amz-Security-Token=[redacted]&X-Amz-Expires=300',
+    ],
+    [
       'a password in a connection string',
       'postgres://supabase_admin:s3cret@db:5432/postgres',
       'postgres://[redacted]@db:5432/postgres',

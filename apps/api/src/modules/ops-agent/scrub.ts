@@ -16,12 +16,19 @@ export const REDACTED_PHONE = '[redacted-phone]';
 
 const URL_USER_INFO = /(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
 const ENCODED_EMAIL = /[A-Z0-9._%+-]+%40[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const LINK_SECRET = /([?&](?:token|token_hash|code|access_token|refresh_token|apikey)=)[^&\s"']+/gi;
+/**
+ * A link's secret in a query: sign-in and reset codes, the event pass's `t`, a pre-signed storage
+ * link's credential and signature. After `?`, `&`, or the `\u0026` Go's JSON logger writes for `&`
+ * (the auth server's `referer`).
+ */
+const LINK_SECRET =
+  /((?:[?&]|\\u0026)(?:token|token_hash|code|access_token|refresh_token|apikey|t|x-amz-credential|x-amz-signature|x-amz-security-token)=)[^&\s"'\\]+/gi;
 /** `+33 6 12 34 56 78`, `0033612345678`: a country code, then 8 to 15 digits. */
 const INTERNATIONAL_PHONE = /(?<![\w.:])(?:\+|00)\d(?:[ .-]?\d){7,14}(?!\w)/g;
 /** `06 12 34 56 78`, `06.12.34.56.78`, `0612345678`. */
 const FRENCH_PHONE = /(?<![\w.:])0[1-9](?:[ .-]?\d{2}){4}(?!\w)/g;
-const IPV4 = /(?<![\w.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\w.])/g;
+/** Not inside a longer dotted run; a full stop that ends the sentence may follow. */
+const IPV4 = /(?<![\w.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?!\w|\.\d)/g;
 /** A run of hex groups and colons; `ipv6Half` decides whether it is an address. */
 const IPV6_CANDIDATE = /(?<![\w:.])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:.])/gi;
 
