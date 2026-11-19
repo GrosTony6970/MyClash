@@ -8,7 +8,22 @@
  * that spills onto a second page nobody notices until the morning of.
  */
 import { escapeHtml } from '@myclash/types';
+import { formatInZone } from '@myclash/time';
 import type { PrintLabels, PrintTournamentMeta } from './print-types';
+
+/**
+ * The sheet header's "Generated" stamp, on the EVENT's clock like every other time on the paper.
+ * It read the printing machine's clock: a pack printed abroad, or on a laptop left on another
+ * zone, said one time in its header and another on its piste rows.
+ */
+export function printedAt(now: Date, timeZone: string, bcp47: string): string {
+  return formatInZone(
+    now.toISOString(),
+    timeZone,
+    { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' },
+    bcp47,
+  );
+}
 
 /**
  * `page-break-after: always` on every sheet but the last. `:last-child` would

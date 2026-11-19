@@ -29,6 +29,7 @@ import type { RoundNamer } from './build-print-data';
 import { packInput } from './pack-input';
 import { printRoundName } from './print-round-name';
 import { printJoinedPacksHtml, printPackHtml, type PrintSectionKey } from './print-pack';
+import { printedAt } from './print-shell';
 import type { PrintLabels } from './print-types';
 import { usePrintPackData } from './usePrintPackData';
 
@@ -204,7 +205,7 @@ export default function PrintPackPage() {
 
   function handlePrint() {
     if (!canPrint) return;
-    const generatedAt = new Date().toLocaleString(localeToBcp47(locale));
+    const generatedAt = printedAt(new Date(), eventTz, localeToBcp47(locale));
     const inputs = printable.map((input) => ({ ...input, meta: { ...input.meta, generatedAt } }));
     const html =
       selected === ALL_TOURNAMENTS
