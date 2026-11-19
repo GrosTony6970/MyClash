@@ -83,6 +83,7 @@ async function shootTablet(
       // One arrival, so the shot shows both states of a row.
       await page.getByRole('button', { name: 'Arrived', exact: true }).first().click();
       await expect(page.getByRole('tab', { name: 'Arrived (1)', exact: true })).toBeVisible();
+      await expectNoPhoto(page);
       await page.screenshot({ path: `${o.out}/14-desk.png` });
     } else {
       await page.goto(`${staffBase}/gear`);
@@ -92,6 +93,7 @@ async function shootTablet(
       // One weapon passed, so the shot shows a result beside the buttons.
       await page.getByRole('button', { name: 'Pass', exact: true }).first().click();
       await expect(page.getByRole('button', { name: 'Re-check' }).first()).toBeVisible();
+      await expectNoPhoto(page);
       await page.screenshot({ path: `${o.out}/14-gear.png` });
     }
   } finally {
@@ -128,5 +130,19 @@ async function signInWithPin(
 async function settleThenShoot(page: Page, path: string): Promise<void> {
   // Live screens hold a connection open, so idle may never come: settle or move on.
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+  await expectNoPhoto(page);
   await page.screenshot({ path });
+}
+
+/**
+ * These screens show a person's photo, a club logo or an Event logo as an
+ * `<img>`. The guide's roster is invented and has none of them, so any image
+ * means a profile link reached a real person (or a photo was added to an
+ * invented profile): stop before the picture is taken (hard rule 7).
+ */
+async function expectNoPhoto(page: Page): Promise<void> {
+  expect(
+    await page.locator('img').count(),
+    'an image is on screen; it may show a real person, so this screenshot is not taken',
+  ).toBe(0);
 }

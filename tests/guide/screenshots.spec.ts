@@ -173,6 +173,7 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     // Read the emails only once a member row has rendered, or the check reads nothing.
     await page.goto(`${org}/settings`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('row').nth(1)).toBeVisible();
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
     const shownEmails =
       // The whole page, sidebar included: this page has no <main>, and waiting for one hung.
       (await page.locator('body').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
