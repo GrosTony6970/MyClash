@@ -879,7 +879,7 @@ export const publicApp = {
       inboxLink: 'Voir les annonces',
       enabledLabel: 'Activer les notifications',
       enabledDescription:
-        "Désactivez pour suspendre tous les rappels et alertes. Les annonces d'un organisateur ou d'un instructeur continuent de vous parvenir par email.",
+        "Désactivez pour suspendre tous les rappels et alertes. Les annonces d'un organisateur ou d'un instructeur continuent de vous parvenir par email, à l'adresse que l'organisateur a pour vous.",
       leadMatch: 'Me rappeler avant un combat',
       leadReferee: "Me rappeler avant un créneau d'arbitrage",
       leadWorkshop: 'Me rappeler avant un atelier',
@@ -887,7 +887,7 @@ export const publicApp = {
       immediate: 'Au début',
       scheduleChanges: "Changements d'horaire",
       scheduleChangesDescription:
-        "Être notifié quand vos créneaux d'arbitrage changent, et quand une correction que vous avez demandée est refusée.",
+        "Être notifié quand vos créneaux d'arbitrage changent, quand une séance d'atelier réservée est déplacée, et quand une correction que vous avez demandée reçoit une réponse.",
       resultsPublished: 'Résultats publiés',
       resultsPublishedDescription: 'Être notifié quand un tournoi publie ses résultats.',
       organizerUpdates: 'Nouveaux événements des organisateurs suivis',

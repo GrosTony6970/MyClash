@@ -512,7 +512,7 @@ export const organizer = {
     feedback: {
       title: 'What people said',
       empty: 'Nobody has answered yet.',
-      headline: '{average} out of 5 · {count} responses',
+      headline: '{average} out of 5 · responses: {count}',
       anonymous: 'Anonymous',
       roles: {
         fighter: 'Fighters',
@@ -2892,7 +2892,7 @@ export const organizer = {
     backToEvent: 'Back to event',
     title: 'Photos',
     description:
-      'Photos people send from the QR code. Choose who sees them, print the poster, and approve or delete each one.',
+      'Photos people send from the QR code or their personal space. Choose who sees them, print the poster, and approve or delete each one.',
     loadError: 'The photos could not be loaded.',
     mode: {
       legend: 'Who sees the photos',

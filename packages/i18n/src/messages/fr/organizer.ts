@@ -510,7 +510,7 @@ export const organizer = {
     feedback: {
       title: 'Ce que les gens ont dit',
       empty: "Personne n'a encore répondu.",
-      headline: '{average} sur 5 · {count} réponses',
+      headline: '{average} sur 5 · réponses : {count}',
       anonymous: 'Anonyme',
       roles: {
         fighter: 'Combattants',
@@ -2858,7 +2858,7 @@ export const organizer = {
     backToEvent: "Retour à l'événement",
     title: 'Photos',
     description:
-      'Les photos envoyées depuis le QR code. Choisissez qui les voit, imprimez l’affiche, puis approuvez ou supprimez chacune.',
+      'Les photos envoyées depuis le QR code ou l’espace personnel. Choisissez qui les voit, imprimez l’affiche, puis approuvez ou supprimez chacune.',
     loadError: 'Les photos n’ont pas pu être chargées.',
     mode: {
       legend: 'Qui voit les photos',

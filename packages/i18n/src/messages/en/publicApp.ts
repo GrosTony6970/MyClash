@@ -876,7 +876,7 @@ export const publicApp = {
       inboxLink: 'View announcements',
       enabledLabel: 'Enable notifications',
       enabledDescription:
-        'Turn off to pause all reminders and alerts. Announcements from an organiser or an instructor still reach you by email.',
+        'Turn off to pause all reminders and alerts. Announcements from an organiser or an instructor still reach you by email, at the address the organiser has for you.',
       leadMatch: 'Remind me before a bout',
       leadReferee: 'Remind me before a refereeing slot',
       leadWorkshop: 'Remind me before a workshop',
@@ -884,7 +884,7 @@ export const publicApp = {
       immediate: 'At start',
       scheduleChanges: 'Schedule changes',
       scheduleChangesDescription:
-        'Get notified when your refereeing assignments change, and when a correction you asked for is refused.',
+        'Get notified when your refereeing assignments change, when a workshop session you booked moves, and when a correction you asked for is answered.',
       resultsPublished: 'Results published',
       resultsPublishedDescription: 'Get notified when a tournament publishes its results.',
       organizerUpdates: 'New events from organisers you follow',
