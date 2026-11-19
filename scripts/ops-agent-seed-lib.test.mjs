@@ -170,10 +170,30 @@ test('a seed after a restore that ends in no known state is an error line', { sk
   assert.match(r.said, /✗ .*agent: the key seed did not finish/u, r.said);
 });
 
+// Final review of slice 4, I2: the database down, the revoke never ran. Neither line may say it did.
+test(
+  'a seed whose revoke never ran is an error line, before and after the restart',
+  { skip },
+  () => {
+    const output = '{"state":"failed","revokedOthers":null,"error":"connect ECONNREFUSED"}';
+    const early = runLib(['mc_revoke_stale_ops_agent_keys'], {
+      password: 'pw',
+      seedOutput: output,
+    });
+    assert.match(early.said, /✗ .*agent: the keys could not be checked before the restart/u);
+    const late = runLib(['mc_reseed_ops_agent_after_restore'], {
+      password: 'pw',
+      seedOutput: output,
+    });
+    assert.match(late.said, /✗ .*agent: the key seed did not finish/u, late.said);
+    assert.doesNotMatch(late.said, /login service may still be starting/u, late.said);
+  },
+);
+
 test('a failed seed after a restore names the login service and the next deploy', { skip }, () => {
   const r = runLib(['mc_reseed_ops_agent_after_restore'], {
     password: 'pw',
-    seedOutput: '{"state":"failed","error":"GoTrue 503"}',
+    seedOutput: '{"state":"failed","revokedOthers":0,"error":"GoTrue 503"}',
   });
   assert.equal(r.status, 0, r.said);
   assert.match(r.said, /login service may still be starting/u, r.said);

@@ -190,3 +190,16 @@ test('the result never carries the raw key', async () => {
     assert.equal(JSON.stringify(result).includes(KEY), false);
   }
 });
+
+// Final review of slice 4, I2: a revoke that never ran must not read as "0 revoked" after a
+// restore. null says the count is unknown, and the restore's lib prints its error line.
+test('a database that cannot run the revoke answers revokedOthers null, never 0', async () => {
+  const runSql = async () => {
+    throw new Error('connect ECONNREFUSED');
+  };
+  for (const env of [baseEnv, { ...baseEnv, OPS_AGENT_KEY: '' }]) {
+    const result = await bootstrapOpsAgent({ env, gotrue: makeGotrue(), runSql });
+    assert.equal(result.state, 'failed');
+    assert.equal(result.revokedOthers, null);
+  }
+});

@@ -72,9 +72,14 @@ mc_reseed_ops_agent_after_restore() {
   case "$OPS_AGENT_STATE" in
     not-configured | created | existing | revoked) ;;
     failed)
-      # The revoke of every other key runs before any call to the login service
-      # (scripts/bootstrap-ops-agent.mjs), so only the account step can have failed here.
-      warn "agent: the login service may still be starting after the restart; the next deploy.sh seeds the key again."
+      if [[ -n "$OPS_AGENT_REVOKED" ]]; then
+        # The revoke ran (it comes before any call to the login service,
+        # scripts/bootstrap-ops-agent.mjs): only the account step failed.
+        warn "agent: the login service may still be starting after the restart; the next deploy.sh seeds the key again."
+      else
+        # The revoke never ran (the database could not be reached): say so, never "revoked".
+        err "agent: the key seed did not finish (state failed, no key revoked): a key revoked on the console may be live again. Revoke it again on the console, or run deploy.sh."
+      fi
       ;;
     *)
       err "agent: the key seed did not finish (state ${OPS_AGENT_STATE}): a key revoked on the console may be live again. Revoke it again on the console, or run deploy.sh."

@@ -22,7 +22,8 @@
  * result says `revoked` so the deploy can ask for a new value.
  *
  * Reads: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, DOMAIN, OPS_AGENT_KEY.
- * Prints one JSON line: { state, revokedOthers, error? }. Never the key.
+ * Prints one JSON line: { state, revokedOthers, error? }. Never the key. revokedOthers is null
+ * when the revoke never ran (the database could not be reached).
  *   state: not-configured | created | existing | revoked | failed
  */
 
@@ -101,7 +102,9 @@ async function seed(env, gotrueOverride, runSqlOverride, progress) {
 }
 
 export async function bootstrapOpsAgent({ env = process.env, gotrue, runSql } = {}) {
-  const progress = { revokedOthers: 0 };
+  // null until the revoke has run: a failure before it must not read as "0 revoked" (the
+  // restore's lib, infra/scripts/lib/ops-agent-seed.sh, prints an error line on null).
+  const progress = { revokedOthers: null };
   try {
     return await seed(env, gotrue, runSql, progress);
   } catch (err) {
