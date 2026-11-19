@@ -1,11 +1,11 @@
 /**
- * Starting or restarting one listed container, and renewing the certificates (by restarting
- * Traefik). `server.mjs` routes here; the API's System Versions screen and the ops agent's door
+ * Starting or restarting one listed container, renewing the certificates (by restarting Traefik),
+ * and the disk prune. `server.mjs` routes here; the API's admin console and the ops agent's door
  * (`apps/api/src/modules/ops-agent`) are the two callers. Out of server.mjs so it can be tested:
  * server.mjs listens and awaits at the top level.
  *
- * Both actions run under the ops lock (ruling 886): a backup, a restore, an upload, a delete or
- * another action holding it means `409 ops_busy`. Both are refused while a deploy holds its own
+ * Every action runs under the ops lock (ruling 886): a backup, a restore, an upload, a delete or
+ * another action holding it means `409 ops_busy`. Each is refused while a deploy holds its own
  * lock (`.deploy.lock`, ruling 887): `409 deploy_running`.
  */
 import { spawn } from 'node:child_process';
@@ -56,8 +56,23 @@ const RENEW_DELAY_MS = 3_000;
 const RENEW_TIMEOUT_MS = 30_000;
 
 /**
- * `deps` = { run(command, args, timeoutMs), withLock(kind, fn), deployRunning(), schedule(ms, fn),
- * composeFlags, log(line) }.
+ * The disk prune's two steps (ruling 884): the whole build cache, then the dangling images: the
+ * old build of each image, untagged by its rebuild. Never volumes, and never every unused image:
+ * `alpine:3`, the helper of backup.sh and restore.sh, is used by no container between their runs,
+ * and a restore must not need Docker Hub. Host-wide, like `destroy.sh --prune-cache`.
+ * Each step is bounded; two of them end before the API stops waiting (PRUNE_WAIT_MS,
+ * apps/api/src/modules/admin/system-actions.service.ts), which ends before undici's 300 s.
+ * infra:review pins the order.
+ */
+export const PRUNE_STEP_TIMEOUT_MS = 140_000;
+const PRUNE_STEPS = [
+  ['builder', 'prune', '--all', '--force'],
+  ['image', 'prune', '--force'],
+];
+
+/**
+ * `deps` = { run(command, args, timeoutMs), withLock(kind, fn), deployRunning(), freeBytes(),
+ * schedule(ms, fn), composeFlags, log(line) }.
  */
 export function createContainerActions(deps) {
   const bound = {
@@ -68,6 +83,7 @@ export function createContainerActions(deps) {
   return {
     runContainerAction: (service, action) => runContainerAction(bound, service, action),
     runCertRenewal: () => runCertRenewal(bound),
+    runDiskPrune: () => runDiskPrune(bound),
   };
 }
 
@@ -141,6 +157,37 @@ async function runCertRenewal(deps) {
           }),
       )
       .catch(reject);
+  });
+}
+
+/**
+ * Empty the build cache and remove the dangling images, under the ops lock. A failed step does not
+ * stop the other. The space freed is the free bytes of the runner's root before and after: the
+ * filesystem the disk health reads.
+ */
+async function runDiskPrune(deps) {
+  await refuseDuringDeploy(deps);
+  return deps.withLock('prune', async () => {
+    const before = await deps.freeBytes();
+    const results = [];
+    for (const step of PRUNE_STEPS) {
+      results.push(await deps.run('docker', step, PRUNE_STEP_TIMEOUT_MS));
+    }
+    const after = await deps.freeBytes();
+    const failed = results.find((r) => r.code !== 0);
+    return {
+      ok: failed === undefined,
+      service: 'docker',
+      action: 'prune',
+      exitCode: failed === undefined ? 0 : failed.code,
+      timedOut: results.some((r) => r.timedOut === true),
+      freedBytes: Math.max(0, after - before),
+      availBytes: after,
+      stderr: results
+        .map((r) => r.stderr)
+        .join('')
+        .slice(-4000),
+    };
   });
 }
 

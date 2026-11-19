@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RESTARTABLE_COMPONENTS } from '../../apps/api/src/modules/admin/restartable-components.ts';
 import {
+  PRUNE_STEP_TIMEOUT_MS,
   RESTARTABLE_SERVICES,
   createContainerActions,
   createDeployRunning,
@@ -16,16 +17,22 @@ import { OpsLockBusyError } from './ops-lock.mjs';
 const FLAGS = ['--env-file', '/srv/myclash/.env', '-f', 'infra/docker-compose.prod.yml'];
 const OK = { code: 0, stdout: 'done', stderr: '', timedOut: false };
 
-/** The actions with every dependency recorded in `events`. */
-function harness({ lock = 'free', deploy = false, answer = OK } = {}) {
+/**
+ * The actions with every dependency recorded in `events`. `answer` is one answer for every run,
+ * or a list, one per run in order. `free` is the free bytes each `freeBytes()` call reads.
+ */
+function harness({ lock = 'free', deploy = false, answer = OK, free = [0, 0] } = {}) {
   const events = [];
   const scheduled = [];
+  const answers = Array.isArray(answer) ? [...answer] : null;
+  const reads = [...free];
   const actions = createContainerActions({
     composeFlags: FLAGS,
     run: async (command, args, timeoutMs) => {
       events.push(`run ${[command, ...args].join(' ')} ${timeoutMs}`);
-      return answer;
+      return answers ? answers.shift() : answer;
     },
+    freeBytes: async () => reads.shift(),
     withLock: async (kind, fn) => {
       if (lock === 'busy') throw new OpsLockBusyError();
       events.push(`lock ${kind}`);
@@ -129,6 +136,66 @@ test('a renewal meets a held lock or a deploy: refused, nothing scheduled', asyn
     code: 'deploy_running',
   });
   assert.equal(deploying.scheduled.length, 0);
+});
+
+test('a prune empties the build cache, then removes dangling images, under the lock', async () => {
+  const { actions, events } = harness({ free: [10, 25] });
+  const result = await actions.runDiskPrune();
+  assert.deepEqual(events, [
+    'lock prune',
+    `run docker builder prune --all --force ${PRUNE_STEP_TIMEOUT_MS}`,
+    `run docker image prune --force ${PRUNE_STEP_TIMEOUT_MS}`,
+    'release prune',
+  ]);
+  // Never volumes, never `system prune`, never every unused image: alpine:3, the backup's and the
+  // restore's helper (backup.sh, restore.sh), is used by no container between their runs.
+  for (const event of events) assert.doesNotMatch(event, /volume|system| -a\b|--all .*image/u);
+  assert.deepEqual(result, {
+    ok: true,
+    service: 'docker',
+    action: 'prune',
+    exitCode: 0,
+    timedOut: false,
+    freedBytes: 15,
+    availBytes: 25,
+    stderr: '',
+  });
+});
+
+test('a prune reports no negative space when the disk filled meanwhile', async () => {
+  const { actions } = harness({ free: [10, 8] });
+  const result = await actions.runDiskPrune();
+  assert.equal(result.freedBytes, 0);
+  assert.equal(result.availBytes, 8);
+});
+
+test('a failed or slow step does not stop the other, and fails the prune', async () => {
+  const failed = harness({
+    answer: [{ code: 1, stdout: '', stderr: 'no builder', timedOut: false }, OK],
+  });
+  const one = await failed.actions.runDiskPrune();
+  assert.equal(failed.events.filter((e) => e.startsWith('run ')).length, 2);
+  assert.equal(one.ok, false);
+  assert.equal(one.exitCode, 1);
+  assert.match(one.stderr, /no builder/);
+
+  const slow = harness({ answer: [OK, { code: null, stdout: '', stderr: '', timedOut: true }] });
+  const two = await slow.actions.runDiskPrune();
+  assert.equal(two.ok, false);
+  assert.equal(two.timedOut, true);
+  assert.equal(two.exitCode, null);
+});
+
+test('a prune during a deploy: 409 deploy_running, no lock, nothing runs (ruling 887)', async () => {
+  const { actions, events } = harness({ deploy: true });
+  await assert.rejects(actions.runDiskPrune(), { statusCode: 409, code: 'deploy_running' });
+  assert.deepEqual(events, []);
+});
+
+test('a prune meets a held lock: 409 ops_busy, nothing runs (ruling 886)', async () => {
+  const { actions, events } = harness({ lock: 'busy' });
+  await assert.rejects(actions.runDiskPrune(), OpsLockBusyError);
+  assert.deepEqual(events, []);
 });
 
 test("the runner's restartable list is the API's", () => {

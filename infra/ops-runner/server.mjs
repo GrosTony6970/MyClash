@@ -94,14 +94,16 @@ const scheduledBackup = createScheduledBackup({
       console.warn(`[schedule] could not record a missed night: ${sanitizeError(error)}`),
     ),
 });
+/** Free bytes of the stack's filesystem: an upload's room, and what a disk prune freed. */
+async function freeBytes() {
+  const disk = await statfs(ROOT_DIR);
+  return disk.bavail * disk.bsize;
+}
 // A backup uploaded in chunks (ruling 216): see upload-chunks.mjs.
 const uploadSessions = createUploadSessions({
   rootDir: ROOT_DIR,
   maxUploadBytes: UPLOAD_MAX_BYTES,
-  freeBytes: async () => {
-    const disk = await statfs(ROOT_DIR);
-    return disk.bavail * disk.bsize;
-  },
+  freeBytes,
   safetyNetBytes: async () => newestSetBytes(await listLocalBackupArtifacts(ROOT_DIR)),
   verify: gzipIntact,
   withLock: (fn) => withOpsLock(ROOT_DIR, { kind: 'upload', onReclaim: logReclaimedLock }, fn),
@@ -114,12 +116,13 @@ const COMPOSE_FLAGS = [
   '-f',
   'infra/docker-compose.prod.yml',
 ];
-// Container start/restart and certificate renewal (container-actions.mjs): under the ops lock
-// (ruling 886), refused while a deploy holds .deploy.lock (ruling 887).
+// Container start/restart, certificate renewal and the disk prune (container-actions.mjs): under
+// the ops lock (ruling 886), refused while a deploy holds .deploy.lock (ruling 887).
 const containerActions = createContainerActions({
   run: spawnCaptureWithTimeout,
   withLock: (kind, fn) => withOpsLock(ROOT_DIR, { kind, onReclaim: logReclaimedLock }, fn),
   deployRunning: createDeployRunning(path.join(ROOT_DIR, '.deploy.lock')),
+  freeBytes,
   composeFlags: COMPOSE_FLAGS,
 });
 
@@ -148,6 +151,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/disk') {
       sendJson(res, 200, await diskResponse());
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/disk/prune') {
+      sendJson(res, 200, await containerActions.runDiskPrune());
       return;
     }
     if (req.method === 'GET' && url.pathname === '/host') {

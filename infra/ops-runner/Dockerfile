@@ -17,6 +17,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       awscli \
       bash \
+      docker-buildx-plugin \
       docker-ce-cli \
       docker-compose-plugin \
       gpg \
@@ -28,6 +29,10 @@ RUN apt-get update \
 # the runtime symptom is a misreported "DB container not running", which cost a
 # stretch of storage-only backups before anyone noticed.
 RUN docker compose version
+# The disk prune's `docker builder prune` (container-actions.mjs): without buildx the CLI falls back
+# to its legacy builder command, which it says is deprecated and will be removed. With it, the
+# prune is buildx's on the host's own builder, the one deploy.sh builds with.
+RUN docker buildx version
 
 WORKDIR /app
 COPY infra/ops-runner/ ./infra/ops-runner/
