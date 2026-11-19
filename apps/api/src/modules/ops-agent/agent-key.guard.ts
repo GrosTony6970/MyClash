@@ -6,10 +6,18 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hashAgentKey, isAgentKey } from './agent-key';
 
 const STAMP_EVERY_MS = 5 * 60_000;
+
+/**
+ * The door's answer when the key table cannot be read (ruling 876). Still fail-closed, but a 503
+ * with this code, not the 401 of a revoked key: a database blip at the morning round must not
+ * read as "access revoked". The marker class keeps the code and words past the exception filter.
+ */
+export const AGENT_KEY_STORE_UNAVAILABLE_CODE = 'AGENT_KEY_STORE_UNAVAILABLE';
 
 type AgentKeyRow = { id: string; revoked_at: string | null; last_used_at: string | null };
 
@@ -40,7 +48,10 @@ export class AgentKeyGuard implements CanActivate {
       .maybeSingle();
     if (error) {
       this.logger.error(`agent key lookup failed: ${error.message}`);
-      throw new UnauthorizedException('Agent key required');
+      throw new OperationalUnavailableException({
+        code: AGENT_KEY_STORE_UNAVAILABLE_CODE,
+        message: 'The agent key could not be checked. Try again later.',
+      });
     }
     const row = data as AgentKeyRow | null;
     if (!row || row.revoked_at) throw new UnauthorizedException('Agent key required');

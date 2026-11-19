@@ -71,6 +71,10 @@ wrong. The operator also asked whether an MCP server is the right tool.
   access to the folder: it also holds `.env`, `.env.e2e`, `backups/` and the certificates' keys,
   and a folder-wide grant would pass to a rewritten `.env` in silence. The server's copy leaves
   `docs/` out (sparse checkout, set by the operator 2026-11-19).
+- **876** Story: "at the 07:05 round the database is down for 30 seconds; the door answers 401, as
+  for a revoked key, and the report says 'my access was revoked'." Ruling: when the key table
+  cannot be read, the door answers 503 with the code `AGENT_KEY_STORE_UNAVAILABLE`, still
+  fail-closed. A 401 means the key itself was refused.
 
 ## Goals
 
@@ -448,7 +452,7 @@ Two facts the build must respect:
    2026-11-18 (`153b18b05`…`9cf7d20ee`). Live check from the cloud, same day: five 200s, no email
    and no `deployedBy`/`logTail` in any answer, and the key refused (401) on an admin route. Left
    for later slices: a rollback or restore brings back a revoked key until the next deploy (before
-   slice 4); a key-table outage answers 401 like a revoked key (decide before slice 3's skill); the
+   slice 4); a key-table outage answered 401 like a revoked key (now 503, ruling 876); the
    public-route door test reads GET only (widen with slice 4's actions).
 2. **Ops-runner log and status reads, exposed on the door with free-text masking.** Done
    2026-11-19 (`acee8b8fd`…`e1b6a81b3`, rulings 867-870). Live check from the cloud after a wipe

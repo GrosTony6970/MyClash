@@ -1,8 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { hashAgentKey } from './agent-key';
-import { AgentKeyGuard } from './agent-key.guard';
+import { AGENT_KEY_STORE_UNAVAILABLE_CODE, AgentKeyGuard } from './agent-key.guard';
 
 const KEY = `mca_${'k'.repeat(43)}`;
 const FIVE_MINUTES = 5 * 60_000;
@@ -94,11 +95,21 @@ describe('AgentKeyGuard — the table decides', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('fails closed when the table cannot be read', async () => {
+  it('fails closed with a 503, not a 401, when the table cannot be read (ruling 876)', async () => {
     readResult = { data: null, error: { message: 'connection reset' } };
-    await expect(guard().canActivate(contextFor(request()))).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    const refusal = await guard()
+      .canActivate(contextFor(request()))
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    // The marker class is the one 5xx whose code and words the exception filter keeps.
+    expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    expect((refusal as OperationalUnavailableException).getStatus()).toBe(503);
+    expect((refusal as OperationalUnavailableException).getResponse()).toEqual({
+      code: AGENT_KEY_STORE_UNAVAILABLE_CODE,
+      message: expect.not.stringContaining('connection reset'),
+    });
   });
 });
 
