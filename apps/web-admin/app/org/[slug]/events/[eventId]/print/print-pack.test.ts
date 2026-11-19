@@ -143,13 +143,13 @@ describe('bracketToPrint', () => {
   ];
 
   it('groups by round, ordered, with slots sorted by position', () => {
-    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`);
+    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`, LABELS.unknownReferee);
     expect(rounds.map((r) => r.roundName)).toEqual(['R1', 'R2']);
     expect(rounds[0]?.matches.map((m) => m.roundCode)).toEqual(['SF1', 'SF2']);
   });
 
   it('renders an empty side as a placeholder, never as "null"', () => {
-    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`);
+    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`, LABELS.unknownReferee);
     expect(rounds[1]?.matches[0]?.blueName).toBe('—');
   });
 
@@ -169,6 +169,7 @@ describe('bracketToPrint', () => {
       1,
       LICES,
       () => 'Final',
+      LABELS.unknownReferee,
     );
 
     expect(rounds[0]?.matches[0]?.scheduledAt).toBe('2026-06-06T16:00:00.000Z');
@@ -181,8 +182,30 @@ describe('bracketToPrint', () => {
       1,
       LICES,
       () => 'Final',
+      LABELS.unknownReferee,
     );
     expect(rounds[0]?.matches[0]?.roundCode).toBe('R1-3');
+  });
+
+  // Ruling 891: the bracket read sends each bout's referees, and the pack printed none, so a
+  // bracket scoresheet and its piste row always said "Not assigned".
+  it('prints a bracket bout’s referees, and "Unknown referee" for a blank name', () => {
+    const rounds = bracketToPrint(
+      [
+        {
+          round: 1,
+          position: 1,
+          redFighterName: 'A',
+          blueFighterName: 'B',
+          referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }],
+        },
+      ],
+      1,
+      LICES,
+      () => 'Final',
+      LABELS.unknownReferee,
+    );
+    expect(rounds[0]?.matches[0]?.referees).toEqual(['Paul Contrequarte', 'Arbitre inconnu']);
   });
 });
 
@@ -193,6 +216,7 @@ describe('printPackHtml', () => {
     1,
     LICES,
     () => 'Finale',
+    LABELS.unknownReferee,
   );
   const allMatches = allMatchesOf(pools, bracketRounds);
 

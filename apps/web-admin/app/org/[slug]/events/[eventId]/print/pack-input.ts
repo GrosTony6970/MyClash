@@ -20,7 +20,13 @@ export function packInput(pack: TournamentPack, context: PackContext): PrintPack
   const { detail, bracket } = pack;
   const pools = poolsToPrint(pack.pools, context.lices, context.labels.unknownReferee);
   const bracketRounds = bracket
-    ? bracketToPrint(bracket.slots, bracket.rounds, context.lices, context.roundName)
+    ? bracketToPrint(
+        bracket.slots,
+        bracket.rounds,
+        context.lices,
+        context.roundName,
+        context.labels.unknownReferee,
+      )
     : [];
   return {
     meta: {

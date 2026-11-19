@@ -46,6 +46,8 @@ export interface ApiBracketSlot {
   liceId?: string | null;
   scheduledAt?: string | null;
   roundCode?: string | null;
+  /** The bout's referees, as the bracket read resolves them (`displayName`, never an id). */
+  referees?: Array<{ displayName: string | null }>;
 }
 
 export interface RoundNamer {
@@ -110,6 +112,7 @@ export function bracketToPrint(
   rounds: number,
   lices: ReadonlyMap<string, string>,
   roundName: RoundNamer,
+  unknownReferee: string,
 ): PrintBracketRound[] {
   const byRound = new Map<number, PrintMatch[]>();
   for (const slot of [...slots].sort(sortBySlot)) {
@@ -122,7 +125,10 @@ export function bracketToPrint(
       blueClub: slot.blueClubAbbrev ?? null,
       liceName: liceNameOf(slot.liceId, lices),
       scheduledAt: slot.scheduledAt ?? null,
-      referees: [],
+      // As the pool sheets do: a blank name prints "Unknown referee", never an id.
+      referees: (slot.referees ?? []).map(
+        (referee) => referee.displayName?.trim() || unknownReferee,
+      ),
     });
     byRound.set(slot.round, bucket);
   }
