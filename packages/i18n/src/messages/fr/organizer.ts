@@ -29,10 +29,6 @@ export const organizer = {
     nothingSelected: 'Sélectionnez au moins un type de feuille.',
     noData: "Ce tournoi n'a ni poules ni tableau pour l'instant — il n'y a rien à imprimer.",
     loadError: 'Impossible de charger les données du tournoi.',
-    roundFinal: 'Finale',
-    roundSemiFinals: 'Demi-finales',
-    roundQuarterFinals: 'Quarts de finale',
-    roundOf: 'Tableau de {count}',
     sheet: {
       poolSheet: 'Feuille de poule',
       scoresheet: 'Feuille de match',

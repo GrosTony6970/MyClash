@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
-import type { ApiBracketSlot, ApiPoolWithMatches } from './build-print-data';
+import type { ApiBracket, ApiPoolWithMatches } from './build-print-data';
 
 export interface TournamentDetail {
   name: string;
@@ -17,7 +17,7 @@ export interface TournamentDetail {
 export interface TournamentPack {
   detail: TournamentDetail;
   pools: ApiPoolWithMatches[];
-  bracket: { rounds: number; slots: ApiBracketSlot[] } | null;
+  bracket: ApiBracket | null;
 }
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -37,11 +37,7 @@ async function readPack(
       options,
     ),
     // A Tournament with no bracket phase answers null (pools only).
-    apiRequest<{ rounds: number; slots: ApiBracketSlot[] } | null>(
-      apiUrl,
-      `/api/v1/tournaments/${tournamentId}/bracket`,
-      options,
-    ),
+    apiRequest<ApiBracket | null>(apiUrl, `/api/v1/tournaments/${tournamentId}/bracket`, options),
   ]);
   // A refused read is no "nothing to print": a Tournament with no Pool phase answers an
   // empty list, one with no bracket phase answers null. Read as empty, a refusal left that

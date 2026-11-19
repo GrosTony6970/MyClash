@@ -135,6 +135,10 @@ describe('poolsToPrint', () => {
   });
 });
 
+/** Single-elimination shapes: two fighters (one round), four fighters (two rounds). */
+const SINGLE_ELIM_2 = { bracketSize: 2, wbRounds: null, lbRounds: null };
+const SINGLE_ELIM_4 = { bracketSize: 4, wbRounds: null, lbRounds: null };
+
 describe('bracketToPrint', () => {
   const slots: ApiBracketSlot[] = [
     { round: 2, position: 1, redFighterName: 'A', blueFighterName: null, roundCode: 'F' },
@@ -143,13 +147,25 @@ describe('bracketToPrint', () => {
   ];
 
   it('groups by round, ordered, with slots sorted by position', () => {
-    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`, LABELS.unknownReferee);
+    const rounds = bracketToPrint(
+      slots,
+      SINGLE_ELIM_4,
+      LICES,
+      (round) => `R${round}`,
+      LABELS.unknownReferee,
+    );
     expect(rounds.map((r) => r.roundName)).toEqual(['R1', 'R2']);
     expect(rounds[0]?.matches.map((m) => m.roundCode)).toEqual(['SF1', 'SF2']);
   });
 
   it('renders an empty side as a placeholder, never as "null"', () => {
-    const rounds = bracketToPrint(slots, 2, LICES, (round) => `R${round}`, LABELS.unknownReferee);
+    const rounds = bracketToPrint(
+      slots,
+      SINGLE_ELIM_4,
+      LICES,
+      (round) => `R${round}`,
+      LABELS.unknownReferee,
+    );
     expect(rounds[1]?.matches[0]?.blueName).toBe('—');
   });
 
@@ -166,7 +182,7 @@ describe('bracketToPrint', () => {
         },
         { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D' },
       ],
-      1,
+      SINGLE_ELIM_2,
       LICES,
       () => 'Final',
       LABELS.unknownReferee,
@@ -179,7 +195,7 @@ describe('bracketToPrint', () => {
   it('falls back to a positional code when the slot carries none', () => {
     const rounds = bracketToPrint(
       [{ round: 1, position: 3, redFighterName: 'X', blueFighterName: 'Y' }],
-      1,
+      SINGLE_ELIM_2,
       LICES,
       () => 'Final',
       LABELS.unknownReferee,
@@ -200,7 +216,7 @@ describe('bracketToPrint', () => {
           referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }],
         },
       ],
-      1,
+      SINGLE_ELIM_2,
       LICES,
       () => 'Final',
       LABELS.unknownReferee,
@@ -213,7 +229,7 @@ describe('printPackHtml', () => {
   const pools = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
   const bracketRounds = bracketToPrint(
     [{ round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'F' }],
-    1,
+    SINGLE_ELIM_2,
     LICES,
     () => 'Finale',
     LABELS.unknownReferee,

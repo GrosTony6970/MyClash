@@ -32,13 +32,6 @@ export const organizer = {
     nothingSelected: 'Select at least one kind of sheet.',
     noData: 'This tournament has no pools or bracket yet — there is nothing to print.',
     loadError: 'Could not load the tournament data.',
-    // Bracket round names, printed as sheet headings. Kept here rather than
-    // borrowed from publicApp.tournament.finalRanking so the pack owns every
-    // string that lands on its paper.
-    roundFinal: 'Final',
-    roundSemiFinals: 'Semi-finals',
-    roundQuarterFinals: 'Quarter-finals',
-    roundOf: 'Round of {count}',
     sheet: {
       poolSheet: 'Pool sheet',
       scoresheet: 'Scoresheet',

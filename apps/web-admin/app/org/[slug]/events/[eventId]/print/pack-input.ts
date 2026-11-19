@@ -1,5 +1,5 @@
 import { sideColorsFor } from '@myclash/ui';
-import { allMatchesOf, bracketToPrint, poolsToPrint } from './build-print-data';
+import { allMatchesOf, bracketToPrint, poolsToPrint, type RoundNamer } from './build-print-data';
 import type { PrintPackInput, PrintSectionKey } from './print-pack';
 import type { PrintLabels } from './print-types';
 import type { TournamentPack } from './usePrintPackData';
@@ -10,7 +10,7 @@ export interface PackContext {
   timeZone: string;
   generatedAt: string;
   lices: ReadonlyMap<string, string>;
-  roundName: (round: number, rounds: number) => string;
+  roundName: RoundNamer;
   labels: PrintLabels;
   sections: readonly PrintSectionKey[];
 }
@@ -22,7 +22,7 @@ export function packInput(pack: TournamentPack, context: PackContext): PrintPack
   const bracketRounds = bracket
     ? bracketToPrint(
         bracket.slots,
-        bracket.rounds,
+        bracket,
         context.lices,
         context.roundName,
         context.labels.unknownReferee,

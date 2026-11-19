@@ -50,9 +50,21 @@ export interface ApiBracketSlot {
   referees?: Array<{ displayName: string | null }>;
 }
 
+/** `GET tournaments/:id/bracket`, as far as the pack reads it. */
+export interface ApiBracket {
+  bracketSize: number;
+  /** Double elimination only: the winners and losers brackets' round counts. */
+  wbRounds: number | null;
+  lbRounds: number | null;
+  slots: ApiBracketSlot[];
+}
+
+/** What names a bracket's rounds: its size, and its split when it is double elimination. */
+export type BracketShape = Pick<ApiBracket, 'bracketSize' | 'wbRounds' | 'lbRounds'>;
+
 export interface RoundNamer {
-  /** Localized name for bracket round `round` of `rounds` total. */
-  (round: number, rounds: number): string;
+  /** Localized name for bracket round `round` of a bracket of this shape. */
+  (round: number, shape: BracketShape): string;
 }
 
 /** Placeholder for an empty bracket side — a bye, or a slot not yet populated. */
@@ -109,7 +121,7 @@ function rosterOf(pool: ApiPoolWithMatches): Array<{ name: string; club: string 
 
 export function bracketToPrint(
   slots: readonly ApiBracketSlot[],
-  rounds: number,
+  shape: BracketShape,
   lices: ReadonlyMap<string, string>,
   roundName: RoundNamer,
   unknownReferee: string,
@@ -134,7 +146,7 @@ export function bracketToPrint(
   }
   return [...byRound.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([round, matches]) => ({ roundName: roundName(round, rounds), matches }));
+    .map(([round, matches]) => ({ roundName: roundName(round, shape), matches }));
 }
 
 function sortBySlot(a: ApiBracketSlot, b: ApiBracketSlot): number {

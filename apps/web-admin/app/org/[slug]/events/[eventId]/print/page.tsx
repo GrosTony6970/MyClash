@@ -25,7 +25,9 @@ import { openPrintWindow } from '@/lib/print-window';
 import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { useI18n } from '@myclash/next-i18n/client';
+import type { RoundNamer } from './build-print-data';
 import { packInput } from './pack-input';
+import { printRoundName } from './print-round-name';
 import { printJoinedPacksHtml, printPackHtml, type PrintSectionKey } from './print-pack';
 import type { PrintLabels } from './print-types';
 import { usePrintPackData } from './usePrintPackData';
@@ -168,16 +170,7 @@ export default function PrintPackPage() {
 
   const labels = useMemo(() => sheetLabels(t), [t]);
 
-  const roundName = useCallback(
-    (round: number, rounds: number): string => {
-      const fromEnd = rounds - round;
-      if (fromEnd === 0) return t('organizer.printPack.roundFinal');
-      if (fromEnd === 1) return t('organizer.printPack.roundSemiFinals');
-      if (fromEnd === 2) return t('organizer.printPack.roundQuarterFinals');
-      return t('organizer.printPack.roundOf', { count: 2 ** (fromEnd + 1) });
-    },
-    [t],
-  );
+  const roundName = useCallback<RoundNamer>((round, shape) => printRoundName(round, shape, t), [t]);
 
   /** Each pack that has a bout to print; the time is stamped when Print is pressed. */
   const printable = useMemo(
