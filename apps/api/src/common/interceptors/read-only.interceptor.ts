@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } fr
 import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
+import { isAgentKey } from '../../modules/ops-agent/agent-key';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { hasPlatformTier } from '../auth/platform-role';
 import { readOnlyModeRefusal } from '../read-only-mode';
@@ -56,7 +57,9 @@ export class ReadOnlyInterceptor implements NestInterceptor {
     if (!readOnly) return next.handle();
 
     const token = this.extractToken(req);
-    if (token) {
+    // An ops agent key is no login and no super admin: it is refused here as it is, and it never
+    // goes to the login service (the key leaves its guard as a hash only).
+    if (token && !isAgentKey(token)) {
       const userId = await this.resolveUserId(token);
       if (userId && (await this.isSuperAdmin(userId))) return next.handle();
     }

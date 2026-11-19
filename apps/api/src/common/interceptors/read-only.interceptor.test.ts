@@ -186,6 +186,8 @@ describe('ReadOnlyInterceptor', () => {
       code: 'read_only_mode',
     });
     expect(handle).not.toHaveBeenCalled();
+    // The key is no login: it never leaves the API for the login service (final review, I6).
+    expect(getAuthUserMock).not.toHaveBeenCalled();
   });
 
   it('lets super-admin writes through when the flag is on', async () => {
