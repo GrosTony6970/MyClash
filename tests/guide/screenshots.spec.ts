@@ -13,15 +13,15 @@ import { playTournamentToChampion } from '../e2e/_tournament';
 import { createPoolTournament, playPoolPhase, readPoolMatches } from '../e2e/_pool';
 import { shootPadStates } from './_pad-states';
 import { shootEventDay } from './_event-day';
+import { shootBeyond } from './_beyond';
 
 /**
- * The organiser guide's screenshots (docs/superpowers/specs/2026-11-18-organiser-guide-design.md).
+ * The organiser guide's screenshots (its specs: docs/superpowers/archive/specs/*guide*).
  *
- * Builds one `test` Event — hidden from the public, never published, never
- * switched to another kind — walks it from the roster import to a champion,
- * photographs each admin screen the guide describes, and hard-deletes it at the
- * end, whatever happened. The roster is invented (tests/guide/fixtures); no real
- * person may appear in a screenshot (hard rule 7).
+ * Builds one `test` Event — hidden from the public, never published, never switched to another
+ * kind — walks it from the roster import to a champion, photographs each admin screen the guide
+ * describes, and hard-deletes it at the end, whatever happened. The roster is invented
+ * (tests/guide/fixtures); no real person may appear in a screenshot (hard rule 7).
  *
  * Run by hand: `E2E_CLEANUP=1 pnpm guide:screenshots`. It writes to the stack
  * that E2E_BASE_URL names.
@@ -357,6 +357,7 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     );
     expect(unfinished, 'the bracket did not play to a champion').toEqual([]);
     await shot(page, '09-final-ranking', `${at}/finalranking`);
+    await shootBeyond(page, api, { eventId, people: roster.map(personOf), out: OUT });
 
     // ── Formats: a double elimination played through, and a Swiss round drawn ─
     await playTournamentToChampion(api, eventId, {
