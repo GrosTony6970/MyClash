@@ -34,6 +34,9 @@ function build() {
     }),
   };
   const tls = { probeAll: vi.fn().mockResolvedValue({ minDays: 40 }) };
+  const eventsLive = {
+    read: vi.fn().mockResolvedValue({ generatedAt: 'g', live: false, events: [] }),
+  };
   // The real service over a stub runner: the scrub is the service's, so a double would prove
   // nothing about what the agent reads.
   const runner = { body: {} as unknown };
@@ -49,8 +52,9 @@ function build() {
     backups as never,
     tls as never,
     agentLogs,
+    eventsLive as never,
   );
-  return { controller, runtime, host, versions, backups, tls, runner };
+  return { controller, runtime, host, versions, backups, tls, runner, eventsLive };
 }
 
 describe('OpsAgentController', () => {
@@ -85,6 +89,12 @@ describe('OpsAgentController', () => {
     expect(backups.getStatus).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(v)).not.toContain('someone');
     expect(JSON.stringify(b)).not.toContain('logTail');
+  });
+
+  it('answers the live-Event read of its service as it is', async () => {
+    const { controller, eventsLive } = build();
+    expect(await controller.eventsLive()).toEqual({ generatedAt: 'g', live: false, events: [] });
+    expect(eventsLive.read).toHaveBeenCalledTimes(1);
   });
 
   it("passes no person's address, phone or full IP in the container reads", async () => {

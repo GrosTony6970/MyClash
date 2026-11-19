@@ -37,7 +37,7 @@ export const HEALTH_READS = Object.freeze([
 ]);
 
 /** The door's routes, as `ops-agent.controller.ts` declares them (a test holds the two equal). */
-export const DOOR_ROUTES = Object.freeze([...HEALTH_READS, 'logs/:service']);
+export const DOOR_ROUTES = Object.freeze([...HEALTH_READS, 'events/live', 'logs/:service']);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVICES_FILE = path.join(

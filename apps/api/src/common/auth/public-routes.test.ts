@@ -192,6 +192,7 @@ const EXPECTED_PUBLIC = [
   // "closes every agent-door route with the key guard" below holds that no door route lacks it.
   'GET /ops-agent/backups',
   'GET /ops-agent/containers',
+  'GET /ops-agent/events/live',
   'GET /ops-agent/host',
   'GET /ops-agent/logs/:service',
   'GET /ops-agent/runtime-health',
@@ -343,7 +344,7 @@ describe('@Public() route surface', () => {
 
   it('closes every agent-door route with the key guard', () => {
     const door = rows.filter((r) => r.isPublic && r.route.startsWith('GET /ops-agent/'));
-    expect(door.length).toBe(7);
+    expect(door.length).toBe(8);
     expect(door.filter((r) => !r.guards.includes('AgentKeyGuard')).map((r) => r.route)).toEqual([]);
   });
 

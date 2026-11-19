@@ -7,6 +7,7 @@ import {
   countsAsPlatformActivity,
   countsTowardStats,
   DEFAULT_EVENT_KIND,
+  holdsBackRepairs,
   EVENT_KINDS,
   isPubliclyVisible,
   type EventKind,
@@ -131,5 +132,14 @@ describe('the deliberate predicate divergences', () => {
   it('club events are publicly visible but stay silent on publish', () => {
     expect(isPubliclyVisible('club')).toBe(true);
     expect(announcesOnPublish('club')).toBe(false);
+  });
+});
+
+// Ruling 883: a live test Event never holds the ops agent's repairs back; a club one does.
+describe('holdsBackRepairs', () => {
+  it('is false for a test Event only', () => {
+    expect(holdsBackRepairs('test')).toBe(false);
+    expect(holdsBackRepairs('standard')).toBe(true);
+    expect(holdsBackRepairs('club')).toBe(true);
   });
 });

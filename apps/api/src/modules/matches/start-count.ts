@@ -38,7 +38,7 @@ interface BoutRow {
 }
 
 /** The statuses the clock writes on a bout it runs: `ClockService.record`. */
-const IN_PLAY: readonly (string | null)[] = ['running', 'paused'];
+export const IN_PLAY: readonly (string | null)[] = ['running', 'paused'];
 
 async function boutRow(db: Database, matchId: string): Promise<BoutRow | null> {
   const { data, error } = await db

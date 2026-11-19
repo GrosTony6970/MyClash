@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from '../admin/admin.module';
 import { AdminAgentKeysController } from './admin-agent-keys.controller';
+import { AgentEventsLiveService } from './agent-events-live.service';
 import { AgentKeyGuard } from './agent-key.guard';
 import { AgentKeysService } from './agent-keys.service';
 import { AgentLogsService } from './agent-logs.service';
@@ -16,6 +17,7 @@ import { OpsAgentController } from './ops-agent.controller';
   providers: [
     AgentKeyGuard,
     AgentKeysService,
+    AgentEventsLiveService,
     // useFactory: the constructor's options parameter is an interface, which Nest cannot inject
     // (admin.module.ts, AdminSystemActionsService).
     { provide: AgentLogsService, useFactory: () => new AgentLogsService() },

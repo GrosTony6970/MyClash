@@ -11,7 +11,9 @@ import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
 import { AdminSystemVersionsService } from '../admin/system-versions.service';
 import { AdminTlsStatusService } from '../admin/tls-status.service';
 import { AgentDoor } from './agent-door.decorator';
+import { AgentEventsLiveService } from './agent-events-live.service';
 import { AgentLogsService } from './agent-logs.service';
+import type { AgentEventsLiveDto } from './dto/agent-events-live.dto';
 import {
   AgentLogParamDto,
   AgentLogQueryDto,
@@ -46,6 +48,7 @@ export class OpsAgentController {
     private readonly backupsService: AdminBackupsService,
     private readonly tlsStatus: AdminTlsStatusService,
     private readonly agentLogs: AgentLogsService,
+    private readonly eventsLiveService: AgentEventsLiveService,
   ) {}
 
   @Get('runtime-health')
@@ -84,6 +87,14 @@ export class OpsAgentController {
   @ApiOperation({ summary: 'The state of every container of the stack, stopped ones included' })
   containers(): Promise<AgentContainersDto> {
     return this.agentLogs.containers();
+  }
+
+  @Get('events/live')
+  @ApiOperation({
+    summary: 'Whether an Event is live now (status, a bout in play, today within its dates)',
+  })
+  eventsLive(): Promise<AgentEventsLiveDto> {
+    return this.eventsLiveService.read();
   }
 
   @Get('logs/:service')

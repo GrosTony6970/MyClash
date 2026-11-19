@@ -17,6 +17,7 @@ import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
 import { AdminSystemVersionsService } from '../admin/system-versions.service';
 import { AdminTlsStatusService } from '../admin/tls-status.service';
 import { AgentKeyGuard } from './agent-key.guard';
+import { AgentEventsLiveService } from './agent-events-live.service';
 import { AgentLogsService } from './agent-logs.service';
 import { OpsAgentController } from './ops-agent.controller';
 
@@ -38,6 +39,7 @@ beforeAll(async () => {
       { provide: AdminBackupsService, useValue: {} },
       { provide: AdminTlsStatusService, useValue: {} },
       { provide: AgentLogsService, useValue: agentLogs },
+      { provide: AgentEventsLiveService, useValue: {} },
     ],
   })
     .overrideGuard(AgentKeyGuard)

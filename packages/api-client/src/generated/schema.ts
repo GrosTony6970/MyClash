@@ -5291,6 +5291,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/ops-agent/events/live': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether an Event is live now (status, a bout in play, today within its dates) */
+    get: operations['OpsAgentController_eventsLive'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/ops-agent/logs/{service}': {
     parameters: {
       query?: never;
@@ -21067,6 +21084,23 @@ export interface operations {
     };
   };
   OpsAgentController_containers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_eventsLive: {
     parameters: {
       query?: never;
       header?: never;

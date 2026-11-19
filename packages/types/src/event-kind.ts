@@ -104,6 +104,15 @@ export function countsAsPlatformActivity(kind: EventKind): boolean {
 }
 
 /**
+ * Whether a live Event of this kind holds the ops agent's repairs back (ruling 883): while one
+ * runs, the agent restarts a container only when it is dead (ruling 864). A test Event is a dry
+ * run and never does; a club Event has people at its pistes and does.
+ */
+export function holdsBackRepairs(kind: EventKind): boolean {
+  return kind !== 'test';
+}
+
+/**
  * Whether the event may be hard-deleted directly — bypassing both the
  * recorded-results guard and the archived-event deletion-request detour.
  *
