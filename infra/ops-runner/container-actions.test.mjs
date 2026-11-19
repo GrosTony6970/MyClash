@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -137,6 +138,49 @@ test("the runner's restartable list is the API's", () => {
 // `.deploy.lock` is deploy.sh's flock (deploy.sh, LOCK_FILE). The real flock binary, where it is.
 const noFlock = spawnSync('flock', ['--version']).status !== 0 ? 'needs flock (Linux)' : false;
 
+/** A `spawn` double: records each call, then the child starts and exits with `code`. */
+function fakeSpawn(code) {
+  const calls = [];
+  const spawnFn = (command, args, options) => {
+    calls.push({ command, args, options });
+    const child = new EventEmitter();
+    setImmediate(() => {
+      child.emit('spawn');
+      child.emit('close', code);
+    });
+    return child;
+  };
+  return { calls, spawnFn };
+}
+
+test('the deploy probe locks an fd it opened read-only, never the path', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'deploy-lock-'));
+  const file = path.join(dir, '.deploy.lock');
+  try {
+    const missing = fakeSpawn(0);
+    assert.equal(await createDeployRunning(file, { spawn: missing.spawnFn })(), false);
+    assert.equal(missing.calls.length, 0);
+    assert.equal(existsSync(file), false);
+
+    writeFileSync(file, '');
+    for (const [code, held] of [
+      [0, false],
+      [75, true],
+    ]) {
+      const probe = fakeSpawn(code);
+      assert.equal(await createDeployRunning(file, { spawn: probe.spawnFn })(), held);
+      const [{ command, args, options }] = probe.calls;
+      // flock(1) given a path opens it with O_CREAT: the root-run runner would create the
+      // operator's lock file in the race with a deploy deleting it. Given an fd, it creates nothing.
+      assert.equal(command, 'flock');
+      assert.deepEqual(args, ['-n', '-E', '75', '3']);
+      assert.equal(typeof options.stdio[3], 'number');
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test(
   'deployRunning: absent lock file → false, and the file is not created',
   { skip: noFlock },
@@ -163,6 +207,23 @@ test(
       assert.equal(await createDeployRunning(file)(), true);
     } finally {
       holder.kill();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'deployRunning: right after the probe answers free, a deploy can take the lock',
+  { skip: noFlock },
+  async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'deploy-lock-'));
+    const file = path.join(dir, '.deploy.lock');
+    writeFileSync(file, '');
+    try {
+      assert.equal(await createDeployRunning(file)(), false);
+      // deploy.sh's own `flock -n 9` (lib/pull-reexec.sh): the probe's lock must be gone.
+      assert.equal(spawnSync('flock', ['-n', file, 'true']).status, 0);
+    } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   },

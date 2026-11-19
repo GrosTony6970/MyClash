@@ -9,7 +9,7 @@
  * lock (`.deploy.lock`, ruling 887): `409 deploy_running`.
  */
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { refusal } from './upload-store.mjs';
 
 // Allowlist of compose service names that may be controlled. Mirrored by the API
@@ -158,16 +158,32 @@ function restartTraefik({ run, composeFlags, log }) {
 /**
  * Whether a deploy holds `.deploy.lock` (deploy.sh, redeploy.sh and rollback.sh take it with
  * flock). The file is never created here: one made by this root-run container would stop the
- * next deploy, run as the operator, from opening it. An answer flock gives that is neither "free"
- * nor "held" counts as held: a repair can wait, a deploy cut in half cannot be undone.
+ * next deploy, run as the operator, from opening it. So it is opened read-only (a missing file:
+ * no deploy), and flock locks that fd: given a path, flock(1) opens it with O_CREAT, and a deploy
+ * deleting the file on exit raced that open. Node's copy of the fd is closed once the child has
+ * it, so the lock dies with flock and a deploy's own `flock -n` never meets it. An answer flock
+ * gives that is neither "free" nor "held" counts as held: a repair can wait, a deploy cut in half
+ * cannot be undone.
  */
-export function createDeployRunning(lockFile) {
-  return () => {
-    if (!existsSync(lockFile)) return Promise.resolve(false);
+export function createDeployRunning(lockFile, { spawn: spawnFn = spawn } = {}) {
+  return async () => {
+    let handle;
+    try {
+      handle = await open(lockFile, 'r');
+    } catch (error) {
+      return error?.code !== 'ENOENT';
+    }
     return new Promise((resolve) => {
-      const child = spawn('flock', ['-n', '-E', '75', lockFile, 'true'], { stdio: 'ignore' });
+      const close = () => void handle.close().catch(() => undefined);
+      const child = spawnFn('flock', ['-n', '-E', '75', '3'], {
+        stdio: ['ignore', 'ignore', 'ignore', handle.fd],
+      });
+      child.on('spawn', close);
       child.on('close', (code) => resolve(code !== 0));
-      child.on('error', () => resolve(true));
+      child.on('error', () => {
+        close();
+        resolve(true);
+      });
     });
   };
 }
