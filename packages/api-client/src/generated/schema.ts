@@ -5250,7 +5250,8 @@ export interface paths {
     /** Backup state, without shell output or error text */
     get: operations['OpsAgentController_backups'];
     put?: never;
-    post?: never;
+    /** Run a backup now; a held ops lock answers 409 */
+    post: operations['OpsAgentController_runBackup'];
     delete?: never;
     options?: never;
     head?: never;
@@ -5319,6 +5320,40 @@ export interface paths {
     get: operations['OpsAgentController_log'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/ops-agent/containers/{service}/{action}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restart or start one listed container; never stop one */
+    post: operations['OpsAgentController_containerAction'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/ops-agent/tls/renew': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Renew the certificates: Traefik restarts a moment after the answer */
+    post: operations['OpsAgentController_renewCertificates'];
     delete?: never;
     options?: never;
     head?: never;
@@ -21066,6 +21101,23 @@ export interface operations {
       };
     };
   };
+  OpsAgentController_runBackup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   OpsAgentController_tls: {
     parameters: {
       query?: never;
@@ -21141,6 +21193,55 @@ export interface operations {
           | 'web-staff'
           | 'web-admin';
       };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_containerAction: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        service:
+          | 'worker'
+          | 'web-admin'
+          | 'web-public'
+          | 'web-staff'
+          | 'web-marketing'
+          | 'redis'
+          | 'supabase-auth'
+          | 'supabase-realtime'
+          | 'supabase-storage'
+          | 'supabase-rest'
+          | 'supabase-meta'
+          | 'supabase-studio';
+        action: 'restart' | 'start';
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_renewCertificates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;

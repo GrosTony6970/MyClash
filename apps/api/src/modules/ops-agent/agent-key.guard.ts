@@ -19,7 +19,26 @@ const STAMP_EVERY_MS = 5 * 60_000;
  */
 export const AGENT_KEY_STORE_UNAVAILABLE_CODE = 'AGENT_KEY_STORE_UNAVAILABLE';
 
-type AgentKeyRow = { id: string; revoked_at: string | null; last_used_at: string | null };
+type AgentKeyRow = {
+  id: string;
+  user_id: string;
+  revoked_at: string | null;
+  last_used_at: string | null;
+};
+
+/** The key's own account, which the guard puts on the request it lets through. */
+type AgentRequest = FastifyRequest & { agentUserId?: string };
+
+/**
+ * The agent account of a request the guard let through: the actor of an action's audit row (the
+ * design, section 2). A request it never passed has none, and that throws: a sentinel would be an
+ * audit row never written (`common/auth/actor.ts` says why).
+ */
+export function agentUserIdOf(request: FastifyRequest): string {
+  const id = (request as AgentRequest).agentUserId;
+  if (!id) throw new Error('No agent account on this request: AgentKeyGuard did not pass it.');
+  return id;
+}
 
 /**
  * The one place an ops agent key is accepted (the ops agent's design, section 1).
@@ -43,7 +62,7 @@ export class AgentKeyGuard implements CanActivate {
 
     const { data, error } = await this.supabase.service
       .from('agent_keys')
-      .select('id, revoked_at, last_used_at')
+      .select('id, user_id, revoked_at, last_used_at')
       .eq('token_hash', hashAgentKey(key))
       .maybeSingle();
     if (error) {
@@ -56,6 +75,7 @@ export class AgentKeyGuard implements CanActivate {
     const row = data as AgentKeyRow | null;
     if (!row || row.revoked_at) throw new UnauthorizedException('Agent key required');
 
+    (request as AgentRequest).agentUserId = row.user_id;
     this.stamp(row);
     return true;
   }

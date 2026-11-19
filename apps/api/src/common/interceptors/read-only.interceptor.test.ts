@@ -169,6 +169,25 @@ describe('ReadOnlyInterceptor', () => {
     );
   });
 
+  // The ops agent's slice 4, D7: the operator's read-only switch holds the agent's repairs back
+  // too. Its key is no login, so no super admin; the door's action is refused like any write.
+  it("refuses the ops agent's container action while the platform is read-only", async () => {
+    isEnabledMock.mockResolvedValue(true);
+    getAuthUserMock.mockResolvedValue(null);
+    const handle = vi.fn(() => of('acted'));
+    const ctx = makeContext({
+      url: '/api/v1/ops-agent/containers/worker/restart',
+      method: 'POST',
+      headers: { authorization: `Bearer mca_${'k'.repeat(43)}` },
+    });
+    const refusal = await interceptor.intercept(ctx, { handle }).catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    expect((refusal as OperationalUnavailableException).getResponse()).toMatchObject({
+      code: 'read_only_mode',
+    });
+    expect(handle).not.toHaveBeenCalled();
+  });
+
   it('lets super-admin writes through when the flag is on', async () => {
     isEnabledMock.mockResolvedValue(true);
     platformRolesMaybeSingle.mockResolvedValue({

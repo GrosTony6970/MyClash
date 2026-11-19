@@ -37,6 +37,22 @@ function build() {
   const eventsLive = {
     read: vi.fn().mockResolvedValue({ generatedAt: 'g', live: false, events: [] }),
   };
+  const systemActions = {
+    runComponentAction: vi.fn().mockResolvedValue({
+      ok: true,
+      service: 'supabase-rest',
+      action: 'restart',
+      exitCode: 0,
+      stdout: 'marker-out',
+      stderr: 'marker-err',
+    }),
+    renewCertificates: vi.fn().mockResolvedValue({ ok: true, scheduled: true, exitCode: null }),
+  };
+  Object.assign(backups, {
+    triggerBackup: vi.fn().mockResolvedValue({
+      operation: { id: 'op', kind: 'backup', status: 'running', startedAt: 's', logTail: ['x'] },
+    }),
+  });
   // The real service over a stub runner: the scrub is the service's, so a double would prove
   // nothing about what the agent reads.
   const runner = { body: {} as unknown };
@@ -53,8 +69,9 @@ function build() {
     tls as never,
     agentLogs,
     eventsLive as never,
+    systemActions as never,
   );
-  return { controller, runtime, host, versions, backups, tls, runner, eventsLive };
+  return { controller, runtime, host, versions, backups, tls, runner, eventsLive, systemActions };
 }
 
 describe('OpsAgentController', () => {
@@ -89,6 +106,35 @@ describe('OpsAgentController', () => {
     expect(backups.getStatus).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(v)).not.toContain('someone');
     expect(JSON.stringify(b)).not.toContain('logTail');
+  });
+
+  // Slice 4: each action is the key's own account's, in the audit row the service writes.
+  it('a container action goes out under the key account, by its UI key, masked', async () => {
+    const { controller, systemActions } = build();
+    const answer = await controller.containerAction(
+      { service: 'supabase-rest', action: 'restart' },
+      'agent-user',
+    );
+    expect(systemActions.runComponentAction).toHaveBeenCalledWith(
+      'postgrest',
+      'restart',
+      'agent-user',
+    );
+    expect(Object.keys(answer).sort()).toEqual(
+      ['action', 'exitCode', 'ok', 'scheduled', 'service', 'timedOut'].sort(),
+    );
+  });
+
+  it('a backup and a renewal go out under the key account, masked', async () => {
+    const { controller, systemActions, backups } = build();
+    const started = await controller.runBackup('agent-user');
+    expect(
+      (backups as unknown as { triggerBackup: ReturnType<typeof vi.fn> }).triggerBackup,
+    ).toHaveBeenCalledWith('agent-user');
+    expect(JSON.stringify(started)).not.toContain('logTail');
+    const renewed = await controller.renewCertificates('agent-user');
+    expect(systemActions.renewCertificates).toHaveBeenCalledWith('agent-user');
+    expect(renewed).toMatchObject({ service: 'traefik', action: 'renew-certs', scheduled: true });
   });
 
   it('answers the live-Event read of its service as it is', async () => {

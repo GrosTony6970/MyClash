@@ -50,10 +50,13 @@ describe('route authorization, API-wide', () => {
     expect(door.sort()).toEqual(
       [
         'backups',
+        'containerAction',
         'containers',
         'eventsLive',
         'host',
         'log',
+        'renewCertificates',
+        'runBackup',
         'runtimeHealth',
         'tls',
         'versions',

@@ -1,7 +1,7 @@
 /**
  * The wall around the ops agent's key (the ops agent's design, section 1).
  *
- * The key opens the seven agent-door routes and nothing else. That is held by structure, not by
+ * The key opens the agent-door routes and nothing else. That is held by structure, not by
  * calling 755 routes: one guard turns a key into a caller, one decorator puts that guard on a
  * route, and every other reader of the bearer sends it to the login check, which refuses a key.
  * Each test below fails if a second way in appears.

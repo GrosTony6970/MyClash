@@ -1,7 +1,67 @@
 import { describe, expect, it } from 'vitest';
 import type { BackupStatusDto } from '../admin/dto/admin-backups.dto';
 import type { SystemVersionsResponseDto } from '../admin/dto/system-versions.dto';
-import { maskBackups, maskVersions, withoutErrorText } from './mask';
+import {
+  maskActionResult,
+  maskBackupStarted,
+  maskBackups,
+  maskVersions,
+  withoutErrorText,
+} from './mask';
+
+// Slice 4: an action's answer on the door holds no shell output and no error text.
+describe('the answers of the door actions', () => {
+  it('an action result keeps six fields, built by name', () => {
+    // What the runner answers, extra fields and all.
+    const fromRunner = {
+      ok: true,
+      exitCode: 0,
+      timedOut: false,
+      stdout: 'marker-out',
+      stderr: 'marker-err',
+      error: 'marker-error',
+      extra: 'marker-extra',
+    };
+    const answer = maskActionResult(fromRunner, 'worker', 'restart');
+    expect(answer).toEqual({
+      ok: true,
+      service: 'worker',
+      action: 'restart',
+      exitCode: 0,
+      timedOut: false,
+      scheduled: false,
+    });
+  });
+
+  it('a scheduled renewal says so, with no exit code yet', () => {
+    expect(
+      maskActionResult({ ok: true, scheduled: true, exitCode: null }, 'traefik', 'renew-certs'),
+    ).toEqual({
+      ok: true,
+      service: 'traefik',
+      action: 'renew-certs',
+      exitCode: null,
+      timedOut: false,
+      scheduled: true,
+    });
+  });
+
+  it('a started backup keeps its id, kind, status and start, never its shell lines', () => {
+    const answer = maskBackupStarted({
+      operation: {
+        id: 'op-1',
+        kind: 'backup',
+        status: 'running',
+        startedAt: 's',
+        logTail: ['marker-line'],
+        error: 'marker-error',
+      },
+    } as never);
+    expect(answer).toEqual({
+      operation: { id: 'op-1', kind: 'backup', status: 'running', startedAt: 's' },
+    });
+  });
+});
 
 const LOGIN = 'marker-login-7f3';
 

@@ -1,4 +1,6 @@
+import type { AgentActionResultDto, AgentBackupStartedDto } from './dto/agent-actions.dto';
 import type {
+  BackupActionResponseDto,
   BackupLocation,
   BackupOperationKind,
   BackupOperationStatus,
@@ -112,4 +114,26 @@ export function maskBackups(dto: BackupStatusDto): AgentBackupStatusDto {
         }
       : null,
   };
+}
+
+/** An action's answer on the door (slice 4): built by name, so no shell output or error text passes. */
+export function maskActionResult(
+  result: { ok?: unknown; exitCode?: unknown; timedOut?: unknown; scheduled?: unknown },
+  service: string,
+  action: string,
+): AgentActionResultDto {
+  return {
+    ok: result.ok === true,
+    service,
+    action,
+    exitCode: typeof result.exitCode === 'number' ? result.exitCode : null,
+    timedOut: result.timedOut === true,
+    scheduled: result.scheduled === true,
+  };
+}
+
+/** A backup the door started: the operation to watch, never its shell lines or error text. */
+export function maskBackupStarted(dto: BackupActionResponseDto): AgentBackupStartedDto {
+  const { id, kind, status, startedAt } = dto.operation;
+  return { operation: { id, kind, status, startedAt } };
 }

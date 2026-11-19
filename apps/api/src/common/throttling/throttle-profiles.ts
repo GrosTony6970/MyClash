@@ -2,6 +2,15 @@ export const ADMIN_READ_THROTTLE = {
   global: { limit: 600, ttl: 60_000 },
 } as const;
 
+/**
+ * The ops agent's actions (restart, start, backup, renewal): a run makes one attempt per
+ * component, so ten in ten minutes is room for an alert and a deploy run at once, and a stop
+ * before a run that loops.
+ */
+export const AGENT_ACTION_THROTTLE = {
+  global: { limit: 10, ttl: 600_000 },
+} as const;
+
 export const CATALOG_READ_THROTTLE = {
   global: { limit: 300, ttl: 60_000 },
 } as const;

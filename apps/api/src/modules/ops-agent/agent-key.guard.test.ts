@@ -3,12 +3,12 @@ import type { ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { hashAgentKey } from './agent-key';
-import { AGENT_KEY_STORE_UNAVAILABLE_CODE, AgentKeyGuard } from './agent-key.guard';
+import { AGENT_KEY_STORE_UNAVAILABLE_CODE, AgentKeyGuard, agentUserIdOf } from './agent-key.guard';
 
 const KEY = `mca_${'k'.repeat(43)}`;
 const FIVE_MINUTES = 5 * 60_000;
 
-type Row = { id: string; revoked_at: string | null; last_used_at: string | null };
+type Row = { id: string; user_id?: string; revoked_at: string | null; last_used_at: string | null };
 
 const select = vi.fn();
 const eq = vi.fn();
@@ -74,8 +74,23 @@ describe('AgentKeyGuard — the table decides', () => {
     readResult = { data: { id: 'k1', revoked_at: null, last_used_at: null }, error: null };
     await expect(guard().canActivate(contextFor(request()))).resolves.toBe(true);
     expect(from).toHaveBeenCalledWith('agent_keys');
-    expect(select).toHaveBeenCalledWith('id, revoked_at, last_used_at');
+    expect(select).toHaveBeenCalledWith('id, user_id, revoked_at, last_used_at');
     expect(eq).toHaveBeenCalledWith('token_hash', hashAgentKey(KEY));
+  });
+
+  // Slice 4: an action's audit row names the key's own account (the design, section 2).
+  it("puts the key's account on the request, for the audit row of an action", async () => {
+    readResult = {
+      data: { id: 'k1', user_id: 'agent-user', revoked_at: null, last_used_at: null },
+      error: null,
+    };
+    const req = request();
+    await guard().canActivate(contextFor(req));
+    expect(agentUserIdOf(req as never)).toBe('agent-user');
+  });
+
+  it('a request the guard never passed has no agent account: it throws, never a sentinel', () => {
+    expect(() => agentUserIdOf(request() as never)).toThrow();
   });
 
   it('refuses a key with no row', async () => {

@@ -198,6 +198,9 @@ const EXPECTED_PUBLIC = [
   'GET /ops-agent/runtime-health',
   'GET /ops-agent/tls',
   'GET /ops-agent/versions',
+  'POST /ops-agent/backups',
+  'POST /ops-agent/containers/:service/:action',
+  'POST /ops-agent/tls/renew',
   // Published AI content only: each content type decides who may read its
   // entity — a hidden Tournament's recap and an erased fighter's insight answer
   // null, exactly like nothing published (rulings 81-83).
@@ -237,6 +240,17 @@ const EXPECTED_PUBLIC = [
  * work exists to close, among them DELETE /events/:eventId/programme/full and
  * DELETE /registrations/:id.
  */
+/**
+ * The ops agent's actions (slice 4). Public to the login check only: `@AgentDoor()` puts
+ * `AgentKeyGuard` on them, which refuses every caller but a live agent key (the test below
+ * holds every door route to that guard). Not session bootstrap, so listed apart.
+ */
+const AGENT_DOOR_POSTS = new Set([
+  'POST /ops-agent/backups',
+  'POST /ops-agent/containers/:service/:action',
+  'POST /ops-agent/tls/renew',
+]);
+
 const PUBLIC_POST_ALLOWLIST = new Set([
   'POST /auth/logout',
   'POST /auth/magic-link',
@@ -343,8 +357,9 @@ describe('@Public() route surface', () => {
   });
 
   it('closes every agent-door route with the key guard', () => {
-    const door = rows.filter((r) => r.isPublic && r.route.startsWith('GET /ops-agent/'));
-    expect(door.length).toBe(8);
+    // Every verb (M3): the actions are POSTs.
+    const door = rows.filter((r) => r.isPublic && r.route.includes(' /ops-agent/'));
+    expect(door.length).toBe(11);
     expect(door.filter((r) => !r.guards.includes('AgentKeyGuard')).map((r) => r.route)).toEqual([]);
   });
 
@@ -357,7 +372,13 @@ describe('@Public() route surface', () => {
 
   it('only exposes POST publicly for enumerated session-bootstrap routes', () => {
     const unexpected = rows
-      .filter((r) => r.isPublic && r.verb === 'POST' && !PUBLIC_POST_ALLOWLIST.has(r.route))
+      .filter(
+        (r) =>
+          r.isPublic &&
+          r.verb === 'POST' &&
+          !PUBLIC_POST_ALLOWLIST.has(r.route) &&
+          !AGENT_DOOR_POSTS.has(r.route),
+      )
       .map((r) => r.route);
     expect(unexpected).toEqual([]);
   });
