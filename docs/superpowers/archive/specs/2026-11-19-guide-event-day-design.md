@@ -1,6 +1,20 @@
 # Organiser guide, part 3: the event day — design
 
-Status: approved by the operator on 2026-11-19.
+Status: approved by the operator on 2026-11-19. Shipped 2026-11-19.
+
+What the build found against this spec:
+
+- **No picture of a bout's own page.** The admin bout page shows every hit as "? +0" and the
+  score 0–0: it reads camelCase fields (`firstStrikerColor`, `redScoreDelta`, `voided`…) that
+  `GET matches/:id/exchanges` does not send. Reported to the operator, not fixed here. The
+  desk and gear pictures sit on the staff page, since the printed sheets hold no picture.
+- **No picture for the fighters page:** the test Event is hidden from the public site.
+- **The screenshot script failed three times on the deployed stack before a clean run.** The
+  members-page email guard waited for a `<main>` that page lacks; a stuck step outlived the
+  10-minute test timeout, so two runs left their test Event behind (deleted by hand); the
+  staff app's PIN session lives on `staff.myclash.fr`, out of sight of the admin host. Actions
+  and page loads now fail after 60 seconds, and no event-day shot is taken while an image is
+  on screen (that last guard has not yet run on the stack).
 
 Builds on the shipped organiser guide (`docs/superpowers/archive/specs/2026-11-18-organiser-guide-design.md`
 and `…-guide-concepts-and-pad-design.md`): same site (`apps/web-marketing`, `/guide` FR and
