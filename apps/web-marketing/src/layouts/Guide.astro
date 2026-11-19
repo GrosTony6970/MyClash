@@ -30,9 +30,10 @@ const sectionLabel = {
   steps: t.guideSectionSteps,
   concepts: t.guideSectionConcepts,
   day: t.guideSectionDay,
+  beyond: t.guideSectionBeyond,
 } as const;
 /** The contents, grouped by section in reading order; a section with no page is left out. */
-const toc = (['steps', 'concepts', 'day'] as const)
+const toc = (['steps', 'concepts', 'day', 'beyond'] as const)
   .map((key) => ({
     label: sectionLabel[key],
     items: pages

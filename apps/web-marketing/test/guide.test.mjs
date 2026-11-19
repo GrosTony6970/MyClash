@@ -53,7 +53,12 @@ test('a guide page has the same order and section in both languages', () => {
 });
 
 /** The section labels, read from the copy table so a renamed label cannot drift from the test. */
-const SECTION_KEYS = ['guideSectionSteps', 'guideSectionConcepts', 'guideSectionDay'];
+const SECTION_KEYS = [
+  'guideSectionSteps',
+  'guideSectionConcepts',
+  'guideSectionDay',
+  'guideSectionBeyond',
+];
 const sectionLabels = (locale) => {
   const ui = readFileSync(join(HERE, '..', 'src', 'i18n', 'ui.ts'), 'utf8');
   const block = ui.slice(ui.indexOf(`  ${locale}: {`));
@@ -71,7 +76,7 @@ test('the contents list groups pages by section, in reading order', () => {
       m[1].trim(),
     );
     const expected = sectionLabels(locale);
-    assert.equal(expected.length, 3, `${route}: the copy table lost a section label`);
+    assert.ok(expected.every(Boolean), `${route}: the copy table lost a section label`);
     assert.deepEqual(headings, expected, `${route}: section headings missing or out of order`);
   }
 });
