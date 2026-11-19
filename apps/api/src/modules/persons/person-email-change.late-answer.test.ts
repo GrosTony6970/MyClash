@@ -164,10 +164,14 @@ describe('an answer that comes after the limit (ruling 372)', () => {
   it('writes nothing when the late answer is a refusal', async () => {
     const { db, late, warned } = await clickAndRunOut();
 
-    late.answer({ data: { user: null }, error: { status: 404, message: 'User not found' } });
+    late.answer({
+      data: { user: null },
+      error: { code: 'user_not_found', status: 404, message: 'User not found' },
+    });
 
+    // The auth server's code, never its words (ruling 867).
     await vi.waitFor(() =>
-      expect(warned).toHaveBeenCalledWith(expect.stringContaining('User not found')),
+      expect(warned).toHaveBeenCalledWith(expect.stringContaining('user_not_found (404)')),
     );
     expect(db.writes).toEqual([]);
   });

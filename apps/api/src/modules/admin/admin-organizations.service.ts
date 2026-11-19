@@ -12,6 +12,7 @@ import { mailedLink, signInDoor } from '../mail/mailed-link';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog, maskEmail } from '../../common/audit-log';
+import { authServerReason } from '../../common/log-reason';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
 import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
 import type {
@@ -876,7 +877,7 @@ export class AdminOrganizationsService {
       const magicLink = mailedLink(door, data.properties);
       if (error || !magicLink) {
         this.logger.warn(
-          `Could not generate organizer magic link for ${maskEmail(email)}: ${error?.message}`,
+          `Could not generate organizer magic link for ${maskEmail(email)}: ${authServerReason(error)}`,
         );
         return false;
       }
@@ -954,11 +955,9 @@ export class AdminOrganizationsService {
     return JSON.stringify(detail).toLowerCase().includes('already');
   }
 
+  /** GoTrue's answer by its code and status, never its body: that can quote an address. */
   private formatGoTrueDetail(response: { status: number; detail: unknown }): string {
-    const detail =
-      response.detail && typeof response.detail === 'object'
-        ? JSON.stringify(response.detail)
-        : String(response.detail ?? 'no response body');
-    return `status=${response.status} detail=${detail}`;
+    const detail = response.detail && typeof response.detail === 'object' ? response.detail : {};
+    return authServerReason({ ...detail, status: response.status });
   }
 }

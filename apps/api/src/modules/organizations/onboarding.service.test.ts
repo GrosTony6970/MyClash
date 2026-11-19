@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConflictException, BadRequestException } from '@nestjs/common';
+import { ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { LEGAL_POLICIES } from '@myclash/types';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { OnboardingService } from './onboarding.service';
@@ -134,6 +134,34 @@ describe('OnboardingService', () => {
           },
         ],
       ]);
+    });
+
+    // GoTrue can quote the address it refused; the log keeps its code and the masked address.
+    it('logs a refused link by the auth server code, never its message', async () => {
+      const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      generateLinkMock.mockResolvedValue({
+        data: { properties: null },
+        error: {
+          code: 'email_address_invalid',
+          status: 400,
+          message: 'Email address "jean@example.com" is invalid',
+        },
+      });
+
+      await expect(
+        service.signup({
+          email: 'jean@example.com',
+          displayName: 'Jean Dupont',
+          orgName: 'Lyon AMHE',
+          orgSlug: 'lyon-amhe',
+          ...ACCEPTED,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      const line = errorSpy.mock.calls.flat().join(' ');
+      expect(line).toContain('j***@e***: email_address_invalid (400)');
+      expect(line).not.toContain('jean@example.com');
+      errorSpy.mockRestore();
     });
 
     it('throws ConflictException for reserved slug', async () => {

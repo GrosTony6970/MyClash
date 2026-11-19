@@ -21,6 +21,7 @@ import {
   type ClaimLinkRefusal,
 } from '@myclash/types';
 import { maskEmail } from '../../common/audit-log';
+import { authServerReason } from '../../common/log-reason';
 import { adminLockdownRefusal } from '../../common/admin-lockdown';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
@@ -283,7 +284,9 @@ export class AuthService {
     const magicLink = mailedLink(signInDoor(domain, type, safeRedirect, personId), data.properties);
 
     if (error || !magicLink) {
-      this.logger.error(`Failed to generate magic link for ${maskEmail(email)}: ${error?.message}`);
+      this.logger.error(
+        `Failed to generate magic link for ${maskEmail(email)}: ${authServerReason(error)}`,
+      );
       // Return generic message to prevent email enumeration
       return { message: 'If this email is registered, a link has been sent.' };
     }

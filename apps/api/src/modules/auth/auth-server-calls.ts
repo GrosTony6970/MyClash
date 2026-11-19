@@ -1,5 +1,6 @@
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { authServerReason } from '../../common/log-reason';
 import { classifyGoTrueFailure } from '../supabase/gotrue-failure';
 import { GOTRUE_TIMEOUT_MS, type SupabaseService } from '../supabase/supabase.service';
 import { accountHolding } from './read-only-link';
@@ -101,7 +102,9 @@ export async function writeChosenPassword(
   const status = written?.error.status;
   if (status && classifyGoTrueFailure(status) === 'invalid') return false;
   if (written)
-    logger.warn(`A chosen password of ${userId} was not judged: ${written.error.message}`);
+    logger.warn(
+      `A chosen password of ${userId} was not judged: ${authServerReason(written.error)}`,
+    );
   return 'unknown';
 }
 
@@ -152,7 +155,7 @@ async function judgmentOf(
   if (!error) return true;
   // supabase-js hands no status, or 0, for an answer it could not read or never got.
   if (error.status && classifyGoTrueFailure(error.status) === 'invalid') {
-    logger.warn(`The auth server refused an address change: ${error.message}`);
+    logger.warn(`The auth server refused an address change: ${authServerReason(error)}`);
     return false;
   }
   const holder = error.status === 500 ? await accountHolding(supabase, email) : null;

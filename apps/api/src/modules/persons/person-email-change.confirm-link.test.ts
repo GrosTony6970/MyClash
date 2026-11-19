@@ -100,14 +100,20 @@ describe('an email-change link the auth server refuses (ruling 371)', () => {
     const { service, db, updateUserById, warned } = build();
     updateUserById.mockResolvedValue({
       data: { user: null },
-      error: { status: 422, message: 'A user with this email address has already been registered' },
+      error: {
+        code: 'email_exists',
+        status: 422,
+        message: 'A user with this email address has already been registered',
+      },
     });
 
     await expect(service.confirmEmailChange('marc-token')).resolves.toBe('refused');
 
     expect(writesTo(db, 'person_email_change_requests')).toEqual([]);
     expect(writesTo(db, 'persons')).toEqual([]);
-    expect(warned).toHaveBeenCalledWith(expect.stringContaining('already been registered'));
+    // The auth server's code, never its words: they can quote the address (ruling 867).
+    expect(warned).toHaveBeenCalledWith(expect.stringContaining('email_exists (422)'));
+    expect(warned).not.toHaveBeenCalledWith(expect.stringContaining('already been registered'));
   });
 });
 

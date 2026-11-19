@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { AdminOrganizationsService } from './admin-organizations.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -359,6 +359,30 @@ describe('AdminOrganizationsService', () => {
 
       expect(createAuthAdminUserMock).not.toHaveBeenCalled();
       expect(authAdminMock.listUsers).not.toHaveBeenCalled();
+    });
+
+    // GoTrue's body can quote an address; the log keeps its status and code only.
+    it('logs a failed GoTrue call by its status and code, never its body', async () => {
+      const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      listAuthAdminUsersMock.mockResolvedValue({
+        ok: false,
+        status: 422,
+        data: null,
+        detail: { code: 422, error_code: 'validation_failed', msg: 'bad owner@example.com' },
+      });
+      fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+
+      await expect(
+        service.createOrganizationWithOwner(
+          { name: 'Inspect Fail', slug: 'inspect-fail', ownerEmail: 'owner@example.com' },
+          'actor',
+        ),
+      ).rejects.toThrow('Could not inspect organizer accounts');
+
+      const line = warnSpy.mock.calls.flat().join(' ');
+      expect(line).toContain('validation_failed (422)');
+      expect(line).not.toContain('owner@example.com');
+      warnSpy.mockRestore();
     });
 
     it('keeps creation successful when magic-link delivery fails', async () => {

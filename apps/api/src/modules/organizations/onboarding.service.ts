@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { maskEmail } from '../../common/audit-log';
+import { authServerReason } from '../../common/log-reason';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { assertNotReadOnly } from '../../common/read-only-mode';
@@ -153,7 +154,7 @@ export class OnboardingService {
 
     if (error || !magicLink) {
       this.logger.error(
-        `Failed to generate signup magic link for ${maskEmail(email)}: ${error?.message}`,
+        `Failed to generate signup magic link for ${maskEmail(email)}: ${authServerReason(error)}`,
       );
       throw new BadRequestException('Failed to send signup link. Please try again.');
     }

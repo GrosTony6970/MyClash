@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { OwnWordsError, databaseReason, logReason, unreadable } from './log-reason';
+import {
+  OwnWordsError,
+  authServerReason,
+  databaseReason,
+  logReason,
+  unreadable,
+} from './log-reason';
 
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566601';
 
@@ -43,6 +49,34 @@ describe('databaseReason: a database code in words, never its message', () => {
     expect(unreadable('the profile is unreadable', error).message).toBe(
       'the profile is unreadable: invalid_text_representation (22P02)',
     );
+  });
+});
+
+describe('authServerReason: an auth server refusal by its code and status, never its message', () => {
+  it.each([
+    [
+      'a supabase-js error',
+      { code: 'email_address_invalid', status: 400 },
+      'email_address_invalid (400)',
+    ],
+    [
+      'a raw GoTrue body',
+      { error_code: 'validation_failed', code: 422 },
+      'validation_failed (422)',
+    ],
+    ['no code', { status: 500 }, 'no code (500)'],
+    ['nothing', null, 'no code'],
+  ])('%s', (_, error, words) => {
+    expect(authServerReason(error)).toBe(words);
+  });
+
+  it('never says the message, which can quote the address', () => {
+    const error = {
+      code: 'email_address_invalid',
+      status: 400,
+      message: 'Email "x@y.fr" is invalid',
+    };
+    expect(authServerReason(error)).not.toContain('x@y.fr');
   });
 });
 

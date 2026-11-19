@@ -120,6 +120,20 @@ export function databaseReason(error: { code?: string }): string {
   return name ? `${name} (${error.code})` : error.code;
 }
 
+/**
+ * An auth server (GoTrue) refusal by its code and status, never its message: GoTrue can quote the
+ * address it refused (`Email address "…" is invalid`). Takes supabase-js's `AuthError`
+ * (`code`, `status`) or GoTrue's raw body (`error_code`, and its `code` is the status).
+ */
+export function authServerReason(
+  error: { code?: unknown; status?: unknown; error_code?: unknown } | null | undefined,
+): string {
+  const named = typeof error?.error_code === 'string' ? error.error_code : error?.code;
+  const code = typeof named === 'string' && named ? named : 'no code';
+  const status = typeof error?.status === 'number' ? error.status : error?.code;
+  return typeof status === 'number' && status ? `${code} (${status})` : code;
+}
+
 /** A read the database refused: `what` is a fixed phrase, the rest is `databaseReason`. */
 export const unreadable = (what: string, error: { code?: string }) =>
   new OwnWordsError(`${what}: ${databaseReason(error)}`);
