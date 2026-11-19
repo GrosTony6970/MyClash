@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { buildCorsOrigins } from '../../security/http-security';
 import { requireRequestUserId } from '../../common/auth/request-user';
+import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateConversationDto,
@@ -154,6 +155,9 @@ export class OrganizerChatController {
     }
   }
 
+  // Applies a draft through the form assistant's own `applyDraft`, so it is refused on a
+  // completed Event as that route's Apply is (rulings 283, 283a, 888).
+  @BlockOnCompletedEvent()
   @Post('conversations/:conversationId/proposals/:draftId/confirm')
   @ApiOperation({ summary: 'Confirm and apply a proposed action' })
   async confirmProposal(

@@ -130,13 +130,15 @@ describe('the archived-Event lock, API-wide', () => {
   });
 
   // Rulings 283, 283a: no assistant draft is applied on a completed Event,
-  // whatever it does. The two generate routes are the ones it began with.
+  // whatever it does. The two generate routes are the ones it began with. The
+  // chatbot's confirm applies the same drafts through the same service (888).
   it('refuses a completed Event at the assistant’s apply, as at the doors it opens', () => {
     const marked = new Set(routes.filter((r) => r.blockedOnCompleted).map((r) => r.key));
     for (const key of [
       'POST tournaments/:tournamentId/generate-pools',
       'POST tournaments/:tournamentId/generate-bracket',
       'POST events/:eventId/ai-assistant/drafts/:draftId/apply',
+      'POST events/:eventId/chat/conversations/:conversationId/proposals/:draftId/confirm',
     ]) {
       expect(marked.has(key), key).toBe(true);
     }
