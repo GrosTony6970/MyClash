@@ -863,8 +863,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     }
     // An address with no account, or an announcement to a reader whose main switch is off.
     if (!deliveryUserId || preference?.enabled === false) {
-      await this.sendEmailFallback(job);
-      await this.markRecipient(job, 'delivered');
+      await this.markReached(job, await this.sendEmailFallback(job));
       return;
     }
 
@@ -879,8 +878,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       },
     );
     // No phone alert set up, or every address was dead: the email is the fallback.
-    if (rang === 0) await this.sendEmailFallback(job);
-    await this.markRecipient(job, 'delivered');
+    await this.markReached(job, rang > 0 || (await this.sendEmailFallback(job)));
     this.logger.log(`Sent ${job.kind} notification for ${job.entityId} to ${rang} subscriptions`);
   }
 
@@ -918,8 +916,9 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     return preference?.enabled === false && !PASSES_MAIN_SWITCH.has(job.kind);
   }
 
-  private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {
-    if (!job.email) return;
+  /** Emails the notice when the job carries an address. Says whether a mail went out. */
+  private async sendEmailFallback(job: ScheduledNotificationJob): Promise<boolean> {
+    if (!job.email) return false;
     const actionUrl = this.emailLink(job.url);
     if (job.kind === 'organizer_broadcast') {
       await this.mail.sendBroadcastNotification({
@@ -930,7 +929,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
         actionUrl,
         severity: job.severity ?? 'info',
       });
-      return;
+      return true;
     }
     await this.mail.sendNotification({
       to: job.email,
@@ -939,6 +938,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       body: job.body,
       actionUrl,
     });
+    return true;
   }
 
   /**
@@ -949,6 +949,15 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   private emailLink(url: string): string {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     return new URL(url, `https://app.${domain}`).toString();
+  }
+
+  /**
+   * A broadcast recipient is delivered only when a phone rang or a mail went out (ruling 891). With
+   * no phone and no address nothing reached them, and "delivered" told the organiser otherwise.
+   */
+  private async markReached(job: ScheduledNotificationJob, reached: boolean): Promise<void> {
+    if (reached) return this.markRecipient(job, 'delivered');
+    return this.markRecipient(job, 'failed', 'no_phone_and_no_email');
   }
 
   private async markRecipient(

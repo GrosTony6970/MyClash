@@ -38,6 +38,15 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
   });
 }
 
+/** Every status written to a broadcast recipient, in order (the mock records each chain). */
+function recipientUpdates(from: ReturnType<typeof makeSupabaseFrom>): unknown[] {
+  return from.mock.calls.flatMap(([table], index) => {
+    if (table !== 'event_broadcast_recipients') return [];
+    const chain = from.mock.results[index]?.value as { update: ReturnType<typeof vi.fn> };
+    return chain.update.mock.calls.map((call) => call[0]);
+  });
+}
+
 /**
  * A duty's Matches come from the seeded double, which applies `.in()`. The decoy
  * Pool's Match is the earliest of all, and one Match of the duty's Pool is not
@@ -620,8 +629,81 @@ describe('notification worker', () => {
       expect.any(Object),
       expect.objectContaining({ severity: 'alert', title: 'Venue change' }),
     );
-    const recipientChain = from.mock.results.find((result) => result.value)?.value;
-    expect(recipientChain).toBeDefined();
+    expect(recipientUpdates(from)).toEqual([
+      expect.objectContaining({ delivery_status: 'delivered', error: null }),
+    ]);
+  });
+
+  // Ruling 891: with no phone and no address nothing reached the person, and the recipient was
+  // still marked "delivered".
+  it('marks a broadcast recipient failed when no phone rang and there is no address', async () => {
+    const from = makeSupabaseFrom({
+      push_subscriptions: { data: [], error: null },
+      notification_preferences: { data: { user_id: 'user-1', enabled: true }, error: null },
+      event_broadcast_recipients: { data: { id: 'recipient-1' }, error: null },
+    });
+    const mail = {
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      sendBroadcastNotification: vi.fn().mockResolvedValue(undefined),
+    };
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      { send: vi.fn() } as never,
+      mail as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'organizer_broadcast',
+        entityId: 'broadcast-1',
+        recipientId: 'recipient-1',
+        userId: 'user-1',
+        title: 'Venue change',
+        body: 'Main hall closes now.',
+        url: '/notifications',
+        email: null,
+        severity: 'info',
+      },
+    } as never);
+
+    expect(mail.sendBroadcastNotification).not.toHaveBeenCalled();
+    expect(recipientUpdates(from)).toEqual([
+      expect.objectContaining({ delivery_status: 'failed', delivered_at: null }),
+    ]);
+  });
+
+  it('marks an email-only broadcast recipient failed when the roster row has no address', async () => {
+    const from = makeSupabaseFrom({
+      event_broadcast_recipients: { data: { id: 'recipient-1' }, error: null },
+    });
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      { send: vi.fn() } as never,
+      { sendNotification: vi.fn(), sendBroadcastNotification: vi.fn() } as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'organizer_broadcast',
+        entityId: 'broadcast-1',
+        recipientId: 'recipient-1',
+        userId: 'recipient-1',
+        forceEmail: true,
+        title: 'Pools ready',
+        body: 'Check your pool now.',
+        url: '/notifications',
+        email: null,
+        severity: 'info',
+      },
+    } as never);
+
+    expect(recipientUpdates(from)).toEqual([
+      expect.objectContaining({ delivery_status: 'failed' }),
+    ]);
   });
 
   it('uses broadcast email fallback for email-only organizer recipients', async () => {
