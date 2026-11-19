@@ -2882,6 +2882,15 @@ export const admin = {
         disk: 'Disk',
         docker: 'Container engine',
       },
+      prune: {
+        button: 'Free disk space',
+        confirmTitle: 'Free disk space?',
+        confirmDescription:
+          "This deletes Docker's build cache and the old images no container uses. No container stops. The next deploy rebuilds every image from the start, so it takes longer.",
+        confirm: 'Free disk space',
+        success: 'Freed {size}.',
+        failed: 'Could not free disk space: {message}',
+      },
     },
     ci: {
       title: 'CI gates',

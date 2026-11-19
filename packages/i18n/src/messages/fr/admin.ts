@@ -2896,6 +2896,15 @@ export const admin = {
         disk: 'Disque',
         docker: 'Moteur de conteneurs',
       },
+      prune: {
+        button: "Libérer de l'espace disque",
+        confirmTitle: "Libérer de l'espace disque ?",
+        confirmDescription:
+          "Cela supprime le cache de construction de Docker et les anciennes images qu'aucun conteneur n'utilise. Aucun conteneur ne s'arrête. Le prochain déploiement reconstruit toutes les images depuis le début : il prend plus de temps.",
+        confirm: "Libérer de l'espace",
+        success: '{size} libérés.',
+        failed: "Impossible de libérer de l'espace disque : {message}",
+      },
     },
     ci: {
       title: "Contrôles d'intégration continue",

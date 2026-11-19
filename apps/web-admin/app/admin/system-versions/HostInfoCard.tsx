@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
+import { DiskPruneButton } from './DiskPruneButton';
 
 type HostInfoSource = 'docker' | 'runtime' | 'unknown';
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -160,16 +161,19 @@ export function HostInfoCard() {
           </h2>
           <p className="text-muted text-xs mt-0.5">{t('admin.systemVersions.host.description')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => loadInfo({ refresh: true })}
-          disabled={loading || refreshing}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
-        >
-          {refreshing
-            ? t('admin.systemVersions.host.refreshing')
-            : t('admin.systemVersions.host.refresh')}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => loadInfo({ refresh: true })}
+            disabled={loading || refreshing}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+          >
+            {refreshing
+              ? t('admin.systemVersions.host.refreshing')
+              : t('admin.systemVersions.host.refresh')}
+          </button>
+          <DiskPruneButton onDone={() => loadInfo({ refresh: true })} />
+        </div>
       </div>
 
       {error && (
