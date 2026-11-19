@@ -5,8 +5,8 @@ import type { Api } from '../e2e/_api';
 /**
  * The guide's "Event day" screenshots
  * (docs/superpowers/specs/2026-11-19-guide-event-day-design.md): the welcome
- * desk and the gear check tablets, the bout scoreboard for a venue screen, and
- * the wall view.
+ * desk and the gear check tablets, the bout scoreboard for a venue screen, the
+ * wall view, and a bout's own page after it ended.
  *
  * The desk and gear accounts are created on the caller's test Event and signed
  * in with their PIN in a browser that holds no organiser cookie, as
@@ -27,6 +27,7 @@ export async function shootEventDay(
   api: Api,
   eventId: string,
   liveBoutId: string,
+  endedBoutId: string,
   out: string,
 ): Promise<void> {
   const { slug } = await api.json<{ slug: string }>(await api.get(`events/${eventId}`));
@@ -43,8 +44,21 @@ export async function shootEventDay(
   await page.goto(`/display/wall/${eventId}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Piste 1').first()).toBeVisible({ timeout: 30_000 });
   await settleThenShoot(page, `${out}/15-live-wall.png`);
-  // No shot of a bout's own page yet: on 2026-11-19 it showed every hit as
-  // "? +0" (it reads camelCase fields the exchanges route does not send).
+
+  // A bout's own page, after the pad ended it with two hits. Until c0b12ef5c it
+  // showed every hit as "Clean hit — ? +0": on a stack deployed before that
+  // fix, stop rather than photograph the bug. No photo check here: the
+  // workspace sidebar shows the E2E club's own logo, and this page shows no person.
+  const { orgSlug } = runContext();
+  await page.goto(`/org/${orgSlug}/events/${eventId}/matches/${endedBoutId}`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await expect(page.getByText(/^Clean hit — Fighter \d \+\d/u).first()).toBeVisible();
+  await expect(page.getByText(/— \? \+/u), 'the stack still runs the "? +0" bout page').toHaveCount(
+    0,
+  );
+  await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+  await page.screenshot({ path: `${out}/16-match-page.png` });
 }
 
 /** One tablet account of `role`, signed in with its PIN, one tap made, then the shot. */

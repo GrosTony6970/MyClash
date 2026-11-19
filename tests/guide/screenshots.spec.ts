@@ -330,8 +330,8 @@ test('the organiser guide screenshots', async ({ page, browser, request }) => {
     expect(padBout, 'the pools produced no second bout').toBeTruthy();
     await shootPadStates(page, api, padBout!.id, staffBase, OUT);
     await page.setViewportSize(DESKTOP);
-    // ── Event day: the desk and gear tablets, and the venue screens ──────────
-    await shootEventDay(page, browser, api, eventId, firstBout!.id, OUT);
+    // ── Event day: the desk and gear tablets, the venue screens, a bout's page
+    await shootEventDay(page, browser, api, eventId, firstBout!.id, padBout!.id, OUT);
     await shot(page, '07-live', `${at}/live`, /pistes ·/u);
 
     // ── Pages 8 and 9: the bracket from the pool standings, then the ranking ─
