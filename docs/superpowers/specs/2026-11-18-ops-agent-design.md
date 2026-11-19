@@ -169,8 +169,9 @@ Each route calls the service that already owns the behaviour. No second copy.
   state, CI gate state (the existing admin services).
 - Container state (`status`), the last N lines of one container's log, and the warn/error lines
   only (new ops-runner reads, section 3). The log read has its own list: every service except
-  `db`. The database log can carry values from SQL statements (a birth date has no shape a scrub
-  can catch), so the key cannot read it. Database errors still reach Claude through the query
+  `db` and `supabase-meta` (ruling 869). The database log can carry values from SQL statements
+  (a birth date has no shape a scrub can catch), and meta logs a failed query's Postgres DETAIL (a
+  whole row), so the key can read neither. Database errors still reach Claude through the query
   errors and the API log.
 - Housekeeping: data-quality findings, query errors, the platform log, and the list of Events with
   status and counts. No rosters. A finding about a person carries the record's id, name and club.

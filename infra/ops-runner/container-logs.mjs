@@ -45,7 +45,7 @@ export const LOG_LINES_DEFAULT = 100;
 export const LOG_LINES_MAX = 500;
 export const LOG_LINE_MAX_CHARS = 2000;
 /** The whole answer's line text, in characters. */
-export const LOG_BYTES_MAX = 262144;
+export const LOG_CHARS_MAX = 262144;
 /** How far back the errors-only read looks. */
 export const LOG_ERRORS_SCAN = 2000;
 
@@ -73,7 +73,7 @@ function cutLine(line) {
 
 /**
  * The lines an answer may hold: the last `lines` (of the problem lines only, when `errorsOnly`),
- * each at most 2,000 characters, the whole at most 256 KiB, oldest dropped first.
+ * each at most 2,000 characters, the whole at most 262,144 characters, oldest dropped first.
  */
 export function boundLogLines(stdout, { lines, errorsOnly }) {
   let kept = String(stdout)
@@ -88,7 +88,7 @@ export function boundLogLines(stdout, { lines, errorsOnly }) {
     return cutLine(line);
   });
   let total = kept.reduce((sum, line) => sum + line.length, 0);
-  while (total > LOG_BYTES_MAX && kept.length > 0) {
+  while (total > LOG_CHARS_MAX && kept.length > 0) {
     total -= kept.shift().length;
     truncated = true;
   }

@@ -66,16 +66,16 @@ export interface ParsedCsvResult {
   unknownColumns: string[];
 }
 
-/**
- * A file csv-parse gave up on: one refusal, at the line where it stopped, or for a
- * quote never closed, where that quote opens (csv-parse names the file's last line).
- */
 /** csv-parse's code (`INVALID_OPENING_QUOTE`), else the error's kind: never its message. */
 function parserCode(err: unknown): string {
   const { code } = err as { code?: unknown };
   return typeof code === 'string' ? code : logReason(err);
 }
 
+/**
+ * A file csv-parse gave up on: one refusal, at the line where it stopped, or for a
+ * quote never closed, where that quote opens (csv-parse names the file's last line).
+ */
 function unreadableFile(err: unknown, content: string): ParsedCsvResult {
   const { code, lines } = err as { code?: unknown; lines?: unknown };
   const line = (code === 'CSV_QUOTE_NOT_CLOSED' && openQuoteLine(content)) || lines;
