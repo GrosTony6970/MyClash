@@ -409,7 +409,7 @@ Significant families and their migrations:
 
 - **Leagues / Classement** — `leagues`, `league_organization_roles`, `league_user_roles`, plus league–tournament links, membership requests, groups and scoring systems (migrations `0015_leagues.sql`, `0069_league_membership_requests.sql`, and later). Cross-event standings aggregated from linked tournaments.
 - **Directory groups (People Hub)** — `directory_groups`, `directory_group_members` (migration `0114_directory_groups.sql`). User-curated groups of global persons for the `/me` people hub.
-- **AI subsystem** — organization-level AI provider settings, usage/budget tracking, organizer chatbot, and generated content: `ai_generated_content` (migration `0119_generated_content.sql` — the table is `ai_generated_content`; only the filename says `generated_content`) plus `fighter_ai_settings` (migration `0120_fighter_ai_settings.sql`) for fighter self-service AI, alongside the AI provider/usage tables (migrations `0115`–`0118`).
+- **AI subsystem** — organization-level AI provider settings, usage/budget tracking, organizer chatbot, and generated content: `ai_generated_content` (migration `0119_generated_content.sql` — the table is `ai_generated_content`; only the filename says `generated_content`; a regenerated text is a draft in `content` while the public keeps reading `published_content` until it is published, `0278_generated_content_published_copy.sql`, ruling 889) plus `fighter_ai_settings` (migration `0120_fighter_ai_settings.sql`) for fighter self-service AI, alongside the AI provider/usage tables (migrations `0115`–`0118`).
 - **Referee compensation** — see §23 (migration `0027_referee_compensation.sql`).
 
 ### 5.3 Exchange semantics

@@ -821,6 +821,7 @@ export const publicApp = {
     regenerate: 'Regenerate',
     publish: 'Show on my public profile',
     unpublish: 'Make private',
+    liveNote: 'Your profile keeps the insight it shows until you show this new text.',
     error: 'Could not complete the request.',
   },
   meSettings: {

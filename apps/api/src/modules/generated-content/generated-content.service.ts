@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,7 +17,11 @@ interface GeneratedRow {
   content_type: string;
   entity_id: string;
   locale: string;
+  /** The latest text, which the author reviews. */
   content: string;
+  /** The text the public reads (0278, ruling 889); null when nothing is published. */
+  published_content: string | null;
+  /** `published` when `content` IS the public text; `draft` when it is not (or nothing is). */
   status: 'draft' | 'published';
   model: string | null;
   generated_at: string;
@@ -43,7 +48,10 @@ export class GeneratedContentService {
     return def;
   }
 
-  /** Generate (or regenerate) content for an entity; stored as a draft. */
+  /**
+   * Generate (or regenerate) content for an entity; stored as a draft. A text already published
+   * stays live until this one is published (ruling 889).
+   */
   async generate(contentType: string, entityId: string, locale: string, userId: string) {
     const def = this.def(contentType);
     await def.assertAccess(entityId, userId);
@@ -113,20 +121,36 @@ export class GeneratedContentService {
     const def = this.def(contentType);
     if (!def.canPublish) throw new BadRequestException('This content type cannot be published');
     await def.assertAccess(entityId, userId);
-    const { data, error } = await this.supabase.service
+    const row = await this.load(contentType, entityId, locale);
+    if (!row) throw new NotFoundException('No generated content to publish');
+    const now = new Date().toISOString();
+    // Publish copies the text the author read into the public one. PostgREST cannot copy a
+    // column, so the text travels through here; a Regenerate landing between the read and this
+    // write would publish the older text under the newer one's status. The write is therefore
+    // conditional on the text being the one read (`generated_at`), and a lost race says so.
+    // Unpublish copies nothing, so it takes no such condition.
+    let write = this.supabase.service
       .from('ai_generated_content')
-      .update({
-        status: published ? 'published' : 'draft',
-        published_at: published ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(
+        published
+          ? {
+              status: 'published',
+              published_content: row.content,
+              published_at: now,
+              updated_at: now,
+            }
+          : { status: 'draft', published_content: null, published_at: null, updated_at: now },
+      )
       .eq('content_type', contentType)
       .eq('entity_id', entityId)
-      .eq('locale', locale)
-      .select('*')
-      .maybeSingle();
+      .eq('locale', locale);
+    if (published) write = write.eq('generated_at', row.generated_at);
+    const { data, error } = await write.select('*').maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException('No generated content to publish');
+    if (!data && !published) throw new NotFoundException('No generated content to publish');
+    if (!data) {
+      throw new ConflictException('A newer text was generated meanwhile. Read it, then publish.');
+    }
     return this.view(data as GeneratedRow);
   }
 
@@ -141,10 +165,12 @@ export class GeneratedContentService {
     const def = this.registry.get(contentType);
     if (!def || !(await def.isPubliclyReadable(entityId, reader))) return null;
     const row = await this.load(contentType, entityId, locale);
-    if (row && row.status === 'published') return this.view(row);
+    if (row?.published_content != null) return this.publicView(row, row.published_content);
     if (locale !== 'en') {
       const fallback = await this.load(contentType, entityId, 'en');
-      if (fallback && fallback.status === 'published') return this.view(fallback);
+      if (fallback?.published_content != null) {
+        return this.publicView(fallback, fallback.published_content);
+      }
     }
     return null;
   }
@@ -177,10 +203,11 @@ export class GeneratedContentService {
           model: meta.model,
           provider: meta.provider,
           cost_eur: meta.costEur,
+          // `published_content` and `published_at` are left out on purpose: on a regeneration
+          // the public text stays as it was until the author publishes this one (ruling 889).
           status: 'draft',
           generated_by_user_id: meta.userId,
           generated_at: new Date().toISOString(),
-          published_at: null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'content_type,entity_id,locale' },
@@ -219,5 +246,10 @@ export class GeneratedContentService {
       generatedAt: row.generated_at,
       publishedAt: row.published_at ?? null,
     };
+  }
+
+  /** What the public reads: the published text, never a draft waiting behind it. */
+  private publicView(row: GeneratedRow, publishedContent: string) {
+    return { ...this.view(row), content: publishedContent, status: 'published' as const };
   }
 }

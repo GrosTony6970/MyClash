@@ -57,6 +57,8 @@ const published = (type: string, id: string) => ({
   entity_id: id,
   locale: 'en',
   content: `published ${type} of ${id}`,
+  // A published row carries its public text too (0278); the public reads only that one.
+  published_content: `published ${type} of ${id}`,
   status: 'published',
   model: null,
   generated_at: '2026-09-01T10:00:00Z',

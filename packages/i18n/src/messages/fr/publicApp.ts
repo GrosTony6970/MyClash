@@ -823,6 +823,8 @@ export const publicApp = {
     regenerate: 'Régénérer',
     publish: 'Afficher sur mon profil public',
     unpublish: 'Rendre privé',
+    liveNote:
+      "Votre profil garde le bilan qu'il affiche tant que vous n'affichez pas ce nouveau texte.",
     error: 'Impossible de traiter la demande.',
   },
   meSettings: {

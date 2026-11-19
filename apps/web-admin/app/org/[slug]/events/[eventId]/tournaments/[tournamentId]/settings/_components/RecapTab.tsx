@@ -11,6 +11,8 @@ interface RecapContent {
   content: string;
   status: 'draft' | 'published';
   generatedAt: string;
+  /** Set while a recap is on the public page, even when a newer draft waits (ruling 889). */
+  publishedAt: string | null;
   model: string | null;
 }
 
@@ -152,6 +154,9 @@ export function RecapTab({
               })}
             </span>
           </div>
+          {content.status === 'draft' && content.publishedAt && (
+            <p className="text-sm text-foreground-secondary">{t('organizer.recap.liveNote')}</p>
+          )}
           <p className="whitespace-pre-wrap text-sm text-foreground">{content.content}</p>
         </div>
       ) : (
@@ -180,7 +185,7 @@ export function RecapTab({
             {t('organizer.recap.publish')}
           </Button>
         )}
-        {content && content.status === 'published' && (
+        {content?.publishedAt && (
           <Button
             variant="cancel"
             size="sm"

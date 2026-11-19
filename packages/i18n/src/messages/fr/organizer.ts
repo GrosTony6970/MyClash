@@ -1277,6 +1277,8 @@ export const organizer = {
     draft: 'Brouillon',
     empty: 'Aucun récap pour le moment. Générez-en un à partir des résultats finaux.',
     generatedOn: 'Généré le {date}',
+    liveNote:
+      'Le récap publié reste sur la page publique tant que vous ne publiez pas ce nouveau texte.',
     error: 'Impossible de traiter la demande.',
   },
   chat: {

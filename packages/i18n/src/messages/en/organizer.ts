@@ -1282,6 +1282,7 @@ export const organizer = {
     draft: 'Draft',
     empty: 'No recap yet. Generate one from the final results.',
     generatedOn: 'Generated {date}',
+    liveNote: 'The published recap stays on the public page until you publish this new text.',
     error: 'Could not complete the request.',
   },
   chat: {

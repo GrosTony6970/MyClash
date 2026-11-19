@@ -10,6 +10,8 @@ interface Insight {
   content: string;
   status: 'draft' | 'published';
   generatedAt: string;
+  /** Set while an insight is on the public profile, even when a newer draft waits (ruling 889). */
+  publishedAt: string | null;
 }
 
 /**
@@ -111,6 +113,9 @@ export function InsightCard({ apiUrl }: { apiUrl: string }) {
       )}
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
+      {!loading && insight?.status === 'draft' && insight.publishedAt && (
+        <p className="mt-3 text-sm text-muted">{t('publicApp.meInsight.liveNote')}</p>
+      )}
       {!loading && insight && (
         <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
           {insight.content}
@@ -131,7 +136,7 @@ export function InsightCard({ apiUrl }: { apiUrl: string }) {
             {t('publicApp.meInsight.publish')}
           </Button>
         )}
-        {insight && insight.status === 'published' && (
+        {insight?.publishedAt && (
           <Button
             variant="cancel"
             size="sm"
