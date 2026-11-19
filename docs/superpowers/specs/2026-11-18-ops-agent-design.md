@@ -37,6 +37,20 @@ wrong. The operator also asked whether an MCP server is the right tool.
 9. **The operator is guided through every step that only the operator can do** (see Operator
    guide).
 
+### Slice 2 rulings (2026-11-19, rulings 867-870)
+
+- **867** Story: "a fighter says 'I never got my event pass'; today you search the API log for
+  her address." Ruling: a log line that writes a person's email writes the masked form only
+  (`maskEmail`, `j***@e***`), every line, no id in its place.
+- **868** Story: "a venue shares one internet address and Traefik bans it after failed logins."
+  Ruling: on the agent's log read an IP address keeps its first half (`82.66.x.x`; IPv6 its first
+  two groups). The operator's own logs keep the full address.
+- **869** The log read covers every compose service but `db` and `supabase-meta` (14). First ruled
+  "every service but `db`", then revised the same day on evidence: postgres-meta logs a failed
+  Studio query's Postgres DETAIL, and "Failing row contains (…)" is a whole row, a birth date
+  included.
+- **870** The five health reads keep `withheld` for error texts: the scrub is for log lines only.
+
 ## Goals
 
 - A session starts without a human on three signals: a platform alert, a morning timer, the end of

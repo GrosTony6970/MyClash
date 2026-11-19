@@ -2522,7 +2522,7 @@ export const admin = {
   agentKeys: {
     title: "Clé de l'agent ops",
     description:
-      "La clé avec laquelle la session cloud de Claude lit l'état de la plateforme. Elle ouvre cinq vues en lecture seule et rien d'autre, et ne voit jamais l'e-mail, le téléphone ni la date de naissance d'une personne.",
+      "La clé avec laquelle la session cloud de Claude lit l'état de la plateforme, ses conteneurs et leurs journaux. Elle ouvre des vues en lecture seule et rien d'autre. Elle ne voit jamais l'e-mail, le téléphone ni la date de naissance d'une personne, et les journaux lui arrivent avec les adresses IP coupées de moitié.",
     howTo:
       "Révoquer arrête la clé aussitôt, et une clé révoquée ne revient jamais. Pour donner une nouvelle clé à l'agent, mettez une nouvelle valeur pour OPS_AGENT_KEY dans le .env du VPS et déployez. Pour éteindre l'agent, videz OPS_AGENT_KEY et déployez.",
     notConfigured:

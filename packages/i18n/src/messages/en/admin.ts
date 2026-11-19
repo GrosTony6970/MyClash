@@ -2512,7 +2512,7 @@ export const admin = {
   agentKeys: {
     title: 'Ops agent key',
     description:
-      "The key Claude's cloud run uses to read the platform's health. It opens five read-only views and nothing else, and it never sees a person's email, phone or date of birth.",
+      "The key Claude's cloud run uses to read the platform's health, its containers and their logs. It opens read-only views and nothing else. It never sees a person's email, phone or date of birth, and the logs reach it with IP addresses cut in half.",
     howTo:
       'Revoking stops the key at once, and a revoked key never comes back. To give the agent a new key, put a new value for OPS_AGENT_KEY in the VPS .env and deploy. To turn the agent off, empty OPS_AGENT_KEY and deploy.',
     notConfigured:
