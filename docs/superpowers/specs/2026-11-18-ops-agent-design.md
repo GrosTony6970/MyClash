@@ -53,6 +53,10 @@ wrong. The operator also asked whether an MCP server is the right tool.
 - **871** Watched SSH runs as Claude's own account, `myclash-ops-agent`, never as the operator's
   user, with Claude's own key; a sudo list the server enforces, including `deploy.sh` and
   `redeploy.sh` (section 7, guide step G7).
+- **872** Story: "in a watched session Claude runs `status.sh`, which prints the recent lines of
+  the API, Traefik and login-service logs: full IP addresses, and an email in a login-service
+  line." Ruling: accepted in a session the operator watches. Rulings 861 and 868 bind the door,
+  which every unattended run uses; the SSH road shows raw logs.
 
 ## Goals
 
@@ -295,6 +299,8 @@ fixed (the root cause); the scrub is not widened to hide it.
   `status.sh` runs; `sudo` off the list, Docker and the repo are refused.
 - That list is a wall the server holds. What Claude does inside it (a deploy only when the
   operator asks) is still a rule plus the operator's eyes.
+- `status.sh` prints raw container log lines (full IP addresses, an email in a login-service
+  line): accepted in a watched session (ruling 872). The scrub binds the door only.
 - Written rules in the skill: never `destroy.sh`, `restore.sh` or a backup deletion; never print
   `.env`, a backup or a table of people; `rollback.sh` and `stop.sh` only on the operator's word
   (both are off the sudo list today).
