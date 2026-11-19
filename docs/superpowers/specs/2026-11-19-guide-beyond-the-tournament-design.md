@@ -1,7 +1,8 @@
 # Organiser guide, part 4: more than a tournament — design
 
 Status: approved by the operator on 2026-11-19, with rulings 888-890
-(`docs/notes/quick-wins-2026-10-08.md`): the four bugs below are fixed first, one commit each; a
+(`docs/notes/quick-wins-2026-10-08.md`): bugs 1-3 below are fixed first, one commit each (bug 4
+is the house rule, kept: every member sees the setting and the server refuses); a
 regenerated recap leaves the published one live; French says **Atelier** and **Instructeur**. The
 pages then describe the fixed app.
 
@@ -72,7 +73,8 @@ club has no key, and the script must not add one).
    no `@BlockOnCompletedEvent()`, which the form's **Apply** has (rulings 283, 283a). Fix: add it.
 3. **The Recompute hint is wrong.** It says rankings recompute "when an event changes status"
    (`packages/i18n/src/messages/en/admin.ts:143`). Only completion and a change of kind do.
-4. **A workshop lead sees the self-join switch but cannot save it** (needs `admin`).
+4. **A workshop lead sees the self-join switch but cannot save it** (needs `admin`). Not a bug:
+   the house rule, as Branding, the menu card and photo mode. Kept; the Workshops page says so.
 
 Two calls for the operator, not bugs yet:
 
