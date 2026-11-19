@@ -25,7 +25,7 @@ The journey:
 9. The bracket
 10. The final ranking and the results
 
-Then three more sections:
+Then four more sections:
 
 - **Understand MyClash**: how it works, the formats, what it does by itself, rulesets, and staff
   access. Read it once you have run a test event.
@@ -33,3 +33,4 @@ Then three more sections:
   full reference of the pad, to train your scorekeepers; the screens at the venue; what to do
   when something goes wrong; and a page to send to your fighters.
 - **More than a tournament**: workshops, leagues, paying referees, and the AI features.
+- **Before and after**: the print pack, photos, notifications, and the debrief.

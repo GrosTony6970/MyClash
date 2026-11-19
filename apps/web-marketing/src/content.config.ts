@@ -23,8 +23,8 @@ const guide = defineCollection({
     title: z.string(),
     description: z.string(),
     order: z.number().int().min(0),
-    /** The contents list's group: the walkthrough, the explanations, the event day, the rest. */
-    section: z.enum(['steps', 'concepts', 'day', 'beyond']),
+    /** The contents list's group: the walkthrough, the explanations, the event day, the rest, before and after. */
+    section: z.enum(['steps', 'concepts', 'day', 'beyond', 'around']),
   }),
 });
 

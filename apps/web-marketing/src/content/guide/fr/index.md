@@ -25,7 +25,7 @@ Le parcours :
 9. Le tableau final
 10. Le classement final et les résultats
 
-Puis trois autres sections :
+Puis quatre autres sections :
 
 - **Comprendre MyClash** : comment il fonctionne, les formats, ce qu'il fait seul, les règlements,
   et les accès. À lire une fois que vous avez fait tourner un événement de test.
@@ -34,3 +34,4 @@ Puis trois autres sections :
   salle ; que faire quand quelque chose se passe mal ; et une page à envoyer à vos combattants.
 - **Au-delà du tournoi** : les ateliers, les ligues, l'indemnisation des arbitres, et les fonctions
   IA.
+- **Avant et après** : le dossier papier, les photos, les notifications, et le débriefing.

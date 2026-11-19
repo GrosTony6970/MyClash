@@ -58,6 +58,7 @@ const SECTION_KEYS = [
   'guideSectionConcepts',
   'guideSectionDay',
   'guideSectionBeyond',
+  'guideSectionAround',
 ];
 const sectionLabels = (locale) => {
   const ui = readFileSync(join(HERE, '..', 'src', 'i18n', 'ui.ts'), 'utf8');

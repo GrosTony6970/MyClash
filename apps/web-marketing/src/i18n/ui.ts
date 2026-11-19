@@ -55,6 +55,7 @@ interface Chrome {
   readonly guideSectionConcepts: string;
   readonly guideSectionDay: string;
   readonly guideSectionBeyond: string;
+  readonly guideSectionAround: string;
 }
 
 export const CHROME: Readonly<Record<Locale, Chrome>> = {
@@ -84,6 +85,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     guideSectionConcepts: 'Comprendre MyClash',
     guideSectionDay: 'Le jour J',
     guideSectionBeyond: 'Au-delà du tournoi',
+    guideSectionAround: 'Avant et après',
   },
   en: {
     htmlLang: 'en',
@@ -111,6 +113,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     guideSectionConcepts: 'Understand MyClash',
     guideSectionDay: 'Event day',
     guideSectionBeyond: 'More than a tournament',
+    guideSectionAround: 'Before and after',
   },
 };
 

@@ -23,6 +23,7 @@ to you.
 | Keep every standing up to date                                                                     | All the time: standings are calculated each time they are shown                               |
 | Lock a finished pool or bracket against changes                                                    | 15 minutes after its last bout (on by default; see the tournament's **Auto-lock** tab)        |
 | Set a published event to running, then completed                                                   | At midnight on its first day, then at 6:00 the morning after its last day                     |
+| Complete a tournament, and tell its fighters the results are out                                   | When its bracket has a champion; any tournament still open, when its event completes          |
 | Remind fighters, referees and followers before their bout, duty or workshop                        | Before it starts                                                                              |
 | Tell fighters their Swiss pairing                                                                  | When a round is paired                                                                        |
 | Tell your followers about a new event                                                              | The first time you publish a Standard event                                                   |
