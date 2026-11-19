@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { maskEmail } from '../../common/audit-log';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -186,12 +187,15 @@ export class MailService {
   private async deliver(method: string, to: string, subject: string, html: string): Promise<void> {
     const { error } = await this.resend.emails.send({ from: this.from, to, subject, html });
 
+    // The address is masked and the provider's message stays out (ruling 867): Resend's message
+    // can quote the address, and five callers write the thrown text into their own log lines.
     if (error) {
-      this.logger.error(`${method}: failed to send to ${to}: ${JSON.stringify(error)}`);
-      throw new Error(`Mail delivery failed: ${error.message}`);
+      const reason = providerReason(error);
+      this.logger.error(`${method}: failed to send to ${maskEmail(to)}: ${reason}`);
+      throw new Error(`Mail delivery failed: ${reason}`);
     }
 
-    this.logger.log(`${method}: sent to ${to}`);
+    this.logger.log(`${method}: sent to ${maskEmail(to)}`);
   }
 
   /**
@@ -207,4 +211,10 @@ export class MailService {
     }
     return false;
   }
+}
+
+/** Resend's error as a log may write it: its kind and status, never its message. */
+function providerReason(error: { name?: string; statusCode?: number | null }): string {
+  const name = error.name || 'unknown_error';
+  return typeof error.statusCode === 'number' ? `${name} (${error.statusCode})` : name;
 }

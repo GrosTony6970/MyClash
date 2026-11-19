@@ -11,6 +11,7 @@
  * the auth server kept it from the first sign-up. Now a sign-up asks for the address only, and
  * the mailed link opens "choose your password".
  */
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { validatePassword } from '@myclash/types';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
@@ -52,7 +53,7 @@ function build(created: unknown, link: unknown = LINK) {
     {} as never,
   );
   const signUp = (next?: string) => service.publicSignup(` ${EMAIL} `, {}, {}, next);
-  return { signUp, createUser, generateLink, sendMagicLink, recordForUser };
+  return { service, signUp, createUser, generateLink, sendMagicLink, recordForUser };
 }
 
 /** The password `generateLink('signup')` was handed. */
@@ -160,6 +161,44 @@ describe('the participant sign-up mails its confirmation link', () => {
     sendMagicLink.mockRejectedValueOnce(new Error('mail service down'));
 
     expect(await signUp()).toEqual(SAME_ANSWER);
+  });
+});
+
+/**
+ * The sign-up and the reset log the address masked (ruling 867): the ops agent reads these logs.
+ * The guard `log-lines-no-email.test.ts` cannot see these lines, whose variable is `normalized`.
+ */
+describe('the sign-up and the reset log the address masked', () => {
+  const MASKED = 'l***@e***';
+
+  function logged(spy: ReturnType<typeof vi.spyOn>): string {
+    return spy.mock.calls.flat().join(' ');
+  }
+
+  it('when the sign-up makes nothing', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const refused = { data: { user: null }, error: { code: 'unexpected_failure', message: 'x' } };
+    const { signUp } = build(refused);
+
+    await signUp();
+
+    expect(logged(warn)).toContain(`public-signup made nothing for ${MASKED}`);
+    expect(logged(warn)).not.toContain(EMAIL);
+    warn.mockRestore();
+  });
+
+  it('when the reset gets no link, and when it fails', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service, generateLink } = build(CREATED, CONFIRMED);
+
+    await service.publicPasswordReset(EMAIL);
+    generateLink.mockRejectedValueOnce(new Error('auth server down'));
+    await service.publicPasswordReset(EMAIL);
+
+    expect(logged(warn)).toContain(`link generation failed for ${MASKED}`);
+    expect(logged(warn)).toContain(`unexpected error for ${MASKED}`);
+    expect(logged(warn)).not.toContain(EMAIL);
+    warn.mockRestore();
   });
 });
 

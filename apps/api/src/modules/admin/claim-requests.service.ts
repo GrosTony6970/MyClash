@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { maskEmail } from '../../common/audit-log';
 import { syncClaimedPersonRows } from '../auth/claimed-person-sync';
 import { applyReachable, isReachableEmbed } from '../fighters/directory-predicate';
 import { MailService } from '../mail/mail.service';
@@ -301,7 +302,7 @@ export class ClaimRequestsService {
       }
     } catch (err) {
       this.logger.warn(
-        `claim-request notification failed for ${email}: ${err instanceof Error ? err.message : String(err)}`,
+        `claim-request notification failed for ${maskEmail(email)}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

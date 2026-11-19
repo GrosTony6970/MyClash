@@ -11,7 +11,7 @@ import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
-import { insertAuditLog } from '../../common/audit-log';
+import { insertAuditLog, maskEmail } from '../../common/audit-log';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
 import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
 import type {
@@ -670,7 +670,7 @@ export class AdminOrganizationsService {
         }
       }
       this.logger.error(
-        `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(response)}`,
+        `Failed to create organizer account for ${maskEmail(ownerEmail)}: ${this.formatGoTrueDetail(response)}`,
       );
       throw new BadRequestException('Failed to create organizer account');
     }
@@ -875,7 +875,9 @@ export class AdminOrganizationsService {
       const door = signInDoor(domain, 'login', `/org/${orgSlug}`);
       const magicLink = mailedLink(door, data.properties);
       if (error || !magicLink) {
-        this.logger.warn(`Could not generate organizer magic link for ${email}: ${error?.message}`);
+        this.logger.warn(
+          `Could not generate organizer magic link for ${maskEmail(email)}: ${error?.message}`,
+        );
         return false;
       }
 
@@ -887,7 +889,9 @@ export class AdminOrganizationsService {
       });
       return true;
     } catch (err) {
-      this.logger.warn(`Could not send organizer magic link for ${email}: ${String(err)}`);
+      this.logger.warn(
+        `Could not send organizer magic link for ${maskEmail(email)}: ${String(err)}`,
+      );
       return false;
     }
   }
@@ -913,7 +917,9 @@ export class AdminOrganizationsService {
         orgUrl,
       });
     } catch (err) {
-      this.logger.warn(`Could not send owner welcome-password email to ${email}: ${String(err)}`);
+      this.logger.warn(
+        `Could not send owner welcome-password email to ${maskEmail(email)}: ${String(err)}`,
+      );
     }
   }
 

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { maskEmail } from '../../common/audit-log';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { assertNotReadOnly } from '../../common/read-only-mode';
@@ -151,13 +152,15 @@ export class OnboardingService {
     const magicLink = mailedLink(page, data.properties);
 
     if (error || !magicLink) {
-      this.logger.error(`Failed to generate signup magic link for ${email}: ${error?.message}`);
+      this.logger.error(
+        `Failed to generate signup magic link for ${maskEmail(email)}: ${error?.message}`,
+      );
       throw new BadRequestException('Failed to send signup link. Please try again.');
     }
 
     await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm', displayName });
 
-    this.logger.log(`Signup link sent to ${email} for org ${orgSlug}`);
+    this.logger.log(`Signup link sent to ${maskEmail(email)} for org ${orgSlug}`);
 
     return { message: 'Check your email for a signup link.', orgSlug };
   }

@@ -20,6 +20,7 @@ import {
   validatePassword,
   type ClaimLinkRefusal,
 } from '@myclash/types';
+import { maskEmail } from '../../common/audit-log';
 import { adminLockdownRefusal } from '../../common/admin-lockdown';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
@@ -282,7 +283,7 @@ export class AuthService {
     const magicLink = mailedLink(signInDoor(domain, type, safeRedirect, personId), data.properties);
 
     if (error || !magicLink) {
-      this.logger.error(`Failed to generate magic link for ${email}: ${error?.message}`);
+      this.logger.error(`Failed to generate magic link for ${maskEmail(email)}: ${error?.message}`);
       // Return generic message to prevent email enumeration
       return { message: 'If this email is registered, a link has been sent.' };
     }
@@ -1587,7 +1588,7 @@ export class AuthService {
     cookieReply.clearCookie('sb-access-token', clearOptions);
     cookieReply.clearCookie('sb-refresh-token', clearOptions);
 
-    this.logger.log(`account deleted: user ${user.id} (${user.email})`);
+    this.logger.log(`account deleted: user ${user.id} (${maskEmail(user.email)})`);
     void reply.send({ ok: true, next: '/?account_deleted=1' });
   }
 
@@ -1619,7 +1620,7 @@ export class AuthService {
     if (account.kind === 'none') {
       // A confirmed account, a password the auth server refused, etc. Every case answers the
       // same words (`SIGNUP_ANSWER`), so the answer never says that an address has an account.
-      this.logger.warn(`public-signup made nothing for ${normalized}: ${account.why}`);
+      this.logger.warn(`public-signup made nothing for ${maskEmail(normalized)}: ${account.why}`);
       return SIGNUP_ANSWER;
     }
     // An acceptance only for the account this call made: an address that waits for its
@@ -1647,14 +1648,14 @@ export class AuthService {
     const page = `/auth/choose-password?next=${encodeURIComponent(safeRedirectPath(next))}`;
     const magicLink = mailedLink(this.buildPostAuthRedirectUrl(page, 'public_login'), account.code);
     if (!magicLink) {
-      this.logger.error(`public-signup: no confirmation code for ${email}`);
+      this.logger.error(`public-signup: no confirmation code for ${maskEmail(email)}`);
       return;
     }
     try {
       await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm' });
     } catch (err) {
       this.logger.error(
-        `public-signup: confirmation mail failed for ${email}: ${
+        `public-signup: confirmation mail failed for ${maskEmail(email)}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -1724,13 +1725,15 @@ export class AuthService {
       });
       const magicLink = mailedLink(resetPage, data.properties);
       if (error || !magicLink) {
-        this.logger.warn(`public-password-reset: link generation failed for ${normalized}`);
+        this.logger.warn(
+          `public-password-reset: link generation failed for ${maskEmail(normalized)}`,
+        );
       } else {
         await this.mail.sendMagicLink({ to: normalized, magicLink, type: 'recovery' });
       }
     } catch (err) {
       this.logger.warn(
-        `public-password-reset: unexpected error for ${normalized}: ${
+        `public-password-reset: unexpected error for ${maskEmail(normalized)}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );

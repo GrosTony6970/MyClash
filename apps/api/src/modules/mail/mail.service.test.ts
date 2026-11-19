@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sendMock = vi.fn();
 
@@ -230,5 +231,62 @@ describe('MailService magic link', () => {
     expect(html).not.toContain('Se connecter / Log in');
     // No password waits on any account any more: nothing says one "still applies".
     expect(html).not.toContain('still applies');
+  });
+});
+
+/**
+ * A log line never writes a person's address, only its masked form (ruling 867): the ops agent
+ * reads these logs. Resend's error message can quote the address, so neither the failure line
+ * nor the thrown text (five callers log it) carries that message.
+ */
+describe('MailService log lines', () => {
+  const opts = {
+    to: 'jean.dupont@example.com',
+    magicLink: 'https://app.myclash.fr/auth/callback',
+    type: 'login' as const,
+  };
+
+  const spies: Array<{ mockRestore: () => void }> = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    spies.splice(0).forEach((spy) => spy.mockRestore());
+  });
+
+  it('logs a sent mail with the masked address only', async () => {
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    spies.push(logSpy);
+    sendMock.mockResolvedValue({ data: { id: 'mail-1' }, error: null });
+    const service = new MailService(config as never, supabase as never);
+
+    await service.sendMagicLink(opts);
+
+    const line = logSpy.mock.calls.flat().join(' ');
+    expect(line).toContain('sendMagicLink: sent to j***@e***');
+    expect(line).not.toContain('jean.dupont');
+  });
+
+  it('logs and throws a failed mail without the address or the provider message', async () => {
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    spies.push(errorSpy);
+    sendMock.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'Invalid `to`: x@y.fr', statusCode: 422 },
+    });
+    const service = new MailService(config as never, supabase as never);
+
+    const thrown = await service.sendMagicLink(opts).then(
+      () => null,
+      (err: unknown) => err as Error,
+    );
+
+    expect(thrown?.message).toBe('Mail delivery failed: validation_error (422)');
+    const line = errorSpy.mock.calls.flat().join(' ');
+    expect(line).toContain('j***@e***');
+    expect(line).toContain('validation_error (422)');
+    expect(line).not.toMatch(/jean\.dupont|x@y\.fr/);
   });
 });
