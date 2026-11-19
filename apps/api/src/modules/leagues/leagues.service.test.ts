@@ -287,7 +287,11 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
       league_id: 'league-1',
       tournament_id: 't-1',
       status: 'requested',
+      // Read by the organiser's self-detach, which checks the link's Event and org.
+      tournaments: { id: 't-1', event_id: 'event-1', events: { organization_id: 'org-x' } },
     };
+    /** Every projection read from `league_tournament_links` (the mock ignores it otherwise). */
+    const linkSelects: string[] = [];
     const updatedLinkRow = (status: string) => ({
       ...linkRow,
       status,
@@ -323,7 +327,10 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
         // update returns the updated row.
         if (table === 'league_tournament_links') {
           return {
-            select: vi.fn().mockReturnThis(),
+            select: vi.fn(function (this: unknown, columns: string) {
+              linkSelects.push(columns);
+              return this;
+            }),
             eq: vi.fn().mockReturnThis(),
             maybeSingle: vi.fn().mockResolvedValue({ data: linkRow, error: null }),
             update: vi.fn((payload: Record<string, unknown>) => {
@@ -407,9 +414,10 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
       }),
     };
 
+    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
     const service = new LeaguesService(
       { service: supabaseService } as never,
-      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      { assertOrgRole } as never,
       {
         resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
         computeRankingsFromContributions: vi.fn(() => {
@@ -422,6 +430,8 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
     return {
       service,
       linksUpdates,
+      linkSelects,
+      assertOrgRole,
       orgRoleUpserts,
       resultReplaces,
       recomputedCount: () => rankingsRecomputed,
@@ -531,6 +541,41 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
     await service.reviewTournamentLink('link-1', { status: 'approved' }, 'reviewer-1');
 
     expect(resultReplaces).toHaveLength(0);
+  });
+
+  // Ruling 888: the organiser's Withdraw / Leave set the same `removed` status but kept the
+  // points, so a club that left a league still carried them until someone pressed Recompute.
+  it('the organiser withdraws the link: removed, its results dropped, the table re-ranked (ruling 888)', async () => {
+    const { service, linkSelects, linksUpdates, assertOrgRole, resultReplaces, recomputedCount } =
+      buildReviewService({ tournamentOrgId: 'org-x' });
+
+    await service.selfDetachTournamentLink('event-1', 'link-1', 'user-1');
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-x', 'user-1', 'editor');
+    expect(linksUpdates).toHaveLength(1);
+    expect(linksUpdates[0]).toMatchObject({ status: 'removed', reviewed_by_user_id: 'user-1' });
+
+    // The mock answers whatever is selected, so the two ids must be asked for by name.
+    expect(linkSelects[0]).toMatch(/\bleague_id\b.*\btournament_id\b/);
+    expect(resultReplaces).toHaveLength(1);
+    expect(resultReplaces[0]).toMatchObject({
+      p_league_id: 'league-1',
+      p_tournament_id: 't-1',
+      p_rows: [],
+    });
+    expect(recomputedCount(), 'the table must be re-ranked without it').toBe(1);
+  });
+
+  it('a withdraw from a FINALIZED season drops the results but leaves its frozen table alone', async () => {
+    const { service, resultReplaces, recomputedCount } = buildReviewService({
+      tournamentOrgId: 'org-x',
+      finalizedAt: '2099-01-01T00:00:00.000Z',
+    });
+
+    await service.selfDetachTournamentLink('event-1', 'link-1', 'user-1');
+
+    expect(resultReplaces).toHaveLength(1);
+    expect(recomputedCount()).toBe(0);
   });
 });
 
@@ -712,51 +757,6 @@ describe('LeaguesService.listEventLeagueAttachments', () => {
 });
 
 describe('LeaguesService.selfDetachTournamentLink', () => {
-  it('flips the link to status="removed" when the link belongs to an event in the caller\'s org', async () => {
-    const linkRow = {
-      id: 'link-1',
-      league_id: 'league-1',
-      tournament_id: 'tournament-1',
-      tournaments: {
-        id: 'tournament-1',
-        event_id: 'event-1',
-        events: { organization_id: 'org-1' },
-      },
-    };
-    const updates: Array<Record<string, unknown>> = [];
-    const linkChain = makeAwaitableChain({ data: linkRow, error: null });
-    const updateChain = makeAwaitableChain({ data: null, error: null });
-    updateChain.update = vi.fn((payload: Record<string, unknown>) => {
-      updates.push(payload);
-      return updateChain;
-    });
-
-    const supabase = {
-      service: {
-        from: vi.fn((table: string) => {
-          if (table === 'league_tournament_links') {
-            // First call: select (linkChain). Second call (after assert): update.
-            // We return linkChain first then updateChain by tracking calls.
-            const callCount = (supabase.service.from as ReturnType<typeof vi.fn>).mock.calls.filter(
-              (c) => c[0] === 'league_tournament_links',
-            ).length;
-            return callCount === 1 ? linkChain : updateChain;
-          }
-          return makeAwaitableChain({ data: null, error: null });
-        }),
-      },
-    };
-
-    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
-    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
-
-    await service.selfDetachTournamentLink('event-1', 'link-1', 'user-1');
-
-    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
-    expect(updates).toHaveLength(1);
-    expect(updates[0]).toMatchObject({ status: 'removed', reviewed_by_user_id: 'user-1' });
-  });
-
   it("throws NotFoundException when the link's tournament does not belong to the given event", async () => {
     const linkRow = {
       id: 'link-1',

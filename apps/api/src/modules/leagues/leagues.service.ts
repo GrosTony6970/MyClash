@@ -1119,30 +1119,33 @@ export class LeaguesService {
       }
     }
 
-    // A link that LEAVES `approved` has to take its contributions with it.
-    //
-    // Nothing else can do it afterwards: `recomputeForEvent` only walks approved
-    // links, so the moment the status flips, that tournament can no longer clean
-    // up its own `league_tournament_results` rows — and `recomputeLeagueRankings`
-    // re-ranks from whatever those rows still hold. Without this, removing an
-    // event from a season left every fighter still carrying its points, with no
-    // error and nothing on screen to suggest the table had stopped being true.
-    //
-    // The rows go regardless of the freeze; only the RE-RANK is withheld from a
-    // finalized season, whose published table must not move under it. Reopening
-    // then recomputes without the removed tournament, which is the right answer.
-    // Clearing goes through `replaceTournamentResults` with an empty set rather
-    // than a delete of its own: replacing a tournament's rows has one owner, and
-    // an empty replacement IS the clearing.
     if (update.status !== undefined && update.status !== 'approved') {
-      const tournamentId = String((link as Row)['tournament_id'] ?? '');
-      if (tournamentId) {
-        await this.replaceTournamentResults(leagueId, tournamentId, []);
-        await this.rerankUnlessFinalized(leagueId);
-      }
+      await this.dropLinkResults(leagueId, String((link as Row)['tournament_id'] ?? ''));
     }
 
     return data;
+  }
+
+  /**
+   * A link that LEAVES `approved` has to take its contributions with it, whoever moves it: the
+   * league manager's review or the organiser's Withdraw / Leave (ruling 888).
+   *
+   * Nothing else can do it afterwards: `recomputeForEvent` only walks approved links, so the
+   * moment the status flips, that tournament can no longer clean up its own
+   * `league_tournament_results` rows — and `recomputeLeagueRankings` re-ranks from whatever those
+   * rows still hold. Without this, removing an event from a season left every fighter still
+   * carrying its points, with no error and nothing on screen to suggest the table had stopped
+   * being true.
+   *
+   * The rows go regardless of the freeze; only the RE-RANK is withheld from a finalized season,
+   * whose published table must not move under it. Reopening then recomputes without the removed
+   * tournament, which is the right answer. Clearing goes through `replaceTournamentResults` with
+   * an empty set rather than a delete of its own: replacing a tournament's rows has one owner,
+   * and an empty replacement IS the clearing.
+   */
+  private async dropLinkResults(leagueId: string, tournamentId: string): Promise<void> {
+    await this.replaceTournamentResults(leagueId, tournamentId, []);
+    await this.rerankUnlessFinalized(leagueId);
   }
 
   async removeEventTournamentLinks(
@@ -1208,7 +1211,9 @@ export class LeaguesService {
   /**
    * Operator self-detach. Flips the link to status='removed' so the
    * organizer can withdraw a pending request or leave an approved
-   * attachment without going through the league admin. Auth: the
+   * attachment without going through the league admin, and takes the
+   * tournament's points out of the table as the admin's removal does
+   * (`dropLinkResults`, ruling 888). Auth: the
    * link's tournament must belong to the `:eventId` in the URL AND
    * the caller must be at least editor on the event's org.
    *
@@ -1220,7 +1225,9 @@ export class LeaguesService {
   async selfDetachTournamentLink(eventId: string, linkId: string, userId: string): Promise<void> {
     const { data: link, error } = await this.supabase.service
       .from('league_tournament_links')
-      .select('id, tournaments!inner(id, event_id, events(organization_id))')
+      .select(
+        'id, league_id, tournament_id, tournaments!inner(id, event_id, events(organization_id))',
+      )
       .eq('id', linkId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -1245,6 +1252,9 @@ export class LeaguesService {
       })
       .eq('id', linkId);
     if (updateErr) throw new BadRequestException(updateErr.message);
+
+    const row = link as Row;
+    await this.dropLinkResults(String(row['league_id']), String(row['tournament_id']));
   }
 
   /**
