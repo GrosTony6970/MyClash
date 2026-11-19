@@ -29,5 +29,6 @@ Then two more sections:
 
 - **Understand MyClash**: how it works, the formats, what it does by itself, rulesets, and staff
   access. Read it once you have run a test event.
-- **Scoring pad**: a sheet to print and leave by each tablet, and the full reference of the pad
-  for you, to train your scorekeepers.
+- **Event day**: sheets to print for the scorekeepers, the welcome desk and the gear check; the
+  full reference of the pad, to train your scorekeepers; the screens at the venue; what to do
+  when something goes wrong; and a page to send to your fighters.

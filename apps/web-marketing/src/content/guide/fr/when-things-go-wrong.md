@@ -28,7 +28,7 @@ clic sur la ligne elle-même ouvre la tablette de score.
   supprimer ces assauts et les remettre au programme** : ces combats devront être refaits.
 - **Le résultat était faux** (les arbitres ont tranché autrement, une erreur de saisie, une panne
   de tablette). Enregistrez une correction, sous **Correction — le résultat enregistré était
-  faux** : choisissez **Décision de l'arbitre**, **Correction de saisie** ou **Défaillance
+  faux** : choisissez **Décision de l’arbitre**, **Correction de saisie** ou **Défaillance
   technique**, et saisissez les deux scores. _Éditeur_ ou plus. Elle compte dans les classements
   et dans l'export HEMA Ratings.
 
@@ -82,8 +82,8 @@ son premier combat.
 - Les règles d'arbitrage s'appliquent toujours. MyClash refuse un arbitre qui arbitrerait son
   propre combat, qui combat ou enseigne à ce moment-là, ou qui est hors de ses disponibilités
   déclarées. Un choix déconseillé demande confirmation.
-- Si les affectations sont verrouillées (« Les affectations d'arbitres sont verrouillées.
-  Déverrouillez-les d'abord sur la page Arbitres. »), cliquez sur **Déverrouiller les
+- Si les affectations sont verrouillées (« Les affectations d’arbitres sont verrouillées.
+  Déverrouillez-les d’abord sur la page Arbitres. »), cliquez sur **Déverrouiller les
   affectations**, faites le changement, puis **Verrouiller les affectations** : le verrouillage
   prévient les arbitres.
 

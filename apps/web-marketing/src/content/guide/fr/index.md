@@ -29,5 +29,6 @@ Puis deux autres sections :
 
 - **Comprendre MyClash** : comment il fonctionne, les formats, ce qu'il fait seul, les règlements,
   et les accès. À lire une fois que vous avez fait tourner un événement de test.
-- **Tablette de score** : une fiche à imprimer et à laisser près de chaque tablette, et la
-  référence complète de la tablette pour vous, pour former vos marqueurs.
+- **Le jour J** : les fiches à imprimer pour les marqueurs, l'accueil et le contrôle du
+  matériel ; la référence complète de la tablette, pour former vos marqueurs ; les écrans dans la
+  salle ; que faire quand quelque chose se passe mal ; et une page à envoyer à vos combattants.
