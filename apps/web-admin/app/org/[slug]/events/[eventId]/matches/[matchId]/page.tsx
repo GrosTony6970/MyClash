@@ -92,21 +92,18 @@ interface Exchange {
   voided_reason: string | null;
 }
 
+/**
+ * The bout's row as `GET matches/:id` hands it: the database's column names.
+ * It carries no fighter name; those come from the summary.
+ */
 interface Match {
   id: string;
-  matchNumberLabel: string;
-  match_number_label?: string;
+  match_number_label?: string | null;
   status: string;
   red_score?: number;
   blue_score?: number;
-  redRegistrationId?: string;
-  red_registration_id?: string;
-  blueRegistrationId?: string;
-  blue_registration_id?: string;
-  redFighterName: string | null;
-  red_fighter_name?: string | null;
-  blueFighterName: string | null;
-  blue_fighter_name?: string | null;
+  red_registration_id?: string | null;
+  blue_registration_id?: string | null;
   locked_at?: string | null;
 }
 
@@ -228,7 +225,7 @@ export default function MatchDetailPage() {
   const [match, setMatch] = useState<Match | null>(null);
   // Canonical header data — roundCode (LSW-B-R16-M1) + fighter names
   // come from /matches/:id/summary so we never have to show a raw
-  // UUID or the legacy matchNumberLabel as the page title.
+  // UUID or the legacy match_number_label as the page title.
   const [summary, setSummary] = useState<MatchSummary | null>(null);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
@@ -437,8 +434,8 @@ export default function MatchDetailPage() {
 
   async function handleForfeit() {
     if (!match) return;
-    const redId = match.redRegistrationId ?? match.red_registration_id;
-    const blueId = match.blueRegistrationId ?? match.blue_registration_id;
+    const redId = match.red_registration_id;
+    const blueId = match.blue_registration_id;
     const forfeitingRegistrationId = forfeitSide === 'red' ? redId : blueId;
     if (!forfeitingRegistrationId) {
       toast.error(t('admin.common.missingRegistrationId'));
@@ -547,7 +544,7 @@ export default function MatchDetailPage() {
         )}
         <span className="text-foreground font-medium">
           {summary?.roundCode ??
-            match?.matchNumberLabel ??
+            match?.match_number_label ??
             t('organizer.matchDetail.breadcrumbMatch')}
         </span>
       </div>
@@ -560,18 +557,13 @@ export default function MatchDetailPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="font-display font-bold text-2xl sm:text-3xl">
-              {summary
-                ? t('organizer.schedulePage.grid.versus', {
-                    a: summary.redName || '?',
-                    b: summary.blueName || '?',
-                  })
-                : t('organizer.schedulePage.grid.versus', {
-                    a: match?.redFighterName ?? '?',
-                    b: match?.blueFighterName ?? '?',
-                  })}
+              {t('organizer.schedulePage.grid.versus', {
+                a: summary?.redName || '?',
+                b: summary?.blueName || '?',
+              })}
             </h1>
             <p className="text-muted text-sm mt-0.5 font-mono">
-              {summary?.roundCode ?? match?.matchNumberLabel ?? ''}
+              {summary?.roundCode ?? match?.match_number_label ?? ''}
             </p>
             {lockedAt && (
               <p className="mt-1 text-sm font-medium text-warning">
@@ -694,14 +686,8 @@ export default function MatchDetailPage() {
               onChange={(event) => setForfeitSide(event.target.value as 'red' | 'blue')}
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
-              <option value="red">
-                {match.redFighterName ?? match.red_fighter_name ?? t('organizer.matchDetail.red')}
-              </option>
-              <option value="blue">
-                {match.blueFighterName ??
-                  match.blue_fighter_name ??
-                  t('organizer.matchDetail.blue')}
-              </option>
+              <option value="red">{summary?.redName || t('organizer.matchDetail.red')}</option>
+              <option value="blue">{summary?.blueName || t('organizer.matchDetail.blue')}</option>
             </select>
             {/* Both groups come from @myclash/rulesets, which owns the enum —
                 a reason added there appears here without a second edit. */}

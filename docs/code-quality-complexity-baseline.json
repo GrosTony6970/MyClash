@@ -509,7 +509,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardCard.tsx:16",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowView.tsx:17",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/LiveBoard.tsx:51",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx:213",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx:210",
     "apps/web-admin/app/org/[slug]/events/[eventId]/notifications/page.tsx:45",
     "apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx:128",
     "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/page.tsx:53",

@@ -50,6 +50,16 @@ describe('the bout page reads the API as it answers', () => {
     expect(document.body.textContent).toContain('Reason: Wrong fighter');
   });
 
+  it('names the two fighters in the result panel', async () => {
+    // The bout's row carries no fighter name; the summary does (SUMMARY: Ana Roux, Bo Lund).
+    page = await openEventPage(<MatchDetailPage />, { ...RUNNING_EVENT, ...boutReads(BOUT, null) });
+    const sides = [...document.querySelectorAll('select option')]
+      .filter((option) => ['red', 'blue'].includes((option as HTMLOptionElement).value))
+      .map((option) => option.textContent);
+
+    expect(sides).toEqual(['Ana Roux', 'Bo Lund']);
+  });
+
   it('shows the bout score in the header', async () => {
     page = await openEventPage(<MatchDetailPage />, { ...RUNNING_EVENT, ...boutReads(BOUT, null) });
     const scores = [...document.querySelectorAll('p.text-3xl span')].map((s) => s.textContent);
