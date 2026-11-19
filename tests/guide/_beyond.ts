@@ -3,6 +3,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { runContext } from '../e2e/_context';
 import type { Api } from '../e2e/_api';
 import type { Person } from '../e2e/_bracket';
+import { shootAround } from './_around';
 
 /**
  * The guide's "More than a tournament" screenshots
@@ -32,6 +33,8 @@ export async function shootBeyond(
   await page.goto(`${org}/leagues`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Discover & join' })).toBeVisible();
   await shootClean(page, `${o.out}/24-leagues.png`);
+  // Part 5 ("Before and after"), from here: the spec file is at its 400-line budget.
+  await shootAround(page, api, o.eventId, o.out);
 }
 
 /** One instructor, two sessions on day 2, four bookings for three places, then published. */
@@ -149,7 +152,7 @@ async function shootCompensation(
  * The check runs again after the shot: a late render between the check and the shot would
  * otherwise reach the picture. A failed second check deletes the file before it stops the run.
  */
-async function shootClean(page: Page, path: string, only?: Locator): Promise<void> {
+export async function shootClean(page: Page, path: string, only?: Locator): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
   await expectNothingPrivate(page);
   await (only ?? page).screenshot({ path });
