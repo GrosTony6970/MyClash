@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
@@ -11,6 +11,13 @@ import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
 import { AdminSystemVersionsService } from '../admin/system-versions.service';
 import { AdminTlsStatusService } from '../admin/tls-status.service';
 import { AgentDoor } from './agent-door.decorator';
+import { AgentLogsService } from './agent-logs.service';
+import {
+  AgentLogParamDto,
+  AgentLogQueryDto,
+  type AgentContainersDto,
+  type AgentLogDto,
+} from './dto/agent-logs.dto';
 import {
   maskBackups,
   maskVersions,
@@ -20,10 +27,12 @@ import {
 } from './mask';
 
 /**
- * The ops agent's door: five reads of the platform's health (the ops agent's design, section 2).
- * Only the agent key opens it (`AgentDoor`). No free text passes: error texts are withheld
- * (`withoutErrorText`) until slice 2 brings the scrub. Alert settings are not here: they list the
- * email addresses of the people who receive alerts.
+ * The ops agent's door: seven reads (the ops agent's design, section 2). Only the agent key opens
+ * it (`AgentDoor`). Five read the platform's health; their error texts are withheld
+ * (`withoutErrorText`, ruling 870). Two read the containers: their state, and the last lines of
+ * one container's log, every line scrubbed (`scrubForAgent`: no address or phone, an IP address
+ * cut in half, ruling 868), and never the log of `db` or `supabase-meta` (ruling 869). Alert
+ * settings are not here: they list the email addresses of the people who receive alerts.
  */
 @ApiTags('ops-agent')
 @Controller('ops-agent')
@@ -36,6 +45,7 @@ export class OpsAgentController {
     private readonly systemVersions: AdminSystemVersionsService,
     private readonly backupsService: AdminBackupsService,
     private readonly tlsStatus: AdminTlsStatusService,
+    private readonly agentLogs: AgentLogsService,
   ) {}
 
   @Get('runtime-health')
@@ -68,5 +78,19 @@ export class OpsAgentController {
   @ApiOperation({ summary: 'Certificate state of every public host' })
   async tls(): Promise<TlsStatusResponseDto> {
     return withoutErrorText(await this.tlsStatus.probeAll());
+  }
+
+  @Get('containers')
+  @ApiOperation({ summary: 'The state of every container of the stack, stopped ones included' })
+  containers(): Promise<AgentContainersDto> {
+    return this.agentLogs.containers();
+  }
+
+  @Get('logs/:service')
+  @ApiOperation({
+    summary: "The last lines of one container's log, scrubbed; never the database's or meta's",
+  })
+  log(@Param() params: AgentLogParamDto, @Query() query: AgentLogQueryDto): Promise<AgentLogDto> {
+    return this.agentLogs.log(params.service, query);
   }
 }

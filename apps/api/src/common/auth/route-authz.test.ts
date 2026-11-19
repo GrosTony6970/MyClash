@@ -45,10 +45,10 @@ describe('route authorization, API-wide', () => {
     }
   });
 
-  it('opens the agent door on exactly the five ops-agent reads', () => {
+  it('opens the agent door on exactly the seven ops-agent reads', () => {
     const door = handlers.filter((h) => h.verdict === 'agent-door').map((h) => h.key);
     expect(door.sort()).toEqual(
-      ['backups', 'host', 'runtimeHealth', 'tls', 'versions'].map(
+      ['backups', 'containers', 'host', 'log', 'runtimeHealth', 'tls', 'versions'].map(
         (m) => `modules/ops-agent/ops-agent.controller.ts#OpsAgentController.${m}`,
       ),
     );

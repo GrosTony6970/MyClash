@@ -17,8 +17,8 @@ const ERROR_CODES: ReadonlySet<string> = new Set([RUNTIME_HEALTH_TIMEOUT]);
  * Replaces every string under a key named `error`, at any depth, with `withheld`, unless it is
  * one of the API's own codes. Runtime health, host facts and certificates carry raw
  * `Error.message` texts there (a Postgres message can quote a row; the ops runner's can be shell
- * output). The field stays, so the agent still sees that a part is down. Slice 2's scrub may pass
- * scrubbed text instead.
+ * output). The field stays, so the agent still sees that a part is down. The log scrub
+ * (`scrubForAgent`) does not open them: ruling 870 keeps them withheld, and the logs say why.
  */
 export function withoutErrorText<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item: unknown) => withoutErrorText(item)) as T;
@@ -37,7 +37,7 @@ export function withoutErrorText<T>(value: T): T {
 
 /**
  * What the ops agent may see of the admin reads (the ops agent's design, section 2: no person, and
- * no free text until slice 2 brings the scrub).
+ * no error text: ruling 870 keeps it withheld; the scrub is for log lines only).
  */
 export type AgentVersionsDto = Omit<SystemVersionsResponseDto, 'deploy'> & {
   deploy: Omit<SystemVersionsResponseDto['deploy'], 'deployedBy'>;

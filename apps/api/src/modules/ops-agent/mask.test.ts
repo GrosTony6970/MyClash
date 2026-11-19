@@ -138,7 +138,7 @@ describe('maskBackups', () => {
 });
 
 describe('withoutErrorText', () => {
-  // A Postgres or shell message can quote a row: free text waits for slice 2's scrub.
+  // A Postgres or shell message can quote a row: error texts stay withheld (ruling 870).
   const health = {
     checkedAt: '2026-11-18T10:00:00Z',
     overall: 'unavailable',

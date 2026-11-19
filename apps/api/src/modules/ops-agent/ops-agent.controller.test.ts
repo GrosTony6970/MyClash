@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AgentLogsService } from './agent-logs.service';
 import { OpsAgentController } from './ops-agent.controller';
 
 function build() {
@@ -33,14 +34,23 @@ function build() {
     }),
   };
   const tls = { probeAll: vi.fn().mockResolvedValue({ minDays: 40 }) };
+  // The real service over a stub runner: the scrub is the service's, so a double would prove
+  // nothing about what the agent reads.
+  const runner = { body: {} as unknown };
+  const agentLogs = new AgentLogsService({
+    opsRunnerUrl: 'http://ops-runner:4075',
+    opsRunnerSecret: 's',
+    fetchImpl: (async () => new Response(JSON.stringify(runner.body))) as unknown as typeof fetch,
+  });
   const controller = new OpsAgentController(
     runtime as never,
     host as never,
     versions as never,
     backups as never,
     tls as never,
+    agentLogs,
   );
-  return { controller, runtime, host, versions, backups, tls };
+  return { controller, runtime, host, versions, backups, tls, runner };
 }
 
 describe('OpsAgentController', () => {
@@ -75,5 +85,24 @@ describe('OpsAgentController', () => {
     expect(backups.getStatus).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(v)).not.toContain('someone');
     expect(JSON.stringify(b)).not.toContain('logTail');
+  });
+
+  it("passes no person's address, phone or full IP in the container reads", async () => {
+    const { controller, runner } = build();
+    runner.body = {
+      generatedAt: 'g',
+      containers: [{ name: 'myclash-api', service: 'api', state: 'running', Labels: 'marker-x' }],
+    };
+    const containers = await controller.containers();
+    runner.body = {
+      generatedAt: 'g',
+      lines: ['to marker@example.com, call 06 12 34 56 78, from 203.0.113.77'],
+      truncated: false,
+    };
+    const log = await controller.log({ service: 'api' }, { lines: 10, errors: false });
+
+    const text = JSON.stringify([containers, log]);
+    expect(text).not.toMatch(/marker|06 12 34|203\.0\.113\.77/);
+    expect(log.lines).toEqual(['to [redacted-email], call [redacted-phone], from 203.0.x.x']);
   });
 });

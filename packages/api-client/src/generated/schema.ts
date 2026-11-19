@@ -5274,6 +5274,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/ops-agent/containers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The state of every container of the stack, stopped ones included */
+    get: operations['OpsAgentController_containers'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/ops-agent/logs/{service}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The last lines of one container's log, scrubbed; never the database's or meta's */
+    get: operations['OpsAgentController_log'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/agent-keys': {
     parameters: {
       query?: never;
@@ -21020,6 +21054,59 @@ export interface operations {
       query?: never;
       header?: never;
       path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_containers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_log: {
+    parameters: {
+      query?: {
+        lines?: string;
+        errors?: '0' | '1' | 'true' | 'false';
+      };
+      header?: never;
+      path: {
+        service:
+          | 'traefik'
+          | 'redis'
+          | 'supabase-auth'
+          | 'supabase-realtime'
+          | 'supabase-storage'
+          | 'supabase-rest'
+          | 'supabase-studio'
+          | 'api'
+          | 'ops-runner'
+          | 'worker'
+          | 'web-public'
+          | 'web-marketing'
+          | 'web-staff'
+          | 'web-admin';
+      };
       cookie?: never;
     };
     requestBody?: never;
