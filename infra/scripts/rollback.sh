@@ -32,6 +32,8 @@ source "$SCRIPT_DIR/lib/traefik-env.sh"
 # reset this checkout may predate the lib entirely, and a rollback that cannot
 # update the board is precisely the case where the board lies loudest.
 source "$SCRIPT_DIR/lib/system-versions.sh"
+# The ops agent's key seed, sourced here for the same reason (ruling 885).
+source "$SCRIPT_DIR/lib/ops-agent-seed.sh"
 
 case "${1:-}" in
   -h|--help)
@@ -185,6 +187,12 @@ if curl -fsSL "https://api.${DOMAIN}/health" >/dev/null 2>&1; then
   ok "API /health reachable"
 else
   warn "API /health not reachable yet (containers may still be starting)"
+fi
+
+# The restored key rows date from the backup: a key revoked since is live again until the seed
+# runs (ruling 885). A rollback without a database backup left the keys as they were.
+if [[ "$BACKUP_FILE" != "none" && -f "$BACKUP_FILE" ]]; then
+  mc_reseed_ops_agent_after_restore
 fi
 
 # ── Record rollback metadata ─────────────────────────────────────

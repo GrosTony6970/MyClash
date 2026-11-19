@@ -73,6 +73,8 @@ set +a
 source "$SCRIPT_DIR/lib/compose.sh"
 mc_compose_init
 mc_require_cert_mode
+# The ops agent's key seed, run again once the database is back (ruling 885).
+source "$SCRIPT_DIR/lib/ops-agent-seed.sh"
 
 # Supabase Storage objects live in this named Docker volume (see
 # docker-compose.prod.yml), NOT in a host directory. Backup/restore
@@ -459,6 +461,12 @@ fi
 hdr "Restarting"
 "${RESTART[@]}"
 ok "Restarted"
+
+# The restored key rows date from the backup: a key revoked since is live again until the seed
+# runs (ruling 885). A storage-only restore leaves the database, and its keys, as they were.
+if [[ "$STORAGE_ONLY" -eq 0 ]]; then
+  mc_reseed_ops_agent_after_restore
+fi
 
 echo
 ok "Restore complete"

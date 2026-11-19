@@ -43,6 +43,7 @@ case "$*" in
   *information_schema.schemata*) echo 1 ;;
   *information_schema.tables*) echo 42 ;;
   *auth.users*) echo 3 ;;
+  *bootstrap-ops-agent.mjs*) echo '{"state":"existing"}' ;;
 esac
 exit 0
 `;
@@ -83,9 +84,10 @@ function sandbox() {
     copyFileSync(join(REPO, 'infra/scripts/lib', lib), join(scripts, 'lib', lib));
   }
   // TLS_CERTS: restore.sh creates containers, so lib/compose.sh requires a certificate mode.
+  // POSTGRES_PASSWORD: the agent key's seed (ruling 885) builds its DATABASE_URL from it.
   writeFileSync(
     join(root, '.env'),
-    'POSTGRES_USER=postgres\nPOSTGRES_DB=myclash\nTLS_CERTS=production\n',
+    'POSTGRES_USER=postgres\nPOSTGRES_DB=myclash\nPOSTGRES_PASSWORD=pw\nTLS_CERTS=production\n',
   );
   mkdirSync(join(root, 'bin'));
   for (const [name, body] of [
@@ -152,6 +154,13 @@ const BUCKET = {
 const show = (run) => `${run.output}\ncalls:\n${run.calls.join('\n')}`;
 const volumeRun = (call) => call.startsWith('docker run --rm -i -v myclash-storage-data:/vol');
 const stops = (run) => run.calls.filter((call) => / stop( |$)/u.test(call));
+const seedRun = (call) => call.includes(' run --rm ') && call.includes('bootstrap-ops-agent.mjs');
+/** A database restore ends with the restart, then the agent key's seed (ruling 885). */
+function assertRestartThenSeed(run) {
+  assert.ok(seedRun(run.calls.at(-1) ?? ''), show(run));
+  assert.match(run.calls.at(-2) ?? '', / up -d$/u, show(run));
+  assert.match(run.output, /agent: key active/u, show(run));
+}
 
 // The EXIT trap's last command sets the script's status: a cleanup that found no decrypted file
 // to remove made every restore without an encrypted images file exit 1 — "failed" on the screen.
@@ -166,7 +175,7 @@ test('a restore that worked exits 0: the database and the night’s images', { s
   );
   assert.ok(run.calls.includes(`gunzip -c ${NIGHTLY_STORAGE}`), show(run));
   assert.ok(run.calls.some(volumeRun), show(run));
-  assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
+  assertRestartThenSeed(run);
   // Ruling 500: the restored database forgot what was deleted after the backup; say so.
   assert.ok(
     run.output.includes(`Data deleted after ${NIGHTLY_DB} was made is back in the database.`),
@@ -210,7 +219,7 @@ test('--storage-file restores the database with the images of the given file', {
   assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
   assert.ok(!run.calls.some((call) => call.includes(NIGHTLY_STORAGE)), show(run));
   assert.match(stops(run)[0] ?? '', /supabase-auth/u, show(run));
-  assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
+  assertRestartThenSeed(run);
 });
 
 // Ruling 215: only the images of a night were uploaded.
@@ -227,6 +236,8 @@ test('--storage-only replaces the images and never touches the database', { skip
   assert.ok(run.calls.some(volumeRun), show(run));
   assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
   assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+  // The database, and its agent keys, were not touched: no seed (ruling 885).
+  assert.ok(!run.calls.some(seedRun), show(run));
   assert.match(run.output, /database is not touched/iu);
   assert.doesNotMatch(run.output, /deleted after/u, show(run));
 });
@@ -245,6 +256,8 @@ test('a failed --storage-only on a .gpg leaves no decrypted file behind', { skip
     [],
   );
   assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+  // The database, and its agent keys, were not touched: no seed (ruling 885).
+  assert.ok(!run.calls.some(seedRun), show(run));
 });
 
 for (const [name, args] of [
@@ -308,5 +321,5 @@ test('--from-s3 pulls the night from the bucket and restores both', { skip }, ()
     show(run),
   );
   assert.ok(run.calls.includes(`gunzip -c ${NIGHTLY_STORAGE}`), show(run));
-  assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
+  assertRestartThenSeed(run);
 });
