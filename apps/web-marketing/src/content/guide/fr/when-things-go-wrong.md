@@ -34,6 +34,8 @@ dépliez la ligne d'une lice, et cliquez sur **Détail**.
   technique**, et saisissez les deux scores. _Éditeur_ ou plus. Elle compte dans les classements
   et dans l'export HEMA Ratings.
 
+![La page d'un combat terminé : les deux touches avec leurs points, le score 2–1, Rouvrir le match, et le panneau de correction (en anglais ici)](../../../assets/guide/16-match-page.png)
+
 MyClash refuse une correction qui changerait un combat déjà disputé à partir de ce résultat, ou
 qui finirait un combat à égalité là où l'égalité n'est pas permise. Rien n'est changé alors.
 

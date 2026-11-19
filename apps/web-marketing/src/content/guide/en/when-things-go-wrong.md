@@ -30,6 +30,8 @@ opens the scoring pad instead. Or open **Live**, open a piste's row, and click *
   decision**, **Data-entry correction** or **Technical failure**, and enter both scores.
   _Editor_ or above. It counts in the standings and in the HEMA Ratings export.
 
+![A finished bout's page: both hits with their points, the 2–1 score, Re-open match, and the override panel](../../../assets/guide/16-match-page.png)
+
 MyClash refuses a correction that would change a bout already fought from this result, or end a
 bout level where draws are not allowed. Nothing is changed then.
 
