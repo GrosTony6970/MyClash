@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { runContext } from '../e2e/_context';
 import type { Api } from '../e2e/_api';
 import type { Person } from '../e2e/_bracket';
@@ -7,8 +7,7 @@ import type { Person } from '../e2e/_bracket';
 /**
  * The guide's "More than a tournament" screenshots
  * (docs/superpowers/specs/2026-11-19-guide-beyond-the-tournament-design.md): a workshop's list,
- * form, roster and schedule; the compensation report and plan; the club's Leagues page; the AI
- * settings page.
+ * form and roster; the compensation report and plan; the club's Leagues page.
  *
  * Runs on the caller's test Event once its bouts are fought, so the compensation report has
  * referees with completed bouts. Writes only to that Event: a workshop, its sessions and bookings,
@@ -28,19 +27,11 @@ export async function shootBeyond(
   await shootWorkshops(page, at, o.out);
   await shootCompensation(page, api, o.eventId, at, o.out);
 
-  // The club's screens, read only: Leagues and AI settings.
+  // The club's Leagues page, read only. No AI settings shot: the deploy seeds an AI key into the
+  // E2E club, and that page lists its keys with their spend.
   await page.goto(`${org}/leagues`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Discover & join' })).toBeVisible();
   await shootClean(page, `${o.out}/24-leagues.png`);
-  // The page lists the club's keys (masked) with their spend. The guide shows it with no key:
-  // if the E2E club holds one, stop rather than publish any part of it.
-  const keys = await api.json<unknown[]>(
-    await api.get(`organizations/${runContext().orgId}/ai-keys`),
-  );
-  expect(keys, 'the E2E club holds an AI key — not taking the AI settings screenshot').toEqual([]);
-  await page.goto(`${org}/settings/ai`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Enable AI features for this organization')).toBeVisible();
-  await shootClean(page, `${o.out}/26-ai-settings.png`);
 }
 
 /** One instructor, two sessions on day 2, four bookings for three places, then published. */
@@ -87,30 +78,41 @@ async function makeWorkshop(api: Api, eventId: string, people: Person[]): Promis
   await api.ok(await api.patch(`workshops/${workshop.id}`, { data: { status: 'published' } }));
 }
 
-/** The Workshops page: the list, the form, a session's roster and the schedule tab. */
+/**
+ * The Workshops page: the list, then the form and a session's roster, each shot as its own
+ * window once it has faded in and loaded. No schedule shot: its grid needs a workshop venue,
+ * which belongs to the club and would outlive the Event.
+ */
 async function shootWorkshops(page: Page, at: string, out: string): Promise<void> {
   await page.goto(`${at}/workshops`, { waitUntil: 'domcontentloaded' });
   const row = page.getByRole('row', { name: /Cutting basics/u });
   await expect(row).toBeVisible();
   await shootClean(page, `${out}/23-workshops.png`);
 
+  const dialog = page.getByRole('dialog');
   await row.getByRole('button', { name: 'Edit', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await shootClean(page, `${out}/23-workshop-form.png`);
+  await expect(dialog.getByRole('textbox').first()).toHaveValue('Cutting basics');
+  await settleAnimations(page);
+  await shootClean(page, `${out}/23-workshop-form.png`, dialog);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(dialog).toHaveCount(0);
 
   await row
     .getByRole('button', { name: /^Roster/u })
     .first()
     .click();
-  await expect(page.getByRole('dialog').getByText('Session roster')).toBeVisible();
-  await shootClean(page, `${out}/23-workshop-roster.png`);
+  await expect(dialog.getByText('Session roster')).toBeVisible();
+  await expect(dialog.getByText(/Loading/u)).toHaveCount(0);
+  await settleAnimations(page);
+  await shootClean(page, `${out}/23-workshop-roster.png`, dialog);
   await page.keyboard.press('Escape');
+}
 
-  await page.goto(`${at}/workshops#schedule`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Cutting basics').first()).toBeVisible();
-  await shootClean(page, `${out}/23-workshop-schedule.png`);
+/** A window fades in: shoot it once no CSS animation or transition is still running. */
+async function settleAnimations(page: Page): Promise<void> {
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== 'running'),
+  );
 }
 
 /** The built-in FFAMHE plan on this Event, then its report and the plan page. */
@@ -147,10 +149,10 @@ async function shootCompensation(
  * The check runs again after the shot: a late render between the check and the shot would
  * otherwise reach the picture. A failed second check deletes the file before it stops the run.
  */
-async function shootClean(page: Page, path: string): Promise<void> {
+async function shootClean(page: Page, path: string, only?: Locator): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
   await expectNothingPrivate(page);
-  await page.screenshot({ path });
+  await (only ?? page).screenshot({ path });
   await expectNothingPrivate(page).catch((err: unknown) => {
     rmSync(path, { force: true });
     throw err;
