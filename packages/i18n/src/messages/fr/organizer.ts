@@ -2920,7 +2920,7 @@ export const organizer = {
     backToEvent: "Retour à l'événement",
     title: 'Staff événement',
     description:
-      "Créer des comptes PIN locaux pour les arbitres de table et partager les URLs d'affichage.",
+      "Créer des comptes PIN pour les tablettes de score, l'accueil, le contrôle du matériel et la modération des photos, et partager les URLs d'affichage.",
     displayName: 'Nom affiché',
     username: 'Identifiant',
     pin: 'PIN',

@@ -1068,7 +1068,7 @@ export const publicApp = {
       'Nous avons envoyé un lien de confirmation à {email}. Cliquez dessus depuis cette boîte pour finaliser la liaison du profil.',
     pendingTitle: 'Demande soumise',
     pendingDescription:
-      "Ce profil n'a pas d'email enregistré, votre demande a donc été transmise à un organisateur. Vous serez notifié à l'adresse de votre compte une fois approuvée ou refusée.",
+      "Ce profil n'a pas d'email enregistré, votre demande a donc été transmise à l'équipe MyClash. Vous serez notifié à l'adresse de votre compte une fois approuvée ou refusée.",
     findEventsFallback: 'Vous ne trouvez pas votre profil ?',
     confirming: 'Liaison de votre profil',
     confirmingWait: 'Veuillez patienter pendant la finalisation de la liaison.',

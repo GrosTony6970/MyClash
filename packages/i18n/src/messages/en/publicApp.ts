@@ -1064,7 +1064,7 @@ export const publicApp = {
       'We sent a confirmation link to {email}. Click it from that inbox to finish linking the profile.',
     pendingTitle: 'Submitted for review',
     pendingDescription:
-      'This profile has no email on file, so we sent your request to an organizer. You will be notified at your account address when it is approved or rejected.',
+      'This profile has no email on file, so we sent your request to the MyClash team. You will be notified at your account address when it is approved or rejected.',
     findEventsFallback: 'Not finding your profile?',
     confirming: 'Linking your profile',
     confirmingWait: 'Please wait while we finish linking your profile.',

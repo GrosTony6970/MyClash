@@ -206,7 +206,7 @@ export default function OrgNewScoringRulesetPage() {
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.rulesets.createTitle')}
       </h1>
-      <p className="mb-6 text-sm text-muted">{t('admin.rulesets.createDescription')}</p>
+      <p className="mb-6 text-sm text-muted">{t('admin.rulesets.createDescriptionOrg')}</p>
 
       {error && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">

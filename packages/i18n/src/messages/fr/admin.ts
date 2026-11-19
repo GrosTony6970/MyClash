@@ -1225,6 +1225,9 @@ export const admin = {
     createTitle: 'Créer un ruleset personnalisé',
     createDescription:
       'Définir une formule de score et des tie-breakers. Le ruleset est créé en brouillon ; publiez-le quand prêt.',
+    // La page de l'organisation : un ruleset d'organisation naît publié, utilisable tout de suite.
+    createDescriptionOrg:
+      'Définir une formule de score et des tie-breakers. Votre organisation peut utiliser le ruleset dès sa création.',
     editTitle: 'Modifier le ruleset',
     editDescription: 'Mettre à jour la formule, les constantes et les tie-breakers.',
     nameLabel: 'Nom',

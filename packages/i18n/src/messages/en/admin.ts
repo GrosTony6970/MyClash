@@ -1226,6 +1226,9 @@ export const admin = {
     createTitle: 'Create custom ruleset',
     createDescription:
       'Author a scoring formula and tie-breakers. The ruleset is created as draft; publish it when ready.',
+    // The organisation page: an org ruleset is born published, usable at once.
+    createDescriptionOrg:
+      'Author a scoring formula and tie-breakers. Your organisation can use the ruleset as soon as it is created.',
     editTitle: 'Edit ruleset',
     editDescription: 'Update the formula, constants, and tie-breakers.',
     nameLabel: 'Name',

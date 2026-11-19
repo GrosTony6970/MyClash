@@ -2955,7 +2955,8 @@ export const organizer = {
   staff: {
     backToEvent: 'Back to event',
     title: 'Event Staff',
-    description: 'Create local PIN accounts for table referees and share read-only display URLs.',
+    description:
+      'Create PIN accounts for the scoring tablets, the welcome desk, the gear check and photo moderation, and share read-only display URLs.',
     displayName: 'Display name',
     username: 'Username',
     pin: 'PIN',
