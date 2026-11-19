@@ -477,7 +477,13 @@ Two facts the build must respect:
    pass the scrub; Studio's and Realtime's logs on a failed query are not yet checked on the VPS.
 3. **The skill, the cloud task, the daily round, the email report**, and the push for what the
    round finds (ruling 877). Until slice 5, a run that dies or waits sends nothing: a missing
-   morning email is the only sign.
+   morning email is the only sign. Done 2026-11-19 (`97140f310` ruling 876, `c21081492`…`bafe26bdf`,
+   rulings 877-881). The task "MyClash ops" exists (guide step G9). Live check, same day: the
+   task's first run read 20 door routes in 10 s, all 200, `end done`, and mailed "all good" with no
+   push; a run with a refused test key ended `401 key refused`, mailed "1 problem(s)" and pushed
+   the fixed line. The operator received both emails and the push. No run waited for an approval.
+   Left for later slices: the runner's memory and concurrency cap (slice 4); M1, M3 and the
+   "Backup operations…" text (before slice 4).
 4. **Actions on the door, the "is an Event running" read, and the push after a failed repair.**
 5. **The alert wake-up and the outside watcher** (two commits, one after the other; the
    end-to-end test needs both).
