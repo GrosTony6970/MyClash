@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { expect, type Page } from '@playwright/test';
 import { runContext } from '../e2e/_context';
 import type { Api } from '../e2e/_api';
@@ -31,6 +32,12 @@ export async function shootBeyond(
   await page.goto(`${org}/leagues`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Discover & join' })).toBeVisible();
   await shootClean(page, `${o.out}/24-leagues.png`);
+  // The page lists the club's keys (masked) with their spend. The guide shows it with no key:
+  // if the E2E club holds one, stop rather than publish any part of it.
+  const keys = await api.json<unknown[]>(
+    await api.get(`organizations/${runContext().orgId}/ai-keys`),
+  );
+  expect(keys, 'the E2E club holds an AI key — not taking the AI settings screenshot').toEqual([]);
   await page.goto(`${org}/settings/ai`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Enable AI features for this organization')).toBeVisible();
   await shootClean(page, `${o.out}/26-ai-settings.png`);
@@ -136,9 +143,21 @@ async function shootCompensation(
  * Settle, then shoot, once the page shows no person's picture and no email but the E2E
  * account's (hard rule 7). The sidebar holds the E2E club's logo, which the guide may show
  * (operator ruling), so only the page body and an open dialog are checked for images.
+ *
+ * The check runs again after the shot: a late render between the check and the shot would
+ * otherwise reach the picture. A failed second check deletes the file before it stops the run.
  */
 async function shootClean(page: Page, path: string): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+  await expectNothingPrivate(page);
+  await page.screenshot({ path });
+  await expectNothingPrivate(page).catch((err: unknown) => {
+    rmSync(path, { force: true });
+    throw err;
+  });
+}
+
+async function expectNothingPrivate(page: Page): Promise<void> {
   expect(
     await page.locator('main img, [role="dialog"] img').count(),
     'an image is on screen; it may show a real person, so this screenshot is not taken',
@@ -149,5 +168,4 @@ async function shootClean(page: Page, path: string): Promise<void> {
     emails.filter((email) => email.toLowerCase() !== e2eEmail),
     'an email other than the E2E account is on screen',
   ).toEqual([]);
-  await page.screenshot({ path });
 }
