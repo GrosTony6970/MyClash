@@ -2,7 +2,7 @@
 title: Référence de la tablette
 description: 'Chaque commande de la tablette de score, quand elle est disponible, ce qu’elle permet, et ce qui demande le réseau.'
 order: 17
-section: pad
+section: day
 ---
 
 **Ce que vous allez apprendre :** chaque commande de la tablette de score, dans quel état du

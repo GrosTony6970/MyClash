@@ -53,7 +53,7 @@ test('a guide page has the same order and section in both languages', () => {
 });
 
 /** The section labels, read from the copy table so a renamed label cannot drift from the test. */
-const SECTION_KEYS = ['guideSectionSteps', 'guideSectionConcepts', 'guideSectionPad'];
+const SECTION_KEYS = ['guideSectionSteps', 'guideSectionConcepts', 'guideSectionDay'];
 const sectionLabels = (locale) => {
   const ui = readFileSync(join(HERE, '..', 'src', 'i18n', 'ui.ts'), 'utf8');
   const block = ui.slice(ui.indexOf(`  ${locale}: {`));

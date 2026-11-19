@@ -2,7 +2,7 @@
 title: Pad reference
 description: 'Every control of the scoring pad, when it is available, what it allows, and what needs the network.'
 order: 17
-section: pad
+section: day
 ---
 
 **What you'll learn:** every control of the scoring pad, in which state of the bout it works, and

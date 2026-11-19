@@ -2,7 +2,7 @@
 title: Scorekeeper sheet
 description: 'One page to print and leave by the tablet: how to score a bout on MyClash.'
 order: 16
-section: pad
+section: day
 ---
 
 _Print this page and leave it by the tablet._

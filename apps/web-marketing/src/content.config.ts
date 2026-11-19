@@ -24,7 +24,7 @@ const guide = defineCollection({
     description: z.string(),
     order: z.number().int().min(0),
     /** The contents list's group: the walkthrough, the explanations, the scoring pad. */
-    section: z.enum(['steps', 'concepts', 'pad']),
+    section: z.enum(['steps', 'concepts', 'day']),
   }),
 });
 

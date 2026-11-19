@@ -2,7 +2,7 @@
 title: Fiche du marqueur
 description: 'Une page à imprimer et à laisser près de la tablette : marquer un combat sur MyClash.'
 order: 16
-section: pad
+section: day
 ---
 
 _Imprimez cette page et laissez-la près de la tablette._

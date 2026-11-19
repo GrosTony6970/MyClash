@@ -53,7 +53,7 @@ interface Chrome {
   /** The guide's contents groups, in reading order (`section` in src/content.config.ts). */
   readonly guideSectionSteps: string;
   readonly guideSectionConcepts: string;
-  readonly guideSectionPad: string;
+  readonly guideSectionDay: string;
 }
 
 export const CHROME: Readonly<Record<Locale, Chrome>> = {
@@ -81,7 +81,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     guideNext: 'Étape suivante',
     guideSectionSteps: 'Pas à pas',
     guideSectionConcepts: 'Comprendre MyClash',
-    guideSectionPad: 'Tablette de score',
+    guideSectionDay: 'Le jour J',
   },
   en: {
     htmlLang: 'en',
@@ -107,7 +107,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     guideNext: 'Next step',
     guideSectionSteps: 'Step by step',
     guideSectionConcepts: 'Understand MyClash',
-    guideSectionPad: 'Scoring pad',
+    guideSectionDay: 'Event day',
   },
 };
 

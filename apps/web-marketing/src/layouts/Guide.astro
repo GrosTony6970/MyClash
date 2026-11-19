@@ -29,10 +29,10 @@ const next = pages[pages.findIndex((page) => page.id === entry.id) + 1];
 const sectionLabel = {
   steps: t.guideSectionSteps,
   concepts: t.guideSectionConcepts,
-  pad: t.guideSectionPad,
+  day: t.guideSectionDay,
 } as const;
 /** The contents, grouped by section in reading order; a section with no page is left out. */
-const toc = (['steps', 'concepts', 'pad'] as const)
+const toc = (['steps', 'concepts', 'day'] as const)
   .map((key) => ({
     label: sectionLabel[key],
     items: pages
