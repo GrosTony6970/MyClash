@@ -73,20 +73,23 @@ interface ActiveForfeit {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * A hit as `GET matches/:id/exchanges` hands it: the database's column names,
+ * plus the `occurredAt` alias the pad's timeline reads. Typed in camelCase, this
+ * page once showed every hit as "? +0" (page.wire-shape.test.tsx).
+ */
 interface Exchange {
   id: string;
   sequence: number;
   type: string;
   occurredAt: string;
-  firstStrikerColor: string | null;
-  firstStrikeValue: number | null;
-  afterblowValue: number | null;
-  noExchangeReason: string | null;
-  redScoreDelta: number;
-  blueScoreDelta: number;
+  first_striker_color: string | null;
+  first_strike_value: number | null;
+  no_exchange_reason: string | null;
+  red_score_delta: number;
+  blue_score_delta: number;
   voided: boolean;
-  voidedReason: string | null;
-  clientUuid: string;
+  voided_reason: string | null;
 }
 
 interface Match {
@@ -94,9 +97,7 @@ interface Match {
   matchNumberLabel: string;
   match_number_label?: string;
   status: string;
-  redScore: number;
   red_score?: number;
-  blueScore: number;
   blue_score?: number;
   redRegistrationId?: string;
   red_registration_id?: string;
@@ -173,19 +174,21 @@ function noExchangeReasonWord(reason: string, t: Translator): string {
 
 function exchangeLabel(ex: Exchange, t: Translator): string {
   const color =
-    ex.firstStrikerColor === 'red'
+    ex.first_striker_color === 'red'
       ? t('organizer.matchDetail.red')
-      : ex.firstStrikerColor === 'blue'
+      : ex.first_striker_color === 'blue'
         ? t('organizer.matchDetail.blue')
         : '?';
   switch (ex.type) {
     case 'clean':
-      return t('organizer.matchDetail.exClean', { color, value: ex.firstStrikeValue ?? 0 });
+      return t('organizer.matchDetail.exClean', { color, value: ex.first_strike_value ?? 0 });
     case 'afterblow': {
       // Show the NETTED score impact (0 for the defender in deductive mode), not
       // the raw button values — the raw afterblow stays in the data + exports.
-      const strikerDelta = ex.firstStrikerColor === 'red' ? ex.redScoreDelta : ex.blueScoreDelta;
-      const defenderDelta = ex.firstStrikerColor === 'red' ? ex.blueScoreDelta : ex.redScoreDelta;
+      const strikerDelta =
+        ex.first_striker_color === 'red' ? ex.red_score_delta : ex.blue_score_delta;
+      const defenderDelta =
+        ex.first_striker_color === 'red' ? ex.blue_score_delta : ex.red_score_delta;
       return t('organizer.matchDetail.exAfterblow', {
         color,
         striker: strikerDelta,
@@ -195,9 +198,9 @@ function exchangeLabel(ex: Exchange, t: Translator): string {
     case 'double':
       return t('organizer.matchDetail.exDouble');
     case 'no_exchange':
-      return ex.noExchangeReason
+      return ex.no_exchange_reason
         ? t('organizer.matchDetail.exNoExchangeWithReason', {
-            reason: noExchangeReasonWord(ex.noExchangeReason, t),
+            reason: noExchangeReasonWord(ex.no_exchange_reason, t),
           })
         : t('organizer.matchDetail.exNoExchange');
     default:
@@ -260,8 +263,8 @@ export default function MatchDetailPage() {
   // seeded by an effect, which react-hooks/set-state-in-effect forbids.
   const [overrideLosingScoreEdit, setOverrideLosingScore] = useState<string | null>(null);
   const [overrideWinningScoreEdit, setOverrideWinningScore] = useState<string | null>(null);
-  const currentRedScore = match?.redScore ?? match?.red_score ?? 0;
-  const currentBlueScore = match?.blueScore ?? match?.blue_score ?? 0;
+  const currentRedScore = match?.red_score ?? 0;
+  const currentBlueScore = match?.blue_score ?? 0;
   // The API hands the bout's row as the database holds it: `locked_at`.
   const lockedAt = match?.locked_at;
   const overrideLosingScore =
@@ -573,9 +576,9 @@ export default function MatchDetailPage() {
           </div>
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums">
-              <span style={{ color: sideColors.red }}>{match?.redScore ?? 0}</span>
+              <span style={{ color: sideColors.red }}>{currentRedScore}</span>
               <span className="text-muted mx-2">–</span>
-              <span style={{ color: sideColors.blue }}>{match?.blueScore ?? 0}</span>
+              <span style={{ color: sideColors.blue }}>{currentBlueScore}</span>
             </p>
             {summary?.bestOf != null && summary.bestOf > 1 && (
               <p className="mt-0.5 text-xs font-semibold text-muted tabular-nums">
@@ -811,26 +814,26 @@ export default function MatchDetailPage() {
                           </span>
                         )}
                       </div>
-                      {ex.voided && ex.voidedReason && (
+                      {ex.voided && ex.voided_reason && (
                         <p className="text-xs text-muted mt-0.5 ml-8">
-                          {t('organizer.matchDetail.voidReasonLine', { reason: ex.voidedReason })}
+                          {t('organizer.matchDetail.voidReasonLine', { reason: ex.voided_reason })}
                         </p>
                       )}
                       <p className="text-xs text-muted mt-0.5 ml-8">
                         {new Date(ex.occurredAt).toLocaleTimeString(localeToBcp47(locale))}
-                        {(ex.redScoreDelta !== 0 || ex.blueScoreDelta !== 0) && (
+                        {(ex.red_score_delta !== 0 || ex.blue_score_delta !== 0) && (
                           <span className="ml-2">
-                            {ex.redScoreDelta > 0 && (
+                            {ex.red_score_delta > 0 && (
                               <span style={{ color: sideColors.red }}>
                                 {t('organizer.matchDetail.redDelta', {
-                                  delta: ex.redScoreDelta,
+                                  delta: ex.red_score_delta,
                                 })}{' '}
                               </span>
                             )}
-                            {ex.blueScoreDelta > 0 && (
+                            {ex.blue_score_delta > 0 && (
                               <span style={{ color: sideColors.blue }}>
                                 {t('organizer.matchDetail.blueDelta', {
-                                  delta: ex.blueScoreDelta,
+                                  delta: ex.blue_score_delta,
                                 })}
                               </span>
                             )}

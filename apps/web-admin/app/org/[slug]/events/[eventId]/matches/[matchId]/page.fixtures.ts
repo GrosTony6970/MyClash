@@ -29,20 +29,33 @@ export const SUMMARY = {
   phaseType: 'pool',
 };
 
+/**
+ * A hit as `GET matches/:id/exchanges` hands it (`MatchesService.listExchanges`):
+ * the database's own column names, plus the few aliases the pad's timeline reads
+ * (`occurredAt`, `clockTimeMs`, `scoringSide`, `scoreDelta`, `defenderDelta`).
+ * Seeded in camelCase, this fixture once kept the page's tests green while the
+ * real page showed every hit as "? +0".
+ */
 const exchange = (id: string, sequence: number, voided: boolean) => ({
   id,
   sequence,
   type: 'clean',
-  occurredAt: '2026-10-01T09:00:00Z',
-  firstStrikerColor: 'red',
-  firstStrikeValue: 1,
-  afterblowValue: null,
-  noExchangeReason: null,
-  redScoreDelta: 1,
-  blueScoreDelta: 0,
+  occurred_at: '2026-10-01T09:00:00Z',
+  clock_time_ms: 30_000,
+  first_striker_color: 'red',
+  first_strike_value: 2,
+  afterblow_value: null,
+  no_exchange_reason: null,
+  red_score_delta: 2,
+  blue_score_delta: 0,
   voided,
-  voidedReason: voided ? 'Wrong fighter' : null,
-  clientUuid: `uuid-${id}`,
+  voided_reason: voided ? 'Wrong fighter' : null,
+  client_uuid: `uuid-${id}`,
+  occurredAt: '2026-10-01T09:00:00Z',
+  clockTimeMs: 30_000,
+  scoringSide: 'red',
+  scoreDelta: 2,
+  defenderDelta: null,
 });
 
 /** A reopen the server would carry out: nothing later was fought. */
