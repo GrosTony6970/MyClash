@@ -41,14 +41,15 @@ import {
 } from './mask';
 
 /**
- * The ops agent's door: eight reads and three actions (the ops agent's design, section 2). Only the agent key opens
+ * The ops agent's door: eight reads and four actions (the ops agent's design, section 2). Only the agent key opens
  * it (`AgentDoor`). Five read the platform's health; their error texts are withheld
  * (`withoutErrorText`, ruling 870). Two read the containers: their state, and the last lines of
  * one container's log, every line scrubbed (`scrubForAgent`: no address or phone, an IP address
  * cut in half, ruling 868), and never the log of `db` or `supabase-meta` (ruling 869). Alert
  * settings are not here: they list the email addresses of the people who receive alerts. One read
  * says whether an Event is live (rulings 882, 883). The actions (slice 4) restart or start one
- * listed container, never stop it; run a backup; renew the certificates. Each writes its audit
+ * listed container, never stop it; run a backup; renew the certificates; free disk space (slice
+ * 4b: the build cache and the dangling images, ruling 884). Each writes its audit
  * row under the key's own account (`AgentActor`), and answers no shell output or error text.
  */
 @ApiTags('ops-agent')
@@ -149,5 +150,16 @@ export class OpsAgentController {
   async renewCertificates(@AgentActor() actor: string): Promise<AgentActionResultDto> {
     const result = await this.systemActions.renewCertificates(actor);
     return maskActionResult(result, 'traefik', 'renew-certs');
+  }
+
+  @Post('disk/prune')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AGENT_ACTION_THROTTLE)
+  @ApiOperation({
+    summary: "Free disk space: empty Docker's build cache, remove the dangling images",
+  })
+  async pruneDisk(@AgentActor() actor: string): Promise<AgentActionResultDto> {
+    const result = await this.systemActions.pruneDisk(actor);
+    return maskActionResult(result, 'docker', 'prune');
   }
 }

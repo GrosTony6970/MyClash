@@ -1207,6 +1207,28 @@ for (const [chain, bounds] of Object.entries(workerStopBounds ?? {})) {
     );
   }
 }
+// The disk prune (ops agent slice 4b): the runner runs its two steps one after the other, each
+// bounded; the API waits past both, and under undici's 300 s. A wait that ends first answers the
+// console or the door "unavailable" while the prune still runs. Unreadable is a finding.
+if (![containerActionsText, systemActionsServiceText].some(isMissingPinnedFile)) {
+  assertionsRun += 1;
+  const step = /^export const PRUNE_STEP_TIMEOUT_MS = ([\d_]+);$/mu.exec(containerActionsText);
+  const wait = /^const PRUNE_WAIT_MS = ([\d_]+);$/mu.exec(systemActionsServiceText);
+  const seconds = (match) => (match ? Number(match[1].replaceAll('_', '')) / 1000 : NaN);
+  const bounds = [
+    ['2 × PRUNE_STEP_TIMEOUT_MS (infra/ops-runner/container-actions.mjs)', 2 * seconds(step)],
+    ['PRUNE_WAIT_MS (apps/api/src/modules/admin/system-actions.service.ts)', seconds(wait)],
+    ["undici's default headersTimeout", 300],
+  ];
+  const values = bounds.map(([, value]) => value);
+  if (!values.every((value, i) => Number.isFinite(value) && (i === 0 || values[i - 1] < value))) {
+    errors.push(
+      "The disk prune's bounds must each be shorter than the next: the prune's runner budget " +
+        "must end before the API stops waiting, and the API's wait before undici's 300 s: " +
+        `${bounds.map(([n, v]) => `${n} ${v} s`).join(' < ')}.`,
+    );
+  }
+}
 // The admin's stop or restart of the worker passes its grace to compose; `start` takes none.
 requireContains(
   containerActionsText,

@@ -30,6 +30,7 @@ const agentLogs = {
 const systemActions = {
   runComponentAction: vi.fn(),
   renewCertificates: vi.fn(),
+  pruneDisk: vi.fn(),
 };
 
 let app: NestFastifyApplication;
@@ -154,5 +155,39 @@ describe("the door's container action, over HTTP", () => {
     const res = await fetch(`${base}/containers/worker/restart`, { method: 'POST' });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { code?: string }).code).toBe('ops_busy');
+  });
+});
+
+// Slice 4b: the door's disk prune (rulings 884, 895-896).
+describe("the door's disk prune, over HTTP", () => {
+  it('prunes under the key account, answers 200 with six fields, and no shell text', async () => {
+    systemActions.pruneDisk.mockResolvedValueOnce({
+      ok: true,
+      exitCode: 0,
+      timedOut: false,
+      freedBytes: 123,
+      availBytes: 456,
+      stderr: 'marker-err',
+    });
+    const res = await fetch(`${base}/disk/prune`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(systemActions.pruneDisk).toHaveBeenCalledWith('agent-user');
+    expect(await res.json()).toEqual({
+      ok: true,
+      service: 'docker',
+      action: 'prune',
+      exitCode: 0,
+      timedOut: false,
+      scheduled: false,
+    });
+  });
+
+  it('relays a deploy in progress as a 409 deploy_running', async () => {
+    systemActions.pruneDisk.mockRejectedValueOnce(
+      new ConflictException({ message: 'deploy', code: 'deploy_running' }),
+    );
+    const res = await fetch(`${base}/disk/prune`, { method: 'POST' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe('deploy_running');
   });
 });

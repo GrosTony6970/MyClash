@@ -1614,6 +1614,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/system/host-info/prune': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Free disk space: empty Docker's build cache, remove the dangling images */
+    post: operations['HostInfoAdminController_prune'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/system/ci-health': {
     parameters: {
       query?: never;
@@ -5354,6 +5371,23 @@ export interface paths {
     put?: never;
     /** Renew the certificates: Traefik restarts a moment after the answer */
     post: operations['OpsAgentController_renewCertificates'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/ops-agent/disk/prune': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Free disk space: empty Docker's build cache, remove the dangling images */
+    post: operations['OpsAgentController_pruneDisk'];
     delete?: never;
     options?: never;
     head?: never;
@@ -15937,6 +15971,23 @@ export interface operations {
       };
     };
   };
+  HostInfoAdminController_prune: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   CiHealthAdminController_getCiHealth: {
     parameters: {
       query?: never;
@@ -21238,6 +21289,23 @@ export interface operations {
     };
   };
   OpsAgentController_renewCertificates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OpsAgentController_pruneDisk: {
     parameters: {
       query?: never;
       header?: never;

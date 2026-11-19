@@ -172,6 +172,61 @@ describe('AdminSystemActionsService', () => {
     });
   });
 
+  describe('pruneDisk', () => {
+    const PRUNED = {
+      ok: true,
+      service: 'docker',
+      action: 'prune',
+      exitCode: 0,
+      timedOut: false,
+      freedBytes: 4_000_000_000,
+      availBytes: 21_000_000_000,
+      stderr: '',
+    };
+
+    it('posts the runner prune, waits 295 s, and audits who freed how much', async () => {
+      const calls: { url: string; init: RequestInit }[] = [];
+      const fetchImpl = (async (url: string, init?: RequestInit) => {
+        calls.push({ url, init: init ?? {} });
+        return new Response(JSON.stringify(PRUNED), { status: 200 });
+      }) as unknown as typeof fetch;
+      const timeouts = vi.spyOn(AbortSignal, 'timeout');
+      try {
+        expect(await makeService(fetchImpl).pruneDisk('tony-user-id')).toEqual(PRUNED);
+        expect(timeouts.mock.calls.map(([ms]) => ms)).toEqual([295_000]);
+      } finally {
+        timeouts.mockRestore();
+      }
+      expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual([
+        'POST http://ops-runner:4075/disk/prune',
+      ]);
+      expect(audits).toEqual([
+        expect.objectContaining({
+          actor_user_id: 'tony-user-id',
+          action: 'system.disk.prune',
+          entity_type: 'system_disk',
+          entity_id: 'docker',
+          payload_json: { ok: true, exitCode: 0, timedOut: false, freedBytes: 4_000_000_000 },
+        }),
+      ]);
+    });
+
+    for (const code of ['ops_busy', 'deploy_running']) {
+      it(`relays a 409 ${code}, with no audit row`, async () => {
+        const fetchImpl = (async () =>
+          new Response(JSON.stringify({ error: 'busy', code }), {
+            status: 409,
+          })) as unknown as typeof fetch;
+        const error = await makeService(fetchImpl)
+          .pruneDisk('a')
+          .catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toMatchObject({ code });
+        expect(audits).toHaveLength(0);
+      });
+    }
+  });
+
   // Slice 4 of the ops agent: the runner's own refusals reach the caller with their status and
   // code (ruling 886's lock, 887's deploy), through the API's one road to it (OpsRunnerClient).
   describe('a refusal of the runner', () => {

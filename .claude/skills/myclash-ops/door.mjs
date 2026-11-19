@@ -51,6 +51,7 @@ export const DOOR_ROUTES = Object.freeze([
   'POST containers/:service/:action',
   'POST backups',
   'POST tls/renew',
+  'POST disk/prune',
 ]);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

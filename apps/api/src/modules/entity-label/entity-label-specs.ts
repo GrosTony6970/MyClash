@@ -233,8 +233,9 @@ export const LABEL_SPECS: Record<Exclude<EntityKind, 'user'>, EntityLabelSpec> =
  * `audit_log.entity_type` is free TEXT with no enum behind it, so this map is
  * the de-facto registry of which values we know how to label.
  *
- * Deliberately absent: `feature_flag`, `system_component`, `system_tls`,
- * `weapon_catalog` — their `entity_id` is already a readable key, not a UUID.
+ * Deliberately absent: `feature_flag`, `system_component`, `system_disk`,
+ * `system_tls`, `weapon_catalog` — their `entity_id` is already a readable key,
+ * not a UUID.
  */
 export const ENTITY_TYPE_TO_KIND: Readonly<Record<string, EntityKind>> = {
   event: 'event',

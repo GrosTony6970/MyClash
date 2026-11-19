@@ -55,6 +55,7 @@ describe('route authorization, API-wide', () => {
         'eventsLive',
         'host',
         'log',
+        'pruneDisk',
         'renewCertificates',
         'runBackup',
         'runtimeHealth',

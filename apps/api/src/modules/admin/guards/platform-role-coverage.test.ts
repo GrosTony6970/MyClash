@@ -228,6 +228,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['POST /admin/review-queue/:type/:id/approve', 'platform_admin'],
   ['POST /admin/review-queue/:type/:id/reject', 'platform_admin'],
   ['POST /admin/system-versions/components/:key/:action', 'super_admin'],
+  ['POST /admin/system/host-info/prune', 'super_admin'],
   ['POST /admin/system/tls-status/renew', 'super_admin'],
   ['POST /admin/users', 'super_admin'],
   ['POST /admin/users/:id/regenerate-temp-password', 'super_admin'],

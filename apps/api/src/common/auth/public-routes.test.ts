@@ -200,6 +200,7 @@ const EXPECTED_PUBLIC = [
   'GET /ops-agent/versions',
   'POST /ops-agent/backups',
   'POST /ops-agent/containers/:service/:action',
+  'POST /ops-agent/disk/prune',
   'POST /ops-agent/tls/renew',
   // Published AI content only: each content type decides who may read its
   // entity — a hidden Tournament's recap and an erased fighter's insight answer
@@ -248,6 +249,7 @@ const EXPECTED_PUBLIC = [
 const AGENT_DOOR_POSTS = new Set([
   'POST /ops-agent/backups',
   'POST /ops-agent/containers/:service/:action',
+  'POST /ops-agent/disk/prune',
   'POST /ops-agent/tls/renew',
 ]);
 
@@ -359,7 +361,7 @@ describe('@Public() route surface', () => {
   it('closes every agent-door route with the key guard', () => {
     // Every verb (M3): the actions are POSTs.
     const door = rows.filter((r) => r.isPublic && r.route.includes(' /ops-agent/'));
-    expect(door.length).toBe(11);
+    expect(door.length).toBe(12);
     expect(door.filter((r) => !r.guards.includes('AgentKeyGuard')).map((r) => r.route)).toEqual([]);
   });
 

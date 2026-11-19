@@ -28,6 +28,17 @@ export interface CertRenewalResult {
   error?: string;
 }
 
+/** The ops runner's disk prune (ruling 884): the build cache and the dangling images. */
+export interface DiskPruneResult {
+  ok: boolean;
+  exitCode: number | null;
+  timedOut: boolean;
+  /** The free bytes the prune gave back, measured on the stack's filesystem; never negative. */
+  freedBytes: number;
+  availBytes: number;
+  stderr: string;
+}
+
 export interface DiskUsageResult {
   mountpoint: string;
   sizeBytes: number;
@@ -78,6 +89,10 @@ const DEFAULT_OPS_TIMEOUT_MS = 35_000; // ops-runner kills at 30s; give it slack
 // under 300 s, where this fetch (undici, no dispatcher of its own) gives up on an answer whose
 // headers have not come. infra:review pins the order.
 const WORKER_ACTION_WAIT_MS = 295_000;
+// The disk prune: the runner bounds each of its two steps (PRUNE_STEP_TIMEOUT_MS,
+// infra/ops-runner/container-actions.mjs). Wait past both, and under undici's 300 s.
+// infra:review pins the order.
+const PRUNE_WAIT_MS = 295_000;
 // Host facts are a read, not an operation: the sidecar kills `docker info` at
 // 5s, so a longer budget here would only turn a fast, clear failure into a slow
 // one on a panel the operator is watching load.
@@ -169,6 +184,24 @@ export class AdminSystemActionsService {
       scheduled: result.scheduled ?? false,
       exitCode: result.exitCode,
       timedOut: result.timedOut ?? false,
+    });
+
+    return result;
+  }
+
+  /**
+   * Free disk space: the runner empties Docker's build cache and removes the dangling images. No
+   * container stops; the next deploy rebuilds from the start. The console's Host card and the ops
+   * agent's door both come here, and the audit row says who freed how much.
+   */
+  async pruneDisk(actorUserId: string): Promise<DiskPruneResult> {
+    const result = await this.ops.post<DiskPruneResult>('/disk/prune', {}, PRUNE_WAIT_MS);
+
+    await this.writeAuditLog(actorUserId, 'system.disk.prune', 'system_disk', 'docker', {
+      ok: result.ok,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut,
+      freedBytes: result.freedBytes,
     });
 
     return result;
