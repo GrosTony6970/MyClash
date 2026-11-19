@@ -177,12 +177,18 @@ describe('the sign-up and the reset log the address masked', () => {
 
   it('when the sign-up makes nothing', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const refused = { data: { user: null }, error: { code: 'unexpected_failure', message: 'x' } };
+    // The auth server can quote the address it refused: the line keeps its code and status.
+    const refused = {
+      data: { user: null },
+      error: { code: 'email_address_invalid', status: 400, message: `Email "${EMAIL}" is invalid` },
+    };
     const { signUp } = build(refused);
 
     await signUp();
 
-    expect(logged(warn)).toContain(`public-signup made nothing for ${MASKED}`);
+    expect(logged(warn)).toContain(
+      `public-signup made nothing for ${MASKED}: email_address_invalid (400)`,
+    );
     expect(logged(warn)).not.toContain(EMAIL);
     warn.mockRestore();
   });

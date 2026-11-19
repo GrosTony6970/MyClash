@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { authServerReason } from '../../common/log-reason';
 
 /** The one answer of a sign-up by email, whatever the address holds: no address enumeration. */
 export const SIGNUP_ANSWER = {
@@ -17,7 +18,8 @@ type LinkCode = { hashed_token?: string } | null | undefined;
  * - `unconfirmed`: an account made earlier waits for its confirmation: by a sign-up, or by an
  *   "email me a link". `code` is a fresh one (the old link stops working).
  * - `none`: a confirmed account holds the address, or the auth server refused. `why` is for
- *   the log only: the caller answers the same words in every case.
+ *   the log only, the refusal's code and status (`authServerReason`): its message can quote the
+ *   address (ruling 867). The caller answers the same words in every case.
  *
  * No sign-up stores a password (ruling "Pre-takeover", 2026-10-16): the password is chosen on
  * the page the link opens, once the address is proven.
@@ -50,13 +52,13 @@ export function throwawayPassword(): string {
 export async function signupAccount(admin: AuthAdmin, email: string): Promise<SignupAccount> {
   const made = await admin.createUser({ email, email_confirm: false });
   if (made.error && made.error.code !== 'email_exists') {
-    return { kind: 'none', why: made.error.message };
+    return { kind: 'none', why: authServerReason(made.error) };
   }
   const link = await admin.generateLink({ type: 'signup', email, password: throwawayPassword() });
   if (!made.error) {
     return { kind: 'created', userId: made.data.user.id, code: link.data?.properties };
   }
   // A confirmed account: GoTrue refuses its link.
-  if (link.error) return { kind: 'none', why: link.error.message };
+  if (link.error) return { kind: 'none', why: authServerReason(link.error) };
   return { kind: 'unconfirmed', code: link.data.properties };
 }
