@@ -273,9 +273,14 @@ export default function MatchDetailPage() {
     overrideWinningScoreEdit ?? String(forfeitSide === 'red' ? currentBlueScore : currentRedScore);
   const [activeForfeit, setActiveForfeit] = useState<ActiveForfeit | null>(null);
   const [voidingForfeit, setVoidingForfeit] = useState(false);
-  const isOverride = isOverrideReason(forfeitReason);
+  // A finished bout takes an override, never a forfeit: the API refuses a forfeit
+  // reason there ("Match is already closed"). Derived in render, not by an effect.
+  const boutEnded = match?.status === 'completed';
+  const reason =
+    boutEnded && !isOverrideReason(forfeitReason) ? OVERRIDE_REASONS[0] : forfeitReason;
+  const isOverride = isOverrideReason(reason);
   const forfeitAsks = useForfeitAsks(apiUrl, summary?.tournamentId);
-  const asksCanContinue = forfeitQuestion(forfeitReason, forfeitAsks, summary?.phaseType).ask;
+  const asksCanContinue = forfeitQuestion(reason, forfeitAsks, summary?.phaseType).ask;
   // Derived in render, not in an effect: what a void does is a pure function of
   // the record the API just returned.
   const voidCopy = voidConfirmCopy(activeForfeit?.cascade);
@@ -444,7 +449,7 @@ export default function MatchDetailPage() {
       method: 'POST',
       body: {
         forfeitingRegistrationId,
-        reason: forfeitReason,
+        reason,
         // The DTO refuses canContinue on an override and requires the scores;
         // an override never withdraws anyone, so there is nothing to ask.
         canContinue: asksCanContinue ? forfeitCanContinue : undefined,
@@ -701,21 +706,23 @@ export default function MatchDetailPage() {
             {/* Both groups come from @myclash/rulesets, which owns the enum —
                 a reason added there appears here without a second edit. */}
             <select
-              value={forfeitReason}
+              value={reason}
               onChange={(event) => setForfeitReason(event.target.value)}
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
-              <optgroup label={t('organizer.bracketPage.forfeitReasonGroup')}>
-                {FORFEIT_REASONS.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {t(REASON_LABEL_KEY[reason] as never)}
-                  </option>
-                ))}
-              </optgroup>
+              {!boutEnded && (
+                <optgroup label={t('organizer.bracketPage.forfeitReasonGroup')}>
+                  {FORFEIT_REASONS.map((each) => (
+                    <option key={each} value={each}>
+                      {t(REASON_LABEL_KEY[each] as never)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <optgroup label={t('organizer.bracketPage.overrideReasonGroup')}>
-                {OVERRIDE_REASONS.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {t(REASON_LABEL_KEY[reason] as never)}
+                {OVERRIDE_REASONS.map((each) => (
+                  <option key={each} value={each}>
+                    {t(REASON_LABEL_KEY[each] as never)}
                   </option>
                 ))}
               </optgroup>
