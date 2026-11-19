@@ -541,6 +541,23 @@ export const organizer = {
       clockDrift:
         'A wrong device clock makes match timings disagree. The full report shows by how much.',
     },
+    // A section's supporting lines, worded here from the data the server sends (ruling 891).
+    detail: {
+      unlabelledDevice: 'Unlabelled device',
+      refused: '{name} — refused: {refused}',
+      stillHeld: 'still held: {count}',
+      tally: '{label}: {count}',
+      refusalReason: {
+        match_closed: 'bout already over',
+        validation: 'invalid hit',
+        sequence: 'order conflict',
+        other: 'other reason',
+      },
+      via: {
+        search: 'Found by name',
+        qr: 'Pass scanned',
+      },
+    },
   },
   startOfDay: {
     navLabel: 'Start of day',

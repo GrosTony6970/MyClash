@@ -474,7 +474,7 @@ export class EventStatsService {
       .eq('matches.phases.tournaments.event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      reason: (row['reason'] as string | null) ?? null,
+      reason: String(row['reason']),
       voided: row['voided_at'] != null,
     }));
   }
@@ -486,7 +486,7 @@ export class EventStatsService {
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      via: String(row['via'] ?? 'unknown'),
+      via: String(row['via']),
       reversed: row['reversed_at'] != null,
     }));
   }

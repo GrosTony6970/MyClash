@@ -52,8 +52,13 @@ describe('buildPostEventReport', () => {
     const refused = section(report, 'refusedExchanges');
     expect(refused.severity).toBe('attention');
     expect(refused.count).toBe(3);
-    expect(refused.details[0]).toContain('Tablet A: 3 refused');
-    expect(refused.details[0]).not.toContain('still held');
+    expect(refused.details[0]).toEqual({
+      kind: 'refusedDevice',
+      label: 'Tablet A',
+      refused: 3,
+      stillHeld: 0,
+      reasons: ['sequence'],
+    });
     expect(report.needsAttention).toBe(true);
   });
 
@@ -62,7 +67,7 @@ describe('buildPostEventReport', () => {
       input({ devices: [device({ peakQuarantinedCount: 4, quarantinedCount: 2 })] }),
       CUTOFF,
     );
-    expect(section(report, 'refusedExchanges').details[0]).toContain('2 still held');
+    expect(section(report, 'refusedExchanges').details[0]).toMatchObject({ stillHeld: 2 });
   });
 
   it('counts a silent device separately from one holding refusals', () => {
@@ -82,7 +87,9 @@ describe('buildPostEventReport', () => {
     );
     expect(section(report, 'refusedExchanges').count).toBe(0);
     expect(section(report, 'silentDevices').count).toBe(1);
-    expect(section(report, 'silentDevices').details).toEqual(['Tablet B']);
+    expect(section(report, 'silentDevices').details).toEqual([
+      { kind: 'silentDevice', label: 'Tablet B' },
+    ]);
   });
 
   it('names an unlabelled device without leaking its id', () => {
@@ -91,8 +98,9 @@ describe('buildPostEventReport', () => {
       CUTOFF,
     );
     const line = section(report, 'refusedExchanges').details[0]!;
-    expect(line).toContain('unlabelled device');
-    expect(line).not.toContain('dev-a');
+    // Null, worded by the client in the reader's language (ruling 891); never the id.
+    expect(line).toMatchObject({ label: null });
+    expect(JSON.stringify(line)).not.toContain('dev-a');
   });
 
   it('separates live overrides from voided ones and never flags either', () => {
@@ -110,7 +118,10 @@ describe('buildPostEventReport', () => {
       CUTOFF,
     );
     expect(section(report, 'overrides').count).toBe(3);
-    expect(section(report, 'overrides').details).toEqual(['injury: 2', 'no_show: 1']);
+    expect(section(report, 'overrides').details).toEqual([
+      { kind: 'tally', code: 'injury', count: 2 },
+      { kind: 'tally', code: 'no_show', count: 1 },
+    ]);
     expect(section(report, 'voidedOverrides').count).toBe(1);
     expect(report.needsAttention).toBe(false);
   });
@@ -127,7 +138,10 @@ describe('buildPostEventReport', () => {
       CUTOFF,
     );
     expect(section(report, 'arrivals').count).toBe(2);
-    expect(section(report, 'arrivals').details).toEqual(['qr: 1', 'search: 1']);
+    expect(section(report, 'arrivals').details).toEqual([
+      { kind: 'tally', code: 'qr', count: 1 },
+      { kind: 'tally', code: 'search', count: 1 },
+    ]);
   });
 
   it('flags clock drift from the count the reconciliation report produced', () => {

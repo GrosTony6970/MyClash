@@ -539,6 +539,22 @@ export const organizer = {
       clockDrift:
         'Une horloge fausse fait diverger les temps de combat. Le rapport complet indique de combien.',
     },
+    detail: {
+      unlabelledDevice: 'Appareil sans nom',
+      refused: '{name} — refusés : {refused}',
+      stillHeld: 'encore en attente : {count}',
+      tally: '{label} : {count}',
+      refusalReason: {
+        match_closed: 'combat déjà terminé',
+        validation: 'touche invalide',
+        sequence: "conflit d'ordre",
+        other: 'autre raison',
+      },
+      via: {
+        search: 'Trouvé par le nom',
+        qr: 'Pass scanné',
+      },
+    },
   },
   startOfDay: {
     navLabel: 'Début de journée',

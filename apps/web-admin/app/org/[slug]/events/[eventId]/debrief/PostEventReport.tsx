@@ -7,12 +7,13 @@ import { StatusBadge } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { detailLine, type ReportDetail } from './report-detail';
 
 interface ReportSection {
   key: string;
   severity: 'ok' | 'attention';
   count: number;
-  details: string[];
+  details: ReportDetail[];
 }
 
 interface Report {
@@ -160,11 +161,14 @@ function SectionCard({ section }: { section: ReportSection }) {
       <p className="mt-1 text-xs text-muted">{t(`organizer.debrief.hints.${section.key}`)}</p>
       {section.details.length > 0 && (
         <ul className="mt-2 space-y-1">
-          {section.details.map((detail) => (
-            <li key={detail} className="text-xs text-foreground-secondary">
-              {detail}
-            </li>
-          ))}
+          {section.details.map((detail) => {
+            const line = detailLine(section.key, detail, t);
+            return (
+              <li key={line} className="text-xs text-foreground-secondary">
+                {line}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

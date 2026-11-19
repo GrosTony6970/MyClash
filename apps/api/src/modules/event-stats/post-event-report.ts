@@ -20,13 +20,31 @@
 
 export type ReportSeverity = 'ok' | 'attention';
 
+/**
+ * One supporting line of a section, as data: the client words it in the reader's language
+ * (ruling 891). Built here as English sentences, it showed "unlabelled device", "refused" and
+ * "still held" to a French organiser. Free of ids and personal data: a device is its label.
+ */
+export type ReportDetail =
+  | {
+      kind: 'refusedDevice';
+      /** The device's label, or null when it has none. Never its id. */
+      label: string | null;
+      refused: number;
+      stillHeld: number;
+      /** The tablet's refusal codes: `match_closed`, `validation`, `sequence`, `other`. */
+      reasons: string[];
+    }
+  | { kind: 'silentDevice'; label: string | null }
+  /** How many rows carry one code: an override reason, or how an arrival was recorded. */
+  | { kind: 'tally'; code: string; count: number };
+
 export interface ReportSection {
   key: string;
   severity: ReportSeverity;
   /** Primary figure. Rendered by the client with its own i18n. */
   count: number;
-  /** Supporting detail lines, already free of ids and personal data. */
-  details: string[];
+  details: ReportDetail[];
 }
 
 export interface DeviceSyncRow {
@@ -39,8 +57,8 @@ export interface DeviceSyncRow {
 }
 
 export interface OverrideRow {
-  /** `match_forfeits.end_reason` or the override reason. */
-  reason: string | null;
+  /** `match_forfeits.reason`: a forfeit or an override reason (NOT NULL, 0177). */
+  reason: string;
   voided: boolean;
 }
 
@@ -63,13 +81,20 @@ export interface PostEventReport {
   needsAttention: boolean;
 }
 
-function countBy<T>(rows: T[], pick: (row: T) => string): string[] {
+function countBy<T>(rows: T[], pick: (row: T) => string): ReportDetail[] {
   const counts = new Map<string, number>();
   for (const row of rows) {
     const key = pick(row);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, n]) => `${k}: ${n}`);
+  return [...counts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, count]) => ({ kind: 'tally', code, count }));
+}
+
+/** A device's label, or null: the client names an unlabelled one in the reader's language. */
+function labelOf(device: DeviceSyncRow): string | null {
+  return device.deviceLabel?.trim() || null;
 }
 
 /**
@@ -83,12 +108,13 @@ function countBy<T>(rows: T[], pick: (row: T) => string): string[] {
  */
 function deviceSection(devices: DeviceSyncRow[]): ReportSection {
   const troubled = devices.filter((device) => device.peakQuarantinedCount > 0);
-  const details = troubled.map((device) => {
-    const name = device.deviceLabel?.trim() || 'unlabelled device';
-    const held = device.quarantinedCount > 0 ? `, ${device.quarantinedCount} still held` : '';
-    const why = device.reasonCodes.length > 0 ? ` (${device.reasonCodes.join(', ')})` : '';
-    return `${name}: ${device.peakQuarantinedCount} refused${held}${why}`;
-  });
+  const details = troubled.map((device): ReportDetail => ({
+    kind: 'refusedDevice',
+    label: labelOf(device),
+    refused: device.peakQuarantinedCount,
+    stillHeld: device.quarantinedCount,
+    reasons: device.reasonCodes,
+  }));
   return {
     key: 'refusedExchanges',
     // Any refusal at all is worth attention: it means a scored hit did not land.
@@ -113,7 +139,10 @@ function silentDeviceSection(devices: DeviceSyncRow[], cutoffIso: string): Repor
     key: 'silentDevices',
     severity: silent.length > 0 ? 'attention' : 'ok',
     count: silent.length,
-    details: silent.map((device) => device.deviceLabel?.trim() || 'unlabelled device'),
+    details: silent.map((device): ReportDetail => ({
+      kind: 'silentDevice',
+      label: labelOf(device),
+    })),
   };
 }
 
@@ -131,7 +160,7 @@ export function buildPostEventReport(
       // Overrides are a legitimate tool, not a fault — recorded, never flagged.
       severity: 'ok',
       count: overridesLive.length,
-      details: countBy(overridesLive, (row) => row.reason ?? 'unspecified'),
+      details: countBy(overridesLive, (row) => row.reason),
     },
     {
       key: 'voidedOverrides',

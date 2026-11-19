@@ -34,21 +34,7 @@ import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
 import { phaseCrumb, type PhaseType } from './phase-crumb';
 import { useForfeitAsks } from './useForfeitAsks';
 import { forfeitQuestion } from '@myclash/types/forfeit-rules';
-
-/**
- * One i18n key per reason. The engine owns which reasons exist; this owns
- * what each is called. Literal values so the i18n reverse sweep can see them.
- */
-const REASON_LABEL_KEY: Record<string, string> = {
-  injury: 'organizer.bracketPage.forfeitReasonInjury',
-  voluntary: 'organizer.bracketPage.forfeitReasonVoluntary',
-  black_card_1: 'organizer.bracketPage.forfeitReasonBlackCard1',
-  black_card_2: 'organizer.bracketPage.forfeitReasonBlackCard2',
-  conduct_violation: 'organizer.bracketPage.forfeitReasonConduct',
-  referee_decision: 'organizer.bracketPage.overrideReasonRefereeDecision',
-  admin_correction: 'organizer.bracketPage.overrideReasonAdminCorrection',
-  technical_failure: 'organizer.bracketPage.overrideReasonTechnicalFailure',
-};
+import { FORFEIT_REASON_LABEL_KEY as REASON_LABEL_KEY } from '@/lib/forfeit-reason-label';
 
 /** The one live forfeit-or-override on a match. `match_forfeits` allows no second. */
 interface ActiveForfeit {
