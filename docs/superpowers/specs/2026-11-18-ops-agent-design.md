@@ -440,7 +440,14 @@ Two facts the build must respect:
    for later slices: a rollback or restore brings back a revoked key until the next deploy (before
    slice 4); a key-table outage answers 401 like a revoked key (decide before slice 3's skill); the
    public-route door test reads GET only (widen with slice 4's actions).
-2. **Ops-runner log and status reads, exposed on the door with free-text masking.**
+2. **Ops-runner log and status reads, exposed on the door with free-text masking.** Done
+   2026-11-19 (`acee8b8fd`…`e1b6a81b3`, rulings 867-870). Live check from the cloud after a wipe
+   and deploy, same day: containers 200 (16 rows); logs of api, worker, traefik, supabase-auth and
+   web-public 200, errors-only reads 200; `db`, `supabase-meta`, `lines=0` and a path trick 400;
+   no email shape and no full IPv4 in any answer (IPs halved, `[redacted…]` present); an admin
+   route 401. Left for later slices: the runner holds a whole `compose logs --tail 2000` in memory
+   with no cap on concurrent reads (the slice 3 skill reads one log at a time); rarer phone shapes
+   pass the scrub; Studio's and Realtime's logs on a failed query are not yet checked on the VPS.
 3. **The skill, the cloud task, the daily round, the email report.**
 4. **Actions on the door, the "is an Event running" read, and the push.**
 5. **The alert wake-up and the outside watcher** (two commits, one after the other; the
