@@ -117,7 +117,9 @@ interface Rule {
 
 const FAILED = '[scrub-failed]';
 const SELECTOR_REMOVED = '[selector-removed]';
-const PASS_TOKEN = /(\/event-passes\/)[^/?#]+/g;
+// Stops at a space, a quote or a backslash too: in a log line the code is followed by
+// ` HTTP/2.0"` or `","`, and a URL holds none of them, so a URL is masked as before.
+const PASS_TOKEN = /(\/event-passes\/)[^/?#\s"'\\]+/g;
 const ABSOLUTE = /^([a-z][a-z0-9+.-]*:)\/\/(?:[^@/?#]*@)?([^/?#]*)(.*)$/i;
 const SELECTOR_ATTRIBUTE = /\[([\w-]+)="[^"]*"\]/g;
 const SELECTOR_OPENER = /\[[\w-]+="/;
@@ -132,7 +134,7 @@ function isOwnHost(hostPort: string, rule: Rule): boolean {
  *  URL keeps only its origin. */
 function scrubUrl(value: string, rule: Rule): string {
   const cut = value.search(/[?#]/);
-  const path = (cut === -1 ? value : value.slice(0, cut)).replace(PASS_TOKEN, '$1[token]');
+  const path = maskPassTokens(cut === -1 ? value : value.slice(0, cut));
   const absolute = ABSOLUTE.exec(path);
   if (!absolute) return path;
   const [, scheme, hostPort, rest] = absolute;
@@ -155,7 +157,12 @@ function scrubText(value: string, rule: Rule): string {
  *  The API's logs build on it too (`logSafePath`, apps/api redaction.ts). */
 export function scrubOwnUrl(value: string): string {
   const cut = value.search(/[?#]/);
-  return (cut === -1 ? value : value.slice(0, cut)).replace(PASS_TOKEN, '$1[token]');
+  return maskPassTokens(cut === -1 ? value : value.slice(0, cut));
+}
+
+/** Every event-pass code in a string masked (`/event-passes/[token]`): a URL or a log line. */
+export function maskPassTokens(value: string): string {
+  return value.replace(PASS_TOKEN, '$1[token]');
 }
 
 /** Attribute VALUES out of a CSS-like selector (`[title="x@y"]` → `[title]`).

@@ -4,6 +4,7 @@ import {
   SENTRY_BROWSER_DATA_COLLECTION,
   SENTRY_DATA_COLLECTION,
   createSentryScrubbers,
+  maskPassTokens,
   sentryBrowserIntegrations,
   sentryOwnHosts,
   stripSelectorValues,
@@ -373,5 +374,25 @@ describe('sentryBrowserIntegrations', () => {
       'Breadcrumbs',
       'BrowserTracing',
     ]);
+  });
+});
+
+// The pass code in free text (a log line): masked up to a space or a quote, never past it.
+describe('maskPassTokens', () => {
+  it('masks a pass code inside a log line and stops at a space or a quote', () => {
+    expect(maskPassTokens('"GET /api/v1/event-passes/CODE123 HTTP/2.0" 200')).toBe(
+      '"GET /api/v1/event-passes/[token] HTTP/2.0" 200',
+    );
+    expect(maskPassTokens('{"path":"/api/v1/event-passes/CODE123","statusCode":200}')).toBe(
+      '{"path":"/api/v1/event-passes/[token]","statusCode":200}',
+    );
+    expect(maskPassTokens('/api/v1/event-passes/CODE123/qr')).toBe(
+      '/api/v1/event-passes/[token]/qr',
+    );
+  });
+
+  it('leaves a line that was already masked as it is', () => {
+    const line = '{"path":"/api/v1/event-passes/[token]","statusCode":200}';
+    expect(maskPassTokens(line)).toBe(line);
   });
 });
