@@ -149,7 +149,7 @@ export default function OrgMembersPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <header>
         <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
           {t('organizer.orgSettings.membersTitle')}
@@ -245,6 +245,6 @@ export default function OrgMembersPage() {
       </section>
 
       {confirmDialog}
-    </div>
+    </main>
   );
 }
