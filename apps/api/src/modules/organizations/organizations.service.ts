@@ -20,6 +20,7 @@ import type {
   CreateOrganizationDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
+import { roleAtLeast, rolesAtLeast, type OrgRole } from '@myclash/types';
 
 /** Page size for the public organiser directory, and its hard cap. */
 const DEFAULT_PUBLIC_ORG_PAGE = 24;
@@ -45,32 +46,9 @@ const notAMember = () => new ForbiddenException('You are not a member of this or
 const notAClubMember = (minRole: string) =>
   new ForbiddenException(`Requires ${minRole} role or higher in an organization`);
 
-/** Lowest to highest: a role satisfies every role before it. */
-const ORG_ROLE_ORDER = [
-  'read_only',
-  'scorekeeper',
-  'referee',
-  'workshop_lead',
-  'editor',
-  'admin',
-  'owner',
-] as const;
-type OrgRole = (typeof ORG_ROLE_ORDER)[number];
-
-/**
- * Whether `role` is `min` or above: the one owner of the club-role order. The column is TEXT with
- * no CHECK, so a role the order does not hold loses every bar, and a bar it does not hold lets no
- * one through.
- */
-export function roleAtLeast(role: string | null | undefined, min: OrgRole): boolean {
-  const bar = ORG_ROLE_ORDER.indexOf(min);
-  return bar !== -1 && ORG_ROLE_ORDER.indexOf(role as OrgRole) >= bar;
-}
-
-/** Every role that is `min` or above: `roleAtLeast` as a list, for a query's `in`. */
-export function rolesAtLeast(min: OrgRole): OrgRole[] {
-  return ORG_ROLE_ORDER.slice(ORG_ROLE_ORDER.indexOf(min));
-}
+// The club-role order and its two readers live in @myclash/types, beside the organiser menu that
+// reads them too (ruling 893). Re-exported so this module's callers keep their import.
+export { roleAtLeast, rolesAtLeast };
 
 @Injectable()
 export class OrganizationsService {
@@ -626,7 +604,7 @@ export class OrganizationsService {
       .from('organization_members')
       .select('role')
       .eq('user_id', userId)
-      .in('role', ORG_ROLE_ORDER.slice(ORG_ROLE_ORDER.indexOf(minRole)))
+      .in('role', rolesAtLeast(minRole))
       .limit(1);
     // A failed read is not a verdict: a 5xx, never "you are not a member".
     if (error) throw new Error(`membership read failed: ${error.message}`);

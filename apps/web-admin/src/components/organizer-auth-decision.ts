@@ -40,3 +40,12 @@ export function resolveAuthDecision(slug: string, me: MeSession | null): Organiz
   if (firstOrg) return { kind: 'no_access', redirectTo: `/org/${firstOrg.slug}` };
   return { kind: 'no_access', redirectTo: '/login' };
 }
+
+/**
+ * The reader's role in the club `slug` names, or null when they hold none there: platform staff,
+ * let in by their platform role above, whose reach is decided route by route; or a `/me` not read
+ * yet. The organiser menu hides what this role cannot open (ruling 893, `applyMemberRole`).
+ */
+export function memberRoleIn(me: MeSession | null, slug: string): string | null {
+  return me?.admin?.organizations.find((o) => o.slug === slug)?.role ?? null;
+}

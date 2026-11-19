@@ -1,5 +1,4 @@
-import { useSyncExternalStore } from 'react';
-import type { OrgMenuProfile } from '@myclash/types';
+import { roleAtLeast, type OrgMenuProfile, type OrgRole } from '@myclash/types';
 import type { NavIconName } from '@myclash/ui';
 
 /**
@@ -27,6 +26,12 @@ export interface EventNavItem {
    * the one owner of this answer; there is no separate hidden list.
    */
   readonly inWorkshops: boolean;
+  /**
+   * The club role its page needs to load (ruling 893): the menu hides the entry from a member below
+   * it, rather than open a page that refuses them. Read off the API's check on the page's main
+   * read. Required, for the same reason as `inWorkshops`.
+   */
+  readonly minRole: OrgRole;
 }
 
 export interface EventNavGroup {
@@ -40,6 +45,7 @@ export const EVENT_NAV_OVERVIEW: EventNavItem = {
   labelKey: 'organizer.shell.nav.eventOverview',
   icon: 'eventOverview',
   inWorkshops: true,
+  minRole: 'scorekeeper',
 };
 
 export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
@@ -52,19 +58,28 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.persons',
         icon: 'persons',
         inWorkshops: true,
+        minRole: 'read_only',
       },
-      { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', icon: 'clubs', inWorkshops: true },
+      {
+        href: 'clubs',
+        labelKey: 'organizer.shell.nav.clubs',
+        icon: 'clubs',
+        inWorkshops: true,
+        minRole: 'scorekeeper',
+      },
       {
         href: 'referees',
         labelKey: 'organizer.eventHub.sections.referees',
         icon: 'referees',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       {
         href: 'staff',
         labelKey: 'organizer.eventHub.sections.staff',
         icon: 'staff',
         inWorkshops: true,
+        minRole: 'editor',
       },
     ],
   },
@@ -80,24 +95,28 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.startOfDay.navLabel',
         icon: 'startOfDay',
         inWorkshops: false,
+        minRole: 'scorekeeper',
       },
       {
         href: 'live',
         labelKey: 'organizer.eventHub.sections.live',
         icon: 'live',
         inWorkshops: false,
+        minRole: 'scorekeeper',
       },
       {
         href: 'tournaments',
         labelKey: 'organizer.shell.nav.tournaments',
         icon: 'tournaments',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       {
         href: 'pools',
         labelKey: 'organizer.eventHub.sections.pools',
         icon: 'pools',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       // Between Pools and Bracket because that is where the phase runs:
       // pools -> Swiss -> bracket is a valid three-stage tournament.
@@ -106,18 +125,21 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.swiss',
         icon: 'swiss',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       {
         href: 'bracket',
         labelKey: 'organizer.eventHub.sections.bracket',
         icon: 'bracket',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       {
         href: 'finalranking',
         labelKey: 'organizer.eventHub.sections.finalRanking',
         icon: 'finalRanking',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       // Sits with the results rather than with the exports on the archive page:
       // organisers reach for it straight after the final ranking is settled.
@@ -126,6 +148,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.hemaRatings',
         icon: 'ratings',
         inWorkshops: false,
+        minRole: 'admin',
       },
       // Second-black-card disqualification review queue (write-only state
       // machine before this page existed — the DQ rule never enforced).
@@ -134,6 +157,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.penalties',
         icon: 'penalties',
         inWorkshops: false,
+        minRole: 'read_only',
       },
       // Kept in Workshops only, where it moves to Programme (WORKSHOPS_MOVES).
       {
@@ -141,12 +165,14 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.schedule',
         icon: 'schedule',
         inWorkshops: true,
+        minRole: 'read_only',
       },
       {
         href: 'statistics',
         labelKey: 'organizer.eventHub.sections.statistics',
         icon: 'statistics',
         inWorkshops: false,
+        minRole: 'scorekeeper',
       },
       // Beside the results it qualifies: the report says whether the timings
       // attached to them can be trusted.
@@ -155,6 +181,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.clockReport.navLabel',
         icon: 'clockReport',
         inWorkshops: false,
+        minRole: 'scorekeeper',
       },
       // Reads the same day from the other end: the clock report qualifies the
       // results, this one says what never arrived to be qualified.
@@ -163,6 +190,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.debrief.navLabel',
         icon: 'auditLog',
         inWorkshops: false,
+        minRole: 'scorekeeper',
       },
     ],
   },
@@ -175,6 +203,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.workshops',
         icon: 'workshops',
         inWorkshops: true,
+        minRole: 'read_only',
       },
     ],
   },
@@ -188,42 +217,49 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.compensation',
         icon: 'compensation',
         inWorkshops: false,
+        minRole: 'admin',
       },
       {
         href: 'notifications',
         labelKey: 'organizer.eventHub.sections.notifications',
         icon: 'notifications',
         inWorkshops: true,
+        minRole: 'admin',
       },
       {
         href: 'photos',
         labelKey: 'organizer.eventHub.sections.photos',
         icon: 'photos',
         inWorkshops: true,
+        minRole: 'admin',
       },
       {
         href: 'theme',
         labelKey: 'organizer.eventHub.sections.theme',
         icon: 'theme',
         inWorkshops: true,
+        minRole: 'read_only',
       },
       {
         href: 'archive',
         labelKey: 'organizer.archive.navLabel',
         icon: 'archive',
         inWorkshops: true,
+        minRole: 'admin',
       },
       {
         href: 'ai-assistant',
         labelKey: 'organizer.eventHub.sections.aiAssistant',
         icon: 'aiAssistant',
         inWorkshops: true,
+        minRole: 'admin',
       },
       {
         href: 'chat',
         labelKey: 'organizer.eventHub.sections.chat',
         icon: 'chat',
         inWorkshops: true,
+        minRole: 'admin',
       },
     ],
   },
@@ -265,6 +301,28 @@ export function applyMenuProfile<O extends { readonly inWorkshops: boolean }>(
 }
 
 /**
+ * The sidebar a member's club role opens (ruling 893): an entry below their role goes, and a group
+ * left empty with it. Léa, an Editor, no longer sees Photos and Notifications, whose pages refuse
+ * her. `role` null is a reader with no membership in this club — platform staff, let in by their
+ * platform role — whose reach is decided route by route, so they keep the whole menu. Only the menu
+ * changes: a hidden page still answers a link, with the refusal it always gave.
+ */
+export function applyMemberRole<O extends { readonly minRole: OrgRole }>(
+  groups: readonly EventNavGroup[],
+  orgItems: readonly O[],
+  role: string | null,
+): { groups: readonly EventNavGroup[]; orgItems: readonly O[] } {
+  if (role === null) return { groups, orgItems };
+  const opens = (item: { readonly minRole: OrgRole }) => roleAtLeast(role, item.minRole);
+  return {
+    groups: groups
+      .map((g) => ({ ...g, items: g.items.filter(opens) }))
+      .filter((g) => g.items.length > 0),
+    orgItems: orgItems.filter(opens),
+  };
+}
+
+/**
  * Does `profile` show this entry? The one rule, for the lists above and for an entry the shell
  * builds inline. Only an explicit `workshops` hides: a missing profile shows every entry.
  */
@@ -275,102 +333,4 @@ export function shownIn(
   return profile !== 'workshops' || item.inWorkshops;
 }
 
-// --- collapse state (pure helpers) ------------------------------------------
-
-/** Map of group key → explicitly-collapsed (`false`) / explicitly-open (`true`). */
-export type GroupOpenState = Record<string, boolean>;
-
-/** Parse the persisted blob; tolerate null/garbage and keep only booleans. */
-export function parseGroupState(raw: string | null): GroupOpenState {
-  if (!raw) return {};
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const out: GroupOpenState = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === 'boolean') out[key] = value;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-export function serializeGroupState(state: GroupOpenState): string {
-  return JSON.stringify(state);
-}
-
-/** Groups are open by default; only an explicit `false` collapses them. */
-export function isGroupOpen(state: GroupOpenState, key: string): boolean {
-  return state[key] !== false;
-}
-
-/** Returns a new state with `key` set to `open` (does not mutate the input). */
-export function nextGroupState(state: GroupOpenState, key: string, open: boolean): GroupOpenState {
-  return { ...state, [key]: open };
-}
-
-// --- localStorage-backed store (SSR-safe via useSyncExternalStore) ----------
-//
-// useSyncExternalStore is used instead of useState(localStorage)+useEffect so
-// that (a) the server snapshot is a stable empty object (all groups open),
-// avoiding a hydration mismatch, and (b) no setState-in-effect is introduced
-// (keeps the shell's lint clean under the React Compiler rules).
-
-const STORAGE_KEY = 'myclash.nav.eventGroups.v1';
-const EMPTY_STATE: GroupOpenState = {};
-const listeners = new Set<() => void>();
-
-let cachedRaw: string | null = null;
-let cachedState: GroupOpenState = EMPTY_STATE;
-
-function getSnapshot(): GroupOpenState {
-  if (typeof window === 'undefined') return EMPTY_STATE;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  // Only swap the cached reference when the underlying blob changes, so the
-  // snapshot stays referentially stable between renders.
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    cachedState = parseGroupState(raw);
-  }
-  return cachedState;
-}
-
-function getServerSnapshot(): GroupOpenState {
-  return EMPTY_STATE;
-}
-
-function subscribe(callback: () => void): () => void {
-  listeners.add(callback);
-  if (typeof window !== 'undefined') window.addEventListener('storage', callback);
-  return () => {
-    listeners.delete(callback);
-    if (typeof window !== 'undefined') window.removeEventListener('storage', callback);
-  };
-}
-
-function writeState(next: GroupOpenState): void {
-  if (typeof window === 'undefined') return;
-  const raw = serializeGroupState(next);
-  window.localStorage.setItem(STORAGE_KEY, raw);
-  cachedRaw = raw;
-  cachedState = next;
-  for (const listener of listeners) listener();
-}
-
-export interface EventNavGroupsController {
-  isOpen: (key: string) => boolean;
-  toggle: (key: string) => void;
-}
-
-/** Read/persist which event nav groups are expanded. */
-export function useEventNavGroups(): EventNavGroupsController {
-  const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return {
-    isOpen: (key: string) => isGroupOpen(state, key),
-    toggle: (key: string) => {
-      const current = getSnapshot();
-      writeState(nextGroupState(current, key, !isGroupOpen(current, key)));
-    },
-  };
-}
+export * from './event-nav-collapse';

@@ -19,6 +19,7 @@ export const ORG_NAV_ITEMS = [
     icon: 'overview',
     exact: true,
     inWorkshops: true,
+    minRole: 'scorekeeper',
   },
   // `exact` prevents the events list from staying highlighted once
   // the operator drills into an event — sub-routes
@@ -29,6 +30,7 @@ export const ORG_NAV_ITEMS = [
     icon: 'events',
     exact: true,
     inWorkshops: true,
+    minRole: 'scorekeeper',
   },
   // Single "Rulesets" entry — the page redirects to /scoring and the
   // RulesetsTopNav pill at the top of each tab handles Scoring | Penalty
@@ -39,11 +41,18 @@ export const ORG_NAV_ITEMS = [
     labelKey: 'organizer.shell.nav.rulesets',
     icon: 'rulesets',
     inWorkshops: false,
+    minRole: 'admin',
   },
   // Org-level league management (approve requests, groups, ruleset, roles) for
   // leagues this org administers. `exact: false` so per-league sub-routes
   // (`/org/{slug}/leagues/{leagueId}`) keep the entry highlighted.
-  { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', icon: 'leagues', inWorkshops: false },
+  {
+    href: 'leagues',
+    labelKey: 'organizer.shell.nav.leagues',
+    icon: 'leagues',
+    inWorkshops: false,
+    minRole: 'admin',
+  },
   // Org profile + members self-service (name/logo/contact, add/remove
   // members) — before this entry only super-admins could edit an org.
   // pickActiveHref longest-match keeps it distinct from settings/ai.
@@ -55,12 +64,14 @@ export const ORG_NAV_ITEMS = [
     labelKey: 'organizer.shell.nav.orgSettings',
     icon: 'members',
     inWorkshops: true,
+    minRole: 'admin',
   },
   {
     href: 'settings/ai',
     labelKey: 'organizer.shell.nav.aiSettings',
     icon: 'ai',
     inWorkshops: true,
+    minRole: 'admin',
   },
   // Compensation is unified under each event (Compensation plan + Referee
   // compensation tabs); no standalone org-settings entry.
@@ -68,12 +79,19 @@ export const ORG_NAV_ITEMS = [
   // entry. The event sidebar no longer surfaces venues; the
   // workshop + session venue pickers consume the org catalogue
   // directly.
-  { href: 'venues', labelKey: 'organizer.shell.nav.venues', icon: 'venues', inWorkshops: true },
+  {
+    href: 'venues',
+    labelKey: 'organizer.shell.nav.venues',
+    icon: 'venues',
+    inWorkshops: true,
+    minRole: 'read_only',
+  },
   // The safety reports fighters send about a spar; the page itself is for the club's admins.
   {
     href: 'fightbook-flags',
     labelKey: 'organizer.shell.nav.fightBookFlags',
     icon: 'safetyReports',
     inWorkshops: true,
+    minRole: 'admin',
   },
 ] as const satisfies readonly OrgNavItem[];

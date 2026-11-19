@@ -41,6 +41,8 @@ The `/leagues` and `/display` layouts carry comments saying they sit outside the
 
 **The organiser's sidebar has a Workshops-only mode.** When the organiser picks "Workshops only", the sidebar shows only the entries marked `inWorkshops` (`src/components/event-nav-groups.ts`, `org-nav-items.ts`), so a Workshop organiser is not walked past pools, brackets and referees. The flag is required on every entry: a new one cannot be added without deciding.
 
+**The sidebar hides what the member's role cannot open** (ruling 893). Every entry also carries the club role its page needs to load (`minRole`, read off the API's check on the page's main read), and `applyMemberRole` drops the entries below the reader's role in this club, with any group it empties: an Editor no longer sees Photos or Notifications, whose pages refuse her. The role order is the API's own (`@myclash/types` `ORG_ROLE_ORDER`). A reader with no membership in the club (platform staff) keeps the whole menu. Only the menu changes: a hidden page still answers a link with its refusal.
+
 ## What differs
 
 - **The admin eyebrow is tighter than the public one.** `text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500` — smaller and more letter-spaced than the root's `text-xs tracking-wider`. This is the tournament-programme entry look, and it's why an admin form doesn't read like an admin panel.

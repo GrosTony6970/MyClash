@@ -2,6 +2,7 @@ import { messages } from '@myclash/i18n';
 import { NAV_ICON_NAMES } from '@myclash/ui';
 import { describe, expect, it } from 'vitest';
 import {
+  applyMemberRole,
   applyMenuProfile,
   EVENT_NAV_GROUPS,
   EVENT_NAV_OVERVIEW,
@@ -186,4 +187,60 @@ describe('event nav group headings resolve in every locale', () => {
       }
     });
   }
+});
+
+/**
+ * Ruling 893: the menu hides what a member's club role cannot open. Léa, an Editor, saw Photos and
+ * Notifications and got refused (both need Admin); a read-only member saw the Debrief and got an
+ * error (it needs Scorekeeper).
+ */
+describe('applyMemberRole', () => {
+  const hrefs = (role: string | null) => {
+    const shown = applyMemberRole(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, role);
+    return {
+      event: shown.groups.flatMap((g) => g.items.map((i) => i.href)),
+      org: shown.orgItems.map((i) => i.href),
+    };
+  };
+
+  it('hides from an Editor the pages that need an Admin, and keeps the ones she runs', () => {
+    const { event, org } = hrefs('editor');
+    expect(event).not.toContain('photos');
+    expect(event).not.toContain('notifications');
+    expect(event).not.toContain('compensation');
+    expect(event).toEqual(expect.arrayContaining(['staff', 'pools', 'debrief', 'theme']));
+    expect(org).not.toContain('settings/ai');
+    expect(org).toEqual(expect.arrayContaining(['events', 'venues']));
+  });
+
+  it('hides from a read-only member what needs a Scorekeeper, and keeps what any member reads', () => {
+    const { event, org } = hrefs('read_only');
+    expect(event).not.toContain('debrief');
+    expect(event).not.toContain('live');
+    expect(event).toEqual(expect.arrayContaining(['persons', 'bracket', 'schedule']));
+    expect(org).toEqual(['venues']);
+  });
+
+  it('shows an owner every entry', () => {
+    const all = EVENT_NAV_GROUPS.flatMap((g) => g.items).length;
+    expect(hrefs('owner').event).toHaveLength(all);
+    expect(hrefs('owner').org).toHaveLength(ORG_NAV_ITEMS.length);
+  });
+
+  it('leaves the whole menu to a reader with no membership here (platform staff)', () => {
+    const shown = applyMemberRole(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, null);
+    expect(shown.groups).toBe(EVENT_NAV_GROUPS);
+    expect(shown.orgItems).toBe(ORG_NAV_ITEMS);
+  });
+
+  it('drops a group its role leaves empty, and refuses a role the order does not hold', () => {
+    expect(hrefs('read_only').event).not.toContain('compensation');
+    // An unknown role text opens nothing, as the API's roleAtLeast refuses it.
+    expect(hrefs('coach')).toEqual({ event: [], org: [] });
+    expect(applyMemberRole(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, 'coach').groups).toEqual([]);
+  });
+
+  it('gives the pinned overview a role too: a read-only member does not open it', () => {
+    expect(EVENT_NAV_OVERVIEW.minRole).toBe('scorekeeper');
+  });
 });

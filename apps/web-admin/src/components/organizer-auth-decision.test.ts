@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MeSession } from '@myclash/api-client';
-import { resolveAuthDecision } from './organizer-auth-decision';
+import { memberRoleIn, resolveAuthDecision } from './organizer-auth-decision';
 
 /** A claimed `/me` body carrying only the admin block these tests exercise. */
 function me(admin: MeSession['admin'], type: MeSession['type'] = 'claimed'): MeSession {
@@ -90,4 +90,26 @@ describe('resolveAuthDecision', () => {
       ).toEqual({ kind: 'unauthenticated' });
     },
   );
+});
+
+/** Ruling 893: the menu filters by the reader's role in THIS club, read off /me. */
+describe('memberRoleIn', () => {
+  const lea = me({
+    platformRole: null,
+    hasLeagueRoles: false,
+    organizations: [
+      { id: 'a', slug: 'salle-a', name: 'Salle A', role: 'editor' },
+      { id: 'b', slug: 'salle-b', name: 'Salle B', role: 'owner' },
+    ],
+  } as MeSession['admin']);
+
+  it('reads the role of the club in the URL, not of another club', () => {
+    expect(memberRoleIn(lea, 'salle-a')).toBe('editor');
+    expect(memberRoleIn(lea, 'salle-b')).toBe('owner');
+  });
+
+  it('answers null for a club with no membership (platform staff) and before /me is read', () => {
+    expect(memberRoleIn(lea, 'elsewhere')).toBeNull();
+    expect(memberRoleIn(null, 'salle-a')).toBeNull();
+  });
 });

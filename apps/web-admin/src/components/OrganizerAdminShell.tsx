@@ -7,9 +7,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
-import { resolveAuthDecision } from './organizer-auth-decision';
+import { memberRoleIn, resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import {
+  applyMemberRole,
   applyMenuProfile,
   EVENT_NAV_GROUPS,
   EVENT_NAV_OVERVIEW,
@@ -19,6 +20,7 @@ import {
 import { ORG_NAV_ITEMS } from './org-nav-items';
 import { getPublicApiUrl } from '../lib/api-url';
 import { apiRequest, type MeSession } from '@myclash/api-client';
+import { roleAtLeast } from '@myclash/types';
 
 import { useIdentityGate } from '../hooks/useIdentityGate';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
@@ -92,6 +94,9 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // are allowed into any org, see organizer-auth-decision) or to another club
   // the same account belongs to.
   const me: MeSession | null = identityMe;
+  // The reader's role in THIS club, or null: no membership (platform staff, let in by their
+  // platform role) or no answer yet. The menu hides what this role cannot open (ruling 893).
+  const memberRole = memberRoleIn(identityMe, slug);
   const email = identityMe?.user?.email ?? null;
   const switcherRef = useRef<HTMLDivElement>(null);
 
@@ -184,7 +189,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const navSections = useMemo(() => {
     // The organisation's profile decides which entries the menu shows (Workshops only hides the
     // tournament pages). The pages themselves stay reachable by link.
-    const shown = applyMenuProfile(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, menuProfile);
+    const profiled = applyMenuProfile(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, menuProfile);
+    const shown = applyMemberRole(profiled.groups, profiled.orgItems, memberRole);
+    const overviewOpens =
+      memberRole === null || roleAtLeast(memberRole, EVENT_NAV_OVERVIEW.minRole);
     return [
       {
         key: 'org' as const,
@@ -199,11 +207,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             {
               key: 'event' as const,
               title: t('organizer.shell.eventSection'),
-              // Ungrouped overview pinned under the event switcher.
-              overview: {
-                ...EVENT_NAV_OVERVIEW,
-                href: joinPath(eventBase, EVENT_NAV_OVERVIEW.href),
-              },
+              // Ungrouped overview pinned under the event switcher, unless the role is below it.
+              overview: overviewOpens
+                ? { ...EVENT_NAV_OVERVIEW, href: joinPath(eventBase, EVENT_NAV_OVERVIEW.href) }
+                : null,
               // Themed collapsible groups.
               groups: shown.groups.map((group) => ({
                 key: group.key,
@@ -222,7 +229,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           ]
         : []),
     ];
-  }, [eventBase, selectedEventId, orgBase, menuProfile, t]);
+  }, [eventBase, selectedEventId, orgBase, menuProfile, memberRole, t]);
 
   const workspaces = resolveWorkspaceOptions(me, { kind: 'org', slug });
 
@@ -365,9 +372,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             )}
             {section.key === 'event' ? (
               <>
-                <div className="flex flex-col gap-1">
-                  {renderNavItem(section.overview, activeHref)}
-                </div>
+                {section.overview && (
+                  <div className="flex flex-col gap-1">
+                    {renderNavItem(section.overview, activeHref)}
+                  </div>
+                )}
                 <div className="mt-4 flex flex-col gap-4">
                   {section.groups.map((group) => {
                     const groupOpen = eventGroups.isOpen(group.key);
