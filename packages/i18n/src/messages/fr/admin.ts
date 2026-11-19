@@ -146,7 +146,7 @@ export const admin = {
     recomputeDone: 'Classement recalculé.',
     recomputeFailed: 'Impossible de recalculer le classement.',
     recomputeHint:
-      "Le classement ne se met PAS à jour quand un combat se termine. Il est recalculé lors d'un changement de statut d'événement, et chaque fois que vous appuyez sur ce bouton — un tableau peut donc être en retard sur ses résultats sans le dire.",
+      "Le classement ne se met PAS à jour quand un combat se termine. Il est recalculé quand un événement est terminé, quand il passe de Standard à Test ou Club (ou l'inverse), quand une touche ou un carton d'un événement terminé est corrigé, et chaque fois que vous appuyez sur ce bouton — un tableau peut donc être en retard sur ses résultats sans le dire.",
     preflight: {
       blockingTitle: 'Un recalcul échouerait',
       blockingBody:

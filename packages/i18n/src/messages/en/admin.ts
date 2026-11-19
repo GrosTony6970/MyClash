@@ -140,7 +140,7 @@ export const admin = {
     recomputeDone: 'Rankings recomputed.',
     recomputeFailed: 'Could not recompute rankings.',
     recomputeHint:
-      'Rankings do NOT refresh when a match finishes. They are recomputed when an event changes status, and whenever you press this button — so a table can sit behind its results without saying so.',
+      'Rankings do NOT refresh when a match finishes. They are recomputed when an event is completed, when it changes between Standard and Test or Club, when a hit or card of a completed event is corrected, and whenever you press this button — so a table can sit behind its results without saying so.',
     preflight: {
       blockingTitle: 'A recompute would fail',
       blockingBody:
