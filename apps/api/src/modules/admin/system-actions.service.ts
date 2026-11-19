@@ -7,33 +7,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-
-/**
- * UI-key → docker-compose service name for every component that can be
- * controlled from the System Versions admin page. Mirrors the allowlist in
- * `infra/ops-runner/server.mjs`. Anything not in this map is rejected
- * server-side as a 403, regardless of what the UI sent.
- *
- * Catastrophic / self-referential services are intentionally excluded:
- *   - `api`        — would kill the request mid-flight
- *   - `postgres`   — full data outage
- *   - `traefik`    — lose all HTTPS routing
- *   - `ops-runner` — lose the channel that would restart anything else
- */
-const RESTARTABLE_COMPONENTS: Record<string, string> = {
-  worker: 'worker',
-  'web-admin': 'web-admin',
-  'web-public': 'web-public',
-  'web-staff': 'web-staff',
-  'web-marketing': 'web-marketing',
-  redis: 'redis',
-  supabaseAuth: 'supabase-auth',
-  supabaseRealtime: 'supabase-realtime',
-  supabaseStorage: 'supabase-storage',
-  postgrest: 'supabase-rest',
-  supabaseMeta: 'supabase-meta',
-  supabaseStudio: 'supabase-studio',
-};
+import { RESTARTABLE_COMPONENTS } from './restartable-components';
 
 export type ComponentAction = 'start' | 'stop' | 'restart';
 

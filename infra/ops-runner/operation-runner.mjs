@@ -18,6 +18,16 @@ export function createOperationRunner(deps) {
   return { start: (kind, createCommand, body) => start(deps, kind, createCommand, body) };
 }
 
+/**
+ * A start that a person asked for (D2 of the ops agent's slice 4): a held lock is their 409
+ * `ops_busy` now, not a 202 whose operation fails a moment later.
+ */
+export async function startOrRefuse(runner, kind, createCommand, body) {
+  const { operation, started } = runner.start(kind, createCommand, body);
+  if ((await started) === 'busy') throw new OpsLockBusyError();
+  return operation;
+}
+
 function start(deps, kind, createCommand, body = {}) {
   const operation = {
     id: randomUUID(),

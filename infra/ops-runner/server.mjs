@@ -18,11 +18,12 @@ import {
   readBackupSchedule,
   writeBackupSchedule,
 } from './backup-core.mjs';
+import { createContainerActions, createDeployRunning } from './container-actions.mjs';
 import { readContainerLog, readContainers } from './container-logs.mjs';
 import { parseDfOutput } from './disk.mjs';
 import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
-import { createOperationRunner } from './operation-runner.mjs';
+import { createOperationRunner, startOrRefuse } from './operation-runner.mjs';
 import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
 import { createUploadSessions } from './upload-chunks.mjs';
 import { handleUploadSessions, readJsonBody, sendError, sendJson } from './upload-routes.mjs';
@@ -106,32 +107,20 @@ const uploadSessions = createUploadSessions({
   now: () => new Date(),
 });
 
-// Allowlist of compose service names that may be controlled via the lifecycle
-// endpoints. Mirrored verbatim by the API's system-actions service for
-// defense in depth. Excludes: api (would kill the calling request), postgres
-// (data outage), traefik (lose HTTPS for the whole stack), ops-runner (lose
-// the channel that would restart anything else).
-const CONTAINER_ACTIONS = new Set(['start', 'stop', 'restart']);
-const RESTARTABLE_SERVICES = new Set([
-  'worker',
-  'web-admin',
-  'web-public',
-  'web-staff',
-  'web-marketing',
-  'redis',
-  'supabase-auth',
-  'supabase-realtime',
-  'supabase-storage',
-  'supabase-rest',
-  'supabase-meta',
-  'supabase-studio',
-]);
 const COMPOSE_FLAGS = [
   '--env-file',
   path.join(ROOT_DIR, '.env'),
   '-f',
   'infra/docker-compose.prod.yml',
 ];
+// Container start/restart and certificate renewal (container-actions.mjs): under the ops lock
+// (ruling 886), refused while a deploy holds .deploy.lock (ruling 887).
+const containerActions = createContainerActions({
+  run: spawnCaptureWithTimeout,
+  withLock: (kind, fn) => withOpsLock(ROOT_DIR, { kind, onReclaim: logReclaimedLock }, fn),
+  deployRunning: createDeployRunning(path.join(ROOT_DIR, '.deploy.lock')),
+  composeFlags: COMPOSE_FLAGS,
+});
 
 if (!SECRET) {
   console.error('OPS_RUNNER_SECRET is required');
@@ -186,7 +175,10 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/backup') {
-      sendJson(res, 202, { operation: startOperation('backup', backupCommand).operation });
+      // A held lock is the caller's 409 now (startOrRefuse), not a 202 that fails a moment later.
+      sendJson(res, 202, {
+        operation: await startOrRefuse(operationRunner, 'backup', backupCommand),
+      });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/restore') {
@@ -199,7 +191,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/renew-certs') {
-      sendJson(res, 200, await runCertRenewal());
+      sendJson(res, 200, await containerActions.runCertRenewal());
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/operations/')) {
@@ -231,7 +223,7 @@ const server = createServer(async (req, res) => {
     );
     if (req.method === 'POST' && containerMatch) {
       const [, service, action] = containerMatch;
-      sendJson(res, 200, await runContainerAction(service, action));
+      sendJson(res, 200, await containerActions.runContainerAction(service, action));
       return;
     }
     sendJson(res, 404, { error: 'not_found' });
@@ -775,77 +767,6 @@ async function appendProcess(operation, command) {
       else reject(new Error(`${command[0]} exited with ${code}`));
     });
   });
-}
-
-/**
- * How long a container action may run. Any action on the worker waits for its
- * job in flight when it stops it. From the admin's button that wait is 270 s, not
- * the 5m of its stop_grace_period (rulings 811, 814, 818): the API's call to this
- * route is Node's fetch, which gives up when no answer has come after 300 s
- * (undici's headersTimeout), and this route answers once compose is done. So:
- * 270 s grace < this 285 s bound < the API's 295 s wait
- * (WORKER_ACTION_WAIT_MS, apps/api/src/modules/admin/system-actions.service.ts)
- * < 300 s. infra:review pins the order.
- */
-const DEFAULT_ACTION_TIMEOUT_MS = 30_000;
-const WORKER_STOP_GRACE_S = 270;
-const WORKER_ACTION_TIMEOUT_MS = 285_000;
-
-/**
- * Run a `docker compose <action> <service>` against the production compose
- * file. Bounded to the RESTARTABLE_SERVICES allowlist; rejects everything
- * else with 400/403. Times out (see above) and returns the captured stdio.
- */
-async function runContainerAction(service, action) {
-  if (!CONTAINER_ACTIONS.has(action)) {
-    return { ok: false, error: 'invalid_action' };
-  }
-  if (!RESTARTABLE_SERVICES.has(service)) {
-    return { ok: false, error: 'service_not_allowed' };
-  }
-  const worker = service === 'worker';
-  // `start` takes no timeout: only a stop (or a restart's stop) waits for a job.
-  const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];
-  const result = await spawnCaptureWithTimeout(
-    'docker',
-    ['compose', ...COMPOSE_FLAGS, action, ...grace, service],
-    worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,
-  );
-  return {
-    ok: result.code === 0,
-    service,
-    action,
-    exitCode: result.code,
-    stdout: result.stdout.slice(-4000),
-    stderr: result.stderr.slice(-4000),
-    timedOut: result.timedOut ?? false,
-  };
-}
-
-/**
- * Force a Let's Encrypt renewal attempt by restarting Traefik. On boot Traefik
- * re-runs its ACME resolver and renews any cert already inside its ~30-day
- * window; `acme.json` is never touched, so there is no LE rate-limit risk.
- *
- * This is a deliberate, single-purpose exception to the RESTARTABLE_SERVICES
- * allowlist (which excludes `traefik` on purpose): it can only *restart*
- * Traefik — never stop it — so HTTPS returns within a couple of seconds.
- */
-async function runCertRenewal() {
-  const result = await spawnCaptureWithTimeout(
-    'docker',
-    ['compose', ...COMPOSE_FLAGS, 'restart', 'traefik'],
-    30_000,
-  );
-  return {
-    ok: result.code === 0,
-    service: 'traefik',
-    action: 'renew-certs',
-    exitCode: result.code,
-    stdout: result.stdout.slice(-4000),
-    stderr: result.stderr.slice(-4000),
-    timedOut: result.timedOut ?? false,
-  };
 }
 
 /**

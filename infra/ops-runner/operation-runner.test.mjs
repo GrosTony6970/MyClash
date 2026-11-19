@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createOperationRunner } from './operation-runner.mjs';
+import { createOperationRunner, startOrRefuse } from './operation-runner.mjs';
 import { OpsLockBusyError } from './ops-lock.mjs';
 
 /** A runner whose lock, processes and history are recorded in `events`. */
@@ -134,4 +134,20 @@ test('a scheduled backup that runs is listed once it holds the lock', async () =
   });
   assert.equal(await settled(started), 'running');
   assert.equal(operations.get(started.operation.id)?.status, 'success');
+});
+
+// D2: a backup started by a person meets the lock held → 409 ops_busy, not a 202 that fails a
+// moment later (the screen used to learn it only by polling the operation).
+test('startOrRefuse: a held lock is a refusal, a free one the running operation', async () => {
+  const busy = harness({ lock: 'busy' });
+  await assert.rejects(
+    startOrRefuse(busy.runner, 'backup', async () => ({ command: ['bash', 'b.sh'] })),
+    { statusCode: 409, code: 'ops_busy' },
+  );
+  const free = harness();
+  const operation = await startOrRefuse(free.runner, 'backup', async () => ({
+    command: ['bash', 'b.sh'],
+  }));
+  assert.equal(operation.kind, 'backup');
+  assert.ok(free.operations.has(operation.id));
 });

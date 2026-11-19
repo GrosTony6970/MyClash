@@ -494,6 +494,7 @@ const adminBackupsServicePath = path.join(
   'backups.service.ts',
 );
 const opsRunnerServerPath = path.join(rootDir, 'infra', 'ops-runner', 'server.mjs');
+const containerActionsPath = path.join(rootDir, 'infra', 'ops-runner', 'container-actions.mjs');
 const opsRunnerBackupCorePath = path.join(rootDir, 'infra', 'ops-runner', 'backup-core.mjs');
 const opsRunnerScheduledBackupPath = path.join(
   rootDir,
@@ -695,6 +696,7 @@ const eventsServiceText = await pinned.readPinnedFile(eventsServicePath);
 const adminBackupsControllerText = await pinned.readPinnedFile(adminBackupsControllerPath);
 const adminBackupsServiceText = await pinned.readPinnedFile(adminBackupsServicePath);
 const opsRunnerServerText = await pinned.readPinnedFile(opsRunnerServerPath);
+const containerActionsText = await pinned.readPinnedFile(containerActionsPath);
 const opsRunnerBackupCoreText = await pinned.readPinnedFile(opsRunnerBackupCorePath);
 const opsRunnerScheduledBackupText = await pinned.readPinnedFile(opsRunnerScheduledBackupPath);
 const platformRoleGuardText = await pinned.readPinnedFile(platformRoleGuardPath);
@@ -1146,7 +1148,7 @@ requireLine(
 // is a finding, never a pass.
 const workerStopBounds = (() => {
   if (
-    [workerDrainLibText, opsRunnerServerText, systemActionsServiceText].some(isMissingPinnedFile)
+    [workerDrainLibText, containerActionsText, systemActionsServiceText].some(isMissingPinnedFile)
   ) {
     return null;
   }
@@ -1175,15 +1177,15 @@ const workerStopBounds = (() => {
     ],
     admin: [
       read(
-        'WORKER_STOP_GRACE_S (infra/ops-runner/server.mjs)',
+        'WORKER_STOP_GRACE_S (infra/ops-runner/container-actions.mjs)',
         /^const WORKER_STOP_GRACE_S = ([\d_]+);$/mu,
-        opsRunnerServerText,
+        containerActionsText,
         1,
       ),
       read(
-        'WORKER_ACTION_TIMEOUT_MS (infra/ops-runner/server.mjs)',
+        'WORKER_ACTION_TIMEOUT_MS (infra/ops-runner/container-actions.mjs)',
         /^const WORKER_ACTION_TIMEOUT_MS = ([\d_]+);$/mu,
-        opsRunnerServerText,
+        containerActionsText,
         1 / 1000,
       ),
       read(
@@ -1207,14 +1209,14 @@ for (const [chain, bounds] of Object.entries(workerStopBounds ?? {})) {
 }
 // The admin's stop or restart of the worker passes its grace to compose; `start` takes none.
 requireContains(
-  opsRunnerServerText,
-  'infra/ops-runner/server.mjs',
+  containerActionsText,
+  'infra/ops-runner/container-actions.mjs',
   "const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];",
 );
 requireContains(
-  opsRunnerServerText,
-  'infra/ops-runner/server.mjs',
-  "['compose', ...COMPOSE_FLAGS, action, ...grace, service],\n    worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,",
+  containerActionsText,
+  'infra/ops-runner/container-actions.mjs',
+  "['compose', ...composeFlags, action, ...grace, service],\n        worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,",
 );
 for (const [script, text, up] of [
   ['deploy.sh', deployText, '"${COMPOSE[@]}" up -d || rc=$?'],
