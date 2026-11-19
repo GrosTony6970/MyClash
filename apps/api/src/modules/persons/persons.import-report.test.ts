@@ -3,6 +3,7 @@
  * file's own line, and a reason CODE the page words in her language. The preview and the
  * import word one row the same way, because both ask `importDuplicateReason`.
  */
+import { BadRequestException, Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, type TableSeed } from '../../common/testing/supabase-chain';
 import { CsvImportService } from './csv-import.service';
@@ -111,5 +112,44 @@ describe('the import of a roster file', () => {
     const report = await service(seed).importCsv(EVENT, file, 'u-claire');
     expect(report.invalid).toEqual([{ line: 2, reason: 'not_saved', raw: 'Paul,Petit,' }]);
     expect(JSON.stringify(report)).not.toContain('violates');
+  });
+});
+
+/**
+ * The log names the database's code, never its words: Postgres quotes the value it refused, and
+ * on a roster row that value can be a birth date. The ops agent reads these logs.
+ */
+describe('the import log', () => {
+  function warned(spy: ReturnType<typeof vi.spyOn>): string {
+    return spy.mock.calls.flat().join(' ');
+  }
+
+  it('logs a refused row by its code, without the value Postgres quotes', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const refused = {
+      error: { code: '22007', message: 'invalid input syntax for type date: "Marker-1990"' },
+    };
+    const seed = { ...ROSTER, persons: [{ data: [] }, refused] };
+    const file = Buffer.from('given_name,family_name\nPaul,Petit\n');
+
+    await service(seed).importCsv(EVENT, file, 'u-claire');
+
+    expect(warned(warn)).toContain('invalid_datetime_format (22007)');
+    expect(warned(warn)).not.toContain('Marker-1990');
+    warn.mockRestore();
+  });
+
+  it('logs a failed identity resolve by its kind, without its message', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    resolver.resolveOrCreateGlobalPerson.mockRejectedValue(
+      new BadRequestException('invalid input syntax for type date: "Marker-1990"'),
+    );
+
+    await service(ROSTER).importCsv(EVENT, FILE, 'u-claire');
+
+    expect(warned(warn)).toContain('global person resolve failed');
+    expect(warned(warn)).toContain('BadRequestException');
+    expect(warned(warn)).not.toContain('Marker-1990');
+    warn.mockRestore();
   });
 });

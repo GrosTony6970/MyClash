@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EVENT_IMPORT_COLUMNS, GLOBAL_IMPORT_COLUMNS } from './csv-columns';
 import { CsvImportService, detectCsvDelimiter } from './csv-import.service';
 
@@ -345,5 +346,19 @@ Marie;Lefèvre;marie@example.com`;
     it('skips blank leading lines', () => {
       expect(detectCsvDelimiter('\n\n   \ngiven_name;family_name;email')).toBe(';');
     });
+  });
+
+  // The parser's message quotes the cell it choked on (a name, an address); the log names its
+  // code only. The ops agent reads these logs.
+  it('logs an unreadable file by the parser code, without the cell', () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const file = Buffer.from('given_name,family_name\nMarker"Name,Petit\n');
+
+    service.parse(file, EVENT_IMPORT_COLUMNS);
+
+    const line = warn.mock.calls.flat().join(' ');
+    expect(line).toContain('CSV parse error: INVALID_OPENING_QUOTE');
+    expect(line).not.toContain('Marker');
+    warn.mockRestore();
   });
 });

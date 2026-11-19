@@ -4,7 +4,8 @@
  * An overwrite edits an existing profile and leaves that fact as it was. Its preview and its
  * report say which line of the file a row is and why it was refused, by a code (O17).
  */
-import { describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { CsvImportService } from '../persons/csv-import.service';
 import { FightersService } from './fighters.service';
@@ -77,6 +78,26 @@ describe('the bulk import says why a row failed, by a code', () => {
       { index: 8, reason: 'not_saved' },
     ]);
     expect(JSON.stringify(report)).not.toContain('violates');
+  });
+
+  // Postgres quotes the value it refused, and a profile row carries a birth date: the log names
+  // the code only. The ops agent reads these logs.
+  it('logs a refused row by its code, without the value Postgres quotes', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const refused = { code: '22007', message: 'invalid input syntax for type date: "Marker-1990"' };
+    const db = mockSupabase({ global_persons: { error: refused } });
+    const service = new FightersService(db as never, {} as never);
+
+    await service.commitGlobalPersonsImport([
+      decision({ index: 7, action: 'create' }),
+      decision({ index: 8, action: 'overwrite', targetGlobalPersonId: 'gp-old' }),
+    ] as never);
+
+    const line = warn.mock.calls.flat().join(' ');
+    expect(line).toContain('line 7 not saved: row not saved: invalid_datetime_format (22007)');
+    expect(line).toContain('line 8 not saved: row not saved: invalid_datetime_format (22007)');
+    expect(line).not.toContain('Marker-1990');
+    warn.mockRestore();
   });
 });
 

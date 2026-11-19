@@ -17,6 +17,7 @@ import type {
   PersonCreated,
   PreviewRow,
 } from '@myclash/types';
+import { databaseReason, logReason } from '../../common/log-reason';
 import { SupabaseService } from '../supabase/supabase.service';
 import { freeRowOfAnotherAddress, syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
@@ -448,8 +449,9 @@ export class PersonsService {
         .single();
 
       if (error) {
-        // The organiser reads "not saved" on the row; the database's own words stay here.
-        this.logger.warn(`import: row on line ${row.line} not saved: ${error.message}`);
+        // The organiser reads "not saved" on the row; the log keeps the database's code. Its
+        // words can quote the value it refused, a birth date among them (the ops agent reads logs).
+        this.logger.warn(`import: row on line ${row.line} not saved: ${databaseReason(error)}`);
         report.invalid.push({
           line: row.line,
           reason: 'not_saved',
@@ -979,9 +981,7 @@ export class PersonsService {
     } catch (resolveError) {
       // One un-resolvable row must not abort the whole import.
       this.logger.warn(
-        `import: global person resolve failed for person ${personId}: ${
-          resolveError instanceof Error ? resolveError.message : String(resolveError)
-        }`,
+        `import: global person resolve failed for person ${personId}: ${logReason(resolveError)}`,
       );
       return null;
     }

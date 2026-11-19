@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
+import { logReason } from '../../common/log-reason';
 import { getDateFormat, type ImportRowProblem } from '@myclash/types';
 import { columnOf, type CsvColumn } from './csv-columns';
 import { openQuoteLine, recordLine } from './csv-lines';
@@ -69,6 +70,12 @@ export interface ParsedCsvResult {
  * A file csv-parse gave up on: one refusal, at the line where it stopped, or for a
  * quote never closed, where that quote opens (csv-parse names the file's last line).
  */
+/** csv-parse's code (`INVALID_OPENING_QUOTE`), else the error's kind: never its message. */
+function parserCode(err: unknown): string {
+  const { code } = err as { code?: unknown };
+  return typeof code === 'string' ? code : logReason(err);
+}
+
 function unreadableFile(err: unknown, content: string): ParsedCsvResult {
   const { code, lines } = err as { code?: unknown; lines?: unknown };
   const line = (code === 'CSV_QUOTE_NOT_CLOSED' && openQuoteLine(content)) || lines;
@@ -224,7 +231,8 @@ export class CsvImportService {
         raw: true,
       }) as ParsedRecord[];
     } catch (err) {
-      this.logger.warn(`CSV parse error: ${String(err)}`);
+      // The parser's code, never its message: that quotes the cell it choked on.
+      this.logger.warn(`CSV parse error: ${parserCode(err)}`);
       return unreadableFile(err, content);
     }
 

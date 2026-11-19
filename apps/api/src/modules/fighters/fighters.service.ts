@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
+import { logReason, unreadable } from '../../common/log-reason';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, type ImportRowProblem } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
@@ -2411,11 +2412,10 @@ export class FightersService {
     let updated = 0;
     let skipped = 0;
     const failed: Array<{ index: number } & ImportRowProblem> = [];
-    // The admin reads "not saved" on the row; the database's own words stay here.
+    // The admin reads "not saved" on the row; the log keeps the database's code. Its words can
+    // quote the value it refused, a birth date among them (the ops agent reads logs).
     const notSaved = (index: number, cause: unknown) => {
-      this.logger.warn(
-        `global import: row on line ${index} not saved: ${cause instanceof Error ? cause.message : String(cause)}`,
-      );
+      this.logger.warn(`global import: row on line ${index} not saved: ${logReason(cause)}`);
       failed.push({ index, reason: 'not_saved' });
     };
     const newClubs: string[] = [];
@@ -2484,7 +2484,7 @@ export class FightersService {
             .update({ ...payload, updated_at: new Date().toISOString() })
             .eq('id', decision.targetGlobalPersonId);
           if (error) {
-            notSaved(decision.index, new Error(error.message));
+            notSaved(decision.index, unreadable('row not saved', error));
             continue;
           }
           globalPersonId = decision.targetGlobalPersonId;
@@ -2498,7 +2498,7 @@ export class FightersService {
             .select('id')
             .single();
           if (error) {
-            notSaved(decision.index, new Error(error.message));
+            notSaved(decision.index, unreadable('row not saved', error));
             continue;
           }
           globalPersonId = data ? String((data as Row)['id']) : null;
