@@ -10,6 +10,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { refereeRoleName } from '@/lib/referee-role-name';
+import { builtInDescription } from './built-in-description';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
 interface RefereeSkill {
@@ -330,8 +331,8 @@ export default function OrgCompensationPlansPage() {
                 <div className="flex items-center justify-between px-4 py-3">
                   <div>
                     <span className="font-medium text-foreground">{plan.name}</span>
-                    {plan.description && (
-                      <span className="ml-2 text-xs text-muted">{plan.description}</span>
+                    {builtInDescription(plan, t) && (
+                      <span className="ml-2 text-xs text-muted">{builtInDescription(plan, t)}</span>
                     )}
                     <span className="ml-2 text-xs bg-info/10 text-info px-1.5 py-0.5 rounded">
                       {t('organizer.compensationSettings.builtIn')}

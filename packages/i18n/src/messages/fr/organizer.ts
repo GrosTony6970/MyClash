@@ -1420,6 +1420,9 @@ export const organizer = {
     tiersSaved:
       'Paliers enregistrés. Ce barème est celui de votre club : chaque événement qui l’utilise paie ces paliers.',
     builtInPlans: 'Plans intégrés',
+    builtInDescription: {
+      ffamhe: "Plan de compensation officiel FFAMHE (points d'arbitrage)",
+    },
     builtIn: 'intégré',
     yourPlans: 'Vos plans',
     newPlanAction: '+ Nouveau plan',

@@ -1418,6 +1418,10 @@ export const organizer = {
     ratesSaved: 'Rates saved. This plan is your club’s: every Event that uses it pays these rates.',
     tiersSaved: 'Tiers saved. This plan is your club’s: every Event that uses it pays these tiers.',
     builtInPlans: 'Built-in plans',
+    // A built-in plan's description, by plan name: the stored one is French seed text (0027).
+    builtInDescription: {
+      ffamhe: 'The official FFAMHE plan (refereeing points)',
+    },
     builtIn: 'built-in',
     yourPlans: 'Your plans',
     newPlanAction: '+ New plan',
