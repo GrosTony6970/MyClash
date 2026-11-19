@@ -120,11 +120,15 @@ export const TOURNAMENT_READS: Record<string, unknown> = {
   [`${RECAP}?locale=fr`]: null,
 };
 
-/** A recap as its read and its saves answer it. */
+/**
+ * A recap as its read and its saves answer it. A published one carries its publish time, as the
+ * server sends it (0278): the tab offers Unpublish while a recap is public (ruling 889).
+ */
 export const recap = (status: 'draft' | 'published') => ({
   content: 'Anna won the final.',
   status,
   generatedAt: '2025-06-01T10:00:00.000Z',
+  publishedAt: status === 'published' ? '2025-06-01T11:00:00.000Z' : null,
   model: null,
 });
 
