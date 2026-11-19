@@ -43,6 +43,8 @@ source "$SCRIPT_DIR/lib/worker-drain.sh"
 # --pull updates the checkout, then re-runs THIS script from it (ruling 400), so the
 # build and every later step are the new code, not the copy bash started with.
 source "$SCRIPT_DIR/lib/pull-reexec.sh"
+# Wait for a running ops-runner job before anything moves (ruling 898).
+source "$SCRIPT_DIR/lib/ops-jobs-wait.sh"
 ORIG_ARGS=("$@")
 
 usage() {
@@ -121,6 +123,10 @@ set +a
 LOCK_FILE="$ROOT_DIR/.deploy.lock"
 mc_lock_deploy "$LOCK_FILE" "Another deploy/redeploy is already running."
 trap 'rm -f "$LOCK_FILE"' EXIT
+
+# An ops-runner job that started before the lock would run beside the recreate: wait for it
+# (ruling 898).
+mc_wait_for_ops_jobs
 
 # ── Compose file selection ───────────────────────────────────────
 # Certificate mode from TLS_CERTS in .env; --dev-certs records staging there.

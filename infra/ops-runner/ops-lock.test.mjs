@@ -10,6 +10,7 @@ import {
   acquireOpsLock,
   inspectOpsLock,
   opsLockPath,
+  readOpsLockState,
   releaseOpsLock,
   resetLiveTokensForTest,
   withOpsLock,
@@ -205,4 +206,28 @@ test('withOpsLock returns the body result and serialises against a held lock', a
 test('inspectOpsLock reports a missing lock as vanished rather than stale', async () => {
   const root = await tempRoot();
   assert.deepEqual(await inspectOpsLock(opsLockPath(root)), { verdict: 'vanished' });
+});
+
+// Slice 4b: what a deploy asks before it moves the checkout (GET /ops-lock, ruling 898).
+test('readOpsLockState: held only while a job of this runner runs it, with its kind and start', async () => {
+  const root = await tempRoot();
+  assert.deepEqual(await readOpsLockState(root), { held: false, kind: null, since: null });
+  await withOpsLock(root, { kind: 'container' }, async () => {
+    const state = await readOpsLockState(root);
+    assert.equal(state.held, true);
+    assert.equal(state.kind, 'container');
+    assert.equal(Number.isNaN(Date.parse(state.since)), false);
+  });
+  assert.deepEqual(await readOpsLockState(root), { held: false, kind: null, since: null });
+});
+
+test('readOpsLockState: a lock of an earlier runner process is not held', async () => {
+  const root = await tempRoot();
+  await plantLock(root, {
+    token: 't',
+    instanceId: 'an-earlier-process',
+    kind: 'backup',
+    startedAt: '2026-11-20T00:00:00.000Z',
+  });
+  assert.deepEqual(await readOpsLockState(root), { held: false, kind: null, since: null });
 });

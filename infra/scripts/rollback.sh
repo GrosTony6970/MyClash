@@ -34,6 +34,8 @@ source "$SCRIPT_DIR/lib/traefik-env.sh"
 source "$SCRIPT_DIR/lib/system-versions.sh"
 # The ops agent's key seed, sourced here for the same reason (ruling 885).
 source "$SCRIPT_DIR/lib/ops-agent-seed.sh"
+# Wait for a running ops-runner job before anything moves (ruling 898).
+source "$SCRIPT_DIR/lib/ops-jobs-wait.sh"
 
 case "${1:-}" in
   -h|--help)
@@ -56,6 +58,10 @@ if ! flock -n 9; then
   exit 1
 fi
 trap 'rm -f "$LOCK_FILE"' EXIT
+
+# An ops-runner job that started before the lock (a backup, a restore) would run beside the
+# rollback's stop, reset and rebuild: wait for it (ruling 898).
+mc_wait_for_ops_jobs
 
 # ── Read last deploy metadata ────────────────────────────────────
 hdr "Reading last deploy metadata"

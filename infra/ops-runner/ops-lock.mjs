@@ -167,6 +167,17 @@ export async function releaseOpsLock(handle) {
   if (owned) await rm(handle.lockPath, { force: true }).catch(() => undefined);
 }
 
+/**
+ * Whether a job of this runner holds the lock now, as a deploy asks it (GET /ops-lock): held only
+ * on `inspectOpsLock`'s `held` verdict, which this process alone can give (its live tokens). A
+ * missing, stale or foreign lock is free: no live job holds it.
+ */
+export async function readOpsLockState(rootDir, now = Date.now()) {
+  const state = await inspectOpsLock(opsLockPath(rootDir), now);
+  if (state.verdict !== 'held') return { held: false, kind: null, since: null };
+  return { held: true, kind: state.holder?.kind ?? null, since: state.holder?.startedAt ?? null };
+}
+
 /** Run `fn` under the ops lock, releasing it however `fn` settles. */
 export async function withOpsLock(rootDir, options, fn) {
   const handle = await acquireOpsLock(rootDir, options);

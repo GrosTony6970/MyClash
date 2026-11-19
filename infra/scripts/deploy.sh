@@ -58,6 +58,8 @@ source "$SCRIPT_DIR/lib/system-versions.sh"
 
 # Pull, then run the new copy of this script (ruling 400).
 source "$SCRIPT_DIR/lib/pull-reexec.sh"
+# Wait for a running ops-runner job before the checkout moves (ruling 898).
+source "$SCRIPT_DIR/lib/ops-jobs-wait.sh"
 
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
@@ -393,6 +395,11 @@ on_exit() {
   fi
 }
 trap on_exit EXIT
+
+# A backup, a restore or a container action of the ops runner that started before the lock
+# above would run beside this deploy: under its compose calls the checkout would move, and the
+# rebuild would recreate the runner mid-job. Wait for it, before anything moves (ruling 898).
+mc_wait_for_ops_jobs
 
 # ── Pull latest code ─────────────────────────────────────────────
 # Before validation, so .env is repaired by the NEW ensure-prod-env and every

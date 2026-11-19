@@ -22,7 +22,7 @@ import { createContainerActions, createDeployRunning } from './container-actions
 import { readContainerLog, readContainers } from './container-logs.mjs';
 import { parseDfOutput } from './disk.mjs';
 import { parseDockerInfo } from './host-info.mjs';
-import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
+import { acquireOpsLock, readOpsLockState, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 import { createOperationRunner, startOrRefuse } from './operation-runner.mjs';
 import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
 import { spawnCaptureWithTimeout as spawnCaptureInRoot } from './spawn-capture.mjs';
@@ -155,6 +155,12 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/disk/prune') {
       sendJson(res, 200, await containerActions.runDiskPrune());
+      return;
+    }
+    // What deploy.sh, redeploy.sh and rollback.sh ask before they move the checkout
+    // (ops-lock-probe.mjs, infra/scripts/lib/ops-jobs-wait.sh).
+    if (req.method === 'GET' && url.pathname === '/ops-lock') {
+      sendJson(res, 200, await readOpsLockState(ROOT_DIR));
       return;
     }
     if (req.method === 'GET' && url.pathname === '/host') {

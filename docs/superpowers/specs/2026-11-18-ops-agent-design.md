@@ -301,8 +301,11 @@ fixed (the root cause); the scrub is not widened to hide it.
   ops runner's lock or is refused (409 `ops_busy`, ruling 886; the lock did not cover container
   actions and renewals before slice 4), and a container action or a renewal is refused while a
   deploy runs (409 `deploy_running`, ruling 887). The skill tells Claude to treat a 409 as
-  "someone else is acting" and to report it. Left open: a deploy does not take the ops lock, so an
-  action already running when a deploy starts finishes beside it.
+  "someone else is acting" and to report it. An action already running when a deploy starts is
+  waited for (slice 4b, ruling 898): right after `deploy.sh`, `redeploy.sh` or `rollback.sh` takes
+  `.deploy.lock`, and before it moves the checkout, it asks the runner (`GET /ops-lock` through
+  `docker exec`) and waits up to 10 minutes while a job holds the lock. The deploy cannot take the
+  ops lock itself: the runner reclaims a lock stamped by any other process as stale.
 
 ### 5. The cloud task and its instructions
 
