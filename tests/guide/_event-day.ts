@@ -58,6 +58,15 @@ export async function shootEventDay(
     0,
   );
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+  // The sidebar shows the E2E account and its club's logo, both allowed; the
+  // bout itself (its <main>) must show no image, and the audit log no other email.
+  expect(await page.locator('main img').count(), 'an image in the bout page').toBe(0);
+  const e2eEmail = (process.env.E2E_ADMIN_EMAIL ?? '').toLowerCase();
+  const emails = (await page.locator('body').innerText()).match(/[\w.+-]+@[\w-]+\.[\w.]+/gu) ?? [];
+  expect(
+    emails.filter((email) => email.toLowerCase() !== e2eEmail),
+    'another email',
+  ).toEqual([]);
   await page.screenshot({ path: `${out}/16-match-page.png` });
 }
 
