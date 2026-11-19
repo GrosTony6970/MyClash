@@ -12,7 +12,7 @@ section: day
 - **Saisissez l'e-mail de chaque combattant** (dans l'import ou à la main). Un combattant
   revendique son profil avec cet e-mail.
 - **C'est vous qui inscrivez les combattants aux tournois.** Ils ne peuvent pas le faire
-  eux-mêmes. Ils peuvent réserver une place dans un stage eux-mêmes, une fois dans la liste des
+  eux-mêmes. Ils peuvent réserver une place dans un atelier eux-mêmes, une fois dans la liste des
   participants.
 - **Vous pouvez envoyer son pass à chaque combattant :** sur **Participants**, **Envoyer les
   pass** en envoie un à tous ceux qui ont un e-mail et pas de compte MyClash. _Éditeur_ ou plus.
@@ -34,12 +34,12 @@ Sur la page de l'événement, sous **Vous participez à cet événement ?**, tou
 nom**, puis votre nom. Sous **C'est moi !**, deux choix :
 
 - **Accès rapide sans compte :** votre planning, votre pass, suivre d'autres combattants et
-  réserver des stages, sur ce téléphone seulement, jusqu'à une semaine après l'événement.
+  réserver des ateliers, sur ce téléphone seulement, jusqu'à une semaine après l'événement.
   **Terminer la session invité** y met fin.
 - **Revendiquer mon profil :** vous relie à votre compte MyClash (voir plus bas).
 
 **Mon planning** liste vos combats avec la lice, l'adversaire et le score, vos arbitrages et vos
-stages, et signale les conflits. **Me concentrer sur moi** ne garde que ce qui vous concerne. Le
+ateliers, et signale les conflits. **Me concentrer sur moi** ne garde que ce qui vous concerne. Le
 téléphone en garde une copie pour quand le réseau tombe.
 
 ## Votre pass pour l'accueil
@@ -64,14 +64,14 @@ des notifications.
 ## Les notifications
 
 Les rappels demandent un compte. Dans votre espace, **Activer les notifications**, puis choisissez ce que vous
-voulez : un rappel avant un combat, un arbitrage ou un stage, **Changements d'horaire**,
+voulez : un rappel avant un combat, un arbitrage ou un atelier, **Changements d'horaire**,
 **Résultats publiés**, et d'autres. Elles arrivent en notifications sur le téléphone, ou par
 e-mail si vous ne les avez pas activées.
 
-## Les stages
+## Les ateliers
 
-Sur la page d'un stage, **S'inscrire** réserve une place ; quand il est complet, **Rejoindre la
-liste d'attente**. **Annuler l'inscription** rend la place. Une session par stage.
+Sur la page d'un atelier, **S'inscrire** réserve une place ; quand il est complet, **Rejoindre la
+liste d'attente**. **Annuler l'inscription** rend la place. Une session par atelier.
 
 ## Suivre d'autres combattants
 

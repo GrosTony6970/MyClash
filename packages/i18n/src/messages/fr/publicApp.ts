@@ -1024,7 +1024,7 @@ export const publicApp = {
     googleOnlyBody: 'Aucun mot de passe nécessaire — continuez avec Google.',
     dataTitle: 'Vos données',
     dataSubtitle:
-      'Téléchargez tout ce que MyClash conserve à votre sujet — profil, événements, matchs, arbitrage, stages, la liste des photos envoyées depuis votre espace personnel et préférences — sous forme d’une archive de fichiers lisibles.',
+      'Téléchargez tout ce que MyClash conserve à votre sujet — profil, événements, matchs, arbitrage, ateliers, la liste des photos envoyées depuis votre espace personnel et préférences — sous forme d’une archive de fichiers lisibles.',
     dataDownload: 'Télécharger mes données',
     dataDownloading: 'Préparation du téléchargement…',
     dataError: 'Impossible de générer votre export. Réessayez.',
@@ -1378,7 +1378,7 @@ export const publicApp = {
     loadError: 'Impossible de charger vos ateliers.',
   },
   workshops: {
-    searchPlaceholder: 'Rechercher par atelier ou intervenant…',
+    searchPlaceholder: 'Rechercher par atelier ou instructeur…',
     filterDay: 'Jour',
     allDays: 'Tous les jours',
     filterCategory: 'Catégorie',

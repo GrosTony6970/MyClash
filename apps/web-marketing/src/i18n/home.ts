@@ -121,8 +121,8 @@ const fr: HomeCopy = {
       text: "Qualifications, disponibilités et affectation aux pistes, avec la garantie qu'un combattant n'arbitre jamais une poule qui recoupe ses propres combats. Les indemnités se calculent depuis un barème par rôle, avec plancher de paiement.",
     },
     {
-      title: 'Les stages aussi, pas que les tournois',
-      text: "Un événement AMHE, ce n'est pas seulement des combats. Programmez vos ateliers, gérez les inscriptions et les intervenants, et récoltez les retours des participants après coup.",
+      title: 'Les ateliers aussi, pas que les tournois',
+      text: "Un événement AMHE, ce n'est pas seulement des combats. Programmez vos ateliers, gérez les inscriptions et les instructeurs, et récoltez les retours des participants après coup.",
     },
     {
       title: 'Les photos de votre événement',
