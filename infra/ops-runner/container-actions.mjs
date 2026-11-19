@@ -60,62 +60,72 @@ const RENEW_TIMEOUT_MS = 30_000;
  * composeFlags, log(line) }.
  */
 export function createContainerActions(deps) {
-  const { run, withLock, deployRunning, composeFlags } = deps;
-  const schedule = deps.schedule ?? ((ms, fn) => setTimeout(fn, ms).unref?.());
-  const log = deps.log ?? ((line) => console.warn(line));
+  const bound = {
+    ...deps,
+    schedule: deps.schedule ?? ((ms, fn) => setTimeout(fn, ms).unref?.()),
+    log: deps.log ?? ((line) => console.warn(line)),
+  };
+  return {
+    runContainerAction: (service, action) => runContainerAction(bound, service, action),
+    runCertRenewal: () => runCertRenewal(bound),
+  };
+}
 
-  async function refuseDuringDeploy() {
-    if (await deployRunning()) {
-      throw refusal(409, 'A deploy is running on the server.', 'deploy_running');
-    }
+async function refuseDuringDeploy({ deployRunning }) {
+  if (await deployRunning()) {
+    throw refusal(409, 'A deploy is running on the server.', 'deploy_running');
   }
+}
 
-  /**
-   * Run a `docker compose <action> <service>` against the production compose
-   * file. Bounded to the RESTARTABLE_SERVICES allowlist. Times out (see above)
-   * and returns the captured stdio.
-   */
-  async function runContainerAction(service, action) {
-    if (!CONTAINER_ACTIONS.has(action)) {
-      return { ok: false, error: 'invalid_action' };
-    }
-    if (!RESTARTABLE_SERVICES.has(service)) {
-      return { ok: false, error: 'service_not_allowed' };
-    }
-    await refuseDuringDeploy();
-    return withLock('container', async () => {
-      const worker = service === 'worker';
-      // `start` takes no timeout: only a stop (or a restart's stop) waits for a job.
-      const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];
-      const result = await run(
-        'docker',
-        ['compose', ...composeFlags, action, ...grace, service],
-        worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,
-      );
-      return {
-        ok: result.code === 0,
-        service,
-        action,
-        exitCode: result.code,
-        stdout: result.stdout.slice(-4000),
-        stderr: result.stderr.slice(-4000),
-        timedOut: result.timedOut ?? false,
-      };
-    });
+/**
+ * Run a `docker compose <action> <service>` against the production compose
+ * file. Bounded to the RESTARTABLE_SERVICES allowlist. Times out (see above)
+ * and returns the captured stdio.
+ */
+async function runContainerAction(deps, service, action) {
+  const { run, withLock, composeFlags } = deps;
+  if (!CONTAINER_ACTIONS.has(action)) {
+    return { ok: false, error: 'invalid_action' };
   }
+  if (!RESTARTABLE_SERVICES.has(service)) {
+    return { ok: false, error: 'service_not_allowed' };
+  }
+  await refuseDuringDeploy(deps);
+  return withLock('container', async () => {
+    const worker = service === 'worker';
+    // `start` takes no timeout: only a stop (or a restart's stop) waits for a job.
+    const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];
+    const result = await run(
+      'docker',
+      ['compose', ...composeFlags, action, ...grace, service],
+      worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,
+    );
+    return {
+      ok: result.code === 0,
+      service,
+      action,
+      exitCode: result.code,
+      stdout: result.stdout.slice(-4000),
+      stderr: result.stderr.slice(-4000),
+      timedOut: result.timedOut ?? false,
+    };
+  });
+}
 
-  /**
-   * Force a Let's Encrypt renewal attempt by restarting Traefik. On boot Traefik
-   * re-runs its ACME resolver and renews any cert already inside its ~30-day
-   * window; `acme.json` is never touched, so there is no LE rate-limit risk.
-   * A deliberate, single-purpose exception to the RESTARTABLE_SERVICES allowlist:
-   * it can only *restart* Traefik, never stop it. The answer says the restart is
-   * scheduled; its result shows in the certificate state read after it.
-   */
-  async function runCertRenewal() {
-    await refuseDuringDeploy();
-    return new Promise((resolve, reject) => {
-      withLock(
+/**
+ * Force a Let's Encrypt renewal attempt by restarting Traefik. On boot Traefik
+ * re-runs its ACME resolver and renews any cert already inside its ~30-day
+ * window; `acme.json` is never touched, so there is no LE rate-limit risk.
+ * A deliberate, single-purpose exception to the RESTARTABLE_SERVICES allowlist:
+ * it can only *restart* Traefik, never stop it. The answer says the restart is
+ * scheduled; its result shows in the certificate state read after it. The lock
+ * is held until the restart has ended.
+ */
+async function runCertRenewal(deps) {
+  await refuseDuringDeploy(deps);
+  return new Promise((resolve, reject) => {
+    deps
+      .withLock(
         'renew-certs',
         () =>
           new Promise((done) => {
@@ -127,22 +137,22 @@ export function createContainerActions(deps) {
               exitCode: null,
               timedOut: false,
             });
-            schedule(RENEW_DELAY_MS, () =>
-              run('docker', ['compose', ...composeFlags, 'restart', 'traefik'], RENEW_TIMEOUT_MS)
-                .then((result) => {
-                  if (result.code !== 0 || result.timedOut) {
-                    log(`[renew-certs] restarting traefik failed (exit ${result.code})`);
-                  }
-                })
-                .catch((error) => log(`[renew-certs] restarting traefik failed: ${error}`))
-                .finally(done),
-            );
+            deps.schedule(RENEW_DELAY_MS, () => restartTraefik(deps).finally(done));
           }),
-      ).catch(reject);
-    });
-  }
+      )
+      .catch(reject);
+  });
+}
 
-  return { runContainerAction, runCertRenewal };
+/** The renewal's restart, after its answer has left. A failure is logged, never thrown. */
+function restartTraefik({ run, composeFlags, log }) {
+  return run('docker', ['compose', ...composeFlags, 'restart', 'traefik'], RENEW_TIMEOUT_MS)
+    .then((result) => {
+      if (result.code !== 0 || result.timedOut) {
+        log(`[renew-certs] restarting traefik failed (exit ${result.code})`);
+      }
+    })
+    .catch((error) => log(`[renew-certs] restarting traefik failed: ${error}`));
 }
 
 /**

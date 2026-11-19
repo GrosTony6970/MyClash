@@ -1216,7 +1216,7 @@ requireContains(
 requireContains(
   containerActionsText,
   'infra/ops-runner/container-actions.mjs',
-  "['compose', ...composeFlags, action, ...grace, service],\n        worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,",
+  "['compose', ...composeFlags, action, ...grace, service],\n      worker ? WORKER_ACTION_TIMEOUT_MS : DEFAULT_ACTION_TIMEOUT_MS,",
 );
 for (const [script, text, up] of [
   ['deploy.sh', deployText, '"${COMPOSE[@]}" up -d || rc=$?'],

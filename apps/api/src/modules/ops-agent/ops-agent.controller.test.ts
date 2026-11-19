@@ -2,7 +2,56 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentLogsService } from './agent-logs.service';
 import { OpsAgentController } from './ops-agent.controller';
 
+/** Slice 4's doubles: the live-Event read, the system actions, the backup's trigger. */
+function actionDoubles(backups: object) {
+  const eventsLive = {
+    read: vi.fn().mockResolvedValue({ generatedAt: 'g', live: false, events: [] }),
+  };
+  const systemActions = {
+    runComponentAction: vi.fn().mockResolvedValue({
+      ok: true,
+      service: 'supabase-rest',
+      action: 'restart',
+      exitCode: 0,
+      stdout: 'marker-out',
+      stderr: 'marker-err',
+    }),
+    renewCertificates: vi.fn().mockResolvedValue({ ok: true, scheduled: true, exitCode: null }),
+  };
+  Object.assign(backups, {
+    triggerBackup: vi.fn().mockResolvedValue({
+      operation: { id: 'op', kind: 'backup', status: 'running', startedAt: 's', logTail: ['x'] },
+    }),
+  });
+  return { eventsLive, systemActions };
+}
+
 function build() {
+  const { runtime, host, versions, backups, tls } = readDoubles();
+  const { eventsLive, systemActions } = actionDoubles(backups);
+  // The real service over a stub runner: the scrub is the service's, so a double would prove
+  // nothing about what the agent reads.
+  const runner = { body: {} as unknown };
+  const agentLogs = new AgentLogsService({
+    opsRunnerUrl: 'http://ops-runner:4075',
+    opsRunnerSecret: 's',
+    fetchImpl: (async () => new Response(JSON.stringify(runner.body))) as unknown as typeof fetch,
+  });
+  const controller = new OpsAgentController(
+    runtime as never,
+    host as never,
+    versions as never,
+    backups as never,
+    tls as never,
+    agentLogs,
+    eventsLive as never,
+    systemActions as never,
+  );
+  return { controller, runtime, host, versions, backups, tls, runner, eventsLive, systemActions };
+}
+
+/** The admin services the door's health reads pass through. */
+function readDoubles() {
   const runtime = { collect: vi.fn().mockResolvedValue({ overall: 'ok' }) };
   const host = { collect: vi.fn().mockResolvedValue({ hostname: 'vps' }) };
   const versions = {
@@ -34,44 +83,7 @@ function build() {
     }),
   };
   const tls = { probeAll: vi.fn().mockResolvedValue({ minDays: 40 }) };
-  const eventsLive = {
-    read: vi.fn().mockResolvedValue({ generatedAt: 'g', live: false, events: [] }),
-  };
-  const systemActions = {
-    runComponentAction: vi.fn().mockResolvedValue({
-      ok: true,
-      service: 'supabase-rest',
-      action: 'restart',
-      exitCode: 0,
-      stdout: 'marker-out',
-      stderr: 'marker-err',
-    }),
-    renewCertificates: vi.fn().mockResolvedValue({ ok: true, scheduled: true, exitCode: null }),
-  };
-  Object.assign(backups, {
-    triggerBackup: vi.fn().mockResolvedValue({
-      operation: { id: 'op', kind: 'backup', status: 'running', startedAt: 's', logTail: ['x'] },
-    }),
-  });
-  // The real service over a stub runner: the scrub is the service's, so a double would prove
-  // nothing about what the agent reads.
-  const runner = { body: {} as unknown };
-  const agentLogs = new AgentLogsService({
-    opsRunnerUrl: 'http://ops-runner:4075',
-    opsRunnerSecret: 's',
-    fetchImpl: (async () => new Response(JSON.stringify(runner.body))) as unknown as typeof fetch,
-  });
-  const controller = new OpsAgentController(
-    runtime as never,
-    host as never,
-    versions as never,
-    backups as never,
-    tls as never,
-    agentLogs,
-    eventsLive as never,
-    systemActions as never,
-  );
-  return { controller, runtime, host, versions, backups, tls, runner, eventsLive, systemActions };
+  return { runtime, host, versions, backups, tls };
 }
 
 describe('OpsAgentController', () => {
