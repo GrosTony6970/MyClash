@@ -20,6 +20,7 @@ import {
   doorRequestOptions,
   logServices,
   roundReads,
+  clearRun,
   runRound,
   sendDoorRequest,
 } from '../.claude/skills/myclash-ops/door.mjs';
@@ -77,7 +78,7 @@ describe('the round', () => {
     assert.equal(reads.at(-1).name, 'log-worker');
   });
 
-  const quiet = { save: async () => {}, drop: async () => {}, note: async () => {} };
+  const quiet = { save: async () => {}, note: async () => {} };
 
   it('never runs two reads at once, keeps every answer, and notes each line as it comes', async () => {
     let inFlight = 0;
@@ -94,7 +95,6 @@ describe('the round', () => {
     const reads = roundReads(['api', 'worker']);
     const { end, lines } = await runRound(reads, {
       request,
-      drop: async () => {},
       save: async (name) => saved.push(name),
       note: async (line) => notes.push(line),
     });
@@ -109,16 +109,14 @@ describe('the round', () => {
     assert.deepEqual(notes.slice(0, 4), ['read', lines[0], 'read', lines[1]]);
   });
 
-  it("drops every read's old file before the first read, even when the round stops there", async () => {
-    const events = [];
-    const reads = roundReads(['api']);
-    const result = await runRound(reads, {
-      ...quiet,
-      drop: async (name) => events.push(`drop ${name}`),
-      request: async () => (events.push('read'), { status: 404, body: '<html>' }),
-    });
-    assert.equal(result.end, 'door-down');
-    assert.deepEqual(events, [...reads.map((r) => `drop ${r.name}`), 'read']);
+  it("clears an earlier run's answers and traces, and nothing else", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'door-clear-'));
+    const ours = ['events-live.json', 'act-restart-worker.json', 'round.txt', 'act.txt'];
+    for (const name of [...ours, 'report.txt']) writeFileSync(path.join(dir, name), 'old');
+    await clearRun(dir);
+    for (const name of ours) assert.equal(existsSync(path.join(dir, name)), false, name);
+    assert.equal(existsSync(path.join(dir, 'report.txt')), true);
+    await clearRun(path.join(dir, 'missing'));
   });
 
   for (const [what, answer, end] of [
@@ -282,6 +280,7 @@ describe('the door script on the command line', () => {
     // The last run's files, in a folder that outlived it: none may be read as this run's.
     writeFileSync(path.join(dir, 'events-live.json'), '{"live":false}');
     writeFileSync(path.join(dir, 'log-api.json'), '{}');
+    writeFileSync(path.join(dir, 'act-restart-worker.json'), '{"ok":true}');
     writeFileSync(path.join(dir, 'act.txt'), '200 act restart worker\nend done\n');
     const run = spawnSync(process.execPath, [door, 'round', dir], {
       env: noProxyEnv({ HTTPS_PROXY: 'http://127.0.0.1:1', OPS_AGENT_KEY: KEY }),
@@ -293,7 +292,8 @@ describe('the door script on the command line', () => {
     assert.match(readFileSync(path.join(dir, 'round.txt'), 'utf8'), /end unreachable/);
     assert.equal(existsSync(path.join(dir, 'events-live.json')), false);
     assert.equal(existsSync(path.join(dir, 'log-api.json')), false);
-    assert.equal(readFileSync(path.join(dir, 'act.txt'), 'utf8'), '');
+    assert.equal(existsSync(path.join(dir, 'act-restart-worker.json')), false);
+    assert.equal(existsSync(path.join(dir, 'act.txt')), false);
   });
 
   it('exits 2 without a round directory, and 2 without a key', () => {
