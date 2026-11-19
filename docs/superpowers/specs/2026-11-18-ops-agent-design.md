@@ -65,6 +65,12 @@ wrong. The operator also asked whether an MCP server is the right tool.
   `volume ls`, `port`, `diff`, and a container's state through a root-owned script. Not `inspect`
   (a container's environment is every secret of `.env`), `history` or `image inspect` (build
   arguments), `compose config` (the whole `.env`), nor anything that acts or copies.
+- **875** In a watched session Claude reads the server's copy of the repo through six exact git
+  commands, no free arguments: `status --short`, `log --oneline -20`, `diff --stat`,
+  `rev-parse HEAD`, `sparse-checkout list`, `ls-files --others --exclude-standard`. Not read
+  access to the folder: it also holds `.env`, `.env.e2e`, `backups/` and the certificates' keys,
+  and a folder-wide grant would pass to a rewritten `.env` in silence. The server's copy leaves
+  `docs/` out (sparse checkout, set by the operator 2026-11-19).
 
 ## Goals
 
@@ -317,6 +323,10 @@ fixed (the root cause); the scrub is not widened to hide it.
   (root-owned; `docker inspect --format "{{json .State}}" -- "$@"`: the `--` makes a passed
   `--format` a container name, checked 2026-11-19). `inspect`, `exec`, `history`,
   `compose config` and every command that acts stay refused.
+- The server's repo over SSH (ruling 875): the six git reads of
+  `/etc/sudoers.d/myclash-ops-agent-git`, each an exact command line
+  (`sudo -n -u <operator> git -C <repo> status --short`, …). A full `git diff`, `git show` and any
+  other form are refused; the account still cannot list or open a file in the folder.
 - Written rules in the skill: never `destroy.sh`, `restore.sh` or a backup deletion; never print
   `.env`, a backup or a table of people; `rollback.sh` and `stop.sh` only on the operator's word
   (both are off the sudo list today).
