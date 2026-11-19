@@ -18,6 +18,7 @@ import {
   readBackupSchedule,
   writeBackupSchedule,
 } from './backup-core.mjs';
+import { readContainerLog, readContainers } from './container-logs.mjs';
 import { parseDfOutput } from './disk.mjs';
 import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
@@ -208,6 +209,21 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname.startsWith('/download/')) {
       await downloadBackup(url, res);
+      return;
+    }
+    // The ops agent's container reads (container-logs.mjs): the name goes in raw, so the
+    // refusal of a service off the log list is that module's.
+    if (req.method === 'GET' && url.pathname === '/containers') {
+      sendJson(res, 200, await readContainers(spawnCaptureWithTimeout, COMPOSE_FLAGS));
+      return;
+    }
+    const logMatch = /^\/logs\/([^/]*)$/u.exec(url.pathname);
+    if (req.method === 'GET' && logMatch) {
+      sendJson(
+        res,
+        200,
+        await readContainerLog(spawnCaptureWithTimeout, COMPOSE_FLAGS, logMatch[1], url),
+      );
       return;
     }
     const containerMatch = /^\/containers\/([A-Za-z0-9_-]+)\/(start|stop|restart)$/u.exec(
