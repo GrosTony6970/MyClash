@@ -45,6 +45,7 @@ const SERVICES_FILE = path.join(
   '../../../apps/api/src/modules/ops-agent/agent-log-services.ts',
 );
 const KEY_STORE_DOWN = 'AGENT_KEY_STORE_UNAVAILABLE';
+const CODE_WORD = /^[A-Z0-9_]{1,64}$/;
 /** Under the Bash tool's 10-minute ceiling, so the round always prints its `end` line. */
 const ROUND_BUDGET_MS = 8 * 60_000;
 
@@ -88,13 +89,14 @@ export function describeOutcome(route, { status, body, error }) {
     return { ok: true, line: `${status} ${route} ${Buffer.byteLength(body ?? '')} bytes` };
   }
   if (status === 401) return { ok: false, line: '401 key refused' };
-  let code = 'error';
+  let code;
   try {
-    code = JSON.parse(body ?? '').code ?? code;
+    code = JSON.parse(body ?? '').code;
   } catch {
     // Not problem+json (an edge's own page): the status says enough.
   }
-  return { ok: false, line: `${status} ${code}` };
+  // Only a short code word passes: no text of the answer reaches the line the run reads.
+  return { ok: false, line: `${status} ${CODE_WORD.test(code) ? code : 'error'}` };
 }
 
 /** One HTTPS read. A read with no answer within `options.timeout` is cut and reported. */
