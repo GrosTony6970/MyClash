@@ -88,6 +88,32 @@ wrong. The operator also asked whether an MCP server is the right tool.
   `send-report.mjs`, to the operator. Resend cannot limit a key's recipients; the key opens only
   the read-only door and can be revoked.
 
+### Slice 4 rulings (2026-11-19, rulings 882-887)
+
+- **882** Story: "the organiser runs a Tournament all Saturday but never moves the Event's status
+  to running; a restart at 14:00 cuts every live screen." Ruling: an Event is live on any sign:
+  its status is `running`, a bout of it is `running` or `paused`, or today in the Event's own time
+  zone falls between its dates. Only an Event not over (draft, published, running) counts.
+- **883** Test Events never count as live. Club Events do.
+- **884** The disk prune (build cache and unused images) is its own slice, "4b", after slice 4.
+- **885** (M1) After a restore or a rollback that put a database back, the scripts run the key
+  seed again: `.env` decides which key is live, and an empty value revokes every key. A revoke
+  made only on the console lasts until the next restore.
+- **886** Every ops runner job (backup, restore, upload, delete, container action, renewal) blocks
+  a container action or a renewal, the console's buttons too: a 409 `ops_busy`.
+- **887** Story: "the operator stops Studio on purpose at night; at 06:05 Claude starts it
+  again." Ruling: Claude starts only a container that crashed (an exit code other than 0 and 143);
+  a stop on purpose is a note. Claude acts on nothing while a deploy holds `.deploy.lock`, nor in
+  the 15 minutes after the last deploy.
+
+Decisions taken in the build (the operator may override): a busy backup is a 409, no longer a
+202 that fails a moment later (D2); the console's system actions take `OpsRunnerClient`, the one
+road to the runner (D3); a backup started from the console writes an audit row too (D4); "dead"
+is a container not running or `unhealthy`, "degraded" a running one whose part a health read
+names critical (D5); a failed repair takes the existing push (D6); the read-only switch refuses
+the door's actions (D7); a container action waits up to 300 s, and a cut answer still reads what
+came of it (D8); a renewal answers first and restarts Traefik 3 s later (D9).
+
 ## Goals
 
 - A session starts without a human on three signals: a platform alert, a morning timer, the end of
@@ -271,9 +297,12 @@ fixed (the root cause); the scrub is not widened to hide it.
 - **Two new keys** in `.env.example` (the task's address and its token). When they are absent, no
   call is made, the worker logs that once at boot, and the Runtime Health card shows "agent
   wake-up: not configured". An absent setting must be visible.
-- **Named race.** An alert and a deploy can start two runs at the same time. Runs only read, and
-  each action is idempotent or refused by the ops-runner's own lock (409). The skill tells Claude
-  to treat a 409 as "someone else is acting" and to report it.
+- **Named race.** An alert and a deploy can start two runs at the same time. Each action takes the
+  ops runner's lock or is refused (409 `ops_busy`, ruling 886; the lock did not cover container
+  actions and renewals before slice 4), and a container action or a renewal is refused while a
+  deploy runs (409 `deploy_running`, ruling 887). The skill tells Claude to treat a 409 as
+  "someone else is acting" and to report it. Left open: a deploy does not take the ops lock, so an
+  action already running when a deploy starts finishes beside it.
 
 ### 5. The cloud task and its instructions
 
@@ -485,6 +514,20 @@ Two facts the build must respect:
    Left for later slices: the runner's memory and concurrency cap (slice 4); M1, M3 and the
    "Backup operations…" text (before slice 4).
 4. **Actions on the door, the "is an Event running" read, and the push after a failed repair.**
+   Done 2026-11-19 (`e711ecb24`…`fdd28b39c`, rulings 882-887). It also carried M1 (the key seed
+   after a restore or a rollback, ruling 885), M3 (the public-route door test reads every verb), the runner's memory and concurrency cap on log
+   reads, and the "This action requires the ops runner." text. Live check from the cloud after a
+   wipe and deploy, same day: the live read 200 `live: false`; restart of web-marketing and of the
+   worker 200, then running and healthy (47 s each); `api` refused 400; a backup 202 then success;
+   the renewal answered, then every certificate read at 46 days or more; one audit row per action
+   by "Claude (ops agent)". Then a real daily run started web-marketing after the operator killed
+   it (exit 137) and mailed "all good"; after a Stop on the console (exit 0) the next run left it
+   stopped and wrote a note. Left for later slices: the worker stopped fast, so a request near the
+   300 s limit through the cloud proxy and Traefik is not yet proven; only web-marketing's Stop
+   exit code (0) is measured; the restore's key lines are not yet seen on the VPS; the deploy lock
+   probe can create `.deploy.lock` as root in a narrow race; an old `events-live.json` can be
+   reused by a second run in the same folder.
+   4b. **The disk prune** (build cache and unused images; ruling 884).
 5. **The alert wake-up and the outside watcher** (two commits, one after the other; the
    end-to-end test needs both).
 6. **The deploy wake-up and the deploy check.**
