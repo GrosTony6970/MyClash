@@ -6,7 +6,7 @@ import type { Person } from '../e2e/_bracket';
 
 /**
  * The guide's "More than a tournament" screenshots
- * (docs/superpowers/specs/2026-11-19-guide-beyond-the-tournament-design.md): a workshop's list,
+ * (docs/superpowers/archive/specs/2026-11-19-guide-beyond-the-tournament-design.md): a workshop's list,
  * form and roster; the compensation report and plan; the club's Leagues page.
  *
  * Runs on the caller's test Event once its bouts are fought, so the compensation report has

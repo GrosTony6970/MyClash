@@ -31,6 +31,8 @@ Open **Leagues** in your organisation's menu. It has three tabs: **Membership**,
 On **Discover & join**, click **Request to join** and add a message if you want. You need the
 **Admin** role. An admin of the league accepts or refuses.
 
+![The Leagues page of an organisation](../../../assets/guide/24-leagues.png)
+
 ## Attach a tournament
 
 Each tournament joins a league on its own. You need the **Admin** role.

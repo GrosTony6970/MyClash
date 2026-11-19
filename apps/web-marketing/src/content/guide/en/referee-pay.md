@@ -41,6 +41,8 @@ pay 50 €.
 
 Open the **Compensation plan** tab. Built-in plans cannot be changed: make your own.
 
+![The Compensation plan tab: the built-in plan and your own](../../../assets/guide/25-compensation-plan.png)
+
 1. Click **+ New plan** and type the **Plan name**. You can make the plan visible to other
    organisations.
 2. **Token rates (pts/match)**: one row per referee role of this event, one column per phase.
@@ -67,6 +69,8 @@ Open the **Referee compensation** tab. Choose the **Compensation plan**, and if 
 The table shows each referee's points per phase, their total, the amount and **Paid**. Click a row
 to see the detail by role and phase. The last line is the **Total to pay**. **Export CSV** and
 **Export PDF** give the table to your treasurer.
+
+![The report with the FFAMHE plan: 30 points pay 30 €, 15 points pay 10 €](../../../assets/guide/25-compensation-report.png)
 
 - **Paid** is a record for you: MyClash makes no payment.
 - A referee with no completed bout is not in the table.

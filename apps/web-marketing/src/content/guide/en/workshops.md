@@ -31,6 +31,10 @@ people who book.
 The other fields (weapon, level, language, logo, descriptions, prerequisites) are for the public
 page.
 
+![The workshop form, with two sessions](../../../assets/guide/23-workshop-form.png)
+
+![The Workshops page: the join switch and a workshop with its instructor](../../../assets/guide/23-workshops.png)
+
 **Capacity is per session.** A workshop with a capacity of 20 and three sessions has 20 places
 in each session.
 
@@ -67,6 +71,8 @@ event.
 - **Remove:** deletes the booking. The person can book again.
 - **Present:** a tick for the people who came. It changes nothing else.
 - **Message the people booked:** writes to everyone booked.
+
+![A session's roster: three places taken and one person on the waitlist](../../../assets/guide/23-workshop-roster.png)
 
 An instructor sees the roster of their own workshops in their personal space, even with no role
 in your organisation. There they can also **Accept** or **Refuse** a booking.

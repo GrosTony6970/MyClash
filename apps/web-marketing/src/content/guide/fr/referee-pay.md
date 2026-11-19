@@ -45,6 +45,8 @@ de 50, 50 €.
 
 Ouvrez l'onglet **Plan de compensation**. Les plans intégrés ne se modifient pas : créez le vôtre.
 
+![L'onglet Plan de compensation : le plan intégré et les vôtres](../../../assets/guide/25-compensation-plan.png)
+
 1. Cliquez sur **+ Nouveau plan** et saisissez le **Nom du plan**. Vous pouvez rendre le plan
    visible par les autres organisations.
 2. **Taux de jetons (pts/match)** : une ligne par rôle d'arbitre de cet événement, une colonne par
@@ -73,6 +75,8 @@ le voulez un **Minimum (EUR, facultatif)** et un **Plafond max (EUR, facultatif)
 Le tableau montre les points de chaque arbitre par phase, son total, le montant et **Payé**.
 Cliquez sur une ligne pour voir le détail par rôle et par phase. La dernière ligne est le **Total
 à payer**. **Exporter CSV** et **Exporter PDF** donnent le tableau à votre trésorier.
+
+![Le rapport avec le plan FFAMHE : 30 points paient 30 €, 15 points paient 10 €](../../../assets/guide/25-compensation-report.png)
 
 - **Payé** est une note pour vous : MyClash ne fait aucun paiement.
 - Un arbitre sans combat terminé n'est pas dans le tableau.

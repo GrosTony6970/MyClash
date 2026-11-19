@@ -4,7 +4,20 @@ Status: approved by the operator on 2026-11-19, with rulings 888-890
 (`docs/notes/quick-wins-2026-10-08.md`): bugs 1-3 below are fixed first, one commit each (bug 4
 is the house rule, kept: every member sees the setting and the server refuses); a
 regenerated recap leaves the published one live; French says **Atelier** and **Instructeur**. The
-pages then describe the fixed app.
+pages then describe the fixed app. Shipped 2026-11-19.
+
+What the build found against this spec:
+
+- **No AI settings picture.** The deploy seeds an AI key into the E2E club, and that page lists the
+  club's keys with their spend. The script checked for a key, found one and stopped; the shot is
+  gone, and the AI page is text only.
+- **No workshop schedule picture.** Its grid needs a workshop venue, which belongs to the club and
+  would outlive the test Event.
+- **The form and roster windows were first shot while fading in.** The script now waits for the
+  window's content and for every animation to end, then shoots the window alone.
+- **Reported, not changed:** the built-in FFAMHE compensation plan's description is French
+  ("Plan de compensation officiel FFAMHE…") on the English screen. It is seed data, not an i18n
+  key (hard rule 6).
 
 Builds on the shipped organiser guide (`docs/superpowers/archive/specs/2026-11-18-organiser-guide-design.md`,
 `…-guide-concepts-and-pad-design.md`, `2026-11-19-guide-event-day-design.md`): same site

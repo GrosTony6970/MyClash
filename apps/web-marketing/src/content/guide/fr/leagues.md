@@ -32,6 +32,8 @@ Ouvrez **Ligues** dans le menu de votre organisation. Il y a trois onglets : **A
 Dans **Découvrir et rejoindre**, cliquez sur **Demander à rejoindre**, avec un message si vous le
 voulez. Il faut le rôle **Administrateur**. Un administrateur de la ligue accepte ou refuse.
 
+![La page Ligues d'une organisation](../../../assets/guide/24-leagues.png)
+
 ## Rattacher un tournoi
 
 Chaque tournoi rejoint une ligue seul. Il faut le rôle **Administrateur**.

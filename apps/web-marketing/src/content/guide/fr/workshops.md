@@ -33,6 +33,10 @@ et gérer les personnes qui réservent.
 Les autres champs (arme, niveau, langue, logo, descriptions, prérequis) servent à la page
 publique.
 
+![Le formulaire d'un atelier, avec deux séances](../../../assets/guide/23-workshop-form.png)
+
+![La page Ateliers : le bouton d'inscription libre et un atelier avec son instructeur](../../../assets/guide/23-workshops.png)
+
 **La capacité vaut pour chaque séance.** Un atelier de capacité 20 avec trois séances a 20 places
 dans chaque séance.
 
@@ -72,6 +76,8 @@ réserver un atelier publié ou en cours. Le public ne voit aucun atelier en bro
 - **Retirer :** supprime la réservation. La personne peut réserver de nouveau.
 - **Présent :** une coche pour les personnes venues. Elle ne change rien d'autre.
 - **Écrire aux inscrits :** écrit à toutes les personnes inscrites.
+
+![Les inscrits d'une séance : trois places prises et une personne en liste d'attente](../../../assets/guide/23-workshop-roster.png)
 
 Un instructeur voit les inscrits de ses propres ateliers dans son espace personnel, même sans rôle
 dans votre organisation. Il peut aussi y **Accepter** ou **Refuser** une réservation.
