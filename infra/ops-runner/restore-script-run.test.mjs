@@ -205,6 +205,24 @@ test('a restore that failed still exits non-zero', { skip }, () => {
   assert.equal(noVolume.status, 1, show(noVolume));
 });
 
+// The security review of 1573ae251: a storage failure exits 1 after the database came back. The
+// stale agent keys are revoked before that exit, while the services that read them are stopped.
+test(
+  'a storage failure after a database restore has already revoked the stale keys',
+  { skip },
+  () => {
+    const root = sandbox();
+    put(root, NIGHTLY_STORAGE);
+    const run = restore(root, [put(root, NIGHTLY_DB), '--yes'], { VOLUME_INSPECT_EXIT: '1' });
+    assert.equal(run.status, 1, show(run));
+    const early = run.calls.findIndex(
+      (call) => seedRun(call) && call.includes(' run --rm --no-deps '),
+    );
+    const inspect = run.calls.findIndex((call) => call.includes('volume inspect'));
+    assert.ok(early >= 0 && inspect > early, show(run));
+  },
+);
+
 // An uploaded night (ruling 209): its images are not in backups/nightly, so they are named.
 test('--storage-file restores the database with the images of the given file', { skip }, () => {
   const root = sandbox();

@@ -413,6 +413,10 @@ if [[ "$STORAGE_ONLY" -eq 0 ]]; then
   fi
   ok "Restore validation passed (public tables=${PUBLIC_TABLES}, auth.users=${AUTH_USERS})"
 
+  # The restored key rows date from the backup (ruling 885): revoke the keys .env does not hold
+  # now, while every service that reads them is stopped, before any exit below can restart them.
+  mc_revoke_stale_ops_agent_keys
+
   RESTART=("${COMPOSE[@]}" up -d)
   STORAGE_FAILED="Storage restore FAILED — the database restored OK; restarting the stack so the site recovers with restored data, but storage is stale. Re-run the restore to retry storage."
 else

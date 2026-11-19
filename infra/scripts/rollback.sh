@@ -153,6 +153,10 @@ if [[ "$BACKUP_FILE" != "none" && -f "$BACKUP_FILE" ]]; then
     exit 1
   fi
   ok "Restore validation passed (public tables=${PUBLIC_TABLES})"
+
+  # The restored key rows date from the backup (ruling 885): revoke the keys .env does not hold
+  # now, while every service that reads them is stopped, before the stack comes back.
+  mc_revoke_stale_ops_agent_keys
 fi
 
 # ── Reset git ────────────────────────────────────────────────────

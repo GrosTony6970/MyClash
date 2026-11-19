@@ -68,6 +68,29 @@ test('restore seeds again after the restart, only when it restored the database'
   assert.equal(text.split('\n')[opener].trim(), 'if [[ "$STORAGE_ONLY" -eq 0 ]]; then');
 });
 
+// The security review of 1573ae251: seeding only after the restart left a key revoked since the
+// backup live while the stack came back, and forever on a path that exits before the restart
+// (a storage failure). So the stale keys go while every service that reads them is stopped.
+test('restore revokes the stale keys right after the database is validated', () => {
+  const text = read('restore.sh');
+  const validated = lineOf(text, 'ok "Restore validation passed');
+  const revoke = lineOf(text, 'mc_revoke_stale_ops_agent_keys', validated);
+  const storage = lineOf(text, '# ── Restore storage volume');
+  assert.ok(validated > 0 && revoke > validated, 'after the validation');
+  assert.ok(storage > revoke, 'before the storage stage and its early exits');
+});
+
+test('rollback revokes the stale keys right after the database is validated', () => {
+  const text = read('rollback.sh');
+  const validated = lineOf(text, 'ok "Restore validation passed');
+  const revoke = lineOf(text, 'mc_revoke_stale_ops_agent_keys', validated);
+  const reset = lineOf(text, 'git reset --hard "$PREV_COMMIT"');
+  assert.ok(
+    validated > 0 && revoke > validated && reset > revoke,
+    'after validation, before reset',
+  );
+});
+
 test('rollback sources the lib before its git reset and seeds after a database restore', () => {
   const text = read('rollback.sh');
   const source = lineOf(text, 'source "$SCRIPT_DIR/lib/ops-agent-seed.sh"');
@@ -90,7 +113,7 @@ function runLib(calls, { password, seedOutput }) {
     'set -Eeuo pipefail',
     `source "${LOG}"`,
     'source "$0"',
-    `fake_compose() { printf '%s\\n' '${seedOutput}'; }`,
+    `fake_compose() { echo "compose-args: $*" >&2; printf '%s\\n' '${seedOutput}'; }`,
     'COMPOSE=(fake_compose)',
     ...calls,
     'echo "exit-ok"',
@@ -123,6 +146,28 @@ test('after a restore the script says that a console revoke does not survive it'
   assert.equal(r.status, 0, r.said);
   assert.ok(r.said.includes(AFTER_RESTORE), r.said);
   assert.doesNotMatch(r.said, /login service/u, r.said);
+});
+
+test('the early revoke starts nothing else and says how many keys it revoked', { skip }, () => {
+  const r = runLib(['mc_revoke_stale_ops_agent_keys'], {
+    password: 'pw',
+    seedOutput: '{"state":"failed","revokedOthers":2,"error":"GoTrue down"}',
+  });
+  assert.equal(r.status, 0, r.said);
+  assert.match(r.said, /compose-args: run --rm --no-deps /u, r.said);
+  assert.match(r.said, /agent: 2 key\(s\) that OPS_AGENT_KEY does not hold revoked/u, r.said);
+});
+
+test('an early revoke whose result cannot be read is an error line', { skip }, () => {
+  const r = runLib(['mc_revoke_stale_ops_agent_keys'], { password: null, seedOutput: '' });
+  assert.equal(r.status, 0, r.said);
+  assert.match(r.said, /✗ .*agent: the keys could not be checked before the restart/u, r.said);
+});
+
+test('a seed after a restore that ends in no known state is an error line', { skip }, () => {
+  const r = runLib(['mc_reseed_ops_agent_after_restore'], { password: null, seedOutput: '' });
+  assert.equal(r.status, 0, r.said);
+  assert.match(r.said, /✗ .*agent: the key seed did not finish/u, r.said);
 });
 
 test('a failed seed after a restore names the login service and the next deploy', { skip }, () => {
