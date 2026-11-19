@@ -250,7 +250,12 @@ describe('AdminSystemActionsService', () => {
       );
       expect(componentKeyForService('supabase-rest')).toBe('postgrest');
       expect(componentKeyForService('worker')).toBe('worker');
-      expect(componentKeyForService('db')).toBeUndefined();
+    });
+
+    it('throws for a service off the list: its callers hold the list, so a miss is a bug', () => {
+      for (const service of ['db', 'api', '']) {
+        expect(() => componentKeyForService(service)).toThrow(/not a restartable service/);
+      }
     });
   });
 

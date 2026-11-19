@@ -58,9 +58,17 @@ export const RESTARTABLE_SERVICES: readonly [string, ...string[]] = [
   ...otherServices,
 ];
 
-/** The UI key of a compose service of the list, or undefined when it is not on it. */
-export function componentKeyForService(service: string): string | undefined {
-  return Object.keys(RESTARTABLE_COMPONENTS).find((key) => RESTARTABLE_COMPONENTS[key] === service);
+/**
+ * The UI key of a compose service of the list. Its callers hold the service to the list (the
+ * door's DTO), so a service off it is a bug: it throws, rather than answer a value a caller could
+ * fall back from in silence.
+ */
+export function componentKeyForService(service: string): string {
+  const key = Object.keys(RESTARTABLE_COMPONENTS).find(
+    (candidate) => RESTARTABLE_COMPONENTS[candidate] === service,
+  );
+  if (key === undefined) throw new Error(`${service} is not a restartable service`);
+  return key;
 }
 
 const DEFAULT_OPS_TIMEOUT_MS = 35_000; // ops-runner kills at 30s; give it slack

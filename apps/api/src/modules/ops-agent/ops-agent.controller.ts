@@ -129,8 +129,7 @@ export class OpsAgentController {
     @Param() params: AgentContainerActionParamDto,
     @AgentActor() actor: string,
   ): Promise<AgentActionResultDto> {
-    // The DTO holds the service to the list, so its key exists.
-    const key = componentKeyForService(params.service) ?? params.service;
+    const key = componentKeyForService(params.service);
     const result = await this.systemActions.runComponentAction(key, params.action, actor);
     return maskActionResult(result, params.service, params.action);
   }
