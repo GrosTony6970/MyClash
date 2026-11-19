@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { getActorId } from '../../common/auth/actor';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
 import { BackupUploadsService } from './backup-uploads.service';
 import { AdminBackupsService } from './backups.service';
@@ -76,8 +77,8 @@ export class BackupsAdminController {
   @Post('run')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Trigger a manual backup' })
-  triggerBackup(): Promise<BackupActionResponseDto> {
-    return this.backups.triggerBackup();
+  triggerBackup(@Req() req: FastifyRequest): Promise<BackupActionResponseDto> {
+    return this.backups.triggerBackup(getActorId(req));
   }
 
   @Get('schedule')

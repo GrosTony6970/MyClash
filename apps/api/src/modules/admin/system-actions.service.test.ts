@@ -1,10 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AdminSystemActionsService } from './system-actions.service';
+import { RESTARTABLE_COMPONENTS } from './restartable-components';
+import {
+  AdminSystemActionsService,
+  RESTARTABLE_SERVICES,
+  componentKeyForService,
+} from './system-actions.service';
 
 const audits: Record<string, unknown>[] = [];
 
@@ -163,6 +169,88 @@ describe('AdminSystemActionsService', () => {
       const service = makeService(fetchImpl as unknown as typeof fetch);
       await expect(service.renewCertificates('actor')).rejects.toThrow(ServiceUnavailableException);
       expect(audits).toHaveLength(0);
+    });
+  });
+
+  // Slice 4 of the ops agent: the runner's own refusals reach the caller with their status and
+  // code (ruling 886's lock, 887's deploy), through the API's one road to it (OpsRunnerClient).
+  describe('a refusal of the runner', () => {
+    const refusing = (code: string) =>
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: 'busy', code }), {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ) as unknown as typeof fetch;
+
+    for (const code of ['ops_busy', 'deploy_running']) {
+      it(`relays a 409 ${code} on a container action, with no audit row`, async () => {
+        const service = makeService(refusing(code));
+        const error = await service.runComponentAction('worker', 'restart', 'a').catch((e) => e);
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toMatchObject({ code });
+        expect(audits).toHaveLength(0);
+      });
+
+      it(`relays a 409 ${code} on a renewal, with no audit row`, async () => {
+        const service = makeService(refusing(code));
+        const error = await service.renewCertificates('a').catch((e) => e);
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).getResponse()).toMatchObject({ code });
+        expect(audits).toHaveLength(0);
+      });
+    }
+
+    it('says the ops runner is missing in words that fit every action', async () => {
+      const service = new AdminSystemActionsService(supabaseStub as never, {
+        opsRunnerUrl: '',
+        opsRunnerSecret: '',
+      });
+      await expect(service.runComponentAction('worker', 'restart', 'a')).rejects.toThrow(
+        'This action requires the ops runner.',
+      );
+    });
+  });
+
+  describe('the budget of each call', () => {
+    const ok = (async () =>
+      new Response(JSON.stringify({ ok: true }), { status: 200 })) as unknown as typeof fetch;
+
+    async function budgetOf(call: (s: AdminSystemActionsService) => Promise<unknown>) {
+      const spy = vi.spyOn(AbortSignal, 'timeout');
+      try {
+        await call(makeService(ok));
+        return spy.mock.calls.map(([ms]) => ms);
+      } finally {
+        spy.mockRestore();
+      }
+    }
+
+    it('a worker action waits 295 s, past the runner own 285 s', async () => {
+      expect(await budgetOf((s) => s.runComponentAction('worker', 'restart', 'a'))).toEqual([
+        295_000,
+      ]);
+    });
+
+    it('any other action, the renewal and the disk read wait 35 s; host facts 8 s', async () => {
+      expect(await budgetOf((s) => s.runComponentAction('web-admin', 'restart', 'a'))).toEqual([
+        35_000,
+      ]);
+      expect(await budgetOf((s) => s.renewCertificates('a'))).toEqual([35_000]);
+      expect(await budgetOf((s) => s.getDiskUsage())).toEqual([35_000]);
+      expect(await budgetOf((s) => s.getHostFacts())).toEqual([8_000]);
+    });
+  });
+
+  describe('the restartable list', () => {
+    it('is the values of the component map, and maps a service back to its key', () => {
+      expect([...RESTARTABLE_SERVICES].sort()).toEqual(
+        Object.values(RESTARTABLE_COMPONENTS).sort(),
+      );
+      expect(componentKeyForService('supabase-rest')).toBe('postgrest');
+      expect(componentKeyForService('worker')).toBe('worker');
+      expect(componentKeyForService('db')).toBeUndefined();
     });
   });
 

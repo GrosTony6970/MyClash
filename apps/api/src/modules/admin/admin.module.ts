@@ -148,7 +148,12 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       useFactory: (config: ConfigService) => new AdminCiHealthService(config),
       inject: [ConfigService],
     },
-    { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
+    {
+      provide: AdminBackupsService,
+      // The database client writes the audit row of a backup started by hand.
+      useFactory: (supabase: SupabaseService) => new AdminBackupsService({ supabase }),
+      inject: [SupabaseService],
+    },
     { provide: BackupUploadsService, useFactory: () => new BackupUploadsService() },
     PlatformAISettingsService,
     ModelSyncService,
@@ -201,6 +206,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AdminSystemVersionsService,
     AdminHostInfoService,
     AdminBackupsService,
+    AdminSystemActionsService,
   ],
 })
 export class AdminModule {}

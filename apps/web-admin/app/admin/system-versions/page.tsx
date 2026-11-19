@@ -9,6 +9,7 @@ import { HostInfoCard } from './HostInfoCard';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
 import { RuntimeHealthCard } from './RuntimeHealthCard';
 import { CiHealthCard } from './CiHealthCard';
+import { systemActionRefusal } from './action-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
@@ -139,7 +140,9 @@ export default function AdminSystemVersionsPage() {
         // Reported here rather than thrown into the catch below: throwing would
         // need a `?? ''` for the abort null, and this request passes no signal,
         // so that fallback could never fire. `finally` still clears the busy key.
-        const reason = failureMessage(r, t, t('admin.common.componentActionFailed'));
+        const reason =
+          systemActionRefusal(r, t) ??
+          failureMessage(r, t, t('admin.common.componentActionFailed'));
         if (reason) toast.error(t('admin.systemVersions.actions.failed', { message: reason }));
         return;
       }

@@ -6,6 +6,7 @@ import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { systemActionRefusal } from './action-refusal';
 
 type TlsCertHealth = 'ok' | 'expiringSoon' | 'staging' | 'error';
 type TlsCaType = 'prod' | 'staging' | 'unknown';
@@ -141,7 +142,9 @@ export function TlsCertificatesCard() {
       if (!r.ok) {
         // Reported here rather than thrown: no signal on this request, so the
         // abort null is unreachable and a `??` for it could never fire.
-        const reason = failureMessage(r, t, t('admin.common.componentActionFailed'));
+        const reason =
+          systemActionRefusal(r, t) ??
+          failureMessage(r, t, t('admin.common.componentActionFailed'));
         if (reason)
           toast.error(t('admin.systemVersions.tls.actions.renewFailed', { message: reason }));
         return;
@@ -157,8 +160,9 @@ export function TlsCertificatesCard() {
       }
       toast.success(t('admin.systemVersions.tls.actions.renewSuccess'));
       setConfirmOpen(false);
-      // Traefik takes a moment to re-attempt ACME; re-probe shortly after.
-      window.setTimeout(() => loadStatus({ refresh: true }), 4000);
+      // The runner restarts Traefik 3 s after it answers (it carries this answer), and Traefik
+      // then takes a moment to re-attempt ACME: re-probe once it is back.
+      window.setTimeout(() => loadStatus({ refresh: true }), 15_000);
     } catch (err) {
       const message = err instanceof Error ? err.message : t('admin.common.unknownError');
       toast.error(t('admin.systemVersions.tls.actions.renewFailed', { message }));

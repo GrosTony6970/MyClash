@@ -230,7 +230,30 @@ describe('the backups screen and an uploaded night', () => {
         },
       },
     });
-    expect(text()).toContain('Another backup operation is running (a backup, a restore');
+    expect(text()).toContain('Another operation is running on the server (a backup, a restore');
+    expect(text()).not.toContain('already running');
+  });
+
+  // Slice 4 of the ops agent (D2): a run that meets the held lock is a 409 now, not a 202 whose
+  // operation fails a moment later.
+  it('words the held lock on a run, not the runner’s English', async () => {
+    page = await openEventPage(<AdminBackupsPage />, READS);
+    const stand = vi.mocked(ApiClientModule.apiRequest).getMockImplementation()!;
+    vi.mocked(ApiClientModule.apiRequest).mockImplementation(async (base, path, init) =>
+      init?.method === 'POST' && String(path).endsWith('/backups/run')
+        ? {
+            ok: false,
+            kind: 'http',
+            status: 409,
+            detail: 'Another backup operation is already running.',
+            validationErrors: null,
+            code: 'ops_busy',
+            details: null,
+          }
+        : stand(base, path, init),
+    );
+    await press('Run backup');
+    expect(text()).toContain('Another operation is running on the server (a backup, a restore');
     expect(text()).not.toContain('already running');
   });
 
@@ -252,7 +275,7 @@ describe('the backups screen and an uploaded night', () => {
     );
     await press('Delete from upload', rows()[0]!);
     await press('Delete backup');
-    expect(text()).toContain('Another backup operation is running (a backup, a restore');
+    expect(text()).toContain('Another operation is running on the server (a backup, a restore');
     expect(text()).not.toContain('already running');
   });
 });

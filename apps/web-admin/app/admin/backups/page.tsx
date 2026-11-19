@@ -239,7 +239,9 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          const message = failureMessage(res, t, t('admin.backups.runError'));
+          const message =
+            backupRefusal(refusalOf(res), t, formatBytes) ??
+            failureMessage(res, t, t('admin.backups.runError'));
           if (message) setError(message);
           return;
         }

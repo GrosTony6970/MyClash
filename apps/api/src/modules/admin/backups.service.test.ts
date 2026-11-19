@@ -50,9 +50,12 @@ describe('AdminBackupsService', () => {
   });
 
   it('requires the ops runner for mutating operations', async () => {
-    const service = new AdminBackupsService();
+    // A database client is there (the audit row's), the ops runner is not.
+    const service = new AdminBackupsService({ supabase: { service: {} } as never });
 
-    await expect(service.triggerBackup()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(service.triggerBackup('actor')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 
   it('enforces explicit restore confirmation before calling the ops runner', async () => {

@@ -2724,7 +2724,7 @@ export const admin = {
     uploadNoSpaceBare:
       "Espace disque insuffisant sur le serveur pour cet envoi. Supprimez d'anciennes sauvegardes, puis réessayez.",
     opsBusy:
-      'Une autre opération de sauvegarde est en cours (une sauvegarde, une restauration, un envoi ou une suppression). Réessayez quand elle sera terminée.',
+      'Une autre opération est en cours sur le serveur (une sauvegarde, une restauration, un envoi, une suppression, une action sur un conteneur ou un renouvellement de certificat). Réessayez quand elle sera terminée.',
     uploadInvalidType: 'Fichier non pris en charge. Choisissez un artefact .gz ou .gpg.',
     retentionLowWarning:
       'Rétention très faible : une seule sauvegarde corrompue pourrait vous laisser sans copie valide.',
@@ -2815,6 +2815,7 @@ export const admin = {
     },
     actions: {
       columnLabel: 'Actions',
+      deployRunning: 'Un déploiement est en cours sur le serveur. Réessayez quand il sera terminé.',
       start: 'Démarrer',
       stop: 'Arrêter',
       restart: 'Redémarrer',
@@ -2863,7 +2864,8 @@ export const admin = {
         confirmForceRenewDescription:
           "Cela redémarre Traefik et interrompt brièvement le HTTPS (~1-3s) sur tous les sous-domaines pendant la nouvelle tentative de renouvellement Let's Encrypt. Continuer ?",
         forceRenew: 'Forcer le renouvellement',
-        renewSuccess: 'Traefik redémarré ; renouvellement relancé.',
+        renewSuccess:
+          'Traefik redémarre dans quelques secondes ; le renouvellement est alors relancé.',
         renewFailed: 'Échec du renouvellement : {message}',
       },
     },

@@ -7,8 +7,10 @@ import { Readable } from 'node:stream';
 // class as the global at runtime, so this import just disambiguates the type.
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import path from 'node:path';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { insertAuditLog } from '../../common/audit-log';
 import { OperationalUnavailableException } from '../../common/operational-exception';
+import type { SupabaseService } from '../supabase/supabase.service';
 import { OPS_RUNNER_TIMEOUT_MS, OpsRunnerClient } from './ops-runner-client';
 import type { OpsRunnerClientOptions } from './ops-runner-client';
 import {
@@ -37,6 +39,8 @@ import type {
 export interface AdminBackupsServiceOptions extends OpsRunnerClientOptions {
   rootDir?: string;
   backupsDir?: string;
+  /** The audit row of a backup started by hand; the module passes it (`admin.module.ts`). */
+  supabase?: SupabaseService;
 }
 
 /** The backups screen's reads and actions. An upload arrives in chunks: `BackupUploadsService`. */
@@ -45,12 +49,15 @@ export class AdminBackupsService {
   private readonly rootDir: string;
   private readonly backupsDir: string;
   private readonly ops: OpsRunnerClient;
+  private readonly supabase: SupabaseService | undefined;
+  private readonly logger = new Logger(AdminBackupsService.name);
 
   constructor(options: AdminBackupsServiceOptions = {}) {
     this.rootDir = options.rootDir ?? path.resolve(process.cwd(), '..', '..');
     this.backupsDir =
       options.backupsDir ?? process.env['BACKUP_LOCAL_DIR'] ?? path.join(this.rootDir, 'backups');
     this.ops = new OpsRunnerClient(options);
+    this.supabase = options.supabase;
   }
 
   async getStatus(): Promise<BackupStatusDto> {
@@ -84,8 +91,24 @@ export class AdminBackupsService {
     };
   }
 
-  async triggerBackup(): Promise<BackupActionResponseDto> {
-    return this.ops.post<BackupActionResponseDto>('/operations/backup', {});
+  /**
+   * A backup started by hand: the console's button and the ops agent's door. One audit row whose
+   * actor is the caller; a held lock is the runner's 409 `ops_busy`, and writes none.
+   */
+  async triggerBackup(actorUserId: string): Promise<BackupActionResponseDto> {
+    if (!this.supabase) {
+      throw new Error('AdminBackupsService has no database client for the audit row of a backup.');
+    }
+    const result = await this.ops.post<BackupActionResponseDto>('/operations/backup', {});
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action: 'system.backup.run',
+      entityType: 'system_backup',
+      entityId: result.operation.id,
+      payload: { status: result.operation.status },
+    });
+    if (error) this.logger.warn(`Could not write audit log for system.backup.run`);
+    return result;
   }
 
   async getSchedule(): Promise<BackupScheduleDto> {

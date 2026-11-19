@@ -3,8 +3,10 @@ import { opsRunnerException, readOpsRunnerError } from './ops-runner-error';
 
 /**
  * The API's one road to the ops runner (`infra/ops-runner/server.mjs`, internal network, bearer
- * secret): the backups and the backup uploads go through it. A runner that is not configured, does
- * not answer in time, or answers a failure becomes the exception the browser should see.
+ * secret): the backups, the backup uploads, the container actions, the renewal, the host reads and
+ * the ops agent's log reads go through it. A runner that is not configured, does not answer in
+ * time, or answers a failure becomes the exception the browser should see; a refusal keeps its
+ * status and code (`opsRunnerException`). Each call may name its own budget.
  */
 export const OPS_RUNNER_TIMEOUT_MS = 15_000;
 
@@ -39,12 +41,12 @@ export class OpsRunnerClient {
     return this.fetchImpl(input, init);
   }
 
-  get<T>(route: string): Promise<T> {
-    return this.request<T>(route, { method: 'GET' });
+  get<T>(route: string, timeoutMs?: number): Promise<T> {
+    return this.request<T>(route, { method: 'GET' }, timeoutMs);
   }
 
-  post<T>(route: string, body: unknown): Promise<T> {
-    return this.json<T>('POST', route, body);
+  post<T>(route: string, body: unknown, timeoutMs?: number): Promise<T> {
+    return this.json<T>('POST', route, body, timeoutMs);
   }
 
   put<T>(route: string, body: unknown): Promise<T> {
@@ -55,9 +57,13 @@ export class OpsRunnerClient {
     return this.request<T>(route, { method: 'DELETE' });
   }
 
-  async request<T>(route: string, init: RequestInit): Promise<T> {
+  async request<T>(
+    route: string,
+    init: RequestInit,
+    timeoutMs: number = OPS_RUNNER_TIMEOUT_MS,
+  ): Promise<T> {
     if (!this.available()) {
-      throw new OperationalUnavailableException('Backup operations require the ops runner.');
+      throw new OperationalUnavailableException('This action requires the ops runner.');
     }
 
     let response: Response;
@@ -65,7 +71,7 @@ export class OpsRunnerClient {
       response = await this.fetchImpl(`${this.url}${route}`, {
         ...init,
         headers: { ...this.headers(), ...(init.headers ?? {}) },
-        signal: AbortSignal.timeout(OPS_RUNNER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       // AbortSignal.timeout raises a plain TimeoutError, not an HttpException,
@@ -75,7 +81,7 @@ export class OpsRunnerClient {
       const timedOut = error instanceof Error && error.name === 'TimeoutError';
       throw new OperationalUnavailableException(
         timedOut
-          ? `The ops runner did not respond within ${OPS_RUNNER_TIMEOUT_MS / 1000}s. It may still be working — reload before retrying.`
+          ? `The ops runner did not respond within ${timeoutMs / 1000}s. It may still be working — reload before retrying.`
           : 'Could not reach the ops runner.',
       );
     }
@@ -86,12 +92,16 @@ export class OpsRunnerClient {
     return (await response.json()) as T;
   }
 
-  private json<T>(method: string, route: string, body: unknown): Promise<T> {
-    return this.request<T>(route, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+  private json<T>(method: string, route: string, body: unknown, timeoutMs?: number): Promise<T> {
+    return this.request<T>(
+      route,
+      {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      timeoutMs,
+    );
   }
 }
 

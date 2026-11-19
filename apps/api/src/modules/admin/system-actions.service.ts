@@ -1,12 +1,7 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { OpsRunnerClient, type OpsRunnerClientOptions } from './ops-runner-client';
 import { RESTARTABLE_COMPONENTS } from './restartable-components';
 
 export type ComponentAction = 'start' | 'stop' | 'restart';
@@ -24,7 +19,9 @@ export interface ComponentActionResult {
 
 export interface CertRenewalResult {
   ok: boolean;
-  exitCode?: number;
+  /** The runner answers before it restarts Traefik, which carries this very answer (D9). */
+  scheduled?: boolean;
+  exitCode?: number | null;
   stdout?: string;
   stderr?: string;
   timedOut?: boolean;
@@ -51,42 +48,48 @@ export interface HostFactsResult {
   dockerVersion: string | null;
 }
 
-type FetchLike = typeof fetch;
+export type AdminSystemActionsServiceOptions = OpsRunnerClientOptions;
 
-export interface AdminSystemActionsServiceOptions {
-  opsRunnerUrl?: string;
-  opsRunnerSecret?: string;
-  fetchImpl?: FetchLike;
+/** The compose services the platform may start or restart, as a non-empty tuple. */
+const [firstService, ...otherServices] = Object.values(RESTARTABLE_COMPONENTS);
+if (firstService === undefined) throw new Error('RESTARTABLE_COMPONENTS is empty');
+export const RESTARTABLE_SERVICES: readonly [string, ...string[]] = [
+  firstService,
+  ...otherServices,
+];
+
+/** The UI key of a compose service of the list, or undefined when it is not on it. */
+export function componentKeyForService(service: string): string | undefined {
+  return Object.keys(RESTARTABLE_COMPONENTS).find((key) => RESTARTABLE_COMPONENTS[key] === service);
 }
 
 const DEFAULT_OPS_TIMEOUT_MS = 35_000; // ops-runner kills at 30s; give it slack
 // A container action: an action on the worker waits up to 270 s for its job in flight, and the
-// ops-runner bounds it at 285 s (WORKER_ACTION_TIMEOUT_MS, infra/ops-runner/server.mjs; rulings
-// 811, 818). Wait past that, so the runner's own answer arrives, timed out or not; and under 300 s,
-// where this fetch (undici, no dispatcher of its own) gives up on an answer whose headers have not
-// come. infra:review pins the order.
+// ops-runner bounds it at 285 s (WORKER_ACTION_TIMEOUT_MS, infra/ops-runner/container-actions.mjs;
+// rulings 811, 818). Wait past that, so the runner's own answer arrives, timed out or not; and
+// under 300 s, where this fetch (undici, no dispatcher of its own) gives up on an answer whose
+// headers have not come. infra:review pins the order.
 const WORKER_ACTION_WAIT_MS = 295_000;
 // Host facts are a read, not an operation: the sidecar kills `docker info` at
 // 5s, so a longer budget here would only turn a fast, clear failure into a slow
 // one on a panel the operator is watching load.
 const HOST_INFO_TIMEOUT_MS = 8_000;
 
+/**
+ * Container lifecycle, certificate renewal and the host reads, through the API's one road to the
+ * ops runner (`OpsRunnerClient`): a refusal of the runner keeps its status and code — `409
+ * ops_busy` when its lock is held (ruling 886), `409 deploy_running` during a deploy (887).
+ */
 @Injectable()
 export class AdminSystemActionsService {
   private readonly logger = new Logger(AdminSystemActionsService.name);
-  private readonly opsRunnerUrl: string;
-  private readonly opsRunnerSecret: string;
-  private readonly fetchImpl: FetchLike;
+  private readonly ops: OpsRunnerClient;
 
   constructor(
     private readonly supabase: SupabaseService,
     options: AdminSystemActionsServiceOptions = {},
   ) {
-    this.opsRunnerUrl = stripTrailingSlash(
-      options.opsRunnerUrl ?? process.env['OPS_RUNNER_URL'] ?? '',
-    );
-    this.opsRunnerSecret = options.opsRunnerSecret ?? process.env['OPS_RUNNER_SECRET'] ?? '';
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.ops = new OpsRunnerClient(options);
   }
 
   isRestartable(componentKey: string): boolean {
@@ -110,38 +113,12 @@ export class AdminSystemActionsService {
     if (!composeService) {
       throw new ForbiddenException('This component is not controllable from the admin UI.');
     }
-    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
-      throw new ServiceUnavailableException(
-        'Container lifecycle controls require the ops-runner sidecar.',
-      );
-    }
 
-    let result: ComponentActionResult;
-    try {
-      const response = await this.fetchImpl(
-        `${this.opsRunnerUrl}/containers/${composeService}/${action}`,
-        {
-          method: 'POST',
-          headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
-          signal: AbortSignal.timeout(WORKER_ACTION_WAIT_MS),
-        },
-      );
-      if (!response.ok) {
-        const message = await response.text().catch(() => '');
-        throw new ServiceUnavailableException(
-          message || `ops-runner returned ${response.status} for ${composeService}.`,
-        );
-      }
-      result = (await response.json()) as ComponentActionResult;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'ops-runner request failed';
-      this.logger.warn(
-        `Component action failed for ${componentKey}:${action} via ops-runner — ${message}`,
-      );
-      throw err instanceof ServiceUnavailableException
-        ? err
-        : new ServiceUnavailableException(message);
-    }
+    const result = await this.ops.post<ComponentActionResult>(
+      `/containers/${composeService}/${action}`,
+      {},
+      composeService === 'worker' ? WORKER_ACTION_WAIT_MS : DEFAULT_OPS_TIMEOUT_MS,
+    );
 
     await this.writeAuditLog(
       actorUserId,
@@ -165,41 +142,23 @@ export class AdminSystemActionsService {
    * Force a Let's Encrypt renewal attempt by restarting Traefik via the
    * ops-runner's dedicated `/operations/renew-certs` route. Traefik re-runs its
    * ACME resolver on boot and renews any cert already inside its ~30-day window;
-   * `acme.json` is left untouched, so there's no LE rate-limit risk.
+   * `acme.json` is left untouched, so there's no LE rate-limit risk. The runner
+   * answers first and restarts Traefik a moment later (`scheduled: true`).
    *
    * Note the container-lifecycle allowlist deliberately excludes `traefik`
    * (restarting it via the generic `/containers` route is blocked) — this is the
    * one sanctioned, restart-only path, so we call the purpose-built endpoint.
    */
   async renewCertificates(actorUserId: string): Promise<CertRenewalResult> {
-    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
-      throw new ServiceUnavailableException('Certificate renewal requires the ops-runner sidecar.');
-    }
-
-    let result: CertRenewalResult;
-    try {
-      const response = await this.fetchImpl(`${this.opsRunnerUrl}/operations/renew-certs`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
-        signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
-      });
-      if (!response.ok) {
-        const message = await response.text().catch(() => '');
-        throw new ServiceUnavailableException(
-          message || `ops-runner returned ${response.status} for cert renewal.`,
-        );
-      }
-      result = (await response.json()) as CertRenewalResult;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'ops-runner request failed';
-      this.logger.warn(`Certificate renewal failed via ops-runner — ${message}`);
-      throw err instanceof ServiceUnavailableException
-        ? err
-        : new ServiceUnavailableException(message);
-    }
+    const result = await this.ops.post<CertRenewalResult>(
+      '/operations/renew-certs',
+      {},
+      DEFAULT_OPS_TIMEOUT_MS,
+    );
 
     await this.writeAuditLog(actorUserId, 'system.tls.renew', 'system_tls', 'traefik', {
       ok: result.ok,
+      scheduled: result.scheduled ?? false,
       exitCode: result.exitCode,
       timedOut: result.timedOut ?? false,
     });
@@ -209,27 +168,7 @@ export class AdminSystemActionsService {
 
   /** Read-only host disk usage via the ops-runner's GET /disk route. */
   async getDiskUsage(): Promise<DiskUsageResult> {
-    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
-      throw new ServiceUnavailableException('Disk usage requires the ops-runner sidecar.');
-    }
-    let response: Response;
-    try {
-      response = await this.fetchImpl(`${this.opsRunnerUrl}/disk`, {
-        method: 'GET',
-        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
-        signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'ops-runner request failed';
-      throw new ServiceUnavailableException(message);
-    }
-    if (!response.ok) {
-      const message = await response.text().catch(() => '');
-      throw new ServiceUnavailableException(
-        message || `ops-runner returned ${response.status} for disk usage.`,
-      );
-    }
-    const body = (await response.json()) as DiskUsageResult;
+    const body = await this.ops.get<DiskUsageResult>('/disk', DEFAULT_OPS_TIMEOUT_MS);
     return {
       mountpoint: body.mountpoint,
       sizeBytes: body.sizeBytes,
@@ -248,27 +187,7 @@ export class AdminSystemActionsService {
    * `AdminHostInfoService` makes it.
    */
   async getHostFacts(): Promise<HostFactsResult> {
-    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
-      throw new ServiceUnavailableException('Host details require the ops-runner sidecar.');
-    }
-    let response: Response;
-    try {
-      response = await this.fetchImpl(`${this.opsRunnerUrl}/host`, {
-        method: 'GET',
-        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
-        signal: AbortSignal.timeout(HOST_INFO_TIMEOUT_MS),
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'ops-runner request failed';
-      throw new ServiceUnavailableException(message);
-    }
-    if (!response.ok) {
-      const message = await response.text().catch(() => '');
-      throw new ServiceUnavailableException(
-        message || `ops-runner returned ${response.status} for host details.`,
-      );
-    }
-    const body = (await response.json()) as Partial<HostFactsResult>;
+    const body = await this.ops.get<Partial<HostFactsResult>>('/host', HOST_INFO_TIMEOUT_MS);
     return {
       hostname: body.hostname ?? null,
       os: body.os ?? null,
@@ -303,8 +222,4 @@ export class AdminSystemActionsService {
 
 function isValidAction(value: string): value is ComponentAction {
   return value === 'start' || value === 'stop' || value === 'restart';
-}
-
-function stripTrailingSlash(value: string): string {
-  return value.endsWith('/') ? value.slice(0, -1) : value;
 }

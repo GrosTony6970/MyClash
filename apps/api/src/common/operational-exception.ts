@@ -6,7 +6,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
  * `ApiExceptionFilter` scrubs every >=500 body to "Internal server error",
  * which is right for unexpected faults — an exception message can carry a
  * stack, a query, a connection string. But it also silently ate the messages
- * we author deliberately ("Backup operations require the ops runner", the
+ * we author deliberately ("This action requires the ops runner", the
  * ops-runner's own failure text), leaving the admin UI with nothing to show
  * but a generic string. That is how a delete-all failure stayed undiagnosable.
  *

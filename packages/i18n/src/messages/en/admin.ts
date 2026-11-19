@@ -2711,7 +2711,7 @@ export const admin = {
     uploadNoSpaceBare:
       'Not enough disk space on the server for this upload. Delete old backups, then try again.',
     opsBusy:
-      'Another backup operation is running (a backup, a restore, an upload or a delete). Try again when it ends.',
+      'Another operation is running on the server (a backup, a restore, an upload, a delete, a container action or a certificate renewal). Try again when it ends.',
     uploadInvalidType: 'Unsupported file. Choose a .gz or .gpg backup artifact.',
     retentionLowWarning:
       'Very low retention: a single bad backup could leave you with no good copy to restore.',
@@ -2802,6 +2802,7 @@ export const admin = {
     },
     actions: {
       columnLabel: 'Actions',
+      deployRunning: 'A deploy is running on the server. Try again when it ends.',
       start: 'Start',
       stop: 'Stop',
       restart: 'Restart',
@@ -2850,7 +2851,7 @@ export const admin = {
         confirmForceRenewDescription:
           "This restarts Traefik and briefly interrupts HTTPS (~1-3s) on all subdomains while it re-attempts Let's Encrypt renewal. Continue?",
         forceRenew: 'Force renew',
-        renewSuccess: 'Traefik restarted; renewal re-attempted.',
+        renewSuccess: 'Traefik restarts in a few seconds; the renewal is re-attempted then.',
         renewFailed: 'Renewal failed: {message}',
       },
     },
