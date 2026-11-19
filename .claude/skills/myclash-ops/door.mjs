@@ -7,8 +7,9 @@
  *
  * `round` does the whole daily round in one process, one read after another (the ops runner
  * serves one log read at a time): the health reads, whether an Event is live, then the error
- * lines of each log service. Each 2xx answer goes to `<dir>/<name>.json`; one line per read is
- * printed and appended to `<dir>/round.txt` as it comes, then `end <how>`.
+ * lines of each log service. It first deletes the last round's files and empties `round.txt` and
+ * `act.txt`. Each 2xx answer goes to `<dir>/<name>.json`; one line per read is printed and appended
+ * to `<dir>/round.txt` as it comes, then `end <how>`.
  *
  * `act` makes one repair (slice 4), then reads how it ended: a container until it has run
  * steadily, a backup until its operation is over, the certificates once Traefik is back. It prints
@@ -23,7 +24,7 @@
  * Exit codes: 0 done, 3 the door answered but stopped or refused, 4 the door could not be
  * reached, 5 too slow, 2 usage error. It never prints the key or an answer.
  */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import https from 'node:https';
 import path from 'node:path';
 import tls from 'node:tls';
@@ -174,15 +175,17 @@ function stopReason({ status, body }, isFirst) {
 }
 
 /**
- * Runs the reads one after another. `request(route)` answers one read; `save(name, body)` keeps a
- * 2xx answer; `note(line)` records each line as it comes, so a round cut short still leaves its
- * trace. Past `deadline` the round stops. Ends: `done`, `unreachable`, `refused`,
- * `key-store-down`, `door-down`, `slow`.
+ * Runs the reads one after another. `drop(name)` first deletes every read's file of an earlier
+ * round, so a read that fails or never runs leaves no old answer to be read as this one;
+ * `request(route)` answers one read; `save(name, body)` keeps a 2xx answer; `note(line)` records
+ * each line as it comes, so a round cut short still leaves its trace. Past `deadline` the round
+ * stops. Ends: `done`, `unreachable`, `refused`, `key-store-down`, `door-down`, `slow`.
  */
 export async function runRound(
   reads,
-  { request, save, note, deadline = Infinity, now = Date.now },
+  { request, save, drop, note, deadline = Infinity, now = Date.now },
 ) {
+  for (const { name } of reads) await drop(name);
   const lines = [];
   for (const [index, { name, route }] of reads.entries()) {
     const result = await request(route);
@@ -336,7 +339,11 @@ async function main([mode, ...args]) {
   }
   await mkdir(dir, { recursive: true });
   const trace = path.join(dir, mode === 'act' ? 'act.txt' : 'round.txt');
-  if (mode === 'round') await writeFile(trace, '');
+  // A run's repairs all come after its round: a round starts both traces empty.
+  if (mode === 'round') {
+    await writeFile(trace, '');
+    await writeFile(path.join(dir, 'act.txt'), '');
+  }
   const note = async (line) => {
     console.log(line);
     await appendFile(trace, `${line}\n`);
@@ -356,6 +363,7 @@ async function main([mode, ...args]) {
   const { end } = await runRound(reads, {
     request: (route) => sendDoorRequest(doorRequestOptions(route, key, pem)),
     save,
+    drop: (name) => rm(path.join(dir, `${name}.json`), { force: true }),
     note,
     deadline: Date.now() + ROUND_BUDGET_MS,
   });

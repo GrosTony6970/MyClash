@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { X509Certificate, createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -77,7 +77,7 @@ describe('the round', () => {
     assert.equal(reads.at(-1).name, 'log-worker');
   });
 
-  const quiet = { save: async () => {}, note: async () => {} };
+  const quiet = { save: async () => {}, drop: async () => {}, note: async () => {} };
 
   it('never runs two reads at once, keeps every answer, and notes each line as it comes', async () => {
     let inFlight = 0;
@@ -94,6 +94,7 @@ describe('the round', () => {
     const reads = roundReads(['api', 'worker']);
     const { end, lines } = await runRound(reads, {
       request,
+      drop: async () => {},
       save: async (name) => saved.push(name),
       note: async (line) => notes.push(line),
     });
@@ -106,6 +107,18 @@ describe('the round', () => {
     );
     // Each line is noted right after its own read, not all at the end.
     assert.deepEqual(notes.slice(0, 4), ['read', lines[0], 'read', lines[1]]);
+  });
+
+  it("drops every read's old file before the first read, even when the round stops there", async () => {
+    const events = [];
+    const reads = roundReads(['api']);
+    const result = await runRound(reads, {
+      ...quiet,
+      drop: async (name) => events.push(`drop ${name}`),
+      request: async () => (events.push('read'), { status: 404, body: '<html>' }),
+    });
+    assert.equal(result.end, 'door-down');
+    assert.deepEqual(events, [...reads.map((r) => `drop ${r.name}`), 'read']);
   });
 
   for (const [what, answer, end] of [
@@ -266,6 +279,10 @@ describe('the door script on the command line', () => {
   // straight to the door host and come back 401 (exit 3), not unreachable.
   it('reads through the proxy, says unreachable, exits 4, and never prints the key', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'door-round-'));
+    // The last run's files, in a folder that outlived it: none may be read as this run's.
+    writeFileSync(path.join(dir, 'events-live.json'), '{"live":false}');
+    writeFileSync(path.join(dir, 'log-api.json'), '{}');
+    writeFileSync(path.join(dir, 'act.txt'), '200 act restart worker\nend done\n');
     const run = spawnSync(process.execPath, [door, 'round', dir], {
       env: noProxyEnv({ HTTPS_PROXY: 'http://127.0.0.1:1', OPS_AGENT_KEY: KEY }),
       encoding: 'utf8',
@@ -274,6 +291,9 @@ describe('the door script on the command line', () => {
     assert.match(run.stdout, /^unreachable .*\nend unreachable/);
     assert.equal(`${run.stdout}${run.stderr}`.includes(KEY), false);
     assert.match(readFileSync(path.join(dir, 'round.txt'), 'utf8'), /end unreachable/);
+    assert.equal(existsSync(path.join(dir, 'events-live.json')), false);
+    assert.equal(existsSync(path.join(dir, 'log-api.json')), false);
+    assert.equal(readFileSync(path.join(dir, 'act.txt'), 'utf8'), '');
   });
 
   it('exits 2 without a round directory, and 2 without a key', () => {
