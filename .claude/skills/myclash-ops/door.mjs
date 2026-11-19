@@ -289,8 +289,11 @@ export async function runAct(act, deps) {
     await note('end unreachable');
     return { end: 'unreachable' };
   }
-  if (result.status !== undefined && !ok) {
-    const code = result.status === 401 ? null : codeOf(result.body);
+  const code = result.status === 401 ? null : codeOf(result.body);
+  // On a long restart the likely cut is a gateway's 5xx, or the API's own uncoded 503: the action
+  // probably ran. Only a 4xx or a coded 5xx (busy, deploy, read-only, key store) is a refusal.
+  const cutOnTheWay = container && result.status >= 500 && code === null;
+  if (result.status !== undefined && !ok && !cutOnTheWay) {
     const end = code ? `refused-${code}` : 'refused';
     await note(`end ${end}`);
     return { end };

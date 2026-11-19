@@ -143,13 +143,13 @@ Nothing else ever goes in a push: no figure, no name, no log text.
 After the round, and before the report, repair what the table names. Read the files the round saved.
 Repair only on a symptom of this table; anything else is reported, never attempted.
 
-| Symptom (from the round's files)                                                                    | Action              | While an Event is live |
-| --------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- |
-| A restartable container's `state` is `exited` or `created`, and its `exitCode` is not 0 and not 143 | `act start <svc>`   | yes                    |
-| A restartable container's `state` is any other value but `running`, or its `health` is `unhealthy`  | `act restart <svc>` | yes                    |
-| `runtime-health.redis.status` is `critical` or `unavailable`, and the `redis` container looks fine  | `act restart redis` | no: a problem, push    |
-| `backups.lastBackup.status` is `failed`, or there is no backup of the last 8 days                   | `act backup`        | no: a note             |
-| A certificate's `daysUntilExpiry` is below `tls.minDays`                                            | `act renew-certs`   | no: a problem, push    |
+| Symptom (from the round's files)                                                                                | Action              | While an Event is live |
+| --------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- |
+| A restartable container's `state` is `exited` or `created`, and its `exitCode` is a number other than 0 and 143 | `act start <svc>`   | yes                    |
+| A restartable container's `state` is neither `running`, `exited` nor `created`, or its `health` is `unhealthy`  | `act restart <svc>` | yes                    |
+| `runtime-health.redis.status` is `critical` or `unavailable`, and the `redis` container looks fine              | `act restart redis` | no: a problem, push    |
+| `backups.lastBackup.status` is `failed`, or there is no backup of the last 8 days                               | `act backup`        | no: a note             |
+| A certificate's `daysUntilExpiry` is below `tls.minDays`                                                        | `act renew-certs`   | no: a problem, push    |
 
 The commands:
 
@@ -172,6 +172,7 @@ Give the Bash tool its longest timeout (600000 ms) for each. Each prints the act
   container that runs but whose part is degraded is a problem: push, hands off (ruling 864).
 - **A stop on purpose stays** (ruling 887): a container `exited` with exit code 0 or 143 was stopped
   by a person or a deploy. Write it as a note; do not start it.
+- **An unknown exit code (`null`) is a note**: do not start that container, report it.
 - **A deploy holds every repair back** (ruling 887): when `versions` shows a deploy that finished
   less than 15 minutes before you started, act on nothing; each symptom is a problem "held back: a
   deploy just ran". `409 deploy_running` means the same.

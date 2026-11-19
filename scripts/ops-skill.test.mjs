@@ -297,6 +297,11 @@ describe('the skill', () => {
     'node .claude/skills/myclash-ops/door.mjs act restart <service> /tmp/myclash-ops',
     'node .claude/skills/myclash-ops/door.mjs act backup /tmp/myclash-ops',
     'node .claude/skills/myclash-ops/door.mjs act renew-certs /tmp/myclash-ops',
+    // Final review of slice 4, I5: a literal reading of the table never restarts a container
+    // stopped on purpose, nor starts one whose exit code is unknown (ruling 887).
+    'its `exitCode` is a number other than 0 and 143',
+    'is neither `running`, `exited` nor `created`',
+    'An unknown exit code (`null`) is a note',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',

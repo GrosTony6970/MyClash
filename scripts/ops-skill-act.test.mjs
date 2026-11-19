@@ -154,6 +154,25 @@ describe('door.mjs act: a container', () => {
     assert.deepEqual(lines.slice(-2), ['after running healthy', 'end done']);
     assert.equal(end, 'done');
   });
+
+  // Final review of slice 4, I1: on a long restart the likely cut is a gateway's 5xx, or the API's
+  // own uncoded 503 ("did not respond within 295s"), not a socket timeout. The restart probably
+  // happened: read what came of it, never call it refused.
+  for (const [label, answer, first] of [
+    ['a gateway 504', { status: 504, body: '<html>' }, '504 error'],
+    ['an uncoded 503', json(503, { message: 'did not respond' }), '503 error'],
+  ]) {
+    it(`${label} on a container action still reads what came of it`, async () => {
+      const { deps, lines } = door({
+        'containers/worker/restart': [answer],
+        containers: [state('running', 'healthy')],
+      });
+      const { end } = await runAct(parseAct(['restart', 'worker', 'd']), deps);
+      assert.equal(lines[0], first);
+      assert.deepEqual(lines.slice(-2), ['after running healthy', 'end done']);
+      assert.equal(end, 'done');
+    });
+  }
 });
 
 describe('door.mjs act: a backup and a renewal', () => {
