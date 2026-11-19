@@ -48,6 +48,14 @@ export const LOG_LINE_MAX_CHARS = 2000;
 export const LOG_CHARS_MAX = 262144;
 /** How far back the errors-only read looks. */
 export const LOG_ERRORS_SCAN = 2000;
+/**
+ * What a log read may hold in memory while compose answers: the errors-only scan's 2000 lines at
+ * their 2000-character cut, about. The runner's 512m is shared with restores.
+ */
+export const LOG_CAPTURE_MAX_CHARS = 4_194_304;
+
+/** One log read at a time (the ops agent's slice 4): a read meanwhile is refused, not queued. */
+let logReadInFlight = false;
 
 const COMPOSE_TIMEOUT_MS = 10_000;
 const CUT_MARK = '…[cut]';
@@ -75,13 +83,14 @@ function cutLine(line) {
  * The lines an answer may hold: the last `lines` (of the problem lines only, when `errorsOnly`),
  * each at most 2,000 characters, the whole at most 262,144 characters, oldest dropped first.
  */
-export function boundLogLines(stdout, { lines, errorsOnly }) {
-  let kept = String(stdout)
-    .split(/\r?\n/u)
-    .filter((line) => line.length > 0);
+export function boundLogLines(stdout, { lines, errorsOnly }, { capped = false } = {}) {
+  let kept = String(stdout).split(/\r?\n/u);
+  // A capped capture starts mid-line: that first line may hold half an address, so it goes.
+  if (capped) kept = kept.slice(1);
+  kept = kept.filter((line) => line.length > 0);
   if (errorsOnly) kept = kept.filter((line) => PROBLEM_LINE.test(line));
   kept = kept.slice(-lines);
-  let truncated = false;
+  let truncated = capped;
   kept = kept.map((line) => {
     if (line.length <= LOG_LINE_MAX_CHARS) return line;
     truncated = true;
@@ -121,31 +130,52 @@ export function projectComposePs(stdout) {
 }
 
 /** Runs compose; a timeout or a failure throws a fixed text (stderr can quote anything). */
-async function compose(run, composeFlags, args, what) {
-  const result = await run('docker', ['compose', ...composeFlags, ...args], COMPOSE_TIMEOUT_MS);
+async function compose(run, composeFlags, args, what, options) {
+  const result = await run(
+    'docker',
+    ['compose', ...composeFlags, ...args],
+    COMPOSE_TIMEOUT_MS,
+    options,
+  );
   if (result.timedOut) throw new Error(`docker compose ${what} timed out.`);
   if (result.code !== 0) throw new Error(`docker compose ${what} failed.`);
-  return result.stdout;
+  return result;
 }
 
 /** The state of every container of the stack, stopped ones included. */
 export async function readContainers(run, composeFlags) {
-  const stdout = await compose(run, composeFlags, ['ps', '--all', '--format', 'json'], 'ps');
+  const { stdout } = await compose(run, composeFlags, ['ps', '--all', '--format', 'json'], 'ps');
   return { generatedAt: new Date().toISOString(), containers: projectComposePs(stdout) };
 }
 
-/** The last lines of one listed container's log; a service off the list is refused (403). */
+/**
+ * The last lines of one listed container's log; a service off the list is refused (403), a read
+ * while another one runs too (409 `log_read_busy`).
+ */
 export async function readContainerLog(run, composeFlags, service, url) {
   if (!LOG_SERVICES.has(service)) {
     throw refusal(403, 'This service log is not readable.', 'service_not_allowed');
   }
   const query = parseLogQuery(url);
-  const tail = String(query.errorsOnly ? LOG_ERRORS_SCAN : query.lines);
-  const stdout = await compose(
-    run,
-    composeFlags,
-    ['logs', '--no-color', '--no-log-prefix', '--timestamps', '--tail', tail, service],
-    'logs',
-  );
-  return { generatedAt: new Date().toISOString(), service, ...boundLogLines(stdout, query) };
+  if (logReadInFlight) {
+    throw refusal(409, 'Another log read is running. Try again when it ends.', 'log_read_busy');
+  }
+  logReadInFlight = true;
+  try {
+    const tail = String(query.errorsOnly ? LOG_ERRORS_SCAN : query.lines);
+    const { stdout, capped } = await compose(
+      run,
+      composeFlags,
+      ['logs', '--no-color', '--no-log-prefix', '--timestamps', '--tail', tail, service],
+      'logs',
+      { maxChars: LOG_CAPTURE_MAX_CHARS },
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      service,
+      ...boundLogLines(stdout, query, { capped: Boolean(capped) }),
+    };
+  } finally {
+    logReadInFlight = false;
+  }
 }

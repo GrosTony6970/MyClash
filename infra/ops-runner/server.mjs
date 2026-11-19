@@ -25,6 +25,7 @@ import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 import { createOperationRunner, startOrRefuse } from './operation-runner.mjs';
 import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
+import { spawnCaptureWithTimeout as spawnCaptureInRoot } from './spawn-capture.mjs';
 import { createUploadSessions } from './upload-chunks.mjs';
 import { handleUploadSessions, readJsonBody, sendError, sendJson } from './upload-routes.mjs';
 import {
@@ -770,35 +771,11 @@ async function appendProcess(operation, command) {
 }
 
 /**
- * Same shape as spawnCapture(), but kills the child after `timeoutMs` and
- * surfaces a `timedOut: true` flag so callers can distinguish "process
- * exited non-zero" from "we never heard back".
+ * spawn-capture.mjs's capture with a timeout, run in the repo root. `options.maxChars` bounds the
+ * stdout held in memory (the log reads).
  */
-async function spawnCaptureWithTimeout(command, args, timeoutMs) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd: ROOT_DIR, env: process.env });
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, timeoutMs);
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ code, stdout, stderr, timedOut });
-    });
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      resolve({ code: 1, stdout, stderr: error.message, timedOut });
-    });
-  });
+function spawnCaptureWithTimeout(command, args, timeoutMs, options = {}) {
+  return spawnCaptureInRoot(command, args, timeoutMs, { ...options, cwd: ROOT_DIR });
 }
 
 async function spawnCapture(command, args) {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AGENT_LOG_SERVICES } from '../../apps/api/src/modules/ops-agent/agent-log-services.ts';
 import {
+  LOG_CAPTURE_MAX_CHARS,
   LOG_EXCLUDED,
   LOG_LINE_MAX_CHARS,
   LOG_SERVICES,
@@ -22,8 +23,8 @@ const FLAGS = ['--env-file', '/srv/myclash/.env', '-f', 'infra/docker-compose.pr
 /** A `run` double: answers `answer`, records each argv. */
 function fakeRun(answer = { code: 0, stdout: '', stderr: '', timedOut: false }) {
   const calls = [];
-  const run = async (command, args, timeoutMs) => {
-    calls.push({ command, args, timeoutMs });
+  const run = async (command, args, timeoutMs, options) => {
+    calls.push({ command, args, timeoutMs, options });
     return answer;
   };
   return { run, calls };
@@ -118,6 +119,59 @@ test('readContainerLog asks for the last N lines of one service', async () => {
   assert.deepEqual(answer.lines, ['a', 'b']);
   assert.equal(answer.service, 'api');
   assert.equal(answer.truncated, false);
+});
+
+// The runner holds a whole capture in memory (512m mem_limit, shared with restores): one log
+// read at a time, and the capture keeps its last LOG_CAPTURE_MAX_CHARS characters only.
+test('one log read at a time: a read meanwhile is a 409 log_read_busy', async () => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const run = async () => {
+    await gate;
+    return { code: 0, stdout: 'a\n', stderr: '' };
+  };
+  const first = readContainerLog(run, FLAGS, 'api', url());
+  // The second read's own run answers at once: without the check it would succeed, not hang.
+  const { run: meanwhile, calls } = fakeRun({ code: 0, stdout: 'z\n', stderr: '' });
+  try {
+    await assert.rejects(readContainerLog(meanwhile, FLAGS, 'worker', url()), {
+      statusCode: 409,
+      code: 'log_read_busy',
+    });
+    assert.equal(calls.length, 0);
+  } finally {
+    release();
+  }
+  assert.deepEqual((await first).lines, ['a']);
+  const { run: next } = fakeRun({ code: 0, stdout: 'b\n', stderr: '' });
+  assert.deepEqual((await readContainerLog(next, FLAGS, 'api', url())).lines, ['b']);
+});
+
+test('a read that fails frees the next one', async () => {
+  const { run: broken } = fakeRun({ code: 1, stdout: '', stderr: 'x' });
+  await assert.rejects(readContainerLog(broken, FLAGS, 'api', url()));
+  const { run } = fakeRun({ code: 0, stdout: 'c\n', stderr: '' });
+  assert.deepEqual((await readContainerLog(run, FLAGS, 'api', url())).lines, ['c']);
+});
+
+test('the capture of a log read is capped', async () => {
+  const { run, calls } = fakeRun({ code: 0, stdout: 'a\n', stderr: '' });
+  await readContainerLog(run, FLAGS, 'api', url());
+  assert.deepEqual(calls[0].options, { maxChars: LOG_CAPTURE_MAX_CHARS });
+});
+
+test('a capped capture drops its first line: a cut never keeps half a secret', async () => {
+  const { run } = fakeRun({
+    code: 0,
+    stdout: 'ple.com +33 6 12 34 56 78 error\nt2 error second\n',
+    stderr: '',
+    capped: true,
+  });
+  const answer = await readContainerLog(run, FLAGS, 'api', url('?errors=1'));
+  assert.deepEqual(answer.lines, ['t2 error second']);
+  assert.equal(answer.truncated, true);
 });
 
 test('the errors-only read scans 2000 lines and keeps the last N problem lines', async () => {
