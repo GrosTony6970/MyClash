@@ -13,14 +13,16 @@ peut régler chacun, et ce que MyClash refuse. Les rôles sont expliqués dans
 
 La plupart des corrections se font sur la page du combat. Pour l'ouvrir, allez dans **Poules**,
 onglet **Matchs**, et cliquez sur la loupe au bout de la ligne du combat (**Ouvrir l'historique
-d'audit**). Ou ouvrez **En direct**, dépliez la ligne d'une lice, et cliquez sur **Détail**. Un
-clic sur la ligne elle-même ouvre la tablette de score.
+d'audit**) ; un clic sur la ligne elle-même ouvre la tablette de score. Ou ouvrez **En direct**,
+dépliez la ligne d'une lice, et cliquez sur **Détail**.
 
 ## Un score est faux après la fin du combat
 
 - **Un échange est faux.** Sur la page du combat, cliquez sur **Invalider** à côté et donnez un
   motif (il est obligatoire). **Restaurer** le remet. MyClash recalcule le score à partir des
-  échanges ; si le vainqueur change, le combat est tranché à nouveau. _Teneur de score_ ou plus ;
+  échanges. Si le nouveau score ne termine plus le combat (il s'est fini au temps, ou il est
+  maintenant sous la limite de points), le combat retourne sur la tablette et le marqueur le
+  termine à nouveau. _Teneur de score_ ou plus ;
   _Éditeur_ ou plus une fois le combat verrouillé.
 - **Le combat doit reprendre.** Cliquez sur **↻ Rouvrir le match**, puis **Annuler le
   résultat**. Dans un tableau, les combats qui attendaient ce résultat sont vidés. Si un combat
@@ -58,7 +60,7 @@ Par défaut, un combat se verrouille 15 minutes après la fin de sa poule ou de 
 - **Dans un tableau,** l'adversaire passe.
 - **Le score d'un forfait** vient de votre règlement de pénalités. Avec les règles FFAMHE, une
   blessure garde le score du moment ; un forfait volontaire ou pour comportement est une défaite
-  0–6, et le comportement disqualifie aussi.
+  0–6, et le comportement disqualifie aussi. Le deuxième forfait d'un combattant dans le tournoi le disqualifie.
 - **Un combat terminé** ne prend pas de forfait : enregistrez plutôt une correction.
 - **Pour retirer un combattant d'un tournoi,** ouvrez **Participants**, l'onglet du tournoi, et
   cliquez sur **Retirer** à côté de lui : « Ses combats de poule restants seront déclarés
@@ -125,9 +127,9 @@ Sur **Planning** :
 ## Les mauvais combattants, ou la mauvaise lice
 
 - Les combattants d'un combat ne se changent pas. En poule, déplacez le combattant vers une autre
-  poule sur **Poules**, tant qu'aucun combat de cette poule n'a été disputé. _Administrateur_ ou
+  poule sur **Poules**, tant qu'aucun combat de l'une ou l'autre poule n'a été disputé. _Administrateur_ ou
   plus.
-- Les poules et les tableaux peuvent être générés à nouveau. Une fois des combats marqués, seul le
+- Les poules et les tableaux peuvent être générés à nouveau (_Administrateur_ ou plus). Une fois des combats marqués, seul le
   _Propriétaire_ le peut, en tapant le nombre de combats marqués.
 - Pour déplacer un combat sur une autre lice, utilisez la liste des lices sur sa ligne dans
   **Poules**, onglet **Matchs**. _Éditeur_ ou plus. Une tablette à PIN ne voit que les combats de

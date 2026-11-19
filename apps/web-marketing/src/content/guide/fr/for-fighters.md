@@ -31,7 +31,7 @@ ce qui se dispute sur chaque lice.
 ## Votre planning
 
 Sur la page de l'événement, sous **Vous participez à cet événement ?**, touchez **Trouver mon
-nom**, puis votre nom, puis **C'est moi !**. Deux choix :
+nom**, puis votre nom. Sous **C'est moi !**, deux choix :
 
 - **Accès rapide sans compte :** votre planning, votre pass, suivre d'autres combattants et
   réserver des stages, sur ce téléphone seulement, jusqu'à une semaine après l'événement.
@@ -52,8 +52,8 @@ autre téléphone crée un nouveau pass, et l'ancien cesse de marcher.
 
 1. Ouvrez `app.myclash.fr/login`, onglet **Créer un compte**, et saisissez votre e-mail. Ouvrez le
    lien reçu et choisissez un mot de passe (ou utilisez **Envoyer le lien magique à la place**).
-2. Pour relier votre profil à cet événement : sur votre nom, **C'est moi !**, puis **Revendiquer
-   mon profil**. Saisissez **Votre e-mail enregistré**, celui qu'a l'organisateur, et touchez
+2. Pour relier votre profil à cet événement : sur votre nom, sous **C'est moi !**, touchez
+   **Revendiquer mon profil**. Saisissez **Votre e-mail enregistré**, celui qu'a l'organisateur, et touchez
    **Envoyer le lien de confirmation**. Le lien marche une heure. Si l'e-mail ne correspond pas,
    demandez à l'organisateur de vérifier votre inscription.
 
@@ -63,7 +63,7 @@ des notifications.
 
 ## Les notifications
 
-Il faut un compte. Dans votre espace, **Activer les notifications**, puis choisissez ce que vous
+Les rappels demandent un compte. Dans votre espace, **Activer les notifications**, puis choisissez ce que vous
 voulez : un rappel avant un combat, un arbitrage ou un stage, **Changements d'horaire**,
 **Résultats publiés**, et d'autres. Elles arrivent en notifications sur le téléphone, ou par
 e-mail si vous ne les avez pas activées.
@@ -80,8 +80,8 @@ que personne ne vous suive, désactivez **Autoriser les autres à me suivre** da
 
 ## Ce que les autres voient de vous
 
-- La liste publique des participants montre votre nom, votre club, vos tournois et votre
-  classement HEMA Ratings. _Jamais votre e-mail._
+- La liste publique des participants montre votre nom, votre club et vos tournois ; la
+  page d'un tournoi montre aussi votre classement HEMA Ratings. _Jamais votre e-mail._
 - Sur votre profil combattant, vous choisissez ce qui est public (**Visibilité publique**).
   **Apparaître dans l’annuaire public des combattants** est activé par défaut ; **Autoriser les
   moteurs de recherche à indexer mon profil** est désactivé.

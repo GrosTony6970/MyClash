@@ -29,8 +29,8 @@ being fought on each piste.
 
 ## Your schedule
 
-On the event page, under **Taking part in this event?**, tap **Find my name**, then your name, then
-**This is me!**. Two choices:
+On the event page, under **Taking part in this event?**, tap **Find my name**, then your name. Under
+**This is me!**, two choices:
 
 - **Quick access without an account:** your schedule, your pass, following other fighters and
   booking workshops, on this phone only, until a week after the event. **End guest session**
@@ -51,7 +51,7 @@ and the old one stops working.
 
 1. Open `app.myclash.fr/login`, tab **Sign up**, and enter your email. Open the link you receive
    and choose a password (or use **Send magic link instead**).
-2. To link your profile at this event: on your name, **This is me!**, then **Claim my profile**.
+2. To link your profile at this event: on your name, under **This is me!**, tap **Claim my profile**.
    Enter **Your registered email**, the one the organiser has, and tap **Send confirmation link**.
    The link works for one hour. If the email does not match, ask the organiser to check your
    registration.
@@ -61,7 +61,7 @@ account, your schedule follows you on every device, and you get notifications.
 
 ## Notifications
 
-They need an account. In your space, **Enable notifications**, then choose what you want: a
+Reminders need an account. In your space, **Enable notifications**, then choose what you want: a
 reminder before a bout, a refereeing duty or a workshop, **Schedule changes**, **Results
 published**, and more. They arrive as phone notifications, or by email if you have not enabled
 them.
@@ -78,8 +78,8 @@ others following you, turn off **Allow others to follow me** in your settings.
 
 ## What others see about you
 
-- The public participants list shows your name, your club, your tournaments and your HEMA rating.
-  _Never your email._
+- The public participants list shows your name, your club and your tournaments; a
+  tournament's page also shows your HEMA rating. _Never your email._
 - On your fighter profile, you choose what is public (**Public visibility**). **Appear in the
   public fighter directory** is on by default; **Let search engines index my profile** is off.
 

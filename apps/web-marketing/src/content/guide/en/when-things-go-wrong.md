@@ -11,14 +11,15 @@ what MyClash refuses. The roles are explained in [Staff access](/en/guide/staff-
 ## Where the fixes are
 
 Most fixes are on the bout's own page. To open it, go to **Pools**, tab **Matches**, and click the
-magnifying glass at the end of the bout's row (**Open audit history**). Or open **Live**, open a
-piste's row, and click **Audit**. Clicking the row itself opens the scoring pad instead.
+magnifying glass at the end of the bout's row (**Open audit history**); clicking the row itself
+opens the scoring pad instead. Or open **Live**, open a piste's row, and click **Audit**.
 
 ## A score is wrong after the bout ended
 
 - **One exchange is wrong.** On the bout's page, click **Void** beside it and give a reason (it is
-  required). **Restore** brings it back. MyClash recalculates the score from the exchanges; if the
-  winner changes, the bout is decided again. _Scorekeeper_ or above; _Editor_ or above once the
+  required). **Restore** brings it back. MyClash recalculates the score from the exchanges. If the
+  new score no longer ends the bout (it ended on time, or is now under the point cap), the bout
+  goes back to the pad and the scorekeeper ends it again. _Scorekeeper_ or above; _Editor_ or above once the
   bout is locked.
 - **The bout must be fought on.** Click **↻ Re-open match**, then **Undo the result**. In a
   bracket, the bouts waiting for this result are emptied. If a later bout was already fought, only
@@ -54,7 +55,7 @@ By default a bout locks 15 minutes after its pool or its bracket is complete. **
 - **In a bracket,** the opponent goes through.
 - **The score of a forfeit** comes from your penalty ruleset. With the FFAMHE rules, an injury
   keeps the score of the moment; a voluntary or conduct forfeit is a 0–6 loss, and conduct also
-  disqualifies.
+  disqualifies. A fighter's second forfeit in the tournament disqualifies them.
 - **A bout that has ended** takes no forfeit: record an override instead.
 - **To take a fighter out of a tournament,** open **Participants**, the tournament's tab, and click
   **Withdraw** beside them: "Their remaining Pool bouts will be forfeited." The first fighter on
@@ -115,8 +116,8 @@ On **Schedule**:
 ## The wrong fighters, or the wrong piste
 
 - A bout's fighters cannot be changed. In a pool, move the fighter to another pool on **Pools**,
-  as long as no bout of that pool has been fought. _Admin_ or above.
-- Pools and brackets can be generated again. Once bouts are scored, only the _Owner_ can, by
+  as long as no bout of either pool has been fought. _Admin_ or above.
+- Pools and brackets can be generated again (_Admin_ or above). Once bouts are scored, only the _Owner_ can, by
   typing the number of scored bouts.
 - To move a bout to another piste, use the piste list on its row in **Pools**, tab **Matches**.
   _Editor_ or above. A PIN tablet only sees the bouts of its own pistes.

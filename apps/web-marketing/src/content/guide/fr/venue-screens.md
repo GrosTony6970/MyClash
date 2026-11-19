@@ -28,8 +28,6 @@ assaut...**.
 - Il se met à jour en direct. Si la connexion tombe, il garde la dernière image et affiche **Plus
   de mise à jour** (ou **Mises à jour ralenties**) jusqu'à ce qu'il rattrape son retard.
 
-![Un écran de salle : le combat de la lice 1, en pause avant sa première touche, et le combat suivant en haut à droite](../../../assets/guide/15-venue-scoreboard.png)
-
 ## La liste des écrans
 
 `app.myclash.fr/e/<votre événement>/display` ouvre **Affichages** : les combats **En direct**, et
@@ -44,6 +42,8 @@ Quand vous ouvrez la tablette de score depuis votre espace (cliquez sur un comba
 le tableau de score du combat dans une nouvelle fenêtre : faites-la glisser sur le second écran et
 cliquez sur **Plein écran**. Ici, **⇄ Inverser les côtés** est actif par défaut, pour un écran
 tourné vers le public. La fenêtre suit la tablette au combat suivant.
+
+![Le tableau de score qu'ouvre Affichage externe, côtés inversés : le combat de la lice 1, en pause avant sa première touche, avec le combat suivant en haut à droite. L'écran de lice a le même aspect.](../../../assets/guide/15-venue-scoreboard.png)
 
 Un marqueur connecté avec un PIN n'a pas ce bouton : utilisez l'écran de lice. Dans **En
 direct**, la ligne d'une lice a aussi **TV ↗**, qui ouvre le même tableau de score.

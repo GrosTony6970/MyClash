@@ -26,8 +26,6 @@ seconds. With nothing left on the piste it shows **Waiting for next match...**.
 - It updates live. If the connection drops, it keeps the last picture and shows **Not updating**
   (or **Slower updates**) until it catches up.
 
-![A venue screen: the bout on Piste 1, paused before its first hit, and the next bout at the top right](../../../assets/guide/15-venue-scoreboard.png)
-
 ## The list of screens
 
 `app.myclash.fr/e/<your event>/display` opens **Displays**: the bouts **Now live**, and **Choose
@@ -41,6 +39,8 @@ When you open the scoring pad from your workspace (click a bout in **Pools**, **
 **Schedule**), the pad shows **↗ External display**. It opens the bout's scoreboard in a new
 window: drag it to the second screen and click **Fullscreen**. Here **⇄ Swap sides** is on by
 default, for a screen that faces the audience. The window follows the pad to the next bout.
+
+![The scoreboard that External display opens, sides swapped: the bout on Piste 1, paused before its first hit, with the next bout at the top right. The piste screen looks the same.](../../../assets/guide/15-venue-scoreboard.png)
 
 A scorekeeper who signed in with a PIN does not have this button: use the piste screen. In
 **Live**, a piste's row also has **TV ↗**, which opens the same scoreboard.
