@@ -37,7 +37,11 @@ pas ouvrir la page d'envoi.
 **Les règles d'une photo :** JPEG seulement, jusqu'à 12 Mo. Une photo d'iPhone en HEIC est refusée,
 avec le conseil de régler l'appareil photo sur « Le plus compatible ». Certaines photos exportées
 d'une application de retouche sont refusées aussi : envoyez la photo telle que l'appareil l'a prise.
-Chaque téléphone peut envoyer 20 photos par heure. Les données de lieu d'une photo sont retirées.
+Chaque téléphone, et chaque compte, peut envoyer 20 photos par heure. L'événement entier reçoit au
+plus 300 photos par heure et 15 Go en tout : la page Photos affiche les deux nombres. Les données de
+lieu d'une photo sont retirées.
+
+![La page Photos : Approuver d'abord est choisi, avec le QR code et les nombres de l'événement](../../../assets/guide/28-photos.png)
 
 ## Les vérifier
 

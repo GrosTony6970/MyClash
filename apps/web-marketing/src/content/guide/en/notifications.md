@@ -47,6 +47,8 @@ not.
 - It reaches every person, account or not: by phone, or by email to the address you hold for them.
   It is sent even to someone who turned notifications off.
 
+![The Notifications page: who, the type, the title and the message, with a preview](../../../assets/guide/29-notifications.png)
+
 **Notify participants**, on the Pools and Bracket pages, opens this page already filled in: the
 fighters and referees of the tournament, and "Pools are ready" or its bracket version.
 

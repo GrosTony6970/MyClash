@@ -35,8 +35,11 @@ page.
 
 **The rules for a photo:** JPEG only, up to 12 MB. An iPhone photo in HEIC is refused, with a tip to
 set the camera to "Most Compatible". Some photos exported from an editing app are refused too: send
-the photo straight from the camera. Each phone can send 20 photos an hour. The location data in a
-photo is removed.
+the photo straight from the camera. Each phone, and each account, can send 20 photos an hour. The
+whole event takes at most 300 photos an hour and 15 GB in all: the Photos page shows both counts.
+The location data in a photo is removed.
+
+![The Photos page: Approve first is chosen, with the QR code and the event's counts](../../../assets/guide/28-photos.png)
 
 ## Check them
 

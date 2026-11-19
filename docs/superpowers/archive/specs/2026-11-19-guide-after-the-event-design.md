@@ -4,7 +4,19 @@ Status: approved by the operator on 2026-11-19, with rulings 891-894
 (`docs/notes/quick-wins-2026-10-08.md`): bugs 1-4 and the copy fixes first, one commit each; Bug 5
 is fixed the other way round, by completing a Tournament automatically (its own slice); the event
 menu hides an entry below its role (its own slice); the four pages go in a new fifth section. The
-pages then describe the fixed app.
+pages then describe the fixed app. Shipped 2026-11-19.
+
+What the build found against this spec:
+
+- **The first fact below is no longer true.** Ruling 892 made a Tournament complete by itself
+  (`96917a72a`), so the results notice now goes out on its own. The pages say so.
+- **No print pack picture.** The print pack opens a print window, which a screenshot cannot take.
+  The Photos, Notifications and Debrief pages each got one picture.
+- **The Photos picture shows limits the spec left out:** 300 photos an hour and 15 GB for the whole
+  Event, beside the 20 an hour for each phone or account (`photo-upload.service.ts:44-48`). The
+  Photos page now names all three.
+- **The Photos picture shows a QR code.** It links to the test Event, which the run deleted, so the
+  link leads nowhere.
 
 Builds on the shipped organiser guide (parts 1-4 in `docs/superpowers/archive/specs/`): same site
 (`apps/web-marketing`, `/guide` FR and `/en/guide` EN), same Markdown collection, same tests, same

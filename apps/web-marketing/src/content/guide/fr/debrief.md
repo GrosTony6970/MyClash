@@ -33,6 +33,8 @@ Chaque carte montre un nombre, toujours, même à zéro.
 Une tablette éteinte tôt dans la journée apparaît sous **Appareils ayant cessé de répondre** :
 vérifiez qu'elle a seulement été éteinte.
 
+![Le débriefing d'un événement de test : rien ne requiert l'attention, et une arrivée trouvée par le nom](../../../assets/guide/30-debrief.png)
+
 ## Ce que les gens ont dit
 
 Le panneau **Ce que les gens ont dit** montre la note moyenne sur 5, le nombre de réponses, une

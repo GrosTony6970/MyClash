@@ -33,6 +33,8 @@ Each card shows a count, always, even at zero.
 A tablet switched off early in the day shows under **Devices that stopped reporting**: check that it
 was only switched off.
 
+![The debrief of a test event: nothing needs attention, and one arrival found by name](../../../assets/guide/30-debrief.png)
+
 ## What people said
 
 The panel **What people said** shows the average rating out of 5, the number of answers, a line per

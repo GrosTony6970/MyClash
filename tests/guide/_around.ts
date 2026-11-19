@@ -5,7 +5,7 @@ import { shootClean } from './_beyond';
 
 /**
  * The guide's "Before and after" screenshots
- * (docs/superpowers/specs/2026-11-19-guide-after-the-event-design.md): the Photos page with its mode
+ * (docs/superpowers/archive/specs/2026-11-19-guide-after-the-event-design.md): the Photos page with its mode
  * and QR panel, the Notifications page, and the Debrief. The print pack opens a print window, which
  * a screenshot cannot take.
  *

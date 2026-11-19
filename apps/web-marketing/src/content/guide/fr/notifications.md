@@ -49,6 +49,8 @@ qui, écrivez, envoyez.
 - Elle atteint chaque personne, avec ou sans compte : par téléphone, ou par email à l'adresse que
   vous avez pour elle. Elle part même vers quelqu'un qui a coupé ses notifications.
 
+![La page Notifications : à qui, le type, le titre et le message, avec un aperçu](../../../assets/guide/29-notifications.png)
+
 **Notifier les participants**, sur les pages Poules et Tableau, ouvre cette page déjà remplie : les
 combattants et arbitres du tournoi, et « Les poules sont prêtes » ou sa version pour le tableau.
 
