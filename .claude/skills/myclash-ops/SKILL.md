@@ -199,7 +199,8 @@ rules do not apply to a scheduled run: a scheduled run never uses SSH.
 - You log in as your own account, `myclash-ops-agent`, through the host alias `myclash-ops`. The
   operator approves each command.
 - The call shape is `ssh myclash-ops "sudo -n -u <operator-user> <command>"`. The server allows
-  only its sudo list: `status.sh` (and `--errors`), `deploy.sh`, `redeploy.sh`, `docker logs`, the
+  only its sudo list: `status.sh` (and `--errors`), `start.sh` (no argument; ruling 899: to bring
+  back a half-stopped stack while the operator watches), `deploy.sh`, `redeploy.sh`, `docker logs`, the
   read-only Docker commands (`ps`, `stats --no-stream`, `top`, `images`, `system df`, `info`,
   `version`, `network ls|inspect`, `volume ls`, `port`, `diff`),
   `/usr/local/bin/myclash-container-state <name>`, and six exact `git -C <repo>` reads (`status
