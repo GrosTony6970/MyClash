@@ -468,7 +468,7 @@
     "apps/web-admin/app/admin/rulesets/scoring/[id]/edit/page.tsx:70",
     "apps/web-admin/app/admin/rulesets/scoring/new/page.tsx:15",
     "apps/web-admin/app/admin/rulesets/scoring/page.tsx:42",
-    "apps/web-admin/app/admin/system-versions/HostInfoCard.tsx:69",
+    "apps/web-admin/app/admin/system-versions/HostInfoCard.tsx:70",
     "apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:144",
     "apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:431",
     "apps/web-admin/app/admin/system-versions/TlsCertificatesCard.tsx:90",
