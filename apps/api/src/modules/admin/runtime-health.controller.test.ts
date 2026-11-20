@@ -3,11 +3,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { RuntimeHealthAdminController } from './runtime-health.controller';
 
 describe('RuntimeHealthAdminController', () => {
-  it('GET / returns the collected snapshot', async () => {
+  it('GET / returns the collected snapshot and the agent wake-up state', async () => {
     const health = { collect: vi.fn(async () => ({ overall: 'healthy' })) } as never;
-    const settings = {} as never;
-    const controller = new RuntimeHealthAdminController(health, settings, {} as never);
-    expect(await controller.getRuntimeHealth()).toEqual({ overall: 'healthy' });
+    const traces = { readWake: vi.fn(async () => ({ read: 'not_checked' })) } as never;
+    const controller = new RuntimeHealthAdminController(health, {} as never, {} as never, traces);
+    expect(await controller.getRuntimeHealth()).toEqual({
+      overall: 'healthy',
+      agentWake: { read: 'not_checked' },
+    });
   });
 
   it('PUT /alert-settings forwards the actor id from the request', async () => {
@@ -15,6 +18,7 @@ describe('RuntimeHealthAdminController', () => {
     const controller = new RuntimeHealthAdminController(
       {} as never,
       { updateSettings } as never,
+      {} as never,
       {} as never,
     );
     const req = { actorUserId: 'user-1' } as never;
@@ -28,6 +32,7 @@ describe('RuntimeHealthAdminController', () => {
       {} as never,
       {} as never,
       { getSeries } as never,
+      {} as never,
     );
     await controller.getSeries('not-a-number');
     expect(getSeries).toHaveBeenCalledWith(24);
@@ -39,6 +44,7 @@ describe('RuntimeHealthAdminController', () => {
       {} as never,
       {} as never,
       { getSeries } as never,
+      {} as never,
     );
     await controller.getSeries('6');
     expect(getSeries).toHaveBeenCalledWith(6);

@@ -33,6 +33,9 @@ export const forbiddenEnvKeys = [
   'OPS_RUNNER_SECRET',
   // The ops agent's key: its name lives in packages/i18n messages, never under apps/web-*.
   'OPS_AGENT_KEY',
+  // The token that starts the agent's cloud task; the fire URL names the task (slice 5).
+  'OPS_AGENT_WAKE_TOKEN',
+  'OPS_AGENT_WAKE_URL',
   'RESEND_API_KEY',
   // The Resend API key, as GoTrue's SMTP password. It replaces SMTP_PASSWORD, a name nothing
   // declares, which therefore never matched anything (ruling 511).

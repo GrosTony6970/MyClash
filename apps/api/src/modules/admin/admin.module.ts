@@ -48,6 +48,7 @@ import { createRuntimeHealthRedis } from './runtime-health/redis-connection';
 import { collectDb } from './runtime-health/db-collector';
 import { collectRedis } from './runtime-health/redis-collector';
 import { collectQueues } from './runtime-health/queue-collector';
+import { OpsAgentTraceReader } from './runtime-health/agent-trace-reader';
 import { collectContainers } from './runtime-health/containers-collector';
 import { collectDisk } from './runtime-health/disk-collector';
 import type { S3Client } from '@aws-sdk/client-s3';
@@ -164,6 +165,13 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     PlatformRoleGuard,
     RuntimeHealthAlertSettingsService,
     RuntimeHealthSamplesService,
+    {
+      provide: OpsAgentTraceReader,
+      // Its own lazy connection: it dials Redis only when the console reads the card.
+      useFactory: (config: ConfigService) =>
+        new OpsAgentTraceReader(createRuntimeHealthRedis(config)),
+      inject: [ConfigService],
+    },
     {
       provide: AdminRuntimeHealthService,
       useFactory: (

@@ -5,7 +5,7 @@
  * Imported by AppModule.
  */
 
-import { forwardRef, Module } from '@nestjs/common';
+import { forwardRef, Logger, Module } from '@nestjs/common';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
@@ -38,6 +38,8 @@ import {
 } from './runtime-health-monitor.worker';
 import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor.worker';
 import { isStopping } from '../common/graceful-stop';
+import { processRole } from '../common/process-role';
+import { OpsAgentWake } from './ops-agent-wake';
 
 @Module({
   imports: [
@@ -158,16 +160,26 @@ import { isStopping } from '../common/graceful-stop';
         samples: RuntimeHealthSamplesService,
         mail: MailService,
         config: ConfigService,
-      ) =>
-        new RuntimeHealthMonitorWorker(
+      ) => {
+        const redis = createRuntimeHealthRedis(config);
+        // Built here too in the API process (this module is in its graph), which never ticks.
+        const wake = new OpsAgentWake({
+          env: process.env,
+          logger: new Logger(OpsAgentWake.name),
+          redis,
+          processRole: processRole(process.argv),
+        });
+        return new RuntimeHealthMonitorWorker(
           queue,
           runtimeHealth,
           settings,
           samples,
           mail,
           isStopping,
-          createRuntimeHealthRedis(config),
-        ),
+          wake,
+          redis,
+        );
+      },
       inject: [
         getQueueToken(RUNTIME_HEALTH_MONITOR_QUEUE),
         AdminRuntimeHealthService,

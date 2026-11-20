@@ -1024,6 +1024,10 @@ services:
       # two, every tick it ran here recorded disk as unavailable, a critical alert (ruling 810).
       OPS_RUNNER_URL: http://ops-runner:4075
       OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
+      # The ops agent's alert wake-up (rulings 901, 902): the cloud task's fire URL and its token.
+      # Empty = off; the worker logs "agent wake-up: not configured" at boot.
+      OPS_AGENT_WAKE_URL: ${OPS_AGENT_WAKE_URL:-}
+      OPS_AGENT_WAKE_TOKEN: ${OPS_AGENT_WAKE_TOKEN:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

@@ -4,7 +4,8 @@
  * Fixed 5-min BullMQ tick that reads the operator-configured alert settings
  * (RuntimeHealthAlertSettingsService), collects a runtime-health snapshot
  * (AdminRuntimeHealthService.collect()), and emails the operator when any
- * metric is at/above the configured alert level.
+ * metric is at/above the configured alert level. When the ops agent's wake-up is configured,
+ * every tick also reads health and hands it to the wake-up (`ops-agent-wake.ts`, ruling 902).
  *
  * De-dup / cooldown / re-arm state lives in Redis under `runtime-health:alert-state`
  * as JSON `{ lastCriticalKeys, lastEmailedAt, lastCheckedAt }` — a fresh critical
@@ -26,11 +27,12 @@ import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.servi
 import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
 import { RuntimeHealthSamplesService } from '../modules/admin/runtime-health-samples.service';
 import { MailService } from '../modules/mail/mail.service';
-import { describeContainerProblem } from '../modules/admin/runtime-health/containers-collector';
 import type {
-  MetricStatus,
+  RuntimeHealthAlertSettings,
   RuntimeHealthResponseDto,
 } from '../modules/admin/dto/runtime-health.dto';
+import type { OpsAgentWake } from './ops-agent-wake';
+import { detailOf, keysAtLeast, statusOf } from './runtime-health-keys';
 
 export const RUNTIME_HEALTH_MONITOR_QUEUE = 'runtime-health-monitor';
 export const RUNTIME_HEALTH_MONITOR_JOB = 'tick';
@@ -41,9 +43,6 @@ interface AlertState {
   lastEmailedAt: number;
   lastCheckedAt: number;
 }
-
-// A 'not_configured' metric (photoStorage, containers) is in neither alert tier: it stays quiet.
-const METRIC_KEYS = ['database', 'redis', 'queues', 'disk', 'photoStorage', 'containers'] as const;
 
 /** A tick that checks nothing: alerts off, or the worker stopping. */
 const notRun = () => ({ ran: false, emailed: false, criticalKeys: [] as string[] });
@@ -65,6 +64,8 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
      * again after it, since the read can outlast the signal.
      */
     private readonly isStopping: () => boolean,
+    /** The alert wake-up (rulings 901, 902): it reads every tick, whatever the email settings. */
+    private readonly wake: OpsAgentWake,
     @Optional() private readonly redis?: Redis,
   ) {
     super();
@@ -82,40 +83,41 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     await this.tick(Date.now());
   }
 
-  /** Public for tests. Returns whether a full check ran + whether an email was sent. */
+  /**
+   * Public for tests. Returns whether the email check ran + whether an email was sent. The
+   * wake-up does not follow the email settings (design §4, ruling 902): when it is configured,
+   * every tick reads health once, and the email check reuses that read when it is due.
+   */
   async tick(now: number): Promise<{ ran: boolean; emailed: boolean; criticalKeys: string[] }> {
+    if (this.isStopping()) return notRun();
     const settings = await this.settingsService.getSettings();
-    if (!settings.enabled || this.isStopping()) return notRun();
     const { state, ok: stateOk } = await this.readState();
-    // Throttle full checks to checkIntervalMinutes ONLY while quiet (no active
-    // alert). Once something is flagged, re-check on every fixed 5-min tick
-    // regardless of the operator's interval, so recovery (re-arm) is caught
-    // quickly instead of waiting out the full interval while still critical.
-    const isQuiet = state.lastCriticalKeys.length === 0;
-    if (isQuiet && now - state.lastCheckedAt < settings.checkIntervalMinutes * 60_000) {
+    const due = settings.enabled && emailCheckDue(state, settings, now);
+    const wakeOn = this.wake.config === 'configured';
+    const snapshot = due || wakeOn ? await this.runtimeHealth.collect() : null;
+    // A draining worker reads its queues as unworked (ruling 830): every deploy would alarm.
+    if (this.isStopping()) return notRun();
+    if (wakeOn && snapshot) await this.wake.onSnapshot(snapshot, now);
+    else await this.wake.noteUnconfigured(now);
+    if (!due || !snapshot) {
       return { ran: false, emailed: false, criticalKeys: state.lastCriticalKeys };
     }
+    return this.emailCheck(snapshot, settings, { state, stateOk }, now);
+  }
 
-    const snapshot = await this.runtimeHealth.collect();
-    if (this.isStopping()) return notRun();
-
+  /** The alert email, from the tick's one snapshot. */
+  private async emailCheck(
+    snapshot: RuntimeHealthResponseDto,
+    settings: RuntimeHealthAlertSettings,
+    { state, stateOk }: { state: AlertState; stateOk: boolean },
+    now: number,
+  ): Promise<{ ran: boolean; emailed: boolean; criticalKeys: string[] }> {
     // Retain the tick before anything that can short-circuit, so the trend keeps
     // its densest data exactly when things are going wrong.
-    //
-    // Guarded here rather than trusting the service to stay non-throwing:
-    // history is worth strictly less than the alert email this tick exists to
-    // send, and that must hold however the persistence layer fails later.
-    try {
-      await this.samples.record(snapshot);
-      await this.samples.prune(new Date(now));
-    } catch (err) {
-      this.logger.warn(
-        `Runtime health sample not retained: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.recordSample(snapshot, now);
 
-    const criticalKeys = this.keysAtLeast(snapshot, 'critical');
-    const warningKeys = this.keysAtLeast(snapshot, 'warning');
+    const criticalKeys = keysAtLeast(snapshot, 'critical');
+    const warningKeys = keysAtLeast(snapshot, 'warning');
 
     for (const key of warningKeys) {
       this.logger.warn(`Runtime health ${key} = ${statusOf(snapshot, key)}`);
@@ -153,14 +155,20 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     return { ran: true, emailed, criticalKeys };
   }
 
-  private keysAtLeast(snapshot: RuntimeHealthResponseDto, level: 'warning' | 'critical'): string[] {
-    // 'unavailable' (collector threw / subsystem unreachable) is bucketed at the
-    // CRITICAL tier: a dead subsystem is at least as bad as a critical reading, so
-    // it must page at the default emailLevel='critical' rather than being gated
-    // behind emailLevel='warning'.
-    const bad: MetricStatus[] =
-      level === 'critical' ? ['critical', 'unavailable'] : ['warning', 'critical', 'unavailable'];
-    return METRIC_KEYS.filter((k) => bad.includes(statusOf(snapshot, k)));
+  /**
+   * Guarded here rather than trusting the service to stay non-throwing: history is worth strictly
+   * less than the alert email this tick exists to send, and that must hold however the
+   * persistence layer fails later.
+   */
+  private async recordSample(snapshot: RuntimeHealthResponseDto, now: number): Promise<void> {
+    try {
+      await this.samples.record(snapshot);
+      await this.samples.prune(new Date(now));
+    } catch (err) {
+      this.logger.warn(
+        `Runtime health sample not retained: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   private async sendEmail(
@@ -220,19 +228,19 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   }
 }
 
-function statusOf(snapshot: RuntimeHealthResponseDto, key: string): MetricStatus {
-  // `!` is safe: key always comes from METRIC_KEYS, which are guaranteed
-  // properties of RuntimeHealthResponseDto (noUncheckedIndexedAccess just
-  // can't see that through the Record<string, ...> cast).
-  return (snapshot as unknown as Record<string, { status: MetricStatus }>)[key]!.status;
-}
-
-/** A metric's status; for the containers, followed by the ones at fault (ruling 900). */
-function detailOf(snapshot: RuntimeHealthResponseDto, key: string): string {
-  const status = statusOf(snapshot, key);
-  const { containers } = snapshot;
-  if (key !== 'containers' || !('problems' in containers)) return status;
-  return `${status} (${containers.problems.map(describeContainerProblem).join(', ')})`;
+/**
+ * Throttle full checks to checkIntervalMinutes ONLY while quiet (no active alert). Once something
+ * is flagged, re-check on every fixed 5-min tick regardless of the operator's interval, so
+ * recovery (re-arm) is caught quickly instead of waiting out the full interval while still
+ * critical.
+ */
+function emailCheckDue(
+  state: AlertState,
+  settings: RuntimeHealthAlertSettings,
+  now: number,
+): boolean {
+  const isQuiet = state.lastCriticalKeys.length === 0;
+  return !isQuiet || now - state.lastCheckedAt >= settings.checkIntervalMinutes * 60_000;
 }
 
 function sameSet(a: string[], b: string[]): boolean {

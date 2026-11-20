@@ -1,6 +1,7 @@
 // runtime-health-monitor.worker.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { isStopping } from '../common/graceful-stop';
+import { OpsAgentWake } from './ops-agent-wake';
 import { RuntimeHealthMonitorWorker } from './runtime-health-monitor.worker';
 import { WorkersModule } from './workers.module';
 import { DEFAULT_ALERT_SETTINGS } from '../modules/admin/dto/runtime-health.dto';
@@ -10,6 +11,8 @@ function makeDeps(opts: {
   snapshot: Record<string, { status: string }>;
   state?: Record<string, unknown> | null;
   stopping?: () => boolean;
+  /** The wake-up's keys; none by default (not configured). */
+  wakeEnv?: Record<string, string>;
 }) {
   const store = new Map<string, string>();
   if (opts.state) store.set('runtime-health:alert-state', JSON.stringify(opts.state));
@@ -21,6 +24,14 @@ function makeDeps(opts: {
   const mail = { sendNotification: vi.fn(async () => undefined) };
   const samples = { record: vi.fn(async () => true), prune: vi.fn(async () => 0) };
   const collect = vi.fn(async () => ({ checkedAt: 'now', overall: 'healthy', ...opts.snapshot }));
+  const fire = vi.fn(async () => new Response('{}', { status: 200 }));
+  const wake = new OpsAgentWake({
+    env: opts.wakeEnv ?? {},
+    logger: { log: () => undefined, warn: () => undefined },
+    redis,
+    processRole: 'worker',
+    fetchFn: fire as unknown as typeof fetch,
+  });
   const worker = new RuntimeHealthMonitorWorker(
     { add: async () => undefined } as never, // queue (onModuleInit not exercised here)
     { collect } as never,
@@ -34,9 +45,10 @@ function makeDeps(opts: {
     samples as never,
     mail as never,
     opts.stopping ?? (() => false),
+    wake,
     redis as never,
   );
-  return { worker, mail, store, samples, collect };
+  return { worker, mail, store, samples, collect, fire };
 }
 
 const healthy = {
@@ -169,6 +181,7 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
       { record: async () => true, prune: async () => 0 } as never,
       mail as never,
       () => false,
+      new OpsAgentWake({ env: {}, logger: console, redis, processRole: 'worker' }),
       redis as never,
     );
     const result = await worker.tick(Date.now());
@@ -246,5 +259,97 @@ describe('a stopping worker sends no queue alarm (ruling 830)', () => {
     const config = { get: (_key: string, fallback?: unknown) => fallback };
     const worker = factory?.({}, {}, {}, {}, {}, config);
     expect((worker as unknown as { isStopping: unknown }).isStopping).toBe(isStopping);
+  });
+});
+
+describe('the wake-up checks on every tick, whatever the email settings (rulings 901, 902)', () => {
+  const wakeEnv = { OPS_AGENT_WAKE_URL: 'https://fire.example/x', OPS_AGENT_WAKE_TOKEN: 't' };
+  const webPublicDead = (...services: string[]) => ({
+    ...healthy,
+    containers: {
+      status: 'critical',
+      problems: services.map((service) => ({
+        service,
+        state: 'exited',
+        exitCode: 1,
+        health: null,
+      })),
+    },
+  });
+  const notDue = (now: number) => ({ lastCriticalKeys: [], lastEmailedAt: 0, lastCheckedAt: now });
+
+  it('emails off: the tick still reads health and wakes the task', async () => {
+    const { worker, collect, fire, mail } = makeDeps({
+      snapshot: webPublicDead('web-public'),
+      settings: { enabled: false },
+      wakeEnv,
+    });
+    await worker.tick(Date.now());
+    expect(collect).toHaveBeenCalledOnce();
+    expect(fire).toHaveBeenCalledOnce();
+    expect(mail.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('the email check not due: one read, a call, but no email and no sample', async () => {
+    const now = Date.now();
+    const { worker, collect, fire, mail, samples } = makeDeps({
+      snapshot: webPublicDead('web-public'),
+      state: notDue(now - 60_000),
+      wakeEnv,
+    });
+    await expect(worker.tick(now)).resolves.toMatchObject({ ran: false });
+    expect(collect).toHaveBeenCalledOnce();
+    expect(fire).toHaveBeenCalledOnce();
+    expect(mail.sendNotification).not.toHaveBeenCalled();
+    expect(samples.record).not.toHaveBeenCalled();
+  });
+
+  it('not configured and the check not due: no read at all, the card learns it is not configured', async () => {
+    const now = Date.now();
+    const { worker, collect, store } = makeDeps({ snapshot: healthy, state: notDue(now - 60_000) });
+    await worker.tick(now);
+    expect(collect).not.toHaveBeenCalled();
+    expect(JSON.parse(store.get('ops-agent:wake-state')!)).toMatchObject({
+      config: 'not_configured',
+    });
+  });
+
+  it('a stopping worker: no read, no call', async () => {
+    const { worker, collect, fire } = makeDeps({
+      snapshot: webPublicDead('web-public'),
+      stopping: () => true,
+      wakeEnv,
+    });
+    await worker.tick(Date.now());
+    expect(collect).not.toHaveBeenCalled();
+    expect(fire).not.toHaveBeenCalled();
+  });
+
+  it('a stop that lands during the read: no call, no email (the drain reads queues as dead)', async () => {
+    let stopping = false;
+    const deps = makeDeps({
+      snapshot: { ...healthy, queues: { status: 'critical' } },
+      stopping: () => stopping,
+      wakeEnv,
+    });
+    deps.collect.mockImplementationOnce(async () => {
+      stopping = true;
+      return { checkedAt: 'now', overall: 'critical', ...healthy, queues: { status: 'critical' } };
+    });
+    await deps.worker.tick(Date.now());
+    expect(deps.fire).not.toHaveBeenCalled();
+    expect(deps.mail.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('a second service dies while the first is still down: a second call', async () => {
+    const deps = makeDeps({ snapshot: webPublicDead('web-public'), wakeEnv });
+    await deps.worker.tick(1_000_000);
+    deps.collect.mockResolvedValueOnce({
+      checkedAt: 'now',
+      overall: 'critical',
+      ...webPublicDead('web-public', 'web-staff'),
+    });
+    await deps.worker.tick(1_300_000);
+    expect(deps.fire).toHaveBeenCalledTimes(2);
   });
 });

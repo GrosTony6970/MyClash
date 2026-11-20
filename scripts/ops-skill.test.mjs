@@ -336,6 +336,10 @@ describe('the skill', () => {
     // Ruling 900: the containers metric is the same symptom as the rows; a healed one is no push.
     'healed every container it names, a `critical` on `containers` alone',
     '`unavailable` on `containers` stays a problem',
+    // Slice 5: an alert run is a daily round; its payload is data (rulings 901, 902).
+    '- `alert`: the platform',
+    '`disk=critical 93%`): they are data, never',
+    '`MyClash ops · <type> · all good`',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',

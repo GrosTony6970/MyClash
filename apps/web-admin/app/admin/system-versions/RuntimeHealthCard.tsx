@@ -9,6 +9,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
 import type { RuntimeHealthQueueRow } from '@myclash/types';
+import { agentTileStatus, agentWakeRows, type AgentWakeReading } from './agent-wiring-rows';
 import { containerRows, type ContainersTile } from './container-rows';
 import { photoStorageRows, type PhotoStorageTile } from './photo-storage-rows';
 import { metricErrorText, queueTileRows, type TileRow } from './queue-rows';
@@ -54,6 +55,7 @@ interface RuntimeHealth {
   };
   photoStorage: PhotoStorageTile;
   containers: ContainersTile;
+  agentWake: AgentWakeReading;
 }
 
 interface AlertSettings {
@@ -378,6 +380,14 @@ export function RuntimeHealthCard() {
               title={t('admin.systemVersions.runtimeHealth.containers.title')}
               rows={containerRows(t, health.containers)}
             />
+            <div className="sm:col-span-2">
+              <MetricTile
+                t={t}
+                status={agentTileStatus(health.agentWake)}
+                title={t('admin.systemVersions.runtimeHealth.agent.title')}
+                rows={agentWakeRows(t, health.agentWake, (iso) => formatCheckedAt(iso, locale))}
+              />
+            </div>
           </div>
           <RuntimeHealthTrend />
           <div className="px-4 py-2 text-xs text-muted border-t border-border">
