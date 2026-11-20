@@ -80,6 +80,8 @@ const CONTAINER_STEADY_MS = 30_000;
 const BACKUP_POLL_MS = 15_000;
 /** Seven minutes: with the 300 s action budget unused, the run stays under the 10-minute tool. */
 const BACKUP_WAIT_MS = 7 * 60_000;
+/** A prune's two runner steps, 140 s each (PRUNE_STEP_TIMEOUT_MS), and their slack. */
+const PRUNE_BUDGET_MS = 285_000;
 /** The runner restarts Traefik 3 s after it answers; give it time to be back. */
 const RENEW_SETTLE_MS = 30_000;
 const SERVICE_NAME = /^[a-z][a-z-]{0,40}$/;
@@ -177,16 +179,16 @@ function stopReason({ status, body }, isFirst) {
 }
 
 /**
- * Empties a run's folder of what an earlier run left: every answer (`*.json`: the round's reads
- * and `act`'s `act-*.json`) and both traces. A read that fails or never runs, or a repair not made
- * this time, then leaves nothing to be read as this run's. Only those files: never the folder
- * itself, so a wrong argument cannot become a recursive delete.
+ * Empties a run's folder of what an earlier run left: the answers of the round's reads (`names`),
+ * `act`'s `act-*.json`, and both traces. A read that fails or never runs, or a repair not made
+ * this time, then leaves nothing to be read as this run's. Only those names: a round given the
+ * wrong folder (the clone itself) must not take its `package.json` with it.
  */
-export async function clearRun(dir) {
-  const names = await readdir(dir).catch(() => []);
-  for (const name of names) {
-    if (name.endsWith('.json') || name === 'round.txt' || name === 'act.txt') {
-      await rm(path.join(dir, name), { force: true });
+export async function clearRun(dir, names) {
+  const ours = new Set([...names.map((name) => `${name}.json`), 'round.txt', 'act.txt']);
+  for (const file of await readdir(dir).catch(() => [])) {
+    if (ours.has(file) || /^act-[a-z0-9-]+\.json$/u.test(file)) {
+      await rm(path.join(dir, file), { force: true });
     }
   }
 }
@@ -283,8 +285,13 @@ async function renewAfter({ request, sleep }) {
   return `after ${certificates.map((c) => `${c.host}:${c.daysUntilExpiry ?? '?'}`).join(' ')}`;
 }
 
-/** What `act` reads after a prune: the disk's state and use, once. */
-async function pruneAfter({ request }) {
+/**
+ * What `act` reads after a prune: the disk's state and use, once. After an answer cut on the way
+ * the prune is likely still running: read only once its whole budget has passed, or a prune still
+ * at work reads as a failed one.
+ */
+async function pruneAfter({ request, sleep, now }, { started, cut }) {
+  if (cut) await sleep(Math.max(0, PRUNE_BUDGET_MS - (now() - started)));
   const disk = parsed(
     (await request('runtime-health', { method: 'GET', timeout: READ_TIMEOUT_MS })).body,
   )?.disk;
@@ -305,7 +312,11 @@ const ACTIONS = {
     after: (act, result, deps) => backupAfter(result, deps),
   },
   renew: { route: () => 'tls/renew', long: false, after: (act, result, deps) => renewAfter(deps) },
-  prune: { route: () => 'disk/prune', long: true, after: (act, result, deps) => pruneAfter(deps) },
+  prune: {
+    route: () => 'disk/prune',
+    long: true,
+    after: (act, result, deps, how) => pruneAfter(deps, how),
+  },
 };
 
 /**
@@ -317,6 +328,7 @@ export async function runAct(act, deps) {
   const action = ACTIONS[act.kind];
   const route = action.route(act);
   const label = act.kind === 'container' ? `${act.action} ${act.service}` : act.kind;
+  const started = deps.now();
   const result = await request(route, {
     method: 'POST',
     timeout: action.long ? CONTAINER_ACTION_TIMEOUT_MS : READ_TIMEOUT_MS,
@@ -339,7 +351,7 @@ export async function runAct(act, deps) {
     return { end };
   }
   // A long action cut on the way (D8) still reads what came of it.
-  await note(await action.after(act, result, deps));
+  await note(await action.after(act, result, deps, { started, cut: !ok }));
   await note('end done');
   return { end: 'done' };
 }
@@ -371,9 +383,14 @@ async function main([mode, ...args]) {
   }
   await mkdir(dir, { recursive: true });
   const trace = path.join(dir, mode === 'act' ? 'act.txt' : 'round.txt');
+  const reads =
+    mode === 'round' ? roundReads(logServices(await readFile(SERVICES_FILE, 'utf8'))) : [];
   // A run's repairs all come after its round: a round starts from an empty folder.
   if (mode === 'round') {
-    await clearRun(dir);
+    await clearRun(
+      dir,
+      reads.map((read) => read.name),
+    );
     await writeFile(trace, '');
   }
   const note = async (line) => {
@@ -391,7 +408,6 @@ async function main([mode, ...args]) {
     });
     return { done: 0, unreachable: 4 }[end] ?? 3;
   }
-  const reads = roundReads(logServices(await readFile(SERVICES_FILE, 'utf8')));
   const { end } = await runRound(reads, {
     request: (route) => sendDoorRequest(doorRequestOptions(route, key, pem)),
     save,

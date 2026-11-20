@@ -240,8 +240,8 @@ describe('door.mjs act: a disk prune', () => {
     });
     const { end } = await runAct(parseAct(['prune', 'd']), deps);
     assert.deepEqual(
-      asked.map((a) => `${a.method} ${a.route} ${a.timeout}`),
-      ['POST disk/prune 300000', 'GET runtime-health 60000'],
+      asked.map((a) => `${a.method} ${a.route} ${a.timeout} ${a.at}`),
+      ['POST disk/prune 300000 0', 'GET runtime-health 60000 0'],
     );
     assert.deepEqual(lines, ['200 act prune', 'after healthy 61%', 'end done']);
     assert.equal(end, 'done');
@@ -269,14 +269,16 @@ describe('door.mjs act: a disk prune', () => {
     ['a gateway 504', { status: 504, body: '<html>' }, '504 error'],
     ['a cut with no answer at all', { error: { code: 'ECONNRESET' } }, 'unreachable ECONNRESET'],
   ]) {
-    it(`${label} still reads the disk after`, async () => {
-      const { deps, lines } = door({
+    it(`${label} still reads the disk, once the prune's budget has passed`, async () => {
+      const { deps, asked, lines } = door({
         'disk/prune': [answer],
         'runtime-health': [disk({ status: 'warning', usePercent: 83 })],
       });
       const { end } = await runAct(parseAct(['prune', 'd']), deps);
       assert.deepEqual(lines, [first, 'after warning 83%', 'end done']);
       assert.equal(end, 'done');
+      // Read at once, a prune still running reads as a failed one (final review of 4b, M2).
+      assert.equal(asked.find((a) => a.route === 'runtime-health').at, 285_000);
     });
   }
 });

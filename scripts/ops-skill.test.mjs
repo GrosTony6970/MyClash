@@ -112,11 +112,13 @@ describe('the round', () => {
   it("clears an earlier run's answers and traces, and nothing else", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'door-clear-'));
     const ours = ['events-live.json', 'act-restart-worker.json', 'round.txt', 'act.txt'];
-    for (const name of [...ours, 'report.txt']) writeFileSync(path.join(dir, name), 'old');
-    await clearRun(dir);
+    // A round given the wrong folder (`round .` in the clone) must not delete the repo's files.
+    const theirs = ['report.txt', 'package.json', 'tsconfig.json'];
+    for (const name of [...ours, ...theirs]) writeFileSync(path.join(dir, name), 'old');
+    await clearRun(dir, ['events-live', 'versions']);
     for (const name of ours) assert.equal(existsSync(path.join(dir, name)), false, name);
-    assert.equal(existsSync(path.join(dir, 'report.txt')), true);
-    await clearRun(path.join(dir, 'missing'));
+    for (const name of theirs) assert.equal(existsSync(path.join(dir, name)), true, name);
+    await clearRun(path.join(dir, 'missing'), ['versions']);
   });
 
   for (const [what, answer, end] of [
