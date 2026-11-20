@@ -70,12 +70,21 @@ function destroy(root, ...args) {
       timeout: 30_000,
     },
   );
-  const calls = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
+  // lib/compose.sh reads the commit the api container carries: a read, never an action, so the
+  // calls below are what destroy.sh DID.
+  const calls = existsSync(log)
+    ? readFileSync(log, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .filter((call) => call !== COMMIT_READ)
+    : [];
   return { status: result.status, output: `${result.stdout}${result.stderr}`, calls };
 }
 
 const DOWN = /\bdown --rmi local --remove-orphans\b/u;
 const PRUNE = 'builder prune --all --force';
+const COMMIT_READ =
+  'inspect --format {{range .Config.Env}}{{$kv := split . "="}}{{if eq (index $kv 0) "GIT_COMMIT"}}{{index $kv 1}}{{end}}{{end}} myclash-api';
 
 test('without --prune-cache the build cache is kept', { skip }, () => {
   const run = destroy(sandbox(), '--force');

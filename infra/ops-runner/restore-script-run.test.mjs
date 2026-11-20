@@ -153,6 +153,11 @@ const BUCKET = {
 };
 const show = (run) => `${run.output}\ncalls:\n${run.calls.join('\n')}`;
 const volumeRun = (call) => call.startsWith('docker run --rm -i -v myclash-storage-data:/vol');
+/** lib/compose.sh reads the commit the api container carries: a read, never an action. */
+const COMMIT_READ =
+  'docker inspect --format {{range .Config.Env}}{{$kv := split . "="}}{{if eq (index $kv 0) "GIT_COMMIT"}}{{index $kv 1}}{{end}}{{end}} myclash-api';
+/** Every Docker call but that one read: what the restore DID. */
+const actions = (run) => run.calls.filter((call) => call !== COMMIT_READ);
 const stops = (run) => run.calls.filter((call) => / stop( |$)/u.test(call));
 const seedRun = (call) => call.includes(' run --rm ') && call.includes('bootstrap-ops-agent.mjs');
 /**
@@ -203,7 +208,7 @@ test('a restore that failed still exits non-zero', { skip }, () => {
   put(root, NIGHTLY_STORAGE);
   const broken = restore(root, [put(root, NIGHTLY_DB), '--yes'], { GUNZIP_TEST_EXIT: '1' });
   assert.notEqual(broken.status, 0, show(broken));
-  assert.ok(!broken.calls.some((call) => call.startsWith('docker')), show(broken));
+  assert.ok(!actions(broken).some((call) => call.startsWith('docker')), show(broken));
   const noVolume = restore(root, [NIGHTLY_DB, '--yes'], { VOLUME_INSPECT_EXIT: '1' });
   assert.equal(noVolume.status, 1, show(noVolume));
 });
@@ -331,7 +336,7 @@ for (const [name, args] of [
     const run = restore(root, args(root), BUCKET);
     assert.equal(run.status, 1, show(run));
     assert.match(run.output, /✗/u, show(run));
-    assert.deepEqual(run.calls, [], show(run));
+    assert.deepEqual(actions(run), [], show(run));
   });
 }
 
