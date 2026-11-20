@@ -22,19 +22,30 @@
 # Requires: ROOT_DIR, and log.sh (ok, warn, err) sourced. Optional: USE_DEV_CERTS=1.
 # Sets: COMPOSE (array), MC_TLS_CERTS (staging | production | empty when unknown).
 # Exports: MYCLASH_ROOT_DIR (= ROOT_DIR, the repo's host path; the compose file requires it), and
-# GIT_COMMIT (the deployed commit) when the caller has none.
+# GIT_COMMIT (the commit the containers run) when the caller has none.
 
 # shellcheck source=system-versions.sh
 source "$(dirname "${BASH_SOURCE[0]}")/system-versions.sh"
 
+# The GIT_COMMIT the api container carries, running or stopped; empty when there is none. The
+# template lets only that one value out of Docker, never the container's other variables.
+_mc_carried_commit() {
+  docker inspect --format '{{range .Config.Env}}{{$kv := split . "="}}{{if eq (index $kv 0) "GIT_COMMIT"}}{{index $kv 1}}{{end}}{{end}}' myclash-api 2>/dev/null || true
+}
+
 # Every app container takes `GIT_COMMIT: ${GIT_COMMIT:-unknown}` from this shell, and the scoring
-# pad's offline cache follows it. deploy.sh and rollback.sh export their own commit later; any other
-# script that creates a container (start.sh, a restore) gives it the deployed one, or the apps say
-# "unknown" and every tablet keeps its old cache in silence (2026-11-20).
+# pad's offline cache follows it. deploy.sh, redeploy.sh and rollback.sh export their own commit
+# later. Any other script that creates a container (start.sh, a restore) keeps the commit the
+# containers carry, else the apps say "unknown" and every tablet keeps its old cache in silence
+# (2026-11-20). The deploy manifest comes second: deploy.sh writes it before it builds, so after
+# a failed deploy it names a commit no container runs.
 _mc_export_deployed_commit() {
   [[ -n "${GIT_COMMIT:-}" ]] && return 0
   local commit
-  commit="$(cd "$ROOT_DIR" && mc_manifest_deployed_commit)"
+  commit="$(_mc_carried_commit)"
+  if [[ -z "$commit" || "$commit" == unknown ]]; then
+    commit="$(cd "$ROOT_DIR" && mc_manifest_deployed_commit)"
+  fi
   [[ -n "$commit" && "$commit" != unknown ]] && export GIT_COMMIT="$commit"
   return 0
 }

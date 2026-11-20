@@ -133,13 +133,36 @@ test('--dev-certs against a production .env is refused, not obeyed', { skip }, (
 });
 
 /**
+ * A fake `docker` that logs its arguments and answers an `inspect` with `apiCommit`, or fails like
+ * Docker does for a container that does not exist (`apiCommit` null). Never the real daemon: a
+ * container on this machine must not decide a test.
+ */
+function fakeDocker(apiCommit) {
+  const bin = mkdtempSync(join(tmpdir(), 'compose-lib-bin-'));
+  const answer =
+    apiCommit === null
+      ? 'echo "Error: No such object: myclash-api" >&2; exit 1'
+      : `printf '%s\\n' '${apiCommit}'`;
+  writeFileSync(
+    join(bin, 'docker'),
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "$(dirname "$0")/calls.log"\n${answer}\n`,
+    { mode: 0o755 },
+  );
+  return bin.replaceAll('\\', '/');
+}
+
+/**
  * Runs `mc_compose_init` on `root`, then prints `names` from a CHILD shell: only an exported value
  * reaches it, and Compose reads these from the shell that invokes it. `env` replaces the caller's
- * values of `names` (a key absent from `env` is unset).
+ * values of `names` (a key absent from `env` is unset). `apiCommit` is what the api container
+ * carries (null: there is none).
  */
-function exported(root, names, env = {}) {
+function exported(root, names, env = {}, apiCommit = null) {
+  const bin = fakeDocker(apiCommit);
   const script = [
     'set -Eeuo pipefail',
+    // Git Bash puts /usr/bin first; the fake goes ahead of it from inside bash.
+    `PATH="$(cd "${bin}" && pwd):$PATH"`,
     `source "${LOG}"`,
     'source "$0"',
     `ROOT_DIR="${root.replaceAll('\\', '/')}"`,
@@ -149,6 +172,8 @@ function exported(root, names, env = {}) {
   const base = { ...process.env };
   for (const n of names) delete base[n];
   const out = spawnSync(BASH, ['-c', script, LIB], { env: { ...base, ...env }, encoding: 'utf8' });
+  const logFile = join(bin, 'calls.log');
+  const dockerCalls = existsSync(logFile) ? readFileSync(logFile, 'utf8').trim().split('\n') : [];
   const values = Object.fromEntries(
     out.stdout
       .split('\n')
@@ -156,7 +181,7 @@ function exported(root, names, env = {}) {
       .filter((m) => m && names.includes(m[1]))
       .map((m) => [m[1], m[2]]),
   );
-  return { status: out.status, said: `${out.stdout}${out.stderr}`, values };
+  return { status: out.status, said: `${out.stdout}${out.stderr}`, values, dockerCalls };
 }
 
 // The compose file mounts the repo into the ops runner at MYCLASH_ROOT_DIR, and Compose run inside
@@ -205,6 +230,27 @@ test('mc_compose_init exports the deployed commit when the caller has none', { s
 test('a commit the caller exported wins over the deployed one', { skip }, () => {
   const r = exported(rootDeployed('abc1234def'), ['GIT_COMMIT'], { GIT_COMMIT: 'feedbeef' });
   assert.equal(r.values.GIT_COMMIT, 'feedbeef');
+});
+
+// deploy.sh writes the manifest BEFORE it builds (the api mounts it at create time). After a
+// deploy that failed, the manifest names a commit no container runs: a restart must keep what the
+// containers carry, or the pad would serve the old code under the new commit's cache name and keep
+// that cache when the new commit really ships.
+test('a restart keeps the commit the api container carries over the manifest', { skip }, () => {
+  const r = exported(rootDeployed('new5678abc'), ['GIT_COMMIT'], {}, 'old1234def');
+  assert.equal(r.status, 0, r.said);
+  assert.equal(r.values.GIT_COMMIT, 'old1234def');
+  // Only the one value leaves Docker: never the container's whole environment.
+  assert.deepEqual(r.dockerCalls, [
+    'inspect --format {{range .Config.Env}}{{$kv := split . "="}}{{if eq (index $kv 0) "GIT_COMMIT"}}{{index $kv 1}}{{end}}{{end}} myclash-api',
+  ]);
+});
+
+test('an api container that says unknown gives way to the manifest', { skip }, () => {
+  for (const carried of ['unknown', '']) {
+    const r = exported(rootDeployed('abc1234def'), ['GIT_COMMIT'], {}, carried);
+    assert.equal(r.values.GIT_COMMIT, 'abc1234def', JSON.stringify(carried));
+  }
 });
 
 test('with no deployed commit recorded, GIT_COMMIT is left as the caller had it', { skip }, () => {
