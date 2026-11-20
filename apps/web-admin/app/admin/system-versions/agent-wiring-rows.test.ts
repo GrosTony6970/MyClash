@@ -27,13 +27,15 @@ const pinging: WatcherState = {
   failing: false,
 };
 const watcherOff: AgentWatcherReading = { read: 'not_checked' };
+/** The fixtures' times are not dates (`'C'`), so no wire reads as old. */
+const NOW = 0;
 
 describe('agentTileStatus', () => {
   it('the wake-up: grey when off or not seen, a warning when half-set, unreadable or a call failed', () => {
     const ok = (s: Partial<typeof state>) =>
-      agentTileStatus({ read: 'ok', state: { ...state, ...s } }, watcherOff);
-    expect(agentTileStatus({ read: 'not_checked' }, watcherOff)).toBe('not_configured');
-    expect(agentTileStatus({ read: 'unreadable' }, watcherOff)).toBe('warning');
+      agentTileStatus({ read: 'ok', state: { ...state, ...s } }, watcherOff, NOW);
+    expect(agentTileStatus({ read: 'not_checked' }, watcherOff, NOW)).toBe('not_configured');
+    expect(agentTileStatus({ read: 'unreadable' }, watcherOff, NOW)).toBe('warning');
     expect(ok({ config: 'not_configured' })).toBe('not_configured');
     expect(ok({ config: 'misconfigured' })).toBe('warning');
     expect(ok({})).toBe('healthy');
@@ -45,11 +47,32 @@ describe('agentTileStatus', () => {
   it('the watcher: pinging is healthy, a failing ping or an unreadable state a warning', () => {
     const wakeOff: AgentWakeReading = { read: 'not_checked' };
     const w = (s: Partial<WatcherState>) =>
-      agentTileStatus(wakeOff, { read: 'ok', state: { ...pinging, ...s } });
+      agentTileStatus(wakeOff, { read: 'ok', state: { ...pinging, ...s } }, NOW);
     expect(w({})).toBe('healthy');
     expect(w({ failing: true })).toBe('warning');
     expect(w({ config: 'not_configured' })).toBe('not_configured');
-    expect(agentTileStatus(wakeOff, { read: 'unreadable' })).toBe('warning');
+    expect(agentTileStatus(wakeOff, { read: 'unreadable' }, NOW)).toBe('warning');
+  });
+});
+
+describe('agentTileStatus: a worker that stopped looking', () => {
+  const at = (iso: string) => Date.parse(iso);
+  const fresh = '2026-11-20T12:00:00.000Z';
+  const stale = '2026-11-20T11:40:00.000Z';
+  const seenAt = at('2026-11-20T12:02:00.000Z');
+
+  it('a configured wire last checked more than 15 minutes before this read is a warning', () => {
+    const wake = (checkedAt: string): AgentWakeReading => ({
+      read: 'ok',
+      state: { ...state, checkedAt },
+    });
+    const watcher = (checkedAt: string): AgentWatcherReading => ({
+      read: 'ok',
+      state: { ...pinging, checkedAt },
+    });
+    expect(agentTileStatus(wake(fresh), watcher(fresh), seenAt)).toBe('healthy');
+    expect(agentTileStatus(wake(stale), watcher(fresh), seenAt)).toBe('warning');
+    expect(agentTileStatus(wake(fresh), watcher(stale), seenAt)).toBe('warning');
   });
 });
 

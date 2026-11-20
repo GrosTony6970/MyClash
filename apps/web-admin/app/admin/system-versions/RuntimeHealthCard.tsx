@@ -390,7 +390,11 @@ export function RuntimeHealthCard() {
             <div className="sm:col-span-2">
               <MetricTile
                 t={t}
-                status={agentTileStatus(health.agentWake, health.agentWatcher)}
+                status={agentTileStatus(
+                  health.agentWake,
+                  health.agentWatcher,
+                  Date.parse(health.checkedAt),
+                )}
                 title={t('admin.systemVersions.runtimeHealth.agent.title')}
                 rows={[
                   ...agentWakeRows(t, health.agentWake, (iso) => formatCheckedAt(iso, locale)),

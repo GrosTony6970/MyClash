@@ -48,32 +48,41 @@ type WireStatus = 'healthy' | 'warning' | 'not_configured';
 
 /**
  * The tile's pill: a warning when either wire has one; grey when neither is set; healthy
- * otherwise.
+ * otherwise. `seenAt` is this read's own time (the snapshot's `checkedAt`): a configured wire
+ * the worker last looked at three ticks before it means the worker stopped.
  */
-export function agentTileStatus(wake: AgentWakeReading, watcher: AgentWatcherReading): WireStatus {
-  const both = [wakeStatus(wake), watcherStatus(watcher)];
+export function agentTileStatus(
+  wake: AgentWakeReading,
+  watcher: AgentWatcherReading,
+  seenAt: number,
+): WireStatus {
+  const stale = (checkedAt: string) => seenAt - Date.parse(checkedAt) > STALE_MS;
+  const both = [wakeStatus(wake, stale), watcherStatus(watcher, stale)];
   if (both.includes('warning')) return 'warning';
   return both.includes('healthy') ? 'healthy' : 'not_configured';
 }
 
-/** A missing half, an unreadable state or a failed call is a warning. */
-function wakeStatus(wake: AgentWakeReading): WireStatus {
+/** Three 5-minute ticks. */
+const STALE_MS = 15 * 60_000;
+
+/** A missing half, an unreadable or old state, or a failed call is a warning. */
+function wakeStatus(wake: AgentWakeReading, stale: (iso: string) => boolean): WireStatus {
   if (wake.read === 'unreadable') return 'warning';
   if (wake.read === 'not_checked' || wake.state.config === 'not_configured') {
     return 'not_configured';
   }
-  if (wake.state.config === 'misconfigured') return 'warning';
+  if (wake.state.config === 'misconfigured' || stale(wake.state.checkedAt)) return 'warning';
   const { lastFiredAt, lastStatus } = wake.state;
   const answered = lastStatus !== null && lastStatus >= 200 && lastStatus < 300;
   return lastFiredAt === null || answered ? 'healthy' : 'warning';
 }
 
-function watcherStatus(watcher: AgentWatcherReading): WireStatus {
+function watcherStatus(watcher: AgentWatcherReading, stale: (iso: string) => boolean): WireStatus {
   if (watcher.read === 'unreadable') return 'warning';
   if (watcher.read === 'not_checked' || watcher.state.config === 'not_configured') {
     return 'not_configured';
   }
-  return watcher.state.failing ? 'warning' : 'healthy';
+  return watcher.state.failing || stale(watcher.state.checkedAt) ? 'warning' : 'healthy';
 }
 
 /** The outside watcher's line (ruling 903): pinging, and when it last answered; or not. */
