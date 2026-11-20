@@ -11,7 +11,7 @@ function make(env: Record<string, string> = { OPS_AGENT_WATCHER_PING_URL: PING }
   const logger = { log: vi.fn(), warn: vi.fn() };
   const ping = new WatcherPing({ env, logger, redis, fetchFn: fetchFn as unknown as typeof fetch });
   const state = () => JSON.parse(store.get(KEY) ?? 'null');
-  return { ping, fetchFn, logger, state };
+  return { ping, fetchFn, logger, state, redis };
 }
 
 describe('WatcherPing (ruling 903)', () => {
@@ -60,10 +60,8 @@ describe('WatcherPing (ruling 903)', () => {
   it('a Redis that never answers the state write does not hold the tick', async () => {
     vi.useFakeTimers();
     try {
-      const { ping } = make();
-      const redis = (ping as unknown as { deps: { redis: { set: ReturnType<typeof vi.fn> } } }).deps
-        .redis;
-      redis.set.mockImplementation(() => new Promise(() => undefined));
+      const { ping, redis } = make();
+      redis.set.mockImplementation(() => new Promise<undefined>(() => undefined));
       const outcome = ping.ping(1_000);
       await vi.advanceTimersByTimeAsync(5_000);
       expect(await outcome).toBe('ok');
