@@ -9,7 +9,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,6 +177,40 @@ for (const mode of ['staging', 'production']) {
     },
   );
 }
+
+// Every app container takes `GIT_COMMIT: ${GIT_COMMIT:-unknown}` from the invoking shell, and the
+// scoring pad's offline cache follows it. Only deploy.sh and rollback.sh set their own: a start or
+// a restore re-created the apps as "unknown" and every tablet kept its old cache (2026-11-20).
+/** A root with a deploy manifest naming `commit` (no manifest when null). */
+function rootDeployed(commit) {
+  const root = rootWith('DOMAIN=example.test\nTLS_CERTS=staging\n');
+  if (commit !== null) {
+    mkdirSync(join(root, 'data'));
+    writeFileSync(
+      join(root, 'data', 'system-versions.json'),
+      JSON.stringify({ deploy: { deployedCommit: commit } }),
+    );
+  }
+  return root;
+}
+
+test('mc_compose_init exports the deployed commit when the caller has none', { skip }, () => {
+  for (const env of [{}, { GIT_COMMIT: '' }]) {
+    const r = exported(rootDeployed('abc1234def'), ['GIT_COMMIT'], env);
+    assert.equal(r.status, 0, r.said);
+    assert.equal(r.values.GIT_COMMIT, 'abc1234def', JSON.stringify(env));
+  }
+});
+
+test('a commit the caller exported wins over the deployed one', { skip }, () => {
+  const r = exported(rootDeployed('abc1234def'), ['GIT_COMMIT'], { GIT_COMMIT: 'feedbeef' });
+  assert.equal(r.values.GIT_COMMIT, 'feedbeef');
+});
+
+test('with no deployed commit recorded, GIT_COMMIT is left as the caller had it', { skip }, () => {
+  assert.equal(exported(rootDeployed(null), ['GIT_COMMIT']).values.GIT_COMMIT, '<unset>');
+  assert.equal(exported(rootDeployed('unknown'), ['GIT_COMMIT']).values.GIT_COMMIT, '<unset>');
+});
 
 const SH = readdirSync(SCRIPTS).filter((name) => name.endsWith('.sh'));
 const text = (name) => readFileSync(join(SCRIPTS, name), 'utf8');

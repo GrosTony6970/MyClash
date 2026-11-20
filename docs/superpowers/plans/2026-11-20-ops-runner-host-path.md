@@ -135,7 +135,7 @@ starts the SAME container (same id, old settings); a plain `up -d` re-creates it
       Two more rules in the same place: (i) `.env.example` has no `MYCLASH_ROOT_DIR` line (a
       `.env` load after `mc_compose_init`, `deploy.sh:490`, `status.sh:256`, would empty the export:
       the `GIT_COMMIT` trap); (ii) `restore.sh` sets both `RESTART` arrays with `up -d
-  --no-recreate` (a restore only stopped containers; re-creating one, the runner above all,
+--no-recreate` (a restore only stopped containers; re-creating one, the runner above all,
       ends the restore — whatever the cause: a path, an edited `.env`, another Compose version).
 
 - [ ] **Step 6: Run it, see it red**
@@ -173,14 +173,14 @@ starts the SAME container (same id, old settings); a plain `up -d` re-creates it
       `pnpm infra:review` and the shellcheck job's file list unchanged.
 
 - [ ] **Step 10b: The raw recipes** — every printed or documented `docker compose … -f
-  infra/docker-compose.prod.yml` gets `MYCLASH_ROOT_DIR="$PWD"` in front (run from the repo
+infra/docker-compose.prod.yml` gets `MYCLASH_ROOT_DIR="$PWD"` in front (run from the repo
       root): `deploy.sh:108` (help), `:717` (also gains `--env-file .env`), `:775` (printed in an
       incident); `infra/scripts/README.md:84`; `docs/ARCHITECTURE.md:4477-4479` (and its
       `cd /srv/myclash` becomes `cd <repo>`); `docs/INFRASTRUCTURE_REVIEW.md:270`;
       `docs/ENGINEERING_LESSONS.md:462`; the usage comments `docker-compose.prod.yml:7` and
       `docker-compose.staging-certs.yml:6`. `.env.example:373` is about `GIT_COMMIT`, left as is.
       Then `grep -rn "docker compose.*docker-compose.prod.yml"` over `infra/ docs/ scripts/
-  .github/` and check every hit either sets the variable or runs inside a script that did.
+.github/` and check every hit either sets the variable or runs inside a script that did.
 
 - [ ] **Step 11: Correct `restore.sh:345-347`** — the comment says `${X:?}` is checked only on
       `config`/`up`; replace with: Compose (v5) refuses every command when a required key is
@@ -242,9 +242,12 @@ silence (`deploy.sh:910-920`). Without this task, Task 3's check "no container r
 - [ ] **Step 6: Gates** (`gates.sh … none`), commit:
       `fix(infra): a restart or a restore keeps the deployed commit, so the pad's offline cache follows it`.
 
-Named, not fixed here: `redeploy.sh` sources `.env` (`:118`) and never exports `GIT_COMMIT`; after
-this task it reports the last deployed commit, while it rebuilds from the current checkout. Which
-commit it should report is a separate question for the operator.
+Built differently (2026-11-20): the source is the deploy manifest through the existing owner
+`mc_manifest_deployed_commit` (`lib/system-versions.sh:33`), the commit the API reports, not a
+second reader of `.last-deploy.json`. No warning when none is recorded: `deploy.sh` would print it
+after every wipe although it exports its own commit later; the lib then leaves `GIT_COMMIT` as the
+caller had it. `redeploy.sh` was named here by mistake: it exports the checkout's HEAD
+(`redeploy.sh:146-148`).
 
 ### Task 3 (after push and CI): deploy and live check, with the operator
 
