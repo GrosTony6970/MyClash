@@ -132,3 +132,8 @@ status-word colouring runs on escaped text and only wraps whole words of a fixed
 
 The throwaway routine `trig_016FNfhEmgCbkfowUvVg8sDf`: a prompt that runs the read-only round,
 writes a report, and sends it. The operator confirms the email looks right in their mail app.
+
+**Done 2026-11-20.** Shipped in `7eeec67ab` (CI green). The probe run `cse_01Gb5Rkt8EwEfgHqVHdaYUWH`
+wrote every section name alone on a line and printed `sent 01a1f99a-…` (no `text-only`: the HTML
+part went). The operator checked the email in their mail app: "looks good". The routine is disabled
+again.
