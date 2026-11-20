@@ -106,6 +106,20 @@ wrong. The operator also asked whether an MCP server is the right tool.
   a stop on purpose is a note. Claude acts on nothing while a deploy holds `.deploy.lock`, nor in
   the 15 minutes after the last deploy.
 
+### Slice 4b rulings (2026-11-20, rulings 895-898)
+
+- **895** The run prunes when `runtime-health.disk.status` is `warning` or `critical` (80% by
+  default), not only `critical`. The operator accepted that each prune makes the next deploy a cold
+  build.
+- **896** The prune runs while an Event is live too: it stops no container, and a full disk stops
+  the scoring.
+- **897** The console's system screen gets a "Free disk space" button too, not only the door.
+- **898** Slice 4b folds in slice 4's four minors: the deploy-lock probe race, the stale round
+  files, the dead `?? params.service`, and the deploy waiting for the ops lock.
+- Not a ruling, recorded so nobody "fixes" it: with the read-only switch on, the door's prune
+  answers `503 read_only_mode` like every other door action; only a super admin on the console can
+  prune then.
+
 Decisions taken in the build (the operator may override): a busy backup is a 409, no longer a
 202 that fails a moment later (D2); the console's system actions take `OpsRunnerClient`, the one
 road to the runner (D3); a backup started from the console writes an audit row too (D4); "dead"
@@ -244,7 +258,7 @@ Each route calls the service that already owns the behaviour. No second copy.
 - Restart or start one container from the existing list. Never stop.
 - Run a backup now.
 - Renew the certificates.
-- Empty the Docker build cache and remove unused images (new, section 3).
+- Empty the Docker build cache and remove the dangling images (new, section 3; call 16).
 - Mark a query error as resolved, on one criterion only: its fix is in the running version and
   the error has not come back since that deploy. Any other error Claude thinks is noise goes in
   the report as a suggestion, and the operator closes it. Resolving removes the error from the
@@ -275,7 +289,7 @@ fixed (the root cause); the scrub is not widened to hide it.
 
 - `GET` the last N lines of one listed container's log, with a hard cap on N and on bytes.
 - `GET` the warn/error lines (what `status.sh --errors` prints).
-- `POST` prune: build cache and unused images. Never volumes.
+- `POST` prune: build cache and dangling images (call 16). Never volumes.
 - The container list stays the single list it is today, mirrored once in the API.
 
 ### 4. The wake-up calls
@@ -431,6 +445,20 @@ Claude reports and pushes.
 14. **The key is seeded by the deploy from the VPS `.env`**, so a wipe does not cost the operator
     a manual step each time. The console revokes; it does not create.
 15. **Guiding is live in the conversation plus written in this file.** No wizard script is built.
+16. **The prune removes dangling images only, not every unused image** (slice 4b). `alpine:3` is
+    the helper image of `backup.sh` and `restore.sh`, and no container uses it between runs: a
+    wider prune would delete it, and the next restore would need Docker Hub at the worst moment.
+    A rebuild untags the old build of each image, so what deploys leave behind is dangling. The
+    build cache goes whole.
+17. **The deploy waits for a runner job; it does not take the ops lock** (slice 4b, ruling 898).
+    The runner reclaims a lock stamped by any other process as stale, so a lock written by
+    `deploy.sh` would be taken over at once. The runner answers `GET /ops-lock`, and the three
+    scripts that take `.deploy.lock` ask it before they move the checkout, waiting at most 10
+    minutes. A runner that does not answer does not block.
+18. **The prune answers synchronously**, like a container action, under one budget below the
+    API's wait (pinned by `infra:review`). A prune is not a backup, so it writes no backup history.
+19. **The freed space is measured, not parsed:** the runner's free bytes (`statfs`) before and
+    after, on the filesystem the disk health reads.
 
 ## Operator guide — the steps only the operator can do
 
@@ -530,7 +558,15 @@ Two facts the build must respect:
    exit code (0) is measured; the restore's key lines are not yet seen on the VPS; the deploy lock
    probe can create `.deploy.lock` as root in a narrow race; an old `events-live.json` can be
    reused by a second run in the same folder.
-   4b. **The disk prune** (build cache and unused images; ruling 884).
+   4b. **The disk prune** (build cache and dangling images; ruling 884). Done 2026-11-20
+   (`5900c002b`…`68eab3eec`, rulings 895-898, calls 16-19). It also carried slice 4's four minors
+   (ruling 898). Live check after a wipe and deploy, same day: the cloud's `act prune` answered 200
+   in 64 s, then `after healthy 22%`; the disk went from 40 GB used (56%) to 16 GB, the build cache
+   from 27 GB to 0 B, the five volumes untouched; the audit row by "Claude (ops agent)" holds
+   `freedBytes` 26027274240. The console's button then wrote its own row (`freedBytes` 0, the cache
+   already empty). The first unattended daily run (06:05 that morning) left a stopped-on-purpose
+   container alone and mailed "all good". Left for later slices: a deploy started during a runner
+   job is proven by tests only, not yet on the VPS.
 5. **The alert wake-up and the outside watcher** (two commits, one after the other; the
    end-to-end test needs both).
 6. **The deploy wake-up and the deploy check.**
