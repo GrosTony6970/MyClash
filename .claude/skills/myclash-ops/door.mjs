@@ -178,16 +178,24 @@ function stopReason({ status, body }, isFirst) {
   return isFirst && (status < 200 || status >= 300) ? 'door-down' : null;
 }
 
+/** Every file a run can write: fixed, not this run's reads, so a log service since dropped goes too. */
+const RUN_FILES = new Set([
+  ...HEALTH_READS.map((name) => `${name}.json`),
+  'events-live.json',
+  'round.txt',
+  'act.txt',
+]);
+const RUN_FILE_PATTERN = /^(log-[a-z][a-z-]*|act-[a-z0-9-]+)\.json$/u;
+
 /**
- * Empties a run's folder of what an earlier run left: the answers of the round's reads (`names`),
- * `act`'s `act-*.json`, and both traces. A read that fails or never runs, or a repair not made
- * this time, then leaves nothing to be read as this run's. Only those names: a round given the
- * wrong folder (the clone itself) must not take its `package.json` with it.
+ * Empties a run's folder of what an earlier run left: every answer and both traces. A read that
+ * fails or never runs, or a repair not made this time, then leaves nothing to be read as this
+ * run's. Only those names: a round given the wrong folder (the clone itself) must not take its
+ * `package.json` with it.
  */
-export async function clearRun(dir, names) {
-  const ours = new Set([...names.map((name) => `${name}.json`), 'round.txt', 'act.txt']);
+export async function clearRun(dir) {
   for (const file of await readdir(dir).catch(() => [])) {
-    if (ours.has(file) || /^act-[a-z0-9-]+\.json$/u.test(file)) {
+    if (RUN_FILES.has(file) || RUN_FILE_PATTERN.test(file)) {
       await rm(path.join(dir, file), { force: true });
     }
   }
@@ -383,14 +391,10 @@ async function main([mode, ...args]) {
   }
   await mkdir(dir, { recursive: true });
   const trace = path.join(dir, mode === 'act' ? 'act.txt' : 'round.txt');
-  const reads =
-    mode === 'round' ? roundReads(logServices(await readFile(SERVICES_FILE, 'utf8'))) : [];
-  // A run's repairs all come after its round: a round starts from an empty folder.
+  // A run's repairs all come after its round: a round starts from an empty folder, before
+  // anything else can fail.
   if (mode === 'round') {
-    await clearRun(
-      dir,
-      reads.map((read) => read.name),
-    );
+    await clearRun(dir);
     await writeFile(trace, '');
   }
   const note = async (line) => {
@@ -408,6 +412,7 @@ async function main([mode, ...args]) {
     });
     return { done: 0, unreachable: 4 }[end] ?? 3;
   }
+  const reads = roundReads(logServices(await readFile(SERVICES_FILE, 'utf8')));
   const { end } = await runRound(reads, {
     request: (route) => sendDoorRequest(doorRequestOptions(route, key, pem)),
     save,
