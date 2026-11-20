@@ -28,11 +28,20 @@ MC_OPS_POLL_S="${MC_OPS_POLL_S:-5}"
 # mc_wait_for_ops_jobs — return once no ops-runner job holds its lock; exit 1 when one still does
 # after MC_OPS_WAIT_S, with nothing changed yet.
 mc_wait_for_ops_jobs() {
-  local line deadline=$((SECONDS + MC_OPS_WAIT_S)) said=""
+  local line running rc deadline=$((SECONDS + MC_OPS_WAIT_S)) said=""
   while :; do
-    # stdout only: Docker's warnings go to stderr and are never the answer. Its last line is.
-    if ! line=$(timeout 30 docker exec myclash-ops-runner node infra/ops-runner/ops-lock-probe.mjs 2>/dev/null); then
+    # Docker says whether the runner runs (a stopped one holds nothing: every wipe deploy). Only a
+    # running one is asked, so a failed answer is never mistaken for "not running".
+    running=$(timeout 30 docker inspect -f '{{.State.Running}}' myclash-ops-runner 2>/dev/null) || running=""
+    if [[ "$running" != "true" ]]; then
       info "No ops-runner job to wait for: the runner is not running."
+      return 0
+    fi
+    # stdout only: Docker's warnings go to stderr and are never the answer. Its last line is.
+    rc=0
+    line=$(timeout 30 docker exec myclash-ops-runner node infra/ops-runner/ops-lock-probe.mjs 2>/dev/null) || rc=$?
+    if ((rc != 0)); then
+      warn "Could not ask the ops runner about its jobs (exit $rc); going on."
       return 0
     fi
     line="${line##*$'\n'}"

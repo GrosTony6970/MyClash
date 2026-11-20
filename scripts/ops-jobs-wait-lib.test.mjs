@@ -21,11 +21,12 @@ const BASH = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' 
 const skip = process.platform === 'win32' && !existsSync(BASH) ? 'needs Git Bash' : false;
 
 /**
- * Runs the lib with `docker` and `timeout` stubbed as shell functions. The probe's answers come
- * one per call from a file; the last one repeats. `FAIL` makes the exec fail; `WARN <line>` puts a
- * warning on stderr first. The count lives in a file: each call runs in a `$( … )` subshell.
+ * Runs the lib with `docker` and `timeout` stubbed as shell functions. `docker inspect` answers
+ * `running` ('true', 'false' or '' for no such container). The probe's answers come one per exec
+ * from a file; the last one repeats. `FAIL` makes the exec fail; `STRAY <line>` prints another
+ * stdout line first. The count lives in a file: each call runs in a `$( … )` subshell.
  */
-function runWait(answers, { waitS = 600 } = {}) {
+function runWait(answers, { waitS = 600, running = 'true' } = {}) {
   const dir = posix(mkdtempSync(join(tmpdir(), 'ops-wait-')));
   writeFileSync(join(dir, 'answers'), `${answers.join('\n')}\n`);
   writeFileSync(join(dir, 'count'), '0');
@@ -36,13 +37,14 @@ function runWait(answers, { waitS = 600 } = {}) {
     `timeout() { shift; "$@"; }`,
     'docker() {',
     `  echo "docker $*" >> "${dir}/calls"`,
+    `  if [[ "$1" == inspect ]]; then [[ -n "${running}" ]] && echo "${running}"; return 0; fi`,
     `  local n; n=$(( $(cat "${dir}/count") + 1 )); echo "$n" > "${dir}/count"`,
     `  local total; total=$(wc -l < "${dir}/answers")`,
     `  (( n > total )) && n=$total`,
     `  local a; a=$(sed -n "\${n}p" "${dir}/answers")`,
     '  case "$a" in',
     '    FAIL) echo "Error: No such container" >&2; return 1 ;;',
-    '    WARN\\ *) echo "WARN[0000] a compose warning" >&2; echo "${a#WARN }" ;;',
+    '    STRAY\\ *) echo "a stray line"; echo "${a#STRAY }" ;;',
     '    *) echo "$a" ;;',
     '  esac',
     '}',
@@ -64,6 +66,7 @@ test('a free lock goes on at once and says nothing', { skip }, () => {
   assert.doesNotMatch(r.said, /Waiting|Could not|No ops-runner/u);
   // The runner by its fixed name, the probe by its repo path: no COMPOSE, no .env.
   assert.deepEqual(r.calls, [
+    'docker inspect -f {{.State.Running}} myclash-ops-runner',
     'docker exec myclash-ops-runner node infra/ops-runner/ops-lock-probe.mjs',
   ]);
 });
@@ -77,7 +80,7 @@ test('a held lock is waited for, said once, then the deploy goes on', { skip }, 
   assert.equal(r.status, 0, r.said);
   assert.equal(r.said.match(/Waiting for the ops runner's backup/gu)?.length, 1, r.said);
   assert.match(r.said, /since 2026-11-20T01:00:00Z/u);
-  assert.equal(r.calls.length, 3);
+  assert.equal(r.calls.filter((c) => c.startsWith('docker exec')).length, 3);
   assert.match(r.said, /exit-ok/u);
 });
 
@@ -91,11 +94,23 @@ test('a lock still held past the wait stops the script, nothing changed', { skip
   );
 });
 
-test('a runner that is not running holds nothing', { skip }, () => {
+test('a runner that is stopped, or absent, holds nothing, and is not asked', { skip }, () => {
+  for (const running of ['false', '']) {
+    const r = runWait(['held backup x'], { running, waitS: 1 });
+    assert.equal(r.status, 0, r.said);
+    assert.match(r.said, /No ops-runner job to wait for: the runner is not running\./u);
+    assert.match(r.said, /exit-ok/u);
+    assert.equal(r.calls.filter((c) => c.startsWith('docker exec')).length, 0, running);
+  }
+});
+
+// Final review of slice 4b, M3: a running runner whose answer fails (a 30 s timeout, a crash) is
+// not "not running"; it is said with the exit code, and the deploy goes on.
+test('a running runner that fails to answer is said with its exit code', { skip }, () => {
   const r = runWait(['FAIL']);
   assert.equal(r.status, 0, r.said);
-  assert.match(r.said, /No ops-runner job to wait for: the runner is not running\./u);
-  assert.match(r.said, /exit-ok/u);
+  assert.doesNotMatch(r.said, /the runner is not running/u);
+  assert.match(r.said, /Could not ask the ops runner about its jobs \(exit 1\); going on\./u);
 });
 
 test('an old runner without the route is said, and does not block', { skip }, () => {
@@ -107,8 +122,8 @@ test('an old runner without the route is said, and does not block', { skip }, ()
   );
 });
 
-test("Docker's warning on stderr is never read as the answer", { skip }, () => {
-  const r = runWait(['WARN free']);
+test('only the last stdout line is the answer', { skip }, () => {
+  const r = runWait(['STRAY free']);
   assert.equal(r.status, 0, r.said);
   assert.doesNotMatch(r.said, /Could not ask|Waiting/u, r.said);
 });
