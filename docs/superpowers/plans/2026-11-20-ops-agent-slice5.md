@@ -131,8 +131,8 @@ containers.*`; the Swagger summaries `runtime-health.controller.ts:31`,
 - [ ] **Step 1: Failing tests** — `containers-collector.test.ts`: `deadContainers` over rows:
       running healthy → []; running unhealthy → 1; exited 137 → 1; exited 0 → []; exited 143 → [];
       created 1 → 1; restarting → 1; exited null → []. `runtime-health.service.test.ts`: a
-      collector answering one dead row → `containers.status === 'critical'` and `overall
-  === 'critical'`; `available()` false → `not_configured` and `overall` ignores it; the
+      collector answering one dead row → `containers.status` and `overall` both `critical`;
+      `available()` false → `not_configured` and `overall` ignores it; the
       collector throwing → `unavailable`. Assert the runner route string (`/containers`).
       `runtime-health-monitor.worker.test.ts`: a snapshot with `containers` critical → the email
       body names the service (`containers: critical (web-public exited 1)`).
