@@ -109,15 +109,14 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
     }
   });
 
-  it('fails closed (never emails) when the de-dup store read fails', async () => {
+  it.each([
+    ['fails', () => Promise.reject(new Error('conn refused'))],
+    // The connection waits forever with Redis down (maxRetriesPerRequest: null): bounded.
+    ['never answers', () => new Promise<never>(() => undefined)],
+  ])('fails closed (never emails) when the de-dup store read %s', async (_label, get) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const mail = { sendNotification: vi.fn(async () => undefined) };
-    const redis = {
-      get: async () => {
-        throw new Error('conn refused');
-      },
-      set: async () => undefined,
-      del: async () => undefined,
-    };
+    const redis = { get, set: async () => undefined, del: async () => undefined };
     const worker = new RuntimeHealthMonitorWorker(
       { add: async () => undefined } as never,
       { collect: async () => ({ checkedAt: 'now', overall: 'critical', ...dbCritical }) } as never,
@@ -134,9 +133,15 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
       new WatcherPing({ env: {}, logger: console, redis }),
       redis as never,
     );
-    const result = await worker.tick(Date.now());
-    expect(result.emailed).toBe(false);
-    expect(mail.sendNotification).not.toHaveBeenCalled();
+    try {
+      const tick = worker.tick(Date.now());
+      await vi.advanceTimersByTimeAsync(5_000);
+      const result = await tick;
+      expect(result.emailed).toBe(false);
+      expect(mail.sendNotification).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('records and prunes a sample on every tick that collects', async () => {

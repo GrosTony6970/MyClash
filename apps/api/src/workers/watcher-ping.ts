@@ -1,7 +1,12 @@
+import { boundedCall } from '../common/bounded-call';
 import {
   WATCHER_STATE_KEY,
   type WatcherState,
 } from '../modules/admin/runtime-health/agent-trace-reader';
+import {
+  REDIS_CHECK_TIMEOUT_MS,
+  redisGaveUp,
+} from '../modules/admin/runtime-health/redis-connection';
 
 /** The ping's bound: a slow watcher must not hold the tick. */
 export const PING_TIMEOUT_MS = 10_000;
@@ -73,7 +78,12 @@ export class WatcherPing {
     }
   }
 
+  /** Best effort, and bounded: the connection waits forever with Redis down. */
   private async write(state: WatcherState): Promise<void> {
-    await this.deps.redis.set(WATCHER_STATE_KEY, JSON.stringify(state)).catch(() => undefined);
+    await boundedCall(
+      () => this.deps.redis.set(WATCHER_STATE_KEY, JSON.stringify(state)),
+      REDIS_CHECK_TIMEOUT_MS,
+      redisGaveUp('outside watcher state write'),
+    ).catch(() => undefined);
   }
 }

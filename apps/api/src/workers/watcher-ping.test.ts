@@ -57,6 +57,21 @@ describe('WatcherPing (ruling 903)', () => {
     expect(logger.log).toHaveBeenCalledWith('outside watcher: the ping answers again');
   });
 
+  it('a Redis that never answers the state write does not hold the tick', async () => {
+    vi.useFakeTimers();
+    try {
+      const { ping } = make();
+      const redis = (ping as unknown as { deps: { redis: { set: ReturnType<typeof vi.fn> } } }).deps
+        .redis;
+      redis.set.mockImplementation(() => new Promise(() => undefined));
+      const outcome = ping.ping(1_000);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await outcome).toBe('ok');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('never puts the ping URL in the state the console reads', async () => {
     const { ping, state } = make();
     await ping.ping(1_000);

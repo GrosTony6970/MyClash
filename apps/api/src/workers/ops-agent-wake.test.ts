@@ -150,6 +150,38 @@ describe('OpsAgentWake.onSnapshot (rulings 901, 902)', () => {
     }
   });
 
+  it('the set is saved BEFORE the call: a state it cannot save means no call (no repeat fire)', async () => {
+    const { wake, fetchFn, redis } = make();
+    redis.set.mockRejectedValueOnce(new Error('OOM command not allowed'));
+    expect(await wake.onSnapshot(dead('web-public'), 1_000)).toBe('skipped');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('a Redis that never answers a write: bounded, no call, the tick goes on', async () => {
+    vi.useFakeTimers();
+    try {
+      const { wake, fetchFn, redis } = make();
+      redis.set.mockImplementation(() => new Promise(() => undefined));
+      const outcome = wake.onSnapshot(dead('web-public'), 1_000);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await outcome).toBe('skipped');
+      expect(fetchFn).not.toHaveBeenCalled();
+      const noted = wake.noteUnconfigured(2_000);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(noted).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a call that went out is saved even if the status write then fails', async () => {
+    const { wake, fetchFn, redis } = make();
+    await wake.onSnapshot(dead('web-public'), 1_000);
+    redis.set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('gone'));
+    await wake.onSnapshot(dead('web-public', 'worker'), 2_000);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it('a paused task (400): failed, the set kept so the next tick does not call again', async () => {
     const { wake, fetchFn, state, logger } = make({ status: 400 });
     expect(await wake.onSnapshot(dead('web-public'), 1_000)).toBe('failed');
@@ -164,6 +196,19 @@ describe('OpsAgentWake.onSnapshot (rulings 901, 902)', () => {
     fetchFn.mockRejectedValueOnce(new Error('The operation was aborted due to timeout'));
     expect(await wake.onSnapshot(dead('web-public'), 1_000)).toBe('failed');
     expect(state()).toMatchObject({ lastKeys: ['containers:web-public'], lastStatus: null });
+  });
+
+  it('a failed call logs the error name, never its text (a header check can quote the token)', async () => {
+    const { wake, fetchFn, logger } = make();
+    const quoting = Object.assign(new TypeError('invalid header value "Bearer tok-secret\\n"'), {
+      code: 'ERR_INVALID_CHAR',
+    });
+    fetchFn.mockRejectedValueOnce(quoting);
+    await wake.onSnapshot(dead('web-public'), 1_000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'agent wake-up: the call failed (TypeError ERR_INVALID_CHAR)',
+    );
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('tok-secret');
   });
 
   it('never puts the token in the state the console reads', async () => {

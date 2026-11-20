@@ -32,6 +32,11 @@ import type {
   RuntimeHealthAlertSettings,
   RuntimeHealthResponseDto,
 } from '../modules/admin/dto/runtime-health.dto';
+import { boundedCall } from '../common/bounded-call';
+import {
+  REDIS_CHECK_TIMEOUT_MS,
+  redisGaveUp,
+} from '../modules/admin/runtime-health/redis-connection';
 import type { OpsAgentWake } from './ops-agent-wake';
 import type { WatcherPing } from './watcher-ping';
 import { detailOf, keysAtLeast, statusOf } from './runtime-health-keys';
@@ -215,8 +220,11 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     const empty: AlertState = { lastCriticalKeys: [], lastEmailedAt: 0, lastCheckedAt: 0 };
     if (!this.redis) return { state: empty, ok: true };
     let raw: string | null;
+    const redis = this.redis;
     try {
-      raw = await this.redis.get(STATE_KEY);
+      // Bounded: the connection waits forever with Redis down (`redis-connection.ts`); a hung read
+      // held the whole tick, and with it the outside watcher's next ping.
+      raw = await boundedCall(() => redis.get(STATE_KEY), REDIS_CHECK_TIMEOUT_MS, alertStateGaveUp);
     } catch {
       return { state: empty, ok: false };
     }
@@ -229,10 +237,17 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   }
 
   private async writeState(state: AlertState): Promise<void> {
-    if (!this.redis) return;
-    await this.redis.set(STATE_KEY, JSON.stringify(state)).catch(() => undefined);
+    const redis = this.redis;
+    if (!redis) return;
+    await boundedCall(
+      () => redis.set(STATE_KEY, JSON.stringify(state)),
+      REDIS_CHECK_TIMEOUT_MS,
+      alertStateGaveUp,
+    ).catch(() => undefined);
   }
 }
+
+const alertStateGaveUp = redisGaveUp('runtime-health alert state');
 
 /**
  * Throttle full checks to checkIntervalMinutes ONLY while quiet (no active alert). Once something

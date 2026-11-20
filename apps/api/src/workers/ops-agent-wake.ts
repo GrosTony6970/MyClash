@@ -65,7 +65,7 @@ export class OpsAgentWake {
 
   /** Not configured: only the trace, so the console card can say so. */
   async noteUnconfigured(now: number): Promise<void> {
-    await this.write({
+    await this.tryWrite({
       config: this.config,
       checkedAt: new Date(now).toISOString(),
       lastKeys: [],
@@ -80,25 +80,33 @@ export class OpsAgentWake {
       previous = await this.read();
     } catch (error) {
       this.deps.logger.warn(
-        `agent wake-up: state unreadable, no call this tick (${message(error)})`,
+        `agent wake-up: state unreadable, no call this tick (${nameOf(error)})`,
       );
       return 'skipped';
     }
     const keys = wakeKeys(snapshot);
     const base = { ...previous, config: this.config, checkedAt: new Date(now).toISOString() };
     if (keys.length === 0) {
-      await this.write({ ...base, lastKeys: [] });
+      await this.tryWrite({ ...base, lastKeys: [] });
       return 'cleared';
     }
     const seen = new Set(previous.lastKeys);
     if (keys.every((key) => seen.has(key))) {
-      await this.write({ ...base, lastKeys: keys });
+      await this.tryWrite({ ...base, lastKeys: keys });
       return 'same-set';
     }
+    // Saved BEFORE the call: a set the next tick cannot see would fire again on every tick (a
+    // Redis at its memory cap answers GET and refuses SET). No save, no call.
+    const firing = { ...base, lastKeys: keys, lastFiredAt: base.checkedAt, lastStatus: null };
+    try {
+      await this.write(firing);
+    } catch (error) {
+      this.deps.logger.warn(`agent wake-up: state not saved, no call this tick (${nameOf(error)})`);
+      return 'skipped';
+    }
     const status = await this.fire(wakeText(snapshot, keys));
-    const fired = status !== null && status >= 200 && status < 300;
-    await this.write({ ...base, lastKeys: keys, lastFiredAt: base.checkedAt, lastStatus: status });
-    return fired ? 'fired' : 'failed';
+    await this.tryWrite({ ...firing, lastStatus: status });
+    return status !== null && status >= 200 && status < 300 ? 'fired' : 'failed';
   }
 
   private async fire(text: string): Promise<number | null> {
@@ -118,7 +126,7 @@ export class OpsAgentWake {
         this.deps.logger.warn(`agent wake-up: the call answered ${response.status}`);
       return response.status;
     } catch (error) {
-      this.deps.logger.warn(`agent wake-up: the call failed (${message(error)})`);
+      this.deps.logger.warn(`agent wake-up: the call failed (${nameOf(error)})`);
       return null;
     }
   }
@@ -144,8 +152,17 @@ export class OpsAgentWake {
     }
   }
 
+  /** Bounded: the connection waits forever with Redis down (`redis-connection.ts`). Throws. */
   private async write(state: WakeState): Promise<void> {
-    await this.deps.redis.set(WAKE_STATE_KEY, JSON.stringify(state)).catch(() => undefined);
+    await boundedCall(
+      () => this.deps.redis.set(WAKE_STATE_KEY, JSON.stringify(state)),
+      REDIS_CHECK_TIMEOUT_MS,
+      redisGaveUp('agent wake-up state write'),
+    );
+  }
+
+  private async tryWrite(state: WakeState): Promise<void> {
+    await this.write(state).catch(() => undefined);
   }
 }
 
@@ -179,6 +196,9 @@ function figureOf(snapshot: RuntimeHealthResponseDto, key: string): string {
   return status;
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** An error's name and code, never its message: a fetch error can quote a header value. */
+function nameOf(error: unknown): string {
+  if (!(error instanceof Error)) return 'error';
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? `${error.name} ${code}` : error.name;
 }
