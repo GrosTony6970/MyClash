@@ -2365,7 +2365,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Aggregated runtime health (DB, Redis, queues, disk, photo storage, containers) and the ops agent wake-up state */
+    /** Aggregated runtime health (DB, Redis, queues, disk, photo storage, containers) and the ops agent wake-up and watcher state */
     get: operations['RuntimeHealthAdminController_getRuntimeHealth'];
     put?: never;
     post?: never;

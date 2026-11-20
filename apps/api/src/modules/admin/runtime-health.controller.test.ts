@@ -5,11 +5,15 @@ import { RuntimeHealthAdminController } from './runtime-health.controller';
 describe('RuntimeHealthAdminController', () => {
   it('GET / returns the collected snapshot and the agent wake-up state', async () => {
     const health = { collect: vi.fn(async () => ({ overall: 'healthy' })) } as never;
-    const traces = { readWake: vi.fn(async () => ({ read: 'not_checked' })) } as never;
+    const traces = {
+      readWake: vi.fn(async () => ({ read: 'not_checked' })),
+      readWatcher: vi.fn(async () => ({ read: 'unreadable' })),
+    } as never;
     const controller = new RuntimeHealthAdminController(health, {} as never, {} as never, traces);
     expect(await controller.getRuntimeHealth()).toEqual({
       overall: 'healthy',
       agentWake: { read: 'not_checked' },
+      agentWatcher: { read: 'unreadable' },
     });
   });
 

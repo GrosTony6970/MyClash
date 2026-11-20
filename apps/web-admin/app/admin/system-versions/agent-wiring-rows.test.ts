@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { agentTileStatus, agentWakeRows, type AgentWakeReading } from './agent-wiring-rows';
+import {
+  agentTileStatus,
+  agentWakeRows,
+  agentWatcherRows,
+  type AgentWakeReading,
+  type AgentWatcherReading,
+} from './agent-wiring-rows';
 
 const t = (key: string, params?: Record<string, string | number>) =>
   params ? `${key} ${JSON.stringify(params)}` : key;
@@ -13,18 +19,57 @@ const state: WakeState = {
   lastStatus: null,
 };
 
+type WatcherState = Extract<AgentWatcherReading, { read: 'ok' }>['state'];
+const pinging: WatcherState = {
+  config: 'configured',
+  checkedAt: 'C',
+  lastOkAt: 'O',
+  failing: false,
+};
+const watcherOff: AgentWatcherReading = { read: 'not_checked' };
+
 describe('agentTileStatus', () => {
-  it('grey when off or not seen, a warning when half-set, unreadable or a call failed', () => {
+  it('the wake-up: grey when off or not seen, a warning when half-set, unreadable or a call failed', () => {
     const ok = (s: Partial<typeof state>) =>
-      agentTileStatus({ read: 'ok', state: { ...state, ...s } });
-    expect(agentTileStatus({ read: 'not_checked' })).toBe('not_configured');
-    expect(agentTileStatus({ read: 'unreadable' })).toBe('warning');
+      agentTileStatus({ read: 'ok', state: { ...state, ...s } }, watcherOff);
+    expect(agentTileStatus({ read: 'not_checked' }, watcherOff)).toBe('not_configured');
+    expect(agentTileStatus({ read: 'unreadable' }, watcherOff)).toBe('warning');
     expect(ok({ config: 'not_configured' })).toBe('not_configured');
     expect(ok({ config: 'misconfigured' })).toBe('warning');
     expect(ok({})).toBe('healthy');
     expect(ok({ lastFiredAt: 'F', lastStatus: 200 })).toBe('healthy');
     expect(ok({ lastFiredAt: 'F', lastStatus: 400 })).toBe('warning');
     expect(ok({ lastFiredAt: 'F', lastStatus: null })).toBe('warning');
+  });
+
+  it('the watcher: pinging is healthy, a failing ping or an unreadable state a warning', () => {
+    const wakeOff: AgentWakeReading = { read: 'not_checked' };
+    const w = (s: Partial<WatcherState>) =>
+      agentTileStatus(wakeOff, { read: 'ok', state: { ...pinging, ...s } });
+    expect(w({})).toBe('healthy');
+    expect(w({ failing: true })).toBe('warning');
+    expect(w({ config: 'not_configured' })).toBe('not_configured');
+    expect(agentTileStatus(wakeOff, { read: 'unreadable' })).toBe('warning');
+  });
+});
+
+describe('agentWatcherRows', () => {
+  it('pinging, with the last answered ping', () => {
+    expect(agentWatcherRows(t, { read: 'ok', state: pinging }, time)).toEqual([
+      [`${K}.watcher`, `${K}.pinging {"time":"at O"}`],
+    ]);
+  });
+
+  it('a failing ping is a warning; off and unseen are plain', () => {
+    const failing = { ...pinging, failing: true };
+    expect(agentWatcherRows(t, { read: 'ok', state: failing }, time)).toEqual([
+      [`${K}.watcher`, `${K}.pingFailed {"time":"at C"}`, 'warning'],
+    ]);
+    const off = { ...pinging, config: 'not_configured' as const };
+    expect(agentWatcherRows(t, { read: 'ok', state: off }, time)).toEqual([
+      [`${K}.watcher`, `${K}.notConfigured`],
+    ]);
+    expect(agentWatcherRows(t, watcherOff, time)).toEqual([[`${K}.watcher`, `${K}.notChecked`]]);
   });
 });
 

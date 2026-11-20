@@ -32,14 +32,15 @@ export class RuntimeHealthAdminController {
   @Get()
   @ApiOperation({
     summary:
-      'Aggregated runtime health (DB, Redis, queues, disk, photo storage, containers) and the ops agent wake-up state',
+      'Aggregated runtime health (DB, Redis, queues, disk, photo storage, containers) and the ops agent wake-up and watcher state',
   })
   async getRuntimeHealth(): Promise<RuntimeHealthConsoleDto> {
-    const [health, agentWake] = await Promise.all([
+    const [health, agentWake, agentWatcher] = await Promise.all([
       this.runtimeHealth.collect(),
       this.agentTraces.readWake(),
+      this.agentTraces.readWatcher(),
     ]);
-    return { ...health, agentWake };
+    return { ...health, agentWake, agentWatcher };
   }
 
   @Get('series')

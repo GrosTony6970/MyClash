@@ -6,6 +6,7 @@
  * (AdminRuntimeHealthService.collect()), and emails the operator when any
  * metric is at/above the configured alert level. When the ops agent's wake-up is configured,
  * every tick also reads health and hands it to the wake-up (`ops-agent-wake.ts`, ruling 902).
+ * Each tick first pings the outside watcher (`watcher-ping.ts`, ruling 903).
  *
  * De-dup / cooldown / re-arm state lives in Redis under `runtime-health:alert-state`
  * as JSON `{ lastCriticalKeys, lastEmailedAt, lastCheckedAt }` — a fresh critical
@@ -32,6 +33,7 @@ import type {
   RuntimeHealthResponseDto,
 } from '../modules/admin/dto/runtime-health.dto';
 import type { OpsAgentWake } from './ops-agent-wake';
+import type { WatcherPing } from './watcher-ping';
 import { detailOf, keysAtLeast, statusOf } from './runtime-health-keys';
 
 export const RUNTIME_HEALTH_MONITOR_QUEUE = 'runtime-health-monitor';
@@ -66,6 +68,8 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     private readonly isStopping: () => boolean,
     /** The alert wake-up (rulings 901, 902): it reads every tick, whatever the email settings. */
     private readonly wake: OpsAgentWake,
+    /** The outside watcher's ping (ruling 903): every tick, before anything that can stop it. */
+    private readonly watcher: WatcherPing,
     @Optional() private readonly redis?: Redis,
   ) {
     super();
@@ -90,6 +94,8 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
    */
   async tick(now: number): Promise<{ ran: boolean; emailed: boolean; criticalKeys: string[] }> {
     if (this.isStopping()) return notRun();
+    // First, and whatever follows: the watcher hears "alive" as long as the ticks run (ruling 903).
+    await this.watcher.ping(now);
     const settings = await this.settingsService.getSettings();
     const { state, ok: stateOk } = await this.readState();
     const due = settings.enabled && emailCheckDue(state, settings, now);

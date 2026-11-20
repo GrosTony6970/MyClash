@@ -1028,6 +1028,8 @@ services:
       # Empty = off; the worker logs "agent wake-up: not configured" at boot.
       OPS_AGENT_WAKE_URL: ${OPS_AGENT_WAKE_URL:-}
       OPS_AGENT_WAKE_TOKEN: ${OPS_AGENT_WAKE_TOKEN:-}
+      # The outside watcher's ping URL (ruling 903): each 5-minute tick says "alive". Empty = off.
+      OPS_AGENT_WATCHER_PING_URL: ${OPS_AGENT_WATCHER_PING_URL:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

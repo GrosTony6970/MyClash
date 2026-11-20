@@ -9,7 +9,13 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
 import type { RuntimeHealthQueueRow } from '@myclash/types';
-import { agentTileStatus, agentWakeRows, type AgentWakeReading } from './agent-wiring-rows';
+import {
+  agentTileStatus,
+  agentWakeRows,
+  agentWatcherRows,
+  type AgentWakeReading,
+  type AgentWatcherReading,
+} from './agent-wiring-rows';
 import { containerRows, type ContainersTile } from './container-rows';
 import { photoStorageRows, type PhotoStorageTile } from './photo-storage-rows';
 import { metricErrorText, queueTileRows, type TileRow } from './queue-rows';
@@ -56,6 +62,7 @@ interface RuntimeHealth {
   photoStorage: PhotoStorageTile;
   containers: ContainersTile;
   agentWake: AgentWakeReading;
+  agentWatcher: AgentWatcherReading;
 }
 
 interface AlertSettings {
@@ -383,9 +390,14 @@ export function RuntimeHealthCard() {
             <div className="sm:col-span-2">
               <MetricTile
                 t={t}
-                status={agentTileStatus(health.agentWake)}
+                status={agentTileStatus(health.agentWake, health.agentWatcher)}
                 title={t('admin.systemVersions.runtimeHealth.agent.title')}
-                rows={agentWakeRows(t, health.agentWake, (iso) => formatCheckedAt(iso, locale))}
+                rows={[
+                  ...agentWakeRows(t, health.agentWake, (iso) => formatCheckedAt(iso, locale)),
+                  ...agentWatcherRows(t, health.agentWatcher, (iso) =>
+                    formatCheckedAt(iso, locale),
+                  ),
+                ]}
               />
             </div>
           </div>

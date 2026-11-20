@@ -3021,6 +3021,9 @@ export const admin = {
         noCallYet: "Aucun pour l'instant",
         callAt: '{time} (réponse {answer})',
         noAnswer: 'aucune',
+        watcher: 'Veilleur externe',
+        pinging: 'Signal envoyé · dernière réponse {time}',
+        pingFailed: 'Dernier signal en échec · {time}',
       },
       trend: {
         title: 'Tendance',

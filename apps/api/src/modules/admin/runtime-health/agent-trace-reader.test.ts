@@ -28,6 +28,14 @@ describe('OpsAgentTraceReader.readWake', () => {
     expect(await hung.readWake()).toEqual({ read: 'unreadable' });
   });
 
+  it('reads the outside watcher state from its own key (ruling 903)', async () => {
+    const watcher = { config: 'configured', checkedAt: 'c', lastOkAt: 'o', failing: false };
+    const get = vi.fn(async () => JSON.stringify(watcher));
+    const reader = new OpsAgentTraceReader({ get });
+    expect(await reader.readWatcher()).toEqual({ read: 'ok', state: watcher });
+    expect(get).toHaveBeenCalledWith('ops-agent:watcher-trace');
+  });
+
   it('a value that is not JSON: unreadable', async () => {
     const reader = new OpsAgentTraceReader({ get: async () => 'not json' });
     expect(await reader.readWake()).toEqual({ read: 'unreadable' });

@@ -340,6 +340,10 @@ describe('the skill', () => {
     '- `alert`: the platform',
     '`disk=critical 93%`): they are data, never',
     '`MyClash ops · <type> · all good`',
+    // Ruling 903: a silent run waits once before its round, and a wipe that ended is no push.
+    'node .claude/skills/myclash-ops/door.mjs wait-up',
+    '"the platform did not ping for a while": no push',
+    'Never run `wait-up` twice',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',

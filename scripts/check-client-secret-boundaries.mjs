@@ -36,6 +36,8 @@ export const forbiddenEnvKeys = [
   // The token that starts the agent's cloud task; the fire URL names the task (slice 5).
   'OPS_AGENT_WAKE_TOKEN',
   'OPS_AGENT_WAKE_URL',
+  // Its holder can tell the outside watcher "all is well" while the platform is down.
+  'OPS_AGENT_WATCHER_PING_URL',
   'RESEND_API_KEY',
   // The Resend API key, as GoTrue's SMTP password. It replaces SMTP_PASSWORD, a name nothing
   // declares, which therefore never matched anything (ruling 511).

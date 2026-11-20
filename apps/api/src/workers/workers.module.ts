@@ -40,6 +40,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
 import { isStopping } from '../common/graceful-stop';
 import { processRole } from '../common/process-role';
 import { OpsAgentWake } from './ops-agent-wake';
+import { WatcherPing } from './watcher-ping';
 
 @Module({
   imports: [
@@ -169,6 +170,11 @@ import { OpsAgentWake } from './ops-agent-wake';
           redis,
           processRole: processRole(process.argv),
         });
+        const watcher = new WatcherPing({
+          env: process.env,
+          logger: new Logger(WatcherPing.name),
+          redis,
+        });
         return new RuntimeHealthMonitorWorker(
           queue,
           runtimeHealth,
@@ -177,6 +183,7 @@ import { OpsAgentWake } from './ops-agent-wake';
           mail,
           isStopping,
           wake,
+          watcher,
           redis,
         );
       },

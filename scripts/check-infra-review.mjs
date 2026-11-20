@@ -1157,11 +1157,12 @@ requireLine(
   'dev worker',
   'OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET:-dev-ops-runner-secret}',
 );
-// The worker alone ticks the runtime-health monitor, so the agent's wake-up keys go there (slice
-// 5, rulings 901, 902): without them the wake-up is silently off.
+// The worker alone ticks the runtime-health monitor, so the agent's wake-up keys and the outside
+// watcher's ping go there (slice 5, rulings 901-903): without them both are silently off.
 for (const line of [
   'OPS_AGENT_WAKE_URL: ${OPS_AGENT_WAKE_URL:-}',
   'OPS_AGENT_WAKE_TOKEN: ${OPS_AGENT_WAKE_TOKEN:-}',
+  'OPS_AGENT_WATCHER_PING_URL: ${OPS_AGENT_WATCHER_PING_URL:-}',
 ]) {
   requireLine(services.get('worker') ?? '', 'prod worker', line);
 }

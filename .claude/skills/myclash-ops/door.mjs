@@ -225,6 +225,32 @@ export async function runRound(
   return { lines, end: 'done' };
 }
 
+/** `wait-up`: a `silent` run polls this often (ruling 903). */
+export const WAIT_UP_POLL_MS = 60_000;
+/** `wait-up` stops by then: with a last read of 20 s, the whole wait fits one 10-minute Bash call. */
+export const WAIT_UP_BUDGET_MS = 9 * 60_000;
+const WAIT_UP_READ_TIMEOUT_MS = 20_000;
+
+/**
+ * A `silent` run's wait (ruling 903): the outside watcher fires when the worker stops pinging,
+ * and a wipe + deploy stops it for 10 to 20 minutes. Reads `versions` until the API answers (a
+ * 2xx, or a 401: the round then says the key was refused) or the budget ends. It writes no file:
+ * the round that follows starts from an empty folder. `deps` = { request, sleep, now }.
+ */
+export async function waitUp({ request, sleep, now }) {
+  const started = now();
+  for (;;) {
+    const result = await request('versions', { timeout: WAIT_UP_READ_TIMEOUT_MS });
+    if (result.status === 401 || describeOutcome('versions', result).ok) {
+      return { up: true, line: `up after ${Math.round((now() - started) / 1000)}s` };
+    }
+    if (now() + WAIT_UP_POLL_MS > started + WAIT_UP_BUDGET_MS) {
+      return { up: false, line: `still down ${describeOutcome('versions', result).line}` };
+    }
+    await sleep(WAIT_UP_POLL_MS);
+  }
+}
+
 /** `act`'s arguments, or a thrown usage error before any call. */
 export function parseAct([what, ...rest]) {
   if (what === 'restart' || what === 'start') {
@@ -365,8 +391,9 @@ export async function runAct(act, deps) {
 }
 
 async function main([mode, ...args]) {
+  if (mode === 'wait-up') return mainWaitUp();
   if (mode !== 'round' && mode !== 'act') {
-    console.error('usage: node door.mjs round <dir> | act …');
+    console.error('usage: node door.mjs round <dir> | act … | wait-up');
     return 2;
   }
   let act;
@@ -421,6 +448,25 @@ async function main([mode, ...args]) {
   });
   await note(`end ${end}`);
   return { done: 0, unreachable: 4, slow: 5 }[end] ?? 3;
+}
+
+/** `wait-up`: prints `up after <s>s` (exit 0) or `still down <answer>` (exit 4). */
+async function mainWaitUp() {
+  const pem = await readFile(path.join(HERE, 'staging-root.pem'), 'utf8');
+  const key = process.env.OPS_AGENT_KEY;
+  try {
+    doorRequestOptions('versions', key, pem);
+  } catch (err) {
+    console.error(err.message);
+    return 2;
+  }
+  const { up, line } = await waitUp({
+    request: (route, options) => sendDoorRequest(doorRequestOptions(route, key, pem, options)),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: Date.now,
+  });
+  console.log(line);
+  return up ? 0 : 4;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

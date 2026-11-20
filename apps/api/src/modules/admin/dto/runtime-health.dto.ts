@@ -1,5 +1,5 @@
 import type { RuntimeHealthQueueRow } from '@myclash/types';
-import type { AgentWakeReading } from '../runtime-health/agent-trace-reader';
+import type { AgentWakeReading, AgentWatcherReading } from '../runtime-health/agent-trace-reader';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -93,9 +93,10 @@ export interface RuntimeHealthResponseDto {
   containers: ContainersMetric;
 }
 
-/** The console's answer: the snapshot, plus the worker's wake-up state (slice 5, ruling 902). */
+/** The console's answer: the snapshot, plus the worker's wake-up and ping states (slice 5). */
 export interface RuntimeHealthConsoleDto extends RuntimeHealthResponseDto {
   agentWake: AgentWakeReading;
+  agentWatcher: AgentWatcherReading;
 }
 
 /**

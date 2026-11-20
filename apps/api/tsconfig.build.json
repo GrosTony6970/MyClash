@@ -135,6 +135,10 @@
     // The seeded rows of the fire-time "still wanted" check's tests (ruling 213), split out for
     // the same reason. Imported by tests and nothing else.
     "src/workers/alert-still-wanted.fixtures.ts",
+    // The runtime-health monitor's doubles (a real wake-up and ping over one fake Redis), shared
+    // by its two test files when the ops agent's tick tests got their own (slice 5). It imports
+    // vitest.
+    "src/workers/runtime-health-monitor.fixtures.ts",
     // The open-call world (FightBook slice 5), shared by the open calls' four test files. It
     // imports vitest.
     "src/modules/fightbook/open-calls.fixtures.ts",

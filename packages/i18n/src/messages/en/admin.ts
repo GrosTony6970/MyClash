@@ -3005,6 +3005,9 @@ export const admin = {
         noCallYet: 'None yet',
         callAt: '{time} (answer {answer})',
         noAnswer: 'none',
+        watcher: 'Outside watcher',
+        pinging: 'Pinging · last answered {time}',
+        pingFailed: 'Last ping failed · {time}',
       },
       trend: {
         title: 'Trend',
