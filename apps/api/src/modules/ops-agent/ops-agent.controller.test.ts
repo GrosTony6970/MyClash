@@ -42,6 +42,8 @@ function build() {
   // The containers read is the system actions' own (ruling 900): the real one, over the same runner.
   const realActions = new AdminSystemActionsService({} as never, runnerOptions);
   Object.assign(systemActions, { getContainers: () => realActions.getContainers() });
+  // Ruling 904: a silent run reads when the worker last pinged the outside watcher.
+  const traces = { readWatcher: vi.fn().mockResolvedValue({ read: 'not_checked' }) };
   const controller = new OpsAgentController(
     runtime as never,
     host as never,
@@ -51,6 +53,7 @@ function build() {
     agentLogs,
     eventsLive as never,
     systemActions as never,
+    traces as never,
   );
   return { controller, runtime, host, versions, backups, tls, runner, eventsLive, systemActions };
 }
@@ -94,7 +97,10 @@ function readDoubles() {
 describe('OpsAgentController', () => {
   it('passes runtime health, host facts and certificates through unchanged', async () => {
     const { controller, runtime, host, tls } = build();
-    await expect(controller.runtimeHealth()).resolves.toEqual({ overall: 'ok' });
+    await expect(controller.runtimeHealth()).resolves.toEqual({
+      overall: 'ok',
+      agentWatcher: { read: 'not_checked' },
+    });
     await expect(controller.host()).resolves.toEqual({ hostname: 'vps' });
     await expect(controller.tls()).resolves.toEqual({ minDays: 40 });
     expect(runtime.collect).toHaveBeenCalledTimes(1);

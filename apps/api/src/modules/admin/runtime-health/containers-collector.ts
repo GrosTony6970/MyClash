@@ -8,13 +8,13 @@ export type ContainersReading =
 
 /** Exit codes of a stop on purpose (ruling 887): 0, or 143 (SIGTERM, `docker stop`). */
 const STOPPED_ON_PURPOSE: readonly number[] = [0, 143];
-const SETTLED_STATES: readonly string[] = ['running', 'exited', 'created'];
 
 /**
  * The containers that crashed or are unhealthy (ruling 900). One owner of "dead", and the same
- * rule as the ops skill's repairs (§7): unhealthy; a state that is neither running, exited nor
- * created (restarting, dead, paused…); or exited/created with an exit code other than 0 and 143.
- * An unknown exit code is not a problem here: the skill reports it as a note.
+ * rule as the ops skill's problems (§4): unhealthy; or any state but running, except `exited`
+ * with exit code 0 or 143 (a stop on purpose) or an unknown one (the skill notes it, §7). A
+ * `created` container never started: nobody will start it, so it counts (the 2026-11-20 restore
+ * left db "Created").
  */
 export function deadContainers(rows: readonly ContainerRow[]): ContainerProblem[] {
   return rows.filter(isDead).map(({ service, state, exitCode, health }) => ({
@@ -27,12 +27,9 @@ export function deadContainers(rows: readonly ContainerRow[]): ContainerProblem[
 
 function isDead(row: ContainerRow): boolean {
   if (row.health === 'unhealthy') return true;
-  if (!SETTLED_STATES.includes(row.state)) return true;
-  return (
-    row.state !== 'running' &&
-    typeof row.exitCode === 'number' &&
-    !STOPPED_ON_PURPOSE.includes(row.exitCode)
-  );
+  if (row.state === 'running') return false;
+  if (row.state !== 'exited') return true;
+  return typeof row.exitCode === 'number' && !STOPPED_ON_PURPOSE.includes(row.exitCode);
 }
 
 /** An expected service with no container at all. */

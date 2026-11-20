@@ -18,6 +18,7 @@ import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
 import { AdminSystemVersionsService } from '../admin/system-versions.service';
 import { AdminSystemActionsService } from '../admin/system-actions.service';
 import { AdminTlsStatusService } from '../admin/tls-status.service';
+import { OpsAgentTraceReader } from '../admin/runtime-health/agent-trace-reader';
 import { AgentKeyGuard } from './agent-key.guard';
 import { AgentEventsLiveService } from './agent-events-live.service';
 import { AgentLogsService } from './agent-logs.service';
@@ -40,6 +41,7 @@ beforeAll(async () => {
     controllers: [OpsAgentController],
     providers: [
       { provide: AdminRuntimeHealthService, useValue: {} },
+      { provide: OpsAgentTraceReader, useValue: {} },
       { provide: AdminHostInfoService, useValue: {} },
       { provide: AdminSystemVersionsService, useValue: {} },
       { provide: AdminBackupsService, useValue: {} },

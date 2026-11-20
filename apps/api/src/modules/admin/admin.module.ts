@@ -217,6 +217,8 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AdminHostInfoService,
     AdminBackupsService,
     AdminSystemActionsService,
+    // The worker's last ping, which a silent run waits for (ruling 904).
+    OpsAgentTraceReader,
   ],
 })
 export class AdminModule {}

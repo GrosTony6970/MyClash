@@ -16,7 +16,7 @@ function allRunning(): ContainerRow[] {
   return EXPECTED_SERVICES.map((service) => row(service, 'running', 0, 'healthy'));
 }
 
-describe('deadContainers (the same rule as the skill §7, ruling 900)', () => {
+describe('deadContainers (the same rule as the skill §4, ruling 900)', () => {
   it.each([
     ['running healthy', row('web-public', 'running', 0, 'healthy'), 0],
     ['running without a healthcheck', row('supabase-rest', 'running', 0, null), 0],
@@ -26,11 +26,9 @@ describe('deadContainers (the same rule as the skill §7, ruling 900)', () => {
     ['exited 0 (stopped on purpose)', row('web-public', 'exited', 0, null), 0],
     ['exited 143 (stopped on purpose)', row('supabase-studio', 'exited', 143, null), 0],
     ['created 1 (a failed start)', row('db', 'created', 1, null), 1],
-    [
-      'created 0 (never started: a deploy between create and start)',
-      row('db', 'created', 0, null),
-      0,
-    ],
+    // Never started: nobody will start it (the 2026-11-20 restore left db "Created").
+    ['created 0 (never started)', row('db', 'created', 0, null), 1],
+    ['created with an unknown code', row('db', 'created', null, null), 1],
     ['restarting', row('worker', 'restarting', 1, null), 1],
     ['dead', row('worker', 'dead', null, null), 1],
     ['exited with an unknown code (the skill notes it)', row('worker', 'exited', null, null), 0],

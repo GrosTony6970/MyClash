@@ -5213,7 +5213,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Runtime health of the database, Redis, queues, disk, photo storage and containers */
+    /** Runtime health of the database, Redis, queues, disk, photo storage and containers, and the worker last ping */
     get: operations['OpsAgentController_runtimeHealth'];
     put?: never;
     post?: never;

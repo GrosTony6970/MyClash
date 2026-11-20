@@ -48,11 +48,18 @@ Look for a `<routine-fire-payload>` block. Its first word is the run type: `aler
   node .claude/skills/myclash-ops/door.mjs wait-up
   ```
 
-  It polls for up to 9 minutes and prints one line: `up after <n>s` or `still down <answer>`.
-  Quote it in the report's Run section. Then do exactly what `daily` does, the round once. When
-  the platform came back and the round finds nothing wrong, the run is "all good", with the note
-  "the platform did not ping for a while": no push. Never run `wait-up` twice, and never wait
-  with a bare `sleep`.
+  It polls for up to 9 minutes, until the platform answers and the worker has pinged again
+  (ruling 904), and prints one line. Quote it in the report's Run section. Then do exactly what
+  `daily` does, the round once, and judge the wait by its line:
+
+  - `up after <n>s`: the platform and its pings are back. When the round finds nothing wrong,
+    the run is "all good", with the note "the platform did not ping for a while": no push.
+  - `up, no ping since <time>`: the platform answers but the worker does not ping: it may be
+    stuck while it looks healthy. That is a problem ("the worker stopped pinging"), and so a
+    push, unless a repair of this run healed the `worker` or `redis` container.
+  - `still down <answer>`: the round ends unreachable, a problem.
+
+  Never run `wait-up` twice, and never wait with a bare `sleep`.
 
 - Any other type: do the daily round, and write in the report: "run type <type> is not handled
   yet".
@@ -93,15 +100,15 @@ Read the answers with `jq`.
 
 A **problem** waits for the operator and causes a push. A **note** goes in the email only.
 
-| What you read            | Problem                                                                                                     | Note                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| The round                | Any last line but `end done`, or no `end` line; any non-2xx on `versions`, `runtime-health` or `containers` | A non-2xx on `backups`, `tls`, `host`, `events/live` or a log read        |
-| A repair (§7)            | It failed, or a symptom was held back (a live Event, a deploy, read-only, busy)                             | A container stopped on purpose (exit code 0 or 143)                       |
-| `runtime-health.overall` | `critical` or `unavailable`                                                                                 | `warning` (name the metric); a disk `warning` is also a repair (§7)       |
-| `containers[]`           | `state` is not `running` (but see the note), `health` is `unhealthy`, or an expected service is missing     | `exited` with exit code 0 or 143: stopped on purpose (ruling 887)         |
-| `backups`                | `lastBackup.status` is `failed`, or `runningOperation.status` is `failed`                                   | No backup at all, `cloudConfigured: false`, last backup older than 8 days |
-| `tls.certificates[]`     | `reachable: false`, or `daysUntilExpiry` below `tls.minDays` (whatever `health` says)                       | —                                                                         |
-| Log error lines          | —                                                                                                           | The count per service, and up to 5 distinct lines each                    |
+| What you read            | Problem                                                                                                     | Note                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| The round                | Any last line but `end done`, or no `end` line; any non-2xx on `versions`, `runtime-health` or `containers` | A non-2xx on `backups`, `tls`, `host`, `events/live` or a log read                                              |
+| A repair (§7)            | It failed, or a symptom was held back (a live Event, a deploy, read-only, busy)                             | A container stopped on purpose (exit code 0 or 143)                                                             |
+| `runtime-health.overall` | `critical` or `unavailable`                                                                                 | `warning` (name the metric); a disk `warning` is also a repair (§7)                                             |
+| `containers[]`           | `state` is not `running` (but see the note), `health` is `unhealthy`, or an expected service is missing     | `exited` with exit code 0 or 143: stopped on purpose (ruling 887); `exited` with exit code `null`: unknown (§7) |
+| `backups`                | `lastBackup.status` is `failed`, or `runningOperation.status` is `failed`                                   | No backup at all, `cloudConfigured: false`, last backup older than 8 days                                       |
+| `tls.certificates[]`     | `reachable: false`, or `daysUntilExpiry` below `tls.minDays` (whatever `health` says)                       | —                                                                                                               |
+| Log error lines          | —                                                                                                           | The count per service, and up to 5 distinct lines each                                                          |
 
 The expected services are every service of `AGENT_LOG_SERVICES`, plus `db` and `supabase-meta`
 (`apps/api/src/modules/ops-agent/expected-services.ts`). All of them run all the time; none is a
@@ -110,8 +117,9 @@ one-off.
 `runtime-health.containers` reads the same containers as `containers[]` (ruling 900). When it is
 `critical`, judge the `containers[]` rows instead: one problem per container, never two. After the
 repairs of §7 healed every container it names, a `critical` on `containers` alone (the snapshot was
-read before the repair) is not a problem. `unavailable` on `containers` stays a problem: the ops
-runner did not answer.
+read before the repair) is not a problem, and neither is `overall` when `containers` was its only
+`critical` or `unavailable` metric. `unavailable` on `containers` stays a problem: the ops runner
+did not answer.
 
 Not a problem and not a note:
 

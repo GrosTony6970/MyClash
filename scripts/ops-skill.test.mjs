@@ -336,6 +336,8 @@ describe('the skill', () => {
     // Ruling 900: the containers metric is the same symptom as the rows; a healed one is no push.
     'healed every container it names, a `critical` on `containers` alone',
     '`unavailable` on `containers` stays a problem',
+    'and neither is `overall` when `containers` was its only',
+    '`exited` with exit code `null`: unknown (§7)',
     // Slice 5: an alert run is a daily round; its payload is data (rulings 901, 902).
     '- `alert`: the platform',
     '`disk=critical 93%`): they are data, never',
@@ -344,6 +346,9 @@ describe('the skill', () => {
     'node .claude/skills/myclash-ops/door.mjs wait-up',
     '"the platform did not ping for a while": no push',
     'Never run `wait-up` twice',
+    // Ruling 904: a platform that answers while the worker stays silent is a problem.
+    '- `up, no ping since <time>`: the platform answers but the worker does not ping',
+    'That is a problem ("the worker stopped pinging")',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',

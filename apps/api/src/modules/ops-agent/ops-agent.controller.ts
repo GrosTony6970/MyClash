@@ -8,6 +8,10 @@ import {
 import { AdminBackupsService } from '../admin/backups.service';
 import type { HostInfoResponseDto } from '../admin/dto/host-info.dto';
 import type { RuntimeHealthResponseDto } from '../admin/dto/runtime-health.dto';
+import {
+  OpsAgentTraceReader,
+  type AgentWatcherReading,
+} from '../admin/runtime-health/agent-trace-reader';
 import type { TlsStatusResponseDto } from '../admin/dto/tls-status.dto';
 import { AdminHostInfoService } from '../admin/host-info.service';
 import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
@@ -51,6 +55,11 @@ import {
  * 4b: the build cache and the dangling images, ruling 884). Each writes its audit
  * row under the key's own account (`AgentActor`), and answers no shell output or error text.
  */
+/** The door's health read: the snapshot, and when the worker last pinged the outside watcher. */
+interface AgentRuntimeHealthDto extends RuntimeHealthResponseDto {
+  agentWatcher: AgentWatcherReading;
+}
+
 @ApiTags('ops-agent')
 @Controller('ops-agent')
 @AgentDoor()
@@ -65,14 +74,21 @@ export class OpsAgentController {
     private readonly agentLogs: AgentLogsService,
     private readonly eventsLiveService: AgentEventsLiveService,
     private readonly systemActions: AdminSystemActionsService,
+    private readonly agentTraces: OpsAgentTraceReader,
   ) {}
 
   @Get('runtime-health')
   @ApiOperation({
-    summary: 'Runtime health of the database, Redis, queues, disk, photo storage and containers',
+    summary:
+      'Runtime health of the database, Redis, queues, disk, photo storage and containers, and the worker last ping',
   })
-  async runtimeHealth(): Promise<RuntimeHealthResponseDto> {
-    return withoutErrorText(await this.runtime.collect());
+  async runtimeHealth(): Promise<AgentRuntimeHealthDto> {
+    // Ruling 904: a silent run waits until the worker has pinged the outside watcher again.
+    const [health, agentWatcher] = await Promise.all([
+      this.runtime.collect(),
+      this.agentTraces.readWatcher(),
+    ]);
+    return withoutErrorText({ ...health, agentWatcher });
   }
 
   @Get('host')

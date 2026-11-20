@@ -227,25 +227,47 @@ export async function runRound(
 
 /** `wait-up`: a `silent` run polls this often (ruling 903). */
 export const WAIT_UP_POLL_MS = 60_000;
-/** `wait-up` stops by then: with a last read of 20 s, the whole wait fits one 10-minute Bash call. */
+/** `wait-up` stops by then: with a last read of 30 s, the whole wait fits one 10-minute Bash call. */
 export const WAIT_UP_BUDGET_MS = 9 * 60_000;
-const WAIT_UP_READ_TIMEOUT_MS = 20_000;
+const WAIT_UP_READ_TIMEOUT_MS = 30_000;
+/** A ping is fresh for one 5-minute tick and its slack (ruling 904). */
+export const PING_FRESH_MS = 6 * 60_000;
+
+/** The worker pinged the outside watcher, and the watcher answered, within PING_FRESH_MS. */
+function pingedRecently(health, now) {
+  const watcher = health?.agentWatcher;
+  if (watcher?.read !== 'ok') return false;
+  const { config, checkedAt, failing } = watcher.state ?? {};
+  return (
+    config === 'configured' && failing === false && now - Date.parse(checkedAt) < PING_FRESH_MS
+  );
+}
 
 /**
- * A `silent` run's wait (ruling 903): the outside watcher fires when the worker stops pinging,
- * and a wipe + deploy stops it for 10 to 20 minutes. Reads `versions` until the API answers (a
- * 2xx, or a 401: the round then says the key was refused) or the budget ends. It writes no file:
- * the round that follows starts from an empty folder. `deps` = { request, sleep, now }.
+ * A `silent` run's wait (rulings 903, 904): the outside watcher fires when the worker stops
+ * pinging, and a wipe + deploy stops it for 10 to 20 minutes. Reads `runtime-health` until the
+ * API answers AND the worker has pinged again (a 401 also ends it: the round then says the key was
+ * refused), or the budget ends. A site that answers while the worker stays silent ends `no-ping`:
+ * a stuck worker looks healthy from outside. It writes no file: the round that follows starts from
+ * an empty folder. `deps` = { request, sleep, now }. Ends: `up`, `no-ping`, `down`.
  */
 export async function waitUp({ request, sleep, now }) {
   const started = now();
   for (;;) {
-    const result = await request('versions', { timeout: WAIT_UP_READ_TIMEOUT_MS });
-    if (result.status === 401 || describeOutcome('versions', result).ok) {
-      return { up: true, line: `up after ${Math.round((now() - started) / 1000)}s` };
+    const result = await request('runtime-health', { timeout: WAIT_UP_READ_TIMEOUT_MS });
+    const health = describeOutcome('runtime-health', result).ok ? parsed(result.body) : null;
+    if (result.status === 401 || pingedRecently(health, now())) {
+      return { end: 'up', line: `up after ${Math.round((now() - started) / 1000)}s` };
     }
     if (now() + WAIT_UP_POLL_MS > started + WAIT_UP_BUDGET_MS) {
-      return { up: false, line: `still down ${describeOutcome('versions', result).line}` };
+      if (!health) {
+        return {
+          end: 'down',
+          line: `still down ${describeOutcome('runtime-health', result).line}`,
+        };
+      }
+      const lastOk = health.agentWatcher?.state?.lastOkAt ?? 'unknown';
+      return { end: 'no-ping', line: `up, no ping since ${lastOk}` };
     }
     await sleep(WAIT_UP_POLL_MS);
   }
@@ -450,7 +472,7 @@ async function main([mode, ...args]) {
   return { done: 0, unreachable: 4, slow: 5 }[end] ?? 3;
 }
 
-/** `wait-up`: prints `up after <s>s` (exit 0) or `still down <answer>` (exit 4). */
+/** `wait-up`: prints `up after <s>s` (exit 0), `up, no ping since <time>` (3) or `still down …` (4). */
 async function mainWaitUp() {
   const pem = await readFile(path.join(HERE, 'staging-root.pem'), 'utf8');
   const key = process.env.OPS_AGENT_KEY;
@@ -460,13 +482,13 @@ async function mainWaitUp() {
     console.error(err.message);
     return 2;
   }
-  const { up, line } = await waitUp({
+  const { end, line } = await waitUp({
     request: (route, options) => sendDoorRequest(doorRequestOptions(route, key, pem, options)),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     now: Date.now,
   });
   console.log(line);
-  return up ? 0 : 4;
+  return { up: 0, 'no-ping': 3, down: 4 }[end];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
