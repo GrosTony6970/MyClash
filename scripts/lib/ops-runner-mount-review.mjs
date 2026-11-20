@@ -46,9 +46,13 @@ export function opsRunnerMountFindings(service) {
  * @returns {string[]}
  */
 export function restoreRestartFindings(text) {
-  const restarts = trimmedLines(text).filter((line) => /^RESTART=\(/u.test(line));
-  if (restarts.length === 0) return ['infra/scripts/restore.sh must set RESTART'];
-  return restarts
+  const code = trimmedLines(text).filter((line) => !line.startsWith('#'));
+  if (!code.some((line) => /^RESTART=\(/u.test(line))) {
+    return ['infra/scripts/restore.sh must set RESTART'];
+  }
+  // Every `up` the restore runs: its RESTART arrays, and any direct `"${COMPOSE[@]}" up`.
+  return code
+    .filter((line) => /^RESTART=\(/u.test(line) || /"\$\{COMPOSE\[@\]\}"\s+up\b/u.test(line))
     .filter((line) => !/\bup -d --no-recreate\b/u.test(line))
     .map(
       (line) =>

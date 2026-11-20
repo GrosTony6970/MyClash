@@ -50,6 +50,13 @@ test('each rule fires on the shape it forbids', () => {
     0,
   );
   assert.equal(restoreRestartFindings('echo nothing\n').length, 1);
+  const withRestart = 'RESTART=("${COMPOSE[@]}" up -d --no-recreate)\n';
+  assert.equal(restoreRestartFindings(`${withRestart}"\${COMPOSE[@]}" up -d db\n`).length, 1);
+  assert.equal(
+    restoreRestartFindings(`${withRestart}  "\${COMPOSE[@]}" up -d --no-recreate db\n`).length,
+    0,
+  );
+  assert.equal(restoreRestartFindings(`${withRestart}# "\${COMPOSE[@]}" up -d\n`).length, 0);
 
   assert.equal(envExampleRootDirFindings('MYCLASH_ROOT_DIR=\n').length, 1);
   assert.equal(envExampleRootDirFindings('# MYCLASH_ROOT_DIR= is set by the scripts\n').length, 0);

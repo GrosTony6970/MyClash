@@ -37,7 +37,9 @@ same-cluster and fresh-cluster restores have the roles they need, as long as `.e
 4. Replays the dump with `psql -v ON_ERROR_STOP=1 --single-transaction`. **Atomic:** a truncated or corrupt dump rolls the fresh database back to empty rather than leaving a half-restored, incoherent database reported as "success".
 5. **Validates** the result: the `public`/`auth`/`storage` schemas exist, `auth.users` is present, and there are a sane number of `public` tables. Fails the operation otherwise.
 6. Clears and re-extracts the storage archive into the `myclash-storage-data` volume.
-7. `docker compose up -d` restarts the whole stack.
+7. `docker compose up -d --no-recreate` starts again what step 2 stopped, and re-creates no
+   container: a console restore runs inside the ops runner, and re-creating the runner would end
+   the restore mid-way (incident 2026-11-20). Then the agent key seed runs (ruling 885).
 8. Warns that **data deleted after the backup was made is back**: accounts, anonymised names and
    photos deleted since then. Nothing in the restored database remembers those deletions, so the
    operator deletes them again. `rollback.sh` prints the same warning.
