@@ -1,4 +1,5 @@
 import { boundedCall } from '../common/bounded-call';
+import { verifiedFetch, type HttpCall } from './verified-fetch';
 import type { ProcessRole } from '../common/process-role';
 import type { RuntimeHealthResponseDto } from '../modules/admin/dto/runtime-health.dto';
 import {
@@ -33,7 +34,8 @@ export interface OpsAgentWakeDeps {
   logger: WakeLogger;
   redis: WakeRedis;
   processRole: ProcessRole;
-  fetchFn?: typeof fetch;
+  /** Tests only: the call, by default one that checks certificates (ruling 905). */
+  fetchFn?: HttpCall;
 }
 
 /**
@@ -46,12 +48,12 @@ export class OpsAgentWake {
   readonly config: WakeConfig;
   private readonly url: string;
   private readonly token: string;
-  private readonly fetchFn: typeof fetch;
+  private readonly fetchFn: HttpCall;
 
   constructor(private readonly deps: OpsAgentWakeDeps) {
     this.url = deps.env['OPS_AGENT_WAKE_URL'] ?? '';
     this.token = deps.env['OPS_AGENT_WAKE_TOKEN'] ?? '';
-    this.fetchFn = deps.fetchFn ?? fetch;
+    this.fetchFn = deps.fetchFn ?? verifiedFetch();
     this.config = configOf(this.url, this.token);
     // WorkersModule is in the API's graph too (app.module.ts): only the worker runs the tick.
     if (deps.processRole !== 'worker') return;

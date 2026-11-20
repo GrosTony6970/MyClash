@@ -1,4 +1,5 @@
 import { boundedCall } from '../common/bounded-call';
+import { verifiedFetch, type HttpCall } from './verified-fetch';
 import {
   WATCHER_STATE_KEY,
   type WatcherState,
@@ -26,7 +27,8 @@ export interface WatcherPingDeps {
   env: Record<string, string | undefined>;
   logger: PingLogger;
   redis: WatcherRedis;
-  fetchFn?: typeof fetch;
+  /** Tests only: the call, by default one that checks certificates (ruling 905). */
+  fetchFn?: HttpCall;
 }
 
 /**
@@ -37,13 +39,13 @@ export interface WatcherPingDeps {
  */
 export class WatcherPing {
   private readonly url: string;
-  private readonly fetchFn: typeof fetch;
+  private readonly fetchFn: HttpCall;
   private failing = false;
   private lastOkAt: string | null = null;
 
   constructor(private readonly deps: WatcherPingDeps) {
     this.url = deps.env['OPS_AGENT_WATCHER_PING_URL'] ?? '';
-    this.fetchFn = deps.fetchFn ?? fetch;
+    this.fetchFn = deps.fetchFn ?? verifiedFetch();
   }
 
   async ping(now: number): Promise<PingOutcome> {
