@@ -38,11 +38,15 @@ export function QueryErrorDetail({
         </p>
       )}
       {resolvable && (
+        // `aria-disabled`, not `disabled`: a disabled button that holds focus drops it to the
+        // page, out of the side panel's trap (ruling 911). The click is held here instead.
         <button
           type="button"
-          onClick={onResolve}
-          disabled={resolving}
-          className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+          onClick={() => {
+            if (!resolving) onResolve();
+          }}
+          aria-disabled={resolving}
+          className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background aria-disabled:opacity-50"
         >
           {t('admin.platformLog.resolve')}
         </button>

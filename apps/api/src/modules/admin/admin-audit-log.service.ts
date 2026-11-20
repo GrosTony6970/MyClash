@@ -6,6 +6,7 @@ import {
   type RefBudget,
   collectPayloadRefs,
 } from '../entity-label/audit-payload-refs';
+import { type AuditOutcome, auditOutcome } from './audit-outcome';
 import type { ListAuditLogQueryDto } from './dto/admin-audit-log.dto';
 import { ENTITY_TYPE_TO_KIND, type EntityKind, labelKey } from '../entity-label/entity-label-specs';
 import {
@@ -56,6 +57,8 @@ export interface AuditLogRow {
    * FE renders the raw string it already has.
    */
   payloadLabels: Record<string, PayloadLabel>;
+  /** How a system action ended, or null when the row records no outcome (ruling 914). */
+  outcome: AuditOutcome | null;
 }
 
 /** What `exportCsv` actually selects — narrower than a listed row. */
@@ -70,7 +73,7 @@ interface AuditLogExportRow {
 
 type RawAuditLogRow = Omit<
   AuditLogRow,
-  'entityLabel' | 'actorName' | 'actorEmail' | 'payloadLabels'
+  'entityLabel' | 'actorName' | 'actorEmail' | 'payloadLabels' | 'outcome'
 >;
 
 export interface AuditLogListResponse {
@@ -187,6 +190,7 @@ function toAuditLogRow(
         ? (labels.get(labelKey(entityKind, row.entity_id)) ?? null)
         : null,
     payloadLabels,
+    outcome: auditOutcome(row.action, row.payload_json),
   };
 }
 

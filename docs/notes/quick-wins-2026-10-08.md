@@ -4281,6 +4281,19 @@ report". Rulings 906-909 belong to the ops agent track. Spec:
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Email (910) | At 7:00 the run finds web-public down and restarts it. The operator opens the email and wants to see "red, 1 problem" at a glance, not a wall of text. | **The sender dresses the text**: the agent keeps writing plain text, each section name alone on a line; the sender adds a coloured HTML part and keeps the text part. English, as ruling 879 says. | `.claude/skills/myclash-ops/report-html.mjs` |
 
+### Rulings — operator, 2026-11-20: the log entry side panel
+
+Asked in session af29ab7f (911-914), for the operator's request "when clicking on an entry I want
+to see in a side panel the corresponding log, a bit like Azure event viewer". Spec:
+`docs/superpowers/archive/specs/2026-11-20-log-entry-panel-design.md`.
+
+| Row              | Story                                                                                                                           | Ruling                                                                                                                                                             | Files                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| Content (911)    | This morning the ops agent restarted web-public. The operator clicks that row in the Log page.                                  | **The panel shows the row's own record, laid out well**, on **both tabs**, with **Previous / Next** and a **Result column**. No link to one entry.                 | `apps/web-admin/app/admin/audit-log/`  |
+| Shape (912)      | The panel could slide over the dimmed list, or sit docked beside it like the event viewer; the list already needs about 1100px. | **It slides over, the list dimmed**, built once in the shared UI kit (`Modal`, placement `side`).                                                                  | `packages/ui/src/components/Modal.tsx` |
+| Error text (913) | A failed restart keeps only "failed, exit code 1, not timed out": no error text.                                                | **Not now**: the panel shows what is stored. Keeping a failed action's last output lines is its own slice (the runner returns them; check them for secrets first). | —                                      |
+| No outcome (914) | Most rows (an Event edit) record no outcome: they are written after the change succeeded.                                       | **A dash.** Only system actions get a mark: green Succeeded, red Failed, grey Started. One rule, on the server.                                                    | `audit-outcome.ts`                     |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

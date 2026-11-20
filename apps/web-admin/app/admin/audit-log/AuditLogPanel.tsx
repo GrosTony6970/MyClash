@@ -1,32 +1,13 @@
 'use client';
 
-import { localeToBcp47 } from '@myclash/time';
-import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
-import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-interface AuditLogEntry {
-  id: string;
-  actor_user_id: string | null;
-  /** Backend-resolved actor display name / email. Null when unresolved. */
-  actorName?: string | null;
-  actorEmail?: string | null;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  payload_json: unknown;
-  created_at: string;
-  /** Backend-resolved human label per entity_type. Null when the
-   *  underlying record was hard-deleted or the type isn't in the
-   *  resolver switch — the FE still shows the raw UUID below. */
-  entityLabel?: string | null;
-  /** RFC 6901 JSON Pointer into payload_json → label for the id at that spot.
-   *  Absent pointers just mean "render the raw value". */
-  payloadLabels?: Record<string, PayloadLabel>;
-}
+import type { AuditLogEntry } from './audit-entry';
+import { AuditEntryPanel } from './AuditEntryPanel';
+import { AuditLogTable } from './AuditLogTable';
+import { useEntrySelection } from './use-entry-selection';
 
 interface AuditLogResponse {
   items: AuditLogEntry[];
@@ -71,7 +52,7 @@ function buildParams(filters: AuditFilters, page?: number, perPage?: number): st
 }
 
 export function AuditLogPanel() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
 
   const [draftFilters, setDraftFilters] = useState<AuditFilters>(emptyFilters);
@@ -87,6 +68,7 @@ export function AuditLogPanel() {
   const [perPage, setPerPage] = useState(50);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const selection = useEntrySelection(response.items);
 
   const queryString = useMemo(
     () => buildParams(appliedFilters, page, perPage),
@@ -272,57 +254,13 @@ export function AuditLogPanel() {
       {response.items.length === 0 && !loading ? (
         <p className="text-muted text-sm">{t('admin.auditLog.empty')}</p>
       ) : (
-        <DataTable className="min-w-[1100px]">
-          <DataTableHead>
-            <DataTableCell as="th">{t('admin.auditLog.columns.created')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.auditLog.columns.actor')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.auditLog.columns.action')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.auditLog.columns.entity')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.auditLog.columns.payload')}</DataTableCell>
-          </DataTableHead>
-          <tbody>
-            {response.items.map((entry) => (
-              <DataTableRow key={entry.id}>
-                <DataTableCell className="whitespace-nowrap text-foreground-secondary">
-                  {new Date(entry.created_at).toLocaleString(localeToBcp47(locale))}
-                </DataTableCell>
-                <DataTableCell className="text-xs text-foreground-secondary">
-                  {entry.actor_user_id ? (
-                    <p className="font-medium">
-                      {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
-                    </p>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
-                  {entry.actorName && entry.actorEmail && (
-                    <p className="font-mono text-muted">{entry.actorEmail}</p>
-                  )}
-                </DataTableCell>
-                <DataTableCell>
-                  <span className="rounded bg-background px-2 py-1 font-mono text-xs">
-                    {entry.action}
-                  </span>
-                </DataTableCell>
-                <DataTableCell>
-                  <p className="font-medium">{entry.entity_type}</p>
-                  {entry.entityLabel && (
-                    <p className="text-sm text-foreground-secondary">{entry.entityLabel}</p>
-                  )}
-                  <p
-                    className="font-mono text-xs text-muted max-w-[220px] truncate"
-                    title={entry.entity_id ?? ''}
-                  >
-                    {entry.entity_id}
-                  </p>
-                </DataTableCell>
-                <DataTableCell>
-                  <PayloadCell payload={entry.payload_json} labels={entry.payloadLabels ?? {}} />
-                </DataTableCell>
-              </DataTableRow>
-            ))}
-          </tbody>
-        </DataTable>
+        <AuditLogTable
+          items={response.items}
+          selectedId={selection.entry?.id ?? null}
+          onOpen={selection.open}
+        />
       )}
+      <AuditEntryPanel selection={selection} />
     </>
   );
 }

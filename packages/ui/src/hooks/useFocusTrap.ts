@@ -1,11 +1,13 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 /**
  * useFocusTrap — keeps Tab focus inside the given container element while
  * `active` is true. On activation focus jumps to the first focusable element;
- * on deactivation focus is restored to wherever it was before.
+ * on deactivation focus is restored to wherever it was before — or to `returnFocus()` when the
+ * caller gives one and it answers an element: a side panel that moved to another row gives focus
+ * back to that row, not to the row it opened on (ruling 912).
  *
- * Used by ConfirmDialog, PromptDialog, and the mobile sidebar drawer.
+ * Used by Modal, ConfirmDialog, PromptDialog, and the mobile sidebar drawer.
  */
 const FOCUSABLE_SELECTORS = [
   'a[href]',
@@ -16,7 +18,16 @@ const FOCUSABLE_SELECTORS = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
-export function useFocusTrap(active: boolean, containerRef: RefObject<HTMLElement | null>) {
+export function useFocusTrap(
+  active: boolean,
+  containerRef: RefObject<HTMLElement | null>,
+  returnFocus?: () => HTMLElement | null,
+) {
+  // The latest `returnFocus`, read at close: the effect below runs once per opening.
+  const latestReturn = useRef(returnFocus);
+  useEffect(() => {
+    latestReturn.current = returnFocus;
+  });
   useEffect(() => {
     if (!active) return;
     const container = containerRef.current;
@@ -53,7 +64,7 @@ export function useFocusTrap(active: boolean, containerRef: RefObject<HTMLElemen
     document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('keydown', handleKey);
-      previouslyFocused?.focus?.();
+      (latestReturn.current?.() ?? previouslyFocused)?.focus?.();
     };
   }, [active, containerRef]);
 }

@@ -2378,6 +2378,7 @@ export const admin = {
       action: 'Action',
       entity: 'Entité',
       payload: 'Payload',
+      result: 'Résultat',
     },
     payload: {
       details: 'Détail',
@@ -2385,12 +2386,36 @@ export const admin = {
       close: 'Fermer',
       more: '+{count} champ(s) de plus',
     },
+    result: {
+      succeeded: 'Réussi',
+      failed: 'Échoué',
+      started: 'Lancé',
+      none: 'Aucun résultat enregistré',
+    },
+    panel: {
+      target: 'Cible',
+      result: 'Résultat',
+      exitCode: 'code de sortie {code}',
+      timedOut: 'délai dépassé',
+      fields: 'Champs enregistrés',
+      noFields: 'Aucun champ enregistré.',
+    },
   },
   log: {
     title: 'Journal',
     tabs: {
       audit: "Journal d'audit",
       platform: 'Journal plateforme',
+    },
+    panel: {
+      openEntry: 'Ouvrir cette entrée',
+      when: 'Quand',
+      who: 'Qui',
+      nobody: "Personne : c'est la plateforme",
+      previous: 'Précédent',
+      next: 'Suivant',
+      close: 'Fermer',
+      position: '{index} sur {count} sur cette page',
     },
   },
   platformLog: {
@@ -2441,6 +2466,13 @@ export const admin = {
     occurrences: '{count} occurrences depuis {since}',
     resolve: 'Marquer comme traité',
     resolveError: 'Impossible de marquer cette entrée comme traitée.',
+    panel: {
+      category: 'Catégorie',
+      severity: 'Sévérité',
+      event: 'Événement',
+      detail: 'Détail',
+      noDetail: 'Aucun détail enregistré.',
+    },
   },
   designSystem: {
     page: {

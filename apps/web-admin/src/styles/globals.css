@@ -102,9 +102,27 @@
   animation: bulk-bar-enter 200ms ease-out;
 }
 
+/*
+ * Side panel (`Modal` placement `side`, ruling 912) — slides in from the right, 180ms.
+ */
+@keyframes sheet-enter {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.sheet-enter {
+  animation: sheet-enter 180ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dialog-enter,
   .dialog-card-enter,
+  .sheet-enter,
   .toast-enter,
   .bulk-bar-enter {
     animation: none;

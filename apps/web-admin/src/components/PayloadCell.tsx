@@ -69,8 +69,8 @@ function LeafValue({ value, hit, clamp }: { value: unknown; hit?: PayloadLabel; 
   );
 }
 
-/** Recursive tree — only ever rendered inside the Modal. */
-function PayloadNode({
+/** Recursive tree — rendered inside the Details modal and the Log page's side panel. */
+export function PayloadNode({
   node,
   path,
   labels,

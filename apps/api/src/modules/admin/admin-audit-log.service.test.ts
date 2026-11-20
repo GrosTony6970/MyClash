@@ -119,6 +119,7 @@ describe('AdminAuditLogService', () => {
           created_at: '2026-05-03T10:00:00.000Z',
           entityLabel: 'Alice Smith',
           payloadLabels: {},
+          outcome: null,
         },
       ],
       total: 151,

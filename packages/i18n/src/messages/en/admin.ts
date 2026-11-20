@@ -2370,6 +2370,7 @@ export const admin = {
       action: 'Action',
       entity: 'Entity',
       payload: 'Payload',
+      result: 'Result',
     },
     payload: {
       details: 'Details',
@@ -2377,12 +2378,36 @@ export const admin = {
       close: 'Close',
       more: '+{count} more field(s)',
     },
+    result: {
+      succeeded: 'Succeeded',
+      failed: 'Failed',
+      started: 'Started',
+      none: 'No result recorded',
+    },
+    panel: {
+      target: 'Target',
+      result: 'Result',
+      exitCode: 'exit code {code}',
+      timedOut: 'timed out',
+      fields: 'Recorded fields',
+      noFields: 'No fields recorded.',
+    },
   },
   log: {
     title: 'Log',
     tabs: {
       audit: 'Audit Log',
       platform: 'Platform Log',
+    },
+    panel: {
+      openEntry: 'Open this entry',
+      when: 'When',
+      who: 'Who',
+      nobody: 'No person: the platform did it',
+      previous: 'Previous',
+      next: 'Next',
+      close: 'Close',
+      position: '{index} of {count} on this page',
     },
   },
   platformLog: {
@@ -2432,6 +2457,13 @@ export const admin = {
     occurrences: '{count} occurrences since {since}',
     resolve: 'Mark handled',
     resolveError: 'Could not mark this as handled.',
+    panel: {
+      category: 'Category',
+      severity: 'Severity',
+      event: 'Event',
+      detail: 'Detail',
+      noDetail: 'No detail recorded.',
+    },
   },
   designSystem: {
     page: {
