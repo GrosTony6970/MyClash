@@ -26,6 +26,10 @@ function harness({ lock = 'free', deploy = false, answer = OK, free = [0, 0] } =
   const scheduled = [];
   const answers = Array.isArray(answer) ? [...answer] : null;
   const reads = [...free];
+  // Whether the ops lock was held each time the deploy probe ran: under it, a deploy that asks the
+  // runner (GET /ops-lock) after taking .deploy.lock always sees the job (slice 4b review, M1).
+  const probes = [];
+  let held = false;
   const actions = createContainerActions({
     composeFlags: FLAGS,
     run: async (command, args, timeoutMs) => {
@@ -36,17 +40,22 @@ function harness({ lock = 'free', deploy = false, answer = OK, free = [0, 0] } =
     withLock: async (kind, fn) => {
       if (lock === 'busy') throw new OpsLockBusyError();
       events.push(`lock ${kind}`);
+      held = true;
       try {
         return await fn();
       } finally {
+        held = false;
         events.push(`release ${kind}`);
       }
     },
-    deployRunning: async () => deploy,
+    deployRunning: async () => {
+      probes.push(held);
+      return deploy;
+    },
     schedule: (ms, fn) => scheduled.push({ ms, fn }),
     log: (line) => events.push(`log ${line}`),
   });
-  return { actions, events, scheduled };
+  return { actions, events, scheduled, probes };
 }
 
 test('a container action runs under the ops lock, with the arguments of today', async () => {
@@ -69,13 +78,14 @@ test('a container action meets a held lock: 409 ops_busy, nothing runs (ruling 8
   assert.deepEqual(events, []);
 });
 
-test('a container action during a deploy: 409 deploy_running, no lock taken (ruling 887)', async () => {
-  const { actions, events } = harness({ deploy: true });
+test('a container action during a deploy: 409 deploy_running, asked under the lock, nothing runs (ruling 887)', async () => {
+  const { actions, events, probes } = harness({ deploy: true });
   await assert.rejects(actions.runContainerAction('web-public', 'start'), {
     statusCode: 409,
     code: 'deploy_running',
   });
-  assert.deepEqual(events, []);
+  assert.deepEqual(events, ['lock container', 'release container']);
+  assert.deepEqual(probes, [true]);
 });
 
 test('a service off the list is refused before any lock', async () => {
@@ -136,6 +146,8 @@ test('a renewal meets a held lock or a deploy: refused, nothing scheduled', asyn
     code: 'deploy_running',
   });
   assert.equal(deploying.scheduled.length, 0);
+  assert.deepEqual(deploying.probes, [true]);
+  assert.deepEqual(deploying.events, ['lock renew-certs', 'release renew-certs']);
 });
 
 test('a prune empties the build cache, then removes dangling images, under the lock', async () => {
@@ -186,10 +198,11 @@ test('a failed or slow step does not stop the other, and fails the prune', async
   assert.equal(two.exitCode, null);
 });
 
-test('a prune during a deploy: 409 deploy_running, no lock, nothing runs (ruling 887)', async () => {
-  const { actions, events } = harness({ deploy: true });
+test('a prune during a deploy: 409 deploy_running, asked under the lock, nothing runs (ruling 887)', async () => {
+  const { actions, events, probes } = harness({ deploy: true });
   await assert.rejects(actions.runDiskPrune(), { statusCode: 409, code: 'deploy_running' });
-  assert.deepEqual(events, []);
+  assert.deepEqual(events, ['lock prune', 'release prune']);
+  assert.deepEqual(probes, [true]);
 });
 
 test('a prune meets a held lock: 409 ops_busy, nothing runs (ruling 886)', async () => {

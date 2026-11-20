@@ -87,6 +87,13 @@ export function createContainerActions(deps) {
   };
 }
 
+/**
+ * Asked under the ops lock, never before it. A deploy takes `.deploy.lock`, then asks this runner
+ * whether its lock is held (GET /ops-lock, infra/scripts/lib/ops-jobs-wait.sh): each side takes
+ * its own lock first and then looks at the other's, so one of the two always sees the other.
+ * Asked before the lock, a job could pass this check, a deploy then find the lock still free, and
+ * both run.
+ */
 async function refuseDuringDeploy({ deployRunning }) {
   if (await deployRunning()) {
     throw refusal(409, 'A deploy is running on the server.', 'deploy_running');
@@ -106,8 +113,8 @@ async function runContainerAction(deps, service, action) {
   if (!RESTARTABLE_SERVICES.has(service)) {
     return { ok: false, error: 'service_not_allowed' };
   }
-  await refuseDuringDeploy(deps);
   return withLock('container', async () => {
+    await refuseDuringDeploy(deps);
     const worker = service === 'worker';
     // `start` takes no timeout: only a stop (or a restart's stop) waits for a job.
     const grace = worker && action !== 'start' ? ['-t', String(WORKER_STOP_GRACE_S)] : [];
@@ -138,24 +145,22 @@ async function runContainerAction(deps, service, action) {
  * is held until the restart has ended.
  */
 async function runCertRenewal(deps) {
-  await refuseDuringDeploy(deps);
   return new Promise((resolve, reject) => {
     deps
-      .withLock(
-        'renew-certs',
-        () =>
-          new Promise((done) => {
-            resolve({
-              ok: true,
-              scheduled: true,
-              service: 'traefik',
-              action: 'renew-certs',
-              exitCode: null,
-              timedOut: false,
-            });
-            deps.schedule(RENEW_DELAY_MS, () => restartTraefik(deps).finally(done));
-          }),
-      )
+      .withLock('renew-certs', async () => {
+        await refuseDuringDeploy(deps);
+        return new Promise((done) => {
+          resolve({
+            ok: true,
+            scheduled: true,
+            service: 'traefik',
+            action: 'renew-certs',
+            exitCode: null,
+            timedOut: false,
+          });
+          deps.schedule(RENEW_DELAY_MS, () => restartTraefik(deps).finally(done));
+        });
+      })
       .catch(reject);
   });
 }
@@ -166,8 +171,8 @@ async function runCertRenewal(deps) {
  * filesystem the disk health reads.
  */
 async function runDiskPrune(deps) {
-  await refuseDuringDeploy(deps);
   return deps.withLock('prune', async () => {
+    await refuseDuringDeploy(deps);
     const before = await deps.freeBytes();
     const results = [];
     for (const step of PRUNE_STEPS) {
@@ -185,7 +190,8 @@ async function runDiskPrune(deps) {
       availBytes: after,
       stderr: results
         .map((r) => r.stderr)
-        .join('')
+        .filter(Boolean)
+        .join('\n')
         .slice(-4000),
     };
   });
