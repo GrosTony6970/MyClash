@@ -145,7 +145,9 @@ The subject is one of these, with the run type (`daily`, `alert`…) in place of
 - `MyClash ops · <type> · <n> problem(s)`
 - `MyClash ops · <type> · platform unreachable`
 
-The body has these sections, in this order. Write short plain sentences.
+The body has these sections, in this order. Write short plain sentences. Start each section with
+its name alone on a line, as written below (`Problems (wait for you)`, `Done by Claude`), then one
+line per item. The sender colours the email from those names; it also sends your text as is.
 
 1. **Run** — the run type; when you started and finished, in Paris time and in UTC (a timer can
    start late).

@@ -350,6 +350,8 @@ describe('the skill', () => {
     '- `up, no ping since <time>`: the platform answers but the worker does not ping',
     'That is a problem ("the worker stopped pinging")',
     '.claude/skills/myclash-ops/send-report.mjs',
+    // Ruling 910: the sender splits the text on the section names to dress its HTML part.
+    'its name alone on a line, as written below',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',
     '`MyClash: the ops report could not be sent, open the run`',
@@ -374,6 +376,7 @@ describe('the files git carries to the cloud', () => {
     'env-proxy.mjs',
     'staging-root.pem',
     'send-report.mjs',
+    'report-html.mjs',
     'SKILL.md',
   ]) {
     it(`${file} is not ignored`, () => {
