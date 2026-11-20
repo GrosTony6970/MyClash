@@ -20,6 +20,8 @@
 # no warning before them (scripts/check-api-boot.mjs --worker).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# The prod compose file requires the repo's path (infra/scripts/lib/compose.sh exports it there).
+export MYCLASH_ROOT_DIR="$PWD"
 
 set -a
 # shellcheck source=/dev/null

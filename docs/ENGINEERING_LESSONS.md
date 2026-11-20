@@ -417,6 +417,12 @@ here.
 - Validate file bind-mount sources before `docker compose up`: a missing host path makes Docker
   create a _directory_ and mount it, so generated file artifacts must be recreated as files and
   checked with `-f`/`-s`.
+- A container that runs `docker compose` through the host's Docker socket must see the repo at
+  the host's own path. Compose resolves relative bind sources in the client's filesystem and the
+  daemon reads them in the host's: at another path every container that mounts a repo file
+  "changed", and an `up -d` from inside re-creates them, the calling container included (the ops
+  runner killed a console restore that way, 2026-11-20). A restart of stopped containers is
+  `up -d --no-recreate`.
 - A containerised Next.js **standalone** server binds to `process.env.HOSTNAME`, and the container
   runtime injects `HOSTNAME=<container id>` — so it listens on its own eth0 address, not
   `127.0.0.1`. Traefik and published ports still reach it (DNAT lands on the container IP), so the
@@ -459,7 +465,7 @@ here.
   production. `destroy.sh --prune-cache` makes the next build re-run `apk upgrade`, but it keeps
   the local base image (Node and npm included) and takes the stack down. What matches CI is a
   fresh base without the cache, then a recreate:
-  `docker compose --env-file .env -f infra/docker-compose.prod.yml build --pull --no-cache <svc>`
+  `MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml build --pull --no-cache <svc>`
   then `infra/scripts/redeploy.sh <svc> --no-build`. (`redeploy.sh --pull` is a git pull, not a
   docker pull.)
 

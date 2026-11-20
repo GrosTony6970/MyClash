@@ -105,7 +105,7 @@ Usage: infra/scripts/deploy.sh [options]
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
 To (re)provision the demo org without a full deploy, run the seeder directly
 (after: set -a; source .env; source .env.e2e; set +a; source infra/scripts/lib/database-url.sh):
-  docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm \\
+  MYCLASH_ROOT_DIR="\$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm \\
     -e SUPABASE_URL=http://supabase-auth:9999 \\
     -e DATABASE_URL \\
     -e E2E_ADMIN_EMAIL -e E2E_ADMIN_PASSWORD -e E2E_ORG_SLUG \\
@@ -714,7 +714,7 @@ for svc in "${CRITICAL_SERVICES[@]}"; do
   fi
   err "$svc did not become healthy after $((RETRIES * DELAY))s (status: ${LAST_HEALTH:-unknown})"
   print_service_health_diagnostics "$svc"
-  err "Check logs: docker compose -f infra/docker-compose.prod.yml logs --tail=100 $svc"
+  err "Check logs: MYCLASH_ROOT_DIR=\"\$PWD\" docker compose --env-file .env -f infra/docker-compose.prod.yml logs --tail=100 $svc"
   exit 1
 done
 
@@ -772,7 +772,7 @@ if [[ -n "$BOOTSTRAP_ERROR" ]]; then
   warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
   [[ -n "$BOOTSTRAP_DETAIL" ]] && warn "Bootstrap detail: $BOOTSTRAP_DETAIL"
   [[ "$BOOTSTRAP_ERROR" == "Failed to verify synced admin user password" ]] && warn "SEED_ADMIN_PASSWORD was not accepted by GoTrue."
-  warn "You can run it manually (with .env and lib/database-url.sh sourced): docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm -e DATABASE_URL -e SUPABASE_URL=http://supabase-auth:9999 -e SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@${DOMAIN}} -e SEED_ADMIN_PASSWORD api node /app/scripts/bootstrap-super-admin.mjs"
+  warn "You can run it manually (with .env and lib/database-url.sh sourced, from the repo root): MYCLASH_ROOT_DIR=\"\$PWD\" docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm -e DATABASE_URL -e SUPABASE_URL=http://supabase-auth:9999 -e SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@${DOMAIN}} -e SEED_ADMIN_PASSWORD api node /app/scripts/bootstrap-super-admin.mjs"
 elif [[ "$BOOTSTRAP_CREATED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
   SUPER_ADMIN_STATE=created
   ok "Super admin account created — credentials print in the final Deployment secrets section"

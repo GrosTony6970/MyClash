@@ -155,10 +155,13 @@ const show = (run) => `${run.output}\ncalls:\n${run.calls.join('\n')}`;
 const volumeRun = (call) => call.startsWith('docker run --rm -i -v myclash-storage-data:/vol');
 const stops = (run) => run.calls.filter((call) => / stop( |$)/u.test(call));
 const seedRun = (call) => call.includes(' run --rm ') && call.includes('bootstrap-ops-agent.mjs');
-/** A database restore ends with the restart, then the agent key's seed (ruling 885). */
+/**
+ * A database restore ends with the restart, then the agent key's seed (ruling 885). The restart
+ * re-creates nothing: the restore runs inside the ops runner (incident 2026-11-20).
+ */
 function assertRestartThenSeed(run) {
   assert.ok(seedRun(run.calls.at(-1) ?? ''), show(run));
-  assert.match(run.calls.at(-2) ?? '', / up -d$/u, show(run));
+  assert.match(run.calls.at(-2) ?? '', / up -d --no-recreate$/u, show(run));
   assert.match(run.output, /agent: key active/u, show(run));
 }
 
@@ -253,7 +256,11 @@ test('--storage-only replaces the images and never touches the database', { skip
   );
   assert.ok(run.calls.some(volumeRun), show(run));
   assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
-  assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+  assert.match(
+    run.calls.at(-1) ?? '',
+    / up -d --no-recreate --no-deps supabase-storage$/u,
+    show(run),
+  );
   // The database, and its agent keys, were not touched: no seed (ruling 885).
   assert.ok(!run.calls.some(seedRun), show(run));
   assert.match(run.output, /database is not touched/iu);
@@ -273,7 +280,11 @@ test('a failed --storage-only on a .gpg leaves no decrypted file behind', { skip
     readdirSync(join(root, 'backups', 'uploads', NIGHT)).filter((name) => name.endsWith('.tmp')),
     [],
   );
-  assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+  assert.match(
+    run.calls.at(-1) ?? '',
+    / up -d --no-recreate --no-deps supabase-storage$/u,
+    show(run),
+  );
   // The database, and its agent keys, were not touched: no seed (ruling 885).
   assert.ok(!run.calls.some(seedRun), show(run));
 });

@@ -4393,6 +4393,8 @@ The ops-runner ([`infra/ops-runner/server.mjs`](../infra/ops-runner/server.mjs))
 
 The HTTP surface is exposed on the internal `myclash` network at port `4075`, never published. Every request must carry `Authorization: Bearer ${OPS_RUNNER_SECRET}`. The API talks to it through `OPS_RUNNER_URL` + `OPS_RUNNER_SECRET` env vars (see [`apps/api/src/modules/admin/backups.service.ts`](../apps/api/src/modules/admin/backups.service.ts) and [`apps/api/src/modules/admin/system-actions.service.ts`](../apps/api/src/modules/admin/system-actions.service.ts) for the client pattern).
 
+**The runner sees the repo at the host's own path.** It runs `docker compose` (`restore.sh`, `backup.sh`, its container actions) through the host's socket: Compose resolves the compose file's relative bind sources in the runner's filesystem, and the host's daemon reads them as host paths. So the compose file mounts the repo at `${MYCLASH_ROOT_DIR}`, works there and passes the same value in the env; [`infra/scripts/lib/compose.sh`](../infra/scripts/lib/compose.sh) exports it as the folder the script runs from, and the compose file refuses any command without it (`${MYCLASH_ROOT_DIR:?…}`), so a raw `docker compose` must be prefixed `MYCLASH_ROOT_DIR="$PWD"`. The path is never stored: after moving the repo, one `start.sh` from the new folder re-creates the runner there. A restore restarts what it stopped with `up -d --no-recreate`, so it never re-creates a container, the runner it runs in least of all. Both are pinned by `scripts/lib/ops-runner-mount-review.mjs` (`infra:review`). On 2026-11-20 the runner saw the repo at `/srv/myclash` while the VPS keeps it elsewhere: a console restore's final `up -d` re-created `db`, `traefik` and the runner itself, which ended the restore mid-way and left the site down for 3½ minutes.
+
 | Method   | Path                                    | Purpose                                                                                            |
 | -------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `GET`    | `/status`                               | Cloud-config flag, last backup summary, currently-running operation.                               |
@@ -4474,8 +4476,8 @@ The real coordinates live in `.env` on the VPS, never in Studio:
 **Recipe A — psql shell on the VPS.** Same invocation `backup.sh` runs nightly, so it is exercised in production every day:
 
 ```bash
-cd /srv/myclash
-docker compose --env-file .env -f infra/docker-compose.prod.yml \
+cd ~/MyClash   # the repo on the VPS
+MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml \
   exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 

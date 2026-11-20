@@ -267,5 +267,5 @@ and plugin probes below need the live stack.
 pnpm infra:review
 pnpm infra:edge -- --domain myclash.fr
 pnpm infra:plugins -- --domain myclash.fr
-docker compose --env-file .env -f infra/docker-compose.prod.yml config
+MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml config
 ```

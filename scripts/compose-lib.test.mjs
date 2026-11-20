@@ -125,6 +125,52 @@ test('--dev-certs against a production .env is refused, not obeyed', { skip }, (
   assert.match(r.stderr, /production/);
 });
 
+/**
+ * Runs `mc_compose_init` on `root`, then prints `names` from a CHILD shell: only an exported value
+ * reaches it, and Compose reads these from the shell that invokes it. `env` replaces the caller's
+ * values of `names` (a key absent from `env` is unset).
+ */
+function exported(root, names, env = {}) {
+  const script = [
+    'set -Eeuo pipefail',
+    `source "${LOG}"`,
+    'source "$0"',
+    `ROOT_DIR="${root.replaceAll('\\', '/')}"`,
+    'mc_compose_init',
+    ...names.map((n) => `bash -c 'printf "%s=%s\\n" ${n} "\${${n}-<unset>}"'`),
+  ].join('\n');
+  const base = { ...process.env };
+  for (const n of names) delete base[n];
+  const out = spawnSync(BASH, ['-c', script, LIB], { env: { ...base, ...env }, encoding: 'utf8' });
+  const values = Object.fromEntries(
+    out.stdout
+      .split('\n')
+      .map((line) => line.match(/^([A-Z_]+)=(.*)$/u))
+      .filter((m) => m && names.includes(m[1]))
+      .map((m) => [m[1], m[2]]),
+  );
+  return { status: out.status, said: `${out.stdout}${out.stderr}`, values };
+}
+
+// The compose file mounts the repo into the ops runner at MYCLASH_ROOT_DIR, and Compose run inside
+// the runner hands its bind paths to the host's Docker daemon: the runner must see the repo at the
+// host's own path, wherever it lives (incident 2026-11-20: a console restore re-created the runner
+// it ran in). The path is never stored: it is the folder the script runs from.
+for (const mode of ['staging', 'production']) {
+  test(
+    `mc_compose_init exports MYCLASH_ROOT_DIR as the root the script runs from (${mode})`,
+    {
+      skip,
+    },
+    () => {
+      const root = rootWith(`DOMAIN=example.test\nTLS_CERTS=${mode}\n`);
+      const r = exported(root, ['MYCLASH_ROOT_DIR']);
+      assert.equal(r.status, 0, r.said);
+      assert.equal(r.values.MYCLASH_ROOT_DIR, root.replaceAll('\\', '/'));
+    },
+  );
+}
+
 const SH = readdirSync(SCRIPTS).filter((name) => name.endsWith('.sh'));
 const text = (name) => readFileSync(join(SCRIPTS, name), 'utf8');
 const usesCompose = (name) => text(name).includes('"${COMPOSE[@]}"');

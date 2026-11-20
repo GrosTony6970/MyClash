@@ -342,10 +342,11 @@ if [[ "$INCLUDE_STORAGE" -eq 1 && -n "$STORAGE_FILE" && -f "$STORAGE_FILE" ]]; t
   ok "Storage backup gzip integrity OK"
 fi
 
-# Before anything is stopped or dropped, after every refusal above: compose checks a required
-# `${X:?}` key only when it builds the whole project (`config`, `up`), never on `stop` or `exec`.
-# Without this, an .env missing a key the compose file requires let the restore stop the stack
-# and replace the database, then fail at the final `up -d` and leave the site down (ruling 510).
+# Before anything is stopped or dropped, after every refusal above: a compose file that does not
+# resolve stops the restore here, while nothing is touched. Compose v5 refuses every command when a
+# required `${X:?}` key is missing (measured 2026-11-20); older versions checked it only on `config`
+# and `up`, and an .env missing a key let the restore stop the stack and replace the database, then
+# fail at the final `up -d` and leave the site down (ruling 510).
 "${COMPOSE[@]}" config --quiet || {
   err "The compose file does not resolve with this .env (above). Run: node scripts/ensure-prod-env.mjs .env"
   exit 1
@@ -417,7 +418,10 @@ if [[ "$STORAGE_ONLY" -eq 0 ]]; then
   # now, while every service that reads them is stopped, before any exit below can restart them.
   mc_revoke_stale_ops_agent_keys
 
-  RESTART=("${COMPOSE[@]}" up -d)
+  # --no-recreate: this restore only stopped containers, so it starts them again and re-creates
+  # none. A console restore runs inside the ops runner: re-creating the runner ends the restore
+  # mid-way and leaves the site down (incident 2026-11-20).
+  RESTART=("${COMPOSE[@]}" up -d --no-recreate)
   STORAGE_FAILED="Storage restore FAILED — the database restored OK; restarting the stack so the site recovers with restored data, but storage is stale. Re-run the restore to retry storage."
 else
   # The storage volume has ONE mount, supabase-storage: the API and the rest keep running, so the
@@ -425,7 +429,7 @@ else
   hdr "Stopping the storage service"
   "${COMPOSE[@]}" stop supabase-storage
   ok "Storage service stopped"
-  RESTART=("${COMPOSE[@]}" up -d --no-deps supabase-storage)
+  RESTART=("${COMPOSE[@]}" up -d --no-recreate --no-deps supabase-storage)
   STORAGE_FAILED="Storage restore FAILED — the database was not touched; restarting the storage service. Re-run the restore to retry."
 fi
 

@@ -155,10 +155,10 @@ export function realtimeServiceFindings({ label, services }) {
 }
 
 /**
- * restore.sh resolves the whole compose file before its first destructive compose call. Compose
- * checks a required `${X:?}` key only on `config` and `up`, never on `stop` or `exec`: without the
- * check, an .env missing a key let a restore stop the stack and replace the database, then fail
- * at its final `up -d` (ruling 510).
+ * restore.sh resolves the whole compose file before its first destructive compose call. Older
+ * Compose checked a required `${X:?}` key only on `config` and `up` (v5 refuses every command,
+ * measured 2026-11-20): without the check, an .env missing a key let a restore stop the stack and
+ * replace the database, then fail at its final `up -d` (ruling 510).
  * @param {string} text restore.sh
  * @returns {string[]}
  */
@@ -171,8 +171,8 @@ export function restoreGuardFindings(text) {
   if (guard === -1 || firstAction === -1 || guard > firstAction) {
     return [
       'infra/scripts/restore.sh must run `"${COMPOSE[@]}" config --quiet || { …; exit 1; }` ' +
-        'before its first stop/exec/up: compose enforces a missing ${X:?} key only there, so ' +
-        'without it a restore replaces the database and then fails to start the stack (ruling 510).',
+        'before its first stop/exec/up: a compose file that does not resolve must stop the restore ' +
+        'before it replaces the database and then fails to start the stack (ruling 510).',
     ];
   }
   return [];

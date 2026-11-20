@@ -40,7 +40,13 @@ import {
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
-const ROOT_DIR = process.env.MYCLASH_ROOT_DIR ?? '/srv/myclash';
+// The repo, at the host's own path (the compose file mounts it there): Compose run from here hands
+// its bind paths to the host's daemon. No default: a guessed path is the 2026-11-20 incident.
+const ROOT_DIR = process.env.MYCLASH_ROOT_DIR;
+if (!ROOT_DIR) {
+  console.error('MYCLASH_ROOT_DIR is required');
+  process.exit(1);
+}
 // The one owner of an uploaded backup file's limit (ruling 212: 2 GB; the env changes it). A
 // value that is not a positive whole number would compare false and mean no limit at all.
 const DEFAULT_UPLOAD_MAX_BYTES = 2 * 1024 * 1024 * 1024;

@@ -4,7 +4,7 @@
 # deployment (https://github.com/GrosTony6970/MyFAL).
 #
 # Usage:
-#   docker compose --env-file .env -f infra/docker-compose.prod.yml <command>
+#   MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml <command>
 #   (always wrap via infra/scripts/*.sh which sets the flags consistently)
 #
 # Conventions inherited from MyFAL:
@@ -736,7 +736,7 @@ services:
     # "unknown" for the deploy date, deployer and backup file with nothing failing.
     # Runtime state written by the deploy scripts (this manifest, backups/,
     # .last-deploy.json) lives at the repo root — hence `../`, the same idiom
-    # `context: ../` and the ops-runner's `../:/srv/myclash` already use.
+    # `context: ../` and the ops-runner's repo mount (`../:${MYCLASH_ROOT_DIR…}`) already use.
     # No log folder: the API logs to stdout (Docker's json-file driver, below).
     volumes:
       - ../data/system-versions.json:/app/data/system-versions.json:ro
@@ -921,12 +921,17 @@ services:
       dockerfile: infra/ops-runner/Dockerfile
     container_name: myclash-ops-runner
     restart: unless-stopped
-    working_dir: /srv/myclash
+    # The repo sits here at the HOST's own path (exported by infra/scripts/lib/compose.sh). The
+    # runner runs `docker compose` through the host's socket: Compose resolves relative bind sources
+    # here and the host's daemon reads them as host paths. At another path, every container that
+    # mounts a repo file looked changed from in here, and a restore's `up -d` re-created this
+    # container mid-restore (incident 2026-11-20).
+    working_dir: ${MYCLASH_ROOT_DIR:?set by infra/scripts/lib/compose.sh - run compose through infra/scripts}
     environment:
       NODE_ENV: production
       OPS_RUNNER_PORT: 4075
       OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
-      MYCLASH_ROOT_DIR: /srv/myclash
+      MYCLASH_ROOT_DIR: ${MYCLASH_ROOT_DIR:?set by infra/scripts/lib/compose.sh - run compose through infra/scripts}
       # An uploaded backup file's limit (ruling 212): the runner is its one owner.
       BACKUP_UPLOAD_MAX_BYTES: ${BACKUP_UPLOAD_MAX_BYTES:-2147483648}
       BACKUP_SCW_ACCESS_KEY: ${BACKUP_SCW_ACCESS_KEY:-}
@@ -936,7 +941,7 @@ services:
       BACKUP_SCW_ENDPOINT: ${BACKUP_SCW_ENDPOINT:-}
       TZ: ${TZ}
     volumes:
-      - ../:/srv/myclash
+      - ../:${MYCLASH_ROOT_DIR:?set by infra/scripts/lib/compose.sh - run compose through infra/scripts}
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test:

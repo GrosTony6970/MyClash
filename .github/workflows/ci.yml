@@ -644,10 +644,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       # The worker service builds the same Dockerfile (cached layers); the start check runs it.
+      # The prod compose file requires the repo's path (infra/scripts/lib/compose.sh exports it on
+      # the VPS); the scripts below export their own.
       - name: Build production image
+        env:
+          MYCLASH_ROOT_DIR: ${{ github.workspace }}
         run: docker compose --env-file .env.example -f infra/docker-compose.prod.yml build api worker
 
       - name: Run the deploy migrations twice
+        env:
+          MYCLASH_ROOT_DIR: ${{ github.workspace }}
         run: |
           set -euo pipefail
           # deploy.sh's own URL (ruling 394): .env.example into the shell, then the one helper.

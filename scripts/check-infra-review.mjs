@@ -64,6 +64,11 @@ import {
   runtimeWorkspaces,
   unshippedRuntimeFiles,
 } from './lib/dockerfile-workspaces.mjs';
+import {
+  envExampleRootDirFindings,
+  opsRunnerMountFindings,
+  restoreRestartFindings,
+} from './lib/ops-runner-mount-review.mjs';
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
 import {
   realtimeServiceFindings,
@@ -898,6 +903,20 @@ for (const [label, service, routerCompose, wsRouterName] of [
   ) {
     errors.push('deploy.sh must require SUPABASE_REALTIME_API_SECRET (ruling 424).');
   }
+}
+
+// Incident 2026-11-20: the ops runner sees the repo at the host's own path, and a restore never
+// re-creates a container. The properties and their reasons live in
+// scripts/lib/ops-runner-mount-review.mjs.
+{
+  const envExampleText = await pinned.readPinnedFile(path.join(rootDir, '.env.example'));
+  const opsRunner = services.get('ops-runner');
+  errors.push(
+    ...(opsRunner === undefined ? [] : opsRunnerMountFindings(opsRunner)),
+    ...(isMissingPinnedFile(restoreText) ? [] : restoreRestartFindings(restoreText)),
+    ...(isMissingPinnedFile(envExampleText) ? [] : envExampleRootDirFindings(envExampleText)),
+  );
+  assertionsRun += 3;
 }
 
 // Ruling 420: Realtime's other /api routes are its tenant management, which takes any token

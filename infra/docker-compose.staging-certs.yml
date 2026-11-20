@@ -3,7 +3,7 @@
 # Overlay for testing TLS without hitting Let's Encrypt rate limits.
 # Layered on top of docker-compose.prod.yml when --dev-certs is passed.
 #
-#   docker compose --env-file .env \
+#   MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env \
 #     -f infra/docker-compose.prod.yml \
 #     -f infra/docker-compose.staging-certs.yml \
 #     up -d

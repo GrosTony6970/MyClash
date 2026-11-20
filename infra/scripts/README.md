@@ -81,7 +81,7 @@ are never rebuilt by these scripts — they use published images.
 on the server:
 
 ```bash
-docker compose --env-file .env -f infra/docker-compose.prod.yml \
+MYCLASH_ROOT_DIR="$PWD" docker compose --env-file .env -f infra/docker-compose.prod.yml \
   exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 

@@ -21,6 +21,7 @@
 #
 # Requires: ROOT_DIR, and log.sh (ok, warn, err) sourced. Optional: USE_DEV_CERTS=1.
 # Sets: COMPOSE (array), MC_TLS_CERTS (staging | production | empty when unknown).
+# Exports: MYCLASH_ROOT_DIR (= ROOT_DIR, the repo's host path; the compose file requires it).
 
 _mc_read_tls_certs() {
   [[ -f "$ROOT_DIR/.env" ]] || return 0
@@ -53,6 +54,10 @@ mc_compose_init() {
   fi
 
   COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+  # The compose file mounts the repo into the ops runner at this path, and Compose reads it from
+  # this shell. Compose run inside the runner hands its bind paths to the host's Docker daemon, so
+  # the runner must see the repo where the host does. Never in .env: a later load would empty it.
+  export MYCLASH_ROOT_DIR="$ROOT_DIR"
   case "$mode" in
     staging)
       COMPOSE+=(-f infra/docker-compose.staging-certs.yml)
