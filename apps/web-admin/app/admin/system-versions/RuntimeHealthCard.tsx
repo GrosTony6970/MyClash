@@ -9,11 +9,12 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
 import type { RuntimeHealthQueueRow } from '@myclash/types';
+import { containerRows, type ContainersTile } from './container-rows';
 import { photoStorageRows, type PhotoStorageTile } from './photo-storage-rows';
 import { metricErrorText, queueTileRows, type TileRow } from './queue-rows';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
-/** A tile's pill. `not_configured` is the photo bucket's alone and never reaches `overall`. */
+/** A tile's pill. `not_configured` (photo bucket, containers) never reaches `overall`. */
 type TileStatus = MetricStatus | 'not_configured';
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -52,6 +53,7 @@ interface RuntimeHealth {
     error?: string;
   };
   photoStorage: PhotoStorageTile;
+  containers: ContainersTile;
 }
 
 interface AlertSettings {
@@ -364,14 +366,18 @@ export function RuntimeHealthCard() {
                     ]
               }
             />
-            <div className="sm:col-span-2">
-              <MetricTile
-                t={t}
-                status={health.photoStorage.status}
-                title={t('admin.systemVersions.runtimeHealth.photoStorage.title')}
-                rows={photoStorageRows(t, health.photoStorage)}
-              />
-            </div>
+            <MetricTile
+              t={t}
+              status={health.photoStorage.status}
+              title={t('admin.systemVersions.runtimeHealth.photoStorage.title')}
+              rows={photoStorageRows(t, health.photoStorage)}
+            />
+            <MetricTile
+              t={t}
+              status={health.containers.status}
+              title={t('admin.systemVersions.runtimeHealth.containers.title')}
+              rows={containerRows(t, health.containers)}
+            />
           </div>
           <RuntimeHealthTrend />
           <div className="px-4 py-2 text-xs text-muted border-t border-border">

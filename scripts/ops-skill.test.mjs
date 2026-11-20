@@ -333,6 +333,9 @@ describe('the skill', () => {
     'its `exitCode` is a number other than 0 and 143',
     'is neither `running`, `exited` nor `created`',
     'An unknown exit code (`null`) is a note',
+    // Ruling 900: the containers metric is the same symptom as the rows; a healed one is no push.
+    'healed every container it names, a `critical` on `containers` alone',
+    '`unavailable` on `containers` stays a problem',
     '.claude/skills/myclash-ops/send-report.mjs',
     'apps/api/src/modules/ops-agent/agent-log-services.ts',
     '`MyClash: an incident needs you, read your email`',

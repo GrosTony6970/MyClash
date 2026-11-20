@@ -25,7 +25,6 @@ import { OpsAgentController } from './ops-agent.controller';
 
 const agentLogs = {
   log: vi.fn(),
-  containers: vi.fn(),
 };
 const systemActions = {
   runComponentAction: vi.fn(),

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AdminSystemActionsService } from '../admin/system-actions.service';
 import { AgentLogsService } from './agent-logs.service';
 import { OpsAgentController } from './ops-agent.controller';
 
@@ -32,11 +33,15 @@ function build() {
   // The real service over a stub runner: the scrub is the service's, so a double would prove
   // nothing about what the agent reads.
   const runner = { body: {} as unknown };
-  const agentLogs = new AgentLogsService({
+  const runnerOptions = {
     opsRunnerUrl: 'http://ops-runner:4075',
     opsRunnerSecret: 's',
     fetchImpl: (async () => new Response(JSON.stringify(runner.body))) as unknown as typeof fetch,
-  });
+  };
+  const agentLogs = new AgentLogsService(runnerOptions);
+  // The containers read is the system actions' own (ruling 900): the real one, over the same runner.
+  const realActions = new AdminSystemActionsService({} as never, runnerOptions);
+  Object.assign(systemActions, { getContainers: () => realActions.getContainers() });
   const controller = new OpsAgentController(
     runtime as never,
     host as never,

@@ -93,6 +93,7 @@ function service(overrides: Partial<ConstructorParameters<typeof AdminRuntimeHea
       usePercent: 0,
     }),
     collectPhotoStorage: async () => ({ configured: false }),
+    collectContainers: async () => ({ configured: false }),
     ...overrides,
   });
 }

@@ -1,26 +1,21 @@
 import { OpsRunnerClient, type OpsRunnerClientOptions } from '../admin/ops-runner-client';
 import type { AgentLogService } from './agent-log-services';
-import type { AgentContainerDto, AgentContainersDto, AgentLogDto } from './dto/agent-logs.dto';
+import type { AgentLogDto } from './dto/agent-logs.dto';
 import { scrubForAgent } from './scrub';
 
 type Row = Record<string, unknown>;
 
 /**
- * The ops agent's container reads, through the ops runner (`GET /containers`, `GET /logs/:name`,
+ * The ops agent's log reads, through the ops runner (`GET /logs/:name`,
  * `infra/ops-runner/container-logs.mjs`). The runner's JSON arrives untyped, so each answer is
- * built field by field; every log line passes `scrubForAgent` before the agent sees it.
+ * built field by field; every log line passes `scrubForAgent` before the agent sees it. The
+ * containers read is `AdminSystemActionsService.getContainers` (runtime health reads it too).
  */
 export class AgentLogsService {
   private readonly ops: OpsRunnerClient;
 
   constructor(options: OpsRunnerClientOptions = {}) {
     this.ops = new OpsRunnerClient(options);
-  }
-
-  async containers(): Promise<AgentContainersDto> {
-    const answer = await this.ops.get<Row>('/containers');
-    const rows = Array.isArray(answer['containers']) ? (answer['containers'] as Row[]) : [];
-    return { generatedAt: String(answer['generatedAt'] ?? ''), containers: rows.map(container) };
   }
 
   async log(
@@ -38,15 +33,4 @@ export class AgentLogsService {
       truncated: answer['truncated'] === true,
     };
   }
-}
-
-function container(row: Row): AgentContainerDto {
-  return {
-    name: String(row['name'] ?? ''),
-    service: String(row['service'] ?? ''),
-    state: String(row['state'] ?? ''),
-    health: typeof row['health'] === 'string' ? row['health'] : null,
-    status: String(row['status'] ?? ''),
-    exitCode: typeof row['exitCode'] === 'number' ? row['exitCode'] : null,
-  };
 }

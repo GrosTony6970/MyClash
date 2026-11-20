@@ -81,6 +81,7 @@ const snapshot: RuntimeHealthResponseDto = {
     usePercent: 50,
   },
   photoStorage: { status: 'not_configured' },
+  containers: { status: 'healthy', running: 16, total: 16, problems: [] },
 };
 
 describe('RuntimeHealthSamplesService.record', () => {

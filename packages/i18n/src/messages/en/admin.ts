@@ -2925,7 +2925,7 @@ export const admin = {
     },
     runtimeHealth: {
       title: 'Runtime health',
-      description: 'Live database, Redis, queue, disk and photo storage status.',
+      description: 'Live database, Redis, queue, disk, photo storage and container status.',
       recheck: 'Refresh',
       rechecking: 'Refreshing...',
       checkedAt: 'Checked at',
@@ -2983,6 +2983,15 @@ export const admin = {
         bucket: 'Bucket',
         latency: 'Response time',
         notConfigured: 'No bucket set in the environment',
+      },
+      containers: {
+        title: 'Containers',
+        running: 'Running',
+        runningCount: '{running} of {total}',
+        notConfigured: 'Not read in this environment',
+        unhealthy: 'unhealthy',
+        missing: 'no container',
+        stateWithCode: '{state} (exit {code})',
       },
       trend: {
         title: 'Trend',

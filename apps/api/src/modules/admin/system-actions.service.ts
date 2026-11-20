@@ -47,6 +47,21 @@ export interface DiskUsageResult {
   usePercent: number;
 }
 
+/** One container of the stack, as the ops runner's `GET /containers` reports it. */
+export interface ContainerRow {
+  name: string;
+  service: string;
+  state: string;
+  health: string | null;
+  status: string;
+  exitCode: number | null;
+}
+
+export interface ContainersResult {
+  generatedAt: string;
+  containers: ContainerRow[];
+}
+
 /** Host identity and capacity as the ops-runner's `GET /host` reports it. */
 export interface HostFactsResult {
   hostname: string | null;
@@ -113,6 +128,11 @@ export class AdminSystemActionsService {
     options: AdminSystemActionsServiceOptions = {},
   ) {
     this.ops = new OpsRunnerClient(options);
+  }
+
+  /** Whether the ops runner is configured: without it, every call here throws a 503. */
+  opsAvailable(): boolean {
+    return this.ops.available();
   }
 
   isRestartable(componentKey: string): boolean {
@@ -220,6 +240,20 @@ export class AdminSystemActionsService {
   }
 
   /**
+   * The state of every container of the stack, stopped ones included, via the ops runner's
+   * `GET /containers` (`infra/ops-runner/container-logs.mjs`). The ops agent's door and the
+   * containers metric of runtime health both read it here (ruling 900). The runner's JSON arrives
+   * untyped, so each row is built field by field: nothing the runner adds passes.
+   */
+  async getContainers(): Promise<ContainersResult> {
+    const answer = await this.ops.get<Record<string, unknown>>('/containers');
+    const rows = Array.isArray(answer['containers'])
+      ? (answer['containers'] as Record<string, unknown>[])
+      : [];
+    return { generatedAt: String(answer['generatedAt'] ?? ''), containers: rows.map(containerRow) };
+  }
+
+  /**
    * Read-only host identity and capacity via the ops-runner's GET /host route.
    *
    * Throws like `getDiskUsage()` rather than degrading here: this class is the
@@ -259,6 +293,17 @@ export class AdminSystemActionsService {
       this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
     }
   }
+}
+
+function containerRow(row: Record<string, unknown>): ContainerRow {
+  return {
+    name: String(row['name'] ?? ''),
+    service: String(row['service'] ?? ''),
+    state: String(row['state'] ?? ''),
+    health: typeof row['health'] === 'string' ? row['health'] : null,
+    status: String(row['status'] ?? ''),
+    exitCode: typeof row['exitCode'] === 'number' ? row['exitCode'] : null,
+  };
 }
 
 function isValidAction(value: string): value is ComponentAction {

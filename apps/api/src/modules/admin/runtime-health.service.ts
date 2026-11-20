@@ -4,14 +4,17 @@ import { RUNTIME_HEALTH_TIMEOUT } from '@myclash/types';
 import { BoundedCallTimeout } from '../../common/bounded-call';
 import type { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
 import type {
+  ContainersMetric,
   DbMetric,
   DiskMetric,
+  MetricStatus,
   PhotoStorageMetric,
   QueueMetric,
   RedisMetric,
   RuntimeHealthAlertSettings,
   RuntimeHealthResponseDto,
 } from './dto/runtime-health.dto';
+import type { ContainersReading } from './runtime-health/containers-collector';
 import type { PhotoStorageReading } from './runtime-health/photo-storage-collector';
 import type { QueueRow } from './runtime-health/queue-collector';
 import { deriveStatus, worstStatus } from './runtime-health/status';
@@ -40,6 +43,7 @@ interface Collectors {
     usePercent: number;
   }>;
   collectPhotoStorage: () => Promise<PhotoStorageReading>;
+  collectContainers: () => Promise<ContainersReading>;
 }
 
 function errorText(reason: unknown): string {
@@ -55,6 +59,11 @@ function redisErrorText(reason: unknown): string {
   return reason instanceof BoundedCallTimeout ? RUNTIME_HEALTH_TIMEOUT : errorText(reason);
 }
 
+/** A metric that is not configured here is left out of `overall`; any other status counts. */
+function configuredStatus(metric: { status: MetricStatus | 'not_configured' }): MetricStatus[] {
+  return metric.status === 'not_configured' ? [] : [metric.status];
+}
+
 @Injectable()
 export class AdminRuntimeHealthService {
   constructor(
@@ -64,12 +73,13 @@ export class AdminRuntimeHealthService {
 
   async collect(): Promise<RuntimeHealthResponseDto> {
     const settings = await this.settingsService.getSettings();
-    const [db, redis, queues, disk, photos] = await Promise.allSettled([
+    const [db, redis, queues, disk, photos, containerRows] = await Promise.allSettled([
       this.collectors.collectDb(),
       this.collectors.collectRedis(),
       this.collectors.collectQueues(),
       this.collectors.collectDisk(),
       this.collectors.collectPhotoStorage(),
+      this.collectors.collectContainers(),
     ]);
 
     const database = this.mapDb(db, settings);
@@ -77,6 +87,7 @@ export class AdminRuntimeHealthService {
     const queueMetric = this.mapQueues(queues, settings);
     const diskMetric = this.mapDisk(disk, settings);
     const photoStorage = this.mapPhotoStorage(photos);
+    const containers = this.mapContainers(containerRows);
 
     return {
       checkedAt: new Date().toISOString(),
@@ -85,13 +96,15 @@ export class AdminRuntimeHealthService {
         redisMetric.status,
         queueMetric.status,
         diskMetric.status,
-        ...(photoStorage.status === 'not_configured' ? [] : [photoStorage.status]),
+        ...configuredStatus(photoStorage),
+        ...configuredStatus(containers),
       ),
       database,
       redis: redisMetric,
       queues: queueMetric,
       disk: diskMetric,
       photoStorage,
+      containers,
     };
   }
 
@@ -99,6 +112,14 @@ export class AdminRuntimeHealthService {
     if (r.status === 'rejected') return { status: 'unavailable', error: errorText(r.reason) };
     if (!r.value.configured) return { status: 'not_configured' };
     return { status: 'healthy', bucket: r.value.bucket, latencyMs: r.value.latencyMs };
+  }
+
+  /** A crashed, unhealthy or missing container is critical (ruling 900). */
+  private mapContainers(r: PromiseSettledResult<ContainersReading>): ContainersMetric {
+    if (r.status === 'rejected') return { status: 'unavailable', error: errorText(r.reason) };
+    if (!r.value.configured) return { status: 'not_configured' };
+    const { running, total, problems } = r.value;
+    return { status: problems.length > 0 ? 'critical' : 'healthy', running, total, problems };
   }
 
   private mapDb(

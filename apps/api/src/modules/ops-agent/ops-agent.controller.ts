@@ -11,7 +11,11 @@ import type { RuntimeHealthResponseDto } from '../admin/dto/runtime-health.dto';
 import type { TlsStatusResponseDto } from '../admin/dto/tls-status.dto';
 import { AdminHostInfoService } from '../admin/host-info.service';
 import { AdminRuntimeHealthService } from '../admin/runtime-health.service';
-import { AdminSystemActionsService, componentKeyForService } from '../admin/system-actions.service';
+import {
+  AdminSystemActionsService,
+  componentKeyForService,
+  type ContainersResult,
+} from '../admin/system-actions.service';
 import { AdminSystemVersionsService } from '../admin/system-versions.service';
 import { AdminTlsStatusService } from '../admin/tls-status.service';
 import { AgentActor } from './agent-actor.decorator';
@@ -24,12 +28,7 @@ import {
   type AgentBackupStartedDto,
 } from './dto/agent-actions.dto';
 import type { AgentEventsLiveDto } from './dto/agent-events-live.dto';
-import {
-  AgentLogParamDto,
-  AgentLogQueryDto,
-  type AgentContainersDto,
-  type AgentLogDto,
-} from './dto/agent-logs.dto';
+import { AgentLogParamDto, AgentLogQueryDto, type AgentLogDto } from './dto/agent-logs.dto';
 import {
   maskActionResult,
   maskBackupStarted,
@@ -70,7 +69,7 @@ export class OpsAgentController {
 
   @Get('runtime-health')
   @ApiOperation({
-    summary: 'Runtime health of the database, Redis, queues, disk and photo storage',
+    summary: 'Runtime health of the database, Redis, queues, disk, photo storage and containers',
   })
   async runtimeHealth(): Promise<RuntimeHealthResponseDto> {
     return withoutErrorText(await this.runtime.collect());
@@ -102,8 +101,8 @@ export class OpsAgentController {
 
   @Get('containers')
   @ApiOperation({ summary: 'The state of every container of the stack, stopped ones included' })
-  containers(): Promise<AgentContainersDto> {
-    return this.agentLogs.containers();
+  containers(): Promise<ContainersResult> {
+    return this.systemActions.getContainers();
   }
 
   @Get('events/live')

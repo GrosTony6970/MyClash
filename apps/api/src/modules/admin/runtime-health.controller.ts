@@ -28,7 +28,9 @@ export class RuntimeHealthAdminController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Aggregated runtime health (DB, Redis, queues, disk, photo storage)' })
+  @ApiOperation({
+    summary: 'Aggregated runtime health (DB, Redis, queues, disk, photo storage, containers)',
+  })
   getRuntimeHealth(): Promise<RuntimeHealthResponseDto> {
     return this.runtimeHealth.collect();
   }

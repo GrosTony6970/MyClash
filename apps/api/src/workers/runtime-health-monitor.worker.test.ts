@@ -45,6 +45,7 @@ const healthy = {
   queues: { status: 'healthy' },
   disk: { status: 'healthy' },
   photoStorage: { status: 'not_configured' },
+  containers: { status: 'healthy' },
 };
 const dbCritical = { ...healthy, database: { status: 'critical' } };
 
@@ -121,6 +122,21 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
     expect(result.emailed).toBe(true);
     expect(result.criticalKeys).toEqual(['photoStorage']);
     expect(mail.sendNotification).toHaveBeenCalledOnce();
+  });
+
+  it('emails a dead container, naming the service and its exit code (ruling 900)', async () => {
+    const containers = {
+      status: 'critical',
+      problems: [{ service: 'web-public', state: 'exited', exitCode: 1, health: null }],
+    };
+    const { worker, mail } = makeDeps({ snapshot: { ...healthy, containers } });
+    const result = await worker.tick(Date.now());
+    expect(result.criticalKeys).toEqual(['containers']);
+    expect(mail.sendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('containers: critical (web-public exited 1)'),
+      }),
+    );
   });
 
   it('stays quiet about a photo bucket that is not configured, at either email level', async () => {

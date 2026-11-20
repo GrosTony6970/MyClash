@@ -48,6 +48,7 @@ import { createRuntimeHealthRedis } from './runtime-health/redis-connection';
 import { collectDb } from './runtime-health/db-collector';
 import { collectRedis } from './runtime-health/redis-collector';
 import { collectQueues } from './runtime-health/queue-collector';
+import { collectContainers } from './runtime-health/containers-collector';
 import { collectDisk } from './runtime-health/disk-collector';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { collectPhotoStorage } from './runtime-health/photo-storage-collector';
@@ -183,6 +184,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
           collectQueues: () => collectQueues(redis),
           collectDisk: () => collectDisk(systemActions),
           collectPhotoStorage: () => collectPhotoStorage(photoBucket, photoProbe),
+          collectContainers: () => collectContainers(systemActions),
         });
       },
       inject: [

@@ -26,6 +26,7 @@ import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.servi
 import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
 import { RuntimeHealthSamplesService } from '../modules/admin/runtime-health-samples.service';
 import { MailService } from '../modules/mail/mail.service';
+import { describeContainerProblem } from '../modules/admin/runtime-health/containers-collector';
 import type {
   MetricStatus,
   RuntimeHealthResponseDto,
@@ -41,8 +42,8 @@ interface AlertState {
   lastCheckedAt: number;
 }
 
-// photoStorage's 'not_configured' is in neither alert tier, so an unset bucket stays quiet.
-const METRIC_KEYS = ['database', 'redis', 'queues', 'disk', 'photoStorage'] as const;
+// A 'not_configured' metric (photoStorage, containers) is in neither alert tier: it stays quiet.
+const METRIC_KEYS = ['database', 'redis', 'queues', 'disk', 'photoStorage', 'containers'] as const;
 
 /** A tick that checks nothing: alerts off, or the worker stopping. */
 const notRun = () => ({ ran: false, emailed: false, criticalKeys: [] as string[] });
@@ -169,7 +170,7 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   ): Promise<boolean> {
     if (recipients.length === 0) return false;
     const domain = process.env['DOMAIN'] ?? 'myclash.fr';
-    const details = keys.map((k) => `${k}: ${statusOf(snapshot, k)}`).join(' | ');
+    const details = keys.map((k) => `${k}: ${detailOf(snapshot, k)}`).join(' | ');
     try {
       for (const to of recipients) {
         await this.mail.sendNotification({
@@ -224,6 +225,14 @@ function statusOf(snapshot: RuntimeHealthResponseDto, key: string): MetricStatus
   // properties of RuntimeHealthResponseDto (noUncheckedIndexedAccess just
   // can't see that through the Record<string, ...> cast).
   return (snapshot as unknown as Record<string, { status: MetricStatus }>)[key]!.status;
+}
+
+/** A metric's status; for the containers, followed by the ones at fault (ruling 900). */
+function detailOf(snapshot: RuntimeHealthResponseDto, key: string): string {
+  const status = statusOf(snapshot, key);
+  const { containers } = snapshot;
+  if (key !== 'containers' || !('problems' in containers)) return status;
+  return `${status} (${containers.problems.map(describeContainerProblem).join(', ')})`;
 }
 
 function sameSet(a: string[], b: string[]): boolean {

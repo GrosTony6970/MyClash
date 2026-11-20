@@ -62,6 +62,25 @@ export interface PhotoStorageNotConfigured {
 }
 export type PhotoStorageMetric = PhotoStorageMetricOk | PhotoStorageNotConfigured | Unavailable;
 
+/** A container that crashed, is unhealthy, or is missing (`state: 'missing'`), ruling 900. */
+export interface ContainerProblem {
+  service: string;
+  state: string;
+  exitCode: number | null;
+  health: string | null;
+}
+export interface ContainersMetricOk {
+  status: 'healthy' | 'critical';
+  running: number;
+  total: number;
+  problems: ContainerProblem[];
+}
+/** No ops runner in this process's environment (the dev api, ruling 832). Left out of `overall`. */
+export interface ContainersNotConfigured {
+  status: 'not_configured';
+}
+export type ContainersMetric = ContainersMetricOk | ContainersNotConfigured | Unavailable;
+
 export interface RuntimeHealthResponseDto {
   checkedAt: string;
   overall: MetricStatus;
@@ -70,6 +89,7 @@ export interface RuntimeHealthResponseDto {
   queues: QueueMetric;
   disk: DiskMetric;
   photoStorage: PhotoStorageMetric;
+  containers: ContainersMetric;
 }
 
 /**

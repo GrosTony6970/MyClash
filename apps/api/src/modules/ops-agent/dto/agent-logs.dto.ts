@@ -27,20 +27,6 @@ const agentLogQuerySchema = z
   .strict();
 export class AgentLogQueryDto extends createZodDto(agentLogQuerySchema) {}
 
-export interface AgentContainerDto {
-  name: string;
-  service: string;
-  state: string;
-  health: string | null;
-  status: string;
-  exitCode: number | null;
-}
-
-export interface AgentContainersDto {
-  generatedAt: string;
-  containers: AgentContainerDto[];
-}
-
 export interface AgentLogDto {
   generatedAt: string;
   service: string;

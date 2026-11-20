@@ -2941,7 +2941,7 @@ export const admin = {
     runtimeHealth: {
       title: 'État du système',
       description:
-        'État en direct de la base, de Redis, des files, du disque et du stockage des photos.',
+        'État en direct de la base, de Redis, des files, du disque, du stockage des photos et des conteneurs.',
       recheck: 'Actualiser',
       rechecking: 'Actualisation...',
       checkedAt: 'Vérifié à',
@@ -2999,6 +2999,15 @@ export const admin = {
         bucket: 'Bucket',
         latency: 'Temps de réponse',
         notConfigured: "Aucun bucket défini dans l'environnement",
+      },
+      containers: {
+        title: 'Conteneurs',
+        running: 'En marche',
+        runningCount: '{running} sur {total}',
+        notConfigured: 'Non lu dans cet environnement',
+        unhealthy: 'en mauvaise santé',
+        missing: 'aucun conteneur',
+        stateWithCode: '{state} (code {code})',
       },
       trend: {
         title: 'Tendance',

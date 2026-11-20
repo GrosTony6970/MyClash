@@ -81,8 +81,15 @@ A **problem** waits for the operator and causes a push. A **note** goes in the e
 | `tls.certificates[]`     | `reachable: false`, or `daysUntilExpiry` below `tls.minDays` (whatever `health` says)                       | —                                                                         |
 | Log error lines          | —                                                                                                           | The count per service, and up to 5 distinct lines each                    |
 
-The expected services are every service of `AGENT_LOG_SERVICES`, plus `db` and `supabase-meta`.
-All of them run all the time; none is a one-off.
+The expected services are every service of `AGENT_LOG_SERVICES`, plus `db` and `supabase-meta`
+(`apps/api/src/modules/ops-agent/expected-services.ts`). All of them run all the time; none is a
+one-off.
+
+`runtime-health.containers` reads the same containers as `containers[]` (ruling 900). When it is
+`critical`, judge the `containers[]` rows instead: one problem per container, never two. After the
+repairs of §7 healed every container it names, a `critical` on `containers` alone (the snapshot was
+read before the repair) is not a problem. `unavailable` on `containers` stays a problem: the ops
+runner did not answer.
 
 Not a problem and not a note:
 

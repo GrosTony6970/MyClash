@@ -35,6 +35,7 @@ function make(overrides: Partial<ConstructorParameters<typeof AdminRuntimeHealth
       bucket: 'myclash-photos',
       latencyMs: 40,
     }),
+    collectContainers: async () => ({ configured: true, running: 16, total: 16, problems: [] }),
     ...overrides,
   });
 }
@@ -115,6 +116,53 @@ describe('AdminRuntimeHealthService.collect', () => {
     }).collect();
     expect(result.photoStorage.status).toBe('healthy');
     expect(JSON.stringify(result)).not.toMatch(/SHOULD-NOT-SHOW/);
+  });
+});
+
+describe('the containers tile (ruling 900)', () => {
+  const dead = { service: 'web-public', state: 'exited', exitCode: 1, health: null };
+
+  it('reports every container running as healthy, with the counts', async () => {
+    const result = await make().collect();
+    expect(result.containers).toEqual({ status: 'healthy', running: 16, total: 16, problems: [] });
+    expect(result.overall).toBe('healthy');
+  });
+
+  it('a dead container makes the tile and the page critical, and names it', async () => {
+    const result = await make({
+      collectContainers: async () => ({
+        configured: true,
+        running: 15,
+        total: 16,
+        problems: [dead],
+      }),
+    }).collect();
+    expect(result.containers).toEqual({
+      status: 'critical',
+      running: 15,
+      total: 16,
+      problems: [dead],
+    });
+    expect(result.overall).toBe('critical');
+  });
+
+  it('without the ops runner: not configured, and the page ignores it', async () => {
+    const result = await make({ collectContainers: async () => ({ configured: false }) }).collect();
+    expect(result.containers).toEqual({ status: 'not_configured' });
+    expect(result.overall).toBe('healthy');
+  });
+
+  it('a runner that does not answer: unavailable, which counts in the page', async () => {
+    const result = await make({
+      collectContainers: async () => {
+        throw new Error('Could not reach the ops runner.');
+      },
+    }).collect();
+    expect(result.containers).toEqual({
+      status: 'unavailable',
+      error: 'Could not reach the ops runner.',
+    });
+    expect(result.overall).toBe('unavailable');
   });
 });
 
