@@ -135,6 +135,8 @@ Tout ce qui est dans **Actions du match** demande le réseau, sauf le carton dir
 - Elles appartiennent à ce navigateur. Une fenêtre privée ou un autre navigateur sur la même
   tablette a sa propre file, et effacer les données du navigateur supprime les saisies pas encore
   envoyées.
+- La tablette demande au navigateur de garder ce stockage, pour qu'une tablette à court de place
+  ne l'efface pas d'elle-même.
 
 ### Ouvrir la tablette sans réseau
 

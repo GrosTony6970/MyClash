@@ -127,6 +127,8 @@ Everything in **Match actions** needs the network, except the direct card.
   sign-in they are sent as soon as a bout is opened, and the sign-in page says how many wait.
 - They belong to that browser. A private window or another browser on the same tablet holds its
   own queue, and clearing the browser's data deletes the entries not sent yet.
+- The pad asks the browser to keep this storage, so that a tablet short of space does not clear
+  it on its own.
 
 ### Opening the pad without network
 

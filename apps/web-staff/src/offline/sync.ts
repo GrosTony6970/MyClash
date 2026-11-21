@@ -59,6 +59,7 @@ import {
   sentAtOf,
 } from './press-send';
 import { takeBack, type TakenBack } from './take-back';
+import { keepTabletStorageOnce } from './keep-storage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -921,6 +922,8 @@ let _engine: SyncEngine | null = null;
 export function getSyncEngine(apiUrl: string): SyncEngine {
   if (!_engine) {
     _engine = new SyncEngine(apiUrl);
+    // The queue this engine sends lives in the browser's storage: ask for it to be kept.
+    keepTabletStorageOnce();
   }
   return _engine;
 }
