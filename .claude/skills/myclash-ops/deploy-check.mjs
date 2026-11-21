@@ -9,8 +9,8 @@
  * services=a,b]`). The payload never goes on a command line: the shell would run a word like
  * `services=x;cmd` before any check here could see it. No network, no key.
  *
- * The deploy record (`versions.deploy.deployedCommit`) is written by deploy.sh before it builds,
- * so it says what was announced; `versions.runningCommit` is the `GIT_COMMIT` compose gave the API
+ * The deploy record (`versions.deploy.deployedCommit`) is written by deploy.sh before it builds
+ * (and again at its end), so it says what was announced; `versions.runningCommit` is the `GIT_COMMIT` compose gave the API
  * container. A redeploy that did not name `api` recreated only the named services (`--no-deps`),
  * so the API's commit is not compared then. It prints one line:
  *

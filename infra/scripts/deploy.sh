@@ -18,7 +18,8 @@
 #   9. docker compose up -d
 #  10. Wait for healthchecks
 #  11. Smoke tests
-#  12. Record .last-deploy.json
+#  12. Record .last-deploy.json, and the manifest again with the end time (ruling 941)
+#  13. Start the ops agent's deploy check (rulings 906-908)
 #
 # This script is modeled on the proven MyFAL deploy.sh pattern. The MyFAL
 # logging/validation conventions are preserved verbatim.
@@ -934,18 +935,33 @@ hdr "Recording deploy metadata"
 # Single owner of the elapsed time: the summary below prints this same value, so
 # what the operator reads on screen matches what status.sh reports later.
 DEPLOY_DURATION=$(( $(date +%s) - DEPLOY_STARTED_AT ))
+# One time for both records: the deploy ended now.
+DEPLOYED_AT="$(mc_now_utc)"
 
 cat > .last-deploy.json <<EOF
 {
   "previousCommit": "$CURRENT_COMMIT",
   "deployedCommit": "$NEW_COMMIT",
-  "deployedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "deployedAt": "$DEPLOYED_AT",
   "deployedBy": "${SUDO_USER:-${USER:-unknown}}",
   "durationSeconds": $DEPLOY_DURATION,
   "backupFile": "${BACKUP_FILE:-none}"
 }
 EOF
 ok "Metadata saved to .last-deploy.json"
+
+# The manifest again, now with the time the deploy ended (ruling 941). The write before the build
+# stamped its start, and the ops agent holds its repairs for 15 minutes after a deploy (ruling
+# 887): from the start, a 20-minute build left no hold at all. Non-fatal, as in redeploy.sh: the
+# stack is already up.
+mc_write_system_versions_manifest \
+  deploy \
+  "$CURRENT_COMMIT" \
+  "$NEW_COMMIT" \
+  "$DEPLOYED_AT" \
+  "${SUDO_USER:-${USER:-unknown}}" \
+  "${BACKUP_FILE:-none}" ||
+  warn "Could not refresh data/system-versions.json — the admin board shows the deploy's start time."
 
 # ── Summary ──────────────────────────────────────────────────────
 hdr "Deploy complete"
