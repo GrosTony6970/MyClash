@@ -45,6 +45,8 @@ source "$SCRIPT_DIR/lib/worker-drain.sh"
 source "$SCRIPT_DIR/lib/pull-reexec.sh"
 # Wait for a running ops-runner job before anything moves (ruling 898).
 source "$SCRIPT_DIR/lib/ops-jobs-wait.sh"
+# The ops agent's deploy check starts at the end (rulings 906-908).
+source "$SCRIPT_DIR/lib/ops-agent-wake.sh"
 ORIG_ARGS=("$@")
 
 usage() {
@@ -300,3 +302,7 @@ hdr "Redeploy complete"
 "${COMPOSE[@]}" ps "${SERVICES[@]}"
 echo
 ok "Redeployed: ${SERVICES[*]}"
+
+# Only a redeploy that got this far wakes the ops agent (ruling 907). The run compares the API's
+# own commit only when this redeploy recreated the API.
+mc_wake_ops_agent_after_deploy redeploy "$GIT_COMMIT" "${SERVICES[@]}"

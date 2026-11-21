@@ -470,6 +470,8 @@ set +a
 source "$SCRIPT_DIR/lib/database-url.sh"
 # The ops agent's key seed (ruling 885: one owner with restore.sh and rollback.sh).
 source "$SCRIPT_DIR/lib/ops-agent-seed.sh"
+# The ops agent's deploy check starts at the end (rulings 906-908).
+source "$SCRIPT_DIR/lib/ops-agent-wake.sh"
 
 ok "Environment variables present"
 
@@ -963,6 +965,11 @@ if [[ "${#DEGRADED_SERVICES[@]}" -gt 0 ]]; then
   warn "Deployed, but these services are NOT healthy: ${DEGRADED_SERVICES[*]}"
   warn "They do not take the site down, so the deploy continued. Health logs are above."
 fi
+
+# Only a deploy that got this far wakes the ops agent (ruling 907). Never fails: the box below is
+# the one print of newly generated credentials.
+echo
+mc_wake_ops_agent_after_deploy deploy "$NEW_COMMIT"
 
 echo
 print_deployment_secrets
