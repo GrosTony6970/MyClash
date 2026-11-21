@@ -43,7 +43,16 @@ export function withoutErrorText<T>(value: T): T {
  */
 export type AgentVersionsDto = Omit<SystemVersionsResponseDto, 'deploy'> & {
   deploy: Omit<SystemVersionsResponseDto['deploy'], 'deployedBy'>;
+  /**
+   * The `GIT_COMMIT` compose gave this API container when it was (re)created, or `unknown`.
+   * Every other commit here comes from the deploy manifest, which deploy.sh writes BEFORE it
+   * builds: only this one says what a deploy put in the container (ruling 908). It is the env
+   * value, not the image's: `redeploy.sh api --no-build` gives an old image HEAD's value.
+   */
+  runningCommit: string;
 };
+
+const COMMIT = /^[0-9a-f]{40}$/u;
 
 export interface AgentBackupStatusDto {
   generatedAt: string;
@@ -68,9 +77,16 @@ export interface AgentBackupStatusDto {
   } | null;
 }
 
-/** Leaves out who deployed: the server login (`deploy.sh`'s `SUDO_USER`), in both places. */
-export function maskVersions(dto: SystemVersionsResponseDto): AgentVersionsDto {
+/**
+ * Leaves out who deployed: the server login (`deploy.sh`'s `SUDO_USER`), in both places. Adds the
+ * commit this process runs with (`runningCommit`).
+ */
+export function maskVersions(
+  dto: SystemVersionsResponseDto,
+  env: Record<string, string | undefined> = process.env,
+): AgentVersionsDto {
   const { deployedBy: _deployedBy, ...deploy } = dto.deploy;
+  const commit = env['GIT_COMMIT'] ?? '';
   return {
     generatedAt: dto.generatedAt,
     deploy,
@@ -78,6 +94,7 @@ export function maskVersions(dto: SystemVersionsResponseDto): AgentVersionsDto {
       ...group,
       components: group.components.filter((component) => component.key !== 'deployedBy'),
     })),
+    runningCommit: COMMIT.test(commit) ? commit : 'unknown',
   };
 }
 

@@ -354,7 +354,9 @@ fixed (the root cause); the scrub is not widened to hide it.
   switch Claude off in silence. It keeps the same fail-closed rule: an unreadable state means no
   wake-up, and the outside watcher (section 8) covers a dead Redis.
 - **Deploy.** `infra/scripts/deploy.sh` and `redeploy.sh` POST at the end with run type `deploy`
-  and the commit. A failed POST prints a warning and does not fail the deploy.
+  and the commit (`deploy commit=<sha> kind=deploy|redeploy[ services=…]`, ruling 906). A failed
+  POST prints a warning and does not fail the deploy. Only a deploy that reaches its end calls
+  (ruling 907); `rollback.sh` does not (906).
 - **Timer.** The task's own schedule, once each morning. No text means run type `daily`.
 - **Two new keys** in `.env.example` (the task's address and its token). When they are absent, no
   call is made, the worker logs that once at boot, and the Runtime Health card's "Ops agent" tile shows

@@ -124,6 +124,24 @@ describe('maskVersions', () => {
       ['deployedCommit', 'backupFile'],
     ]);
   });
+
+  // Slice 6, ruling 908: the manifest is written before the build; the API's own GIT_COMMIT is
+  // what compose gave the running container.
+  it('adds the commit the API container was started with', () => {
+    const commit = '0123456789abcdef0123456789abcdef01234567';
+    expect(maskVersions(versions(), { GIT_COMMIT: commit }).runningCommit).toBe(commit);
+  });
+
+  it('says unknown when that commit is missing or not 40 hex characters', () => {
+    for (const env of [
+      {},
+      { GIT_COMMIT: 'unknown' },
+      { GIT_COMMIT: 'bbb222' },
+      { GIT_COMMIT: '' },
+    ]) {
+      expect(maskVersions(versions(), env).runningCommit).toBe('unknown');
+    }
+  });
 });
 
 function backups(): BackupStatusDto {

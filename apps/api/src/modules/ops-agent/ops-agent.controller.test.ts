@@ -131,6 +131,17 @@ describe('OpsAgentController', () => {
     expect(JSON.stringify(b)).not.toContain('logTail');
   });
 
+  it('versions carries the commit the API process runs with (ruling 908)', async () => {
+    const commit = 'fedcba9876543210fedcba9876543210fedcba98';
+    vi.stubEnv('GIT_COMMIT', commit);
+    try {
+      const { controller } = build();
+      expect((await controller.versions()).runningCommit).toBe(commit);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   // Slice 4: each action is the key's own account's, in the audit row the service writes.
   it('a container action goes out under the key account, by its UI key, masked', async () => {
     const { controller, systemActions } = build();

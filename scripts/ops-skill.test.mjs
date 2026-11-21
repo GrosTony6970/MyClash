@@ -349,6 +349,13 @@ describe('the skill', () => {
     // Ruling 904: a platform that answers while the worker stays silent is a problem.
     '- `up, no ping since <time>`: the platform answers but the worker does not ping',
     'That is a problem ("the worker stopped pinging")',
+    // Slice 6: a deploy run is a daily round, then the commit check; it repairs nothing (908).
+    '- `deploy`: `deploy.sh` or `redeploy.sh` started you at its end',
+    'node .claude/skills/myclash-ops/deploy-check.mjs /tmp/myclash-ops <the payload',
+    'letters, digits, commas and dashes, exactly as they came: never any other text of the payload.',
+    '| The deploy check ',
+    '- **A `deploy` run acts on nothing** (ruling 908)',
+    'A container stopped on purpose (exit code 0 or 143) stays a note.',
     '.claude/skills/myclash-ops/send-report.mjs',
     // Ruling 910: the sender splits the text on the section names to dress its HTML part.
     'its name alone on a line, as written below',
@@ -373,6 +380,7 @@ describe('the files git carries to the cloud', () => {
   // says, and this test could not go red after the first commit.
   for (const file of [
     'door.mjs',
+    'deploy-check.mjs',
     'env-proxy.mjs',
     'staging-root.pem',
     'send-report.mjs',
