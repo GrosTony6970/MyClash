@@ -35,8 +35,16 @@ export default async function globalSetup() {
     didLogin = true;
   }
 
-  // Resolve org id from slug.
-  const orgRes = await ctx.get(`/api/v1/organizations/slug/${orgSlug}`);
+  // Resolve org id from slug. This is the first authenticated call, so it is the
+  // one that finds out a reused session is dead (it expired, or the stack was
+  // wiped since): log in fresh and retry once.
+  let orgRes = await ctx.get(`/api/v1/organizations/slug/${orgSlug}`);
+  if ((orgRes.status() === 401 || orgRes.status() === 403) && !didLogin) {
+    await ctx.dispose();
+    ctx = await login(baseURL, email, password);
+    didLogin = true;
+    orgRes = await ctx.get(`/api/v1/organizations/slug/${orgSlug}`);
+  }
   if (!orgRes.ok()) {
     throw new Error(
       `[e2e] resolve org '${orgSlug}' failed: ${orgRes.status()} ${await orgRes.text()}`,
@@ -60,14 +68,7 @@ export default async function globalSetup() {
     city: 'Testville',
     country: 'FR',
   };
-  let eventRes = await ctx.post(`/api/v1/organizations/${orgId}/events`, { data: payload });
-  if ((eventRes.status() === 401 || eventRes.status() === 403) && !didLogin) {
-    // The reused session was stale — log in fresh and retry once.
-    await ctx.dispose();
-    ctx = await login(baseURL, email, password);
-    didLogin = true;
-    eventRes = await ctx.post(`/api/v1/organizations/${orgId}/events`, { data: payload });
-  }
+  const eventRes = await ctx.post(`/api/v1/organizations/${orgId}/events`, { data: payload });
   if (!eventRes.ok()) {
     throw new Error(
       `[e2e] create test event failed: ${eventRes.status()} ${await eventRes.text()}`,
