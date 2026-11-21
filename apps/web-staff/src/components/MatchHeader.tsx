@@ -24,6 +24,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import { sideStyle, roundLabel } from '@myclash/ui';
+import { CallButton } from './CallButton';
 import { CornerDot } from './CornerDot';
 import type { NextMatchInfo } from '@myclash/ui';
 import {
@@ -217,6 +218,7 @@ export function MatchHeader({
         {/* Right: theme + external display + next-match tile */}
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-3">
+            <CallButton />
             <ThemeSwitcher />
             {displayUrl && (
               <button

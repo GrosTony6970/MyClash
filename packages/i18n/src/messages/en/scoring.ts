@@ -118,6 +118,21 @@ export const scoring = {
     banner: 'Offline drill — {seconds}s left. Entries are queued, not lost.',
     end: 'End drill',
   },
+  // The referee's call to the control room (ruling 952).
+  call: {
+    button: 'Call',
+    buttonLabel: 'Call the control room',
+    title: 'Call the control room',
+    intro: 'The organisers see your call on their live control room until one of them answers it.',
+    reason: { medic: 'Medic', head_ref: 'Head referee', dispute: 'Dispute' },
+    sending: 'Calling…',
+    close: 'Close',
+    outcome: {
+      sent: 'Called. The control room sees your call.',
+      offline: 'Not sent: no network. Call by voice or by phone.',
+      refused: 'Not sent: the server refused the call. Call by voice or by phone.',
+    },
+  },
   scan: {
     open: 'Scan QR',
     title: 'Scan pass',

@@ -36,6 +36,7 @@ import {
   ResetStaffPinDto,
   SetLiceScorerDto,
   SetStaffLicesDto,
+  StaffCallDto,
   StaffHeartbeatDto,
   StaffLoginDto,
   UpdateStaffAccountDto,
@@ -238,6 +239,13 @@ export class StaffController {
   @ApiOperation({ summary: 'Report scoring-tablet sync health for the Live board' })
   async heartbeat(@Body() dto: StaffHeartbeatDto, @Req() req: FastifyRequest) {
     return this.staff.recordHeartbeat(req, dto);
+  }
+
+  @Post('staff/attention')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "A referee's call from the pad: raises Needs attention on the board" })
+  async call(@Body() dto: StaffCallDto, @Req() req: FastifyRequest) {
+    return this.staff.raiseAttention(req, dto);
   }
 
   @Get('staff/lices/:liceId/current-match')

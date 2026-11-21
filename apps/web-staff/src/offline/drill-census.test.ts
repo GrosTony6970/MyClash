@@ -81,6 +81,8 @@ const EXPECTED: Record<string, string> = {
   'src/hooks/usePadClock.ts': 'apiRequest 1',
   // open: the sign-out of an account.
   'src/lib/account-sign-out.ts': 'apiRequest 1',
+  // open: a referee's call to the control room (ruling 952). A call for a medic is never practice.
+  'src/lib/call-request.ts': 'apiRequest 1',
   // open: the reads of a bout and of its lists.
   'src/lib/bout-list-read.ts': 'fetchFn 1',
   'src/lib/bout-read.ts': 'fetchFn 2',

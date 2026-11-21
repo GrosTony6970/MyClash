@@ -27,6 +27,11 @@ At the top: **Back to match list**, the previous and the next bout of the piste,
 the tournament, phase and piste, both fighters, their gear check, and **Match actions**. The
 theme button switches between Hybrid, Dark and Light.
 
+**Call** reaches the organisers: pick **Medic**, **Head referee** or **Dispute**, and the piste's
+row on their live control room reads **Needs attention** until one of them answers it. The call
+needs the network and is never kept to send later: when it says "Not sent: no network. Call by
+voice or by phone.", do that.
+
 ![The pad while the clock runs](../../../assets/guide/13-pad-running.png)
 
 ## What works in which state

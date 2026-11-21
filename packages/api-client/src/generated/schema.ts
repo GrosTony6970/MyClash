@@ -5070,6 +5070,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/attention': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** A referee's call from the pad: raises Needs attention on the board */
+    post: operations['StaffController_call'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff/lices/{liceId}/current-match': {
     parameters: {
       query?: never;
@@ -12077,6 +12094,10 @@ export interface components {
       reasonCodes?: ('match_closed' | 'validation' | 'sequence' | 'other')[];
       /** Format: date-time */
       oldestQuarantinedAt?: string | null;
+    };
+    StaffCallDto: {
+      /** @enum {string} */
+      reason: 'medic' | 'head_ref' | 'dispute';
     };
     CreatePersonDto: {
       givenName: string;
@@ -20918,6 +20939,27 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['StaffHeartbeatDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_call: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaffCallDto'];
       };
     };
     responses: {

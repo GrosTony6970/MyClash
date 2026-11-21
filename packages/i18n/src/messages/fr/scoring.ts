@@ -125,6 +125,21 @@ export const scoring = {
       "Exercice hors ligne - {seconds}s restantes. Les saisies sont en file, rien n'est perdu.",
     end: "Terminer l'exercice",
   },
+  call: {
+    button: 'Appeler',
+    buttonLabel: 'Appeler la salle de contrôle',
+    title: 'Appeler la salle de contrôle',
+    intro:
+      "Les organisateurs voient votre appel dans leur salle de contrôle jusqu'à ce que l'un d'eux y réponde.",
+    reason: { medic: 'Médecin', head_ref: 'Arbitre principal', dispute: 'Litige' },
+    sending: 'Appel en cours…',
+    close: 'Fermer',
+    outcome: {
+      sent: 'Appel envoyé. La salle de contrôle le voit.',
+      offline: 'Non envoyé : pas de réseau. Appelez de vive voix ou par téléphone.',
+      refused: "Non envoyé : le serveur a refusé l'appel. Appelez de vive voix ou par téléphone.",
+    },
+  },
   scan: {
     open: 'Scanner un QR',
     title: 'Scanner un pass',

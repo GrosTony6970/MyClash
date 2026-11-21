@@ -109,6 +109,15 @@ describe('ReadOnlyInterceptor', () => {
     expect(await firstValueFrom(result)).toBe('passthrough');
   });
 
+  // Ruling 952: a referee calls a medic from the pad. Maintenance on the server is no reason
+  // for that call to stay unheard.
+  it('lets a referee’s call through: POST /api/v1/staff/attention', async () => {
+    isEnabledMock.mockResolvedValue(true);
+    const ctx = makeContext({ url: '/api/v1/staff/attention', method: 'POST', headers: {} });
+    const result = await interceptor.intercept(ctx, makeNext());
+    expect(await firstValueFrom(result)).toBe('passthrough');
+  });
+
   it.each(['/api/v1/staff/checkin/scan', '/api/v1/matches/m-1/clock'])(
     'still refuses a pad’s save: POST %s',
     async (url) => {

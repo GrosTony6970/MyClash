@@ -167,3 +167,7 @@ const staffHeartbeatSchema = z
   })
   .strict();
 export class StaffHeartbeatDto extends createZodDto(staffHeartbeatSchema) {}
+
+/** A referee's call from the pad (ruling 952): the reasons the column's CHECK allows (0149). */
+const staffCallSchema = z.object({ reason: z.enum(['medic', 'head_ref', 'dispute']) }).strict();
+export class StaffCallDto extends createZodDto(staffCallSchema) {}

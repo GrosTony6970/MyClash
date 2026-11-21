@@ -29,6 +29,11 @@ En haut : **Retour à la liste des assauts**, le combat précédent et le suivan
 du combat, le tournoi, la phase et la lice, les deux combattants, leur contrôle du matériel, et
 **Actions du match**. Le bouton de thème passe de Hybride à Sombre puis à Clair.
 
+**Appeler** prévient les organisateurs : choisissez **Médecin**, **Arbitre principal** ou
+**Litige**, et la ligne de la lice dans leur salle de contrôle indique **À traiter** jusqu'à ce
+que l'un d'eux y réponde. L'appel demande le réseau et n'est jamais gardé pour plus tard : s'il
+dit « Non envoyé : pas de réseau. Appelez de vive voix ou par téléphone. », faites-le.
+
 ![La tablette pendant que le chrono tourne](../../../assets/guide/13-pad-running.png)
 
 ## Ce qui marche dans quel état

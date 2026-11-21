@@ -74,6 +74,7 @@ import type {
   ResetStaffPinDto,
   SetLiceScorerDto,
   SetStaffLicesDto,
+  StaffCallDto,
   StaffHeartbeatDto,
   StaffLoginDto,
   UpdateStaffAccountDto,
@@ -644,6 +645,23 @@ export class StaffService {
       .eq('id', staff.id);
     if (error) throw new BadRequestException(error.message);
     await this.recordDeviceSyncReport(String(staff.event_id), dto);
+    return { ok: true };
+  }
+
+  /**
+   * A referee's call from the pad: Medic, Head referee or Dispute (ruling 952).
+   * Raises the "Needs attention" flag the Live board shows on the caller's piste
+   * until an organiser acknowledges it (`acknowledgeAttention`). A second call
+   * replaces the reason. The account and its Event come from the session.
+   */
+  async raiseAttention(req: FastifyRequest, dto: StaffCallDto): Promise<{ ok: true }> {
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
+    const { error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .update({ needs_attention: true, needs_attention_reason: dto.reason })
+      .eq('event_id', staff.event_id)
+      .eq('id', staff.id);
+    if (error) throw new BadRequestException(error.message);
     return { ok: true };
   }
 

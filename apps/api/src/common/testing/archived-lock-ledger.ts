@@ -271,6 +271,7 @@ export const LOCKED_ELSEWHERE: Readonly<Record<string, readonly string[]>> = {
       'POST staff/checkin/:personId/arrive',
       'POST staff/checkin/:personId/undo',
       'POST staff/checkin/scan',
+      'POST staff/attention',
       'POST staff/gear/:personId/:weaponId',
       'POST staff/heartbeat',
       'POST staff/photos/:photoId/approve',

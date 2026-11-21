@@ -15,6 +15,9 @@ import { readOnlyModeRefusal } from '../read-only-mode';
  * 339). Refused, the board kept the last numbers it had: a green dot over a pad
  * that held hits.
  *
+ * `staff/attention`: a referee's call for a medic, the head referee or a dispute
+ * (ruling 952). Maintenance on the server is no reason for it to stay unheard.
+ *
  * `auth/` passes whole, for the sign-in. Its doors that make an account or a club
  * refuse on their own (`assertNotReadOnly`, operator ruling 341).
  */
@@ -22,6 +25,7 @@ const ALLOWLIST = [
   '/api/v1/auth/',
   '/api/v1/staff-auth/',
   '/api/v1/staff/heartbeat',
+  '/api/v1/staff/attention',
   '/api/v1/health',
   '/api/v1/public/',
 ];
