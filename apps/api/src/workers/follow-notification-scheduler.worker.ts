@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../modules/matches/round-code.helper';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import {
@@ -252,7 +253,7 @@ export class FollowNotificationSchedulerService {
             fighter: fighterName(followedRegistration),
             opponent: fighterName(opponentRegistration),
             minutes: leadMinutes,
-            label: match.pools?.name ?? match.match_number_label,
+            label: match.pools?.name ?? roundCodeOrNull(match),
             piste: match.lices?.name,
           }),
           url: '/notifications',
@@ -468,7 +469,7 @@ export class FollowNotificationSchedulerService {
       await this.supabase.service
         .from('matches')
         .select(
-          'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name )',
+          `id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name ), ${ROUND_CODE_INPUTS}`,
         )
         .in('id', matchIds),
       strict,
@@ -652,7 +653,7 @@ export class FollowNotificationSchedulerService {
       ...followReferee(
         at.referee,
         leadMinutes,
-        duty.matches?.match_number_label,
+        roundCodeOrNull(duty.matches),
         duty.matches?.lices?.name,
       ),
       url: '/notifications',
@@ -731,7 +732,7 @@ export class FollowNotificationSchedulerService {
     const read = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )',
+        `id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ), ${ROUND_CODE_INPUTS} )`,
       )
       .eq('id', assignmentId)
       .maybeSingle();

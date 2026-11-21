@@ -202,7 +202,9 @@ describe('notification scheduler jobs', () => {
         data: [
           {
             id: 'match-1',
-            match_number_label: 'L1-P1-M1',
+            match_number_label: 'L1-PA-M1',
+            phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+            pools: { sort_order: 0 },
             scheduled_at: '2026-05-02T10:30:00.000Z',
             red_registration_id: 'reg-red',
             blue_registration_id: 'reg-blue',
@@ -245,7 +247,7 @@ describe('notification scheduler jobs', () => {
       expect.objectContaining({
         userId: 'user-red',
         title: 'Combat imminent / Match starting soon',
-        body: 'L1-P1-M1 commence bientôt. / L1-P1-M1 starts soon.',
+        body: 'LSW-P1-M1 commence bientôt. / LSW-P1-M1 starts soon.',
       }),
       expect.objectContaining({ delay: 25 * 60_000 }),
     );
@@ -371,7 +373,7 @@ describe('notification scheduler jobs', () => {
       );
       // The double ignores the projection: assert the read names no stored time.
       expect(selectsFor(from as never, 'referee_assignments')).toEqual([
-        'id, person_id, pool_id, match_id, role, matches ( match_number_label )',
+        'id, person_id, pool_id, match_id, role, matches ( match_number_label, phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number) )',
       ]);
       expect(selectsFor(from as never, 'matches')).toEqual([
         'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',

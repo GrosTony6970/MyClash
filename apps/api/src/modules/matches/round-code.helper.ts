@@ -79,6 +79,12 @@ export const ROUND_CODE_EMBEDS =
   'pools(sort_order),bracket_slots(round),swiss_rounds(round_number)';
 
 /**
+ * Every input of {@link roundCodeFromMatchRow}, for a `matches` select (or a
+ * `matches ( … )` embed) that reads no phase or pool of its own.
+ */
+export const ROUND_CODE_INPUTS = `phases(config_json,tournaments(weapon)),${ROUND_CODE_EMBEDS}`;
+
+/**
  * Round code from a raw `matches` row: the name a bout shows to people
  * (`LSW-P4-M1`), never its stored label (`L1-PD-M01`). The row must carry
  * `phases(config_json,tournaments(weapon))` and {@link ROUND_CODE_EMBEDS}; a
@@ -88,7 +94,17 @@ export const ROUND_CODE_EMBEDS =
  * `resolveNextMatchOnLice`. One reader means the three can no longer drift
  * apart on bracket or Swiss labels.
  */
-export function roundCodeFromMatchRow(row: Record<string, unknown>): string {
+/**
+ * The code of a bout that has a number, null for one with none (or no bout at
+ * all): a notice then says its stand-in ("your match") rather than `???`.
+ */
+export function roundCodeOrNull(match: object | null | undefined): string | null {
+  if (!match || !(match as Record<string, unknown>)['match_number_label']) return null;
+  return roundCodeFromMatchRow(match);
+}
+
+export function roundCodeFromMatchRow(match: object): string {
+  const row = match as Record<string, unknown>;
   const phase = row['phases'] as {
     config_json?: Record<string, unknown> | null;
     tournaments?: { weapon?: string };

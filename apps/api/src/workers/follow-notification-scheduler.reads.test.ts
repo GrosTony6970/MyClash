@@ -75,7 +75,7 @@ describe('the reads of the followed-Fighter alert', () => {
     await service.scheduleMatchStarting('match-1', NOW);
 
     expect(selectsFor(db.from, 'matches')).toEqual([
-      'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name )',
+      'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name ), phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
     ]);
     expect(selectsFor(db.from, 'registrations')).toEqual([
       'id, person_id, persons ( given_name, family_name )',

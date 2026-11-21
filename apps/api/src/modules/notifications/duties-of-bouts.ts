@@ -13,6 +13,7 @@
  * A failed read throws a plain Error, never "no duty": the caller says what that leaves as it was.
  */
 import type { SupabaseService } from '../supabase/supabase.service';
+import { ROUND_CODE_INPUTS } from '../matches/round-code.helper';
 
 type Db = SupabaseService['service'];
 
@@ -57,7 +58,7 @@ export async function lockedDutiesOfBouts(
     await db
       .from('referee_assignments')
       .select(
-        'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )',
+        `id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ), ${ROUND_CODE_INPUTS} )`,
       )
       .eq('status', 'confirmed')
       .in('match_id', matchIds),
@@ -81,7 +82,7 @@ export async function lockedDutiesOfPools(
     await db
       .from('referee_assignments')
       .select(
-        'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )',
+        `id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ), ${ROUND_CODE_INPUTS} )`,
       )
       .eq('status', 'confirmed')
       .in('pool_id', poolIds),

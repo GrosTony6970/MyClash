@@ -259,7 +259,7 @@ describe('follow notification scheduler — a followed referee starting', () => 
     );
     // The double ignores the projection: assert the read names no stored time.
     expect(selectsFor(from as never, 'referee_assignments')).toEqual([
-      'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )',
+      'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ), phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number) )',
     ]);
     expect(selectsFor(from as never, 'matches')).toEqual([
       'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',

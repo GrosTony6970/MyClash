@@ -54,7 +54,7 @@ function tables(overrides: Record<string, TableSeed> = {}): Record<string, Table
 }
 const BOOM = { data: null, error: { message: 'boom' } };
 const DUTY_COLUMNS =
-  'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )';
+  'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ), phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number) )';
 
 async function dutiesOf(matchIds: string[], overrides: Record<string, TableSeed> = {}) {
   const db = mockSupabase(tables(overrides));

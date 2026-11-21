@@ -23,7 +23,11 @@ const DUTY: SupabaseRow = {
   event_id: 'e-open',
   person_id: HIS_PROFILE,
   role: 'Referee',
-  matches: { match_number_label: 'L1-P1-M1' },
+  matches: {
+    match_number_label: 'L1-PA-M1',
+    phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+    pools: { sort_order: 0 },
+  },
 };
 /** His profile carries an address he left behind: the account's own is the one to write to. */
 const PROFILE: SupabaseRow = {
@@ -67,7 +71,7 @@ const toMarc = (email: string | null) => ({
   entityId: 'd-marc',
   userId: MARC,
   title: "Affectation d'arbitrage mise à jour / Referee assignment updated",
-  body: 'Mise à jour : Referee, L1-P1-M1. / Referee for L1-P1-M1 has been updated.',
+  body: 'Mise à jour : Referee, LSW-P1-M1. / Referee for LSW-P1-M1 has been updated.',
   url: '/notifications',
   email,
   emailSubject: "Affectation d'arbitrage mise à jour / Referee assignment updated",
@@ -125,10 +129,10 @@ describe("the lock message of Marc's duty", () => {
     expect(selectsFor(db.from, 'global_persons')).toEqual(['claimed_by_user_id']);
   });
 
-  it('reads the duty with its role and the label of its bout', async () => {
+  it("reads the duty with its role and the inputs of its bout's code", async () => {
     await locked(tables([PROFILE]));
     expect(selectsFor(db.from, 'referee_assignments')).toEqual([
-      'id, person_id, role, matches ( match_number_label )',
+      'id, person_id, role, matches ( match_number_label, phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number) )',
     ]);
   });
 });

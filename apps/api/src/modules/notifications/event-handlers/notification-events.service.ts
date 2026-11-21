@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../../matches/round-code.helper';
 import { announcesOnPublish, asEventKind } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../../common/auth/competition-visibility';
 import {
@@ -52,7 +53,7 @@ export class NotificationEventsService {
   async assignmentChanged(assignmentId: string, { resend = false } = {}): Promise<void> {
     const { data: assignment } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, person_id, role, matches ( match_number_label )')
+      .select(`id, person_id, role, matches ( match_number_label, ${ROUND_CODE_INPUTS} )`)
       .eq('id', assignmentId)
       .maybeSingle();
     if (!assignment) return;
@@ -72,7 +73,7 @@ export class NotificationEventsService {
       kind: 'assignment_changed',
       entityId: row.id,
       userId: contact.userId,
-      ...texts.lockMessage(row.role, row.matches?.match_number_label),
+      ...texts.lockMessage(row.role, roundCodeOrNull(row.matches)),
       url: '/notifications',
       email: contact.email,
       preference: 'schedule_changes',

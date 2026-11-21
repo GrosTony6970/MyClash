@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../modules/matches/round-code.helper';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
@@ -364,7 +365,9 @@ export class NotificationSchedulerService {
 
     const { data: matchRows, error } = await this.supabase.service
       .from('matches')
-      .select('id, match_number_label, scheduled_at, red_registration_id, blue_registration_id')
+      .select(
+        `id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, ${ROUND_CODE_INPUTS}`,
+      )
       .in('id', ids);
     if (error) return;
     const rows = (matchRows ?? []) as MatchStartRow[];
@@ -386,7 +389,7 @@ export class NotificationSchedulerService {
             userId,
             startsAt: row.scheduled_at,
             leadMinutes: readLeadMinutes(preference, 'match_starting_minutes_before', 10),
-            ...matchStarting(row.match_number_label),
+            ...matchStarting(roundCodeOrNull(row)),
             url: '/notifications',
             now,
           });
@@ -700,7 +703,7 @@ export class NotificationSchedulerService {
       userId,
       startsAt,
       leadMinutes: readLeadMinutes(preference, 'referee_starting_minutes_before', 10),
-      ...refereeStarting(duty.role, duty.matches?.match_number_label),
+      ...refereeStarting(duty.role, roundCodeOrNull(duty.matches)),
       url: '/notifications',
       now,
     });
@@ -733,7 +736,9 @@ export class NotificationSchedulerService {
   private async getRefereeAssignment(assignmentId: string): Promise<RefereeAssignmentRow | null> {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, person_id, pool_id, match_id, role, matches ( match_number_label )')
+      .select(
+        `id, person_id, pool_id, match_id, role, matches ( match_number_label, ${ROUND_CODE_INPUTS} )`,
+      )
       .eq('id', assignmentId)
       .maybeSingle();
     if (error) {

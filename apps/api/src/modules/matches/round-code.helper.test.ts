@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { singleElimBracket } from '@myclash/rules/scheduling';
-import { ROUND_CODE_EMBEDS, buildRoundCode, roundCodeFromMatchRow } from './round-code.helper';
+import {
+  ROUND_CODE_EMBEDS,
+  ROUND_CODE_INPUTS,
+  buildRoundCode,
+  roundCodeFromMatchRow,
+  roundCodeOrNull,
+} from './round-code.helper';
 
 // ── Round-code shape (regression for the position-off-by-one bug) ────────────
 //
@@ -110,5 +116,20 @@ describe('ROUND_CODE_EMBEDS', () => {
     expect(ROUND_CODE_EMBEDS).toBe(
       'pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
     );
+    expect(ROUND_CODE_INPUTS).toBe(`phases(config_json,tournaments(weapon)),${ROUND_CODE_EMBEDS}`);
+  });
+});
+
+describe('roundCodeOrNull', () => {
+  it('gives the code of a numbered bout', () => {
+    expect(
+      roundCodeOrNull(row({ match_number_label: 'L1-PD-M01', pools: { sort_order: 3 } })),
+    ).toBe('SDW-P4-M01');
+  });
+
+  it('gives null for a bout with no number, or no bout, so a notice says its stand-in', () => {
+    expect(roundCodeOrNull(row({ match_number_label: null }))).toBeNull();
+    expect(roundCodeOrNull(null)).toBeNull();
+    expect(roundCodeOrNull(undefined)).toBeNull();
   });
 });
