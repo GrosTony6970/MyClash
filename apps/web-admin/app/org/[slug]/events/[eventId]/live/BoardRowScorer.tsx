@@ -56,8 +56,19 @@ function TabletHealth({
  * The collapsed row shows a single glyph for all of this. The expansion is
  * where an organizer works out WHY a piste is amber — a full outbox and a
  * tablet that stopped checking in are different problems with different fixes.
+ *
+ * "Last seen" is measured on the server's real clock, the one that stamped the
+ * check-in: on a simulated clock it read months (ruling 951).
  */
-export function BoardRowScorer({ row, nowMs, t }: { row: BoardRow; nowMs: number; t: T }) {
+export function BoardRowScorer({
+  row,
+  serverNowMs,
+  t,
+}: {
+  row: BoardRow;
+  serverNowMs: number;
+  t: T;
+}) {
   const { locale } = useI18n();
   const scorer = row.scorer;
   if (!scorer) return <p className="text-muted">{t('organizer.live.state.no_scorer')}</p>;
@@ -65,7 +76,7 @@ export function BoardRowScorer({ row, nowMs, t }: { row: BoardRow; nowMs: number
   const seenMs = scorer.lastSeenAt ? Date.parse(scorer.lastSeenAt) : NaN;
   const seenAgo = Number.isNaN(seenMs)
     ? null
-    : formatMinuteSpan(Math.max(0, nowMs - seenMs), locale);
+    : formatMinuteSpan(Math.max(0, serverNowMs - seenMs), locale);
 
   return (
     <div className="flex flex-col gap-1">

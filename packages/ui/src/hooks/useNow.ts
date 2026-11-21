@@ -12,6 +12,13 @@ export interface ClockState {
   simulated: boolean;
   /** True when that simulation holds the clock still — so `nowMs` does not advance. */
   frozen: boolean;
+  /**
+   * The server's REAL clock as this browser best knows it (its own clock plus
+   * the skew the flags snapshot measured), never simulated. For ages of things
+   * the server stamped with its real clock — a tablet's last check-in — which a
+   * simulated "now" would measure as months old, or as never ageing when frozen.
+   */
+  serverNowMs: number;
 }
 
 // ── Shared tick stores ────────────────────────────────────────────────────────
@@ -82,11 +89,18 @@ const getServerClockMs = (): number => 0;
 interface Simulation {
   /** This browser's clock → what "now" reads under the simulation. */
   toNow: (realMs: number) => number;
+  /** Server clock minus this browser's (see `serverSkewMs`); 0 until the snapshot lands. */
+  skewMs: number;
   simulated: boolean;
   frozen: boolean;
 }
 
-const REAL_TIME: Simulation = { toNow: (realMs) => realMs, simulated: false, frozen: false };
+const REAL_TIME: Simulation = {
+  toNow: (realMs) => realMs,
+  skewMs: 0,
+  simulated: false,
+  frozen: false,
+};
 
 /** The simulation from the shared runtime-flags snapshot. */
 function useSimulation(apiUrl: string): Simulation {
@@ -94,6 +108,7 @@ function useSimulation(apiUrl: string): Simulation {
   if (!flags) return REAL_TIME;
   return {
     toNow: (realMs) => simulatedNowMs(flags.timeSimulation, realMs, flags.serverSkewMs),
+    skewMs: flags.serverSkewMs,
     simulated: isTimeSimulationActive(flags.timeSimulation),
     frozen: isTimeSimulationFrozen(flags.timeSimulation),
   };
@@ -111,8 +126,9 @@ export function useClientClock(apiUrl: string): ClockState {
     minuteStore.getSnapshot,
     getServerClockMs,
   );
-  const { toNow, simulated, frozen } = useSimulation(apiUrl);
-  return { nowMs: base === 0 ? 0 : toNow(base), simulated, frozen };
+  const { toNow, skewMs, simulated, frozen } = useSimulation(apiUrl);
+  const serverNowMs = base === 0 ? 0 : base + skewMs;
+  return { nowMs: base === 0 ? 0 : toNow(base), simulated, frozen, serverNowMs };
 }
 
 /**
@@ -125,8 +141,9 @@ export function useClock(apiUrl: string): ClockState {
     minuteStore.getSnapshot,
     getServerClockMs,
   );
-  const { toNow, simulated, frozen } = useSimulation(apiUrl);
-  return { nowMs: toNow(base === 0 ? Date.now() : base), simulated, frozen };
+  const { toNow, skewMs, simulated, frozen } = useSimulation(apiUrl);
+  const realMs = base === 0 ? Date.now() : base;
+  return { nowMs: toNow(realMs), simulated, frozen, serverNowMs: realMs + skewMs };
 }
 
 /**
@@ -160,8 +177,9 @@ export function useSecondsClock(apiUrl: string): ClockState {
     secondsStore.getSnapshot,
     getServerClockMs,
   );
-  const { toNow, simulated, frozen } = useSimulation(apiUrl);
-  return { nowMs: toNow(base === 0 ? Date.now() : base), simulated, frozen };
+  const { toNow, skewMs, simulated, frozen } = useSimulation(apiUrl);
+  const realMs = base === 0 ? Date.now() : base;
+  return { nowMs: toNow(realMs), simulated, frozen, serverNowMs: realMs + skewMs };
 }
 
 /** `useSecondsClock` when the caller does not need the `simulated` flag. */

@@ -4,6 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
+import { healthCellText } from '@/lib/live-board/health-cell';
 import { statusLabel } from '@myclash/ui';
 import type { BoardRow } from '@/lib/live-board/types';
 
@@ -17,6 +18,7 @@ export function BoardCard({
   row,
   state,
   nowMs,
+  serverNowMs,
   slug,
   eventId,
   onAck,
@@ -26,6 +28,8 @@ export function BoardCard({
   row: BoardRow;
   state: HealthState;
   nowMs: number;
+  /** The server's real clock: a check-in's age (ruling 951). */
+  serverNowMs: number;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
@@ -91,18 +95,7 @@ export function BoardCard({
             t('organizer.live.state.no_scorer')
           )}
         </span>
-        <span>
-          {row.health === null
-            ? t('organizer.live.unknown')
-            : row.health.rejectedCount > 0
-              ? t('organizer.live.state.queuedRefused', {
-                  queued: row.health.outboxDepth,
-                  refused: row.health.rejectedCount,
-                })
-              : row.health.outboxDepth > 0
-                ? t('organizer.live.state.queued', { queued: row.health.outboxDepth })
-                : t('organizer.live.state.synced')}
-        </span>
+        <span>{healthCellText(row, state, serverNowMs, locale, t)}</span>
       </div>
       {row.attention && row.scorer && (
         <button

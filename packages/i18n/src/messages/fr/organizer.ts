@@ -1199,6 +1199,9 @@ export const organizer = {
       idle: 'Inactif',
       idle_stalled: 'Piste à l’arrêt',
       late: 'En retard',
+      no_news: 'Pas de nouvelles de la tablette',
+      lost: 'Tablette muette',
+      noNewsFor: 'Pas de nouvelles depuis {span}',
     },
   },
   eventStats: {

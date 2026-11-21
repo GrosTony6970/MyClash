@@ -35,8 +35,8 @@ function StageMessage({ children }: { children: React.ReactNode }) {
 export function LiveWall({ eventId }: { eventId: string }) {
   const { t, locale } = useI18n();
   const { rows, error } = useLiveBoard(eventId);
-  const { nowMs } = useSecondsClock(getPublicApiUrl());
-  const stateOf = useBoardStates(rows, nowMs);
+  const { nowMs, serverNowMs } = useSecondsClock(getPublicApiUrl());
+  const stateOf = useBoardStates(rows, nowMs, serverNowMs);
 
   if (error === 'forbidden') return <StageMessage>{t('organizer.live.forbidden')}</StageMessage>;
   if (!rows) return <StageMessage>{t('common.loading')}</StageMessage>;

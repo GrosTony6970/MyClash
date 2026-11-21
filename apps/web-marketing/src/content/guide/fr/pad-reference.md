@@ -199,9 +199,12 @@ s'installe seule à la prochaine page ouverte avec le réseau, sans rien demande
 - La page publique d'un combat, les écrans en direct et ceux de la salle ne montrent que ce qui a
   atteint le serveur. Les saisies encore sur une tablette apparaissent dès qu'elles partent.
 - La salle de contrôle de l'organisateur montre la file de chaque tablette et combien de ses
-  saisies le serveur a refusées (elles attendent dans **Examiner**), avec **Sync en retard** quand une saisie attend plus d'une minute, **Sync bloquée** au-delà de cinq minutes.
-  Une tablette qui perd le réseau sans rien en file reste **Synchronisé** : regardez sa ligne
-  « Vu il y a… ».
+  saisies le serveur a refusées (elles attendent dans **Examiner**), avec **Sync en retard** quand
+  une saisie attend plus d'une minute, **Sync bloquée** au-delà de cinq minutes.
+- Une tablette donne des nouvelles toutes les 20 secondes tant qu'elle a le réseau. Avec un combat
+  sur sa lice et aucune nouvelle depuis une minute, sa ligne passe à l'orange et dit « Pas de
+  nouvelles depuis 2 min » ; après cinq minutes elle passe au rouge. Sa ligne « Vu il y a… » dit
+  quand elle a donné des nouvelles pour la dernière fois.
 - Rien n'empêche deux tablettes de marquer la même lice. Gardez une tablette par lice : un appui
   sur le chrono qui croise celui de l'autre tablette passe dans **Examiner**.
 

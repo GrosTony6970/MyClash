@@ -1204,6 +1204,10 @@ export const organizer = {
       idle: 'Idle',
       idle_stalled: 'Piste stalled',
       late: 'Behind schedule',
+      // The tablet stopped checking in (ruling 951): amber past a minute, red past five.
+      no_news: 'No news from the tablet',
+      lost: 'Tablet silent',
+      noNewsFor: 'No news for {span}',
     },
   },
   eventStats: {

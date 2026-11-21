@@ -5,8 +5,10 @@ export type HealthState =
   | 'attention'
   | 'no_scorer'
   | 'idle_stalled'
+  | 'lost'
   | 'late'
   | 'stuck'
+  | 'no_news'
   | 'stale'
   | 'unknown'
   | 'synced'
@@ -21,6 +23,10 @@ export interface Thresholds {
   lateStartSec: number;
   /** Grace on top of the planned bout length before an overrun reads late. */
   overrunGraceSec: number;
+  /** No check-in for this long: the tablet's last numbers are no news (ruling 951). */
+  noNewsSec: number;
+  /** No check-in for this long: the tablet is lost, a danger. */
+  lostSec: number;
 }
 
 /**
@@ -33,6 +39,9 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   idleStalledSec: 300,
   lateStartSec: 600,
   overrunGraceSec: 300,
+  // A tablet checks in every 20 s while it has a network: three missed in a row.
+  noNewsSec: 60,
+  lostSec: 300,
 };
 
 /**
@@ -61,6 +70,12 @@ export interface HealthInputs {
   row: BoardRow;
   /** From the shared seconds clock, so a simulated event reads correctly. */
   nowMs: number;
+  /**
+   * The server's REAL clock (`ClockState.serverNowMs`). A check-in is stamped
+   * with it, so its age is measured against it: against a simulated clock frozen
+   * months ahead, a check-in ten seconds old would read months old.
+   */
+  serverNowMs: number;
   thresholds?: Thresholds;
 }
 
@@ -75,10 +90,16 @@ export interface HealthInputs {
  * would describe the symptom instead of the cause. It nonetheless sorts LAST
  * (see SEVERITY) — a setup gap is not a live failure. Derivation order and
  * severity order are different questions and are answered separately.
+ *
+ * Silence (ruling 951) applies to a piste with a bout on: a tablet that lost
+ * the network with nothing queued kept its last report, "0 waiting", and read
+ * green for ever. `lost` outranks the timing states; `no_news` sits below a
+ * stuck queue, whose last numbers are still true.
  */
 export function deriveHealthState({
   row,
   nowMs,
+  serverNowMs,
   thresholds = DEFAULT_THRESHOLDS,
 }: HealthInputs): HealthState {
   if (row.attention) return 'attention';
@@ -94,13 +115,25 @@ export function deriveHealthState({
     return 'idle';
   }
 
+  const silent = silentForSec(row, serverNowMs);
+  if (silent !== null && silent > thresholds.lostSec) return 'lost';
   if (isLate(row, nowMs, thresholds)) return 'late';
   if (row.health === null) return 'unknown';
 
   const h = row.health;
   if (h.rejectedCount > 0 || h.oldestPendingAgeSec > thresholds.stuckAgeSec) return 'stuck';
+  if (silent !== null && silent > thresholds.noNewsSec) return 'no_news';
   if (h.outboxDepth > 0 && h.oldestPendingAgeSec > thresholds.staleAgeSec) return 'stale';
   return 'synced';
+}
+
+/**
+ * Seconds since the piste's tablet last checked in, by the server's real clock;
+ * null when it never did (its health is then unknown, said elsewhere).
+ */
+export function silentForSec(row: BoardRow, serverNowMs: number): number | null {
+  const seen = row.scorer?.lastSeenAt ? Date.parse(row.scorer.lastSeenAt) : NaN;
+  return Number.isNaN(seen) ? null : Math.max(0, (serverNowMs - seen) / 1000);
 }
 
 /** Overdue to start, or running well past its own planned length. */
@@ -125,7 +158,9 @@ export const DOT: Record<HealthState, string> = {
   attention: 'bg-danger',
   stuck: 'bg-danger',
   idle_stalled: 'bg-danger',
+  lost: 'bg-danger',
   late: 'bg-warning',
+  no_news: 'bg-warning',
   stale: 'bg-warning',
   synced: 'bg-success',
   idle: 'bg-muted',
@@ -139,12 +174,14 @@ const SEVERITY: Record<HealthState, number> = {
   attention: 0,
   stuck: 1,
   idle_stalled: 2,
-  late: 3,
-  stale: 4,
-  unknown: 5,
-  synced: 6,
-  idle: 7,
-  no_scorer: 8,
+  lost: 3,
+  late: 4,
+  no_news: 5,
+  stale: 6,
+  unknown: 7,
+  synced: 8,
+  idle: 9,
+  no_scorer: 10,
 };
 
 /** A piste nobody needs to look at. One owner — the row dim rule reads it too. */

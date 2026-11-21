@@ -10,10 +10,11 @@ import {
   sortBoardRows,
   type HealthState,
 } from './live-board-state';
-import { NOW, agoIso, mkMatch, mkRow } from './live-board.fixtures';
+import { NOW, agoIso, mkMatch, mkRow, mkScorer } from './live-board.fixtures';
 import type { BoardRow } from './types';
 
-const stateAt = (row: BoardRow, nowMs = NOW): HealthState => deriveHealthState({ row, nowMs });
+const stateAt = (row: BoardRow, nowMs = NOW): HealthState =>
+  deriveHealthState({ row, nowMs, serverNowMs: NOW });
 const stateOf = (row: BoardRow) => stateAt(row);
 
 describe('deriveHealthState', () => {
@@ -132,6 +133,7 @@ describe('deriveHealthState', () => {
       deriveHealthState({
         row,
         nowMs: NOW,
+        serverNowMs: NOW,
         thresholds: { ...DEFAULT_THRESHOLDS, overrunGraceSec: 0 },
       }),
     ).toBe('late');
@@ -146,9 +148,58 @@ describe('deriveHealthState', () => {
       deriveHealthState({
         row,
         nowMs: NOW,
+        serverNowMs: NOW,
         thresholds: { ...DEFAULT_THRESHOLDS, overrunGraceSec: 0 },
       }),
     ).toBe('synced');
+  });
+
+  // ── silence lens (ruling 951) ────────────────────────────────────────────────
+  // A tablet that loses the network with nothing queued sends no more check-ins,
+  // and its last one said "0 waiting": the row read green "Synced" for ever.
+
+  const seen = (seconds: number) => mkScorer({ lastSeenAt: agoIso(seconds) });
+
+  it('is synced while the tablet checks in', () => {
+    expect(stateAt(mkRow({ scorer: seen(20) }))).toBe('synced');
+  });
+
+  it('reads "no news" once the tablet has missed a minute of check-ins', () => {
+    expect(stateAt(mkRow({ scorer: seen(60) }))).toBe('synced');
+    expect(stateAt(mkRow({ scorer: seen(61) }))).toBe('no_news');
+  });
+
+  it('turns red past five minutes with no check-in, ahead of a late bout', () => {
+    expect(stateAt(mkRow({ scorer: seen(300) }))).toBe('no_news');
+    const late = mkMatch({ status: 'scheduled', startedAt: null, scheduledAt: agoIso(900) });
+    expect(stateAt(mkRow({ scorer: seen(301), currentMatch: late }))).toBe('lost');
+  });
+
+  it('lets a stuck queue outrank "no news": its last numbers are still true', () => {
+    const health = { outboxDepth: 1, oldestPendingAgeSec: 5, rejectedCount: 1, clockSkewMs: null };
+    expect(stateAt(mkRow({ scorer: seen(120), health }))).toBe('stuck');
+  });
+
+  it('ages a check-in by the server’s real clock, never the simulated one', () => {
+    // The demo Event's clock is frozen months ahead: measured against it, a
+    // check-in from ten seconds ago would be months old, or never age at all.
+    // The bout's own times are on the simulated clock, as the server's rows of a simulated Event.
+    const months = 90 * 24 * 3600 * 1000;
+    const at = (simulated: number, seenAgo: number) =>
+      mkRow({
+        scorer: seen(seenAgo),
+        currentMatch: mkMatch({ startedAt: agoIso(60, simulated) }),
+      });
+    expect(
+      deriveHealthState({ row: at(NOW + months, 10), nowMs: NOW + months, serverNowMs: NOW }),
+    ).toBe('synced');
+    expect(
+      deriveHealthState({ row: at(NOW - months, 120), nowMs: NOW - months, serverNowMs: NOW }),
+    ).toBe('no_news');
+  });
+
+  it('says nothing of silence on a free piste: no bout waits on its tablet now', () => {
+    expect(stateAt(mkRow({ scorer: seen(900), currentMatch: null }))).toBe('idle');
   });
 });
 
@@ -160,8 +211,10 @@ describe('DOT', () => {
       'attention',
       'no_scorer',
       'idle_stalled',
+      'lost',
       'late',
       'stuck',
+      'no_news',
       'stale',
       'unknown',
       'synced',

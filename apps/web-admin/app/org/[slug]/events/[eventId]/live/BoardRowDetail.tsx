@@ -21,6 +21,7 @@ type T = ReturnType<typeof useI18n>['t'];
 interface DetailProps {
   row: BoardRow;
   nowMs: number;
+  serverNowMs: number;
   eventSlug: string | null;
   accounts: LiveBoardAccount[];
   onAssignScorer: (liceId: string, staffAccountId: string | null) => Promise<string[]>;
@@ -33,6 +34,7 @@ interface DetailProps {
 export function BoardRowDetail({
   row,
   nowMs,
+  serverNowMs,
   eventSlug,
   accounts,
   onAssignScorer,
@@ -48,7 +50,7 @@ export function BoardRowDetail({
       <RefereeSection row={row} t={t} />
       <section className="flex flex-col gap-2">
         <h3 className="text-xs uppercase text-muted">{t('organizer.live.detail.scorer')}</h3>
-        <BoardRowScorer row={row} nowMs={nowMs} t={t} />
+        <BoardRowScorer row={row} serverNowMs={serverNowMs} t={t} />
         <fieldset disabled={readOnly} className="contents">
           <BoardScorerPicker
             liceId={row.lice.id}

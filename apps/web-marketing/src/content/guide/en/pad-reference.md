@@ -186,9 +186,11 @@ without asking.
 - The public bout page, the live boards and the hall screens show only what reached the server.
   Entries still on a tablet appear as soon as they are sent.
 - The organiser's live control room shows each tablet's queue and how many of its entries the
-  server refused (they wait in **Review**), and **Sync lagging** when an entry
-  waits over a minute, **Sync stuck** over five minutes. A tablet that loses the network with
-  nothing queued still shows **Synced**: look at its **Last seen** line.
+  server refused (they wait in **Review**), and **Sync lagging** when an entry waits over a
+  minute, **Sync stuck** over five minutes.
+- A tablet checks in every 20 seconds while it has the network. With a bout on its piste and no
+  check-in for a minute, its row turns amber and reads "No news for 2 mins"; after five minutes it
+  turns red. Its **Last seen** line says when it last checked in.
 - Nothing stops two tablets from scoring the same piste. Keep one tablet per piste: a clock press
   that meets the other tablet's press goes to **Review**.
 

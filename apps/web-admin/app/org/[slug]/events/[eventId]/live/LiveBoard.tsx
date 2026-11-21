@@ -81,9 +81,9 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   // Subscribed once, at the root. The elapsed readouts tick at 1 Hz, so a
   // per-row subscription would re-render every row's subtree on every tick for
   // a value the row is handed anyway.
-  const { nowMs } = useSecondsClock(getPublicApiUrl());
+  const { nowMs, serverNowMs } = useSecondsClock(getPublicApiUrl());
 
-  const stateOf = useBoardStates(rows, nowMs);
+  const stateOf = useBoardStates(rows, nowMs, serverNowMs);
   const isExpanded = (row: BoardRow): boolean =>
     expanded?.liceId === row.lice.id && expanded.matchId === (row.currentMatch?.id ?? null);
   const toggle = (row: BoardRow) =>
@@ -137,6 +137,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                   row={row}
                   state={stateOf(row)}
                   nowMs={nowMs}
+                  serverNowMs={serverNowMs}
                   expanded={isExpanded(row)}
                   onToggle={() => toggle(row)}
                   eventSlug={eventSlug}
@@ -163,6 +164,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
               row={row}
               state={stateOf(row)}
               nowMs={nowMs}
+              serverNowMs={serverNowMs}
               slug={slug}
               eventId={eventId}
               onAck={(id) => void acknowledge(id)}
@@ -191,6 +193,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                     row={row}
                     state={stateOf(row)}
                     nowMs={nowMs}
+                    serverNowMs={serverNowMs}
                     slug={slug}
                     eventId={eventId}
                     onAck={(id) => void acknowledge(id)}

@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
+import { healthCellText } from '@/lib/live-board/health-cell';
 import { BoardRowDetail } from './BoardRowDetail';
 import { statusLabel } from '@myclash/ui';
 import type { BoardRow, LiveBoardAccount } from '@/lib/live-board/types';
@@ -18,6 +19,7 @@ export function BoardRowView({
   row,
   state,
   nowMs,
+  serverNowMs,
   expanded,
   onToggle,
   eventSlug,
@@ -33,6 +35,8 @@ export function BoardRowView({
   /** Derived once per tick by the board, so every surface agrees on the instant. */
   state: HealthState;
   nowMs: number;
+  /** The server's real clock: a check-in's age (ruling 951). */
+  serverNowMs: number;
   expanded: boolean;
   onToggle: () => void;
   eventSlug: string | null;
@@ -115,16 +119,7 @@ export function BoardRowView({
           )}
         </span>
         <span className="w-24 shrink-0 text-muted">
-          {row.health === null
-            ? t('organizer.live.unknown')
-            : row.health.rejectedCount > 0
-              ? t('organizer.live.state.queuedRefused', {
-                  queued: row.health.outboxDepth,
-                  refused: row.health.rejectedCount,
-                })
-              : row.health.outboxDepth > 0
-                ? t('organizer.live.state.queued', { queued: row.health.outboxDepth })
-                : t('organizer.live.state.synced')}
+          {healthCellText(row, state, serverNowMs, locale, t)}
         </span>
         <span className="w-32 shrink-0">
           {row.attention && row.scorer ? (
@@ -159,6 +154,7 @@ export function BoardRowView({
           <BoardRowDetail
             row={row}
             nowMs={nowMs}
+            serverNowMs={serverNowMs}
             eventSlug={eventSlug}
             accounts={accounts}
             onAssignScorer={onAssignScorer}
