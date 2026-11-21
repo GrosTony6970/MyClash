@@ -125,6 +125,8 @@ export const scoring = {
       "Exercice hors ligne - {seconds}s restantes. Les saisies sont en file, rien n'est perdu.",
     end: "Terminer l'exercice",
   },
+  otherTablet:
+    'Une autre tablette marque cette lice. Gardez une tablette par lice : un appui sur le chrono peut passer dans Examiner.',
   call: {
     button: 'Appeler',
     buttonLabel: 'Appeler la salle de contrôle',

@@ -111,6 +111,11 @@ export interface BoardRow {
   nextUp: { matchId: string; label: string } | null;
   queue: BoardQueueEntry[];
   lastCompleted: { matchId: string; label: string; endedAt: string | null } | null;
+  /**
+   * Scoring tablets heard from on this piste in the last minute (ruling 953).
+   * Two or more: two tablets score it, and the board says so.
+   */
+  tablets: number;
 }
 
 /** Event-wide bout progress for the summary strip. */

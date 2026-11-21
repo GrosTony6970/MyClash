@@ -63,7 +63,7 @@ describe('StaffService.recordHeartbeat', () => {
 
     await expect(
       svc.recordHeartbeat(req, { outboxDepth: 3, oldestPendingAgeSec: 42, rejectedCount: 1 }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ ok: true, otherTablets: 0 });
 
     expect(updates()[0]).toMatchObject({
       outbox_depth: 3,
@@ -168,7 +168,7 @@ describe('StaffService.recordHeartbeat — durable device report', () => {
 
     await expect(
       svc.recordHeartbeat(req, { outboxDepth: 1, oldestPendingAgeSec: 2, rejectedCount: 0 }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ ok: true, otherTablets: 0 });
 
     expect(rpcCalls).toHaveLength(0);
   });
@@ -187,6 +187,6 @@ describe('StaffService.recordHeartbeat — durable device report', () => {
         reasonCodes: ['other'],
         oldestQuarantinedAt: null,
       }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ ok: true, otherTablets: 0 });
   });
 });

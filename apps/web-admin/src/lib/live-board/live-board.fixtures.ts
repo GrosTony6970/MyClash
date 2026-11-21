@@ -69,6 +69,7 @@ export function mkRow(over: Partial<BoardRow> = {}): BoardRow {
     nextUp: null,
     queue: [],
     lastCompleted: null,
+    tablets: 1,
     ...over,
   };
 }

@@ -106,6 +106,17 @@ describe('StaffService.getLiveBoard', () => {
     expect(out.accounts.map((a) => a.accountId)).toEqual([ACCOUNT]);
   });
 
+  // Ruling 953: two tablets scoring one piste warn the organiser.
+  it('counts the tablets heard from on each piste in the last minute', async () => {
+    const { svc, supabase } = build(boardTables());
+
+    const out = await svc.getLiveBoard(req, EVENT);
+
+    expect(out.rows[0]!.tablets).toBe(2);
+    // The double ignores the projection: pin it.
+    expect(selectsFor(supabase.from, 'scoring_device_sync_reports')).toEqual(['lice_id']);
+  });
+
   it('resolves the event it was asked for before checking the role', async () => {
     // The decoy event is seeded first and belongs to another organisation. Read
     // the wrong row and the board asks for a role on the wrong organisation —

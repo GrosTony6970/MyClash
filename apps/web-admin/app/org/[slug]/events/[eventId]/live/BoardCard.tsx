@@ -5,6 +5,7 @@ import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { healthCellText } from '@/lib/live-board/health-cell';
+import { TabletsWarning } from './TabletsWarning';
 import { statusLabel } from '@myclash/ui';
 import type { BoardRow } from '@/lib/live-board/types';
 
@@ -58,6 +59,7 @@ export function BoardCard({
         >
           {row.lice.name}
         </Link>
+        <TabletsWarning row={row} compact={false} t={t} />
         {row.nextUp && (
           <Link
             href={`/org/${slug}/events/${eventId}/matches/${row.nextUp.matchId}`}

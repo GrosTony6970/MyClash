@@ -1147,6 +1147,8 @@ export const organizer = {
     nextLabel: 'Next',
     ack: 'Ack',
     reason: { medic: 'Medic', head_ref: 'Head ref', dispute: 'Dispute' },
+    // Two tablets score one piste (ruling 953).
+    tablets: '{count} tablets on this piste',
     counts: '{running} running · {idle} idle',
     behind: '{count} behind',
     progress: '{done}/{total} bouts',

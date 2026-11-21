@@ -7,6 +7,7 @@ import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { healthCellText } from '@/lib/live-board/health-cell';
 import { BoardRowDetail } from './BoardRowDetail';
+import { TabletsWarning } from './TabletsWarning';
 import { statusLabel } from '@myclash/ui';
 import type { BoardRow, LiveBoardAccount } from '@/lib/live-board/types';
 
@@ -75,13 +76,16 @@ export function BoardRowView({
           className={`relative z-10 h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
           aria-label={t(`organizer.live.state.${state}`)}
         />
-        <Link
-          href={`/org/${slug}/events/${eventId}/schedule`}
-          className="relative z-10 w-32 shrink-0 truncate font-semibold text-foreground hover:underline"
-          title={row.lice.name}
-        >
-          {row.lice.name}
-        </Link>
+        <span className="flex w-32 shrink-0 items-center gap-1">
+          <Link
+            href={`/org/${slug}/events/${eventId}/schedule`}
+            className="relative z-10 min-w-0 truncate font-semibold text-foreground hover:underline"
+            title={row.lice.name}
+          >
+            {row.lice.name}
+          </Link>
+          <TabletsWarning row={row} compact t={t} />
+        </span>
         {cm ? (
           <Link
             href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}

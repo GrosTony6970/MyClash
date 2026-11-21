@@ -105,6 +105,13 @@ export interface BoardAccountInput {
   needs_attention_reason: 'medic' | 'head_ref' | 'dispute' | null;
 }
 
+/**
+ * A device is ON a piste while it checks in from it: three missed 20-second
+ * check-ins and it no longer counts (ruling 953). Measured on the server's real
+ * clock, the one that stamps each report.
+ */
+export const TABLET_PRESENCE_MS = 60_000;
+
 export interface AssembleInput {
   lices: RawBoardLice[];
   matches: RawBoardMatch[];
@@ -116,6 +123,19 @@ export interface AssembleInput {
   refereesByMatchId: Map<string, ResolvedReferee[]>;
   /** Every bout's planned length, as `resolveMatchLengths` returns it for `matches`. */
   plannedMinutesByMatchId: ReadonlyMap<string, number>;
+  /** Tablets heard from lately, by piste (`countTabletsByLice`). */
+  tabletsByLiceId: ReadonlyMap<string, number>;
+}
+
+/** The devices of recent reports, counted by the piste each has open. */
+export function countTabletsByLice(
+  reports: ReadonlyArray<{ lice_id: string | null }>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const { lice_id } of reports) {
+    if (lice_id) counts.set(lice_id, (counts.get(lice_id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** What `resolveMatchLengths` needs of a board bout. */
@@ -320,6 +340,7 @@ function assembleRow(
     nextUp: queue[0] ? { matchId: queue[0].matchId, label: queue[0].label } : null,
     queue,
     lastCompleted: pickLastCompleted(input.recentCompleted.filter((m) => m.lice_id === lice.id)),
+    tablets: input.tabletsByLiceId.get(lice.id) ?? 0,
   };
 }
 

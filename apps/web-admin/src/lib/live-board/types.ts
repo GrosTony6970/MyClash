@@ -102,6 +102,8 @@ export interface BoardRow {
   nextUp: { matchId: string; label: string } | null;
   queue: BoardQueueEntry[];
   lastCompleted: { matchId: string; label: string; endedAt: string | null } | null;
+  /** Scoring tablets heard from on this piste in the last minute (ruling 953). */
+  tablets: number;
 }
 
 export interface LiveBoardProgress {

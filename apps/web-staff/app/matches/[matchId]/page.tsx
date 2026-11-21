@@ -6,6 +6,8 @@ import { BoutNotLoadedView, MatchView, NoMatchView } from '../../../src/componen
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { RememberedUndos } from '../../../src/components/RememberedUndos';
 import { SyncBar } from '../../../src/components/SyncBar';
+import { OtherTabletBanner } from '../../../src/components/OtherTabletBanner';
+import { useOpenPiste } from '../../../src/offline/open-piste';
 import { useKeepPiste } from '../../../src/hooks/useKeepPiste';
 import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessionEnded';
 import {
@@ -107,6 +109,8 @@ export default function MatchScoringPage() {
   useSignInWhenSessionEnded();
   // The bouts after this one, for a "Next match" with no network (ruling 4).
   useKeepPiste(apiUrl, match?.liceId);
+  // Its check-in says which piste it scores: two tablets on one are told (ruling 953).
+  useOpenPiste(match?.liceId);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -238,6 +242,7 @@ export default function MatchScoringPage() {
         syncEngine={syncEngine}
         onReview={() => setQuarantineOpen(true)}
       />
+      <OtherTabletBanner />
       {/* An undo the tablet wrote down is settled with the server (rulings 350, 354). */}
       {matchId && (
         <RememberedUndos

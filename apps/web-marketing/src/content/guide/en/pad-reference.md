@@ -197,8 +197,10 @@ without asking.
 - A tablet checks in every 20 seconds while it has the network. With a bout on its piste and no
   check-in for a minute, its row turns amber and reads "No news for 2 mins"; after five minutes it
   turns red. Its **Last seen** line says when it last checked in.
-- Nothing stops two tablets from scoring the same piste. Keep one tablet per piste: a clock press
-  that meets the other tablet's press goes to **Review**.
+- Keep one tablet per piste: a clock press that meets the other tablet's press goes to **Review**.
+  Nothing stops a second tablet, but both are warned: each pad reads "Another tablet is scoring
+  this piste.", and the piste's row on the live control room shows "⚠ 2". A tablet counts while it
+  has checked in from the piste in the last minute.
 
 ## Locks and who may undo
 

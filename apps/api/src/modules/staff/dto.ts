@@ -164,6 +164,11 @@ const staffHeartbeatSchema = z
       .max(8)
       .optional(),
     oldestQuarantinedAt: z.iso.datetime().nullable().optional(),
+    // The piste the pad has open (ruling 953): two devices on one piste are two
+    // tablets scoring it. Null on the piste list or a desk. The pad reads it from
+    // its address: one that is not a piste's id reads as none, and never fails
+    // the check-in the Live board depends on.
+    liceId: z.uuid().nullable().optional().catch(null),
   })
   .strict();
 export class StaffHeartbeatDto extends createZodDto(staffHeartbeatSchema) {}

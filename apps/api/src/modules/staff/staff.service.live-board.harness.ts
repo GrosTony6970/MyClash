@@ -112,6 +112,9 @@ export const account = (id: string, eventId: string, name: string) => ({
 });
 
 /** The board's tables, each holding a decoy on the axis its query filters by. */
+/** A device report's time, on the real clock the board's read measures against. */
+const secondsAgo = (s: number) => new Date(Date.now() - s * 1000).toISOString();
+
 export function boardTables(over: Record<string, unknown> = {}) {
   return {
     events: { rows: [eventRow(OTHER_EVENT), eventRow(EVENT)] },
@@ -139,6 +142,20 @@ export function boardTables(over: Record<string, unknown> = {}) {
       ],
     },
     referee_assignments: { rows: [] },
+    // Two tablets on Piste 1 now; decoys: one gone quiet, one at the other Event.
+    scoring_device_sync_reports: {
+      rows: [
+        { event_id: EVENT, device_id: 'dev-a', lice_id: LICE, last_reported_at: secondsAgo(5) },
+        { event_id: EVENT, device_id: 'dev-b', lice_id: LICE, last_reported_at: secondsAgo(30) },
+        { event_id: EVENT, device_id: 'dev-c', lice_id: LICE, last_reported_at: secondsAgo(120) },
+        {
+          event_id: OTHER_EVENT,
+          device_id: 'dev-d',
+          lice_id: LICE,
+          last_reported_at: secondsAgo(5),
+        },
+      ],
+    },
     ...over,
   };
 }

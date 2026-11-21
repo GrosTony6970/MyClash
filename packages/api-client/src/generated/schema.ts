@@ -12094,6 +12094,11 @@ export interface components {
       reasonCodes?: ('match_closed' | 'validation' | 'sequence' | 'other')[];
       /** Format: date-time */
       oldestQuarantinedAt?: string | null;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      liceId: string | null;
     };
     StaffCallDto: {
       /** @enum {string} */

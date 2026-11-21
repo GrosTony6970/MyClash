@@ -1146,6 +1146,7 @@ export const organizer = {
       head_ref: 'Arbitre principal',
       dispute: 'Litige',
     },
+    tablets: '{count} tablettes sur cette lice',
     counts: '{running} en cours · {idle} inactives',
     behind: '{count} en retard',
     progress: '{done}/{total} assauts',

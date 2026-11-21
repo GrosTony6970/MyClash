@@ -59,7 +59,9 @@ import {
   assembleBoardRows,
   boardLengthInput,
   buildBoardAccounts,
+  countTabletsByLice,
   resolveBoardReferees,
+  TABLET_PRESENCE_MS,
   type AssembleInput,
   type BoardAccountInput,
   type RawBoardLice,
@@ -621,8 +623,14 @@ export class StaffService {
    * Stamps the scoring tablet's sync-health metrics + last_seen_at onto the
    * caller's own staff account. Consumed by the organizer Live board
    * (getLiveBoard) to surface offline/backlogged scorers.
+   *
+   * Answers how many OTHER tablets checked in from the piste this pad has open
+   * in the last minute (ruling 953): the pad warns its referee.
    */
-  async recordHeartbeat(req: FastifyRequest, dto: StaffHeartbeatDto): Promise<{ ok: true }> {
+  async recordHeartbeat(
+    req: FastifyRequest,
+    dto: StaffHeartbeatDto,
+  ): Promise<{ ok: true; otherTablets: number }> {
     const staff = await this.requireStaffFromRequest(req);
     const receivedAt = new Date();
     // Signed, tablet-minus-server: positive = the tablet is running ahead.
@@ -645,7 +653,28 @@ export class StaffService {
       .eq('id', staff.id);
     if (error) throw new BadRequestException(error.message);
     await this.recordDeviceSyncReport(String(staff.event_id), dto);
-    return { ok: true };
+    return { ok: true, otherTablets: await this.countOtherTablets(String(staff.event_id), dto) };
+  }
+
+  /**
+   * The other devices of the Event heard from on this pad's piste within
+   * `TABLET_PRESENCE_MS`, by the server's real clock. Best-effort, as the
+   * report: a failed count is none, logged, and never fails the check-in.
+   */
+  private async countOtherTablets(eventId: string, dto: StaffHeartbeatDto): Promise<number> {
+    if (!dto.deviceId || !dto.liceId) return 0;
+    const { count, error } = await this.supabase.service
+      .from('scoring_device_sync_reports')
+      .select('device_id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('lice_id', dto.liceId)
+      .neq('device_id', dto.deviceId)
+      .gte('last_reported_at', new Date(Date.now() - TABLET_PRESENCE_MS).toISOString());
+    if (error) {
+      this.logger.warn(`other tablets count failed for event ${eventId}: ${error.message}`);
+      return 0;
+    }
+    return count ?? 0;
   }
 
   /**
@@ -688,6 +717,7 @@ export class StaffService {
       p_quarantined_count: dto.quarantinedCount ?? 0,
       p_reason_codes: dto.reasonCodes ?? [],
       p_oldest_quarantined_at: dto.oldestQuarantinedAt ?? null,
+      p_lice_id: dto.liceId ?? null,
     });
     if (error) {
       this.logger.warn(`device sync report failed for event ${eventId}: ${error.message}`);
@@ -736,6 +766,7 @@ export class StaffService {
       assignments: input.assignments,
       refereesByMatchId: input.refereesByMatchId,
       plannedMinutesByMatchId: input.plannedMinutesByMatchId,
+      tabletsByLiceId: input.tabletsByLiceId,
     });
 
     return {
@@ -761,7 +792,7 @@ export class StaffService {
   ): Promise<Omit<AssembleInput, 'lices'> & { progress: LiveBoardProgress }> {
     const db = this.supabase.service;
 
-    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, progress] =
+    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, progress, tabletsRes] =
       await Promise.all([
         this.queryBoardMatches(liceIds),
         this.queryCompletedTail(liceIds),
@@ -769,11 +800,13 @@ export class StaffService {
         this.listAssignmentsForEvent(eventId),
         fetchRefereeAssignmentIndex(db, eventId),
         this.countBoutProgress(eventId),
+        this.queryRecentTablets(eventId),
       ]);
 
     if (matchesRes?.error) throw new BadRequestException(matchesRes.error.message);
     if (completedRes?.error) throw new BadRequestException(completedRes.error.message);
     if (accountsRes.error) throw new BadRequestException(accountsRes.error.message);
+    if (tabletsRes.error) throw new BadRequestException(tabletsRes.error.message);
 
     const matches = (matchesRes?.data ?? []) as unknown as RawBoardMatch[];
 
@@ -792,8 +825,18 @@ export class StaffService {
         eventId,
         matches.map(boardLengthInput),
       ),
+      tabletsByLiceId: countTabletsByLice(tabletsRes.data ?? []),
       progress,
     };
+  }
+
+  /** The devices of the Event heard from within `TABLET_PRESENCE_MS`, with their piste. */
+  private queryRecentTablets(eventId: string) {
+    return this.supabase.service
+      .from('scoring_device_sync_reports')
+      .select('lice_id')
+      .eq('event_id', eventId)
+      .gte('last_reported_at', new Date(Date.now() - TABLET_PRESENCE_MS).toISOString());
   }
 
   /** Every staff account on the event, with its tablet health metrics. */

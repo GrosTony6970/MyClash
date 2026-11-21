@@ -14,6 +14,8 @@ import { partitionLiceMatches } from '../../../src/components/partition-lice-mat
 import type { LiceMatch } from '../../../src/components/lice-match-types';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { SyncBar } from '../../../src/components/SyncBar';
+import { OtherTabletBanner } from '../../../src/components/OtherTabletBanner';
+import { useOpenPiste } from '../../../src/offline/open-piste';
 import { AllMatchesDisclosure } from './_components/AllMatchesDisclosure';
 import { GroupedMatchList } from './_components/GroupedMatchList';
 import { LiceHeader } from './_components/LiceHeader';
@@ -111,6 +113,8 @@ export default function LiceMatchListPage() {
   // From the address, not from `params`: with no network one kept page
   // serves every piste (`idFromPath`).
   const liceId = idFromPath(usePathname(), 'lices');
+  // Its check-in says which piste it scores: two tablets on one are told (ruling 953).
+  useOpenPiste(liceId);
 
   const apiUrl = getApiUrl();
   const { data, readFromTabletAt, loading, sessionExpired, unreachable, refresh } = useLiceMatches(
@@ -176,6 +180,7 @@ export default function LiceMatchListPage() {
           syncEngine={syncEngine}
           onReview={() => setInboxOpen(true)}
         />
+        <OtherTabletBanner />
         <LiceHeader liceName={data?.liceName ?? null} />
       </div>
 

@@ -118,6 +118,9 @@ export const scoring = {
     banner: 'Offline drill — {seconds}s left. Entries are queued, not lost.',
     end: 'End drill',
   },
+  // Two tablets on one piste (ruling 953).
+  otherTablet:
+    'Another tablet is scoring this piste. Keep one tablet per piste: a clock press may go to Review.',
   // The referee's call to the control room (ruling 952).
   call: {
     button: 'Call',

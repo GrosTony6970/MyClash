@@ -85,5 +85,6 @@ export function base(): AssembleInput {
     assignments: [],
     refereesByMatchId: new Map<string, ResolvedReferee[]>(),
     plannedMinutesByMatchId: new EveryBoutLasts(5),
+    tabletsByLiceId: new Map<string, number>(),
   };
 }

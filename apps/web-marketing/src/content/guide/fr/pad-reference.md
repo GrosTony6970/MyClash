@@ -211,8 +211,11 @@ s'installe seule à la prochaine page ouverte avec le réseau, sans rien demande
   sur sa lice et aucune nouvelle depuis une minute, sa ligne passe à l'orange et dit « Pas de
   nouvelles depuis 2 min » ; après cinq minutes elle passe au rouge. Sa ligne « Vu il y a… » dit
   quand elle a donné des nouvelles pour la dernière fois.
-- Rien n'empêche deux tablettes de marquer la même lice. Gardez une tablette par lice : un appui
-  sur le chrono qui croise celui de l'autre tablette passe dans **Examiner**.
+- Gardez une tablette par lice : un appui sur le chrono qui croise celui de l'autre tablette passe
+  dans **Examiner**. Rien n'empêche une seconde tablette, mais les deux sont prévenues : chaque
+  tablette affiche « Une autre tablette marque cette lice. », et la ligne de la lice dans la salle
+  de contrôle affiche « ⚠ 2 ». Une tablette compte tant qu'elle a donné des nouvelles depuis la
+  lice dans la dernière minute.
 
 ## Verrous et qui peut revenir en arrière
 
