@@ -37,13 +37,11 @@ function runWake(
     env = { OPS_AGENT_WAKE_URL: URL, OPS_AGENT_WAKE_TOKEN: TOKEN },
     code = '200',
     exitCode = 0,
+    realCurl = false,
   } = {},
 ) {
   const dir = posix(mkdtempSync(join(tmpdir(), 'ops-wake-')));
-  const script = [
-    'set -Eeuo pipefail',
-    `source "${LOG}"`,
-    `source "${LIB}"`,
+  const stub = [
     'curl() {',
     `  printf '%s\\n' "$@" > "${dir}/args"`,
     `  cat > "${dir}/stdin"`,
@@ -51,6 +49,12 @@ function runWake(
     `  if [[ ${exitCode} -ne 0 ]]; then return ${exitCode}; fi`,
     `  printf '%s' '${code}'`,
     '}',
+  ];
+  const script = [
+    'set -Eeuo pipefail',
+    `source "${LOG}"`,
+    `source "${LIB}"`,
+    ...(realCurl ? [] : stub),
     `mc_wake_ops_agent_after_deploy ${args}`,
     'echo next-ok',
   ].join('\n');
@@ -87,6 +91,7 @@ test('a configured deploy calls once, the token and URL on stdin only', { skip }
     '-',
     '--proto',
     '=https',
+    '--globoff',
     '--silent',
     '--max-time',
     '15',
@@ -141,6 +146,19 @@ test('a call that fails warns with curl exit code and the deploy goes on', { ski
     r.said,
     /agent: the deploy wake-up failed \(curl exit 7\); no deploy check this time/u,
   );
+});
+
+// Slice 6 review M5: the stub takes any input; the real curl must parse the config and keep the
+// URL whole. A port that refuses on the loopback answers exit 7 ("could not connect"), never a
+// parse error (2, 26) or a bad URL glob (3): `[` unclosed is a glob error without --globoff.
+const noCurl = spawnSync('curl', ['--version']).status !== 0 ? 'needs curl' : false;
+test('the real curl reads the config and the URL as written', { skip: skip || noCurl }, () => {
+  const r = runWake(`deploy ${COMMIT}`, {
+    env: { OPS_AGENT_WAKE_URL: 'https://127.0.0.1:9/fire[x', OPS_AGENT_WAKE_TOKEN: TOKEN },
+    realCurl: true,
+  });
+  assertNeverFails(r);
+  assert.match(r.said, /agent: the deploy wake-up failed \(curl exit 7\)/u);
 });
 
 test('keys unset or empty: not configured, no call', { skip }, () => {

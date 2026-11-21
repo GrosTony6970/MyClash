@@ -184,6 +184,8 @@ const RUN_FILES = new Set([
   'events-live.json',
   'round.txt',
   'act.txt',
+  // A deploy run's payload, written after its round for `deploy-check.mjs` (slice 6).
+  'payload.txt',
 ]);
 const RUN_FILE_PATTERN = /^(log-[a-z][a-z-]*|act-[a-z0-9-]+)\.json$/u;
 

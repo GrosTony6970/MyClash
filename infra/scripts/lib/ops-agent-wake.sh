@@ -11,8 +11,11 @@
 # key: a retry is a second run), the certificate always checked (ruling 905).
 #
 # The token and the URL go to curl on stdin, never as arguments: every user of the host reads a
-# process's arguments (ruling 425). `printf` is a builtin, so it starts no process. `-q` must come
-# first: curl then skips ~/.curlrc, which could turn the certificate check off.
+# process's arguments (ruling 425). `printf` is a builtin: the pipe's forked subshell runs it with
+# the parent bash's own argv, so no new argv carries them. `-q` must come first: curl then skips
+# ~/.curlrc, which could turn the certificate check off. `--globoff`: a `[1-2]` or `{a,b}` in the
+# URL would otherwise be several POSTs, so several runs. `bash -x` would still print the token in
+# the printf trace, as it prints the whole of .env when deploy.sh sources it.
 #
 # It never fails its caller, under `set -Eeuo pipefail` too: deploy.sh prints the box of newly
 # generated credentials after this call, and nowhere else.
@@ -56,7 +59,7 @@ mc_wake_ops_agent_after_deploy() {
       'header = "anthropic-version: 2023-06-01"' \
       'header = "anthropic-beta: experimental-cc-routine-2026-04-01"' \
       'header = "Content-Type: application/json"' |
-      curl -q --config - --proto =https --silent --max-time 15 --output /dev/null \
+      curl -q --config - --proto =https --globoff --silent --max-time 15 --output /dev/null \
         --write-out '%{http_code}' --request POST --data-raw "{\"text\":\"$text\"}" 2>/dev/null
   ) || rc=$?
 

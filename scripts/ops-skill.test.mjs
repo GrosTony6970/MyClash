@@ -120,6 +120,8 @@ describe('the round', () => {
       'act-restart-worker.json',
       'round.txt',
       'act.txt',
+      // Slice 6: a deploy run writes its payload here after the round; a stale one must go.
+      'payload.txt',
     ];
     // A round given the wrong folder (`round .` in the clone) must not delete the repo's files.
     const theirs = ['report.txt', 'package.json', 'tsconfig.json'];
@@ -351,11 +353,11 @@ describe('the skill', () => {
     'That is a problem ("the worker stopped pinging")',
     // Slice 6: a deploy run is a daily round, then the commit check; it repairs nothing (908).
     '- `deploy`: `deploy.sh` or `redeploy.sh` started you at its end',
-    'node .claude/skills/myclash-ops/deploy-check.mjs /tmp/myclash-ops <the payload',
-    'letters, digits, commas and dashes, exactly as they came: never any other text of the payload.',
-    '| The deploy check ',
+    'node .claude/skills/myclash-ops/deploy-check.mjs /tmp/myclash-ops\n',
+    'to `/tmp/myclash-ops/payload.txt` with the Write tool (never with a shell command:',
     '- **A `deploy` run acts on nothing** (ruling 908)',
-    'A container stopped on purpose (exit code 0 or 143) stays a note.',
+    'held back, which is a note: the next daily round does it (ruling 940)',
+    'purpose (exit code 0 or 143) stays a note.',
     '.claude/skills/myclash-ops/send-report.mjs',
     // Ruling 910: the sender splits the text on the section names to dress its HTML part.
     'its name alone on a line, as written below',
@@ -367,6 +369,18 @@ describe('the skill', () => {
       assert.ok(skill.includes(text));
     });
   }
+
+  // Slice 6 review M5: the deploy check's row, whole, so a line moved between the problem and the
+  // note column goes red.
+  it("puts the deploy check's lines in the right columns", () => {
+    const row = skill.split('\n').find((line) => line.startsWith('| The deploy check '));
+    const cells = (row ?? '').split(' | ').map((cell) => cell.trim());
+    assert.equal(cells.length, 3, row);
+    assert.match(cells[1], /^`commit mismatch …`.*`commit unread`$/u);
+    assert.doesNotMatch(cells[1], /commit changed|commit ok/u);
+    assert.match(cells[2], /^`commit changed <commit>`:.*`commit ok, the deploy record names/u);
+    assert.doesNotMatch(cells[2], /mismatch|unread/u);
+  });
 
   it('names only files that exist', () => {
     for (const file of skill.match(/(?:\.claude|apps)\/[\w./-]+\.(?:mjs|ts)/g) ?? []) {
