@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import {
   asSupabase as as,
   entrant,
@@ -177,7 +177,7 @@ describe('SwissAdminViewService — the rounds', () => {
     // The labels here carry no zero on purpose. A padded label sorts the same
     // way as text and as a number, so a padded fixture cannot tell the two
     // apart — and telling them apart is the whole reason `boardNumber` exists.
-    const { service } = build({
+    const { service, supabase } = build({
       matches: {
         rows: [
           viewBout('m10', 'SW-R1-M10'),
@@ -190,11 +190,15 @@ describe('SwissAdminViewService — the rounds', () => {
 
     const view = await service.getAdminView('t1');
 
-    expect(view.rounds[0]?.matches.map((m) => m.matchNumberLabel)).toEqual([
-      'SW-R1-M1',
-      'SW-R1-M2',
-      'SW-R1-M10',
+    expect(view.rounds[0]?.matches.map((m) => m.roundCode)).toEqual([
+      'LSW-S1-M1',
+      'LSW-S1-M2',
+      'LSW-S1-M10',
     ]);
+    // The double ignores projections: only this pin sees the code's inputs go.
+    expect(selectsFor(supabase.from, 'matches').join('|')).toContain(
+      'phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+    );
   });
 
   it('carries what the organiser’s round card shows', async () => {
@@ -215,7 +219,7 @@ describe('SwissAdminViewService — the rounds', () => {
 
     expect(view.rounds[0]?.matches[0]).toEqual({
       id: 'm1',
-      matchNumberLabel: 'SW-R1-M1',
+      roundCode: 'LSW-S1-M1',
       status: 'completed',
       scheduledAt: '2026-08-18T10:00:00.000Z',
       liceName: 'Piste 1',

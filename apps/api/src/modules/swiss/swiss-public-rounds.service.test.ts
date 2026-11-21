@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import {
   asSupabase as as,
   namedEntrant,
@@ -162,7 +162,7 @@ describe('SwissPublicRoundsService — the rounds themselves', () => {
   it('shows the bouts of this phase, in board order, with both names', async () => {
     // Another phase's bout sits in the same table, and the labels carry no
     // zero so a text sort and a board sort disagree.
-    const { service } = build({
+    const { service, supabase } = build({
       matches: {
         rows: [
           viewBout('m10', 'SW-R1-M10'),
@@ -175,11 +175,15 @@ describe('SwissPublicRoundsService — the rounds themselves', () => {
 
     const rounds = await service.getRounds('t1');
 
-    expect(rounds.rounds[0]?.matches.map((m) => m.matchNumberLabel)).toEqual([
-      'SW-R1-M1',
-      'SW-R1-M2',
-      'SW-R1-M10',
+    expect(rounds.rounds[0]?.matches.map((m) => m.roundCode)).toEqual([
+      'LSW-S1-M1',
+      'LSW-S1-M2',
+      'LSW-S1-M10',
     ]);
+    // The double ignores projections: only this pin sees the code's inputs go.
+    expect(selectsFor(supabase.from, 'matches').join('|')).toContain(
+      'phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+    );
     expect(rounds.rounds[0]?.matches[0]).toMatchObject({
       redFighterName: 'Ada Lovelace',
       blueFighterName: 'Grace Hopper',

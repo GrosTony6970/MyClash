@@ -256,6 +256,8 @@ export const viewBout = (id: string, label: string, over: SupabaseRow = {}): Sup
   blue_score: null,
   winner_registration_id: null,
   lices: { name: 'Piste 1', color_hex: '#ff0000' },
+  phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+  swiss_rounds: { round_number: 1 },
   ...over,
 });
 

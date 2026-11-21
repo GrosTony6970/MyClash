@@ -24,7 +24,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 
 interface SwissMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   redRegistrationId: string | null;
@@ -169,7 +169,7 @@ export function SwissRoundsView({
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5"
               >
                 <span className="w-24 shrink-0 font-mono text-xs text-muted">
-                  {match.matchNumberLabel}
+                  {match.roundCode}
                 </span>
                 <Fighter
                   name={match.redFighterName}

@@ -62,7 +62,7 @@ export interface SwissWarning {
 
 export interface SwissAdminMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   liceName: string | null;

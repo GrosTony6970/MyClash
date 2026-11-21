@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ROUND_CODE_INPUTS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { recommendedRoundCount } from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest DI metadata.
@@ -109,7 +110,7 @@ export class SwissAdminViewService {
           .sort((a, b) => boardNumber(a.match_number_label) - boardNumber(b.match_number_label))
           .map((match) => ({
             id: match.id,
-            matchNumberLabel: match.match_number_label ?? '',
+            roundCode: roundCodeFromMatchRow(match),
             status: match.status,
             scheduledAt: match.scheduled_at,
             liceName: match.lices?.name ?? null,
@@ -185,7 +186,8 @@ export class SwissAdminViewService {
       .select(
         'id, swiss_round_id, match_number_label, status, scheduled_at, ' +
           'red_registration_id, blue_registration_id, red_score, blue_score, ' +
-          'winner_registration_id, lices(name, color_hex)',
+          'winner_registration_id, lices(name, color_hex), ' +
+          ROUND_CODE_INPUTS,
       )
       .eq('phase_id', phaseId);
     if (error) throw new BadRequestException(error.message);
@@ -202,7 +204,8 @@ export interface SwissAdminEntrant {
 
 export interface SwissAdminMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-S3-M01`), never its stored label (`SW-R3-M01`). */
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   liceName: string | null;

@@ -1,4 +1,5 @@
 import type { SideColors } from '../events/side-colors';
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 
 /**
  * Pure projection of the Swiss rounds as a spectator sees them.
@@ -47,11 +48,15 @@ export interface PublicMatchRow {
   blue_score: number | null;
   winner_registration_id: string | null;
   lices?: { name?: string | null; color_hex?: string | null } | null;
+  /** The bout code's inputs (`ROUND_CODE_INPUTS`): the weapon and the Swiss round. */
+  phases?: { config_json?: unknown; tournaments?: { weapon?: string | null } | null } | null;
+  swiss_rounds?: { round_number?: number } | null;
 }
 
 export interface PublicSwissMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-S3-M01`), never its stored label (`SW-R3-M01`). */
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   redRegistrationId: string | null;
@@ -148,7 +153,7 @@ function toPublicMatch(row: PublicMatchRow, fighters: Map<string, SwissFighter>)
   const blue = row.blue_registration_id ? fighters.get(row.blue_registration_id) : undefined;
   return {
     id: row.id,
-    matchNumberLabel: row.match_number_label ?? '',
+    roundCode: roundCodeFromMatchRow(row),
     status: row.status,
     scheduledAt: row.scheduled_at,
     redRegistrationId: row.red_registration_id,

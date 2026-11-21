@@ -149,7 +149,7 @@ function MatchRow({
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
-      <span className="w-24 shrink-0 font-mono text-xs text-muted">{match.matchNumberLabel}</span>
+      <span className="w-24 shrink-0 font-mono text-xs text-muted">{match.roundCode}</span>
       <FighterButton
         registrationId={match.redRegistrationId}
         label={nameOf(match.redRegistrationId)}

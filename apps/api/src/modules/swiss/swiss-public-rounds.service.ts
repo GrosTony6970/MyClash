@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ROUND_CODE_INPUTS } from '../matches/round-code.helper';
 import { SupabaseService } from '../supabase/supabase.service';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { parseSwissConfig } from './dto/swiss-config.dto';
@@ -126,7 +127,8 @@ export class SwissPublicRoundsService {
       .select(
         'id, swiss_round_id, match_number_label, status, scheduled_at, ' +
           'red_registration_id, blue_registration_id, red_score, blue_score, ' +
-          'winner_registration_id, lices(name, color_hex)',
+          'winner_registration_id, lices(name, color_hex), ' +
+          ROUND_CODE_INPUTS,
       )
       .eq('phase_id', phaseId);
     if (error) throw new BadRequestException(error.message);
