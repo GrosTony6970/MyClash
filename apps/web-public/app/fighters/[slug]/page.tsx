@@ -199,7 +199,7 @@ type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
 
 interface RecentMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   status: string;
   opponentName: string | null;
   redScore: number;
@@ -675,7 +675,7 @@ export default async function FighterPage({ params }: Props) {
           {live.map((match) => (
             <BoutLink key={match.id} href={historyBoutHref(match, fighter.slug)}>
               <div className="rounded-xl border-2 border-danger bg-danger/10 p-4">
-                <p className="mb-1 text-xs text-foreground-secondary">{match.matchNumberLabel}</p>
+                <p className="mb-1 text-xs text-foreground-secondary">{match.roundCode}</p>
                 <p className="font-bold text-foreground">
                   {match.opponentName ?? t('common.unknown')}
                 </p>
@@ -716,9 +716,7 @@ export default async function FighterPage({ params }: Props) {
                       <p className="text-sm font-medium text-foreground">
                         {match.opponentName ?? t('common.unknown')}
                       </p>
-                      <p className="text-xs text-muted">
-                        {match.eventName ?? match.matchNumberLabel}
-                      </p>
+                      <p className="text-xs text-muted">{match.eventName ?? match.roundCode}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span

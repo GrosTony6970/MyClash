@@ -103,9 +103,9 @@ describe('PeopleContextService.enrich', () => {
           scheduled_at: '2026-07-10T10:00:00Z',
           red_registration_id: 'r-1',
           blue_registration_id: 'r-2',
-          pools: { name: 'Pool A' },
+          pools: { name: 'Pool A', sort_order: 0 },
           lices: { name: 'Piste 3' },
-          phases: { tournaments: { status: 'published' } },
+          phases: { config_json: null, tournaments: { status: 'published', weapon: 'longsword' } },
         },
       ],
       error: null,
@@ -187,7 +187,7 @@ describe('PeopleContextService.enrich', () => {
         kind: 'fight',
         matchId: 'm-1',
         status: 'scheduled',
-        label: 'M12',
+        label: 'LSW-P1-M12',
         scheduledAt: '2026-07-10T10:00:00Z',
         opponentName: 'Bob Smith',
         poolName: 'Pool A',
@@ -253,14 +253,18 @@ describe('PeopleContextService.enrich', () => {
         },
         {
           id: 'm-live',
-          match_number_label: 'SF-1',
+          match_number_label: '1',
           status: 'running',
           scheduled_at: '2026-07-13T09:00:00Z',
           red_registration_id: 'r-3',
           blue_registration_id: 'r-4',
           pools: null,
+          bracket_slots: { round: 2 },
           lices: { name: 'Piste 1' },
-          phases: { tournaments: { status: 'published' } },
+          phases: {
+            config_json: { bracketSize: 8 },
+            tournaments: { status: 'published', weapon: 'longsword' },
+          },
         },
         {
           id: 'm-next',
@@ -371,7 +375,8 @@ describe('PeopleContextService.enrich', () => {
     const [ctx] = await svc.enrich(['gp-3'], 'user-1');
     expect(selectOf(supabase, 'matches')).toBe(
       'id, match_number_label, status, scheduled_at, red_registration_id, blue_registration_id, ' +
-        'pools ( name ), lices ( name ), phases ( tournaments ( status ) )',
+        'pools ( name, sort_order ), lices ( name ), bracket_slots ( round ), swiss_rounds ( round_number ), ' +
+        'phases ( config_json, tournaments ( status, weapon ) )',
     );
 
     expect(ctx).toMatchObject({
@@ -384,7 +389,7 @@ describe('PeopleContextService.enrich', () => {
         kind: 'fight',
         matchId: 'm-live',
         status: 'running',
-        label: 'SF-1',
+        label: 'LSW-B-SF-M1',
         opponentName: 'Dan Roe',
         liceName: 'Piste 1',
         eventSlug: 'summer-cup',
@@ -446,13 +451,16 @@ describe('PeopleContextService.enrich', () => {
             id: 'm-ref',
             status: 'running',
             scheduled_at: '2026-07-13T09:30:00Z',
-            match_number_label: 'QF-2',
+            match_number_label: '2',
             lices: { name: 'Piste 2' },
             pools: null,
+            bracket_slots: { round: 1 },
             phases: {
+              config_json: { bracketSize: 8 },
               tournaments: {
                 slug: 'saber-open',
                 status: 'published',
+                weapon: 'sabre',
                 events: { slug: 'autumn-cup', name: 'Autumn Cup' },
               },
             },
@@ -480,7 +488,8 @@ describe('PeopleContextService.enrich', () => {
     const [ctx] = await svc.enrich(['gp-4'], 'user-1');
     expect(selectOf(supabase, 'referee_assignments')).toBe(
       'person_id, role, matches ( id, status, scheduled_at, match_number_label, lices ( name ), ' +
-        'pools ( name ), phases ( tournaments ( slug, status, events ( slug, name, status, event_kind ) ) ) )',
+        'pools ( name, sort_order ), bracket_slots ( round ), swiss_rounds ( round_number ), ' +
+        'phases ( config_json, tournaments ( slug, status, weapon, events ( slug, name, status, event_kind ) ) ) )',
     );
 
     expect(ctx).toMatchObject({
@@ -490,7 +499,7 @@ describe('PeopleContextService.enrich', () => {
         kind: 'referee',
         matchId: 'm-ref',
         status: 'running',
-        label: 'QF-2',
+        label: 'SBR-B-QF-M2',
         skillName: 'Head referee',
         skillColor: '#ff0000',
         liceName: 'Piste 2',

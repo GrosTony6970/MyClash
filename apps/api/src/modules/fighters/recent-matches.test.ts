@@ -6,7 +6,7 @@ describe('buildProfileRecentMatch', () => {
     id: 'm1',
     status: 'completed',
     scheduledAt: '2026-05-01T10:00:00Z',
-    matchNumberLabel: 'P1-3',
+    roundCode: 'LSW-P1-M03',
     redRegistrationId: 'me',
     blueRegistrationId: 'opp',
     winnerRegistrationId: null,
@@ -24,7 +24,7 @@ describe('buildProfileRecentMatch', () => {
     expect(r.isRed).toBe(true);
     expect(r.opponentName).toBe('Jane Doe');
     expect(r.outcome).toBe('win');
-    expect(r.matchNumberLabel).toBe('P1-3');
+    expect(r.roundCode).toBe('LSW-P1-M03');
     expect(r.eventSlug).toBe('fosse-aux-lions');
   });
 
@@ -51,10 +51,5 @@ describe('buildProfileRecentMatch', () => {
   it('nulls the opponent name when the opponent registration is unknown', () => {
     const r = buildProfileRecentMatch({ ...base, blueRegistrationId: 'ghost' }, own, names);
     expect(r.opponentName).toBeNull();
-  });
-
-  it('defaults a missing match-number label to an empty string', () => {
-    const r = buildProfileRecentMatch({ ...base, matchNumberLabel: null }, own, names);
-    expect(r.matchNumberLabel).toBe('');
   });
 });

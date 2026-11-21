@@ -123,5 +123,35 @@ describe("a fighter's pages show public Tournaments of public Events only (rulin
     expect(selectsFor(db.from, 'registrations')[0]).toBe(
       'id, persons!inner(global_person_id), tournaments(status, events(id, name, slug, status, event_kind))',
     );
+    // The double ignores projections: only this pin sees the code's inputs go.
+    for (const select of selectsFor(db.from, 'matches')) {
+      expect(select).toContain(
+        'phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+      );
+    }
+  });
+
+  it("names the profile's recent bouts by their code, never by their stored label", async () => {
+    const bout = {
+      id: 'm-1',
+      status: 'running',
+      scheduled_at: null,
+      created_at: '2026-06-01T09:00:00Z',
+      match_number_label: 'L1-PD-M01',
+      red_registration_id: 'r-open',
+      blue_registration_id: 'r-other',
+      winner_registration_id: null,
+      end_reason: null,
+      red_score: 0,
+      blue_score: 0,
+      phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+      pools: { sort_order: 3 },
+    };
+    const { service } = build({ matches: { data: [bout], error: null } });
+    const recent = service as unknown as {
+      getRecentMatchesForProfile(id: string): Promise<Array<{ roundCode: string }>>;
+    };
+    const [first] = await recent.getRecentMatchesForProfile('gp-lea');
+    expect(first?.roundCode).toBe('LSW-P4-M01');
   });
 });

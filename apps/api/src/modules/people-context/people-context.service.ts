@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import {
   computeFinalRanking,
   rankingBracketShape,
@@ -19,6 +20,7 @@ import { FollowsService } from '../follows/follows.service';
 export interface PersonContextMatch {
   kind: 'fight' | 'referee';
   matchId: string;
+  /** The bout's code (`LSW-P4-M01`), never its stored label (`L1-PD-M01`). */
   label: string;
   /** Server match status ('scheduled' | 'running' | 'paused' | …). */
   status: string;
@@ -326,8 +328,9 @@ export class PeopleContextService {
         .select(
           `id, match_number_label, status, scheduled_at,
          red_registration_id, blue_registration_id,
-         pools ( name ), lices ( name ),
-         phases ( tournaments ( status ) )`,
+         pools ( name, sort_order ), lices ( name ),
+         bracket_slots ( round ), swiss_rounds ( round_number ),
+         phases ( config_json, tournaments ( status, weapon ) )`,
         )
         .or(`red_registration_id.in.(${inList}),blue_registration_id.in.(${inList})`)
         .in('status', ACTIVE_MATCH_STATUSES)
@@ -367,7 +370,7 @@ export class PeopleContextService {
         focusRegId: myReg,
         opponentRegId,
         matchId: (m['id'] as string) ?? '',
-        label: (m['match_number_label'] as string | null) ?? '',
+        label: roundCodeFromMatchRow(m),
         status,
         scheduledAt: (m['scheduled_at'] as string | null) ?? null,
         poolName: (one(m['pools'])?.['name'] as string | undefined) ?? null,
@@ -421,8 +424,9 @@ export class PeopleContextService {
           `person_id, role,
          matches (
            id, status, scheduled_at, match_number_label,
-           lices ( name ), pools ( name ),
-           phases ( tournaments ( slug, status, events ( slug, name, status, event_kind ) ) )
+           lices ( name ), pools ( name, sort_order ),
+           bracket_slots ( round ), swiss_rounds ( round_number ),
+           phases ( config_json, tournaments ( slug, status, weapon, events ( slug, name, status, event_kind ) ) )
          )`,
         )
         .in('person_id', globalIds)
@@ -461,7 +465,7 @@ export class PeopleContextService {
       pendingByGp.set(gp, {
         role,
         matchId: (match['id'] as string) ?? '',
-        label: (match['match_number_label'] as string | null) ?? '',
+        label: roundCodeFromMatchRow(match),
         status,
         scheduledAt: (match['scheduled_at'] as string | null) ?? null,
         poolName: (one(match['pools'])?.['name'] as string | undefined) ?? null,

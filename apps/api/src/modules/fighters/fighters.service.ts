@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
+import { ROUND_CODE_INPUTS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { logReason, unreadable } from '../../common/log-reason';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, type ImportRowProblem } from '@myclash/types';
@@ -1373,7 +1374,8 @@ export class FightersService {
     const ids = [...ownRegistrationIds].join(',');
     const orFilter = `red_registration_id.in.(${ids}),blue_registration_id.in.(${ids})`;
     const columns =
-      'id, status, scheduled_at, created_at, match_number_label, red_registration_id, blue_registration_id, winner_registration_id, end_reason, red_score, blue_score';
+      'id, status, scheduled_at, created_at, match_number_label, red_registration_id, blue_registration_id, winner_registration_id, end_reason, red_score, blue_score, ' +
+      ROUND_CODE_INPUTS;
 
     // Running matches (usually 0–1) plus the most recent completed ones.
     const [liveRes, completedRes] = await Promise.all([
@@ -1388,7 +1390,11 @@ export class FightersService {
         .limit(RECENT_COMPLETED_LIMIT),
     ]);
 
-    const matchRows = [...((liveRes.data ?? []) as Row[]), ...((completedRes.data ?? []) as Row[])];
+    // `columns` is built, not a literal, so supabase-js cannot type the rows: read them as Row.
+    const matchRows = [
+      ...((liveRes.data ?? []) as unknown as Row[]),
+      ...((completedRes.data ?? []) as unknown as Row[]),
+    ];
     if (matchRows.length === 0) return [];
 
     // Opponent display names — the registration NOT owned by this fighter.
@@ -1424,7 +1430,7 @@ export class FightersService {
         id: String(match['id']),
         status: String(match['status']),
         scheduledAt: (match['scheduled_at'] as string | null) ?? null,
-        matchNumberLabel: (match['match_number_label'] as string | null) ?? null,
+        roundCode: roundCodeFromMatchRow(match),
         redRegistrationId: redId,
         blueRegistrationId: blueId,
         winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,

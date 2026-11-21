@@ -230,7 +230,7 @@ describe('people context shows only what the public may see (ruling 84)', () => 
       'id, person_id, tournament_id, status, tournaments ( status )',
     );
     expect(collapse(selectsFor(from, 'referee_assignments')[0])).toContain(
-      'phases ( tournaments ( slug, status, events ( slug, name, status, event_kind ) ) )',
+      'phases ( config_json, tournaments ( slug, status, weapon, events ( slug, name, status, event_kind ) ) )',
     );
 
     const idle = await enrichWith(NOTHING);

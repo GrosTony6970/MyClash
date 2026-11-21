@@ -21,7 +21,8 @@ export interface RecentMatchRow {
   id: string;
   status: string;
   scheduledAt: string | null;
-  matchNumberLabel: string | null;
+  /** The bout's code (`LSW-P4-M01`), never its stored label. */
+  roundCode: string;
   redRegistrationId: string | null;
   blueRegistrationId: string | null;
   winnerRegistrationId: string | null;
@@ -36,7 +37,8 @@ export interface RecentMatchRow {
 /** The public shape consumed by the web-public fighter page (`RecentMatch`). */
 export interface ProfileRecentMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-P4-M01`), never its stored label. */
+  roundCode: string;
   status: string;
   opponentName: string | null;
   redScore: number;
@@ -79,7 +81,7 @@ export function buildProfileRecentMatch(
 
   return {
     id: row.id,
-    matchNumberLabel: row.matchNumberLabel ?? '',
+    roundCode: row.roundCode,
     status: row.status,
     opponentName: opponentRegistrationId
       ? (opponentNames.get(opponentRegistrationId) ?? null)
