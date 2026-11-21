@@ -1168,12 +1168,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         exchangeCount: number;
         doublesCount: number;
       };
-      const fighters = (await (
+      const { fighters } = (await (
         await reqOk(await get(`tournaments/${tid}/stats/fighters`))
-      ).json()) as Array<{
-        pointsGiven: number;
-        pointsReceived: number;
-      }>;
+      ).json()) as { fighters: Array<{ pointsGiven: number; pointsReceived: number }> };
 
       // Freshness: scored data is visible immediately, no refresh needed.
       expect(overview.exchangeCount).toBeGreaterThan(0);
