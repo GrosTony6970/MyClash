@@ -469,7 +469,11 @@ export class FollowNotificationSchedulerService {
       await this.supabase.service
         .from('matches')
         .select(
-          `id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name ), ${ROUND_CODE_INPUTS}`,
+          // One `pools` embed for the Pool's name and the code's sort order: an
+          // embed named twice is refused, or one of the two is dropped.
+          'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), ' +
+            'pools ( name, sort_order ), bracket_slots ( round ), swiss_rounds ( round_number ), ' +
+            'phases ( config_json, tournaments ( weapon ) )',
         )
         .in('id', matchIds),
       strict,
