@@ -156,7 +156,7 @@ export function scheduleDouble() {
           {
             id: `bout-${eventId}`,
             scheduledAt: '2027-04-10T09:00:00.000Z',
-            matchNumberLabel: 'M1',
+            roundCode: 'LSW-P1-M01',
             tournamentName: null,
             poolName: null,
             liceName: null,

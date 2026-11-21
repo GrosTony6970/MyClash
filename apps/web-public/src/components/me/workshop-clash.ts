@@ -24,9 +24,9 @@ export function commitmentsOf(
   const boutKey = (m: PersonSchedule['matches'][number]) => `fight-${m.id}`;
   const dutyKey = (r: PersonSchedule['refereeSlots'][number]) => `ref-${r.id}`;
   const commitments = [
-    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.matchNumberLabel),
+    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.roundCode),
     ...schedule.refereeSlots.flatMap((r) => {
-      const what = r.matchNumberLabel || r.poolName;
+      const what = r.roundCode || r.poolName;
       const ti = dutyTimed(dutyKey(r), what ? `${referee} · ${what}` : referee, r);
       return ti ? [ti] : [];
     }),

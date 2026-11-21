@@ -90,6 +90,38 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
     expect(schedule.refereeSlots.map((s) => s.id)).toEqual(['dated', 'tbd']);
   });
 
+  it("names a bout's duty by the bout's code, and a Pool's duty by no code", async () => {
+    windowsAre({});
+    const phase = { ...PHASE, tournaments: { ...PHASE.tournaments, weapon: 'longsword' } };
+    const bout = matchScoped('L1-PD-M01', '2027-05-23T09:00:00Z', phase);
+    bout.matches.pools = { ...bout.matches.pools, sort_order: 3 } as typeof bout.matches.pools;
+    const { service } = buildService(rows([bout, poolScoped('pool-duty')]));
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+    expect(schedule.refereeSlots.map((s) => s.roundCode)).toEqual(['LSW-P4-M01', '']);
+  });
+
+  it("names the fighter's own bout by its code, never by its stored label", async () => {
+    windowsAre({});
+    matchLengths.mockResolvedValue(new Map([['L1-PD-M01', 5]]));
+    const bout = fighterMatch('L1-PD-M01', null, 'published', { id: 'pool-4', name: 'Pool 4' });
+    const { service } = buildService(rows([]), {
+      registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
+      matches: [
+        {
+          ...bout,
+          pools: { name: 'Pool 4', sort_order: 3 },
+          phases: {
+            ...bout.phases,
+            config_json: null,
+            tournaments: { ...bout.phases.tournaments, weapon: 'longsword' },
+          },
+        },
+      ],
+    });
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+    expect(schedule.matches.map((m) => m.roundCode)).toEqual(['LSW-P4-M01']);
+  });
+
   it('exposes the assignment id — matchId is empty for every pool-scoped duty', async () => {
     windowsAre({});
     const { service } = buildService(rows([poolScoped('a-1'), poolScoped('a-2')]));
@@ -153,8 +185,9 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
       'id, role, pool_id, match_id, ' +
         'pools ( id, name, phases ( type, config_json, tournaments ( name, slug, status ) ) ), ' +
         'lices ( name ), ' +
-        'matches ( id, match_number_label, scheduled_at, bracket_slot_id, pools ( id, name ), lices ( name ), ' +
-        'phases ( type, config_json, tournaments ( name, slug, status ) ) )',
+        'matches ( id, match_number_label, scheduled_at, bracket_slot_id, pools ( id, name, sort_order ), lices ( name ), ' +
+        'bracket_slots ( round ), swiss_rounds ( round_number ), ' +
+        'phases ( type, config_json, tournaments ( name, slug, status, weapon ) ) )',
     );
     expect(read?.order).not.toHaveBeenCalled();
   });
@@ -245,8 +278,9 @@ describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", 
     expect(projection(chains.get('matches')?.[0])).toBe(
       'id, match_number_label, status, scheduled_at, phase_id, pool_id, lice_id, planned_duration_override_minutes, ' +
         'red_score, blue_score, winner_registration_id, end_reason, ' +
-        'red_registration_id, blue_registration_id, pools ( name ), lices ( name ), ' +
-        'phases ( type, tournaments ( id, name, scoring_config_json, status ) )',
+        'red_registration_id, blue_registration_id, pools ( name, sort_order ), lices ( name ), ' +
+        'bracket_slots ( round ), swiss_rounds ( round_number ), ' +
+        'phases ( type, config_json, tournaments ( id, name, scoring_config_json, status, weapon ) )',
     );
   });
 

@@ -142,7 +142,7 @@ export function ScheduleView({
   // and a duty's end come from the API, and nothing here invents one.
   const boutKey = (m: ScheduleMatch) => `fight-${m.id}`;
   const timed: TimedItem[] = [
-    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.matchNumberLabel),
+    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.roundCode),
     ...referees.flatMap((r) =>
       r.startMs != null && r.endMs != null
         ? [{ key: r.key, label: refereeTitle(r), startMs: r.startMs, endMs: r.endMs }]

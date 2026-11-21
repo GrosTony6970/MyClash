@@ -5,7 +5,7 @@ import type { EventKind, PhotoMode } from '@myclash/types';
 
 export interface ScheduleMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   /** The bout's planned length in minutes, from the Event's planner sheet or the
@@ -47,7 +47,7 @@ export interface RefereeSlot {
    *  pool-/lice-scoped row, so it cannot serve as one. */
   id: string;
   matchId: string;
-  matchNumberLabel: string;
+  roundCode: string;
   scheduledAt: string | null;
   /** The duty's planned window, worked out by the API from the Matches it covers
    *  (its own Match, or its Pool's placed Matches). Null when nothing is placed. */
@@ -232,7 +232,7 @@ export interface UpcomingItem {
   eventTimezone: string | null;
   scheduledAt: string;
   matchId: string;
-  matchNumberLabel: string;
+  roundCode: string;
   tournamentName: string | null;
   poolName: string | null;
   liceName: string | null;

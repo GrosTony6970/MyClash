@@ -23,13 +23,13 @@ const bout = (id: string, start: string, minutes: number | null, poolId: string 
     fallbackEndsAt: null,
     poolId,
     opponentName: `opponent of ${id}`,
-    matchNumberLabel: `M-${id}`,
+    roundCode: `M-${id}`,
   }) as unknown as PersonSchedule['matches'][number];
 
 const duty = (id: string, start: string | null, end: string | null) =>
   ({
     id,
-    matchNumberLabel: '',
+    roundCode: '',
     poolName: 'Pool B',
     scheduledAt: null,
     startsAt: start ? at(start) : null,

@@ -33,6 +33,7 @@ import { readPersonWorkshops, type WorkshopEnrollment } from './person-workshops
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import { resolveNextBoutEnds, type BoutRef } from '../schedule/next-bout-end';
@@ -40,7 +41,8 @@ import { plannedLengthOf } from '../schedule/planned-length';
 
 export interface ScheduleMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-P4-M01`), never its stored label (`L1-PD-M01`). */
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   /** The Match's planned length in minutes, from the Event's planner sheet or
@@ -90,7 +92,8 @@ export interface RefereeSlot {
    *  pool-/lice-scoped row, so it cannot serve as one. */
   id: string;
   matchId: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-P4-M01`), never its stored label (`L1-PD-M01`). */
+  roundCode: string;
   scheduledAt: string | null;
   /** The duty's planned window, worked out from the Matches it covers: its own
    *  Match, or its Pool's placed Matches (ADR-017). Null when nothing is placed;
@@ -281,9 +284,11 @@ export class PublicScheduleService {
         id, match_number_label, status, scheduled_at, phase_id, pool_id, lice_id, planned_duration_override_minutes,
         red_score, blue_score, winner_registration_id, end_reason,
         red_registration_id, blue_registration_id,
-        pools ( name ),
+        pools ( name, sort_order ),
         lices ( name ),
-        phases ( type, tournaments ( id, name, scoring_config_json, status ) )
+        bracket_slots ( round ),
+        swiss_rounds ( round_number ),
+        phases ( type, config_json, tournaments ( id, name, scoring_config_json, status, weapon ) )
       `,
       )
       .or(
@@ -307,7 +312,7 @@ export class PublicScheduleService {
       return [
         {
           id: m['id'] as string,
-          matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
+          roundCode: roundCodeFromMatchRow(m),
           status: m['status'] as string,
           scheduledAt: (m['scheduled_at'] as string | null) ?? null,
           endInput: {
@@ -468,9 +473,11 @@ export class PublicScheduleService {
         lices ( name ),
         matches (
           id, match_number_label, scheduled_at, bracket_slot_id,
-          pools ( id, name ),
+          pools ( id, name, sort_order ),
           lices ( name ),
-          phases ( type, config_json, tournaments ( name, slug, status ) )
+          bracket_slots ( round ),
+          swiss_rounds ( round_number ),
+          phases ( type, config_json, tournaments ( name, slug, status, weapon ) )
         )
       `,
       )
@@ -520,7 +527,8 @@ export class PublicScheduleService {
       return {
         id: String(a['id'] ?? ''),
         matchId: (match?.['id'] as string) ?? '',
-        matchNumberLabel: (match?.['match_number_label'] as string | null) ?? '',
+        // A Pool- or lice-scoped duty covers no single bout: no code.
+        roundCode: match ? roundCodeFromMatchRow(match) : '',
         scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
         startsAt: null,
         endsAt: null,
@@ -642,7 +650,7 @@ export class PublicScheduleService {
     return raw.map((s): RefereeSlot => ({
       id: s.id,
       matchId: s.matchId,
-      matchNumberLabel: s.matchNumberLabel,
+      roundCode: s.roundCode,
       scheduledAt: s.scheduledAt,
       startsAt: s.startsAt,
       endsAt: s.endsAt,

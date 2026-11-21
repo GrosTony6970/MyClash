@@ -76,7 +76,7 @@ export function DashboardToday() {
                 title={
                   i.kind === 'fight'
                     ? `${t('publicApp.me.schedule.vs')} ${i.opponentName ?? t('publicApp.me.schedule.tbd')}`
-                    : `${t('publicApp.me.schedule.referee')} · ${i.matchNumberLabel}`
+                    : `${t('publicApp.me.schedule.referee')} · ${i.roundCode}`
                 }
                 meta={[i.eventName, i.tournamentName].filter(Boolean).join(' · ') || null}
                 side={i.isRed === false ? 'blue' : 'red'}

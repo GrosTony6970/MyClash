@@ -47,7 +47,7 @@ interface PersonProfile {
 
 /** A bout that is live or to come: its label, and where to go to watch it. */
 const boutAndPiste = (m: ScheduleMatch): string =>
-  m.liceName ? `${m.matchNumberLabel} · ${m.liceName}` : m.matchNumberLabel;
+  m.liceName ? `${m.roundCode} · ${m.liceName}` : m.roundCode;
 
 export default function PersonProfilePage() {
   const { t, locale } = useI18n();
@@ -330,7 +330,7 @@ export default function PersonProfilePage() {
                 className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-foreground">{s.matchNumberLabel}</p>
+                  <p className="text-sm font-medium text-foreground">{s.roundCode}</p>
                   <p className="text-xs text-muted">{refereeRoleLabel(s.skillName, t)}</p>
                 </div>
                 {s.scheduledAt && <p className="text-xs text-muted">{hallTime(s.scheduledAt)}</p>}
@@ -365,7 +365,7 @@ export default function PersonProfilePage() {
                       <p className="text-sm font-medium text-foreground">
                         {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                       </p>
-                      <p className="text-xs text-muted">{m.matchNumberLabel}</p>
+                      <p className="text-xs text-muted">{m.roundCode}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span

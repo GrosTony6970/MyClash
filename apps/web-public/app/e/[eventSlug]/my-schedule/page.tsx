@@ -100,7 +100,7 @@ function timedItems(
   t: TranslateFn,
 ): TimedItem[] {
   return [
-    ...fightItems({ matches, poolSpans }, matchKey, (m) => m.matchNumberLabel),
+    ...fightItems({ matches, poolSpans }, matchKey, (m) => m.roundCode),
     ...others.flatMap((item) => {
       const key = itemKey(item);
       const label = itemLabel(item, t);
@@ -115,7 +115,7 @@ function timedItems(
 
 /** What a duty is called: its Match's label, or its Pool's name for a whole-Pool duty. */
 function dutyName(slot: RefereeSlot): string {
-  return slot.matchNumberLabel || (slot.poolName ?? '');
+  return slot.roundCode || (slot.poolName ?? '');
 }
 
 function itemKey(item: ScheduleItem): string {
@@ -423,9 +423,7 @@ export default function MySchedulePage() {
                       {/* Content */}
                       {item.kind === 'match' && (
                         <>
-                          <p className="font-semibold text-foreground">
-                            {item.data.matchNumberLabel}
-                          </p>
+                          <p className="font-semibold text-foreground">{item.data.roundCode}</p>
                           <p className="text-foreground-secondary text-xs mt-0.5">
                             {t('publicApp.mySchedule.vs')}{' '}
                             {item.data.opponentName ?? t('publicApp.mySchedule.tbd')}

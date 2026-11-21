@@ -10,7 +10,7 @@ import type { RefereeSlot } from './types';
 function slot(over: Partial<RefereeSlot>): RefereeSlot {
   return {
     matchId: 'm',
-    matchNumberLabel: '',
+    roundCode: '',
     scheduledAt: null,
     startsAt: null,
     endsAt: null,

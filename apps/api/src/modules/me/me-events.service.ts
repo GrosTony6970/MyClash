@@ -150,7 +150,8 @@ export interface UpcomingItem {
   eventTimezone: string | null;
   scheduledAt: string;
   matchId: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-P4-M01`); '' for a Pool-scoped duty. */
+  roundCode: string;
   tournamentName: string | null;
   poolName: string | null;
   liceName: string | null;
@@ -601,7 +602,7 @@ export class MeEventsService {
         eventTimezone: info.timezone,
         scheduledAt: m.scheduledAt,
         matchId: m.id,
-        matchNumberLabel: m.matchNumberLabel,
+        roundCode: m.roundCode,
         tournamentName: m.tournamentName,
         poolName: m.poolName,
         liceName: m.liceName,
@@ -620,7 +621,7 @@ export class MeEventsService {
         eventTimezone: info.timezone,
         scheduledAt: s.scheduledAt,
         matchId: s.matchId,
-        matchNumberLabel: s.matchNumberLabel,
+        roundCode: s.roundCode,
         tournamentName: s.tournamentName,
         poolName: s.poolName,
         liceName: null,

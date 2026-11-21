@@ -32,7 +32,7 @@ const tourn = (over: Partial<MyEventTournament> = {}): MyEventTournament => ({
 
 const match = (over: Partial<ScheduleMatch> = {}): ScheduleMatch => ({
   id: over.id ?? 'm1',
-  matchNumberLabel: over.matchNumberLabel ?? 'M1',
+  roundCode: over.roundCode ?? 'M1',
   status: over.status ?? 'scheduled',
   scheduledAt: over.scheduledAt ?? null,
   opponentName: over.opponentName ?? null,
