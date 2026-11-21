@@ -5,8 +5,8 @@ order: 11
 section: concepts
 ---
 
-**Ce que vous allez apprendre :** les mots qu'utilise MyClash, ses trois applications, qui voit
-quoi, et d'où vient un score.
+**Ce que vous allez apprendre :** les mots qu'utilise MyClash, comment lire le code d'un combat,
+ses trois applications, qui voit quoi, et d'où vient un score.
 
 ## Les mots
 
@@ -26,6 +26,36 @@ quoi, et d'où vient un score.
 
 Un combattant a un **profil** MyClash qui le suit d'un événement à l'autre. À votre événement, il
 est **participant** ; dans un tournoi, il a une **inscription**.
+
+## Les codes des combats
+
+Chaque combat a un code court qui le nomme partout de la même façon : sur la tablette, le
+planning, les écrans en direct, les notifications et les exports. Il se lit en trois parties :
+l'arme, l'étape, puis le combat.
+
+| Code          | Se lit                                                  |
+| ------------- | ------------------------------------------------------- |
+| `LSW-P4-M01`  | Épée longue, poule 4, combat 1 de cette poule           |
+| `SDW-S3-M05`  | Épée de côté, ronde suisse 3, combat 5 de cette ronde   |
+| `LSW-B-QF-M3` | Épée longue, tableau, quart de finale, combat 3 du tour |
+| `LSW-B-F-M1`  | Épée longue, tableau, la finale                         |
+| `LSW-B-F-M2`  | Épée longue, tableau, le match pour la troisième place  |
+
+- **L'arme**, d'après son nom anglais : LSW épée longue (longsword), SDW épée de côté
+  (sidesword), RAP rapière, SBR sabre, SB épée et bocle (sword and buckler). Toute autre arme
+  prend les trois premières lettres de son nom : un tournoi de dussack se lit DUS.
+- **L'étape** : P et le numéro de la poule, S et la ronde suisse, ou B pour tout combat de
+  tableau, suivi de son tour :
+  - R64, R32, R16 (les tours de 64, 32 et 16), QF les quarts de finale, SF les demi-finales,
+    F la finale, PI le tour préliminaire ;
+  - un tableau à double élimination nomme aussi son côté : WBQF, WBSF, WBF pour les quarts, les
+    demies et la finale du tableau principal, LB1, LB2… pour les tours des repêchages, GF la
+    grande finale et GFR sa revanche (le reset) ;
+  - B sans tour désigne un combat ajouté à la main dans un tableau.
+- **Le combat** : M et son numéro. Dans une poule ou une ronde suisse, c'est l'ordre de passage,
+  écrit avec autant de chiffres que la poule en demande : M02 passe avant M10. Dans un tableau,
+  c'est sa place dans le tour, comptée depuis le haut. Au dernier tour, M1 est la finale et M2 le
+  match pour la troisième place.
 
 ## Trois applications
 

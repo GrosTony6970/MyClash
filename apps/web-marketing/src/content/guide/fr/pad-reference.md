@@ -125,6 +125,82 @@ Tout ce qui est dans **Actions du match** demande le réseau, sauf le carton dir
 
 ![La tablette sans réseau](../../../assets/guide/13-pad-offline.png)
 
+### Comment la tablette garde vos saisies
+
+- Chaque appui est d'abord enregistré sur la tablette, puis envoyé. Si la tablette ne peut pas
+  l'enregistrer, elle dit « Non enregistré sur cette tablette. Appuyez de nouveau. »
+- Les saisies restent dans le stockage du navigateur : recharger la page ou se déconnecter les
+  garde. Après une reconnexion, elles partent dès qu'un combat est ouvert, et la page de
+  connexion dit combien attendent.
+- Elles appartiennent à ce navigateur. Une fenêtre privée ou un autre navigateur sur la même
+  tablette a sa propre file, et effacer les données du navigateur supprime les saisies pas encore
+  envoyées.
+
+### Ouvrir la tablette sans réseau
+
+- Une fois la tablette ouverte avec le réseau, elle garde l'application : ses pages s'ouvrent sans
+  réseau, page d'un combat comprise.
+- La tablette garde aussi une copie de sa lice : les combats, leurs scores et chronos, et les
+  règles du tournoi. Elle rafraîchit cette copie toutes les 5 minutes tant qu'un écran de la lice
+  est ouvert.
+- Sans réseau, un combat s'ouvre depuis cette copie et le dit : « Pas de connexion. Voici l'assaut
+  tel que cette tablette l'a lu… ». Le score indique **non confirmé**.
+- Un combat marqué sur une autre tablette n'est pas dans la copie : « Cet assaut n'est pas encore
+  chargé. Il s'ouvrira au retour du réseau. »
+- Avant l'événement, ouvrez la liste de la lice sur chaque tablette avec le réseau, puis faites
+  une fois **S'entraîner hors ligne**.
+
+### Comment les saisies partent
+
+- Dans l'ordre des appuis. La tablette envoie après chaque appui, à l'ouverture d'un combat ou de
+  la liste de la lice, au retour du réseau, et toutes les 5 secondes tant que la barre dit
+  **HORS LIGNE** et que le wifi est encore là.
+- Une saisie envoyée deux fois ne compte qu'une fois : chacune porte sa propre identité.
+- Sur **ERREUR DE SYNCHRO**, la tablette ne réessaie pas seule : appuyez sur **Réessayer**.
+- Une saisie que le serveur refuse passe dans **Examiner**. Elle y est gardée, jamais supprimée :
+  **Réessayer** une fois la cause réglée, ou abandonnez-la si vous l'avez déjà ressaisie à la main.
+  Les saisies de ce combat attendent derrière elle ; les autres combats continuent.
+- Quand la session prend fin, la barre dit **SESSION TERMINÉE** : reconnectez-vous, et la file
+  part.
+
+### Le score sur la tablette et le score qui compte
+
+- Sans réseau, la tablette affiche le dernier score du serveur plus les saisies qu'elle garde,
+  calculés avec le règlement du tournoi. Le score indique alors « dont … non envoyés ».
+- Une fois les saisies envoyées, la tablette relit le combat et le score du serveur remplace le
+  sien. C'est le score du serveur qui compte.
+
+### Comment la tablette reçoit les nouvelles
+
+La tablette ne reçoit pas de mises à jour en direct ; elle relit :
+
+- la liste de la lice toutes les 20 secondes, et au retour du réseau ;
+- le combat après chaque envoi, et au retour du réseau.
+
+Un changement fait ailleurs (une autre tablette, un organisateur, un planning déplacé) apparaît
+donc à la lecture suivante. Quand l'organisateur change les règles d'un combat, la tablette dit
+« L'organisateur a changé les règles de cet assaut. » Une nouvelle version de la tablette
+s'installe seule à la prochaine page ouverte avec le réseau, sans rien demander.
+
+### Le chrono sans réseau
+
+- Le chrono continue de tourner sur la tablette, et démarrer, pause, reprendre et terminer sont
+  mis en file comme les touches.
+- Une tablette dont la date ou l'heure est fausse chronomètre quand même juste : le serveur
+  utilise depuis combien de temps chaque appui a été fait, pas l'horloge de la tablette. Un appui
+  vieux de plus d'un jour est refusé.
+
+### Ce que voient les autres écrans
+
+- La page publique d'un combat, les écrans en direct et ceux de la salle ne montrent que ce qui a
+  atteint le serveur. Les saisies encore sur une tablette apparaissent dès qu'elles partent.
+- La salle de contrôle de l'organisateur montre la file de chaque tablette, avec **Sync en
+  retard** quand une saisie attend plus d'une minute, **Sync bloquée** au-delà de cinq minutes.
+  Une tablette qui perd le réseau sans rien en file reste **Synchronisé** : regardez sa ligne
+  « Vu il y a… ».
+- Rien n'empêche deux tablettes de marquer la même lice. Gardez une tablette par lice : un appui
+  sur le chrono qui croise celui de l'autre tablette passe dans **Examiner**.
+
 ## Verrous et qui peut revenir en arrière
 
 - Une poule ou un tableau terminé se verrouille seul 15 minutes après son dernier combat (réglage

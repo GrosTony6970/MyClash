@@ -119,6 +119,75 @@ Everything in **Match actions** needs the network, except the direct card.
 
 ![The pad without network](../../../assets/guide/13-pad-offline.png)
 
+### How the tablet keeps your entries
+
+- Every tap is saved on the tablet first, then sent. If the tablet cannot save it, the pad says
+  "Not saved on this tablet. Tap it again."
+- The entries stay in the browser's storage: reloading the page or signing out keeps them. After a
+  sign-in they are sent as soon as a bout is opened, and the sign-in page says how many wait.
+- They belong to that browser. A private window or another browser on the same tablet holds its
+  own queue, and clearing the browser's data deletes the entries not sent yet.
+
+### Opening the pad without network
+
+- Once the pad has been opened with the network, the tablet keeps the app: its pages open without
+  network, a bout page included.
+- The tablet also keeps a copy of its piste: the bouts, their scores and clocks, and the
+  tournament's rules. It refreshes the copy every 5 minutes while a screen of the piste is open.
+- Without network, a bout opens from that copy and says so: "No connection. This is the match as
+  this tablet read it on…". The score shows **not confirmed**.
+- A bout being scored on another tablet is not in the copy: it says "This match is not loaded
+  yet. It opens when the network is back."
+- Before the event, open the piste list on each tablet with the network on, then run **Practice
+  going offline** once.
+
+### How the entries are sent
+
+- In the order they were tapped. The tablet sends after every tap, when a bout or the piste list
+  opens, when the network comes back, and every 5 seconds while the bar says **OFFLINE** and the
+  wifi is still on.
+- An entry sent twice counts once: each one carries its own identity.
+- On **SYNC ERROR** the tablet does not try again by itself: tap **Retry**.
+- An entry the server refuses goes to **Review**. It is held there, never deleted: **Retry** it
+  once the cause is fixed, or discard it if you already entered it again by hand. The entries of
+  that bout wait behind it; other bouts carry on.
+- When the session ends, the bar says **SESSION ENDED**: sign in again, and the queue is sent.
+
+### The score on the tablet and the score that counts
+
+- Without network, the pad shows the server's last score plus the entries it still holds,
+  calculated with the tournament's ruleset. The score then says "includes … not yet sent".
+- Once the entries are sent, the tablet reads the bout again and the server's score replaces its
+  own. The server's score is the one that counts.
+
+### How the tablet gets news
+
+The tablet does not receive live updates; it reads again:
+
+- the piste list every 20 seconds, and when the network comes back;
+- the bout after every send, and when the network comes back.
+
+So a change made elsewhere (another tablet, an organiser, a schedule move) shows at the next read.
+When the organiser changes the rules of a bout, the pad says "The organiser changed the rules of
+this match." A new version of the pad installs itself at the next page opened with the network,
+without asking.
+
+### The clock without network
+
+- The clock keeps running on the tablet, and Start, Pause, Resume and End are queued like hits.
+- A tablet whose date or time is wrong still times the bout right: the server uses how long ago
+  each press was made, not the tablet's clock. A press more than a day old is refused.
+
+### What the other screens see
+
+- The public bout page, the live boards and the hall screens show only what reached the server.
+  Entries still on a tablet appear as soon as they are sent.
+- The organiser's live control room shows each tablet's queue, and **Sync lagging** when an entry
+  waits over a minute, **Sync stuck** over five minutes. A tablet that loses the network with
+  nothing queued still shows **Synced**: look at its **Last seen** line.
+- Nothing stops two tablets from scoring the same piste. Keep one tablet per piste: a clock press
+  that meets the other tablet's press goes to **Review**.
+
 ## Locks and who may undo
 
 - A finished pool or bracket locks itself 15 minutes after its last bout (the tournament's

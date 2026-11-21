@@ -5,8 +5,8 @@ order: 11
 section: concepts
 ---
 
-**What you'll learn:** the words MyClash uses, its three apps, who sees what, and where a score
-comes from.
+**What you'll learn:** the words MyClash uses, how to read a bout's code, its three apps, who sees
+what, and where a score comes from.
 
 ## The words
 
@@ -26,6 +26,35 @@ comes from.
 
 A fighter has one **profile** on MyClash that follows them from event to event. At your event they
 are a **participant**; in a tournament they hold a **registration**.
+
+## Bout codes
+
+Every bout has a short code that names it the same way everywhere: on the tablet, the schedule,
+the live boards, the notifications and the exports. Read it in three parts: the weapon, the
+stage, then the bout.
+
+| Code          | Reads as                                               |
+| ------------- | ------------------------------------------------------ |
+| `LSW-P4-M01`  | Longsword, pool 4, bout 1 of that pool                 |
+| `SDW-S3-M05`  | Sidesword, Swiss round 3, bout 5 of that round         |
+| `LSW-B-QF-M3` | Longsword, bracket, quarter-final, bout 3 of the round |
+| `LSW-B-F-M1`  | Longsword, bracket, the final                          |
+| `LSW-B-F-M2`  | Longsword, bracket, the bronze match (third place)     |
+
+- **The weapon:** LSW longsword, SDW sidesword, RAP rapier, SBR sabre, SB sword and buckler. Any
+  other weapon takes the first three letters of its name: a Dussack tournament reads DUS.
+- **The stage:** P and the pool's number, S and the Swiss round, or B for every bracket bout,
+  followed by its round:
+  - R64, R32, R16 (the rounds of 64, 32 and 16), QF the quarter-finals, SF the semi-finals, F the
+    final, PI the play-in;
+  - a double elimination bracket names its side too: WBQF, WBSF, WBF for the winners bracket's
+    quarter-finals, semi-finals and final, LB1, LB2… for the losers bracket's rounds, GF the grand
+    final and GFR its reset;
+  - B with no round is a bout added by hand to a bracket.
+- **The bout:** M and its number. In a pool or a Swiss round, it is the order the bouts are
+  fought in, written with as many digits as the pool needs, so M02 comes before M10. In a
+  bracket, it is the bout's place in its round, counted from the top. In the last round, M1 is
+  the final and M2 the bronze match.
 
 ## Three apps
 
