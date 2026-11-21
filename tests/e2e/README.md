@@ -230,6 +230,13 @@ first in a workshop they don't teach. Each name must match exactly one roster
 person, and the run ends by checking that every tester holds a seat (not a
 waiting-list place) in both tournaments and a confirmed workshop seat.
 
+The Event takes photos (`photoMode: 'live'`). Before publishing, the run repairs
+the referee duties its own build order made impossible (hard rule 8): a bracket
+crew is assigned before the later rounds have their fighters, and the Workshop
+seats come after every crew. It drops each duty the one checker
+(`GET tournaments/:id/conflict-check`) calls impossible, refills from the
+conflict-aware board, and fails if one is left.
+
 Every completed match is driven through the match clock (`start → adjust → end`),
 giving `matches.duration_active_ms` a realistic **random 5–10 min** active time —
 the one field every referee time stat reads. Without it, "Average/Total time

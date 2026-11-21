@@ -136,6 +136,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     paced(() => request.put(api(u), o));
   const patch = (u: string, o?: Parameters<typeof request.patch>[1]) =>
     paced(() => request.patch(api(u), o));
+  const del = (u: string) => paced(() => request.delete(api(u)));
 
   const reqOk = async (res: APIResponse): Promise<APIResponse> => {
     if (!res.ok()) throw new Error(`${res.status()} ${(await res.text()).slice(0, 200)}`);
@@ -268,6 +269,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           country: 'FR',
           startDate: '2027-05-22',
           endDate: '2027-05-23',
+          // Testers may upload photos, shown as soon as they arrive (operator, 2026-11-21).
+          photoMode: 'live',
         },
       }),
     ),
@@ -1732,6 +1735,32 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     console.log(`  ✓ workshop enrollments: ${confirmed} confirmed, ${waitlisted} waitlisted`);
     return true;
   });
+
+  // ── Referee duties the build order left impossible (hard rule 8) ─────────────
+  // The bracket crews are assigned before the bracket is played, while a later
+  // round still waits for its fighters, and the Workshop seats come after every
+  // crew. So a referee can end up on the bout they fight in, or in a Workshop at
+  // the same time. The one checker names each such duty; it is dropped and its
+  // slot refilled from the conflict-aware board, which now knows both, until no
+  // impossible duty is left.
+  const impossibleDuties = async (): Promise<string[]> => {
+    const ids = new Set<string>();
+    for (const tid of tournamentIds) {
+      const { conflicts } = (await (
+        await reqOk(await get(`tournaments/${tid}/conflict-check`))
+      ).json()) as { conflicts: Array<{ assignmentId: string; level: string }> };
+      for (const c of conflicts) if (c.level === 'impossible') ids.add(c.assignmentId);
+    }
+    return [...ids];
+  };
+  for (let pass = 1; pass <= 3; pass++) {
+    const ids = await impossibleDuties();
+    if (ids.length === 0) break;
+    for (const id of ids) await reqOk(await del(`referee-assignments/${id}`));
+    console.log(`  ✓ dropped ${ids.length} impossible referee duties (pass ${pass})`);
+    await fillReferees(`refill after pass ${pass}`);
+  }
+  expect(await impossibleDuties(), 'referee duties that break hard rule 8').toEqual([]);
 
   for (const id of tournamentIds) {
     await step(`publish tournament ${id.slice(0, 8)}`, async () =>
