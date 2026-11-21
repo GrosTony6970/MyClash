@@ -2,7 +2,7 @@ import { test, expect, type APIResponse } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
-import { isolateRoster, linkedNames } from './_roster';
+import { fold, isolateRoster, linkedNames } from './_roster';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
@@ -22,7 +22,9 @@ import { isolateRoster, linkedNames } from './_roster';
  *     spread evenly across both days (3/day), each 2h, with a 12:00–14:00 midday
  *     break, each with a randomly-picked instructor; all published — and a random
  *     set of attendees enrolled per workshop (most seats filled, some waitlisted),
- *     including David / Robin / Anthony each in a workshop they don't teach
+ *     including Anthony and every tester each in a workshop they don't teach
+ *   - the testers named in E2E_POPULATE_TESTERS ("Given Family", `;`-separated)
+ *     fight in BOTH tournaments and attend a workshop; the run fails if one isn't
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -188,23 +190,43 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const anthony =
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??
     persons[0];
-  const rest = persons.filter((p) => p.id !== anthony.id);
+  // Testers (E2E_POPULATE_TESTERS) fight BOTH tournaments and attend a workshop.
+  // Each name must match exactly one person: a typo stops the run rather than
+  // silently leaving a tester out.
+  const testers = [
+    ...new Map(
+      linkedNames(process.env.E2E_POPULATE_TESTERS).map((name) => {
+        const hits = persons.filter((p) => fold(`${p.givenName} ${p.familyName}`) === fold(name));
+        if (hits.length !== 1) {
+          throw new Error(`E2E_POPULATE_TESTERS: "${name}" matches ${hits.length} people, not 1`);
+        }
+        return [hits[0]!.id, hits[0]!] as const;
+      }),
+    ).values(),
+  ];
+  const testersNotAnthony = testers.filter((p) => p.id !== anthony.id);
+  // Testers leave `rest` BEFORE it is sliced, so the pure referees and the
+  // instructors below stay non-fighters; the fighter-only slices shrink by as
+  // many testers as each tournament gains, keeping both at 32.
+  const rest = persons.filter((p) => p.id !== anthony.id && !testers.some((t) => t.id === p.id));
   // 15 people deliberately compete in BOTH tournaments AND referee — overlap that
   // exercises the referee-assignment model (a competitor who is also an official,
   // e.g. someone refereeing a pool they don't fight in). Anthony fights Longsword
   // and is also a referee.
+  const aEnd = 31 - testersNotAnthony.length;
+  const bEnd = aEnd + 17 - testers.length;
   const shared = rest.slice(0, 15); // in Longsword + Sidesword + referees
-  const aOnly = rest.slice(15, 31); // 16 → Longsword only
-  const bOnly = rest.slice(31, 48); // 17 → Sidesword only
+  const aOnly = rest.slice(15, aEnd); // 16 − testers → Longsword only
+  const bOnly = rest.slice(aEnd, bEnd); // 17 − testers → Sidesword only
   // 12 PURE (non-fighting) referees — the max concurrent slots in any window
   // (4 lices × 3 roles). They're free in every window (pools day 1, bracket day 2),
   // so 12 are exactly enough to fill every position; the 15 shared + Anthony also
   // referee but fight the day-1 pools, so they can't cover those parallel windows.
-  const refOnly = rest.slice(48, 60); // 12 → referee only (free all day)
-  const instructors = rest.slice(60, 66); // 6 → workshop instructors
-  const extras = rest.slice(66); // leftover roster → tournament waiting lists
-  const fightersA = [anthony, ...shared, ...aOnly]; // 32, Longsword (incl. Anthony)
-  const fightersB = [...shared, ...bOnly]; // 32, Sidesword
+  const refOnly = rest.slice(bEnd, bEnd + 12); // 12 → referee only (free all day)
+  const instructors = rest.slice(bEnd + 12, bEnd + 18); // 6 → workshop instructors
+  const extras = rest.slice(bEnd + 18); // leftover roster → tournament waiting lists
+  const fightersA = [anthony, ...shared, ...aOnly, ...testersNotAnthony]; // 32, Longsword (incl. Anthony)
+  const fightersB = [...shared, ...bOnly, ...testers]; // 32, Sidesword
   const referees = [anthony, ...shared, ...refOnly]; // 28 (Anthony + 15 shared + 12 pure)
   console.log(
     `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors ` +
@@ -212,17 +234,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   );
 
   // ── Scripted competitors: David Perchais + Robin Rabechault ───────────────────
-  // Each competes in Longsword (eliminated at the quarter-final), referees both
-  // tournaments, and is an instructor. Force each into the Longsword roster + the
-  // referee list (deduped; keep Longsword ≤32 by dropping a plain filler), and
-  // remove them from Sidesword so they only compete in Longsword.
+  // Each competes in Longsword (eliminated at the quarter-final), referees the
+  // Longsword semi-final, and is an instructor. Force each into the Longsword
+  // roster + the referee list (deduped; keep Longsword ≤32 by dropping a plain
+  // filler). Whether they also fight Sidesword is up to E2E_POPULATE_TESTERS.
   const david =
     persons.find((p) => /perchais/i.test(p.familyName) && /david/i.test(p.givenName)) ?? null;
   const robin = persons.find((p) => /rabechault/i.test(p.familyName)) ?? null;
   const scripted = [david, robin].filter((p): p is Person => p !== null);
   for (const s of scripted) {
-    const bIdx = fightersB.findIndex((p) => p.id === s.id);
-    if (bIdx >= 0) fightersB.splice(bIdx, 1);
     if (!fightersA.some((p) => p.id === s.id)) {
       const dropIdx = fightersA.findIndex(
         (p) => p.id !== anthony.id && !scripted.some((x) => x.id === p.id),
@@ -671,13 +691,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ granted ${rSkill} referee skills (all 3 roles each → interchangeable)`);
 
-  // ── Scripted referees: David & Robin referee a Sidesword pool + a Longsword SF ──
-  // Sidesword pool (day-1 afternoon) is conflict-free (they don't fight Sidesword).
+  // ── Scripted referees: David & Robin referee a Longsword SF ──────────────────────
+  // No Sidesword pool: a tester fights the Sidesword pools, which all run at once,
+  // and nobody referees while they fight (hard rule 8).
   // The Longsword semi-final (round 3) match rows already exist (generate-bracket)
   // with lice_id still null — required by the match-scope CHECK — and both lose their
   // QF so they never fight the SF. Done before fillReferees to avoid double-booking.
   if (scripted.length && long.id) {
-    await step('scripted: David & Robin referee both tournaments', async () => {
+    await step('scripted: David & Robin referee a Longsword semi-final', async () => {
       const lsRes = await get(`tournaments/${long.id}/bracket`);
       const lsBracket = lsRes.ok()
         ? ((await lsRes.json()) as { slots: Array<{ round: number; matchId: string | null }> })
@@ -687,13 +708,6 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         .map((s) => s.matchId as string);
       for (let i = 0; i < scripted.length; i++) {
         const g = refId(scripted[i]);
-        const swPool = side.poolIds[i % Math.max(side.poolIds.length, 1)];
-        if (swPool) {
-          const r = await post(`events/${eventId}/referee-assignments`, {
-            data: { poolId: swPool, role: 'arbitre_declarant', personId: g },
-          });
-          if (!r.ok()) console.log(`    ✗ ${scripted[i].familyName} Sidesword ref: ${r.status()}`);
-        }
         const sf = sfMatchIds[i % Math.max(sfMatchIds.length, 1)];
         if (sf) {
           // Longsword semi-final (round 3) — David/Robin lost their QF so they never
@@ -1670,12 +1684,32 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   });
 
   // ── Workshop attendees: fill most of each workshop's seats with a random subset
-  //    of the roster, and guarantee David / Robin / Anthony each attend a workshop
-  //    they don't teach. Uses the organizer enroll endpoint
+  //    of the roster, and guarantee Anthony, David, Robin and every tester each
+  //    a seat in a workshop they don't teach. Uses the organizer enroll endpoint
   //    (POST workshop-sessions/:id/enrollments/:personId). The enroll service's
   //    instructor-self-enrollment guard 403s a teacher's own session — those are
   //    skipped best-effort. Enrolling past capacity auto-waitlists.
+  const seatedIds = new Set<string>(); // people given a confirmed workshop seat
   await step('workshop enrollments (fill most seats)', async () => {
+    // Anthony, David, Robin and every tester MUST attend — so they are seated
+    // FIRST, before the random fill can take the seats, each in a workshop they
+    // don't teach (their own session 403s and is skipped). Try the LAST session
+    // first (Sunday 16:00–18:00): it clashes least with their bouts. Only a
+    // confirmed seat counts; the random fill below re-enrolling them is a no-op.
+    const attendees = new Map(
+      [anthony, david, robin, ...testers]
+        .filter((x): x is Person => x !== null)
+        .map((p) => [p.id, p] as const),
+    );
+    for (const p of attendees.values()) {
+      for (const ws of [...workshopSessions].reverse()) {
+        const r = await post(`workshop-sessions/${ws.sessionId}/enrollments/${p.id}`);
+        if (!r.ok() || ((await r.json()) as { status?: string }).status !== 'confirmed') continue;
+        seatedIds.add(p.id);
+        console.log(`    ↳ ${p.givenName} ${p.familyName} has a workshop seat`);
+        break;
+      }
+    }
     const rosterIds = persons.map((p) => p.id);
     let confirmed = 0;
     let waitlisted = 0;
@@ -1696,17 +1730,6 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         const body = (await r.json()) as { status?: string };
         if (body.status === 'confirmed') confirmed++;
         else waitlisted++;
-      }
-    }
-    // The three scripted people MUST attend — enroll each in the first workshop
-    // they don't teach (their own session 403s and is skipped).
-    for (const p of [david, robin, anthony].filter((x): x is Person => x !== null)) {
-      for (const ws of workshopSessions) {
-        const r = await post(`workshop-sessions/${ws.sessionId}/enrollments/${p.id}`);
-        if (r.ok()) {
-          console.log(`    ↳ ${p.givenName} ${p.familyName} enrolled in a workshop`);
-          break;
-        }
       }
     }
     console.log(`  ✓ workshop enrollments: ${confirmed} confirmed, ${waitlisted} waitlisted`);
@@ -1743,4 +1766,36 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   expect(played).toBeGreaterThan(0);
   expect(bracketPlayed).toBeGreaterThan(0);
   expect(doubleOuts).toBeGreaterThan(0);
+
+  // Every tester holds a seat (not a waiting-list place) in BOTH tournaments, read
+  // back from the server, and a confirmed workshop seat.
+  const seatedIn = async (tournamentId: string) =>
+    new Set(
+      (
+        (await (
+          await reqOk(await get(`tournaments/${tournamentId}/registrations`))
+        ).json()) as Array<{
+          person_id: string;
+          waitlist_position: number | null;
+        }>
+      )
+        .filter((r) => r.waitlist_position === null)
+        .map((r) => r.person_id),
+    );
+  const longSeats = await seatedIn(long.id);
+  const sideSeats = await seatedIn(side.id);
+  const name = (p: Person) => `${p.givenName} ${p.familyName}`;
+  expect(testers.filter((p) => !longSeats.has(p.id)).map(name), 'testers not in Longsword').toEqual(
+    [],
+  );
+  expect(testers.filter((p) => !sideSeats.has(p.id)).map(name), 'testers not in Sidesword').toEqual(
+    [],
+  );
+  expect(
+    testers.filter((p) => !seatedIds.has(p.id)).map(name),
+    'testers without a workshop seat',
+  ).toEqual([]);
+  console.log(
+    `  ✓ testers in both tournaments + a workshop: ${testers.map(name).join(', ') || '(none)'}`,
+  );
 });

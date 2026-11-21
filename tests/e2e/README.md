@@ -224,6 +224,12 @@ some waitlisted), with David / Robin / Anthony each guaranteed a seat in a works
 they don't teach — via the organizer enroll endpoint
 `POST /workshop-sessions/:id/enrollments/:personId` (workshop_lead+).
 
+**Testers.** The people named in `E2E_POPULATE_TESTERS` (`"Given Family"`,
+separated by `;`, in `.env.e2e` only) fight in **both** tournaments and are seated
+first in a workshop they don't teach. Each name must match exactly one roster
+person, and the run ends by checking that every tester holds a seat (not a
+waiting-list place) in both tournaments and a confirmed workshop seat.
+
 Every completed match is driven through the match clock (`start → adjust → end`),
 giving `matches.duration_active_ms` a realistic **random 5–10 min** active time —
 the one field every referee time stat reads. Without it, "Average/Total time

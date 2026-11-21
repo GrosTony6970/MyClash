@@ -51,7 +51,8 @@ const headerKey = (header: string): string =>
     .trim()
     .replace(/[\s\-'’]+/gu, '_');
 
-const fold = (name: string): string =>
+/** A name compared the way the roster is: accents off, case off, spaces collapsed. */
+export const fold = (name: string): string =>
   name.normalize('NFD').replace(/\p{M}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** The names in `E2E_POPULATE_LINKED`: "Given Family" entries, separated by `;`. */
