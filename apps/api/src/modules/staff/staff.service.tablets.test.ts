@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { StaffService } from './staff.service';
+import type { ZodType } from 'zod';
 import { StaffHeartbeatDto } from './dto';
 import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 
@@ -50,7 +51,7 @@ const beat = (over: Record<string, unknown> = {}) => ({
 
 describe('the check-in schema', () => {
   it('reads a piste id that is no id as none, and still takes the check-in', () => {
-    const schema = (StaffHeartbeatDto as unknown as { schema: import('zod').ZodType }).schema;
+    const schema = (StaffHeartbeatDto as unknown as { schema: ZodType }).schema;
     const parsed = schema.safeParse(beat({ liceId: 'not-a-piste' }));
     expect(parsed.success).toBe(true);
     expect((parsed.data as { liceId: unknown }).liceId).toBeNull();

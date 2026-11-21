@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as ApiClient from '@myclash/api-client';
 import type { ApiResult } from '@myclash/api-client';
 
 /**
@@ -9,7 +10,7 @@ import type { ApiResult } from '@myclash/api-client';
 const answer = vi.hoisted(() => ({ next: null as unknown }));
 const apiRequest = vi.hoisted(() => vi.fn(() => Promise.resolve(answer.next)));
 vi.mock('@myclash/api-client', async (actual) => ({
-  ...(await actual<typeof import('@myclash/api-client')>()),
+  ...(await actual<typeof ApiClient>()),
   apiRequest,
 }));
 
