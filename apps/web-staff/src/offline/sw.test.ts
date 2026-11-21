@@ -234,6 +234,15 @@ describe('a navigation with no network', () => {
     expect(await text(sw.ask('/matches/bout-2'))).toMatch(/main\.js"><\/script>\/$/);
   });
 
+  // Ruling 955: it showed a bare white page reading "Offline", while the kept
+  // `/offline` page says the same in the referee's language, with a Try again.
+  it('gives the kept offline page when neither the shell nor the start page is kept', async () => {
+    sw.stores.get(CACHE)!.delete('/matches/_');
+    sw.stores.get(CACHE)!.delete('/');
+
+    expect(await text(sw.ask('/matches/bout-2'))).toMatch(/main\.js"><\/script>\/offline$/);
+  });
+
   it('says "Offline" with a 503 when nothing is kept', async () => {
     sw.stores.clear();
 

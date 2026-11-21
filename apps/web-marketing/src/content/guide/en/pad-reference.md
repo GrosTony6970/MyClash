@@ -133,7 +133,8 @@ Everything in **Match actions** needs the network, except the direct card.
 ### Opening the pad without network
 
 - Once the pad has been opened with the network, the tablet keeps the app: its pages open without
-  network, a bout page included.
+  network, a bout page included. A page the tablet did not keep opens the start page instead, or,
+  when even that is gone, a page that says "You're offline" with **Try again**.
 - The tablet also keeps a copy of its piste: the bouts, their scores and clocks, and the
   tournament's rules. It refreshes the copy every 5 minutes while a screen of the piste is open.
 - Without network, a bout opens from that copy and says so: "No connection. This is the match as

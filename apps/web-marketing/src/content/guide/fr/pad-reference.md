@@ -141,7 +141,9 @@ Tout ce qui est dans **Actions du match** demande le réseau, sauf le carton dir
 ### Ouvrir la tablette sans réseau
 
 - Une fois la tablette ouverte avec le réseau, elle garde l'application : ses pages s'ouvrent sans
-  réseau, page d'un combat comprise.
+  réseau, page d'un combat comprise. Une page que la tablette n'a pas gardée ouvre la page
+  d'accueil à la place, ou, si même celle-ci manque, une page qui dit « Vous êtes hors ligne »
+  avec **Réessayer**.
 - La tablette garde aussi une copie de sa lice : les combats, leurs scores et chronos, et les
   règles du tournoi. Elle rafraîchit cette copie toutes les 5 minutes tant qu'un écran de la lice
   est ouvert.

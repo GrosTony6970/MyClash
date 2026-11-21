@@ -6,7 +6,7 @@
  *   - _next/static: cache-first (immutable, content-hashed filenames)
  *   - API calls: network-first, offline → 503 JSON
  *   - Navigation: network-first, offline → the copy of that address, then the
- *     shell of its route
+ *     shell of its route, then the start page, then the offline page
  *
  * THE SHELLS. A page with an id in its address (`/matches/<id>`,
  * `/lices/<id>`) is one page for every id: it reads the id from the address
@@ -49,6 +49,9 @@ const CACHE_NAME = CACHE_FAMILY + CACHE_VERSION;
 /** The start page. */
 const START = `${MOUNT}/`;
 
+/** The page that says, in the referee's language, that there is no network: the last resort. */
+const OFFLINE = `${MOUNT}/offline`;
+
 /** The id a page is asked with to keep its shell. In step with `SHELL_ID` in `src/lib/nav.ts`. */
 const SHELL_ID = '_';
 
@@ -61,6 +64,7 @@ const SHELL_URLS = [
   ...[
     '/login',
     '/lices',
+    // The last resort of a navigation with no network (ruling 955).
     '/offline',
     // The two desks. With a cache that follows the deploy, a page that is not
     // kept here is lost at each deploy until its next visit with a network.
@@ -271,9 +275,12 @@ async function networkFirstNavigate(request) {
     const cache = await ownCache();
     const cached = await cache?.match(request);
     if (cached) return cached;
-    // The shell of the address's route; the start page when that is not kept either.
+    // The shell of the address's route; the start page when that is not kept either; then
+    // the page that says there is no network (ruling 955).
     const shell =
-      (await cache?.match(shellFor(new URL(request.url).pathname))) ?? (await cache?.match(START));
+      (await cache?.match(shellFor(new URL(request.url).pathname))) ??
+      (await cache?.match(START)) ??
+      (await cache?.match(OFFLINE));
     return shell ?? new Response('Offline', { status: 503 });
   }
 }

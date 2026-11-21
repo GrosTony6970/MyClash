@@ -108,8 +108,6 @@ const EXPECTED: Record<string, string> = {
   'src/offline/drill-request.ts': 'apiRequest 1, padRequest 1',
   // queue: a clock press, a round press, a step of a level bout.
   'src/offline/press-send.ts': 'fetchRenewingLogin 3',
-  // No caller (older than the drill's census): a read.
-  'src/offline/reconcile.ts': 'fetch 1',
   // queue: a card, a hit and a protest. open: the three reads before a second try.
   'src/offline/sync.ts': 'fetch 3, fetchRenewingLogin 3',
   // open: who is signed in, and the pistes of this tablet.
