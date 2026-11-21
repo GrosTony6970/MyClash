@@ -147,6 +147,19 @@ describe('deploy-check.mjs', () => {
     assert.equal(spawnSync('node', [SCRIPT], { encoding: 'utf8' }).status, 2);
   });
 
+  // Slice 6 review M5: the skill's deploy check row, whole, so a line moved between the problem
+  // and the note column goes red.
+  it("the skill puts the check's lines in the right columns", () => {
+    const skill = readFileSync('.claude/skills/myclash-ops/SKILL.md', 'utf8');
+    const row = skill.split('\n').find((line) => line.startsWith('| The deploy check '));
+    const cells = (row ?? '').split(' | ').map((cell) => cell.trim());
+    assert.equal(cells.length, 3, row);
+    assert.match(cells[1], /^`commit mismatch …`.*`commit unread`$/u);
+    assert.doesNotMatch(cells[1], /commit changed|commit ok/u);
+    assert.match(cells[2], /^`commit changed <commit>`:.*`commit ok, the deploy record names/u);
+    assert.doesNotMatch(cells[2], /mismatch|unread/u);
+  });
+
   it('reads files only: no network module, no dynamic import', () => {
     const text = readFileSync(SCRIPT, 'utf8');
     const imports = [...text.matchAll(/from '([^']+)'/gu)].map((m) => m[1]);

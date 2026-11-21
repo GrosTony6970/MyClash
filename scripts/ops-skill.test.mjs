@@ -370,18 +370,6 @@ describe('the skill', () => {
     });
   }
 
-  // Slice 6 review M5: the deploy check's row, whole, so a line moved between the problem and the
-  // note column goes red.
-  it("puts the deploy check's lines in the right columns", () => {
-    const row = skill.split('\n').find((line) => line.startsWith('| The deploy check '));
-    const cells = (row ?? '').split(' | ').map((cell) => cell.trim());
-    assert.equal(cells.length, 3, row);
-    assert.match(cells[1], /^`commit mismatch …`.*`commit unread`$/u);
-    assert.doesNotMatch(cells[1], /commit changed|commit ok/u);
-    assert.match(cells[2], /^`commit changed <commit>`:.*`commit ok, the deploy record names/u);
-    assert.doesNotMatch(cells[2], /mismatch|unread/u);
-  });
-
   it('names only files that exist', () => {
     for (const file of skill.match(/(?:\.claude|apps)\/[\w./-]+\.(?:mjs|ts)/g) ?? []) {
       assert.ok(existsSync(file), `${file} exists`);
