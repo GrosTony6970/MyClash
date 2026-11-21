@@ -105,7 +105,7 @@ const fr: HomeCopy = {
       text: "Le pad d'arbitrage fonctionne hors ligne, de bout en bout : les échanges sont saisis, horodatés et conservés sur la tablette, puis synchronisés dès que la connexion revient. Un gymnase sans wifi n'arrête pas votre compétition.",
     },
     {
-      title: 'Poules, tableaux, et suisse',
+      title: 'Poules, tableaux, et ronde suisse',
       text: 'Poules, élimination directe, double élimination et rondes suisses. Tirages, têtes de série et reclassements sont calculés par le moteur de règles — jamais saisis à la main dans un tableur.',
     },
     {
