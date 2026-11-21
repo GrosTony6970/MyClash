@@ -140,6 +140,33 @@ wrong. The operator also asked whether an MCP server is the right tool.
   round read all 200 through the door after the restore. The restore's `agent:` lines were not
   read: the console keeps the log of a running operation only.
 
+### Slice 5 rulings (2026-11-20, rulings 900-905)
+
+- **900** Containers become runtime health's sixth metric: a crashed container (exit code other
+  than 0 and 143), an unhealthy one, one never started, or an expected service with no container
+  is critical. The email, the console card, the door and the wake-up all see it. Before, the five
+  metrics never saw a container, so "stop a web container" could wake nobody.
+- **901** No TLS wake-up: production keeps its staging certificate on purpose, so the TLS monitor
+  would wake Claude every morning for nothing; the 06:05 round reads the certificates anyway.
+- **902** The wake-up checks on every 5-minute tick, whatever the email switch and interval.
+- **903** A `silent` run waits up to about 9 minutes before it alarms, so a wipe and deploy that
+  ends in time pages nobody. No healthchecks.io API key.
+- **904** (from the final review) A worker can run, look healthy, and have a stuck tick: the pings
+  stop, the watcher fires once, and a run that only checks the site says "all good" for ever. So
+  the silent run waits until the site answers AND the worker has pinged again; without a fresh
+  ping it is a problem and a push, unless its own repair healed the worker or Redis. The door's
+  runtime-health read carries the worker's last ping.
+- **905** (found in the live check) `--dev-certs` sets `NODE_TLS_REJECT_UNAUTHORIZED=0` on the
+  worker, so the start token and the pings went out without a certificate check. The two calls now
+  always check certificates. The variable still affects the api's and the worker's other outgoing
+  calls (named, not fixed here).
+- Built otherwise than the plan, recorded: the wake-up keeps one Redis key (`ops-agent:wake-state`,
+  its de-dup and the console's trace in one), saved before the call; it calls when a key is NEW
+  (a set that only shrinks calls nobody); every Redis call of the tick is bounded at 5 s;
+  `door.mjs wait-up` takes no folder, writes no file, and exits 0 (up), 3 (no ping) or 4 (down);
+  the console tile is a row helper on the card's own tile; the door's containers read moved whole
+  into `AdminSystemActionsService.getContainers` (one owner).
+
 Decisions taken in the build (the operator may override): a busy backup is a 409, no longer a
 202 that fails a moment later (D2); the console's system actions take `OpsRunnerClient`, the one
 road to the runner (D3); a backup started from the console writes an audit row too (D4); "dead"
@@ -317,8 +344,9 @@ fixed (the root cause); the scrub is not widened to hide it.
 - **Alert.** When `runtime-health-monitor` sees a NEW set of critical or unavailable keys, it also
   POSTs to the task's address. The text is one line naming the run type (`alert`) and the keys with
   their figures. No person data can be in it. It fires on a new set only, not on the cooldown
-  re-email: waking Claude again for the same unfixed incident changes nothing.
-  `tls-cert-monitor` does the same on its own alert.
+  re-email: waking Claude again for the same unfixed incident changes nothing. A new key wakes it
+  again (a second dead container, `containers:<service>`); a set that only shrinks does not. No
+  TLS wake-up (ruling 901).
 - **The wake-up does not follow the email settings.** Today the tick stops early when email alerts
   are off, and the alert set follows the operator's email level
   (`runtime-health-monitor.worker.ts:87,123-131`). The wake-up is decided before that exit, always
@@ -329,8 +357,8 @@ fixed (the root cause); the scrub is not widened to hide it.
   and the commit. A failed POST prints a warning and does not fail the deploy.
 - **Timer.** The task's own schedule, once each morning. No text means run type `daily`.
 - **Two new keys** in `.env.example` (the task's address and its token). When they are absent, no
-  call is made, the worker logs that once at boot, and the Runtime Health card shows "agent
-  wake-up: not configured". An absent setting must be visible.
+  call is made, the worker logs that once at boot, and the Runtime Health card's "Ops agent" tile shows
+  "Not configured". An absent setting must be visible.
 - **Named race.** An alert and a deploy can start two runs at the same time. Each action takes the
   ops runner's lock or is refused (409 `ops_busy`, ruling 886; the lock did not cover container
   actions and renewals before slice 4), and a container action or a renewal is refused while a
@@ -423,7 +451,9 @@ an outside service; when the pings stop, that service POSTs to the task's addres
 A `silent` run is a full run, not a report-only run. Claude first checks the public host from the
 cloud. If the API answers, Claude reads the health through the door and may repair with the same
 list and the same rules (a stopped worker is the ordinary case). If the API does not answer,
-Claude reports and pushes.
+Claude reports and pushes. Built (rulings 903, 904): the run first waits, up to 9 minutes, until
+the site answers and the worker has pinged again (`door.mjs wait-up`), so a wipe that ends in time
+is "all good" with a note; a site that answers while the worker stays silent is a problem.
 
 ### 9. From a production error to a fix (slice 8)
 
@@ -588,7 +618,7 @@ Two facts the build must respect:
    container alone and mailed "all good". Left for later slices: a deploy started during a runner
    job is proven by tests only, not yet on the VPS.
 5. **The alert wake-up and the outside watcher** (two commits, one after the other; the
-   end-to-end test needs both).
+   end-to-end test needs both). Done 2026-11-20 (`782ba2eed`…`9f72ccd55`, rulings 900-905). Guide steps G5 and G6 done 2026-11-20 (the task's API trigger, a healthchecks.io check with Period 5 min and Grace 10 min, and a down-only webhook; see the guide). The first worker call answered 401: the token in the VPS `.env` was not the task's current one; after a Regenerate it answered 200. Live checks after a wipe and deploy of `9f72ccd55`, same day (Paris time): (1) `docker kill myclash-web-marketing` at 16:03; the 16:05 tick called once (`alert containers=critical(web-marketing exited 137)`); the run started the container (`after running healthy`) and mailed "alert · all good" at 16:06, no push. (2) `docker kill myclash-worker` at 16:11; healthchecks.io fired at 16:25 (`silent MyClash worker went down at …`); `wait-up` waited 8 min 38 s and printed `up, no ping since …` (ruling 904); the run started the worker (`after running healthy`) and mailed "silent · all good" at 16:35, no push. (3) `docker kill myclash-api` at 00:45; the 00:50 tick called (`alert containers=critical(api exited 137, web-public unhealthy)`); the round ended `door-down`; the run mailed "alert · 1 problem(s)" and pushed; the operator ran `start.sh` (Claude's SSH `start.sh` was refused by its own session's safety check). (4) The next morning's daily round with all of this in place: to be read on 2026-11-21. Named, not fixed: `NODE_TLS_REJECT_UNAUTHORIZED=0` under `--dev-certs` still covers the api's and the worker's other outgoing calls (Resend, the photo bucket, AI providers); Docker state words (`exited`, `restarting`) reach the French card untranslated.
 6. **The deploy wake-up and the deploy check.**
 7. **Housekeeping reads and "resolve a query error".**
 8. **From a production error to a fix.**
