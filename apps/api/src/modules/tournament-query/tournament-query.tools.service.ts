@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { matchSummaries } from '../matches/match-summaries';
 import { isDoubleLossBout } from '@myclash/rulesets';
 import { unknownFighterInEnglish, unknownRefereeInEnglish } from '../../common/unknown-name';
 import type {
@@ -91,6 +92,8 @@ type RefereeRow = {
 
 @Injectable()
 export class TournamentQueryToolsService {
+  private readonly logger = new Logger(TournamentQueryToolsService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   async getToolContext(tournament: TournamentContext): Promise<TournamentToolContext> {
@@ -281,11 +284,12 @@ export class TournamentQueryToolsService {
       .slice(0, limit(args['limit'], 50, 200));
 
     if (rows.length === 0) return empty('No matching matches', 'find_matches', args);
+    const codes = await this.codesOf(rows.map((match) => match.match_id));
     return table(
       'Matching matches',
       ['Match', 'Pool', 'Lice', 'Fighters', 'Status', 'Scheduled'],
       rows.map((match) => ({
-        Match: match.match_number_label ?? match.match_id,
+        Match: codes.get(match.match_id) ?? match.match_number_label ?? match.match_id,
         Pool: match.pool_name ?? '',
         Lice: match.lice_name ?? '',
         Fighters: `${match.red_name ?? 'TBD'} vs ${match.blue_name ?? 'TBD'}`,
@@ -295,6 +299,22 @@ export class TournamentQueryToolsService {
       'find_matches',
       args,
     );
+  }
+
+  /**
+   * Each bout's code (`LSW-P4-M01`), never its stored label, from the one builder of a
+   * bout's name. Naming must not cost the answer: a failed read is logged, and the bouts
+   * keep their stored labels.
+   */
+  private async codesOf(matchIds: string[]): Promise<Map<string, string>> {
+    try {
+      const summaries = await matchSummaries(this.supabase.service, matchIds);
+      return new Map([...summaries].map(([id, summary]) => [id, summary.roundCode]));
+    } catch (err) {
+      const why = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`The codes of ${matchIds.length} bout(s) were not read: ${why}`);
+      return new Map();
+    }
   }
 
   private async getPoolStandings(tournament: TournamentContext, args: Record<string, unknown>) {

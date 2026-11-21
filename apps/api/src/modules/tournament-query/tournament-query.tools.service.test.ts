@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TournamentQueryToolsService } from './tournament-query.tools.service';
+
+const summariesMock = vi.hoisted(() => vi.fn());
+vi.mock('../matches/match-summaries', () => ({ matchSummaries: summariesMock }));
 import type { TournamentContext } from './tournament-query.types';
 
 // Same per-table dispatch pattern as the other API service tests: one fromMock
@@ -251,5 +254,42 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
     expect(red.card).toMatchObject({ Matches: 3, Wins: 1, Losses: 1 });
     // Blue lost m-1 (double loss) and m-3 (red won it).
     expect(blue.card).toMatchObject({ Matches: 3, Wins: 0, Losses: 2 });
+  });
+});
+
+describe('TournamentQueryToolsService · find_matches names each bout', () => {
+  const bout = {
+    match_id: 'm-1',
+    match_number_label: 'L1-PD-M01',
+    pool_name: 'Pool 4',
+    lice_name: 'Lice 1',
+    red_name: 'Ada',
+    blue_name: 'Grace',
+    status: 'scheduled',
+    scheduled_at: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fromMock.mockImplementation(() => awaitableChain({ data: [bout], error: null }));
+  });
+
+  it('by its code, never by its stored label', async () => {
+    summariesMock.mockResolvedValue(new Map([['m-1', { roundCode: 'LSW-P4-M01' }]]));
+    const service = new TournamentQueryToolsService(mockSupabase as never);
+
+    const result = await service.execute(tournament, 'find_matches', {});
+
+    expect(summariesMock.mock.calls[0]?.[1]).toEqual(['m-1']);
+    expect(result.rows?.map((row) => row['Match'])).toEqual(['LSW-P4-M01']);
+  });
+
+  it('by its stored label when the codes cannot be read, rather than no answer', async () => {
+    summariesMock.mockRejectedValue(new Error('pools: down'));
+    const service = new TournamentQueryToolsService(mockSupabase as never);
+
+    const result = await service.execute(tournament, 'find_matches', {});
+
+    expect(result.rows?.map((row) => row['Match'])).toEqual(['L1-PD-M01']);
   });
 });

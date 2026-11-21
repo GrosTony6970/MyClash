@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssignmentsService } from './assignments.service';
 
 /**
- * A bout with no number (one made by hand) was shown in the remove-a-fighter window by its
- * database id. Ruled 2026-10-15: its Tournament and its round. The report carries what names
- * it — from `matchSummaries`, the one builder of a bout's round — and only for such a bout.
+ * What the remove-a-fighter window calls each bout, from `matchSummaries`, the one builder of
+ * a bout's name. A bout with a number reads by its code (`LSW-P2-M03`), never by its stored
+ * label (`L1-P2-M03`). A bout with no number (one made by hand) was shown by its database id;
+ * ruled 2026-10-15: its Tournament and its round.
  */
 const summariesMock = vi.hoisted(() => vi.fn());
 vi.mock('../matches/match-summaries', () => ({ matchSummaries: summariesMock }));
@@ -51,28 +52,37 @@ const TABLES: Record<string, unknown> = {
   persons: { global_person_id: null },
 };
 
-describe('the round of a bout with no number', () => {
+describe('the name of each bout in the remove-a-fighter window', () => {
   let service: AssignmentsService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockImplementation((table: string) => chain(TABLES[table] ?? []));
     summariesMock.mockResolvedValue(
-      new Map([['m-by-hand', { roundToken: null, poolName: '', phaseType: 'single_elim' }]]),
+      new Map([
+        [
+          'm-numbered',
+          { roundCode: 'LSW-P2-M03', roundToken: null, poolName: 'Pool 2', phaseType: 'pool' },
+        ],
+        [
+          'm-by-hand',
+          { roundCode: 'LSW-B', roundToken: null, poolName: '', phaseType: 'single_elim' },
+        ],
+      ]),
     );
     service = new AssignmentsService({ service: { from: fromMock } } as never, {} as never);
   });
 
-  it('is read for that bout alone, and travels with it and with its blocking line', async () => {
+  it('is read once for every bout: a numbered one takes its code, one with none its round', async () => {
     const report = await service.getEventAssignments('event-1', 'person-1');
 
     expect(summariesMock).toHaveBeenCalledTimes(1);
-    expect(summariesMock.mock.calls[0]?.[1]).toEqual(['m-by-hand']);
+    expect(summariesMock.mock.calls[0]?.[1]).toEqual(['m-numbered', 'm-by-hand']);
     const round = { roundToken: null, poolName: null, phaseType: 'single_elim' };
     expect(report.matchesAsFighter).toEqual([
       {
         matchId: 'm-numbered',
-        label: 'L1-P2-M03',
+        label: 'LSW-P2-M03',
         status: 'scheduled',
         tournamentId: 't-1',
         tournamentName: 'Longsword Open',
@@ -98,7 +108,7 @@ describe('the round of a bout with no number', () => {
     ]);
   });
 
-  // Review, 2026-10-16: the round only names a bout; a failed read must not refuse a delete.
+  // Review, 2026-10-16: the name only names a bout; a failed read must not refuse a delete.
   it('leaves the bout named by its Tournament alone when the read fails', async () => {
     summariesMock.mockRejectedValueOnce(new Error('pools: down'));
 
@@ -113,16 +123,5 @@ describe('the round of a bout with no number', () => {
         tournamentName: 'Longsword Open',
       },
     ]);
-  });
-
-  it('is not read when every bout has its number', async () => {
-    const numbered = (TABLES['vw_tournament_query_matches'] as unknown[]).slice(0, 1);
-    fromMock.mockImplementation((table: string) =>
-      chain(table === 'vw_tournament_query_matches' ? numbered : (TABLES[table] ?? [])),
-    );
-
-    await service.getEventAssignments('event-1', 'person-1');
-
-    expect(summariesMock).not.toHaveBeenCalled();
   });
 });

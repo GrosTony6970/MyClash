@@ -2208,6 +2208,26 @@ describe('ProgrammeService', () => {
       expect(writeCalls.count).toBe(0);
     });
 
+    it('names the fight that would cross midnight by its code, never its stored label', async () => {
+      buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [
+          {
+            id: 'match-late',
+            scheduled_at: at(2026, 6, 2, 23, 30),
+            match_number_label: 'L1-PD-M01',
+            phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+            pools: { sort_order: 3 },
+          },
+        ],
+      });
+
+      await expect(
+        service.moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER),
+      ).rejects.toThrow(/the fight LSW-P4-M01 past midnight/);
+    });
+
     it('names the bar that would fall off the end of the day', async () => {
       buildMoveMocks({
         block: movedBar(),

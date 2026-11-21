@@ -15,6 +15,7 @@ import type {
   SuggestConfig,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../matches/round-code.helper';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
@@ -1464,7 +1465,7 @@ export class ProgrammeService {
 
     const { data: matchesData } = await this.supabase.service
       .from('matches')
-      .select('id, scheduled_at, status, match_number_label')
+      .select(`id, scheduled_at, status, match_number_label, ${ROUND_CODE_INPUTS}`)
       .in('phase_id', phaseIds)
       // Explicit limit: PostgREST deployments with a `max-rows` cap silently
       // truncate otherwise, and a truncated read here does not fail — it
@@ -1472,17 +1473,17 @@ export class ProgrammeService {
       // `schedule-grid.service.ts`; no deployment of this repo sets the cap.
       .limit(10_000);
     return (
-      (matchesData ?? []) as Array<{
+      (matchesData ?? []) as unknown as Array<{
         id: string;
         scheduled_at: string | null;
         status: string | null;
-        match_number_label: string | null;
       }>
     ).map((m) => ({
       id: m.id,
       scheduledAt: m.scheduled_at,
       status: m.status ?? '',
-      label: m.match_number_label,
+      // The bout's code (`LSW-P4-M01`), for the refusal to name it; none when unnumbered.
+      label: roundCodeOrNull(m),
     }));
   }
 

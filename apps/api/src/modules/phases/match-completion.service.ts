@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../matches/round-code.helper';
 // Value imports, not `import type`: Nest needs the runtime classes for DI metadata.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { PhasesService } from './phases.service';
@@ -368,7 +369,8 @@ export class MatchCompletionService {
     return {
       ...forfeits,
       affected: dependents.map((bout) => ({
-        label: named.get(bout.matchId ?? '')?.label ?? bout.label,
+        // Null when the bout has no code: the dialog then names it by its round.
+        label: named.get(bout.matchId ?? '')?.label ?? null,
         redName: named.get(bout.matchId ?? '')?.redName ?? null,
         blueName: named.get(bout.matchId ?? '')?.blueName ?? null,
         round: bout.round,
@@ -424,16 +426,35 @@ export class MatchCompletionService {
     const named = new Map<string, { label: string | null; redName: string; blueName: string }>();
     if (ids.length === 0) return named;
 
-    const { data } = await this.supabase.service
-      .from('vw_tournament_query_matches')
-      .select('match_id, match_number_label, red_name, blue_name')
-      .in('match_id', ids);
-
-    for (const row of (data ?? []) as Array<Record<string, string | null>>) {
-      named.set(row['match_id'] as string, {
-        label: row['match_number_label'] ?? null,
-        redName: row['red_name'] ?? '',
-        blueName: row['blue_name'] ?? '',
+    // The fighters' names from the view; each bout's code (`LSW-B-SF-M01`, never its
+    // stored label) from the bout itself, which carries the code's inputs.
+    const [{ data }, { data: boutRows }] = await Promise.all([
+      this.supabase.service
+        .from('vw_tournament_query_matches')
+        .select('match_id, red_name, blue_name')
+        .in('match_id', ids),
+      this.supabase.service
+        .from('matches')
+        .select(`id, match_number_label, ${ROUND_CODE_INPUTS}`)
+        .in('id', ids),
+    ]);
+    const names = new Map(
+      ((data ?? []) as Array<Record<string, string | null>>).map((row) => [
+        row['match_id'] as string,
+        row,
+      ]),
+    );
+    const codes = new Map(
+      ((boutRows ?? []) as unknown as Array<{ id: string }>).map((row) => [
+        row.id,
+        roundCodeOrNull(row),
+      ]),
+    );
+    for (const id of ids) {
+      named.set(id, {
+        label: codes.get(id) ?? null,
+        redName: names.get(id)?.['red_name'] ?? '',
+        blueName: names.get(id)?.['blue_name'] ?? '',
       });
     }
     return named;

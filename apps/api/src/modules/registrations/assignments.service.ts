@@ -72,34 +72,42 @@ export interface BlockingMatchEntry extends Partial<BoutRound> {
 
 const roundLogger = new Logger('AssignmentsService');
 
-/** The round of each bout of `bouts` that has no number, from the one builder of a bout's round. */
-async function roundsOfUnnumbered(
+/**
+ * What names each bout of `bouts`, from the one builder of a bout's name: its code
+ * (`LSW-P4-M01`, never its stored label) for a bout with a number, its round for one
+ * with none.
+ */
+async function namesOfBouts(
   db: SupabaseClient,
   bouts: AssignmentSummary[],
-): Promise<Map<string, BoutRound>> {
-  const ids = [...new Set(bouts.filter((bout) => !bout.label).map((bout) => bout.matchId!))];
+): Promise<Map<string, { code: string; round: BoutRound }>> {
+  const ids = [...new Set(bouts.map((bout) => bout.matchId!))];
   if (ids.length === 0) return new Map();
-  // The round only NAMES a bout: a failed read must not refuse a delete that needs none
-  // (review, 2026-10-16). The window then names the Tournament alone.
+  // The name only NAMES a bout: a failed read must not refuse a delete that needs none
+  // (review, 2026-10-16). The window then names a bout by its stored label, or its
+  // Tournament alone, and the log says why.
   let summaries: Awaited<ReturnType<typeof matchSummaries>>;
   try {
     summaries = await matchSummaries(db, ids);
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err);
-    roundLogger.warn(`The rounds of ${ids.length} bout(s) with no number were not read: ${why}`);
+    roundLogger.warn(`The names of ${ids.length} bout(s) were not read: ${why}`);
     return new Map();
   }
-  const rounds = new Map<string, BoutRound>();
+  const names = new Map<string, { code: string; round: BoutRound }>();
   for (const id of ids) {
     const summary = summaries.get(id);
     if (!summary) continue;
-    rounds.set(id, {
-      roundToken: summary.roundToken ?? null,
-      poolName: summary.poolName || null,
-      phaseType: summary.phaseType,
+    names.set(id, {
+      code: summary.roundCode,
+      round: {
+        roundToken: summary.roundToken ?? null,
+        poolName: summary.poolName || null,
+        phaseType: summary.phaseType,
+      },
     });
   }
-  return rounds;
+  return names;
 }
 
 export interface AssignmentReport {
@@ -380,12 +388,17 @@ export class AssignmentsService {
       }
     }
 
-    // A bout with no number carries its round, so the window can name it.
-    const rounds = await roundsOfUnnumbered(this.supabase.service, [
+    // A bout with a number reads by its code; one with none carries its round, so the
+    // window can name it.
+    const names = await namesOfBouts(this.supabase.service, [
       ...matchesAsFighter,
       ...matchesAsRefereeMap.values(),
     ]);
-    const named = (m: AssignmentSummary) => ({ ...m, ...rounds.get(m.matchId!) });
+    const named = (m: AssignmentSummary): AssignmentSummary => {
+      const name = names.get(m.matchId!);
+      if (!name) return m;
+      return m.label ? { ...m, label: name.code } : { ...m, ...name.round };
+    };
     matchesAsFighter = matchesAsFighter.map(named);
     const matchesAsReferee = Array.from(matchesAsRefereeMap.values(), named);
 
@@ -396,7 +409,7 @@ export class AssignmentsService {
       label: m.label!,
       status: m.status!,
       reason,
-      ...(m.label ? {} : { tournamentName: m.tournamentName, ...rounds.get(m.matchId!) }),
+      ...(m.label ? {} : { tournamentName: m.tournamentName, ...names.get(m.matchId!)?.round }),
     });
     for (const m of matchesAsFighter) {
       if (isBlocking(m.status)) blockingMatches.push(blocking(m, 'fighter'));

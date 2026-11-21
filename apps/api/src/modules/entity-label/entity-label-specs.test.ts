@@ -35,7 +35,9 @@ const EXPECTED: Record<Exclude<EntityKind, 'user'>, { table: string; columns: st
   phase: { table: 'phases', columns: 'id, type, tournaments(name)' },
   match: {
     table: 'matches',
-    columns: 'id, match_number_label, phases(type, tournaments(name))',
+    columns:
+      'id, match_number_label, phases(type, config_json, tournaments(name, weapon)), ' +
+      'pools(sort_order), bracket_slots(round), swiss_rounds(round_number)',
   },
   exchange: { table: 'exchanges', columns: 'id, sequence, type' },
   global_person: {
@@ -109,21 +111,34 @@ describe('the PostgREST embed flip', () => {
     );
   });
 
-  it('reads a match through two nested embeds in either shape', () => {
-    const base = { id: 'match-1', match_number_label: 'L1-P1-M01' };
+  it('names a match by its Tournament and its code, through embeds in either shape', () => {
+    const base = { id: 'match-1', match_number_label: 'L1-PD-M01' };
+    const tournaments = { name: 'Longsword Open', weapon: 'longsword' };
 
     expect(
       LABEL_SPECS.match.label({
         ...base,
-        phases: { type: 'pool', tournaments: { name: 'Longsword' } },
+        phases: { type: 'pool', config_json: null, tournaments },
+        pools: { sort_order: 3 },
       }),
-    ).toBe('Longsword · pool · L1-P1-M01');
+    ).toBe('Longsword Open · LSW-P4-M01');
     expect(
       LABEL_SPECS.match.label({
         ...base,
-        phases: [{ type: 'pool', tournaments: [{ name: 'Longsword' }] }],
+        phases: [{ type: 'pool', config_json: null, tournaments: [tournaments] }],
+        pools: [{ sort_order: 3 }],
       }),
-    ).toBe('Longsword · pool · L1-P1-M01');
+    ).toBe('Longsword Open · LSW-P4-M01');
+  });
+
+  it('names an unnumbered match by its Tournament alone, never "???"', () => {
+    expect(
+      LABEL_SPECS.match.label({
+        id: 'match-1',
+        match_number_label: null,
+        phases: { type: 'pool', tournaments: { name: 'Longsword Open' } },
+      }),
+    ).toBe('Longsword Open');
   });
 
   it('reads a registration person in either shape', () => {

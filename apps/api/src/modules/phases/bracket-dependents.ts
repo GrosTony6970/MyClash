@@ -67,7 +67,6 @@ export interface DependentBout {
   status: string | null;
   startedAt: string | null;
   lockedAt: string | null;
-  label: string | null;
   /**
    * The bout carries a result or is mid-fight, so un-doing its parent cannot
    * silently discard it. Same predicate as `hasStarted` in bracket-match-sync.
@@ -89,7 +88,6 @@ interface MatchRow {
   status: string;
   started_at: string | null;
   locked_at: string | null;
-  match_number_label: string | null;
 }
 
 const fought = hasBeenFought;
@@ -143,7 +141,7 @@ async function loadPhaseGraph(supabase: Client, matchId: string): Promise<PhaseG
 
   const { data: matchData } = await supabase
     .from('matches')
-    .select('id, bracket_slot_id, status, started_at, locked_at, match_number_label')
+    .select('id, bracket_slot_id, status, started_at, locked_at')
     .in(
       'bracket_slot_id',
       slots.map((slot) => slot.id),
@@ -210,7 +208,6 @@ function toBout(slot: SlotRow, match: MatchRow | null): DependentBout {
     status: match?.status ?? null,
     startedAt: match?.started_at ?? null,
     lockedAt: match?.locked_at ?? null,
-    label: match?.match_number_label ?? null,
     hasBeenFought: match ? fought(match.status, match.started_at) : false,
   };
 }

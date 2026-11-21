@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AssignmentsService, BLOCKING_MATCH_STATUSES } from './assignments.service';
 
+// A bout's name is `assignments.bout-names.test.ts`'s: here no name comes back, so each
+// bout keeps the label the read gave it and these cases hold what they are about.
+vi.mock('../matches/match-summaries', () => ({ matchSummaries: async () => new Map() }));
+
 // Mocks mirror the per-table dispatch pattern used elsewhere in the
 // API service tests — one `fromMock` reused, branched by `tableName`.
 

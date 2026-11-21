@@ -818,3 +818,23 @@ describe('MatchCompletionService.onBoutPutBack', () => {
     expect(supabase.writes).toEqual([]);
   });
 });
+
+describe('MatchCompletionService.previewUncompletion', () => {
+  it('names each bout an undo would clear by its code, never by its stored label', async () => {
+    const fixture = bracketFixture(true);
+    const phases = { config_json: { bracketSize: 4 }, tournaments: { weapon: 'longsword' } };
+    fixture.matches = fixture.matches.map((row) =>
+      row['id'] === 'match-final'
+        ? { ...row, match_number_label: '1', phases, bracket_slots: { round: 2 } }
+        : row,
+    );
+
+    const preview = await new MatchCompletionService(
+      uncompleteSupabase(fixture) as never,
+      { ...openEvent(), isEventOver: vi.fn().mockResolvedValue(false) } as never,
+      { clearDownstreamOf: vi.fn() } as never,
+    ).previewUncompletion('match-r1p1');
+
+    expect(preview.affected.map((bout) => bout.label)).toEqual(['LSW-B-F-M1']);
+  });
+});

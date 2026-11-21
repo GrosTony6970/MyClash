@@ -26,6 +26,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ROUND_CODE_INPUTS, roundCodeOrNull } from '../matches/round-code.helper';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { isRefereeBoardLocked, refereeBoardLocked } from './referee-lock';
 import type { StaffingConfigPayloadDto, StaffingSlotDto } from './dto/staffing.dto';
@@ -561,7 +562,7 @@ export class StaffingService {
       this.supabase.service.from('pools').select('id, phase_id, name').in('phase_id', phaseIds),
       this.supabase.service
         .from('matches')
-        .select('id, phase_id, match_number_label')
+        .select(`id, phase_id, match_number_label, ${ROUND_CODE_INPUTS}`)
         .in('phase_id', phaseIds),
     ]);
     const poolPhase = new Map<string, string>();
@@ -575,14 +576,16 @@ export class StaffingService {
       if (r.name) poolNameById.set(r.id, r.name);
     }
     const matchPhase = new Map<string, string>();
+    // The bout's code (`LSW-P4-M01`), never its stored label; none for an unnumbered bout.
     const matchLabelById = new Map<string, string>();
-    for (const r of (matches ?? []) as Array<{
+    for (const r of (matches ?? []) as unknown as Array<{
       id: string;
       phase_id: string;
       match_number_label: string | null;
     }>) {
       matchPhase.set(r.id, r.phase_id);
-      if (r.match_number_label) matchLabelById.set(r.id, r.match_number_label);
+      const code = roundCodeOrNull(r);
+      if (code) matchLabelById.set(r.id, code);
     }
 
     // 3. Existing referee_assignments referencing those pools/matches.

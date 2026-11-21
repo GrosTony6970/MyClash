@@ -242,6 +242,57 @@ describe('StaffingService', () => {
       );
     });
 
+    it("names an affected bout-scoped duty by its bout's code, never its stored label", async () => {
+      fromMock.mockReturnValueOnce(
+        makeChain({ data: { id: 't-1', event_id: 'e-1' }, error: null }),
+      );
+      fromMock.mockReturnValueOnce(
+        makeChain({ data: { id: 'e-1', organization_id: 'org-1' }, error: null }),
+      );
+      fromMock.mockReturnValueOnce(
+        makeAwaitableChain({ data: [{ id: 'phase-b', type: 'single_elim' }], error: null }),
+      );
+      fromMock.mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+      // A quarter-final of a Longsword 8-bracket, stored as its bare slot "2".
+      const boutRead = makeAwaitableChain({
+        data: [
+          {
+            id: 'm-qf',
+            phase_id: 'phase-b',
+            match_number_label: '2',
+            phases: { config_json: { bracketSize: 8 }, tournaments: { weapon: 'longsword' } },
+            bracket_slots: { round: 1 },
+          },
+        ],
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(boutRead);
+      fromMock.mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [{ id: 'ra-2', pool_id: null, match_id: 'm-qf', role: 'arbitre_table' }],
+          error: null,
+        }),
+      );
+      fromMock.mockReturnValueOnce(
+        seededSupabase({ referee_assignments: { rows: [] } }).from('referee_assignments'),
+      );
+      const payload = buildPayload({
+        bracket: [{ index: 1, displayName: null, allowedSkillIds: ['arbitre_declarant'] }],
+      });
+
+      const refusal = await service.putTournamentConfig('t-1', payload, 'u-1').catch((e) => e);
+
+      expect(refusal).toBeInstanceOf(ConflictException);
+      const body = (refusal as ConflictException).getResponse() as {
+        affectedAssignments: Array<{ matchLabel: string | null }>;
+      };
+      expect(body.affectedAssignments.map((a) => a.matchLabel)).toEqual(['LSW-B-QF-M2']);
+      // The double ignores projections: only this pin sees the code's inputs go.
+      expect(boutRead.select).toHaveBeenCalledWith(
+        'id, phase_id, match_number_label, phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+      );
+    });
+
     it('rejects a payload whose slot has no allowed skills', async () => {
       const payload = buildPayload({
         pool: [{ index: 1, displayName: null, allowedSkillIds: [] }],

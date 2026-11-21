@@ -7,6 +7,8 @@
  * grows without producing a longer function.
  */
 
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
+
 export type EntityKind =
   | 'event'
   | 'tournament'
@@ -102,16 +104,24 @@ export const LABEL_SPECS: Record<Exclude<EntityKind, 'user'>, EntityLabelSpec> =
   },
   match: {
     table: 'matches',
-    columns: 'id, match_number_label, phases(type, tournaments(name))',
+    columns:
+      'id, match_number_label, phases(type, config_json, tournaments(name, weapon)), ' +
+      'pools(sort_order), bracket_slots(round), swiss_rounds(round_number)',
+    // The Tournament, then the bout's code (`LSW-P4-M01`): never the stored label
+    // (`L1-PD-M01`), and no phase type, which the code already says (P, B or S).
     label: (r) => {
       const phase = embed(r, 'phases');
       const tournament = phase ? embed(phase, 'tournaments') : null;
-      const parts = [
-        text(tournament ?? {}, 'name'),
-        text(phase ?? {}, 'type'),
-        text(r, 'match_number_label'),
-      ];
-      return nonEmpty(parts.filter(Boolean).join(' · '));
+      const code = r['match_number_label']
+        ? roundCodeFromMatchRow({
+            ...r,
+            phases: phase ? { ...phase, tournaments: tournament } : null,
+            pools: embed(r, 'pools'),
+            bracket_slots: embed(r, 'bracket_slots'),
+            swiss_rounds: embed(r, 'swiss_rounds'),
+          })
+        : '';
+      return nonEmpty([text(tournament ?? {}, 'name'), code].filter(Boolean).join(' · '));
     },
   },
   exchange: {
