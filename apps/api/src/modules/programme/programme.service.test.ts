@@ -1793,6 +1793,9 @@ describe('ProgrammeService', () => {
       phase_id?: string;
       status?: string;
       match_number_label?: string | null;
+      /** The bout code's inputs (`ROUND_CODE_INPUTS`). */
+      phases?: { config_json: unknown; tournaments: { weapon: string } };
+      pools?: { sort_order: number };
     };
 
     /**
