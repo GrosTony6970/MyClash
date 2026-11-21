@@ -13,7 +13,7 @@ export const PARIS = 'Europe/Paris';
 /** A bout of the fighter whose schedule it is, in June: Paris is two hours ahead of UTC. */
 export const scheduledBout = (id: string, scheduledAt: string, more: object = {}) => ({
   id,
-  matchNumberLabel: `Pool 1 - ${id}`,
+  roundCode: `LSW-P1-${id}`,
   status: 'scheduled',
   scheduledAt,
   durationMinutes: 5,
@@ -33,7 +33,7 @@ export const scheduledBout = (id: string, scheduledAt: string, more: object = {}
 export const tableDuty = (scheduledAt: string) => ({
   id: 'duty-1',
   matchId: '',
-  matchNumberLabel: '',
+  roundCode: '',
   scheduledAt,
   startsAt: scheduledAt,
   endsAt: null,
@@ -90,7 +90,7 @@ export async function openPersonPage(page: Page, schedule: object): Promise<void
 /** A bout of the live board. */
 export const boardBout = (id: string, more: object = {}) => ({
   id,
-  matchNumberLabel: `L1-P1-${id}`,
+  roundCode: `LSW-P1-${id}`,
   redFighterName: 'Ada Lovelace',
   blueFighterName: 'Mary Somerville',
   scheduledAt: '2027-06-12T08:30:00.000Z',

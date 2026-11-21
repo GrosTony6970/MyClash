@@ -28,7 +28,7 @@ test('a bout to come names its piste', async ({ page }) => {
   });
 
   const upcoming = page.locator('section', { hasText: 'Upcoming' });
-  await expect(upcoming.getByText('Pool 1 - Match 1 · Piste 3')).toBeVisible();
+  await expect(upcoming.getByText('LSW-P1-Match 1 · Piste 3')).toBeVisible();
 });
 
 test('a bout with no piste yet shows no dangling separator', async ({ page }) => {
@@ -38,7 +38,7 @@ test('a bout with no piste yet shows no dangling separator', async ({ page }) =>
   });
 
   const upcoming = page.locator('section', { hasText: 'Upcoming' });
-  await expect(upcoming.getByText('Pool 1 - Match 1', { exact: true })).toBeVisible();
+  await expect(upcoming.getByText('LSW-P1-Match 1', { exact: true })).toBeVisible();
 });
 
 // A bout whose clock is halted is still in play. The page listed "running"
@@ -50,7 +50,7 @@ test('a bout whose clock is halted is listed as live, with its piste', async ({ 
   });
 
   const live = page.locator('section', { hasText: 'Live now' });
-  await expect(live.getByText('Pool 1 - m-7 · Piste 3')).toBeVisible();
+  await expect(live.getByText('LSW-P1-m-7 · Piste 3')).toBeVisible();
   // The bout's Back returns to this person's page.
   await expect(live.getByRole('link')).toHaveAttribute(
     'href',

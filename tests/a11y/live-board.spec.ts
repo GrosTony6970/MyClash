@@ -37,7 +37,7 @@ test('the board shows the score of the bout on each piste', async ({ page }) => 
 
   // A piste with no bout in play shows the next bout, and no score.
   const second = page.getByRole('link', { name: /Piste 2/ });
-  await expect(second).toContainText('L1-P1-M07');
+  await expect(second).toContainText('LSW-P1-M07');
   await expect(second.getByTestId('live-score')).toHaveCount(0);
 
   await expectNoCriticalAxeViolations(page);
@@ -46,7 +46,7 @@ test('the board shows the score of the bout on each piste', async ({ page }) => 
 test('one piste: the bout in play shows its score and opens its page', async ({ page }) => {
   await openLiveBoard(page, TWO_PISTES, '?lice=lice-1');
 
-  const bout = page.getByRole('link', { name: /L1-P1-M01/ });
+  const bout = page.getByRole('link', { name: /LSW-P1-M01/ });
   await expect(bout).toContainText('Ada Lovelace');
   await expect(bout).toContainText('Mary Somerville');
   await expect(bout).toContainText('5');
@@ -57,7 +57,7 @@ test('one piste: the bout in play shows its score and opens its page', async ({ 
     '/e/test-event/match/M01?return=%2Fe%2Ftest-event%2Flive%3Flice%3Dlice-1',
   );
   // The next bout of the piste is named under it.
-  await expect(page.getByText('L1-P1-M02')).toBeVisible();
+  await expect(page.getByText('LSW-P1-M02')).toBeVisible();
 
   await expectNoCriticalAxeViolations(page);
 });
@@ -69,7 +69,7 @@ test('one piste: a bout whose clock is halted says so', async ({ page }) => {
     '?lice=lice-1',
   );
 
-  await expect(page.getByRole('link', { name: /L1-P1-M01/ })).toContainText('Paused');
+  await expect(page.getByRole('link', { name: /LSW-P1-M01/ })).toContainText('Paused');
 });
 
 // Quick win F5. The board said "Updates automatically" for ever, also after

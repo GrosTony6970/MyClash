@@ -36,7 +36,7 @@ const bout = (
   fallbackEndsAt: string | null,
 ) => ({
   id,
-  matchNumberLabel: `Pool 1 - ${id}`,
+  roundCode: `LSW-P1-${id}`,
   status: 'scheduled',
   scheduledAt,
   durationMinutes: null,
@@ -72,7 +72,7 @@ const SCHEDULE = {
     {
       id: 'duty-1',
       matchId: 'match-2',
-      matchNumberLabel: 'Pool 2 - Match 3',
+      roundCode: 'LSW-P2-M03',
       scheduledAt: '2027-03-14T10:00:00.000Z',
       startsAt: '2027-03-14T10:00:00.000Z',
       endsAt: null,

@@ -209,7 +209,7 @@ function boutRow(id) {
 function boutSummary(id) {
   const [redName, blueName] = BOUTS[id].names;
   return {
-    roundCode: 'P1',
+    roundCode: 'LSW-P1-M03',
     redName,
     blueName,
     redClub: null,

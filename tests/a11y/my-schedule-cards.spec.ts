@@ -19,7 +19,7 @@ test("a bout's card opens the bout's page, which knows the way back", async ({ p
     refereeSlots: [tableDuty(AT_1415)],
   });
 
-  const bout = page.getByRole('link', { name: /Pool 1 - m-1/ });
+  const bout = page.getByRole('link', { name: /LSW-P1-m-1/ });
   await expect(bout).toHaveAttribute(
     'href',
     '/e/test-event/match/m-1?return=%2Fe%2Ftest-event%2Fmy-schedule',
@@ -72,7 +72,7 @@ test('a running bout says "Live"; a halted one says "Paused"; a coming one says 
 
   // The two at 10:30 clash, so each card also names the other: find a card by its own title.
   const card = (id: string) =>
-    page.getByRole('link').filter({ has: page.getByText(`Pool 1 - ${id}`, { exact: true }) });
+    page.getByRole('link').filter({ has: page.getByText(`LSW-P1-${id}`, { exact: true }) });
   await expect(card('m-1').getByText('LIVE', { exact: true })).toBeVisible();
   await expect(card('m-1').getByText('Paused')).toHaveCount(0);
   await expect(card('m-2').getByText('Paused', { exact: true })).toBeVisible();

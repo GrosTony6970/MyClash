@@ -10,7 +10,7 @@ import {
 
 const bout = (id: string, scheduledAt: string, opponentName: string) => ({
   id,
-  matchNumberLabel: `Pool 1 - ${id}`,
+  roundCode: `LSW-P1-${id}`,
   status: 'scheduled',
   scheduledAt,
   durationMinutes: 5,
@@ -48,7 +48,7 @@ const SCHEDULE = {
     {
       id: 'duty-1',
       matchId: 'match-2',
-      matchNumberLabel: 'Pool 2 - Match 3',
+      roundCode: 'LSW-P2-M03',
       scheduledAt: '2027-03-14T10:00:00.000Z',
       startsAt: '2027-03-14T10:00:00.000Z',
       endsAt: '2027-03-14T10:05:00.000Z',
@@ -292,7 +292,7 @@ test('my-schedule page - with no lengths, a bout ends at its next bout, and the 
   ).toBeVisible();
   // Match 1 and the workshop name each other; nothing else clashes.
   await expect(page.getByText('⚠ Conflicts with: Stick and guard')).toHaveCount(1);
-  await expect(page.getByText('⚠ Conflicts with: Pool 1 - Match 1')).toHaveCount(1);
+  await expect(page.getByText('⚠ Conflicts with: LSW-P1-Match 1')).toHaveCount(1);
   await expect(page.getByText(/Conflicts with/)).toHaveCount(2);
 
   await expectNoCriticalAxeViolations(page);
