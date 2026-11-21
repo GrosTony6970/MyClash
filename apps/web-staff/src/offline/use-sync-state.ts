@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isDrillActive } from './drill';
+import { retriesAfterError, retryDelayMs, triesAfter } from './retry-after-error';
 import type { SyncState } from './sync';
 
 /**
@@ -67,5 +68,42 @@ export function useSendWhileOffline(
       if (navigator.onLine && !isDrillActive()) engine.sendBehind();
     }, SEND_WHILE_OFFLINE_MS);
     return () => window.clearInterval(timer);
+  }, [waits, engine]);
+}
+
+/**
+ * Try the queue again while the bar says SYNC ERROR over rows a send can try
+ * (ruling 954). Nothing did: a hit the server answered with a 500 waited for
+ * the referee's Retry, another hit or another bout, and for ever on a tablet
+ * nobody touched. The waits grow from 5 s to a minute (`retryDelayMs`); the bar
+ * says what it said, and its Retry still sends at once. Rows held in Review
+ * wait for that Retry (ruling 291).
+ *
+ * The race: each try is a send, so the state goes `syncing` and back to `error`
+ * between two tries, and this effect ends and starts again. The count of tries
+ * lives in a ref across that, and goes back to 0 only when the error is over
+ * (`triesAfter`), or the waits would never grow.
+ */
+export function useRetryAfterError(
+  engine: { sendBehind: () => void },
+  state: SyncState | null,
+): void {
+  const tries = useRef(0);
+  const waits = retriesAfterError(state);
+  useEffect(() => {
+    tries.current = triesAfter(tries.current, state);
+  }, [state]);
+  useEffect(() => {
+    if (!waits) return;
+    let timer = 0;
+    const next = () => {
+      timer = window.setTimeout(() => {
+        tries.current += 1;
+        if (navigator.onLine && !isDrillActive()) engine.sendBehind();
+        next();
+      }, retryDelayMs(tries.current));
+    };
+    next();
+    return () => window.clearTimeout(timer);
   }, [waits, engine]);
 }

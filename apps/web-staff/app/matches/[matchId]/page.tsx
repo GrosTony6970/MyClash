@@ -9,6 +9,7 @@ import { SyncBar } from '../../../src/components/SyncBar';
 import { useKeepPiste } from '../../../src/hooks/useKeepPiste';
 import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessionEnded';
 import {
+  useRetryAfterError,
   useSendEnded,
   useSendWhileOffline,
   useSyncState,
@@ -102,6 +103,7 @@ export default function MatchScoringPage() {
   const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);
   useSendEnded(syncEngine, readBoutAgain);
   useSendWhileOffline(syncEngine, syncState);
+  useRetryAfterError(syncEngine, syncState);
   useSignInWhenSessionEnded();
   // The bouts after this one, for a "Next match" with no network (ruling 4).
   useKeepPiste(apiUrl, match?.liceId);

@@ -155,7 +155,8 @@ Everything in **Match actions** needs the network, except the direct card.
   opens, when the network comes back, and every 5 seconds while the bar says **OFFLINE** and the
   wifi is still on.
 - An entry sent twice counts once: each one carries its own identity.
-- On **SYNC ERROR** the tablet does not try again by itself: tap **Retry**.
+- On **SYNC ERROR** the tablet tries again by itself: after 5 seconds, then 10, 20, 40, and then
+  once a minute. **Retry** sends at once.
 - An entry the server refuses goes to **Review**. It is held there, never deleted: **Retry** it
   once the cause is fixed, or discard it if you already entered it again by hand. The entries of
   that bout wait behind it; other bouts carry on.

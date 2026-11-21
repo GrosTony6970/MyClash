@@ -74,6 +74,20 @@ describe('a queue that waits for a network', () => {
   });
 });
 
+describe('a queue the server answered with a fault', () => {
+  // Ruling 954: SYNC ERROR waited for a tap, for ever on a tablet nobody touched.
+  it('is tried again by the bout page and the piste list, with growing waits, outside a drill', () => {
+    expect(page()).toContain('useRetryAfterError(syncEngine, syncState);');
+    expect(read('hooks', 'usePisteQueue.ts')).toContain(
+      'useRetryAfterError(syncEngine, syncState);',
+    );
+    const hook = read('offline', 'use-sync-state.ts');
+    expect(hook).toContain('const waits = retriesAfterError(state);');
+    expect(hook).toContain('}, retryDelayMs(tries.current));');
+    expect(hook).toContain('tries.current = triesAfter(tries.current, state);');
+  });
+});
+
 describe('the page’s reads of the bout', () => {
   it('nobody waits for the sends the page starts', () => {
     const source = page();

@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo } from 'react';
 import { getSyncEngine, type SyncEngine, type SyncState } from '../offline/sync';
-import { useSendEnded, useSendWhileOffline, useSyncState } from '../offline/use-sync-state';
+import {
+  useRetryAfterError,
+  useSendEnded,
+  useSendWhileOffline,
+  useSyncState,
+} from '../offline/use-sync-state';
 
 /**
  * The tablet's queue, on the piste list (quick win P16; operator, 2026-10-12).
@@ -31,6 +36,7 @@ export function usePisteQueue(
   const syncEngine = useMemo(() => getSyncEngine(apiUrl), [apiUrl]);
   const syncState = useSyncState(syncEngine);
   useSendWhileOffline(syncEngine, syncState);
+  useRetryAfterError(syncEngine, syncState);
   // Without it the bar turns green and the bout whose End just went still
   // reads as live, until the list's own poll.
   const readListAgain = useCallback(() => void readList(), [readList]);

@@ -165,7 +165,8 @@ Tout ce qui est dans **Actions du match** demande le réseau, sauf le carton dir
   la liste de la lice, au retour du réseau, et toutes les 5 secondes tant que la barre dit
   **HORS LIGNE** et que le wifi est encore là.
 - Une saisie envoyée deux fois ne compte qu'une fois : chacune porte sa propre identité.
-- Sur **ERREUR DE SYNCHRO**, la tablette ne réessaie pas seule : appuyez sur **Réessayer**.
+- Sur **ERREUR DE SYNCHRO**, la tablette réessaie seule : après 5 secondes, puis 10, 20, 40, puis
+  une fois par minute. **Réessayer** envoie tout de suite.
 - Une saisie que le serveur refuse passe dans **Examiner**. Elle y est gardée, jamais supprimée :
   **Réessayer** une fois la cause réglée, ou abandonnez-la si vous l'avez déjà ressaisie à la main.
   Les saisies de ce combat attendent derrière elle ; les autres combats continuent.
