@@ -26,9 +26,46 @@ describe('assembleBoardRows', () => {
       blueScore: 2,
       status: 'running',
       round: 2,
-      matchNumberLabel: '#3',
       referees: [],
     });
+  });
+
+  it('names every bout by its code, never by its stored label', () => {
+    const input = base();
+    const pool = (id: string, status: string, label: string, scheduledAt: string | null) =>
+      match({
+        id,
+        status,
+        match_number_label: label,
+        scheduled_at: scheduledAt,
+        pools: { name: 'Pool 4', sort_order: 3 },
+        phases: {
+          type: 'pool',
+          config_json: null,
+          tournaments: { name: 'T', weapon: 'longsword' },
+        },
+      });
+    input.matches = [
+      pool('m1', 'running', 'L1-PD-M01', '2027-05-22T07:00:00Z'),
+      pool('m2', 'scheduled', 'L1-PD-M02', '2027-05-22T07:06:00Z'),
+    ];
+    input.recentCompleted = [
+      {
+        id: 'm0',
+        lice_id: 'L1',
+        match_number_label: 'L1-PD-M00',
+        scheduled_at: null,
+        ended_at: '2027-05-22T06:59:00Z',
+        phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+        pools: { sort_order: 3 },
+      },
+    ];
+    const [row] = assembleBoardRows(input);
+    expect(row!.currentMatch?.roundCode).toBe('LSW-P4-M01');
+    expect(row!.nextUp?.label).toBe('LSW-P4-M02');
+    expect(row!.queue.map((q) => q.label)).toEqual(['LSW-P4-M02']);
+    expect(row!.lastCompleted?.label).toBe('LSW-P4-M00');
+    expect(JSON.stringify(row)).not.toMatch(/L1-PD/);
   });
 
   it('reads the round from swiss_rounds for a Swiss bout', () => {
@@ -47,9 +84,9 @@ describe('assembleBoardRows', () => {
     const input = base();
     input.matches = [
       match({ id: 'm1', status: 'running' }),
-      match({ id: 'm2', status: 'scheduled', match_number_label: '#2' }),
+      match({ id: 'm2', status: 'scheduled' }),
     ];
-    expect(assembleBoardRows(input)[0]!.nextUp).toEqual({ matchId: 'm2', label: '#2' });
+    expect(assembleBoardRows(input)[0]!.nextUp?.matchId).toBe('m2');
   });
 
   it('joins the assigned scorer, most-recently-seen first, with the peers', () => {

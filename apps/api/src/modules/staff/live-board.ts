@@ -1,5 +1,6 @@
 // apps/api/src/modules/staff/live-board.ts
 
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import type { RefereeAssignmentRow, ResolvedReferee } from '../matches/resolve-match-referees';
 import type { MatchLengthInput } from '../schedule/match-lengths';
@@ -23,6 +24,11 @@ import type {
  */
 const LIVE_STATUSES = ['running', 'paused'] as const;
 
+/** The bout's code (`LSW-P4-M01`): every bout name the board sends, never the stored label. */
+function codeOf(row: RawBoardMatch | RawCompletedMatch): string {
+  return roundCodeFromMatchRow(row as unknown as Record<string, unknown>);
+}
+
 export interface RawBoardMatch {
   id: string;
   lice_id: string;
@@ -43,8 +49,12 @@ export interface RawBoardMatch {
    * nothing read it — so every Swiss row on the live board showed no round.
    */
   swiss_rounds?: { round_number?: number } | null;
-  pools?: { name?: string } | null;
-  phases?: { type?: string; tournaments?: { name?: string } | null } | null;
+  pools?: { name?: string; sort_order?: number } | null;
+  phases?: {
+    type?: string;
+    config_json?: Record<string, unknown> | null;
+    tournaments?: { name?: string; weapon?: string } | null;
+  } | null;
   red: { persons?: { given_name?: string; family_name?: string } | null } | null;
   blue: { persons?: { given_name?: string; family_name?: string } | null } | null;
 }
@@ -60,6 +70,14 @@ export interface RawCompletedMatch {
   match_number_label: string | null;
   scheduled_at: string | null;
   ended_at: string | null;
+  /** The bout code's inputs (`roundCodeFromMatchRow`). */
+  phases?: {
+    config_json?: Record<string, unknown> | null;
+    tournaments?: { weapon?: string } | null;
+  } | null;
+  pools?: { sort_order?: number } | null;
+  bracket_slots?: { round?: number } | null;
+  swiss_rounds?: { round_number?: number } | null;
 }
 
 export interface RawBoardLice {
@@ -137,7 +155,7 @@ export function mapBoardMatch(
         : typeof row.swiss_rounds?.round_number === 'number'
           ? row.swiss_rounds.round_number
           : null,
-    matchNumberLabel: row.match_number_label,
+    roundCode: codeOf(row),
     scheduledAt: row.scheduled_at,
     startedAt: row.started_at,
     endedAt: row.ended_at,
@@ -194,7 +212,7 @@ function buildQueue(
     .slice(0, 3)
     .map((m) => ({
       matchId: m.id,
-      label: m.match_number_label ?? '',
+      label: codeOf(m),
       scheduledAt: m.scheduled_at,
     }));
 }
@@ -213,9 +231,7 @@ function pickLastCompleted(completed: RawCompletedMatch[]): BoardRow['lastComple
     const bestKey = best ? (best.ended_at ?? best.scheduled_at ?? '') : '';
     if (!best || key > bestKey) best = m;
   }
-  return best
-    ? { matchId: best.id, label: best.match_number_label ?? '', endedAt: best.ended_at }
-    : null;
+  return best ? { matchId: best.id, label: codeOf(best), endedAt: best.ended_at } : null;
 }
 
 /** The account driving this piste, plus everyone else assigned to it. */

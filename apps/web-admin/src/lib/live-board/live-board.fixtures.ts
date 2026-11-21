@@ -24,7 +24,7 @@ export function mkMatch(over: Partial<BoardMatch> = {}): BoardMatch {
     blueScore: 0,
     status: 'running',
     round: null,
-    matchNumberLabel: '#1',
+    roundCode: 'LSW-P1-M01',
     scheduledAt: null,
     startedAt: null,
     endedAt: null,

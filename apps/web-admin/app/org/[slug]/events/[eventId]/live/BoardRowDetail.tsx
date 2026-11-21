@@ -85,7 +85,7 @@ function BoutSection({ row, nowMs, t }: { row: BoardRow; nowMs: number; t: T }) 
   const cm = row.currentMatch;
   const timing = timingReadout(row, nowMs, locale, t);
   const context = cm
-    ? [cm.tournamentName, cm.poolName ?? (cm.round ? `R${cm.round}` : null), cm.matchNumberLabel]
+    ? [cm.tournamentName, cm.poolName ?? (cm.round ? `R${cm.round}` : null), cm.roundCode]
         .filter(Boolean)
         .join(' · ')
     : null;

@@ -24,7 +24,8 @@ export interface BoardMatch {
   /** Raw `matches.status`; worded by `statusLabel('match', …)` of @myclash/ui. */
   status: string;
   round: number | null;
-  matchNumberLabel: string | null;
+  /** The bout's code (`LSW-P4-M01`), never its stored label. */
+  roundCode: string;
   scheduledAt: string | null;
   startedAt: string | null;
   endedAt: string | null;

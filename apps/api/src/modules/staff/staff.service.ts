@@ -14,6 +14,7 @@ import {
   buildRoundCode,
   bracketCodeConfig,
   roundCodeFromMatchRow,
+  ROUND_CODE_EMBEDS,
 } from '../matches/round-code.helper';
 import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
@@ -795,9 +796,10 @@ export class StaffService {
         .from('matches')
         // `pools(name)` hangs off matches.pool_id — `pools` has no event_id, so
         // the embed is the only route to a pool name here.
-        // `phases(type,tournaments(name))` mirrors live-state.service.ts.
+        // `phases(type,tournaments(name))` mirrors live-state.service.ts;
+        // `config_json`, `weapon` and `sort_order` are the bout code's inputs.
         .select(
-          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name,sort_order),phases(type,config_json,tournaments(name,weapon)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
         )
         .in('lice_id', liceIds)
         .in('status', ['running', 'paused', 'scheduled'])
@@ -822,8 +824,13 @@ export class StaffService {
       this.supabase.service
         .from('matches')
         // Only pickLastCompleted reads these, so the tail stays narrow — no
-        // fighter embeds or round joins for bouts nobody is watching.
-        .select('id,lice_id,match_number_label,scheduled_at,ended_at')
+        // fighter embeds for bouts nobody is watching. The round joins stay:
+        // they name the last bout by its code.
+        .select(
+          'id,lice_id,match_number_label,scheduled_at,ended_at,' +
+            'phases(config_json,tournaments(weapon)),' +
+            ROUND_CODE_EMBEDS,
+        )
         .in('lice_id', liceIds)
         .eq('status', 'completed')
         .order('ended_at', { ascending: false, nullsFirst: false })

@@ -27,7 +27,8 @@ export interface BoardMatch {
   /** Raw `matches.status`; the FE words it with `statusLabel('match', …)` of @myclash/ui. */
   status: string;
   round: number | null;
-  matchNumberLabel: string | null;
+  /** The bout's code (`LSW-P4-M01`), never its stored label (`L1-PD-M01`). */
+  roundCode: string;
   scheduledAt: string | null;
   startedAt: string | null;
   endedAt: string | null;
@@ -83,6 +84,10 @@ export interface BoardPlace {
 
 export interface BoardQueueEntry {
   matchId: string;
+  /**
+   * The bout's code (`LSW-P4-M01`), never its stored label. `nextUp.label` and
+   * `lastCompleted.label` carry the same.
+   */
   label: string;
   scheduledAt: string | null;
 }

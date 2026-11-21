@@ -197,7 +197,11 @@ describe('StaffService.getLiveBoard', () => {
       await svc.getLiveBoard(req, EVENT);
 
       expect(selectsFor(supabase.from, 'matches')).toContain(
-        'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+        'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name,sort_order),phases(type,config_json,tournaments(name,weapon)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+      );
+      // The finished tail names its last bout by code, so it carries the code's inputs.
+      expect(selectsFor(supabase.from, 'matches')).toContain(
+        'id,lice_id,match_number_label,scheduled_at,ended_at,phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
       );
     });
   });
