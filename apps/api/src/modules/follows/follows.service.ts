@@ -13,11 +13,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import {
-  onlyPublicTournaments,
-  type PublicReader,
-  THE_PUBLIC,
-} from '../../common/auth/competition-visibility';
+import { type PublicReader, THE_PUBLIC } from '../../common/auth/competition-visibility';
 import { knownRosterRows } from '../../common/auth/hidden-entrants';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { applyReachable } from '../fighters/directory-predicate';
@@ -44,14 +40,6 @@ export interface FollowRow {
   followedAt: string;
   notifyMatchStart: boolean;
   notifyWorkshopStart: boolean;
-  /** Inline: next scheduled match for the followed person */
-  nextEvent: NextEvent | null;
-}
-
-export interface NextEvent {
-  type: 'match' | 'workshop';
-  label: string;
-  scheduledAt: string | null;
 }
 
 export interface FollowIdentity {
@@ -189,15 +177,13 @@ export class FollowsService {
 
     // One Event's list holds that Event's bar (ruling 129): an insider still sees a draft's follows.
     const rows = await this.knownFollows(data as Array<Record<string, unknown>>, reader);
-    return Promise.all(rows.map((r) => this.mapRow(r, eventId)));
+    return rows.map((r) => this.toFollowRow(r));
   }
 
   /**
    * All of the session's follows across every event, with the event attached so
    * the personal-space "people I follow" page can group them. Same row query as
-   * listFollows minus the event_id filter (+ an events embed). Note: mapRow
-   * resolves each person's next match individually (N+1) — fine for the small
-   * follow counts seen in practice; batch if it grows.
+   * listFollows minus the event_id filter (+ an events embed).
    */
   async listAllFollows(identity: FollowIdentity): Promise<FollowRowCrossEvent[]> {
     if (!hasFollower(identity)) return [];
@@ -216,19 +202,17 @@ export class FollowsService {
     if (!data) return [];
 
     const rows = await this.knownFollows(data as Array<Record<string, unknown>>, THE_PUBLIC);
-    return Promise.all(
-      rows.map(async (r) => {
-        const eventId = r['event_id'] as string;
-        const base = await this.mapRow(r, eventId);
-        const event = r['events'] as { name: string; slug: string } | null;
-        return {
-          ...base,
-          eventId,
-          eventName: event?.name ?? null,
-          eventSlug: event?.slug ?? null,
-        } satisfies FollowRowCrossEvent;
-      }),
-    );
+    return rows.map((r) => {
+      const eventId = r['event_id'] as string;
+      const base = this.toFollowRow(r);
+      const event = r['events'] as { name: string; slug: string } | null;
+      return {
+        ...base,
+        eventId,
+        eventName: event?.name ?? null,
+        eventSlug: event?.slug ?? null,
+      } satisfies FollowRowCrossEvent;
+    });
   }
 
   // ── Follow (idempotent) ───────────────────────────────────────────────────────
@@ -256,7 +240,7 @@ export class FollowsService {
 
     // Idempotency check
     const existing = await this.findExisting(eventId, personId, identity);
-    if (existing) return this.followed(existing, eventId, identity);
+    if (existing) return this.followed(existing, identity);
 
     // Insert
     const insert: Record<string, unknown> = {
@@ -278,11 +262,11 @@ export class FollowsService {
     // follow it asked for exists. Answer the winner's row, not a failure (ruling 122).
     if ((inserted.error as { code?: string } | null)?.code === '23505') {
       const winner = await this.findExisting(eventId, personId, identity);
-      if (winner) return this.followed(winner, eventId, identity);
+      if (winner) return this.followed(winner, identity);
     }
     const data = dataOrThrow(inserted, 'follow write');
 
-    return this.followed(data as Record<string, unknown>, eventId, identity);
+    return this.followed(data as Record<string, unknown>, identity);
   }
 
   /**
@@ -320,11 +304,10 @@ export class FollowsService {
    */
   private async followed(
     row: Record<string, unknown>,
-    eventId: string,
     identity: FollowIdentity,
   ): Promise<FollowRow> {
     await this.setAlerts(row['followed_person_id'] as string, identity);
-    return this.mapWrittenRow(row, eventId);
+    return this.toFollowRow(row);
   }
 
   /**
@@ -827,30 +810,7 @@ export class FollowsService {
     return (data as Record<string, unknown> | null) ?? null;
   }
 
-  private async mapRow(r: Record<string, unknown>, eventId: string): Promise<FollowRow> {
-    const nextEvent = await this.fetchNextEvent(r['followed_person_id'] as string, eventId);
-    return this.toFollowRow(r, nextEvent);
-  }
-
-  /**
-   * The answer to a follow write that is already saved (ruling 122). The next-bout line is
-   * decoration: when its read fails, the write still stands, so the answer carries no next bout
-   * and the failure goes to the log. A read of follows (the lists) still fails as a 5xx (117a).
-   */
-  private async mapWrittenRow(r: Record<string, unknown>, eventId: string): Promise<FollowRow> {
-    const personId = r['followed_person_id'] as string;
-    const nextEvent = await this.fetchNextEvent(personId, eventId).catch((error: unknown) => {
-      this.logger.warn(
-        `Follow of person ${personId} saved; its next bout is unreadable: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return null;
-    });
-    return this.toFollowRow(r, nextEvent);
-  }
-
-  private toFollowRow(r: Record<string, unknown>, nextEvent: NextEvent | null): FollowRow {
+  private toFollowRow(r: Record<string, unknown>): FollowRow {
     const person = r['persons'] as {
       given_name: string;
       family_name: string;
@@ -865,52 +825,6 @@ export class FollowsService {
       followedAt: (r['created_at'] ?? r['followed_at']) as string,
       notifyMatchStart: Boolean(r['notify_match_start']),
       notifyWorkshopStart: Boolean(r['notify_workshop_start']),
-      nextEvent,
-    };
-  }
-
-  private async fetchNextEvent(personId: string, _eventId: string): Promise<NextEvent | null> {
-    // Find next scheduled match for this person in this event
-    const regs = dataOrThrow(
-      await this.supabase.service.from('registrations').select('id').eq('person_id', personId),
-      'registrations read',
-    );
-
-    if (!regs || regs.length === 0) return null;
-
-    const regIds = (regs as Array<{ id: string }>).map((r) => r.id);
-
-    // A draft Tournament's bout is no next bout (ruling 130): this line goes back to whoever follows,
-    // and a follow is open to anyone who may see the Event. `persons` is event-scoped, so the
-    // Event is the follow's own, already gated.
-    const upcoming = this.supabase.service
-      .from('matches')
-      .select(
-        'id, match_number_label, scheduled_at, status, phases!inner(tournaments!inner(status))',
-      )
-      .or(
-        `red_registration_id.in.(${regIds.join(',')}),blue_registration_id.in.(${regIds.join(',')})`,
-      )
-      .in('status', ['scheduled', 'running']);
-    const next = await onlyPublicTournaments(upcoming)
-      .order('scheduled_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    const match = dataOrThrow(next, 'matches read');
-
-    if (!match) return null;
-
-    const m = match as {
-      id: string;
-      match_number_label: string;
-      scheduled_at: string | null;
-      status: string;
-    };
-
-    return {
-      type: 'match',
-      label: m.status === 'running' ? `Live — ${m.match_number_label}` : m.match_number_label,
-      scheduledAt: m.scheduled_at,
     };
   }
 }

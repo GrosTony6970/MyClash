@@ -19,7 +19,6 @@ import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 import {
   mockSupabase,
   queriedTables,
-  selectsFor,
   writesTo,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
@@ -166,38 +165,6 @@ describe('a follow holds the public person page bar (ruling 130)', () => {
     await service.followInEvent(EVENT, LEA, { guestSessionId: 'g1', guestEventId: EVENT }, ANON);
     const [insert] = writesTo(supabase, 'follows');
     expect(insert?.row).toMatchObject({ follower_guest_session_id: 'g1' });
-  });
-
-  it("a follow's next bout is never a draft Tournament's", async () => {
-    const bout = (id: string, reg: string, at: string, tournamentStatus: string) => ({
-      id,
-      match_number_label: id,
-      scheduled_at: at,
-      status: 'scheduled',
-      red_registration_id: reg,
-      blue_registration_id: null,
-      // The flat key the dotted filter reads on a seeded row (`onlyPublicTournaments`).
-      'phases.tournaments.status': tournamentStatus,
-    });
-    const { service, supabase } = build({
-      registrations: {
-        rows: [
-          { id: 'r-open', person_id: LEA },
-          { id: 'r-secret', person_id: LEA },
-        ],
-      },
-      matches: {
-        rows: [
-          bout('SECRET-M01', 'r-secret', '2026-10-01T08:00:00Z', 'draft'),
-          bout('OPEN-M01', 'r-open', '2026-10-01T09:00:00Z', 'published'),
-        ],
-      },
-    });
-    const row = await service.followInEvent(EVENT, LEA, FAN, ANON);
-    expect(row.nextEvent?.label).toBe('OPEN-M01');
-    expect(selectsFor(supabase.from, 'matches')).toEqual([
-      'id, match_number_label, scheduled_at, status, phases!inner(tournaments!inner(status))',
-    ]);
   });
 
   it('a guest session that names no Event is nobody: asked to sign in', async () => {

@@ -23,17 +23,7 @@ const EVENT = 'e1';
 const PERSON = 'p1';
 const GLOBAL = 'gp1';
 const FAILED: ChainResult = { data: null, error: { message: 'boom' } };
-const FOLLOW_ROW = {
-  id: 'f1',
-  followed_person_id: PERSON,
-  event_id: EVENT,
-  created_at: '2026-09-25T00:00:00Z',
-  notify_match_start: true,
-  notify_workshop_start: false,
-  persons: { given_name: 'Ana', family_name: 'Silva', clubs: null },
-};
-
-// The Event a listed follow belongs to: public, nothing hidden, so the list reaches its next bout.
+// The Event a listed follow belongs to: public, nothing hidden, so the list reads its rows.
 const KNOWN_EVENT: Record<string, TableSeed> = {
   events: {
     rows: [{ id: EVENT, status: 'published', organization_id: 'o1', event_kind: 'standard' }],
@@ -100,23 +90,6 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
       'follows read',
     );
     expect(supabase.writes).toEqual([]);
-  });
-
-  it('the next-bout line of a listed follow', async () => {
-    const { service } = followsWith({
-      follows: { data: [FOLLOW_ROW], error: null },
-      registrations: FAILED,
-    });
-    await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'registrations read');
-  });
-
-  it('the next-bout read itself', async () => {
-    const { service } = followsWith({
-      follows: { data: [FOLLOW_ROW], error: null },
-      registrations: { data: [{ id: 'r1' }], error: null },
-      matches: FAILED,
-    });
-    await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'matches read');
   });
 
   it('the directory unfollow, which comes after the per-Event unfollows', async () => {
