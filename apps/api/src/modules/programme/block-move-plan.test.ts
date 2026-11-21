@@ -113,6 +113,14 @@ describe('planBlockMove — the midnight refusal', () => {
       'Moving "Lunch" by +90 min would carry the bar "Finals" past midnight ' +
         '(23:30 becomes 01:00). Nothing was moved.',
     );
+    // The same refusal as facts, for the schedule to word in the reader's language.
+    expect(plan.refusalFacts).toEqual({
+      action: { kind: 'move', bar: 'Lunch' },
+      deltaMin: 90,
+      crossing: { kind: 'bar', name: 'Finals' },
+      from: '23:30',
+      to: '01:00',
+    });
   });
 
   it('refuses when a bar would be pulled back before 00:00', () => {

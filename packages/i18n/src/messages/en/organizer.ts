@@ -2091,6 +2091,14 @@ export const organizer = {
       // actually holds, so this banner is the only trace the operator gets.
       saveFailedPrefix: 'Change not saved:',
       saveFailedOffline: 'The server could not be reached.',
+      // A shift refused whole: it would carry a bar or a fight past midnight.
+      pastMidnightMove:
+        'Moving "{bar}" by {delta} min would carry {what} past midnight ({from} becomes {to}). Nothing was moved.',
+      pastMidnightDelay:
+        'Pushing the day back by {delta} min would carry {what} past midnight ({from} becomes {to}). Nothing was moved.',
+      pastMidnightBar: 'the bar "{name}"',
+      pastMidnightFight: 'the fight {name}',
+      pastMidnightAFight: 'a fight',
       conflictCountSingular: '⚠ {count} scheduling conflict',
       conflictCountPlural: '⚠ {count} scheduling conflicts',
       conflictSegIsInBoth: 'is in both',

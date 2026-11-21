@@ -2226,9 +2226,19 @@ describe('ProgrammeService', () => {
         ],
       });
 
-      await expect(
-        service.moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER),
-      ).rejects.toThrow(/the fight LSW-P4-M01 past midnight/);
+      const refusal = await service
+        .moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER)
+        .catch((e: unknown) => e);
+
+      expect(refusal).toBeInstanceOf(BadRequestException);
+      expect((refusal as Error).message).toMatch(/the fight LSW-P4-M01 past midnight/);
+      // Coded, with its facts: the schedule words it in the organiser's language.
+      expect((refusal as BadRequestException).getResponse()).toMatchObject({
+        code: 'schedule_past_midnight',
+        action: { kind: 'move' },
+        crossing: { kind: 'fight', name: 'LSW-P4-M01' },
+        from: '23:30',
+      });
     });
 
     it('names the bar that would fall off the end of the day', async () => {

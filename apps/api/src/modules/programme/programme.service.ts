@@ -1567,7 +1567,15 @@ export class ProgrammeService {
     const dayBlocks = await this.readDayBars(eventId, dayIndex);
 
     const plan = decide({ dayBlocks, matches: candidateMatches });
-    if (plan.refusal) throw new BadRequestException(plan.refusal);
+    // Coded, with its facts beside the English sentence: the schedule words it in the
+    // organiser's language (`midnight-refusal.ts` in web-admin).
+    if (plan.refusal) {
+      throw new BadRequestException({
+        code: 'schedule_past_midnight',
+        message: plan.refusal,
+        ...plan.refusalFacts,
+      });
+    }
 
     const shiftedMatches = await this.writeMatchShifts(plan.matchShifts);
 

@@ -76,15 +76,31 @@ export interface BlockMovePlan {
   matchShifts: PlannedMatchShift[];
   blockShifts: CascadeBlock[];
   /**
-   * An English sentence when the move must be refused whole, else null.
-   *
-   * English on purpose, and reported as-is: the grid's save-error banner shows
-   * a server message verbatim (`useScheduleWrites.ts`, which translates only
-   * the offline case), the same way `resizeBlock`'s refusal already reaches an
-   * organiser. Wording it here keeps one sentence rather than a code the front
-   * end has to learn.
+   * An English sentence when the move must be refused whole, else null: the
+   * problem's `detail`, which every reader without a translation shows.
    */
   refusal: string | null;
+  /**
+   * The same refusal as facts, sent under the code `schedule_past_midnight` so
+   * the schedule says it in the organiser's language (the coded-refusal
+   * exception of `failure-message.ts`, chosen by the operator 2026-11-21).
+   */
+  refusalFacts: MidnightRefusal | null;
+}
+
+/** Whose shift it is: one bar dragged by hand, or the whole rest of the day pushed back. */
+export type ShiftAction = { kind: 'move'; bar: string } | { kind: 'delay' };
+
+/** What the shift would carry past midnight: a bar by its label, a fight by its code. */
+export type CrossingThing = { kind: 'bar'; name: string } | { kind: 'fight'; name: string | null };
+
+/** A midnight refusal's facts: who shifts, by how much, what crosses, from when to when. */
+export interface MidnightRefusal {
+  action: ShiftAction;
+  deltaMin: number;
+  crossing: CrossingThing;
+  from: string;
+  to: string;
 }
 
 /**
@@ -115,20 +131,28 @@ function clockOfMin(min: number): string {
 
 /** Something the shift would have pushed off the end (or the front) of the day. */
 interface Crossing {
-  /** How the sentence names it: `the bar "Finals"`, `the fight LSW-F`. */
-  what: string;
+  thing: CrossingThing;
   from: string;
   to: string;
 }
 
-function refusedPlan(action: string, deltaMin: number, crossing: Crossing): BlockMovePlan {
+function refusedPlan(action: ShiftAction, deltaMin: number, crossing: Crossing): BlockMovePlan {
   const signed = deltaMin > 0 ? `+${deltaMin}` : String(deltaMin);
+  const opening = action.kind === 'move' ? `Moving "${action.bar}"` : 'Pushing the day back';
+  const { thing } = crossing;
+  const what =
+    thing.kind === 'bar'
+      ? `the bar "${thing.name}"`
+      : thing.name
+        ? `the fight ${thing.name}`
+        : 'a fight';
   return {
     matchShifts: [],
     blockShifts: [],
     refusal:
-      `${action} by ${signed} min would carry ${crossing.what} past midnight ` +
+      `${opening} by ${signed} min would carry ${what} past midnight ` +
       `(${crossing.from} becomes ${crossing.to}). Nothing was moved.`,
+    refusalFacts: { action, deltaMin, crossing: thing, from: crossing.from, to: crossing.to },
   };
 }
 
@@ -150,12 +174,12 @@ function firstBarPastMidnight(input: {
     if (bar.startMin < input.fromMin) continue; // earlier bars stay put
     const rawStart = bar.startMin + input.deltaMin;
     const rawEnd = rawStart + (bar.endMin - bar.startMin);
-    const named = `the bar "${bar.label}"`;
+    const thing: CrossingThing = { kind: 'bar', name: bar.label };
     if (rawStart < DAY_FIRST_MIN) {
-      return { what: named, from: clockOfMin(bar.startMin), to: clockOfMin(rawStart) };
+      return { thing, from: clockOfMin(bar.startMin), to: clockOfMin(rawStart) };
     }
     if (rawEnd > DAY_LAST_MIN) {
-      return { what: named, from: clockOfMin(bar.endMin), to: clockOfMin(rawEnd) };
+      return { thing, from: clockOfMin(bar.endMin), to: clockOfMin(rawEnd) };
     }
   }
   return null;
@@ -197,7 +221,7 @@ function planMatchShifts(input: {
       return {
         shifts: [],
         crossing: {
-          what: match.label ? `the fight ${match.label}` : 'a fight',
+          thing: { kind: 'fight', name: match.label },
           from: at.hhmm,
           to: shifted.hhmm,
         },
@@ -220,8 +244,8 @@ function planMatchShifts(input: {
  * structure of the day before it names one fight in it.
  */
 export function planTimeShift(input: {
-  /** How the refusal opens: `Moving "Lunch"`, `Pushing the day back`. */
-  action: string;
+  /** Whose shift: one bar moved by hand, or the day pushed back. */
+  action: ShiftAction;
   deltaMin: number;
   /** Everything at or after this minute of the day follows the shift. */
   fromMin: number;
@@ -244,6 +268,7 @@ export function planTimeShift(input: {
     // the raw shift every time. That is the property they buy.
     blockShifts: shiftBlocksFrom(input.dayBlocks, input.fromMin, input.deltaMin),
     refusal: null,
+    refusalFacts: null,
   };
 }
 
@@ -264,7 +289,7 @@ export function planBlockMove(input: {
   // keeps it from refusing a cascade that was never going to happen.
   const movedIsOnTheDay = input.dayBlocks.some((b) => b.id === input.movedBlockId);
   return planTimeShift({
-    action: `Moving "${input.movedBlockLabel}"`,
+    action: { kind: 'move', bar: input.movedBlockLabel },
     deltaMin: input.deltaMin,
     fromMin: input.oldStartMin,
     blockDateIso: input.blockDateIso,
@@ -290,5 +315,5 @@ export function planDayDelay(input: {
   dayBlocks: MoveDayBlock[];
   matches: MoveCandidateMatch[];
 }): BlockMovePlan {
-  return planTimeShift({ action: 'Pushing the day back', ...input });
+  return planTimeShift({ action: { kind: 'delay' }, ...input });
 }

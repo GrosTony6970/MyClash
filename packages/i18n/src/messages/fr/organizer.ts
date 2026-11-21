@@ -2063,6 +2063,13 @@ export const organizer = {
       groupScheduleFailedPrefix: 'Échec de la programmation groupée :',
       saveFailedPrefix: 'Modification non enregistrée :',
       saveFailedOffline: 'Le serveur est injoignable.',
+      pastMidnightMove:
+        'Déplacer « {bar} » de {delta} min ferait passer {what} après minuit ({from} deviendrait {to}). Rien n’a été déplacé.',
+      pastMidnightDelay:
+        'Décaler la journée de {delta} min ferait passer {what} après minuit ({from} deviendrait {to}). Rien n’a été déplacé.',
+      pastMidnightBar: 'la barre « {name} »',
+      pastMidnightFight: 'le combat {name}',
+      pastMidnightAFight: 'un combat',
       conflictCountSingular: '⚠ {count} conflit de programmation',
       conflictCountPlural: '⚠ {count} conflits de programmation',
       conflictSegIsInBoth: 'est à la fois dans',

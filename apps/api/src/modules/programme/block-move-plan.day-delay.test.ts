@@ -111,6 +111,13 @@ describe('planDayDelay', () => {
       'Pushing the day back by +90 min would carry the bar "Finals" past midnight ' +
         '(23:00 becomes 00:30). Nothing was moved.',
     );
+    expect(plan.refusalFacts).toEqual({
+      action: { kind: 'delay' },
+      deltaMin: 90,
+      crossing: { kind: 'bar', name: 'Finals' },
+      from: '23:00',
+      to: '00:30',
+    });
     expect(plan.matchShifts).toEqual([]);
     expect(plan.blockShifts).toEqual([]);
   });

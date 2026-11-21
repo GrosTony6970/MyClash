@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { failureMessage } from '@myclash/api-client';
 import { mutateSchedule, ScheduleMutationError } from './schedule-mutations';
+import { midnightRefusal } from './midnight-refusal';
 import type { RunWindowBody } from './run-window';
 import type { MatchPosition } from './useScheduleUndo';
 import { createWriteTracker } from './write-tracker';
@@ -135,7 +136,9 @@ export function useScheduleWrites(args: {
         // guard gave. Until now this returned `err.message`, which was the
         // server's first sentence or, when the body was unreadable, the invented
         // English status line "502 Bad Gateway".
-        return failureMessage(err.failure, t, fallback);
+        // A shift past midnight is the one refusal the board words itself (ruled
+        // 2026-11-21); every other one is the API's sentence.
+        return midnightRefusal(err.failure, t) ?? failureMessage(err.failure, t, fallback);
       }
       return err instanceof Error ? err.message : String(err);
     },
