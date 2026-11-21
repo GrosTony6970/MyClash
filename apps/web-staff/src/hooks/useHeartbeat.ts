@@ -12,10 +12,9 @@ const HEARTBEAT_MS = 20_000;
 /**
  * Snapshot everything one beat reports.
  *
- * `metrics.rejectedCount` and `quarantinedCount` are DIFFERENT numbers and the
- * names have collided in this codebase before: the first counts outbox entries
- * stuck retrying, the second counts exchanges the server refused outright and
- * the device is still holding.
+ * `metrics.rejectedCount` and `quarantinedCount` are the same number, the hits
+ * held in Review, for two readers: the first is the live gauge of the Live
+ * board, the second the per-device record of the post-event report.
  *
  * The quarantine block is sent on every beat, including when it is empty, so a
  * device nobody heard from is distinguishable from a device with nothing to
@@ -23,7 +22,7 @@ const HEARTBEAT_MS = 20_000;
  */
 async function collectHeartbeatPayload(): Promise<Record<string, unknown>> {
   const [entries, held] = await Promise.all([getAllPending(), getRejected()]);
-  const metrics = computeHeartbeatMetrics(entries, Date.now());
+  const metrics = computeHeartbeatMetrics(entries, held.length, Date.now());
   const deviceId = getDeviceId();
   return {
     ...metrics,

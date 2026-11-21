@@ -93,7 +93,7 @@ describe('the heartbeat', () => {
     await addPress('start');
     await addHit();
 
-    const metrics = computeHeartbeatMetrics(await getAllPending(), AT_TEN.wall + 60_000);
+    const metrics = computeHeartbeatMetrics(await getAllPending(), 0, AT_TEN.wall + 60_000);
 
     expect(metrics.outboxDepth).toBe(2);
     expect(metrics.oldestPendingAgeSec).toBe(60);

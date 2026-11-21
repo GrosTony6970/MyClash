@@ -148,8 +148,9 @@ const staffHeartbeatSchema = z
     // reject exactly the reading worth having.
     clientNowMs: z.number().int().optional(),
     /**
-     * The quarantine half — exchanges the server REFUSED outright, distinct
-     * from `rejectedCount` above, which counts outbox entries stuck retrying.
+     * The quarantine half — exchanges the server REFUSED outright, held in
+     * Review. `quarantinedCount` is the same number as `rejectedCount` above:
+     * that one is the Live board's gauge, this one the per-device record.
      * All optional together: a tablet on an older bundle still heartbeats, and
      * telemetry must never fail the request.
      */

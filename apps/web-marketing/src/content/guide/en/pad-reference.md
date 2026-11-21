@@ -182,7 +182,8 @@ without asking.
 
 - The public bout page, the live boards and the hall screens show only what reached the server.
   Entries still on a tablet appear as soon as they are sent.
-- The organiser's live control room shows each tablet's queue, and **Sync lagging** when an entry
+- The organiser's live control room shows each tablet's queue and how many of its entries the
+  server refused (they wait in **Review**), and **Sync lagging** when an entry
   waits over a minute, **Sync stuck** over five minutes. A tablet that loses the network with
   nothing queued still shows **Synced**: look at its **Last seen** line.
 - Nothing stops two tablets from scoring the same piste. Keep one tablet per piste: a clock press

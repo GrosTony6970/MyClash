@@ -194,8 +194,8 @@ s'installe seule à la prochaine page ouverte avec le réseau, sans rien demande
 
 - La page publique d'un combat, les écrans en direct et ceux de la salle ne montrent que ce qui a
   atteint le serveur. Les saisies encore sur une tablette apparaissent dès qu'elles partent.
-- La salle de contrôle de l'organisateur montre la file de chaque tablette, avec **Sync en
-  retard** quand une saisie attend plus d'une minute, **Sync bloquée** au-delà de cinq minutes.
+- La salle de contrôle de l'organisateur montre la file de chaque tablette et combien de ses
+  saisies le serveur a refusées (elles attendent dans **Examiner**), avec **Sync en retard** quand une saisie attend plus d'une minute, **Sync bloquée** au-delà de cinq minutes.
   Une tablette qui perd le réseau sans rien en file reste **Synchronisé** : regardez sa ligne
   « Vu il y a… ».
 - Rien n'empêche deux tablettes de marquer la même lice. Gardez une tablette par lice : un appui

@@ -201,7 +201,7 @@ describe('the names stay on the tablet', () => {
     await queueNamedHit();
     await quarantine(await queueNamedHit(), 'Match is locked');
     const beat = JSON.stringify({
-      ...computeHeartbeatMetrics(await getAllPending(), Date.now()),
+      ...computeHeartbeatMetrics(await getAllPending(), (await getRejected()).length, Date.now()),
       ...summariseQuarantine(await getRejected()),
     });
 
