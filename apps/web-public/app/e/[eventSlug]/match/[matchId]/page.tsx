@@ -141,7 +141,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
 /** The tab names the two fighters (quick win F15); the Event's layout adds the Event. */
 export async function generateMetadata({ params }: Props) {
   const { matchId } = await params;
-  const [match, summary] = await readBout(matchId);
+  const [, summary] = await readBout(matchId);
   const t = await getServerT();
-  return { title: boutTitle({ ...summary, label: match?.matchNumberLabel }, t) };
+  return { title: boutTitle(summary, t) };
 }

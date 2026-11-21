@@ -29,7 +29,7 @@ describe("a bout's own words", () => {
   const fr = createTranslator(getMessages('fr'));
 
   it('names its two fighters', () => {
-    expect(boutTitle({ redName: 'Dupont', blueName: 'Martin', label: 'L1-P2-M03' }, en)).toBe(
+    expect(boutTitle({ redName: 'Dupont', blueName: 'Martin', roundCode: 'LSW-P2-M3' }, en)).toBe(
       'Dupont vs Martin',
     );
   });
@@ -38,13 +38,15 @@ describe("a bout's own words", () => {
     ['', 'Martin'],
     ['Dupont', ''],
     ['  ', 'Martin'],
-  ])('with a fighter missing (%j, %j) it reads its number', (redName, blueName) => {
-    expect(boutTitle({ redName, blueName, label: 'L1-P2-M03' }, en)).toBe('Match L1-P2-M03');
+  ])('with a fighter missing (%j, %j) it reads its code', (redName, blueName) => {
+    expect(boutTitle({ redName, blueName, roundCode: 'LSW-P2-M3' }, en)).toBe('Match LSW-P2-M3');
   });
 
-  it('with no name and no number it still reads something, in the visitor’s language', () => {
-    expect(boutTitle({ redName: '', blueName: '', label: undefined }, en)).toBe('Match');
-    expect(boutTitle({ redName: '', blueName: '', label: null }, fr)).toBe('Match');
-    expect(boutTitle({ redName: '', blueName: '', label: '7' }, fr)).toBe('Match 7');
+  it('with no name and no code it still reads something, in the visitor’s language', () => {
+    expect(boutTitle({ redName: '', blueName: '', roundCode: '' }, en)).toBe('Match');
+    expect(boutTitle({ redName: '', blueName: '', roundCode: '' }, fr)).toBe('Match');
+    expect(boutTitle({ redName: '', blueName: '', roundCode: 'SDW-B-SF-M1' }, fr)).toBe(
+      'Match SDW-B-SF-M1',
+    );
   });
 });

@@ -14,7 +14,8 @@ export interface DriftMatch {
   endedAt: string | null;
   status: string;
   durationMinutes: number;
-  matchNumberLabel: string;
+  /** The name its card shows (`roundCode || matchNumberLabel`), never the stored label alone. */
+  cardLabel: string;
 }
 
 export interface LiceDrift {
@@ -41,7 +42,7 @@ export function computeLiceDrift(matches: DriftMatch[]): Map<string, LiceDrift> 
         (new Date(running.startedAt!).getTime() - new Date(running.scheduledAt!).getTime()) /
           60_000,
       );
-      out.set(liceId, { driftMin, basisLabel: running.matchNumberLabel });
+      out.set(liceId, { driftMin, basisLabel: running.cardLabel });
       continue;
     }
     const completed = list
@@ -51,7 +52,7 @@ export function computeLiceDrift(matches: DriftMatch[]): Map<string, LiceDrift> 
       const plannedEnd =
         new Date(completed.scheduledAt!).getTime() + completed.durationMinutes * 60_000;
       const driftMin = Math.round((new Date(completed.endedAt!).getTime() - plannedEnd) / 60_000);
-      out.set(liceId, { driftMin, basisLabel: completed.matchNumberLabel });
+      out.set(liceId, { driftMin, basisLabel: completed.cardLabel });
     }
   }
   return out;

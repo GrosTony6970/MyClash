@@ -40,7 +40,10 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
     blueScore: match.blueScore,
   });
   const winnerName = winner === 'red' ? summary.redName : winner === 'blue' ? summary.blueName : '';
-  const label = match.matchNumberLabel || summary.roundCode;
+  // The bout's code (`LSW-P4-M1`), never its stored label (`L1-PD-M01`): the
+  // stored one is an internal sort key a visitor cannot read. Empty when the
+  // summary could not be read, and then no line is drawn.
+  const label = summary.roundCode;
 
   // Score emphasis: when there's a winner, the loser's score drops to the muted ink and the
   // winner keeps the side colour; otherwise both keep it. The loser was the side colour at 40%,

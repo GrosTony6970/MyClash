@@ -1069,7 +1069,7 @@ export function ScheduleGrid({
           endedAt: m.endedAt,
           status: m.status,
           durationMinutes: m.durationMinutes,
-          matchNumberLabel: m.matchNumberLabel,
+          cardLabel: m.roundCode || m.matchNumberLabel,
         })),
       ),
     [scheduledOnActiveDay],
@@ -1648,7 +1648,7 @@ export function ScheduleGrid({
       .filter((m) => m.scheduledAt)
       .map((m) => ({
         id: m.id,
-        matchNumberLabel: m.matchNumberLabel,
+        cardLabel: m.roundCode || m.matchNumberLabel,
         startSlot: isoToSlotTz(m.scheduledAt!, activeDay),
         span: barWarningSlotSpan(m.durationMinutes),
       }));

@@ -9,7 +9,7 @@ function m(over: Partial<DriftMatch>): DriftMatch {
     endedAt: null,
     status: 'scheduled',
     durationMinutes: 5,
-    matchNumberLabel: 'M1',
+    cardLabel: 'M1',
     ...over,
   };
 }
@@ -17,7 +17,7 @@ function m(over: Partial<DriftMatch>): DriftMatch {
 describe('computeLiceDrift', () => {
   it('reports how late the currently-running match started', () => {
     const d = computeLiceDrift([
-      m({ status: 'running', startedAt: '2027-06-21T11:25:00.000Z', matchNumberLabel: 'M3' }),
+      m({ status: 'running', startedAt: '2027-06-21T11:25:00.000Z', cardLabel: 'M3' }),
     ]);
     expect(d.get('L1')).toEqual({ driftMin: 25, basisLabel: 'M3' });
   });
@@ -25,7 +25,7 @@ describe('computeLiceDrift', () => {
   it('falls back to the last completed match finishing vs its planned end', () => {
     // scheduled 11:00, 5-min slot → planned end 11:05; actually ended 11:20 → 15 late.
     const d = computeLiceDrift([
-      m({ status: 'completed', endedAt: '2027-06-21T11:20:00.000Z', matchNumberLabel: 'M2' }),
+      m({ status: 'completed', endedAt: '2027-06-21T11:20:00.000Z', cardLabel: 'M2' }),
     ]);
     expect(d.get('L1')).toEqual({ driftMin: 15, basisLabel: 'M2' });
   });
@@ -37,12 +37,12 @@ describe('computeLiceDrift', () => {
 
   it('prefers the running match over earlier completed ones, and the latest of each', () => {
     const d = computeLiceDrift([
-      m({ status: 'completed', endedAt: '2027-06-21T11:05:00.000Z', matchNumberLabel: 'M1' }),
+      m({ status: 'completed', endedAt: '2027-06-21T11:05:00.000Z', cardLabel: 'M1' }),
       m({
         scheduledAt: '2027-06-21T11:05:00.000Z',
         status: 'running',
         startedAt: '2027-06-21T11:18:00.000Z',
-        matchNumberLabel: 'M2',
+        cardLabel: 'M2',
       }),
     ]);
     expect(d.get('L1')).toEqual({ driftMin: 13, basisLabel: 'M2' });

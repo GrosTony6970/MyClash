@@ -29,16 +29,18 @@ type Translate = (key: string, values?: Record<string, string>) => string;
 
 /**
  * A bout's own words: its two fighters. A bout that still waits for a fighter,
- * or whose names could not be read, falls back to its number, then to "Match".
+ * or whose names could not be read, falls back to its code (`LSW-P4-M1`), then
+ * to "Match". The code, never the stored label (`L1-PD-M01`): that one is an
+ * internal sort key a visitor cannot read.
  */
 export function boutTitle(
-  bout: { redName: string; blueName: string; label: string | null | undefined },
+  bout: { redName: string; blueName: string; roundCode: string },
   t: Translate,
 ): string {
   const red = bout.redName.trim();
   const blue = bout.blueName.trim();
   if (red && blue) return t('publicApp.titles.bout', { red, blue });
-  return bout.label
-    ? t('publicApp.titles.boutNumbered', { label: bout.label })
+  return bout.roundCode
+    ? t('publicApp.titles.boutNumbered', { label: bout.roundCode })
     : t('publicApp.titles.boutPlain');
 }

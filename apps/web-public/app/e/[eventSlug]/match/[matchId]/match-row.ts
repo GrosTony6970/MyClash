@@ -31,7 +31,6 @@ export interface RoundSnapshot {
 
 export interface MatchRow {
   id: string;
-  matchNumberLabel: string | null;
   redScore: number;
   blueScore: number;
   status: MatchStatus;
@@ -81,7 +80,6 @@ export interface MatchSummary {
 export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
   return {
     id: raw['id'] as string,
-    matchNumberLabel: (raw['match_number_label'] as string | null) ?? null,
     redScore: (raw['red_score'] as number | null) ?? 0,
     blueScore: (raw['blue_score'] as number | null) ?? 0,
     status: (raw['status'] as MatchStatus) ?? 'scheduled',

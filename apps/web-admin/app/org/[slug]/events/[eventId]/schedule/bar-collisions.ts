@@ -27,7 +27,8 @@ export interface BarWindow {
 
 export interface PlacedMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The name its card shows (`roundCode || matchNumberLabel`), never the stored label alone. */
+  cardLabel: string;
   startSlot: number;
   /** Slot count; a match shorter than one slot still occupies one. */
   span: number;
@@ -65,7 +66,7 @@ export function detectBarCollisions(
       }
       out.push({
         matchId: match.id,
-        matchLabel: match.matchNumberLabel,
+        matchLabel: match.cardLabel,
         barId: bar.id,
         barLabel: bar.label,
       });

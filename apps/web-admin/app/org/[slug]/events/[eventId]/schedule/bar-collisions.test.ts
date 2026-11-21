@@ -6,7 +6,7 @@ const LUNCH: BarWindow = { id: 'bar-lunch', label: 'Lunch', startSlot: 48, span:
 const MEETING: BarWindow = { id: 'bar-meet', label: 'Referee meeting', startSlot: 0, span: 6 };
 
 function match(over: Partial<PlacedMatch> = {}): PlacedMatch {
-  return { id: 'm1', matchNumberLabel: 'M1', startSlot: 24, span: 2, ...over };
+  return { id: 'm1', cardLabel: 'M1', startSlot: 24, span: 2, ...over };
 }
 
 describe('detectBarCollisions', () => {
