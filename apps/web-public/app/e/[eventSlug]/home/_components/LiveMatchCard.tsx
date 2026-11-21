@@ -9,7 +9,7 @@ import { nameOrUnknown, type Translator } from '@myclash/ui';
  */
 export interface LiveMatchCardMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   redFighterName: string | null;
   blueFighterName: string | null;
   redScore: number;
@@ -37,7 +37,7 @@ interface LiveMatchCardProps {
 }
 
 export function LiveMatchCard({ match, href, pausedLabel, t }: LiveMatchCardProps) {
-  const meta = [match.tournamentName, match.matchNumberLabel, match.liceName]
+  const meta = [match.tournamentName, match.roundCode, match.liceName]
     .filter((v): v is string => Boolean(v))
     .join(' · ');
   return (

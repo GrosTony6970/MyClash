@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { singleElimBracket } from '@myclash/rules/scheduling';
-import { buildRoundCode } from './round-code.helper';
+import { ROUND_CODE_EMBEDS, buildRoundCode, roundCodeFromMatchRow } from './round-code.helper';
 
 // ── Round-code shape (regression for the position-off-by-one bug) ────────────
 //
@@ -72,5 +72,43 @@ describe('buildRoundCode against singleElimBracket output', () => {
     expect(firstCodeByRound.get(3)).toBe('LSW-B-QF-M1');
     expect(firstCodeByRound.get(4)).toBe('LSW-B-SF-M1');
     expect(firstCodeByRound.get(5)).toBe('LSW-B-F-M1');
+  });
+});
+
+const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  match_number_label: 'M1',
+  phases: { config_json: null, tournaments: { weapon: 'sidesword' } },
+  pools: null,
+  bracket_slots: null,
+  swiss_rounds: null,
+  ...over,
+});
+
+describe('roundCodeFromMatchRow', () => {
+  it('builds a pool code from the pool sort order', () => {
+    expect(roundCodeFromMatchRow(row({ pools: { sort_order: 1 } }))).toBe('SDW-P2-M1');
+  });
+
+  it('builds a Swiss code from the swiss round embed', () => {
+    expect(roundCodeFromMatchRow(row({ swiss_rounds: { round_number: 3 } }))).toBe('SDW-S3-M1');
+  });
+
+  it('builds a bracket code from the slot round and bracket size', () => {
+    const bracket = row({
+      bracket_slots: { round: 2 },
+      phases: {
+        config_json: { bracketSize: 8 },
+        tournaments: { weapon: 'sidesword' },
+      },
+    });
+    expect(roundCodeFromMatchRow(bracket)).toBe('SDW-B-SF-M1');
+  });
+});
+
+describe('ROUND_CODE_EMBEDS', () => {
+  it('names the three embeds roundCodeFromMatchRow reads', () => {
+    expect(ROUND_CODE_EMBEDS).toBe(
+      'pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+    );
   });
 });

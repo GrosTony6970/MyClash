@@ -93,6 +93,15 @@ describe('LiveStateService — a paused bout still holds its piste', () => {
     expect(state.lices[0]?.nextMatch).toBeNull();
   });
 
+  it('names the bout by its code, never by its stored label', async () => {
+    const phases = { config_json: null, tournaments: { weapon: 'longsword' } };
+    const bout = match({ status: 'running', match_number_label: 'L1-PD-M01', phases });
+    tables['matches'] = { data: [{ ...bout, pools: { sort_order: 3 } }], error: null };
+    const state = await service().getLiveState(EVENT_ID, NO_ONE);
+    expect(state.lices[0]?.runningMatch?.roundCode).toBe('LSW-P4-M01');
+    expect(JSON.stringify(state)).not.toContain('L1-PD-M01');
+  });
+
   it('prefers a genuinely running bout when a piste carries both', async () => {
     tables['matches'] = {
       data: [
@@ -351,6 +360,10 @@ describe('LiveStateService — a bout of an unpublished Tournament', () => {
     const [select] = selectsFor(db.from, 'matches');
     expect(select).toContain('phases!inner(');
     expect(select).toMatch(/tournaments!inner\([^)]*\bstatus\b/);
+    // The bout's code needs the weapon, the phase config and the three embeds.
+    expect(select).toMatch(/phases!inner\(config_json,/);
+    expect(select).toMatch(/tournaments!inner\([^)]*\bweapon\b/);
+    expect(select).toContain('pools(sort_order),bracket_slots(round),swiss_rounds(round_number)');
     // Polled all day from the hall: no login, no membership read.
     expect(queriedTables(db.from)).not.toContain('organization_members');
     expect(queriedTables(db.from)).not.toContain('event_staff_accounts');

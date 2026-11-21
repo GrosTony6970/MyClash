@@ -132,7 +132,7 @@ export function LiveNowSection({ eventSlug, initialState, workshops, tz, nowIso 
                       })}
                     </p>
                     <p className="text-xs text-muted">
-                      {[m.tournamentName, m.matchNumberLabel].filter(Boolean).join(' · ')}
+                      {[m.tournamentName, m.roundCode].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                   {m.scheduledAt && (

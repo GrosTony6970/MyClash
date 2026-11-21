@@ -9,7 +9,7 @@ import { BOARD_POLL_MS, boardFreshness, boardIsDegraded } from './board-freshnes
 
 export interface LiveMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   redFighterName: string | null;
   blueFighterName: string | null;
   scheduledAt: string | null;

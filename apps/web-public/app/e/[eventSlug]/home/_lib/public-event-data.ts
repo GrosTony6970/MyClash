@@ -84,7 +84,7 @@ export interface PublicVenue {
 
 export interface HighlightMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   status: string;
   scheduledAt: string | null;
   redFighterName: string | null;

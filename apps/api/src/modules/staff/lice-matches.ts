@@ -9,7 +9,7 @@
  */
 
 import type { TournamentScoringConfig } from '@myclash/types';
-import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import type { ResolvedReferee } from '../matches/resolve-match-referees';
 import { poolMatchSortKey } from '../phases/pool-match-sort';
 
@@ -89,39 +89,6 @@ export function formatPersonName(person: PersonEmbed | null | undefined): string
   if (!person) return null;
   const composed = `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
   return composed || null;
-}
-
-/**
- * Round code from a raw `matches` row.
- *
- * Was copy-pasted verbatim into `mapCurrentMatch`, `mapNeighborRow` and
- * `resolveNextMatchOnLice`. One reader means the three can no longer drift
- * apart on bracket or Swiss labels.
- */
-export function roundCodeFromMatchRow(row: Record<string, unknown>): string {
-  const phase = row['phases'] as {
-    config_json?: Record<string, unknown> | null;
-    tournaments?: { weapon?: string };
-  } | null;
-  const pool = row['pools'] as { sort_order?: number } | null;
-  const bracketSlot = row['bracket_slots'] as { round?: number } | null;
-  const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
-  const phaseCfg = phase?.config_json ?? null;
-  const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-    number | undefined;
-  const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
-  return buildRoundCode({
-    weapon: phase?.tournaments?.weapon ?? null,
-    poolNumber: typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null,
-    bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
-    swissRound:
-      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null,
-    bracketSize: typeof sizeRaw === 'number' ? sizeRaw : null,
-    wbRounds,
-    lbRounds,
-    matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
-    roundNumber: null,
-  });
 }
 
 /**

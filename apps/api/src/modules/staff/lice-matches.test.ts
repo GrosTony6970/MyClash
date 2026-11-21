@@ -5,7 +5,6 @@ import {
   compareLiceMatchOrder,
   formatPersonName,
   mapLiceMatchRow,
-  roundCodeFromMatchRow,
 } from './lice-matches';
 
 const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -106,27 +105,6 @@ describe('compareLiceMatchOrder', () => {
     expect([b, a].sort(compareLiceMatchOrder)).toEqual([a, b]);
     expect([same, a].sort(compareLiceMatchOrder)).toEqual([a, same]);
     expect(compareLiceMatchOrder(a, a)).toBe(0);
-  });
-});
-
-describe('roundCodeFromMatchRow', () => {
-  it('builds a pool code from the pool sort order', () => {
-    expect(roundCodeFromMatchRow(row({ pools: { sort_order: 1 } }))).toBe('SDW-P2-M1');
-  });
-
-  it('builds a Swiss code from the swiss round embed', () => {
-    expect(roundCodeFromMatchRow(row({ swiss_rounds: { round_number: 3 } }))).toBe('SDW-S3-M1');
-  });
-
-  it('builds a bracket code from the slot round and bracket size', () => {
-    const bracket = row({
-      bracket_slots: { round: 2 },
-      phases: {
-        config_json: { bracketSize: 8 },
-        tournaments: { name: 'T', weapon: 'sidesword', scoring_config_json: null },
-      },
-    });
-    expect(roundCodeFromMatchRow(bracket)).toBe('SDW-B-SF-M1');
   });
 });
 

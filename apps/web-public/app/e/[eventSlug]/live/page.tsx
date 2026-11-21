@@ -51,7 +51,7 @@ function NextBoutCard({ match, label, tz }: { match: LiveMatch; label: string; t
           <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, tz, locale)}</span>
         )}
       </div>
-      <p className="text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
+      <p className="text-sm font-bold text-foreground">{match.roundCode}</p>
       <p className="text-sm text-foreground-secondary mt-0.5">
         {match.redFighterName ?? '?'}{' '}
         <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
@@ -234,9 +234,7 @@ export default function LivePage() {
 
               {ls.runningMatch ? (
                 <div>
-                  <p className="text-sm font-bold text-foreground">
-                    {ls.runningMatch.matchNumberLabel}
-                  </p>
+                  <p className="text-sm font-bold text-foreground">{ls.runningMatch.roundCode}</p>
                   <p className="text-sm text-foreground-secondary mt-0.5">
                     {nameOrUnknown(ls.runningMatch.redFighterName, 'fighter', t)}{' '}
                     <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
@@ -257,7 +255,7 @@ export default function LivePage() {
                 <div>
                   <p className="text-xs text-muted mb-1">{t('publicApp.live.nextUp')}</p>
                   <p className="text-sm font-medium text-foreground-secondary">
-                    {ls.nextMatch.matchNumberLabel}
+                    {ls.nextMatch.roundCode}
                   </p>
                   <p className="text-sm text-muted">
                     {ls.nextMatch.redFighterName ?? '?'}{' '}

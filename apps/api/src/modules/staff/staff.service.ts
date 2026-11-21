@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import {
+  buildRoundCode,
+  bracketCodeConfig,
+  roundCodeFromMatchRow,
+} from '../matches/round-code.helper';
 import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import {
@@ -18,7 +22,6 @@ import {
   LICE_MATCH_STATUSES,
   compareLiceMatchOrder,
   mapLiceMatchRow,
-  roundCodeFromMatchRow,
   type LiceMatchesPayload,
 } from './lice-matches';
 import { liceBouts } from './lice-bouts';

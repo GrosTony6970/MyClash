@@ -9,7 +9,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 
 interface LiveMatch {
   id: string;
-  matchNumberLabel: string;
+  roundCode: string;
   redFighterName: string | null;
   blueFighterName: string | null;
   scheduledAt: string | null;
@@ -134,7 +134,7 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                   <span className="font-semibold text-foreground flex-shrink-0">
-                    {ls.runningMatch.matchNumberLabel}
+                    {ls.runningMatch.roundCode}
                   </span>
                   <span className="text-muted truncate">
                     {t('organizer.schedulePage.liveBanner.versus', {
@@ -149,7 +149,7 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                     {t('organizer.schedulePage.liveBanner.nextShort')}
                   </span>
                   <span className="font-medium text-foreground-secondary flex-shrink-0">
-                    {ls.nextMatch.matchNumberLabel}
+                    {ls.nextMatch.roundCode}
                   </span>
                   <span className="truncate">
                     {t('organizer.schedulePage.liveBanner.versus', {

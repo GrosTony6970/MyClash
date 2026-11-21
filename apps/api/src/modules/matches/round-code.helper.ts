@@ -70,3 +70,46 @@ export function bracketCodeConfig(configJson: unknown): {
     lbRounds: num(c['lbRounds']),
   };
 }
+
+/**
+ * The three embeds of a `matches` select that {@link roundCodeFromMatchRow}
+ * reads besides the phase's `config_json` and the Tournament's `weapon`.
+ */
+export const ROUND_CODE_EMBEDS =
+  'pools(sort_order),bracket_slots(round),swiss_rounds(round_number)';
+
+/**
+ * Round code from a raw `matches` row: the name a bout shows to people
+ * (`LSW-P4-M1`), never its stored label (`L1-PD-M01`). The row must carry
+ * `phases(config_json,tournaments(weapon))` and {@link ROUND_CODE_EMBEDS}; a
+ * missing embed drops that segment of the code without an error.
+ *
+ * Was copy-pasted verbatim into `mapCurrentMatch`, `mapNeighborRow` and
+ * `resolveNextMatchOnLice`. One reader means the three can no longer drift
+ * apart on bracket or Swiss labels.
+ */
+export function roundCodeFromMatchRow(row: Record<string, unknown>): string {
+  const phase = row['phases'] as {
+    config_json?: Record<string, unknown> | null;
+    tournaments?: { weapon?: string };
+  } | null;
+  const pool = row['pools'] as { sort_order?: number } | null;
+  const bracketSlot = row['bracket_slots'] as { round?: number } | null;
+  const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
+  const phaseCfg = phase?.config_json ?? null;
+  const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
+    number | undefined;
+  const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
+  return buildRoundCode({
+    weapon: phase?.tournaments?.weapon ?? null,
+    poolNumber: typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null,
+    bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
+    swissRound:
+      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null,
+    bracketSize: typeof sizeRaw === 'number' ? sizeRaw : null,
+    wbRounds,
+    lbRounds,
+    matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
+    roundNumber: null,
+  });
+}

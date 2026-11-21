@@ -8,6 +8,7 @@ import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -24,7 +25,8 @@ type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
 export interface LiveMatch {
   id: string;
-  matchNumberLabel: string;
+  /** The bout's code (`LSW-P4-M1`), never its stored label (`L1-PD-M01`). */
+  roundCode: string;
   redFighterName: string | null;
   blueFighterName: string | null;
   scheduledAt: string | null;
@@ -241,7 +243,8 @@ export class LiveStateService {
           'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
           'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
           // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
-          'phases!inner(tournaments!inner(id,name,status))',
+          'phases!inner(config_json,tournaments!inner(id,name,status,weapon)),' +
+          ROUND_CODE_EMBEDS,
       )
       .in('lice_id', liceIds)
       .in('status', ['running', 'paused', 'scheduled']);
@@ -283,7 +286,7 @@ export class LiveStateService {
     const phases = m['phases'] as { tournaments?: { name?: string } } | null;
     return {
       id: m['id'] as string,
-      matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
+      roundCode: roundCodeFromMatchRow(m),
       redFighterName: composeName(red?.persons),
       blueFighterName: composeName(blue?.persons),
       scheduledAt: (m['scheduled_at'] as string | null) ?? null,

@@ -112,7 +112,7 @@ function LiveCard({
           )}
         </div>
         {where && <span className="mt-0.5 text-sm text-foreground-secondary">{where}</span>}
-        <p className="mt-2 text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
+        <p className="mt-2 text-sm font-bold text-foreground">{match.roundCode}</p>
         <p className="mt-0.5 text-sm text-foreground-secondary">
           {nameOrUnknown(match.redFighterName, 'fighter', t)}{' '}
           <span className="text-xs text-foreground-secondary">{t('scoring.liveMatch.versus')}</span>{' '}

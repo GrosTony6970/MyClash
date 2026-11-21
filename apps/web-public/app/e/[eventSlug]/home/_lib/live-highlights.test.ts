@@ -4,7 +4,7 @@ import { highlightsOf } from './live-highlights';
 
 const bout = (id: string, status: string): LiveMatch => ({
   id,
-  matchNumberLabel: `L1-P1-${id}`,
+  roundCode: `LSW-P1-${id}`,
   redFighterName: 'Ada Lovelace',
   blueFighterName: 'Mary Somerville',
   scheduledAt: '2027-06-12T08:30:00.000Z',
