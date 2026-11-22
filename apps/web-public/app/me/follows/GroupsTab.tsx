@@ -61,7 +61,8 @@ function GroupSection({
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-3">
+      {/* On a phone the buttons sit under the name: beside it they squeezed the name to nothing. */}
+      <div className="flex flex-col gap-2 border-b border-border bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         {renaming ? (
           <form
             onSubmit={(e) => {

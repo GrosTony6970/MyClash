@@ -136,7 +136,8 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
             key={person.id}
             className="rounded-lg border border-border bg-surface p-4 shadow-sm"
           >
-            <div className="flex items-start justify-between gap-3">
+            {/* On a phone the buttons sit under the name: beside it they squeezed it to "Yan…". */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar name={person.displayName} src={person.photoUrl ?? undefined} size="md" />
                 <div className="min-w-0">
