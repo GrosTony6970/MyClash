@@ -36,6 +36,56 @@ async function collectHeartbeatPayload(liceId: string | null): Promise<Record<st
 }
 
 /**
+ * One check-in. False on a signed-out answer: the loop stops (`shouldKeepBeating`).
+ *
+ * The piste is read once, before the send: its answer is filed under it
+ * (`noteOtherTablets`), even when the referee opened another meanwhile.
+ */
+async function checkIn(cancelled: () => boolean): Promise<boolean> {
+  const liceId = openPisteId();
+  const payload = await collectHeartbeatPayload(liceId);
+  if (cancelled()) return true;
+  const res = await fetch(`${getApiUrl()}/api/v1/staff/heartbeat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    const answer = (await res.json().catch(() => null)) as { otherTablets?: unknown } | null;
+    const others = answer?.otherTablets;
+    noteOtherTablets(liceId, typeof others === 'number' ? others : 0);
+  }
+  return shouldKeepBeating(res.status);
+}
+
+/**
+ * `run`, one at a time: a slow fetch must not stack POSTs. A call while one is
+ * out is not dropped: it runs once after it, if `mayRunAgain` still says so.
+ */
+function oneAtATime(run: () => Promise<void>, mayRunAgain: () => boolean): () => Promise<void> {
+  let inFlight = false;
+  let again = false;
+  const go = async (): Promise<void> => {
+    if (inFlight) {
+      again = true;
+      return;
+    }
+    inFlight = true;
+    try {
+      await run();
+    } finally {
+      inFlight = false;
+      if (again && mayRunAgain()) {
+        again = false;
+        void go();
+      }
+    }
+  };
+  return go;
+}
+
+/**
  * Best-effort tablet heartbeat: every 20s, while online, snapshot the outbox
  * and POST sync-health to the API, which stamps it on the staff account for the
  * organizer Live board. A thrown error is swallowed — an offline network or a
@@ -58,9 +108,6 @@ export function useHeartbeat(): void {
   useEffect(() => {
     let cancelled = false;
     let stopped = false;
-    let inFlight = false;
-    // A send asked while one was out: sent once that one ends.
-    let again = false;
     let initial = 0;
     let repeating = 0;
 
@@ -72,43 +119,17 @@ export function useHeartbeat(): void {
       window.clearInterval(repeating);
     };
 
-    async function send(): Promise<void> {
-      // One send at a time (a slow fetch must not stack POSTs): one asked while
-      // another is out goes after it, once. Skipped while we're offline.
-      if (inFlight) {
-        again = true;
-        return;
-      }
-      if (!navigator.onLine) return;
-      inFlight = true;
-      try {
-        // The piste is read once, before the send: its answer is filed under it
-        // (`noteOtherTablets`), even when the referee opened another meanwhile.
-        const liceId = openPisteId();
-        const payload = await collectHeartbeatPayload(liceId);
-        if (cancelled) return;
-        const res = await fetch(`${getApiUrl()}/api/v1/staff/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
-        if (!shouldKeepBeating(res.status)) stop();
-        if (res.ok) {
-          const answer = (await res.json().catch(() => null)) as { otherTablets?: unknown } | null;
-          const others = answer?.otherTablets;
-          noteOtherTablets(liceId, typeof others === 'number' ? others : 0);
+    const send = oneAtATime(
+      async () => {
+        if (!navigator.onLine) return;
+        try {
+          if (!(await checkIn(() => cancelled))) stop();
+        } catch {
+          // best-effort telemetry; never surface
         }
-      } catch {
-        // best-effort telemetry; never surface
-      } finally {
-        inFlight = false;
-        if (again && !cancelled && !stopped) {
-          again = false;
-          void send();
-        }
-      }
-    }
+      },
+      () => !cancelled && !stopped,
+    );
 
     // Defer the first send off the effect body (consistency with the repo's
     // effect rules; also lets the outbox settle after mount).

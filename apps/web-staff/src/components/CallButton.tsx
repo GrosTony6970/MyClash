@@ -62,35 +62,55 @@ export function CallButton() {
         }
       >
         {step.kind === 'answered' ? (
-          <p
-            role="status"
-            data-testid="call-outcome"
-            className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold ${OUTCOME_TONE[step.outcome]}`}
-          >
-            {t(`scoring.call.outcome.${step.outcome}`)}
-          </p>
+          <CallOutcomeLine outcome={step.outcome} />
         ) : (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-foreground-secondary">{t('scoring.call.intro')}</p>
-            <div className="flex flex-wrap gap-2">
-              {CALL_REASONS.map((reason) => (
-                <button
-                  key={reason}
-                  type="button"
-                  disabled={step.kind === 'sending'}
-                  onClick={() => void call(reason)}
-                  className="min-h-[44px] flex-1 rounded-lg border-2 border-danger bg-danger/15 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30 disabled:opacity-50"
-                >
-                  {t(`scoring.call.reason.${reason}`)}
-                </button>
-              ))}
-            </div>
-            {step.kind === 'sending' && (
-              <p className="text-sm text-muted">{t('scoring.call.sending')}</p>
-            )}
-          </div>
+          <CallChoices sending={step.kind === 'sending'} onCall={(reason) => void call(reason)} />
         )}
       </Modal>
     </>
+  );
+}
+
+/** Whether the call reached the control room: green, or red with what to do instead. */
+function CallOutcomeLine({ outcome }: { outcome: CallOutcome }) {
+  const { t } = useI18n();
+  return (
+    <p
+      role="status"
+      data-testid="call-outcome"
+      className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold ${OUTCOME_TONE[outcome]}`}
+    >
+      {t(`scoring.call.outcome.${outcome}`)}
+    </p>
+  );
+}
+
+/** The three reasons to call, until one is sent. */
+function CallChoices({
+  sending,
+  onCall,
+}: {
+  sending: boolean;
+  onCall: (reason: CallReason) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-foreground-secondary">{t('scoring.call.intro')}</p>
+      <div className="flex flex-wrap gap-2">
+        {CALL_REASONS.map((reason) => (
+          <button
+            key={reason}
+            type="button"
+            disabled={sending}
+            onClick={() => onCall(reason)}
+            className="min-h-[44px] flex-1 rounded-lg border-2 border-danger bg-danger/15 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30 disabled:opacity-50"
+          >
+            {t(`scoring.call.reason.${reason}`)}
+          </button>
+        ))}
+      </div>
+      {sending && <p className="text-sm text-muted">{t('scoring.call.sending')}</p>}
+    </div>
   );
 }
