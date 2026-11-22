@@ -44,6 +44,14 @@ describe('SimulatedTimeBadge', () => {
     expect(render()).not.toMatch(/role="status"|aria-live/);
   });
 
+  it("sits above a phone's bottom menu and lets a tap through", () => {
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: false });
+    const html = render();
+    expect(html).toContain('pointer-events-none');
+    expect(html).toContain('bottom-[calc(4rem+env(safe-area-inset-bottom))]');
+    expect(html).toContain('lg:bottom-3');
+  });
+
   it('says the clock is paused, and stops its pulse', () => {
     Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: true });
     const html = render();

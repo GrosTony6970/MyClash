@@ -35,7 +35,8 @@ export function SimulatedTimeBadge({ apiUrl, t, bcp47Locale }: SimulatedTimeBadg
   const time = new Date(nowMs).toLocaleString(bcp47Locale, BADGE_TIME);
 
   return (
-    <div className="fixed bottom-3 right-3 z-overlay flex items-center gap-2 rounded-full border border-warning/40 bg-warning/15 px-3 py-1.5 text-xs font-semibold text-warning shadow-sm backdrop-blur">
+    // Below lg it rides above the phone's bottom menu, and a tap goes through it: it covered the menu.
+    <div className="pointer-events-none fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] right-3 z-overlay lg:bottom-3 flex items-center gap-2 rounded-full border border-warning/40 bg-warning/15 px-3 py-1.5 text-xs font-semibold text-warning shadow-sm backdrop-blur">
       <span
         className={`h-1.5 w-1.5 rounded-full bg-warning ${frozen ? '' : 'animate-pulse motion-reduce:animate-none'}`}
         aria-hidden
