@@ -63,6 +63,12 @@ const WS_TOPICS = ['Longsword', 'Sidesword', 'Rapier', 'Sabre', 'Messer', 'Dagge
 const WS_CATEGORIES = ['Technique', 'Sparring', 'Drills'];
 const LOCAL_CSV = 'tests/e2e/fixtures/participants.local.csv';
 const SAMPLE_CSV = 'tests/e2e/fixtures/participants.sample.csv';
+// The demo's pictures stay on the operator's machine, like the roster (.gitignore): a file that
+// is not there is skipped, and the run says so.
+const ORG_AND_LYON_LOGO = 'tests/e2e/fixtures/Logo_AIorg_LyonAMHE.png';
+const FAL_LOGO = 'tests/e2e/fixtures/FAL2027.png';
+const LUGDUNENSES_LOGO = 'tests/e2e/fixtures/Lugdu.png';
+const EVENT_BANNER = 'tests/e2e/fixtures/background_header.jpeg';
 
 // Workshop scheduling: the 6 workshops are spread evenly (3/day) across the two
 // event days, each lasting 2h, leaving the 12:00–14:00 midday break free. The
@@ -640,6 +646,45 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   );
   const allPoolIds = [...long.poolIds, ...side.poolIds];
   const tournamentIds = [long.id, side.id].filter(Boolean);
+
+  // Branding: the organiser's logo, the Event's logo and banner, each Tournament's logo, and the
+  // logos of two clubs on the roster. A club logo is a super admin's write: another login sees ✗.
+  const upload = async (label: string, path: string, url: () => Promise<string>) => {
+    if (!existsSync(path)) {
+      console.log(`  – ${label}: ${path} is not on this machine, skipped`);
+      return;
+    }
+    await step(label, async () =>
+      reqOk(
+        await post(await url(), {
+          multipart: {
+            file: {
+              name: path.split('/').pop()!,
+              mimeType: path.endsWith('.png') ? 'image/png' : 'image/jpeg',
+              buffer: readFileSync(path),
+            },
+          },
+        }),
+      ),
+    );
+  };
+  const clubLogoUrl = (name: string) => async () => {
+    const clubs = (await (
+      await reqOk(await get(`clubs?q=${encodeURIComponent(name)}`))
+    ).json()) as Array<{ id: string; name: string }>;
+    const club = clubs.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (!club) throw new Error(`no club named "${name}"`);
+    return `clubs/${club.id}/logo`;
+  };
+  const at = (url: string) => async () => url;
+  await upload('organiser logo', ORG_AND_LYON_LOGO, at(`organizations/${orgId}/logo`));
+  await upload('event logo', FAL_LOGO, at(`events/${eventId}/logo`));
+  await upload('event banner', EVENT_BANNER, at(`events/${eventId}/hero`));
+  for (const id of tournamentIds) {
+    await upload(`tournament ${id.slice(0, 8)} logo`, FAL_LOGO, at(`tournaments/${id}/logo`));
+  }
+  await upload('club logo: Lyon AMHE', ORG_AND_LYON_LOGO, clubLogoUrl('Lyon AMHE'));
+  await upload('club logo: Lugdunenses', LUGDUNENSES_LOGO, clubLogoUrl('Lugdunenses'));
 
   // Assign each tournament's phases (pools + bracket) to the tournament venue —
   // exercises the per-phase venue feature and links the venue to the event.

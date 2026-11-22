@@ -11,6 +11,11 @@
 tests/e2e/.auth/
 # Real participant rosters used for import tests stay local (contain PII)
 tests/e2e/fixtures/*.local.csv
+# The populate run's logos and banner (07-populate-event.spec.ts) stay local too
+tests/e2e/fixtures/Logo_AIorg_LyonAMHE.png
+tests/e2e/fixtures/FAL2027.png
+tests/e2e/fixtures/Lugdu.png
+tests/e2e/fixtures/background_header.jpeg
 
 # ── MyClash runtime data (matches MyFAL pattern) ─────────────────
 data/
