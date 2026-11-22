@@ -78,6 +78,9 @@ const EVENT_TZ = 'Europe/Paris'; // events default to Europe/Paris (0102_events_
 const WS_DAYS = ['2027-05-22', '2027-05-23']; // Sat, Sun
 const WS_START_HHMM = ['10:00', '14:00', '16:00']; // → 10:00–12:00, 14:00–16:00, 16:00–18:00
 const WS_DURATION_MIN = 120;
+// Where the run leaves the platform's clock, paused (the Event's own time zone).
+const FREEZE_DAY = '2027-05-23';
+const FREEZE_HHMM = '13:31';
 
 /**
  * DST-correct wall-clock (in `tz`) → UTC ISO instant. Mirrors @myclash/time's
@@ -109,7 +112,10 @@ function zonedToUtcIso(day: string, hhmm: string, tz: string): string {
 
 type Person = { id: string; givenName: string; familyName: string; globalPersonId: string | null };
 
-test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ request }) => {
+test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
+  request,
+  playwright,
+}) => {
   test.skip(!POPULATE, 'set E2E_POPULATE=1 to populate a demo event');
   test.setTimeout(1_800_000);
 
@@ -156,6 +162,29 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     } catch (e) {
       console.log(`  ✗ ${label}: ${(e as Error).message}`);
       return null;
+    }
+  };
+  // A club's logo and the platform clock are a super admin's writes: they go through a second
+  // login (E2E_SUPERADMIN_*), and without one they are skipped with a line that says so.
+  type Send = (u: string, o?: Parameters<typeof request.post>[1]) => Promise<APIResponse>;
+  const asSuperAdmin = async (label: string, fn: (post: Send, put: Send) => Promise<void>) => {
+    const email = process.env.E2E_SUPERADMIN_EMAIL ?? '';
+    const password = process.env.E2E_SUPERADMIN_PASSWORD ?? '';
+    if (!email || !password) {
+      console.log(`  – ${label}: set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD, skipped`);
+      return;
+    }
+    const platform = await playwright.request.newContext({ baseURL, ignoreHTTPSErrors: true });
+    try {
+      const login = () => platform.post(api('auth/password-login'), { data: { email, password } });
+      if (await step(`super admin login (${label})`, async () => reqOk(await login()))) {
+        await fn(
+          (u, o) => paced(() => platform.post(api(u), o)),
+          (u, o) => paced(() => platform.put(api(u), o)),
+        );
+      }
+    } finally {
+      await platform.dispose();
     }
   };
   const listPersons = async () =>
@@ -648,15 +677,20 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const tournamentIds = [long.id, side.id].filter(Boolean);
 
   // Branding: the organiser's logo, the Event's logo and banner, each Tournament's logo, and the
-  // logos of two clubs on the roster. A club logo is a super admin's write: another login sees ✗.
-  const upload = async (label: string, path: string, url: () => Promise<string>) => {
+  // logos of two clubs on the roster. A club logo is a super admin's write, sent with that login.
+  const upload = async (
+    label: string,
+    path: string,
+    url: () => Promise<string>,
+    send: typeof post = post,
+  ) => {
     if (!existsSync(path)) {
       console.log(`  – ${label}: ${path} is not on this machine, skipped`);
       return;
     }
     await step(label, async () =>
       reqOk(
-        await post(await url(), {
+        await send(await url(), {
           multipart: {
             file: {
               name: path.split('/').pop()!,
@@ -683,8 +717,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   for (const id of tournamentIds) {
     await upload(`tournament ${id.slice(0, 8)} logo`, FAL_LOGO, at(`tournaments/${id}/logo`));
   }
-  await upload('club logo: Lyon AMHE', ORG_AND_LYON_LOGO, clubLogoUrl('Lyon AMHE'));
-  await upload('club logo: Lugdunenses', LUGDUNENSES_LOGO, clubLogoUrl('Lugdunenses'));
+  await asSuperAdmin('club logos', async (send) => {
+    for (const [name, path] of [
+      ['Lyon AMHE', ORG_AND_LYON_LOGO],
+      ['Lugdunenses', LUGDUNENSES_LOGO],
+    ] as const) {
+      await upload(`club logo: ${name}`, path, clubLogoUrl(name), send);
+    }
+  });
 
   // Assign each tournament's phases (pools + bracket) to the tournament venue —
   // exercises the per-phase venue feature and links the venue to the event.
@@ -1823,6 +1863,24 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     );
     await liveRunSemifinal(side.id, 'Sidesword Open');
   }
+
+  // The demo is in May 2027: freeze the platform's clock in its second afternoon, so every app
+  // reads the Event as under way (operator, 2026-11-22). The clock is platform-wide.
+  await asSuperAdmin('freeze the clock', async (_post, put) => {
+    await step(`clock frozen at ${FREEZE_DAY} ${FREEZE_HHMM} (${EVENT_TZ})`, async () =>
+      reqOk(
+        await put('admin/feature-flags/time_simulation', {
+          data: {
+            enabled: true,
+            payloadJson: {
+              simulatedNowIso: zonedToUtcIso(FREEZE_DAY, FREEZE_HHMM, EVENT_TZ),
+              mode: 'frozen',
+            },
+          },
+        }),
+      ),
+    );
+  });
 
   console.log(
     `\n[e2e] populated demo data — inspect it:\n` +
