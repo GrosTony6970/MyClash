@@ -225,14 +225,12 @@ overrides:
   # eslint-plugin-jsx-a11y (^3.1.2) and fork-ts-checker-webpack-plugin (^3.0.4, under
   # @nestjs/cli).
   'minimatch@3': ^3.1.4
-  # >=10.2.3 clears GHSA-7r86-cg39-jmmj and GHSA-23c5-xmqv-rm74 (and GHSA-3ppc-4f35-3m26,
-  # >=10.2.1). Through @typescript-eslint/typescript-estree (^10.2.2), lint tooling.
-  # GHSA-g3hv-75wg-m249 (>=7.0.0 <11.0.1, medium) has no fix on 10.x: it stays listed
-  # until typescript-estree asks for 11.
-  'minimatch@10': ^10.2.3
   # minimatch 5 (an exact 5.1.9 from @redocly/openapi-core, past GHSA-23c5's 5.1.8) and 11
   # (an exact 11.0.5 from @nestjs/cli; ^11.0.5 from eslint 10.15, its config-array and
-  # glob 14) need no key: no range they are asked for admits a vulnerable version.
+  # glob 14; ^11.0.1 from @typescript-eslint/typescript-estree 8.73, past GHSA-g3hv-75wg-m249's
+  # 11.0.1) need no key: no range they are asked for admits a vulnerable version. minimatch 10
+  # left the tree with typescript-eslint 8.73, and its key with it: 10.x has no fix for
+  # GHSA-g3hv-75wg-m249.
   #
   # brace-expansion follows minimatch's majors, keyed the same way.
   # >=1.1.21 clears GHSA-q2hr-2g5m-vwhr, and >=1.1.20 GHSA-qhr7-859c-m2p7 and the older
@@ -242,10 +240,8 @@ overrides:
   # GHSA-6j4f-fj2g-mc7p (unbounded recursion). Through minimatch 5 (^2.0.1), under
   # @redocly/openapi-core.
   'brace-expansion@2': ^2.1.7
-  # >=5.0.12 clears GHSA-q2hr-2g5m-vwhr, and >=5.0.11 GHSA-qhr7-859c-m2p7. Through minimatch 10
-  # (10.2.6 asks ^5.0.8; 10.2.3 and 10.2.4 ask ^5.0.2); minimatch 11.0.5 and later ask ^5.0.12
-  # themselves.
-  'brace-expansion@5': ^5.0.12
+  # brace-expansion 5 needs no key: every minimatch 11 release asks ^5.0.12 itself, past
+  # GHSA-q2hr-2g5m-vwhr's 5.0.12.
   # >=1.2.2 clears GHSA-68fv-2mgg-jv7q (a source map with indexed sections
   # holds the event loop). Every consumer's range (^1.2.1, or ^1.0.1 for css-tree 2
   # under csso) already allowed the fix while the lockfile sat on 1.2.1. It arrives
