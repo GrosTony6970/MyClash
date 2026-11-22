@@ -32,7 +32,11 @@ export function SegmentedTabs<T extends string = string>({
     <div
       role="tablist"
       aria-label={rest['aria-label']}
-      className={['flex gap-1 rounded-xl border border-border bg-surface p-1', className].join(' ')}
+      // A strip wider than a phone scrolls inside its track; it never widens the page.
+      className={[
+        'flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1',
+        className,
+      ].join(' ')}
     >
       {tabs.map((tab) => {
         const active = tab.value === value;
@@ -44,7 +48,7 @@ export function SegmentedTabs<T extends string = string>({
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={[
-              'min-h-[40px] flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+              'min-h-[40px] flex-1 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-semibold transition-colors sm:px-3',
               '[touch-action:manipulation]',
               active
                 ? 'bg-accent text-accent-foreground shadow-sm'
