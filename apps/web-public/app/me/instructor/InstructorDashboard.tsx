@@ -780,7 +780,7 @@ function SessionRow({
   );
 }
 
-function RosterLists({
+export function RosterLists({
   roster,
   busyId,
   onModerate,
@@ -837,9 +837,10 @@ function RosterLists({
   const row = (r: RosterEntry, action: 'accept' | 'refuse') => {
     const club = clubOf(r);
     return (
-      <li key={r.id} className="flex items-center justify-between gap-2 text-sm text-foreground">
+      // The controls sit on their own line under the name: beside it they ran off a phone's card.
+      <li key={r.id} className="flex flex-col gap-1 py-1 text-sm text-foreground">
         <RosterName name={nameOf(r)} guest={r.guest} club={club} />
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="flex items-center gap-3">
           {canTick(r.status) && (
             <RosterTick
               name={nameOf(r)}
