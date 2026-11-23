@@ -2,7 +2,7 @@ import { test, expect, type APIResponse } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
-import { fold, isolateRoster, linkedNames } from './_roster';
+import { fold, isolateRoster, linkedNames, rosterClubs } from './_roster';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
@@ -25,6 +25,7 @@ import { fold, isolateRoster, linkedNames } from './_roster';
  *     including Anthony and every tester each in a workshop they don't teach
  *   - the testers named in E2E_POPULATE_TESTERS ("Given Family", `;`-separated)
  *     fight in BOTH tournaments and attend a workshop; the run fails if one isn't
+ *   - every club of the roster made (or found), verified, and given back to its people
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -110,7 +111,13 @@ function zonedToUtcIso(day: string, hhmm: string, tz: string): string {
   return new Date(guess - (seen - guess)).toISOString(); // subtract the tz offset
 }
 
-type Person = { id: string; givenName: string; familyName: string; globalPersonId: string | null };
+type Person = {
+  id: string;
+  givenName: string;
+  familyName: string;
+  globalPersonId: string | null;
+  clubId: string | null;
+};
 
 test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   request,
@@ -191,11 +198,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     (await (await reqOk(await get(`events/${eventId}/persons`))).json()) as Person[];
 
   // ── People: import the roster if the event is empty (1 request) ───────────────
+  const csv = existsSync(LOCAL_CSV) ? LOCAL_CSV : (process.env.E2E_PARTICIPANTS_CSV ?? SAMPLE_CSV);
   let persons = await listPersons();
   if (persons.length < 95) {
-    const csv = existsSync(LOCAL_CSV)
-      ? LOCAL_CSV
-      : (process.env.E2E_PARTICIPANTS_CSV ?? SAMPLE_CSV);
     // Outside `step()` on purpose: `step` swallows errors, and a roster that
     // could not be made safe must stop the run, never be imported as it is.
     // Only the people named in E2E_POPULATE_LINKED keep what links them to a
@@ -222,6 +227,74 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
       ),
     );
     persons = await listPersons();
+  }
+
+  // ── Clubs: every club of the roster exists, verified, and on its people ─────────
+  // The import never sees a club but a linked row's (`isolateRoster`: a club matches a real
+  // profile by name + club). Each club is found by its exact name, or made, as a super admin (who
+  // also verifies it); then the person edit, which matches no profile, gives each person theirs.
+  const clubOf = rosterClubs(readFileSync(csv, 'utf8'));
+  const clubIds = new Map<string, string>(); // folded club name → id
+  type Club = { id: string; name: string; unverified: string };
+  const clubNamed = async (name: string): Promise<Club | undefined> =>
+    ((await (await reqOk(await get(`clubs?q=${encodeURIComponent(name)}`))).json()) as Club[]).find(
+      (club) => fold(club.name) === fold(name),
+    );
+  await asSuperAdmin('clubs', async (send) => {
+    const wanted = new Map([...clubOf.values()].map((club) => [fold(club.name), club]));
+    let made = 0;
+    for (const [key, club] of wanted) {
+      const found = await clubNamed(club.name);
+      const id =
+        found?.id ??
+        (
+          (await (
+            await reqOk(
+              await send('clubs', {
+                data: {
+                  name: club.name,
+                  ...(club.abbreviation ? { abbreviation: club.abbreviation } : {}),
+                  ...(club.city ? { city: club.city } : {}),
+                },
+              }),
+            )
+          ).json()) as Club
+        ).id;
+      if (!found) made++;
+      clubIds.set(key, id);
+    }
+    const ids = [...clubIds.values()];
+    for (let i = 0; i < ids.length; i += 200) {
+      await reqOk(await send('clubs/bulk-verify', { data: { ids: ids.slice(i, i + 200) } }));
+    }
+    console.log(
+      `  ✓ clubs: ${wanted.size} on the roster, ${made} made, all ${ids.length} verified`,
+    );
+  });
+  const clubWanted = (p: Person) => {
+    const club = clubOf.get(fold(`${p.givenName} ${p.familyName}`));
+    return club ? clubIds.get(fold(club.name)) : undefined;
+  };
+  let attached = 0;
+  for (const p of persons) {
+    const id = clubWanted(p);
+    if (!id || p.clubId === id) continue;
+    await reqOk(await patch(`persons/${p.id}`, { data: { clubId: id } }));
+    attached++;
+  }
+  if (clubIds.size > 0) {
+    persons = await listPersons();
+    console.log(`  ✓ clubs given back to ${attached} people`);
+    const name = (p: Person) => `${p.givenName} ${p.familyName}`;
+    expect(
+      persons.filter((p) => clubWanted(p) && p.clubId !== clubWanted(p)).map(name),
+      'people without their roster club',
+    ).toEqual([]);
+    const unverified: string[] = [];
+    for (const club of new Map([...clubOf.values()].map((c) => [fold(c.name), c])).values()) {
+      if ((await clubNamed(club.name))?.unverified !== 'false') unverified.push(club.name);
+    }
+    expect(unverified, 'roster clubs not verified').toEqual([]);
   }
   const anthony =
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??

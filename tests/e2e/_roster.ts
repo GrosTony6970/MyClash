@@ -16,6 +16,10 @@
  * an alias such as `courriel`) is blanked by default. Such a row can only mint a
  * fresh profile with no account, no address and no club.
  *
+ * The club comes back after the import (`rosterClubs`), through the person edit:
+ * it sets the club and matches no profile, so the demo has every club on its people
+ * and still reaches no one.
+ *
  * Headers are read the way the importer reads them (`csv-columns.ts`: lower
  * case, accents off, spaces / hyphens / apostrophes as `_`, English or French
  * name), and the separator is chosen by its rule (`detectCsvDelimiter`). Both
@@ -124,4 +128,46 @@ export function isolateRoster(
   }
   assertEachFoundOnce(wanted);
   return { csv: `${out.join('\n')}\n`, isolated, kept: linked.length };
+}
+
+/** The importer's names for a row's club columns (`HEADER_NAMES`): read here, never sent. */
+const CLUB_COLUMNS: Record<string, readonly string[]> = {
+  club: ['club'],
+  club_abv: ['club_abv', 'club_abbreviation', 'sigle_club', 'sigle_du_club'],
+  club_city: ['club_city', 'ville_club', 'ville_du_club'],
+};
+
+const CLUB_COLUMN_BY_KEY = new Map(
+  Object.entries(CLUB_COLUMNS).flatMap(([column, names]) => names.map((name) => [name, column])),
+);
+
+export interface RosterClub {
+  name: string;
+  abbreviation: string | null;
+  city: string | null;
+}
+
+/**
+ * Each roster person's club, by their folded "Given Family" name: what `isolateRoster` blanks
+ * before the import. The demo gives it back after the import through the person edit, which sets
+ * the club and matches no profile (`persons.service.ts` `update`). A row with no club name is left
+ * out.
+ */
+export function rosterClubs(csv: string): Map<string, RosterClub> {
+  const { lines, header, delimiter, given, family } = readRoster(csv);
+  const columns = header.split(delimiter).map((h) => CLUB_COLUMN_BY_KEY.get(headerKey(h)) ?? null);
+  const at = (column: string) => columns.indexOf(column);
+  const clubs = new Map<string, RosterClub>();
+  for (const line of lines.slice(1)) {
+    const cells = line.split(delimiter);
+    const cell = (column: string) => cells[at(column)]?.trim() || null;
+    const name = at('club') >= 0 ? cell('club') : null;
+    if (!name) continue;
+    clubs.set(fold(`${cells[given]} ${cells[family]}`), {
+      name,
+      abbreviation: at('club_abv') >= 0 ? cell('club_abv') : null,
+      city: at('club_city') >= 0 ? cell('club_city') : null,
+    });
+  }
+  return clubs;
 }
