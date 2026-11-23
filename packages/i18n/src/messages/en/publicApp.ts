@@ -515,6 +515,8 @@ export const publicApp = {
       tbd: 'Time TBD',
       vs: 'vs',
       referee: 'Referee',
+      /** A fighter's elimination bracket, as a clash names it: "Elimination · Longsword Open". */
+      eliminationBlock: 'Elimination',
       conflictsWith: 'Conflicts with: {items}',
       live: 'Live',
       won: 'Won {a}–{b}',

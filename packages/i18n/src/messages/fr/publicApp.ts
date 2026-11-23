@@ -513,6 +513,7 @@ export const publicApp = {
       tbd: 'Horaire à confirmer',
       vs: 'vs',
       referee: 'Arbitre',
+      eliminationBlock: 'Élimination',
       conflictsWith: 'En conflit avec : {items}',
       live: 'En direct',
       won: 'Gagné {a}–{b}',

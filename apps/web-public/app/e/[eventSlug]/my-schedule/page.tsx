@@ -22,7 +22,7 @@ import {
   detectConflicts,
   dutyTimed,
   fightItems,
-  spreadPoolConflicts,
+  spreadBlockConflicts,
   uncheckedCount,
   workshopTimed,
   type TimedItem,
@@ -30,7 +30,6 @@ import {
 import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import type {
   PersonSchedule,
-  PoolSpan,
   RefereeSlot,
   ScheduleMatch,
   WorkshopEnrollment,
@@ -118,8 +117,9 @@ type OtherItem = Exclude<ScheduleItem, { kind: 'match' }>;
 const matchKey = (match: ScheduleMatch): string => `match-${match.id}`;
 
 /**
- * Every commitment on the page as a timed item: the bouts AND their Pools (a
- * fighter is busy for the whole Pool), the duties, the workshops. An item whose
+ * Every commitment on the page as a timed item: the bouts AND their blocks (a
+ * fighter is busy for the whole Pool, Swiss phase, and bracket until out), each
+ * bout named by its block, the duties, the workshops. An item whose
  * end is unknown takes no part: a bout ends at its planned length, or at the
  * API's fallback end when it has none, and a duty at the end the API works out. This page used to call two starts less than five
  * minutes apart a clash, which flagged back-to-back bouts and missed a Workshop
@@ -129,11 +129,11 @@ const matchKey = (match: ScheduleMatch): string => `match-${match.id}`;
 function timedItems(
   matches: ScheduleMatch[],
   others: OtherItem[],
-  poolSpans: PoolSpan[],
+  spans: Pick<PersonSchedule, 'poolSpans' | 'phaseSpans'>,
   t: TranslateFn,
 ): TimedItem[] {
   return [
-    ...fightItems({ matches, poolSpans }, matchKey, (m) => m.roundCode),
+    ...fightItems({ matches, ...spans }, matchKey, t),
     ...others.flatMap((item) => {
       const key = itemKey(item);
       const label = itemLabel(item, t);
@@ -260,9 +260,9 @@ export default function MySchedulePage() {
   // A Pool's clashes show on every bout of that Pool.
   const shownMatches = sorted.flatMap((item) => (item.kind === 'match' ? [item.data] : []));
   const others = sorted.filter((item): item is OtherItem => item.kind !== 'match');
-  // A copy the phone kept before the API sent Pools has none: no Pool clash to show.
-  const timed = timedItems(shownMatches, others, schedule.poolSpans ?? [], t);
-  const conflicts = spreadPoolConflicts(
+  // A copy the phone kept before the API sent the blocks has none: no block clash to show.
+  const timed = timedItems(shownMatches, others, schedule, t);
+  const conflicts = spreadBlockConflicts(
     detectConflicts(timed),
     { matches: shownMatches },
     matchKey,

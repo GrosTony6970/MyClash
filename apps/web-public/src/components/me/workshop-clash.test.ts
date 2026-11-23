@@ -18,6 +18,7 @@ const at = (hhmm: string) => `2027-05-22T${hhmm}:00.000Z`;
 const WORDS: Record<string, string> = {
   'publicApp.me.schedule.referee': 'Referee',
   'publicApp.me.hub.kindQuarterFinal': 'Quarter-final',
+  'publicApp.me.schedule.eliminationBlock': 'Elimination',
 };
 const t = (key: string) => WORDS[key] ?? `[${key}]`;
 
@@ -36,7 +37,7 @@ const bout = (
     poolId,
     poolName: poolId ? 'Pool A' : null,
     tournamentName: 'Longsword',
-    matchKind: poolId ? 'pool' : null,
+    phase: poolId ? 'pool' : null,
     opponentName: `opponent of ${id}`,
     roundCode: `M-${id}`,
     ...over,
@@ -106,10 +107,10 @@ describe('what the viewer already has to do', () => {
     expect(unchecked).toBe(0);
   });
 
-  it('names a bout outside a Pool by its round, and never by the opponent', () => {
+  it('names a bracket bout by its block and a duty by its round, never by the opponent', () => {
     const { commitments } = commitmentsOf(
       schedule({
-        matches: [bout('qf', '14:00', 10, null, { matchKind: 'quarter_final' })],
+        matches: [bout('qf', '14:00', 10, null, { phase: 'bracket', phaseId: 'phase-b' })],
         refereeSlots: [
           duty('d1', '16:00', '16:10', {
             matchKind: 'quarter_final',
@@ -123,17 +124,42 @@ describe('what the viewer already has to do', () => {
     );
 
     expect(commitments.map((c) => c.label)).toEqual([
-      'Quarter-final · Longsword',
+      'Elimination · Longsword',
       'Referee · Quarter-final · Sabre',
     ]);
   });
 
-  it("names a round it has no words for by the bout's code, beside the Tournament", () => {
-    // A bracket of unknown size: no round name. The line once read "Longsword" alone.
+  it('names a session inside her bracket by the whole bracket, before her own first bout', () => {
+    // The bracket starts at 14:00 (operator, 2026-11-23); her bout is at 14:40.
+    const { commitments } = commitmentsOf(
+      schedule({
+        matches: [bout('qf', '14:40', 10, null, { phase: 'bracket', phaseId: 'phase-b' })],
+        phaseSpans: [
+          {
+            phaseId: 'phase-b',
+            kind: 'bracket',
+            tournamentName: 'Longsword',
+            startsAt: at('14:00'),
+            endsAt: at('18:00'),
+          },
+        ],
+      }),
+      t,
+    );
+
+    const clash = clashOf(session('14:05', '14:30'), commitments)!;
+    expect(clashWords(clash, (iso) => iso.slice(11, 16))).toEqual({
+      item: 'Elimination · Longsword',
+      time: '14:00–18:00',
+    });
+  });
+
+  it('names a bout with no block it can name by its code, beside the Tournament', () => {
+    // A copy cached before the API sent the bout's phase.
     const { commitments } = commitmentsOf(
       schedule({
         matches: [
-          bout('b1', '10:00', 5, null, { matchKind: null }),
+          bout('b1', '10:00', 5, null),
           bout('b2', '12:00', 5, null, { tournamentName: null }),
         ],
       }),

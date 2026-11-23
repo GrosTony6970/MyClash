@@ -39,11 +39,9 @@ export interface ScheduleMatch {
   /** Coarse programme phase for block lookup — the PROGRAMME taxonomy, which
    *  carries `swiss` as a 4th token. Null unknown. */
   phase: 'pool' | 'swiss' | 'bracket' | null;
-  /** What the bout is: the `RefereeSlot.matchKind` tokens, read by `matchKindLabel`. Absent in
-   *  a copy cached before the API sent them. */
-  matchKind?: string | null;
-  roundOfCount?: number | null;
-  swissRound?: number | null;
+  /** The bout's phase — the key into `PersonSchedule.phaseSpans` for a bracket or Swiss bout.
+   *  Absent in a copy cached before the API sent it. */
+  phaseId?: string;
   liceName: string | null;
 }
 
@@ -106,6 +104,17 @@ export interface PoolSpan {
   endsAt: string | null;
 }
 
+/** One of the fighter's bracket or Swiss phases, from its earliest placed bout, whoever fights
+ *  it, to the planned end of its last — or, in a bracket, to the end of the bout that put the
+ *  fighter out (operator, 2026-11-23). Null times where the API could not work them out. */
+export interface PhaseSpan {
+  phaseId: string;
+  kind: 'bracket' | 'swiss';
+  tournamentName: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
 /**
  * A person's schedule at one Event (`GET …/my-schedule`, and a person's page): the ONE client
  * copy of the API's shape. The guest page, the person page and the personal space all read it.
@@ -118,6 +127,8 @@ export interface PersonSchedule {
   matches: ScheduleMatch[];
   /** The Pools of `matches`. Absent in a copy cached before the API sent it. */
   poolSpans?: PoolSpan[];
+  /** The bracket and Swiss phases of `matches`. Absent in a copy cached before the API sent it. */
+  phaseSpans?: PhaseSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
   /** Sessions whose instructor refused the viewer (their own schedule only). Absent in a

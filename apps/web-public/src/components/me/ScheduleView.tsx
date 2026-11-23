@@ -12,7 +12,7 @@ import {
   detectConflicts,
   fightItems,
   fightWindow,
-  spreadPoolConflicts,
+  spreadBlockConflicts,
   uncheckedCount,
   workshopTimed,
   type TimedItem,
@@ -137,12 +137,13 @@ export function ScheduleView({
     return phase ? `${ref} · ${phase}` : ref;
   };
 
-  // Conflict detection spans matches and their Pools + referee windows + workshops
-  // (bidirectional). Only items with a known end take part: a bout's planned length
-  // and a duty's end come from the API, and nothing here invents one.
+  // Conflict detection spans matches and their blocks (Pool, bracket, Swiss) + referee
+  // windows + workshops (bidirectional). A bout is named by its block, never the
+  // opponent. Only items with a known end take part: a bout's planned length and a
+  // duty's end come from the API, and nothing here invents one.
   const boutKey = (m: ScheduleMatch) => `fight-${m.id}`;
   const timed: TimedItem[] = [
-    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.roundCode),
+    ...fightItems(schedule, boutKey, t),
     ...referees.flatMap((r) =>
       r.startMs != null && r.endMs != null
         ? [{ key: r.key, label: refereeTitle(r), startMs: r.startMs, endMs: r.endMs }]
@@ -153,7 +154,7 @@ export function ScheduleView({
       return ti ? [ti] : [];
     }),
   ];
-  const conflicts = spreadPoolConflicts(detectConflicts(timed), schedule, boutKey);
+  const conflicts = spreadBlockConflicts(detectConflicts(timed), schedule, boutKey);
 
   const items: DisplayItem[] = [
     ...schedule.matches.map((m): DisplayItem => ({

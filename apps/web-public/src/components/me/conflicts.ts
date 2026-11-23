@@ -7,32 +7,47 @@
 // in the check. This file used to add five minutes to every start, and a guessed
 // length is what the Event's planner sheet replaced.
 //
-// A fighter is busy for their whole Pool, not only their own bouts (operator,
-// 2026-09-17): the Pool's span — first placed bout to the end of its last,
-// whoever fights them — is a commitment too, and clashes like any other.
+// A fighter is busy for a whole block, not only their own bouts: their Pool
+// (operator, 2026-09-17), their Swiss phase, and their elimination bracket until
+// they are out (operator, 2026-11-23). The block's span — its first placed bout
+// to the end of its last, whoever fights them; the API works it out — is a
+// commitment too, and clashes like any other.
+//
+// A clash names the block, never the person: "Pool 1 · Longsword Open",
+// "Elimination · Longsword Open", "Swiss · Longsword Open" (operator, 2026-11-23).
 
 import { matchWindowMs, overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
-import type { PoolSpan, RefereeSlot, ScheduleMatch, WorkshopEnrollment } from './types';
+import type { PhaseSpan, PoolSpan, RefereeSlot, ScheduleMatch, WorkshopEnrollment } from './types';
+
+/** The words a block name needs: plain keys, no values. Every page's translator is one. */
+type Words = (key: string) => string;
 
 export interface TimedItem extends TimeWindowMs {
   key: string;
   label: string;
-  /** On a bout: the Pool it belongs to. */
-  poolId?: string;
-  /** On a Pool's span: the Pool it spans. */
+  /** On a bout: the block it belongs to (`blockKeyOf`). */
+  blockOf?: string;
+  /** On a block's span: the block it spans. */
   spanOf?: string;
 }
 
 /**
- * A Pool's span never clashes with its own bouts, which it covers by definition.
- * Two bouts of one Pool still can: a Pool may run on two pistes at once.
+ * A block's span never clashes with its own bouts, which it covers by definition.
+ * Two bouts of one block still can: a Pool may run on two pistes at once.
  */
 const covers = (span: TimedItem, bout: TimedItem): boolean =>
-  span.spanOf !== undefined && span.spanOf === bout.poolId;
+  span.spanOf !== undefined && span.spanOf === bout.blockOf;
 
-/** Map of item key → labels of the items it conflicts with (bidirectional). */
+/**
+ * Map of item key → labels of the items it conflicts with (bidirectional). Each label once:
+ * a block's span and one of its bouts both meet a Workshop that overlaps that bout.
+ */
 export function detectConflicts(items: TimedItem[]): Map<string, string[]> {
   const conflicts = new Map<string, string[]>();
+  const add = (key: string, label: string) => {
+    const list = conflicts.get(key) ?? [];
+    if (!list.includes(label)) conflicts.set(key, [...list, label]);
+  };
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const a = items[i];
@@ -40,8 +55,8 @@ export function detectConflicts(items: TimedItem[]): Map<string, string[]> {
       if (!a || !b) continue;
       if (covers(a, b) || covers(b, a)) continue;
       if (overlapsHalfOpen(a, b)) {
-        conflicts.set(a.key, [...(conflicts.get(a.key) ?? []), b.label]);
-        conflicts.set(b.key, [...(conflicts.get(b.key) ?? []), a.label]);
+        add(a.key, b.label);
+        add(b.key, a.label);
       }
     }
   }
@@ -113,56 +128,114 @@ export function uncheckedCount(
   return cards.filter((card) => card.time !== null && !checked.has(card.key)).length;
 }
 
-/** What the two functions below need of a bout. Each page keeps its own bout type. */
+/** What the functions below need of a bout. Each page keeps its own bout type. */
 type Bout = Pick<
   ScheduleMatch,
-  'id' | 'scheduledAt' | 'durationMinutes' | 'fallbackEndsAt' | 'poolId'
+  | 'id'
+  | 'scheduledAt'
+  | 'durationMinutes'
+  | 'fallbackEndsAt'
+  | 'poolId'
+  | 'phaseId'
+  | 'phase'
+  | 'poolName'
+  | 'tournamentName'
+  | 'roundCode'
 >;
 
 const poolSpanKey = (poolId: string): string => `pool-${poolId}`;
+const phaseSpanKey = (phaseId: string): string => `phase-${phaseId}`;
 
 /**
- * A fighter's bouts AND the spans of their Pools, as timed items — together,
- * because they come from the same bouts, and a page that took the bouts without
- * the spans would drop the whole-Pool rule in silence. A bout with no window is
- * left out; its Pool's span still takes part. Each page names its own bout keys.
- *
- * `poolSpans` is absent in a schedule cached before the API sent it: the /me
- * pages paint that copy first, and nothing validates it.
+ * The block a bout belongs to, as its span's key: its Pool, or its bracket or Swiss phase.
+ * Undefined when the bout names neither (a copy cached before the API sent them).
  */
-export function fightItems<M extends Bout>(
-  schedule: { matches: readonly M[]; poolSpans?: readonly PoolSpan[] },
-  boutKey: (match: M) => string,
-  labelOf: (match: M) => string,
-): TimedItem[] {
-  const bouts = schedule.matches.flatMap((match): TimedItem[] => {
-    const window = fightWindow(match);
-    if (!window) return [];
-    const poolId = match.poolId ?? undefined;
-    return [{ key: boutKey(match), label: labelOf(match), ...window, poolId }];
-  });
-  const spans = (schedule.poolSpans ?? []).flatMap((span): TimedItem[] => {
-    const label = [span.poolName, span.tournamentName].filter(Boolean).join(' · ');
-    const timed = toTimed(poolSpanKey(span.poolId), label, span.startsAt, span.endsAt);
-    return timed ? [{ ...timed, spanOf: span.poolId }] : [];
-  });
-  return [...bouts, ...spans];
+function blockKeyOf(match: Bout): string | undefined {
+  if (match.poolId) return poolSpanKey(match.poolId);
+  if ((match.phase === 'bracket' || match.phase === 'swiss') && match.phaseId) {
+    return phaseSpanKey(match.phaseId);
+  }
+  return undefined;
+}
+
+/** "Elimination" or "Swiss": the name of a phase block, in the reader's language. */
+function phaseWord(t: Words, kind: 'bracket' | 'swiss'): string {
+  return kind === 'bracket'
+    ? t('publicApp.me.schedule.eliminationBlock')
+    : t('publicApp.me.hub.kindSwiss');
 }
 
 /**
- * A Pool's span has no card of its own, so what it clashes with is shown on its
- * Pool's bout cards — every one of them, a bout with no window included, since it
- * is still in the Pool (operator, 2026-09-18). A bout that also clashes with the
- * same item directly lists it once.
+ * What a clash calls a bout: its block and Tournament ("Pool 1 · Longsword Open", "Elimination ·
+ * Longsword Open"), never the opponent (operator, 2026-11-23). The bout's code stands in for a
+ * block it cannot name.
  */
-export function spreadPoolConflicts<M extends Bout>(
+export function blockLabel(t: Words, match: Bout): string {
+  const block =
+    match.phase === 'pool' || (match.phase == null && match.poolName)
+      ? match.poolName
+      : match.phase === 'bracket' || match.phase === 'swiss'
+        ? phaseWord(t, match.phase)
+        : null;
+  return [block || match.roundCode, match.tournamentName].filter(Boolean).join(' · ');
+}
+
+/**
+ * A fighter's block spans AND their bouts, as timed items — together, because they come from
+ * the same bouts, and a page that took the bouts without the spans would drop the whole-block
+ * rule in silence. The spans come first: a Workshop clash names the first item it meets, and a
+ * session that meets one bout of a block meets the block too, which names it with its whole
+ * window. A bout with no window is left out; its block's span still takes part. Each page names
+ * its own bout keys; every page names a bout by its block (`blockLabel`).
+ *
+ * `poolSpans` and `phaseSpans` are absent in a schedule cached before the API sent them: the
+ * /me pages paint that copy first, and nothing validates it.
+ */
+export function fightItems<M extends Bout>(
+  schedule: {
+    matches: readonly M[];
+    poolSpans?: readonly PoolSpan[];
+    phaseSpans?: readonly PhaseSpan[];
+  },
+  boutKey: (match: M) => string,
+  t: Words,
+): TimedItem[] {
+  const pools = (schedule.poolSpans ?? []).flatMap((span): TimedItem[] => {
+    const label = [span.poolName, span.tournamentName].filter(Boolean).join(' · ');
+    const key = poolSpanKey(span.poolId);
+    const timed = toTimed(key, label, span.startsAt, span.endsAt);
+    return timed ? [{ ...timed, spanOf: key }] : [];
+  });
+  const phases = (schedule.phaseSpans ?? []).flatMap((span): TimedItem[] => {
+    const label = [phaseWord(t, span.kind), span.tournamentName].filter(Boolean).join(' · ');
+    const key = phaseSpanKey(span.phaseId);
+    const timed = toTimed(key, label, span.startsAt, span.endsAt);
+    return timed ? [{ ...timed, spanOf: key }] : [];
+  });
+  const bouts = schedule.matches.flatMap((match): TimedItem[] => {
+    const window = fightWindow(match);
+    if (!window) return [];
+    const label = blockLabel(t, match);
+    return [{ key: boutKey(match), label, ...window, blockOf: blockKeyOf(match) }];
+  });
+  return [...pools, ...phases, ...bouts];
+}
+
+/**
+ * A block's span has no card of its own, so what it clashes with is shown on its bout cards —
+ * every one of them, a bout with no window included, since it is still in the block (operator,
+ * 2026-09-18; bracket and Swiss, 2026-11-23). A bout that also clashes with the same item
+ * directly lists it once.
+ */
+export function spreadBlockConflicts<M extends Bout>(
   conflicts: Map<string, string[]>,
   schedule: { matches: readonly M[] },
   boutKey: (match: M) => string,
 ): Map<string, string[]> {
   const spread = new Map(conflicts);
   for (const match of schedule.matches) {
-    const fromSpan = match.poolId ? conflicts.get(poolSpanKey(match.poolId)) : undefined;
+    const block = blockKeyOf(match);
+    const fromSpan = block ? conflicts.get(block) : undefined;
     if (!fromSpan) continue;
     const key = boutKey(match);
     spread.set(key, [...new Set([...(spread.get(key) ?? []), ...fromSpan])]);

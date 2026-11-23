@@ -290,9 +290,10 @@ test('my-schedule page - with no lengths, a bout ends at its next bout, and the 
       "We couldn't work out when 1 of your commitments ends, so it isn't checked for clashes.",
     ),
   ).toBeVisible();
-  // Match 1 and the workshop name each other; nothing else clashes.
+  // Match 1 and the workshop name each other — the bout by its block, never its code or
+  // its opponent (operator, 2026-11-23); nothing else clashes.
   await expect(page.getByText('⚠ Conflicts with: Stick and guard')).toHaveCount(1);
-  await expect(page.getByText('⚠ Conflicts with: LSW-P1-Match 1')).toHaveCount(1);
+  await expect(page.getByText('⚠ Conflicts with: Pool 1 · Longsword Open')).toHaveCount(1);
   await expect(page.getByText(/Conflicts with/)).toHaveCount(2);
 
   await expectNoCriticalAxeViolations(page);

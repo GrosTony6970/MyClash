@@ -183,9 +183,10 @@ test('/me schedule - a bout with no length ends at its next bout, and the page s
 
   await expect(page.getByText(LINE)).toBeVisible();
   // The first bout runs to 10:25, over the workshop; the second bout, the Pool and
-  // the duty have no end and clash with nothing.
+  // the duty have no end and clash with nothing. The workshop names the bout's block,
+  // never the opponent (operator, 2026-11-23).
   await expect(page.getByText('Conflicts with: Stick and guard')).toHaveCount(1);
-  await expect(page.getByText('Conflicts with: Mary Somerville')).toHaveCount(1);
+  await expect(page.getByText('Conflicts with: Pool 1 · Longsword Open')).toHaveCount(1);
   await expect(page.getByText(/Conflicts with/)).toHaveCount(2);
 
   await expectNoCriticalAxeViolations(page);

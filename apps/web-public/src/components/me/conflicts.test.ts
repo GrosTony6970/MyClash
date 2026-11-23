@@ -4,13 +4,13 @@ import {
   dutyTimed,
   fightItems,
   fightWindow,
-  spreadPoolConflicts,
+  spreadBlockConflicts,
   toTimed,
   uncheckedCount,
   workshopTimed,
   type TimedItem,
 } from './conflicts';
-import type { PoolSpan } from './types';
+import type { PhaseSpan, PoolSpan, ScheduleMatch } from './types';
 
 const at = (hhmm: string): string => `2027-05-22T${hhmm}:00Z`;
 
@@ -188,15 +188,59 @@ describe('detectConflicts', () => {
  * Anna's day. Pool A: bouts at 10:00, 10:25 and 11:05, and one whose length is
  * unknown at 10:40, all in a Pool that spans 10:00–11:10 — the middle bouts are
  * the ones a lazy rule would miss. Pool B: one bout at 10:50, inside Pool A's
- * span. A Swiss bout at 12:00 belongs to no Pool.
+ * span. A Swiss bout at 12:00 belongs to no Pool; its phase sent no span.
+ *
+ * Every clash names a block, never the opponent (operator, 2026-11-23).
  */
-const bouts = [
-  { id: 'a1', poolId: 'pool-a', scheduledAt: at('10:00'), durationMinutes: 5 },
-  { id: 'a2', poolId: 'pool-a', scheduledAt: at('10:25'), durationMinutes: 5 },
-  { id: 'a-unknown', poolId: 'pool-a', scheduledAt: at('10:40'), durationMinutes: null },
-  { id: 'b1', poolId: 'pool-b', scheduledAt: at('10:50'), durationMinutes: 5 },
-  { id: 'a3', poolId: 'pool-a', scheduledAt: at('11:05'), durationMinutes: 5 },
-  { id: 'swiss', poolId: null, scheduledAt: at('12:00'), durationMinutes: 5 },
+const WORDS: Record<string, string> = {
+  'publicApp.me.schedule.eliminationBlock': 'Elimination',
+  'publicApp.me.hub.kindSwiss': 'Swiss',
+};
+const t = (key: string) => WORDS[key] ?? `[${key}]`;
+
+type Bout = Pick<
+  ScheduleMatch,
+  | 'id'
+  | 'poolId'
+  | 'scheduledAt'
+  | 'durationMinutes'
+  | 'fallbackEndsAt'
+  | 'phase'
+  | 'phaseId'
+  | 'poolName'
+  | 'tournamentName'
+  | 'roundCode'
+>;
+const poolBout = (
+  id: string,
+  pool: 'a' | 'b',
+  hhmm: string,
+  durationMinutes: number | null,
+): Bout => ({
+  id,
+  poolId: `pool-${pool}`,
+  poolName: `Pool ${pool.toUpperCase()}`,
+  phase: 'pool',
+  phaseId: 'phase-pools',
+  tournamentName: 'Open',
+  roundCode: `OPN-P-${id}`,
+  scheduledAt: at(hhmm),
+  durationMinutes,
+  fallbackEndsAt: null,
+});
+const bouts: Bout[] = [
+  poolBout('a1', 'a', '10:00', 5),
+  poolBout('a2', 'a', '10:25', 5),
+  poolBout('a-unknown', 'a', '10:40', null),
+  poolBout('b1', 'b', '10:50', 5),
+  poolBout('a3', 'a', '11:05', 5),
+  {
+    ...poolBout('swiss', 'a', '12:00', 5),
+    poolId: null,
+    poolName: null,
+    phase: 'swiss',
+    phaseId: 'phase-swiss',
+  },
 ];
 const span = (poolId: string, name: string, from: string, to: string | null): PoolSpan => ({
   poolId,
@@ -218,17 +262,17 @@ const fightKey = (m: { id: string }) => `fight-${m.id}`;
 const matchKey = (m: { id: string }) => `match-${m.id}`;
 
 describe('fightItems', () => {
-  it('gives every bout with a window and every timed Pool span, each naming its Pool', () => {
-    const items = fightItems(anna, fightKey, (m) => `bout ${m.id}`);
+  it('gives every timed block span first, then every bout with a window, each named by its block', () => {
+    const items = fightItems(anna, fightKey, t);
 
-    expect(items.map((item) => [item.key, item.label, item.poolId, item.spanOf])).toEqual([
-      ['fight-a1', 'bout a1', 'pool-a', undefined],
-      ['fight-a2', 'bout a2', 'pool-a', undefined],
-      ['fight-b1', 'bout b1', 'pool-b', undefined],
-      ['fight-a3', 'bout a3', 'pool-a', undefined],
-      ['fight-swiss', 'bout swiss', undefined, undefined],
-      ['pool-pool-a', 'Pool A · Open', undefined, 'pool-a'],
-      ['pool-pool-b', 'Pool B · Open', undefined, 'pool-b'],
+    expect(items.map((item) => [item.key, item.label, item.blockOf, item.spanOf])).toEqual([
+      ['pool-pool-a', 'Pool A · Open', undefined, 'pool-pool-a'],
+      ['pool-pool-b', 'Pool B · Open', undefined, 'pool-pool-b'],
+      ['fight-a1', 'Pool A · Open', 'pool-pool-a', undefined],
+      ['fight-a2', 'Pool A · Open', 'pool-pool-a', undefined],
+      ['fight-b1', 'Pool B · Open', 'pool-pool-b', undefined],
+      ['fight-a3', 'Pool A · Open', 'pool-pool-a', undefined],
+      ['fight-swiss', 'Swiss · Open', 'phase-phase-swiss', undefined],
     ]);
     expect(items.find((item) => item.key === 'pool-pool-a')).toMatchObject({
       startMs: Date.parse(at('10:00')),
@@ -236,23 +280,35 @@ describe('fightItems', () => {
     });
   });
 
-  it('reads a schedule cached before the API sent Pools, without a span and without throwing', () => {
+  it('reads a schedule cached before the API sent the blocks, without a span and without throwing', () => {
     // The /me pages paint first from localStorage, and nothing validates that copy.
+    const old = { ...bouts[5]!, phaseId: undefined, tournamentName: null };
     const cached = JSON.parse(
-      JSON.stringify({ matches: [{ ...bouts[0], poolId: undefined }] }),
+      JSON.stringify({ matches: [{ ...bouts[0], poolId: undefined }, old] }),
     ) as {
       matches: typeof bouts;
     };
 
     expect(
-      fightItems(cached, fightKey, (m) => m.id).map((item) => [item.key, item.poolId]),
-    ).toEqual([['fight-a1', undefined]]);
+      fightItems(cached, fightKey, t).map((item) => [item.key, item.label, item.blockOf]),
+    ).toEqual([
+      ['fight-a1', 'Pool A · Open', undefined],
+      ['fight-swiss', 'Swiss', undefined],
+    ]);
+  });
+
+  it('names a bout by its code when it has no block it can name, never by the opponent', () => {
+    const loose = { ...bouts[0]!, phase: null, poolId: null, poolName: null };
+
+    expect(fightItems({ matches: [loose] }, fightKey, t).map((item) => item.label)).toEqual([
+      'OPN-P-a1 · Open',
+    ]);
   });
 });
 
 describe('a Pool span in detectConflicts', () => {
   const conflicts = detectConflicts([
-    ...fightItems(anna, fightKey, (m) => `bout ${m.id}`),
+    ...fightItems(anna, fightKey, t),
     workshop('ws', '10:31', '10:45'),
   ]);
 
@@ -264,9 +320,10 @@ describe('a Pool span in detectConflicts', () => {
     for (const key of ['fight-a1', 'fight-a2', 'fight-a3']) expect(conflicts.has(key)).toBe(false);
   });
 
-  it("flags another Pool's bout inside the span, and the two Pools against each other", () => {
+  it("flags another Pool's bout inside the span, and the two Pools against each other, each named once", () => {
     expect(conflicts.get('fight-b1')).toEqual(['Pool A · Open']);
-    expect(conflicts.get('pool-pool-a')).toEqual(['bout b1', 'Pool B · Open', 'ws']);
+    // Pool B's span and its bout both meet Pool A: one name.
+    expect(conflicts.get('pool-pool-a')).toEqual(['Pool B · Open', 'ws']);
     expect(conflicts.get('pool-pool-b')).toEqual(['Pool A · Open']);
   });
 
@@ -275,34 +332,73 @@ describe('a Pool span in detectConflicts', () => {
     // a real clash, not something her Pool's span covers.
     const twoPistes = {
       ...anna,
-      matches: [
-        ...bouts,
-        { id: 'a-piste2', poolId: 'pool-a', scheduledAt: at('10:27'), durationMinutes: 5 },
-      ],
+      matches: [...bouts, poolBout('a-piste2', 'a', '10:27', 5)],
     };
 
-    const clashes = detectConflicts(fightItems(twoPistes, fightKey, (m) => `bout ${m.id}`));
+    const clashes = detectConflicts(fightItems(twoPistes, fightKey, t));
 
-    expect(clashes.get('fight-a2')).toEqual(['bout a-piste2']);
-    expect(clashes.get('fight-a-piste2')).toEqual(['bout a2']);
+    expect(clashes.get('fight-a2')).toEqual(['Pool A · Open']);
+    expect(clashes.get('fight-a-piste2')).toEqual(['Pool A · Open']);
   });
 });
 
-describe('spreadPoolConflicts', () => {
+/**
+ * Léa's bracket (operator, 2026-11-23): busy from the bracket's start, 14:00, until she is out.
+ * She lost her quarter-final at 14:30, so the API ends her span at 14:40. A Workshop at 15:00 no
+ * longer clashes; one at 14:05, before her own first bout, does.
+ */
+describe('a bracket span', () => {
+  const quarter: Bout = {
+    ...poolBout('qf', 'a', '14:30', 10),
+    poolId: null,
+    poolName: null,
+    phase: 'bracket',
+    phaseId: 'phase-b',
+  };
+  const lea = {
+    matches: [quarter],
+    phaseSpans: [
+      {
+        phaseId: 'phase-b',
+        kind: 'bracket',
+        tournamentName: 'Open',
+        startsAt: at('14:00'),
+        endsAt: at('14:40'),
+      },
+    ] satisfies PhaseSpan[],
+  };
+  const conflicts = detectConflicts([
+    ...fightItems(lea, fightKey, t),
+    workshop('early', '14:05', '14:20'),
+    workshop('after', '15:00', '16:00'),
+  ]);
+
+  it('names the block, and holds her from its start, before her own first bout', () => {
+    expect(conflicts.get('early')).toEqual(['Elimination · Open']);
+  });
+
+  it('frees her once she is out', () => {
+    expect(conflicts.has('after')).toBe(false);
+  });
+
+  it('never flags the bracket against her own bout in it, and shows its clashes on that bout', () => {
+    expect(conflicts.has('fight-qf')).toBe(false);
+    expect(spreadBlockConflicts(conflicts, lea, fightKey).get('fight-qf')).toEqual(['early']);
+  });
+});
+
+describe('spreadBlockConflicts', () => {
   it.each([
     ['the /me schedule', fightKey],
     ['the old my-schedule page', matchKey],
   ])("shows a Pool's clashes on every one of its bouts on %s", (_page, boutKey) => {
-    const spread = spreadPoolConflicts(
-      detectConflicts([
-        ...fightItems(anna, boutKey, (m) => `bout ${m.id}`),
-        workshop('ws', '10:31', '10:45'),
-      ]),
+    const spread = spreadBlockConflicts(
+      detectConflicts([...fightItems(anna, boutKey, t), workshop('ws', '10:31', '10:45')]),
       anna,
       boutKey,
     );
 
-    const poolA = ['bout b1', 'Pool B · Open', 'ws'];
+    const poolA = ['Pool B · Open', 'ws'];
     // The middle bouts and the bout with no window of its own are in the Pool too.
     for (const id of ['a1', 'a2', 'a-unknown', 'a3']) {
       expect(spread.get(boutKey({ id }))).toEqual(poolA);
