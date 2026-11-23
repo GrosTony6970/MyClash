@@ -2189,10 +2189,14 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - The board turns a card red, as a warning that refuses nothing, when two Workshops share a room
   at the same time, or when an instructor of the session is somewhere else then (rulings
   553-555): teaching another session (of any Workshop, the same one included), refereeing, or
-  fighting, where a fighter is busy for their whole Pool or Swiss round and a bracket bout for
-  its own window. The tooltip names the person and the other place. The busy times come from
-  `GET events/:eventId/workshop-instructor-busy`, built from the referee checker's own
-  commitments (ADR-016), for the Event's instructors only; the overlap is worked out in the page
+  fighting, where a fighter is busy for their whole Pool, their whole Swiss phase, and their
+  elimination bracket from its first bout until they are out (operator, 2026-11-23: the same rule
+  as the fighter's own schedule). The tooltip names the person and the other place ("Longsword
+  Open · Elimination", the block's word in the reader's language). The busy times come from
+  `GET events/:eventId/workshop-instructor-busy`: Pools and duties from the referee checker's own
+  commitments (ADR-016), Swiss phases and brackets as one block each (`instructor-busy.ts`; the
+  checker itself keeps its per-round and per-bout windows), for the Event's instructors only;
+  the overlap is worked out in the page
   (`instructor-clashes.ts`). A session counts with a start and an end and not cancelled, as in
   the checker. A failed read says the fights and refereeing were not checked. ADR-016 is the
   other face: refereeing while teaching is refused on the referee board.

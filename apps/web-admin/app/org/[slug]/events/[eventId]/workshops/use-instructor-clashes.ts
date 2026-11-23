@@ -74,7 +74,11 @@ export function useInstructorClashes(
 
   const lines = useMemo(() => {
     const out = new Map<string, string[]>();
-    for (const [sessionId, clashes] of instructorClashes(workshops, read.busy)) {
+    const words = {
+      elimination: t('organizer.workshopsPage.board.eliminationBlock'),
+      swiss: t('organizer.workshopsPage.board.swissBlock'),
+    };
+    for (const [sessionId, clashes] of instructorClashes(workshops, read.busy, words)) {
       out.set(
         sessionId,
         clashes.map((clash) => sentence(clash, t)),

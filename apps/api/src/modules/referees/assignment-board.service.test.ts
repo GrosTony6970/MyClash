@@ -1280,7 +1280,7 @@ describe('AssignmentBoardService', () => {
       const result = await service.getInstructorBusy('event-1');
 
       expect(result).toEqual({
-        busy: [{ personId: PURE_REF_GLOBAL_ID, kind: 'referee', ...POOL_SPAN }],
+        busy: [{ personId: PURE_REF_GLOBAL_ID, kind: 'referee', block: null, ...POOL_SPAN }],
       });
       expect(selectsFor(fromMock as never, 'workshops')).toContain(
         'workshop_instructors(global_person_id)',
@@ -1293,7 +1293,9 @@ describe('AssignmentBoardService', () => {
 
       const { busy } = await service.getInstructorBusy('event-1');
 
-      expect(busy).toEqual([{ personId: FIGHTER_REF_GLOBAL_ID, kind: 'fight', ...POOL_SPAN }]);
+      expect(busy).toEqual([
+        { personId: FIGHTER_REF_GLOBAL_ID, kind: 'fight', block: null, ...POOL_SPAN },
+      ]);
     });
 
     it('answers nothing for an Event with no Tournament: nobody fights or referees', async () => {

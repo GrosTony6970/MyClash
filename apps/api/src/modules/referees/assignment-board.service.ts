@@ -56,7 +56,8 @@ import {
   unitTarget,
 } from './event-commitments';
 import { loadInstructorIds, loadWorkshopSessions } from './workshop-sessions';
-import { instructorBusy } from './instructor-busy';
+import { eliminationBoutIds, instructorBusy } from './instructor-busy';
+import { readBoutResults } from './bout-results';
 import { refereeBoardLocked } from './referee-lock';
 import { qualifiedCandidate, refuseUnlessFine } from './write-verdict';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -543,14 +544,24 @@ export class AssignmentBoardService {
 
   /**
    * When the Event's Workshop instructors fight or referee, for the Workshop board's red card
-   * (rulings 553-555), from the same commitments the checker reads. An Event with no unit has
-   * no fight and no duty, so nobody is busy: the instructors are not read.
+   * (rulings 553-555): Pools and duties from the commitments the checker reads, Swiss phases and
+   * brackets as one block each (`instructor-busy.ts`). An Event with no unit has no fight and no
+   * duty, so nobody is busy: the instructors are not read.
    */
   async getInstructorBusy(eventId: string): Promise<WorkshopInstructorBusyResult> {
     const context = await this.loadContext(eventId);
     if (context.pools.length === 0) return { busy: [] };
     const instructorIds = await loadInstructorIds(this.supabase.service, eventId);
-    return { busy: instructorBusy(context.commitments, instructorIds) };
+    const ids = eliminationBoutIds(context.pools, context.personIdByRegistration, instructorIds);
+    return {
+      busy: instructorBusy({
+        commitments: context.commitments,
+        units: context.pools,
+        personIdByRegistration: context.personIdByRegistration,
+        instructorIds,
+        results: await readBoutResults(this.supabase.service, this.logger, eventId, ids),
+      }),
+    };
   }
 
   /**

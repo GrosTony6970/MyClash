@@ -23,10 +23,17 @@ function workshop(
   };
 }
 
+const WORDS = { elimination: 'Elimination', swiss: 'Swiss' };
+const clashesOf = (
+  workshops: ReadonlyArray<ClashWorkshop>,
+  entries: ReadonlyArray<WorkshopInstructorBusy>,
+) => instructorClashes(workshops, entries, WORDS);
+
 function busy(over: Partial<WorkshopInstructorBusy>): WorkshopInstructorBusy {
   return {
     personId: PAUL.globalPersonId,
     kind: 'referee',
+    block: null,
     label: 'Longsword Open · Pool 3',
     startsAt: at('10:00'),
     endsAt: at('11:30'),
@@ -36,7 +43,7 @@ function busy(over: Partial<WorkshopInstructorBusy>): WorkshopInstructorBusy {
 
 describe('instructorClashes (rulings 553-555)', () => {
   it('flags both sessions when one person teaches two Workshops at once, each naming the other', () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [
         workshop('Longsword basics', [PAUL], [['s-ls', '10:00', '11:00']]),
         workshop('Dagger intro', [PAUL], [['s-dg', '10:30', '11:30']]),
@@ -54,7 +61,7 @@ describe('instructorClashes (rulings 553-555)', () => {
 
   it('flags nothing when the sessions only touch, or share no person', () => {
     expect(
-      instructorClashes(
+      clashesOf(
         [
           workshop('Longsword basics', [PAUL], [['s-ls', '10:00', '11:00']]),
           workshop('Dagger intro', [PAUL], [['s-dg', '11:00', '12:00']]),
@@ -66,7 +73,7 @@ describe('instructorClashes (rulings 553-555)', () => {
   });
 
   it('flags two sessions of the same Workshop at once, even with two instructors (555)', () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [
         workshop(
           'Longsword basics',
@@ -88,7 +95,7 @@ describe('instructorClashes (rulings 553-555)', () => {
   });
 
   it('leaves out a cancelled session, a session with no end, and an instructor with no person', () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [
         workshop('Longsword basics', [PAUL], [['s-ls', '10:00', '11:00']]),
         workshop('Dagger intro', [PAUL], [['s-dg', '10:30', '11:30', 'cancelled']]),
@@ -106,7 +113,7 @@ describe('instructorClashes (rulings 553-555)', () => {
   });
 
   it('flags a session whose instructor referees or fights then, with the unit', () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [workshop('Dagger intro', [PAUL], [['s-dg', '10:30', '11:30']])],
       [
         busy({}),
@@ -125,8 +132,36 @@ describe('instructorClashes (rulings 553-555)', () => {
     ]);
   });
 
+  it('names a bracket or a Swiss phase by the Tournament and the block, in the reader’s words', () => {
+    // Paul is still in the Longsword bracket at 15:00 (operator, 2026-11-23).
+    const clashes = clashesOf(
+      [workshop('Dagger intro', [PAUL], [['s-dg', '15:00', '16:00']])],
+      [
+        busy({
+          kind: 'fight',
+          block: 'elimination',
+          label: 'Longsword Open',
+          startsAt: at('10:00'),
+          endsAt: at('18:00'),
+        }),
+        busy({
+          kind: 'fight',
+          block: 'swiss',
+          label: 'Sabre Cup',
+          startsAt: at('14:00'),
+          endsAt: at('17:00'),
+        }),
+      ],
+    );
+
+    expect(clashes.get('s-dg')).toEqual([
+      { name: 'Paul', kind: 'fights', against: 'Longsword Open · Elimination' },
+      { name: 'Paul', kind: 'fights', against: 'Sabre Cup · Swiss' },
+    ]);
+  });
+
   it("ignores another person's busy time, and a busy time that only touches", () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [workshop('Dagger intro', [PAUL], [['s-dg', '11:30', '12:30']])],
       [
         busy({}),
@@ -138,7 +173,7 @@ describe('instructorClashes (rulings 553-555)', () => {
   });
 
   it('says a reason once when three duty rows of one Swiss crew overlap the session', () => {
-    const clashes = instructorClashes(
+    const clashes = clashesOf(
       [workshop('Dagger intro', [PAUL], [['s-dg', '10:00', '11:00']])],
       [
         busy({ label: 'LS · S3', startsAt: at('10:00'), endsAt: at('10:10') }),

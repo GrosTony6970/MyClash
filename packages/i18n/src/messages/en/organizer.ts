@@ -2418,6 +2418,8 @@ export const organizer = {
       teachesClash: '{name} also teaches {against} at this time',
       refereesClash: '{name} referees {against} at this time',
       fightsClash: '{name} fights in {against} at this time',
+      eliminationBlock: 'Elimination',
+      swissBlock: 'Swiss',
       busyUnchecked: 'Fights and refereeing could not be checked for the instructors.',
       busyChecking: 'Checking when the instructors fight or referee…',
       unscheduleAria: 'Unschedule',

@@ -12,6 +12,7 @@ const BUSY = {
     {
       personId: 'person-paul',
       kind: 'referee',
+      block: null,
       label: 'Longsword · Pool 3',
       startsAt: '2026-05-21T10:00:00.000Z',
       endsAt: '2026-05-21T11:30:00.000Z',

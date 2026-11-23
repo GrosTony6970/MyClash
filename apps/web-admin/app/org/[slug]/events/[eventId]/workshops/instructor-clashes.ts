@@ -5,8 +5,9 @@
  * - Teaching: two sessions whose times overlap, in any room, share an instructor. Two sessions of
  *   the SAME Workshop count too (555): instructors belong to the Workshop, so the app cannot know
  *   who takes which room, and the words name the person.
- * - Busy: one of the session's instructors fights (their whole Pool) or referees then, from the
- *   server's answer (`workshop-instructor-busy`).
+ * - Busy: one of the session's instructors fights (their whole Pool, their whole Swiss phase, or
+ *   their bracket from its start until they are out) or referees then, from the server's answer
+ *   (`workshop-instructor-busy`).
  *
  * A session counts when it is not cancelled, over `sessionWindowMs`: the window the referee
  * checker reads too (ADR-016), so the two boards agree. Times are half-open, so 10:00-11:00 does not clash with 11:00-12:00. A session with
@@ -84,9 +85,18 @@ function addTeachingClashes(sessions: TimedSession[], out: Map<string, Instructo
   }
 }
 
+/** The names of a Swiss phase and an elimination bracket, in the reader's language. */
+export type BlockWords = Record<'elimination' | 'swiss', string>;
+
+/** "Longsword Open · Pool 3" as the server names it; a block adds its name: "… · Elimination". */
+function busyPlace(entry: WorkshopInstructorBusy, words: BlockWords): string {
+  return entry.block ? `${entry.label} · ${words[entry.block]}` : entry.label;
+}
+
 function addBusyClashes(
   sessions: TimedSession[],
   busy: ReadonlyArray<WorkshopInstructorBusy>,
+  words: BlockWords,
   out: Map<string, InstructorClash[]>,
 ) {
   for (const session of sessions) {
@@ -98,7 +108,7 @@ function addBusyClashes(
         add(out, session.sessionId, {
           name: person.displayName,
           kind: entry.kind === 'fight' ? 'fights' : 'referees',
-          against: entry.label,
+          against: busyPlace(entry, words),
         });
       }
     }
@@ -109,11 +119,12 @@ function addBusyClashes(
 export function instructorClashes(
   workshops: ReadonlyArray<ClashWorkshop>,
   busy: ReadonlyArray<WorkshopInstructorBusy>,
+  words: BlockWords,
 ): Map<string, InstructorClash[]> {
   const sessions = timedSessions(workshops);
   const out = new Map<string, InstructorClash[]>();
   addTeachingClashes(sessions, out);
-  addBusyClashes(sessions, busy, out);
+  addBusyClashes(sessions, busy, words, out);
   return out;
 }
 
