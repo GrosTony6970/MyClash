@@ -184,13 +184,15 @@ export function WorkshopRegisterControls({
         <Button variant="danger" size="sm" className="w-full" loading={busy} onClick={onCancel}>
           {booking === 'waitlisted' ? labels.leaveWaitlist : labels.cancel}
         </Button>
+      ) : full && !waitlistEnabled ? (
+        // Before "Register again": a refused person would book nothing, and the server keeps
+        // the refusal (0280).
+        <Button variant="secondary" size="sm" className="w-full" disabled>
+          {labels.fullClosed}
+        </Button>
       ) : booking === 'refused' ? (
         <Button variant="primary" size="sm" className="w-full" loading={busy} onClick={onRegister}>
           {labels.registerAgain}
-        </Button>
-      ) : full && !waitlistEnabled ? (
-        <Button variant="secondary" size="sm" className="w-full" disabled>
-          {labels.fullClosed}
         </Button>
       ) : full ? (
         <Button

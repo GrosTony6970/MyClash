@@ -23,11 +23,14 @@ const count = (n: number) => ({ data: null, error: null, count: n });
 const REFUSAL = row({ id: 'e-1', status: 'refused', position: null });
 
 /** `bookings` is a canned queue: what each read or write of the bookings answers, in call order. */
-function build(bookings: TableSeed, capacity: number | null = null) {
+function build(bookings: TableSeed, capacity: number | null = null, waitlistEnabled = true) {
   const supabase = mockSupabase({
     // The session booked, then the Workshop's sessions: this one alone (rulings 520-523).
     workshop_sessions: [
-      row({ workshop_id: 'w-1', workshops: { capacity, event_id: 'ev-1' } }),
+      row({
+        workshop_id: 'w-1',
+        workshops: { capacity, event_id: 'ev-1', waitlist_enabled: waitlistEnabled },
+      }),
       row([{ id: SESSION }]),
     ],
     // Nobody here teaches the Workshop, and no profile flag is written.
@@ -69,12 +72,23 @@ describe('a refused person registers again (ruling 236)', () => {
   });
 
   it('puts him on the waitlist when the session is full', async () => {
-    const { service } = build([OK, NONE, count(1), count(2), row({ id: 'e-2' })], 1);
+    // The seats are counted before the refusal goes (0280), then again by the booking.
+    const { service } = build([count(1), OK, NONE, count(1), count(2), row({ id: 'e-2' })], 1);
 
     await expect(service.enroll(SESSION, 'tom-row', true)).resolves.toMatchObject({
       status: 'waitlisted',
       waitlistPosition: 3,
     });
+  });
+
+  it('keeps his refusal when the session is full and the Workshop keeps no waiting list (0280)', async () => {
+    // Removing it first would leave him with nothing: no seat, no queue, and no refusal.
+    const { service, writes } = build([count(1)], 1, false);
+
+    await expect(service.enroll(SESSION, 'tom-row', true)).rejects.toMatchObject({
+      response: { error: 'WorkshopFull' },
+    });
+    expect(writes()).toEqual([]);
   });
 
   it('keeps a seat given back in the meantime: nothing but a refusal is removed, nobody is promoted', async () => {

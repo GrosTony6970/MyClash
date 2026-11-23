@@ -99,7 +99,12 @@ export class EnrollmentService {
     if (workshopId) {
       await assertNoOtherBooking(this.supabase.service, workshopId, sessionId, personId);
     }
-    if (again) await this.removeRefusal(sessionId, personId);
+    // A refused "Register again" on a full session with no waiting list would lose its refusal
+    // and get nothing: asked here, before the refusal goes. `book` asks again for everyone else.
+    if (again) {
+      refuseWhenNoRoom(session, await this.isFull(session, sessionId));
+      await this.removeRefusal(sessionId, personId);
+    }
     const { created, ...booking } = await this.book(session, sessionId, personId);
     await this.bookingAlert(sessionId, personId);
     // A NEW booking of someone the desk marked arrived that day is ticked (546). A second "Book"
@@ -157,6 +162,21 @@ export class EnrollmentService {
     return session;
   }
 
+  /** Every seat of the session is taken. Capacity comes from the parent workshop; null = unlimited. */
+  private async isFull(session: unknown, sessionId: string): Promise<boolean> {
+    const capacity = workshopCapacity(session);
+    if (capacity === null) return false;
+    // A count that failed is an error: read as 0 booked, a full Workshop took one more.
+    const { count: confirmedCount, error } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('id', { count: 'exact', head: true })
+      .eq('workshop_session_id', sessionId)
+      .eq('status', 'confirmed');
+    if (error)
+      throw new Error(`The seats of session ${sessionId} were not counted: ${error.message}`);
+    return (confirmedCount ?? 0) >= capacity;
+  }
+
   /** `created` is set when this call inserted the booking; an existing one comes back without. */
   private async book(
     session: unknown,
@@ -202,32 +222,8 @@ export class EnrollmentService {
       };
     }
 
-    // Capacity comes from the parent workshop (sessions have none).
-    const capacity = workshopCapacity(session);
-
-    // capacity null ⇒ unlimited ⇒ always confirmed.
-    let isFull = false;
-    if (capacity !== null) {
-      // A count that failed is an error: read as 0 booked, a full Workshop took one more.
-      const { count: confirmedCount, error } = await this.supabase.service
-        .from('workshop_enrollments')
-        .select('id', { count: 'exact', head: true })
-        .eq('workshop_session_id', sessionId)
-        .eq('status', 'confirmed');
-      if (error)
-        throw new Error(`The seats of session ${sessionId} were not counted: ${error.message}`);
-      isFull = (confirmedCount ?? 0) >= capacity;
-    }
-
-    // A Workshop with no waiting list (0280) takes no booking once full, whoever books: the
-    // organiser raises the capacity instead. People already queued keep their place. Named, so
-    // a page that still offered the seat says it in the reader's language.
-    if (isFull && workshopOf(session)?.waitlist_enabled === false) {
-      throw new ConflictException({
-        error: 'WorkshopFull',
-        message: 'This workshop is full and keeps no waiting list.',
-      });
-    }
+    const isFull = await this.isFull(session, sessionId);
+    refuseWhenNoRoom(session, isFull);
 
     if (isFull) {
       const waitlist = await this.supabase.service
@@ -628,6 +624,20 @@ interface SessionWorkshop {
 function workshopOf(session: unknown): SessionWorkshop | null {
   const w = (session as { workshops?: unknown }).workshops;
   return ((Array.isArray(w) ? w[0] : w) ?? null) as SessionWorkshop | null;
+}
+
+/**
+ * A Workshop with no waiting list (0280) takes no booking once full, whoever books: the organiser
+ * raises the capacity instead. People already queued keep their place. Named, so a page that
+ * still offered the seat says it in the reader's language.
+ */
+function refuseWhenNoRoom(session: unknown, isFull: boolean): void {
+  if (isFull && workshopOf(session)?.waitlist_enabled === false) {
+    throw new ConflictException({
+      error: 'WorkshopFull',
+      message: 'This workshop is full and keeps no waiting list.',
+    });
+  }
 }
 
 /** Read `workshops.capacity` off a nested session row. */

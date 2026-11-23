@@ -7,7 +7,8 @@ import { useI18n, type Translator } from '@myclash/next-i18n/client';
  * The organiser adds a person to one session from its roster (operator ruling 535): one of the
  * Event's people, through the server's one booking door for the organiser
  * (`POST workshop-sessions/:id/enrollments/:personId`). A full session puts the person on the
- * waiting list, and the roster says so (536).
+ * waiting list, and the roster says so (536) — unless the Workshop keeps none (0280): the add is
+ * then refused, and the roster says that.
  */
 
 /** One of the Event's people, as `GET events/:eventId/persons` lists them. */
@@ -48,6 +49,8 @@ export function rosterAddRefusal(failure: ApiFailure, t: Translator): string | n
     WORKSHOP_BOOKING_REFUSED: 'refused',
     WORKSHOP_SESSION_CANCELLED: 'sessionCancelled',
     PERSON_NOT_IN_EVENT: 'notInEvent',
+    // Full, and the Workshop keeps no waiting list (0280).
+    WORKSHOP_FULL: 'full',
     // The session was deleted meanwhile: the server's sentence names its id.
     NOT_FOUND: 'sessionGone',
   };

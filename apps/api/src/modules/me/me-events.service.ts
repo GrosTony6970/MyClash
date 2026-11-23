@@ -179,6 +179,8 @@ export interface WorkshopHistoryWorkshop {
   color: string | null;
   coverImageUrl: string | null;
   capacity: number | null;
+  /** The waiting-list switch (0280): the card shape the pages share carries it. */
+  waitlistEnabled: boolean;
   durationMinutes: number | null;
   sessions: Array<{
     id: string;
@@ -1134,7 +1136,7 @@ export class MeEventsService {
           workshops (
             id, slug, title, short_description, description_md,
             category, level, weapon, language, color, cover_image_url,
-            capacity, duration_minutes,
+            capacity, waitlist_enabled, duration_minutes,
             events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
             workshop_instructors ( global_person_id, display_name )
           )
@@ -1221,6 +1223,7 @@ export class MeEventsService {
       color: (w['color'] as string | null) ?? null,
       coverImageUrl: (w['cover_image_url'] as string | null) ?? null,
       capacity,
+      waitlistEnabled: w['waitlist_enabled'] === true,
       durationMinutes: (w['duration_minutes'] as number | null) ?? null,
       sessions: [
         {

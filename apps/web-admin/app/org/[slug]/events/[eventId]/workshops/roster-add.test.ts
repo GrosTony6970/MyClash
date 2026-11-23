@@ -74,6 +74,7 @@ describe('what an add says', () => {
     ['WORKSHOP_BOOKING_REFUSED', 'refused'],
     ['WORKSHOP_SESSION_CANCELLED', 'sessionCancelled'],
     ['PERSON_NOT_IN_EVENT', 'notInEvent'],
+    ['WORKSHOP_FULL', 'full'],
     ['NOT_FOUND', 'sessionGone'],
   ])('says a %s refusal in its own words, never the server English', (code, key) => {
     expect(rosterAddRefusal(refusal(code), t)).toBe(`organizer.workshopsPage.add.${key}`);

@@ -2265,6 +2265,7 @@ export const organizer = {
       refused: "Cette personne a été refusée dans cette séance. Retirez d'abord le refus.",
       sessionCancelled: 'Cette séance a été annulée : personne ne peut y être ajouté.',
       notInEvent: "Cette personne n'est pas inscrite à cet événement.",
+      full: "Cette séance est complète et cet atelier n'a pas de liste d'attente. Augmentez d'abord sa capacité.",
       sessionGone: "Cette séance n'existe plus.",
     },
     sheet: {

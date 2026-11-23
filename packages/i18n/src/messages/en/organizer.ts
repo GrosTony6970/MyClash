@@ -2306,6 +2306,7 @@ export const organizer = {
       refused: 'This person was refused from this session. Remove the refusal first.',
       sessionCancelled: 'This session was cancelled: nobody can be added.',
       notInEvent: 'This person is not on this event.',
+      full: 'This session is full and this workshop keeps no waiting list. Raise its capacity first.',
       sessionGone: 'This session no longer exists.',
     },
     sheet: {

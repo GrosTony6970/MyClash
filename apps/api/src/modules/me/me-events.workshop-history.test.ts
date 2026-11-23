@@ -65,6 +65,7 @@ const enrollment = (over: {
       color: 'red',
       cover_image_url: null,
       capacity: 20,
+      waitlist_enabled: false,
       duration_minutes: 90,
       events: over.event ?? EVENT(),
       workshop_instructors: over.instructors ?? [
@@ -109,12 +110,25 @@ describe('MeEventsService.getMyWorkshopHistory', () => {
   });
 
   it('maps a workshop to the WorkshopListItem shape with weapon + instructors', async () => {
-    const { service } = buildService([{ id: 'p-1' }], [enrollment({ workshopId: 'w-1' })]);
+    const { service, enrollmentsChain } = buildService(
+      [{ id: 'p-1' }],
+      [enrollment({ workshopId: 'w-1' })],
+    );
     const groups = await service.getMyWorkshopHistory('user-1');
     expect(groups).toHaveLength(1);
     expect(groups[0]!.event).toMatchObject({ id: 'e-1', name: 'Fosse aux Lions 2027' });
     const w = groups[0]!.workshops[0]!;
-    expect(w).toMatchObject({ id: 'w-1', weapon: 'Longsword', level: 'Beginner' });
+    // The card shape the pages share carries the waiting-list switch (0280); the double ignores
+    // projections, so the SELECT itself names the column.
+    expect(w).toMatchObject({
+      id: 'w-1',
+      weapon: 'Longsword',
+      level: 'Beginner',
+      waitlistEnabled: false,
+    });
+    expect(String(enrollmentsChain.select.mock.calls[0]?.[0])).toMatch(
+      /capacity, waitlist_enabled,/,
+    );
     expect(w.instructors).toEqual([{ globalPersonId: 'gp-1', displayName: 'Jane Doe' }]);
     expect(w.sessions[0]).toMatchObject({ startsAt: '2026-06-01T10:00:00Z', confirmedCount: 0 });
   });

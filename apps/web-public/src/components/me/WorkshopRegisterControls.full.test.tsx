@@ -27,13 +27,13 @@ afterEach(() => {
 
 const t = (key: string) => key;
 
-function draw(waitlistEnabled: boolean) {
+function draw(waitlistEnabled: boolean, booking: 'none' | 'refused' = 'none') {
   const onRegister = vi.fn();
   act(() =>
     root.render(
       <WorkshopRegisterControls
         workshopId="w-5"
-        booking="none"
+        booking={booking}
         full
         waitlistEnabled={waitlistEnabled}
         labels={registerLabels(t)}
@@ -47,6 +47,12 @@ function draw(waitlistEnabled: boolean) {
 describe('a full session', () => {
   it('offers no waiting list when the Workshop keeps none', () => {
     const button = draw(false);
+    expect(button.textContent).toBe('publicApp.me.workshops.fullClosed');
+    expect(button.disabled).toBe(true);
+  });
+
+  it('offers no "Register again" to a refused person either: it could book nothing', () => {
+    const button = draw(false, 'refused');
     expect(button.textContent).toBe('publicApp.me.workshops.fullClosed');
     expect(button.disabled).toBe(true);
   });

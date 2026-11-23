@@ -285,7 +285,7 @@ describe('EnrollmentService.enroll', () => {
   });
 
   it('refuses a full session of a Workshop that keeps no waiting list, and queues nobody', async () => {
-    // Twelve places, twelve taken, and the instructor switched the waiting list off.
+    // One place, taken, and the instructor switched the waiting list off.
     const fake = buildFake({
       capacity: 1,
       waitlistEnabled: false,
