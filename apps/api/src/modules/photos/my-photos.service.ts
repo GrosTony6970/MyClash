@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { MyPhoto, MyPhotos } from '@myclash/types';
 import { PHOTO_CLEANUP_QUEUE } from '../../workers/photo-cleanup.worker';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { accountPhotoName } from './photo-account';
 import { PHOTO_STORE, type PhotoStore } from './photo-bucket';
@@ -36,6 +37,7 @@ export class MyPhotosService {
     private readonly supabase: SupabaseService,
     @Inject(PHOTO_STORE) private readonly store: PhotoStore | null,
     @InjectQueue(PHOTO_CLEANUP_QUEUE) private readonly queue: Queue,
+    private readonly flags: AdminFeatureFlagsService,
   ) {}
 
   /**
@@ -94,7 +96,9 @@ export class MyPhotosService {
       .maybeSingle();
     if (error) throw new Error(`Her Event not read: ${error.message}`);
     const event = data as (Parameters<typeof photoSendOpen>[0] & { status: string }) | null;
-    return event !== null && event.status !== 'archived' && photoSendOpen(event, new Date());
+    if (event === null || event.status === 'archived') return false;
+    // The upload door's clock: the platform's, which a time simulation moves.
+    return photoSendOpen(event, await this.flags.platformNow());
   }
 
   private async photoOf(row: MyPhotoRow, now: Date): Promise<MyPhoto> {

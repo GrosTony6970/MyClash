@@ -12,6 +12,7 @@ import { PhotoDeviceService } from '../photo-device';
 import { photoToken } from '../photo-token';
 import { PhotoUploadService } from '../photo-upload.service';
 import { PhotosController } from '../photos.controller';
+import { platformClock } from './platform-clock';
 import { MyPhotosController } from '../my-photos.controller';
 
 const SECRET = 'test-photo-secret-at-least-32-characters-long';
@@ -23,7 +24,7 @@ export function photoDoor(
   const db = openEventDb(eventId);
   const config = { getOrThrow: () => SECRET, get: () => 'test' } as never;
   const controller = new PhotosController(
-    new PhotoUploadService(db as never, config, uploadOnlyStore(), {} as never),
+    new PhotoUploadService(db as never, config, uploadOnlyStore(), {} as never, platformClock()),
     new PhotoDeviceService(config),
     {} as never,
     config,
@@ -57,6 +58,7 @@ export function myPhotoDoor(
     config,
     uploadOnlyStore(),
     myEvents as never,
+    platformClock(),
   );
   const controller = new MyPhotosController(uploads, {} as never, supabase as never);
   return (req) => controller.upload(eventId, req);

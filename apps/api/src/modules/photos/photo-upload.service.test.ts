@@ -22,6 +22,7 @@ import {
   PHOTO_UPLOAD_SLOTS,
   PhotoUploadService,
 } from './photo-upload.service';
+import { platformClock } from './testing/platform-clock';
 import { loadedJpeg } from './testing/synthetic-jpeg';
 
 const SECRET = 'test-photo-token-secret-at-least-32-characters';
@@ -51,6 +52,8 @@ interface Setup {
   store?: PhotoStore | null;
   insertError?: { message: string };
   tagError?: { message: string };
+  /** The platform clock (a time simulation); real time when absent. */
+  clock?: Date;
 }
 
 function setup(options: Setup = {}) {
@@ -97,6 +100,7 @@ function setup(options: Setup = {}) {
     { getOrThrow: () => SECRET } as never,
     chosen,
     NO_ACCOUNT_READ as never,
+    platformClock(options.clock),
   );
   return { service, supabase, store, stored };
 }
@@ -219,6 +223,14 @@ describe('PhotoUploadService — a photo that passes', () => {
     expect(stored.get(String(row!['original_key']))!.equals(original)).toBe(true);
     expect(stored.get(String(row!['original_key']))!.includes('CANARY-EXIF')).toBe(false);
     expect(stored.has(String(row!['preview_key']))).toBe(true);
+  });
+
+  it("opens an Event's window on the platform clock, which a time simulation moves", async () => {
+    // Real time is long before these days; the super admin's simulated clock is inside them.
+    const days: [string, string] = ['2099-01-10', '2099-01-11'];
+    const { service } = setup({ days, clock: new Date('2099-01-10T12:00:00Z') });
+    const result = await service.upload(EVENT, phone(TOKEN), request().req);
+    expect(result.status).toBe('approved');
   });
 
   it('waits for approval in approve-first mode', async () => {

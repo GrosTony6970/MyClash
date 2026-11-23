@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 
@@ -547,5 +548,91 @@ describe('AdminFeatureFlagsService', () => {
     // Cache invalidated → next read hits the DB again
     expect(await service.isEnabled('admin_lockdown')).toBe(true);
     expect(maybeSingle).toHaveBeenCalledTimes(2);
+  });
+
+  describe('platformNow — the clock the photo door reads', () => {
+    const REAL = '2026-11-23T10:00:00.000Z';
+    const simulation = (payload: Record<string, unknown> | null, enabled = true) => {
+      const select = vi.fn().mockReturnThis();
+      const inSpy = vi.fn().mockResolvedValue({
+        data: [{ key: 'time_simulation', enabled, payload_json: payload }],
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) =>
+        table === 'feature_flags'
+          ? { select, in: inSpy, upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+          : { insert: vi.fn().mockResolvedValue({ data: null, error: null }) },
+      );
+      return { select, inSpy };
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(REAL));
+    });
+
+    it('reads real time when no simulation runs, from the public flags read', async () => {
+      const { select, inSpy } = simulation(null, false);
+      expect((await service.platformNow()).toISOString()).toBe(REAL);
+      expect(select).toHaveBeenCalledWith('key, enabled, payload_json');
+      expect(inSpy).toHaveBeenCalledWith('key', [
+        'maintenance_banner',
+        'disable_realtime',
+        'time_simulation',
+      ]);
+    });
+
+    it('stays on the set point of a frozen simulation', async () => {
+      simulation({
+        simulatedNowIso: '2027-05-23T11:31:00.000Z',
+        anchorRealIso: '2026-11-23T09:00:00.000Z',
+        mode: 'frozen',
+      });
+      expect((await service.platformNow()).toISOString()).toBe('2027-05-23T11:31:00.000Z');
+    });
+
+    it('runs a running simulation on from its set point with real time', async () => {
+      simulation({
+        simulatedNowIso: '2027-05-23T11:31:00.000Z',
+        anchorRealIso: '2026-11-23T09:00:00.000Z',
+        mode: 'running',
+      });
+      // One real hour after the anchor → one simulated hour after the set point.
+      expect((await service.platformNow()).toISOString()).toBe('2027-05-23T12:31:00.000Z');
+    });
+
+    it('reads the flag once per 5 seconds, and again at once after the clock is set', async () => {
+      const { inSpy } = simulation(null, false);
+      await service.platformNow();
+      vi.setSystemTime(new Date('2026-11-23T10:00:04.000Z'));
+      await service.platformNow();
+      expect(inSpy).toHaveBeenCalledTimes(1);
+
+      await service.upsertFlag(
+        'time_simulation',
+        {
+          enabled: true,
+          payloadJson: { simulatedNowIso: '2027-05-23T11:31:00.000Z', mode: 'frozen' },
+        },
+        'actor',
+      );
+      await service.platformNow();
+      expect(inSpy).toHaveBeenCalledTimes(2);
+
+      vi.setSystemTime(new Date('2026-11-23T10:00:10.000Z'));
+      await service.platformNow();
+      expect(inSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('falls back to real time on a failed read, and says so in the log', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      fromMock.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }),
+      });
+      expect((await service.platformNow()).toISOString()).toBe(REAL);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('boom'));
+      warn.mockRestore();
+    });
   });
 });

@@ -4,6 +4,7 @@ import { mockSupabase, writesTo, type RpcAnswer } from '../../common/testing/sup
 import type { PhotoStore } from './photo-bucket';
 import { DEVICE_PHOTOS_PER_HOUR, PhotoUploadService } from './photo-upload.service';
 import { ACCOUNT_PHOTOS_PER_HOUR } from './photo-upload.service';
+import { platformClock } from './testing/platform-clock';
 import { loadedJpeg } from './testing/synthetic-jpeg';
 import { photoToken } from './photo-token';
 
@@ -49,6 +50,7 @@ function setup(options: Setup = {}) {
     { getOrThrow: () => SECRET } as never,
     writeOnlyStore(),
     { listMyEvents } as never,
+    platformClock(),
   );
   return { service, db, listMyEvents };
 }

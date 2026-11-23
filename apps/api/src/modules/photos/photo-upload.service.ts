@@ -23,6 +23,7 @@ import {
 import type { PublicReader } from '../../common/auth/competition-visibility';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { readUploadParts, type UploadLimit } from '../../common/read-upload';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { MeEventsService } from '../me/me-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PhotoRefusalError, stripJpeg } from './jpeg-strip';
@@ -104,6 +105,7 @@ export class PhotoUploadService {
     config: ConfigService,
     @Inject(PHOTO_STORE) private readonly store: PhotoStore | null,
     private readonly myEvents: MeEventsService,
+    private readonly flags: AdminFeatureFlagsService,
   ) {
     this.secret = config.getOrThrow<string>('PHOTO_TOKEN_SECRET');
   }
@@ -145,7 +147,9 @@ export class PhotoUploadService {
     if (event.photo_mode === 'off') {
       throw refuse(ForbiddenException, 'photos_off', 'This Event does not take photos.');
     }
-    if (!photoSendOpen(event, new Date())) {
+    // The platform clock: a super admin's time simulation opens a demo Event's window (operator,
+    // 2026-11-23).
+    if (!photoSendOpen(event, await this.flags.platformNow())) {
       throw refuse(
         ForbiddenException,
         'photos_window_closed',

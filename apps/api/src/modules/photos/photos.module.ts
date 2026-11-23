@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { PHOTO_CLEANUP_QUEUE } from '../../workers/photo-cleanup.worker';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { MeModule } from '../me/me.module';
 import { MyPhotosController } from './my-photos.controller';
 import { MyPhotosService } from './my-photos.service';
@@ -37,7 +38,10 @@ import { PhotosStaffController } from './photos-staff.controller';
     MyPhotosController,
     PhotoPlatformController,
   ],
+  // AdminFeatureFlagsService: the platform clock the send window reads (`platformNow`). It needs
+  // only SupabaseService, so it is provided here rather than importing the heavyweight AdminModule.
   providers: [
+    AdminFeatureFlagsService,
     MyPhotosService,
     PhotoPlatformService,
     PhotoUploadService,

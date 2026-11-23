@@ -12,6 +12,7 @@ import {
 import { MyPhotosController } from './my-photos.controller';
 import { myPhotoQuerySchema } from './photo-public.dto';
 import { MyPhotosService } from './my-photos.service';
+import { platformClock } from './testing/platform-clock';
 
 /**
  * A personal space's own photos (design Goal 11, slice 6a): she lists the photos she sent from
@@ -51,6 +52,7 @@ const eventRow = (over: Record<string, unknown> = {}) => ({
 function setup(
   photos: Record<string, unknown>[] = [photoRow({})],
   events: TableSeed = { rows: [eventRow()] },
+  clock?: Date,
 ) {
   const db = mockSupabase({
     events,
@@ -65,7 +67,12 @@ function setup(
     link: vi.fn(async (key: string) => `https://bucket.test/${key}`),
   };
   const queue = { add: vi.fn(async () => ({ id: 'job-1' })) };
-  const service = new MyPhotosService(supabase as never, store as never, queue as never);
+  const service = new MyPhotosService(
+    supabase as never,
+    store as never,
+    queue as never,
+    platformClock(clock),
+  );
   const uploads = { upload: vi.fn(async () => ({ id: 'p1', status: 'waiting' as const })) };
   const controller = new MyPhotosController(uploads as never, service, supabase as never);
   return { db, controller, queue, uploads };
@@ -151,6 +158,12 @@ describe('GET me/events/:eventId/photos', () => {
       const page = await controller.list(EVENT, {}, signedIn);
       expect(page.sendOpen).toBe(false);
       expect(page.photos).toHaveLength(1);
+    });
+
+    it('reads the platform clock: a time simulation inside the upload days opens it', async () => {
+      const later = { rows: [eventRow({ start_date: '2026-05-01', end_date: '2026-05-02' })] };
+      const { controller } = setup([photoRow({})], later, new Date('2026-05-01T10:00:00Z'));
+      expect((await controller.list(EVENT, {}, signedIn)).sendOpen).toBe(true);
     });
 
     it('shut for an Event that is not there', async () => {

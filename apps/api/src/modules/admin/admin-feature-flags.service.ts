@@ -6,6 +6,7 @@ import {
   type MaintenanceBannerPayload,
   type MaintenanceBannerSeverity,
   type PublicFeatureFlagsSnapshot,
+  simulatedNowMs,
   TIME_SIMULATION_MODES,
   type TimeSimulationMode,
   type TimeSimulationPayload,
@@ -88,8 +89,27 @@ const FLAG_CACHE_TTL_MS = 5_000;
 export class AdminFeatureFlagsService {
   private readonly logger = new Logger(AdminFeatureFlagsService.name);
   private readonly cache = new Map<string, { value: boolean; expiresAt: number }>();
+  private simCache: {
+    sim: PublicFeatureFlagsSnapshot['timeSimulation'];
+    expiresAt: number;
+  } | null = null;
 
   constructor(private readonly supabase: SupabaseService) {}
+
+  /**
+   * The platform's "now": real time, or the super admin's time simulation when one runs. Only
+   * the doors listed on `TimeSimulationPayload` read it; the rest of the API keeps real time. The
+   * flag is cached 5 s per instance, so a module that provides its own copy of this service
+   * catches up with a change within that.
+   */
+  async platformNow(): Promise<Date> {
+    const realMs = Date.now();
+    if (!this.simCache || this.simCache.expiresAt <= realMs) {
+      const { timeSimulation } = await this.getPublicFlagsSnapshot();
+      this.simCache = { sim: timeSimulation, expiresAt: realMs + FLAG_CACHE_TTL_MS };
+    }
+    return new Date(simulatedNowMs(this.simCache.sim, realMs, 0));
+  }
 
   async listFlagsWithRegistry(): Promise<RegistryFlag[]> {
     const { data, error } = await this.supabase.service
@@ -154,6 +174,7 @@ export class AdminFeatureFlagsService {
     if (error) throw new BadRequestException(error.message);
 
     this.cache.delete(key);
+    if (key === 'time_simulation') this.simCache = null;
 
     await this.writeAuditLog(actorUserId, 'feature_flag.upsert', 'feature_flag', key, {
       enabled: dto.enabled,
@@ -180,7 +201,10 @@ export class AdminFeatureFlagsService {
         .from('feature_flags')
         .select('key, enabled, payload_json')
         .in('key', ['maintenance_banner', 'disable_realtime', 'time_simulation']);
-      if (error) return empty;
+      if (error) {
+        this.logger.warn(`Public flags read failed, served all off: ${error.message}`);
+        return empty;
+      }
 
       const rows = (data ?? []) as Array<{
         key: string;
@@ -208,7 +232,8 @@ export class AdminFeatureFlagsService {
         },
         serverNowIso,
       };
-    } catch {
+    } catch (err) {
+      this.logger.warn(`Public flags read threw, served all off: ${(err as Error).message}`);
       return empty;
     }
   }

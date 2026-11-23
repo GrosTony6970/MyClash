@@ -4570,7 +4570,7 @@ myclash/
 │   │                           #   `/pad` door is what the pad runs offline (§7.3)
 │   ├── rulesets/               # @myclash/rulesets — TF_v1 + custom-ruleset runtime
 │   ├── schedule-core/          # @myclash/schedule-core — pure schedule/grid geometry
-│   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
+│   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry + the time-simulation math
 │   ├── types/                  # Shared TS types (Match, Exchange, etc.)
 │   ├── api-client/             # Generated OpenAPI client
 │   ├── i18n/                   # Shared translation strings (EN + FR)
@@ -5142,7 +5142,10 @@ Two doors, one service (`photo-upload.service.ts`):
 Both follow the same rules, checked cheapest first, and the file is read only when all pass: the
 mode is not Off; the upload window is open (`photo-window.ts`: from the start of the day before the
 Event's first day to the end of the day after its last day, on the Event's clock); the limits are
-not reached. The limits are 20 photos an hour per phone or per account, 300 an hour per Event, and
+not reached. "Now" for the window is the platform clock (`AdminFeatureFlagsService.platformNow`):
+real time, or a super admin's time simulation while one runs, so a demo Event dated months ahead
+takes photos. It is the one server door that follows the simulation; the rest of the API keeps
+real time (operator, 2026-11-23). The limits are 20 photos an hour per phone or per account, 300 an hour per Event, and
 15 GB stored per Event. Two uploads may read a count before either writes, so a cap can be passed
 by at most four photos (`PHOTO_UPLOAD_SLOTS`); accepted.
 

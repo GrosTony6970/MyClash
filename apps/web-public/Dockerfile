@@ -99,8 +99,9 @@ COPY packages/feature-flags/ ./packages/feature-flags/
 
 # Build shared packages first, then the app.
 # schedule-core is built after time because it imports @myclash/time.
-# feature-flags is built before ui because @myclash/ui imports types from it
-# (MaintenanceBanner + useRuntimeFlags consume PublicFeatureFlagsSnapshot).
+# feature-flags is built before ui because @myclash/ui imports types and code from it
+# (MaintenanceBanner + useRuntimeFlags consume PublicFeatureFlagsSnapshot; useNow runs its
+# simulation math).
 #
 # `.next/cache` is Next's incremental build cache. It is the one part of .next
 # that a build reads instead of writing, and nothing copies it into the runner

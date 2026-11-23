@@ -152,7 +152,10 @@ export interface MaintenanceBannerPayload {
 /**
  * Payload shape for the `time_simulation` flag — a super-admin testing
  * aid that shifts the browser clock of every app (the public app, the
- * organiser live board, the display wall); the API keeps real time.
+ * organiser live board, the display wall). The API keeps real time, except
+ * where it reads `AdminFeatureFlagsService.platformNow()`: the photo upload
+ * door and a personal space's photo form. It catches up with a change within
+ * 5 s (each module caches the flag).
  * A running clock is stored as an anchor:
  * `simulatedNowIso` is what the clock should read as "now" at
  * the moment it was saved (`anchorRealIso`); the effective offset is
@@ -199,4 +202,51 @@ export interface PublicFeatureFlagsSnapshot {
    * clock is off still reads the same simulated "now" as everyone else.
    */
   serverNowIso: string;
+}
+
+/**
+ * What "now" reads, in epoch ms, given a clock (`realMs`). One copy for the browsers
+ * (`@myclash/ui` `useNow`, with `skewMs` from `serverSkewMs`) and the API
+ * (`AdminFeatureFlagsService.platformNow`, skew 0: the API's own clock stamped the anchor).
+ *
+ * The simulation stores the datetime it should read as "now"
+ * (`simulatedNowIso`) plus the server instant it was saved (`anchorRealIso`).
+ * - `frozen`: the clock stays on `simulatedNowIso`, whatever real time does.
+ * - `running`: the clock advances with real time from the set point. Their
+ *   difference shifts server time, and `skewMs` turns the caller's clock into
+ *   server time, so it reads the same on every device.
+ *
+ * Returns `realMs` untouched when the simulation is disabled, incomplete, or
+ * carries unparseable timestamps — a safe no-op fallback.
+ */
+export function simulatedNowMs(
+  sim: PublicFeatureFlagsSnapshot['timeSimulation'],
+  realMs: number,
+  skewMs: number,
+): number {
+  if (!isTimeSimulationActive(sim)) return realMs;
+  const simulatedMs = Date.parse(sim.simulatedNowIso!);
+  if (sim.mode === 'frozen') return simulatedMs;
+  return realMs + skewMs + simulatedMs - Date.parse(sim.anchorRealIso!);
+}
+
+/**
+ * Whether a simulation is actually driving the clock — enabled, with a mode
+ * and both timestamps present and parseable.
+ *
+ * Deliberately not derived from `simulatedNowMs(sim, t, 0) !== t`:
+ * simulating to roughly the present is a legitimate near-zero offset, and
+ * callers use this to decide whether live *data* can be trusted (see the
+ * fight rule in the personal schedule), not just how far the clock moved.
+ */
+export function isTimeSimulationActive(sim: PublicFeatureFlagsSnapshot['timeSimulation']): boolean {
+  if (!sim.enabled || !sim.simulatedNowIso || !sim.anchorRealIso || !sim.mode) return false;
+  return (
+    !Number.isNaN(Date.parse(sim.simulatedNowIso)) && !Number.isNaN(Date.parse(sim.anchorRealIso))
+  );
+}
+
+/** Whether an active simulation holds the clock still. */
+export function isTimeSimulationFrozen(sim: PublicFeatureFlagsSnapshot['timeSimulation']): boolean {
+  return isTimeSimulationActive(sim) && sim.mode === 'frozen';
 }
