@@ -361,9 +361,16 @@ export function ScheduleView({
       // `a` is the VIEWER's score and `b` the opponent's, whichever side they
       // were on — the old `{red}`/`{blue}` names claimed a side these never had.
       const vals = { a: String(my), b: String(opp) };
-      if (my > opp) return { label: t('publicApp.me.schedule.won', vals), tone: 'done' as const };
-      if (my < opp) return { label: t('publicApp.me.schedule.lost', vals), tone: 'lost' as const };
-      return { label: t('publicApp.me.schedule.draw', vals), tone: 'draw' as const };
+      // The result is the server's, decided from the recorded winner. Comparing
+      // the numbers called a forfeit won on the lower score a loss. A copy cached
+      // before the API sent `outcome` claims no result.
+      if (m.outcome === 'win')
+        return { label: t('publicApp.me.schedule.won', vals), tone: 'done' as const };
+      if (m.outcome === 'loss')
+        return { label: t('publicApp.me.schedule.lost', vals), tone: 'lost' as const };
+      if (m.outcome === 'draw')
+        return { label: t('publicApp.me.schedule.draw', vals), tone: 'draw' as const };
+      return undefined;
     }
     return { label: t('publicApp.me.schedule.upcoming'), tone: 'pending' as const };
   }

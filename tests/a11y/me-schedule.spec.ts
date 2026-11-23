@@ -192,6 +192,28 @@ test('/me schedule - a bout with no length ends at its next bout, and the page s
   await expectNoPageIssues(issues);
 });
 
+// The card compared the two numbers, so a bout won on the lower score (a forfeit, a referee
+// decision) said "Lost 2–5". The result is the server's `outcome`.
+test("/me schedule - a bout won on the lower score says Won, from the server's result", async ({
+  page,
+}) => {
+  await signIn(page);
+  const forfeit = {
+    ...bout('Match 1', '2027-03-13T09:00:00.000Z', 'Mary Somerville', '2027-03-13T09:25:00.000Z'),
+    status: 'completed',
+    redScore: 2,
+    blueScore: 5,
+    outcome: 'win',
+  };
+  await page.route('**/api/v1/events/event-1/my-schedule', (route) =>
+    route.fulfill({ json: { ...SCHEDULE, matches: [forfeit] } }),
+  );
+  await page.goto('http://localhost:3001/me/events/test-event/schedule');
+
+  await expect(page.getByText('Won 2–5', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Lost/)).toHaveCount(0);
+});
+
 test('/me schedule - a read that fails with no copy on the phone says so, and Retry reads again', async ({
   page,
 }) => {
