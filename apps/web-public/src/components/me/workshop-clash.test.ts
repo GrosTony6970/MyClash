@@ -128,13 +128,19 @@ describe('what the viewer already has to do', () => {
     ]);
   });
 
-  it("falls back on the bout's code when nothing else names it", () => {
+  it("names a round it has no words for by the bout's code, beside the Tournament", () => {
+    // A bracket of unknown size: no round name. The line once read "Longsword" alone.
     const { commitments } = commitmentsOf(
-      schedule({ matches: [bout('b1', '10:00', 5, null, { tournamentName: null })] }),
+      schedule({
+        matches: [
+          bout('b1', '10:00', 5, null, { matchKind: null }),
+          bout('b2', '12:00', 5, null, { tournamentName: null }),
+        ],
+      }),
       t,
     );
 
-    expect(commitments.map((c) => c.label)).toEqual(['M-b1']);
+    expect(commitments.map((c) => c.label)).toEqual(['M-b1 · Longsword', 'M-b2']);
   });
 
   it('counts a bout and a duty whose end is unknown: the check cannot see them', () => {

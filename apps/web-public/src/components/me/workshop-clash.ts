@@ -22,14 +22,15 @@ interface Commitment {
 /**
  * "Pool 1 · Longsword Open" or "Quarter-final · Longsword Open" — never the opponent: the reader
  * wants to know which part of the Tournament holds them (operator, 2026-11-23). A Pool is named
- * by its own name; a bout outside one by its round. The bout's code is the last resort.
+ * by its own name; a bout outside one by its round. A round with no words of its own (a bracket
+ * of unknown size) is named by the bout's code, so the line never shrinks to the Tournament alone.
  */
 function commitmentLabel(t: Translator, c: Commitment): string {
   const inPool = c.matchKind === 'pool' || (c.matchKind == null && c.poolName !== null);
   const what = inPool
     ? c.poolName
     : matchKindLabel(t, c.matchKind ?? null, c.roundOfCount ?? null, c.swissRound ?? null);
-  return [what, c.tournamentName].filter(Boolean).join(' · ') || c.roundCode;
+  return [what || c.roundCode, c.tournamentName].filter(Boolean).join(' · ');
 }
 
 /**
