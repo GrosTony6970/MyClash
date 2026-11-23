@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
 import { fold, isolateRoster, linkedNames, rosterClubs } from './_roster';
+import { clashesOf, commitments, windowClashes, type ScheduleRead } from './_schedule-clashes';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
@@ -27,6 +28,8 @@ import { fold, isolateRoster, linkedNames, rosterClubs } from './_roster';
  *     fight in BOTH tournaments and attend a workshop; the run fails if one isn't
  *   - every club of the roster made (or found), verified, and given back to its people
  *   - tournaments + event published
+ *   - nobody with an email (the E2E_POPULATE_LINKED rows) has a clash on their own schedule:
+ *     their Workshop seat and referee duties clear their bouts, Pools and brackets
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
  * skip it. By default this runs UNPACED (fast) assuming a whitelisted IP — set
@@ -117,6 +120,7 @@ type Person = {
   familyName: string;
   globalPersonId: string | null;
   clubId: string | null;
+  email: string | null;
 };
 
 test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
@@ -296,6 +300,12 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     }
     expect(unverified, 'roster clubs not verified').toEqual([]);
   }
+  // Only the E2E_POPULATE_LINKED rows keep an email (`isolateRoster`): their schedules are the ones
+  // the run must leave with no clash (operator, 2026-11-23).
+  const emailPeople = persons.filter((p) => p.email);
+  console.log(
+    `  → ${emailPeople.length} people with an email: their schedules are checked for clashes`,
+  );
   const anthony =
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??
     persons[0];
@@ -494,6 +504,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
           matchGapSeconds: 30,
           minRestMinutes: 0,
         },
+      }),
+    ),
+  );
+  // Auto-assign proposes only duties the checker calls Fine: with this on, a duty during a
+  // Workshop the referee attends is Discouraged, so the refill below never proposes one.
+  await step('referee rules: a Workshop one attends counts', async () =>
+    reqOk(
+      await put(`events/${eventId}/pool-assignment-settings`, {
+        data: { workshopConflictWarning: true },
       }),
     ),
   );
@@ -1718,6 +1737,11 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   console.log(
     `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
   );
+  for (const id of tournamentIds) {
+    await step(`publish tournament ${id.slice(0, 8)}`, async () =>
+      reqOk(await post(`tournaments/${id}/publish`)),
+    );
+  }
 
   // ── Workshop venue + area, a midday break, then 6 scheduled workshops ───────────
   const venue = await step('create workshop venue', async () =>
@@ -1763,6 +1787,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   // the enrollment pass below can fill seats and skip the teacher's own session.
   const workshopSessions: Array<{
     sessionId: string;
+    workshopId: string;
+    name: string;
+    startIso: string;
+    endIso: string;
     capacity: number;
     teacherPersonId: string | null;
   }> = [];
@@ -1806,10 +1834,12 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
       const day = WS_DAYS[i % 2];
       const startHhmm = WS_START_HHMM[Math.floor(i / 2)];
       const endHhmm = `${String(Number(startHhmm.slice(0, 2)) + WS_DURATION_MIN / 60).padStart(2, '0')}:00`;
+      const startIso = zonedToUtcIso(day, startHhmm, EVENT_TZ);
+      const endIso = zonedToUtcIso(day, endHhmm, EVENT_TZ);
       const sessRes = await post(`workshops/${workshopId}/sessions`, {
         data: {
-          startTime: zonedToUtcIso(day, startHhmm, EVENT_TZ),
-          endTime: zonedToUtcIso(day, endHhmm, EVENT_TZ),
+          startTime: startIso,
+          endTime: endIso,
           venueId,
           areaId: areaIds.length ? areaIds[0] : undefined,
         },
@@ -1818,6 +1848,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
         const sessionId = ((await sessRes.json()) as { id: string }).id;
         workshopSessions.push({
           sessionId,
+          workshopId,
+          name: `Demo Workshop ${i + 1}`,
+          startIso,
+          endIso,
           capacity: 12 + i * 2,
           teacherPersonId: instructor?.id ?? null,
         });
@@ -1851,23 +1885,48 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   //    instructor-self-enrollment guard 403s a teacher's own session — those are
   //    skipped best-effort. Enrolling past capacity auto-waitlists.
   const seatedIds = new Set<string>(); // people given a confirmed workshop seat
+  // The seat each priority attendee was given: stands in for their Workshops when their schedule
+  // read hides them (a person who hides their Workshops publicly).
+  const seatOf = new Map<string, (typeof workshopSessions)[number]>();
+  const scheduleOf = async (p: Person) =>
+    (await (
+      await reqOk(await get(`events/${eventId}/people/${p.id}/schedule`))
+    ).json()) as ScheduleRead;
+  const workshopsOf = (p: Person): ScheduleRead['workshops'] => {
+    const seat = seatOf.get(p.id);
+    return seat
+      ? [
+          {
+            workshopId: seat.workshopId,
+            workshopName: seat.name,
+            sessionStart: seat.startIso,
+            sessionEnd: seat.endIso,
+          },
+        ]
+      : [];
+  };
   await step('workshop enrollments (fill most seats)', async () => {
     // Anthony, David, Robin and every tester MUST attend — so they are seated
     // FIRST, before the random fill can take the seats, each in a workshop they
     // don't teach (their own session 403s and is skipped). Try the LAST session
     // first (Sunday 16:00–18:00): it clashes least with their bouts. Only a
     // confirmed seat counts; the random fill below re-enrolling them is a no-op.
+    // Every person with an email too, and each in a session clear of their own commitments
+    // (their schedule read: bouts, Pools, brackets, duties), so the seat makes no clash.
     const attendees = new Map(
-      [anthony, david, robin, ...testers]
+      [anthony, david, robin, ...testers, ...emailPeople]
         .filter((x): x is Person => x !== null)
         .map((p) => [p.id, p] as const),
     );
     for (const p of attendees.values()) {
+      const busy = commitments(await scheduleOf(p));
       for (const ws of [...workshopSessions].reverse()) {
+        if (windowClashes(busy, Date.parse(ws.startIso), Date.parse(ws.endIso))) continue;
         const r = await post(`workshop-sessions/${ws.sessionId}/enrollments/${p.id}`);
         if (!r.ok() || ((await r.json()) as { status?: string }).status !== 'confirmed') continue;
         seatedIds.add(p.id);
-        console.log(`    ↳ ${p.givenName} ${p.familyName} has a workshop seat`);
+        seatOf.set(p.id, ws);
+        console.log(`    ↳ ${p.givenName} ${p.familyName} has a workshop seat clear of their day`);
         break;
       }
     }
@@ -1875,7 +1934,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     let confirmed = 0;
     let waitlisted = 0;
     for (const ws of workshopSessions) {
-      const eligible = rosterIds.filter((id) => id !== ws.teacherPersonId);
+      const eligible = rosterIds.filter((id) => id !== ws.teacherPersonId && !attendees.has(id));
       for (let k = eligible.length - 1; k > 0; k--) {
         const j = Math.floor(Math.random() * (k + 1));
         [eligible[k], eligible[j]] = [eligible[j]!, eligible[k]!];
@@ -1914,20 +1973,34 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     }
     return [...ids];
   };
-  for (let pass = 1; pass <= 3; pass++) {
-    const ids = await impossibleDuties();
+  // The clashes on the schedule of each person with an email, as their own page shows them.
+  const clashesOfEmailPeople = async () => {
+    const found: Array<{ person: Person; clashes: ReturnType<typeof clashesOf> }> = [];
+    for (const p of emailPeople) {
+      const read = await scheduleOf(p);
+      if (read.workshops === null)
+        console.log(`    ↳ ${p.givenName}: Workshops hidden, own seat record used`);
+      const clashes = clashesOf(commitments(read, workshopsOf(p)));
+      if (clashes.length > 0) found.push({ person: p, clashes });
+    }
+    return found;
+  };
+  const dutiesToDrop = async (): Promise<string[]> => {
+    const ids = new Set(await impossibleDuties());
+    for (const { clashes } of await clashesOfEmailPeople()) {
+      for (const { a, b } of clashes) for (const d of [a.dutyId, b.dutyId]) if (d) ids.add(d);
+    }
+    return [...ids];
+  };
+  for (let pass = 1; pass <= 5; pass++) {
+    const ids = await dutiesToDrop();
     if (ids.length === 0) break;
     for (const id of ids) await reqOk(await del(`referee-assignments/${id}`));
-    console.log(`  ✓ dropped ${ids.length} impossible referee duties (pass ${pass})`);
+    console.log(`  ✓ dropped ${ids.length} impossible or clashing referee duties (pass ${pass})`);
     await fillReferees(`refill after pass ${pass}`);
   }
   expect(await impossibleDuties(), 'referee duties that break hard rule 8').toEqual([]);
 
-  for (const id of tournamentIds) {
-    await step(`publish tournament ${id.slice(0, 8)}`, async () =>
-      reqOk(await post(`tournaments/${id}/publish`)),
-    );
-  }
   await step('publish event', async () => reqOk(await post(`events/${eventId}/publish`)));
 
   // ── Live semifinal LAST: the event + tournaments are now published, so the
@@ -2003,4 +2076,13 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   console.log(
     `  ✓ testers in both tournaments + a workshop: ${testers.map(name).join(', ') || '(none)'}`,
   );
+
+  const left = (await clashesOfEmailPeople()).map(
+    ({ person, clashes }) =>
+      `${name(person)}: ${clashes.map(({ a, b }) => `${a.label} × ${b.label}`).join('; ')}`,
+  );
+  expect(left, 'people with an email whose schedule has a clash').toEqual([]);
+  console.log(`  ✓ no clash on the schedule of the ${emailPeople.length} people with an email`);
+  // FightBook has no Event switch: each tester turns it on in their own profile (operator ruling).
+  console.log('  → FightBook: each tester switches it on in their profile (/me/fightbook)');
 });
