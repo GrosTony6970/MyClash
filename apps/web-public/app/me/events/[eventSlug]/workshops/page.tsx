@@ -124,10 +124,7 @@ function WorkshopsContent({
     }
   }, [workshops]);
 
-  const { commitments, unchecked } = useMemo(
-    () => commitmentsOf(schedule, t('publicApp.me.schedule.referee')),
-    [schedule, t],
-  );
+  const { commitments, unchecked } = useMemo(() => commitmentsOf(schedule, t), [schedule, t]);
 
   const fmtTime = (iso: string | null) =>
     iso ? formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, tag) : '';

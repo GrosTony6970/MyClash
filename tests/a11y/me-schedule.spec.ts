@@ -292,9 +292,13 @@ test('/me workshops - an open session inside a bout that ends at its next bout c
   await signIn(page);
   await page.goto('http://localhost:3001/me/events/test-event/workshops');
 
-  // The 10:30 bout and the duty, as on the schedule tab.
+  // The 10:30 bout and the duty, as on the schedule tab. The line names the Pool, never the
+  // opponent; its span has no end here, so the window is the bout's.
   await expect(page.getByText(LINE)).toBeVisible();
-  await expect(page.getByText('Conflicts with Mary Somerville (10:00–10:25)')).toBeVisible();
+  await expect(
+    page.getByText('Conflicts with Pool 1 · Longsword Open (10:00–10:25)'),
+  ).toBeVisible();
+  await expect(page.getByText(/Mary Somerville/)).toHaveCount(0);
 
   await expectNoCriticalAxeViolations(page);
   await expectNoPageIssues(issues);

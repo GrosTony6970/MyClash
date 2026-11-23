@@ -3,9 +3,34 @@
 // Workshop page (operator ruling 270). Warn, never block: the button then reads
 // "Register anyway". Kept framework-free so it can be unit-tested in isolation.
 
+import type { Translator } from '@myclash/next-i18n/client';
 import { overlapsHalfOpen } from '@myclash/schedule-core';
 import { dutyTimed, fightItems, toTimed, uncheckedCount, type TimedItem } from './conflicts';
+import { matchKindLabel } from './match-kind';
 import type { PersonSchedule } from './types';
+
+/** What a bout or a duty is, as the clash line names it: the Pool, or the round. */
+interface Commitment {
+  roundCode: string;
+  poolName: string | null;
+  tournamentName: string | null;
+  matchKind?: string | null;
+  roundOfCount?: number | null;
+  swissRound?: number | null;
+}
+
+/**
+ * "Pool 1 · Longsword Open" or "Quarter-final · Longsword Open" — never the opponent: the reader
+ * wants to know which part of the Tournament holds them (operator, 2026-11-23). A Pool is named
+ * by its own name; a bout outside one by its round. The bout's code is the last resort.
+ */
+function commitmentLabel(t: Translator, c: Commitment): string {
+  const inPool = c.matchKind === 'pool' || (c.matchKind == null && c.poolName !== null);
+  const what = inPool
+    ? c.poolName
+    : matchKindLabel(t, c.matchKind ?? null, c.roundOfCount ?? null, c.swissRound ?? null);
+  return [what, c.tournamentName].filter(Boolean).join(' · ') || c.roundCode;
+}
 
 /**
  * The viewer's fights, the Pools they fight in, and their referee duties as timed
@@ -14,19 +39,26 @@ import type { PersonSchedule } from './types';
  * its own) takes part too; an item whose end is unknown does not. Workshops stay
  * out: every enrolled session would clash with itself.
  *
+ * A Pool's span comes first: `clashOf` names the first overlap, and a session that
+ * meets one bout of a Pool meets the Pool too, so it names the whole Pool and its
+ * whole window rather than one five-minute bout.
+ *
  * Nobody (no schedule) has no commitment, and nothing unchecked.
  */
 export function commitmentsOf(
   schedule: PersonSchedule | null,
-  referee: string,
+  t: Translator,
 ): { commitments: TimedItem[]; unchecked: number } {
   if (!schedule) return { commitments: [], unchecked: 0 };
+  const referee = t('publicApp.me.schedule.referee');
   const boutKey = (m: PersonSchedule['matches'][number]) => `fight-${m.id}`;
   const dutyKey = (r: PersonSchedule['refereeSlots'][number]) => `ref-${r.id}`;
+  const fights = fightItems(schedule, boutKey, (m) => commitmentLabel(t, m));
   const commitments = [
-    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.roundCode),
+    ...fights.filter((item) => item.spanOf !== undefined),
+    ...fights.filter((item) => item.spanOf === undefined),
     ...schedule.refereeSlots.flatMap((r) => {
-      const what = r.roundCode || r.poolName;
+      const what = commitmentLabel(t, r);
       const ti = dutyTimed(dutyKey(r), what ? `${referee} · ${what}` : referee, r);
       return ti ? [ti] : [];
     }),

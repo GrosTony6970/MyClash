@@ -15,25 +15,49 @@ import type { PersonSchedule } from './types';
 
 const at = (hhmm: string) => `2027-05-22T${hhmm}:00.000Z`;
 
-const bout = (id: string, start: string, minutes: number | null, poolId: string | null = null) =>
+const WORDS: Record<string, string> = {
+  'publicApp.me.schedule.referee': 'Referee',
+  'publicApp.me.hub.kindQuarterFinal': 'Quarter-final',
+};
+const t = (key: string) => WORDS[key] ?? `[${key}]`;
+
+const bout = (
+  id: string,
+  start: string,
+  minutes: number | null,
+  poolId: string | null = null,
+  over: Partial<PersonSchedule['matches'][number]> = {},
+) =>
   ({
     id,
     scheduledAt: at(start),
     durationMinutes: minutes,
     fallbackEndsAt: null,
     poolId,
+    poolName: poolId ? 'Pool A' : null,
+    tournamentName: 'Longsword',
+    matchKind: poolId ? 'pool' : null,
     opponentName: `opponent of ${id}`,
     roundCode: `M-${id}`,
+    ...over,
   }) as unknown as PersonSchedule['matches'][number];
 
-const duty = (id: string, start: string | null, end: string | null) =>
+const duty = (
+  id: string,
+  start: string | null,
+  end: string | null,
+  over: Partial<PersonSchedule['refereeSlots'][number]> = {},
+) =>
   ({
     id,
     roundCode: '',
     poolName: 'Pool B',
+    tournamentName: null,
+    matchKind: 'pool',
     scheduledAt: null,
     startsAt: start ? at(start) : null,
     endsAt: end ? at(end) : null,
+    ...over,
   }) as unknown as PersonSchedule['refereeSlots'][number];
 
 const schedule = (over: Partial<PersonSchedule>): PersonSchedule => ({
@@ -52,10 +76,10 @@ const session = (start: string | null, end: string | null) => ({
 
 describe('what the viewer already has to do', () => {
   it('is nothing for nobody', () => {
-    expect(commitmentsOf(null, 'Referee')).toEqual({ commitments: [], unchecked: 0 });
+    expect(commitmentsOf(null, t)).toEqual({ commitments: [], unchecked: 0 });
   });
 
-  it('holds her bouts, the span of her Pool and her referee duties', () => {
+  it('holds the span of her Pool first, then her bouts, then her referee duties', () => {
     const { commitments, unchecked } = commitmentsOf(
       schedule({
         matches: [bout('b1', '10:00', 5, 'pool-a')],
@@ -70,15 +94,47 @@ describe('what the viewer already has to do', () => {
         ] as PersonSchedule['poolSpans'],
         refereeSlots: [duty('d1', '14:00', '15:00')],
       }),
-      'Referee',
+      t,
     );
 
+    expect(commitments.map((c) => c.key)).toEqual(['pool-pool-a', 'fight-b1', 'ref-d1']);
     expect(commitments.map((c) => c.label)).toEqual([
-      'opponent of b1',
+      'Pool A · Longsword',
       'Pool A · Longsword',
       'Referee · Pool B',
     ]);
     expect(unchecked).toBe(0);
+  });
+
+  it('names a bout outside a Pool by its round, and never by the opponent', () => {
+    const { commitments } = commitmentsOf(
+      schedule({
+        matches: [bout('qf', '14:00', 10, null, { matchKind: 'quarter_final' })],
+        refereeSlots: [
+          duty('d1', '16:00', '16:10', {
+            matchKind: 'quarter_final',
+            poolName: null,
+            tournamentName: 'Sabre',
+            roundCode: 'SAB-QF-M2',
+          }),
+        ],
+      }),
+      t,
+    );
+
+    expect(commitments.map((c) => c.label)).toEqual([
+      'Quarter-final · Longsword',
+      'Referee · Quarter-final · Sabre',
+    ]);
+  });
+
+  it("falls back on the bout's code when nothing else names it", () => {
+    const { commitments } = commitmentsOf(
+      schedule({ matches: [bout('b1', '10:00', 5, null, { tournamentName: null })] }),
+      t,
+    );
+
+    expect(commitments.map((c) => c.label)).toEqual(['M-b1']);
   });
 
   it('counts a bout and a duty whose end is unknown: the check cannot see them', () => {
@@ -87,7 +143,7 @@ describe('what the viewer already has to do', () => {
         matches: [bout('b1', '10:00', null)],
         refereeSlots: [duty('d1', '14:00', null)],
       }),
-      'Referee',
+      t,
     );
 
     expect(commitments).toEqual([]);
@@ -109,11 +165,20 @@ describe('a session against those commitments', () => {
         },
       ] as PersonSchedule['poolSpans'],
     }),
-    'Referee',
+    t,
   );
 
   it('clashes with the whole Pool, not only with her own bout in it', () => {
     expect(clashOf(session('10:30', '11:30'), commitments)?.label).toBe('Pool A');
+  });
+
+  it('names the whole Pool and its window when the session also meets her bout', () => {
+    // The session covers her 10:00 bout: the line once read "opponent of b1 (10:00–10:05)".
+    const clash = clashOf(session('09:30', '10:30'), commitments)!;
+    expect(clashWords(clash, (iso) => iso.slice(11, 16))).toEqual({
+      item: 'Pool A',
+      time: '10:00–11:00',
+    });
   });
 
   it('does not clash with a window that only touches it: the check is half-open', () => {
@@ -146,9 +211,7 @@ describe('the two pages that book a session warn the same way', () => {
     ['the public Workshop page', 'app/e/[eventSlug]/w/[workshopSlug]/page.tsx'],
   ])('%s asks the one owner, and hands the sentence to the controls', (_name, path) => {
     const page = source(path);
-    expect(page).toMatch(
-      /commitmentsOf\(\s*[\w.]+,\s*t\('publicApp\.me\.schedule\.referee'\),?\s*\)/,
-    );
+    expect(page).toMatch(/commitmentsOf\(\s*[\w.]+,\s*t\s*\)/);
     expect(page).toContain('const clash = clashOf(session, commitments);');
     expect(page).toMatch(
       /t\('publicApp\.me\.workshops\.conflictsWith', clashWords\(clash, fmtTime\)\)/,

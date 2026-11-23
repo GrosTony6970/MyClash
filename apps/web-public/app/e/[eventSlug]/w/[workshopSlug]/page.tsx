@@ -217,10 +217,7 @@ export default function WorkshopDetailPage() {
   const fmtDayTime = (iso: string) =>
     formatInZone(iso, tz, { weekday: 'short', hour: '2-digit', minute: '2-digit' }, bcp47);
   // Warn, never block: the button then reads "Register anyway" (ruling 270).
-  const { commitments, unchecked } = commitmentsOf(
-    caller.schedule,
-    t('publicApp.me.schedule.referee'),
-  );
+  const { commitments, unchecked } = commitmentsOf(caller.schedule, t);
   const conflictFor = (session: Session): string | null => {
     const clash = clashOf(session, commitments);
     return clash && t('publicApp.me.workshops.conflictsWith', clashWords(clash, fmtTime));

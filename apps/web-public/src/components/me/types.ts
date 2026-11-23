@@ -39,6 +39,11 @@ export interface ScheduleMatch {
   /** Coarse programme phase for block lookup — the PROGRAMME taxonomy, which
    *  carries `swiss` as a 4th token. Null unknown. */
   phase: 'pool' | 'swiss' | 'bracket' | null;
+  /** What the bout is: the `RefereeSlot.matchKind` tokens, read by `matchKindLabel`. Absent in
+   *  a copy cached before the API sent them. */
+  matchKind?: string | null;
+  roundOfCount?: number | null;
+  swissRound?: number | null;
   liceName: string | null;
 }
 

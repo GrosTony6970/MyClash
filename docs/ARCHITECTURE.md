@@ -2045,7 +2045,7 @@ When a user views their **My Schedule**, the system computes their personal sche
 2. **Referee assignments** — hard, cannot reschedule.
 3. **Workshop enrollments** — soft, user choice.
 
-For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conflict**. Workshops are flagged with explicit "Conflicts with Match #L1-P3-M5" annotations. The user can:
+For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conflict**. A Workshop session is flagged with what it meets and that item's whole window, named by the part of the Tournament, never the opponent: "Conflicts with Pool 1 · Longsword Open (09:00–12:00)", "Conflicts with Quarter-final · Longsword Open (14:00–14:10)", "Conflicts with Referee · Pool 2 · Longsword Open (…)". A Pool's span wins over a bout inside it (`workshop-clash.ts`). The user can:
 
 - Cancel the workshop enrollment.
 - Acknowledge the conflict (warning persists, but user proceeds).

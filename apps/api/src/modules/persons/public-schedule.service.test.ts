@@ -122,6 +122,25 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
     expect(schedule.matches.map((m) => m.roundCode)).toEqual(['LSW-P4-M01']);
   });
 
+  it("says what the fighter's own bout is: a Pool bout, or the bracket round it plays", async () => {
+    windowsAre({});
+    const pool = fighterMatch('p', null, 'published', { id: 'pool-1', name: 'Pool 1' });
+    const qf = fighterMatch('qf', null);
+    const { service } = buildService(rows([]), {
+      registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
+      matches: [
+        pool,
+        {
+          ...qf,
+          bracket_slots: { round: 1 },
+          phases: { ...qf.phases, type: 'single_elim', config_json: { bracketSize: 8 } },
+        },
+      ],
+    });
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+    expect(schedule.matches.map((m) => m.matchKind)).toEqual(['pool', 'quarter_final']);
+  });
+
   it('exposes the assignment id — matchId is empty for every pool-scoped duty', async () => {
     windowsAre({});
     const { service } = buildService(rows([poolScoped('a-1'), poolScoped('a-2')]));

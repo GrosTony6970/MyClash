@@ -84,6 +84,13 @@ export interface ScheduleMatch {
    *  Swiss bout at the Bracket block's end time, or at no block at all.
    *  Mirrors the generated `— Pools` / `— Swiss` / `— Bracket` blocks. */
   phase: 'pool' | 'swiss' | 'bracket' | null;
+  /** What the bout is, in words a page can translate (`computeMatchKind`): a Workshop clash
+   *  names "Quarter-final · Longsword", never the opponent. Same tokens as a referee duty's. */
+  matchKind: string | null;
+  /** Fighter count for matchKind === 'round_of' (e.g. 16). */
+  roundOfCount: number | null;
+  /** Which Swiss round, for matchKind === 'swiss'. */
+  swissRound: number | null;
   liceName: string | null;
 }
 
@@ -159,6 +166,7 @@ export interface PersonSchedule {
 /** A fighter's bout's phase, as `fetchMatches` embeds it. */
 type FighterBoutPhase = {
   type?: string | null;
+  config_json?: unknown;
   tournaments: { id: string; name: string; scoring_config_json?: unknown; status?: string } | null;
 } | null;
 
@@ -308,6 +316,16 @@ export class PublicScheduleService {
       if (!PUBLIC_TOURNAMENT_STATUSES.has(phase?.tournaments?.status ?? '')) return [];
 
       const phaseType = phase?.type ?? null;
+      const slot = m['bracket_slots'] as { round?: number | null } | null;
+      const swiss = m['swiss_rounds'] as { round_number?: number | null } | null;
+      const config = (phase?.config_json ?? null) as Record<string, unknown> | null;
+      const size = config?.['bracketSize'] ?? config?.['mainBracketSize'];
+      const kind = computeMatchKind(
+        phaseType,
+        slot?.round ?? null,
+        typeof size === 'number' ? size : null,
+        swiss?.round_number ?? null,
+      );
 
       return [
         {
@@ -361,6 +379,9 @@ export class PublicScheduleService {
               : phaseType
                 ? 'bracket'
                 : null) as 'pool' | 'swiss' | 'bracket' | null,
+          matchKind: kind.kind,
+          roundOfCount: kind.roundOfCount,
+          swissRound: kind.swissRound,
           liceName: lice?.name ?? null,
         },
       ];
