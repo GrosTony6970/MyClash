@@ -201,10 +201,7 @@ export class AdminFeatureFlagsService {
         .from('feature_flags')
         .select('key, enabled, payload_json')
         .in('key', ['maintenance_banner', 'disable_realtime', 'time_simulation']);
-      if (error) {
-        this.logger.warn(`Public flags read failed, served all off: ${error.message}`);
-        return empty;
-      }
+      if (error) throw new Error(error.message);
 
       const rows = (data ?? []) as Array<{
         key: string;
@@ -235,7 +232,7 @@ export class AdminFeatureFlagsService {
     } catch (err) {
       // Whatever was thrown (`null` has no `.message`): the fallback itself must not throw.
       const reason = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`Public flags read threw, served all off: ${reason}`);
+      this.logger.warn(`Public flags read failed, served all off: ${reason}`);
       return empty;
     }
   }
