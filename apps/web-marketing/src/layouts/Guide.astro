@@ -27,6 +27,7 @@ const { Content } = await render(entry);
 const route = guideRoute(entry);
 const next = pages[pages.findIndex((page) => page.id === entry.id) + 1];
 const sectionLabel = {
+  about: t.guideSectionAbout,
   steps: t.guideSectionSteps,
   concepts: t.guideSectionConcepts,
   day: t.guideSectionDay,
@@ -34,7 +35,7 @@ const sectionLabel = {
   around: t.guideSectionAround,
 } as const;
 /** The contents, grouped by section in reading order; a section with no page is left out. */
-const toc = (['steps', 'concepts', 'day', 'beyond', 'around'] as const)
+const toc = (['about', 'steps','concepts', 'day', 'beyond', 'around'] as const)
   .map((key) => ({
     label: sectionLabel[key],
     items: pages

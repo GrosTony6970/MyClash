@@ -43,7 +43,7 @@ test('a guide page has the same order and section in both languages', () => {
           return [
             f,
             {
-              order: Number(/^order:\s*(\d+)\s*$/mu.exec(front)?.[1]),
+              order: Number(/^order:\s*(-?\d+)\s*$/mu.exec(front)?.[1]),
               section: /^section:\s*(\w+)\s*$/mu.exec(front)?.[1],
             },
           ];
@@ -54,6 +54,7 @@ test('a guide page has the same order and section in both languages', () => {
 
 /** The section labels, read from the copy table so a renamed label cannot drift from the test. */
 const SECTION_KEYS = [
+  'guideSectionAbout',
   'guideSectionSteps',
   'guideSectionConcepts',
   'guideSectionDay',

@@ -6,7 +6,8 @@ import { z } from 'astro/zod';
  * The organiser guide: one Markdown file per page per language, under
  * src/content/guide/{fr,en}. An entry's id is `<locale>/<slug>`, and
  * `index.md` is the guide's front page. `order` sets the reading order, the
- * contents list and the "Next step" link; the index is 0.
+ * contents list and the "Next step" link; the index is 0, and the About page
+ * is -1, before it.
  */
 const guide = defineCollection({
   /*
@@ -22,9 +23,9 @@ const guide = defineCollection({
   schema: z.object({
     title: z.string(),
     description: z.string(),
-    order: z.number().int().min(0),
-    /** The contents list's group: the walkthrough, the explanations, the event day, the rest, before and after. */
-    section: z.enum(['steps', 'concepts', 'day', 'beyond', 'around']),
+    order: z.number().int(),
+    /** The contents list's group: about MyClash, the walkthrough, the explanations, the event day, the rest, before and after. */
+    section: z.enum(['about', 'steps', 'concepts', 'day', 'beyond', 'around']),
   }),
 });
 

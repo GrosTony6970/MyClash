@@ -51,6 +51,7 @@ interface Chrome {
   readonly guideContents: string;
   readonly guideNext: string;
   /** The guide's contents groups, in reading order (`section` in src/content.config.ts). */
+  readonly guideSectionAbout: string;
   readonly guideSectionSteps: string;
   readonly guideSectionConcepts: string;
   readonly guideSectionDay: string;
@@ -81,6 +82,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navGuide: 'Guide',
     guideContents: 'Sommaire',
     guideNext: 'Étape suivante',
+    guideSectionAbout: 'À propos',
     guideSectionSteps: 'Pas à pas',
     guideSectionConcepts: 'Comprendre MyClash',
     guideSectionDay: 'Le jour J',
@@ -109,6 +111,7 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navGuide: 'Guide',
     guideContents: 'Contents',
     guideNext: 'Next step',
+    guideSectionAbout: 'About',
     guideSectionSteps: 'Step by step',
     guideSectionConcepts: 'Understand MyClash',
     guideSectionDay: 'Event day',
