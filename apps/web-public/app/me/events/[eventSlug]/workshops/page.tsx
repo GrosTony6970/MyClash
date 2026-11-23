@@ -235,6 +235,7 @@ function WorkshopsContent({
                     highlighted={daySessions.some(
                       (s) => isLive(s) && bookings.get(s.id) === 'confirmed',
                     )}
+                    teaching={teaches}
                     showLocation
                     footer={
                       <div className="flex flex-col gap-3">
@@ -254,6 +255,7 @@ function WorkshopsContent({
                                 </p>
                               )}
                               <WorkshopRegisterControls
+                                workshopId={w.id}
                                 booking={booking}
                                 full={full}
                                 conflict={conflictFor(session)}

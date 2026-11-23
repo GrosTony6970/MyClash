@@ -12,6 +12,7 @@ import {
   checkInRefusalWords,
   moderationRefusalWords,
 } from '@/components/me/workshop-booking';
+import { instructorEditAnchor } from '@/components/me/WorkshopRegisterControls';
 import { RosterTick } from './RosterTick';
 import { changedText } from './changed-text';
 import { MyDetailsPanel } from './MyDetailsPanel';
@@ -107,6 +108,14 @@ export function InstructorDashboard() {
 
   const [groups, setGroups] = useState<InstructorGroup[] | null>(null);
   const [error, setError] = useState(false);
+  // The Workshop an "Edit my workshop" link points at (`#edit-<id>`), read with the list: its card
+  // opens on its Edit panel, and is scrolled to once the list is drawn.
+  const [editTarget, setEditTarget] = useState('');
+
+  useEffect(() => {
+    if (!editTarget || groups === null) return;
+    document.getElementById(editTarget)?.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }, [editTarget, groups]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,6 +130,7 @@ export function InstructorDashboard() {
         }
         if (!res.ok) throw new Error('instructor-workshops');
         const body = (await res.json()) as { events: InstructorGroup[] };
+        setEditTarget(window.location.hash.slice(1));
         setGroups(body.events);
       })
       .catch((err: unknown) => {
@@ -178,6 +188,7 @@ export function InstructorDashboard() {
                 <WorkshopManageCard
                   key={w.id}
                   workshop={w}
+                  startEditing={editTarget === instructorEditAnchor(w.id)}
                   myGlobalPersonId={group.myGlobalPersonId}
                   tz={group.event.timezone ?? 'Europe/Paris'}
                   tag={tag}
@@ -196,12 +207,15 @@ export function InstructorDashboard() {
 
 function WorkshopManageCard({
   workshop,
+  startEditing,
   myGlobalPersonId,
   tz,
   tag,
   apiUrl,
 }: {
   workshop: InstructorWorkshop;
+  /** Opened from its "Edit my workshop" link: the card starts on its Edit panel. */
+  startEditing: boolean;
   myGlobalPersonId: string;
   tz: string;
   tag: string;
@@ -217,7 +231,9 @@ function WorkshopManageCard({
     shortDescription: workshop.shortDescription ?? '',
     prerequisites: workshop.prerequisites ?? '',
   });
-  const [panel, setPanel] = useState<'none' | 'edit' | 'me' | 'notify' | 'feedback'>('none');
+  const [panel, setPanel] = useState<'none' | 'edit' | 'me' | 'notify' | 'feedback'>(
+    startEditing ? 'edit' : 'none',
+  );
 
   // Reflect local instructor edits live on the shared card; empty → null so the
   // card falls back to shortDescription and hides blank tag pills.
@@ -231,83 +247,87 @@ function WorkshopManageCard({
   };
 
   return (
-    <WorkshopCard
-      workshop={cardWorkshop}
-      timezone={tz}
-      showLocation
-      footer={
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}
-              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-            >
-              {t('publicApp.me.instructor.edit')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel(panel === 'me' ? 'none' : 'me')}
-              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-            >
-              {t('publicApp.me.instructor.myDetails')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel(panel === 'notify' ? 'none' : 'notify')}
-              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-            >
-              {t('publicApp.me.instructor.notify')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel(panel === 'feedback' ? 'none' : 'feedback')}
-              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-            >
-              {t('publicApp.me.instructor.feedback')}
-            </button>
-          </div>
+    <div id={instructorEditAnchor(workshop.id)} className="scroll-mt-24">
+      <WorkshopCard
+        workshop={cardWorkshop}
+        timezone={tz}
+        showLocation
+        footer={
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}
+                className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+              >
+                {t('publicApp.me.instructor.edit')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanel(panel === 'me' ? 'none' : 'me')}
+                className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+              >
+                {t('publicApp.me.instructor.myDetails')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanel(panel === 'notify' ? 'none' : 'notify')}
+                className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+              >
+                {t('publicApp.me.instructor.notify')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanel(panel === 'feedback' ? 'none' : 'feedback')}
+                className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+              >
+                {t('publicApp.me.instructor.feedback')}
+              </button>
+            </div>
 
-          {panel === 'edit' && (
-            <EditPanel
-              workshopId={workshop.id}
-              apiUrl={apiUrl}
-              fields={fields}
-              onSaved={(next) => {
-                setFields(next);
-                setPanel('none');
-              }}
-            />
-          )}
-          {panel === 'me' && (
-            <MyDetailsPanel
-              workshopId={workshop.id}
-              globalPersonId={myGlobalPersonId}
-              apiUrl={apiUrl}
-            />
-          )}
-          {panel === 'notify' && <NotifyPanel workshopId={workshop.id} apiUrl={apiUrl} />}
-          {panel === 'feedback' && <FeedbackPanel workshopId={workshop.id} apiUrl={apiUrl} />}
-
-          <div className="flex flex-col divide-y divide-border border-t border-border">
-            {workshop.sessions.length === 0 ? (
-              <p className="py-2 text-sm text-muted">{t('publicApp.me.instructor.notScheduled')}</p>
-            ) : (
-              workshop.sessions.map((s) => (
-                <SessionRow
-                  key={s.id}
-                  session={s}
-                  capacity={workshop.capacity}
-                  tz={tz}
-                  tag={tag}
-                  apiUrl={apiUrl}
-                />
-              ))
+            {panel === 'edit' && (
+              <EditPanel
+                workshopId={workshop.id}
+                apiUrl={apiUrl}
+                fields={fields}
+                onSaved={(next) => {
+                  setFields(next);
+                  setPanel('none');
+                }}
+              />
             )}
+            {panel === 'me' && (
+              <MyDetailsPanel
+                workshopId={workshop.id}
+                globalPersonId={myGlobalPersonId}
+                apiUrl={apiUrl}
+              />
+            )}
+            {panel === 'notify' && <NotifyPanel workshopId={workshop.id} apiUrl={apiUrl} />}
+            {panel === 'feedback' && <FeedbackPanel workshopId={workshop.id} apiUrl={apiUrl} />}
+
+            <div className="flex flex-col divide-y divide-border border-t border-border">
+              {workshop.sessions.length === 0 ? (
+                <p className="py-2 text-sm text-muted">
+                  {t('publicApp.me.instructor.notScheduled')}
+                </p>
+              ) : (
+                workshop.sessions.map((s) => (
+                  <SessionRow
+                    key={s.id}
+                    session={s}
+                    capacity={workshop.capacity}
+                    tz={tz}
+                    tag={tag}
+                    apiUrl={apiUrl}
+                  />
+                ))
+              )}
+            </div>
           </div>
-        </div>
-      }
-    />
+        }
+      />
+    </div>
   );
 }
 

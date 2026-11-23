@@ -310,6 +310,7 @@ export default function WorkshopDetailPage() {
                     />
 
                     <WorkshopRegisterControls
+                      workshopId={workshop.id}
                       booking={booking}
                       full={isFull}
                       conflict={conflictFor(session)}

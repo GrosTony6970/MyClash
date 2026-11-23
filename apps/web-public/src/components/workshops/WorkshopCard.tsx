@@ -60,6 +60,8 @@ export interface WorkshopCardProps {
   footer?: ReactNode;
   /** Personal space: green accent when the user is enrolled. */
   highlighted?: boolean;
+  /** Personal space: the viewer teaches it — an accent outline and a chip, ahead of `highlighted`. */
+  teaching?: boolean;
   /** Personal space: append the session location ("· Area 1") to the time line. */
   showLocation?: boolean;
 }
@@ -76,6 +78,7 @@ export function WorkshopCard({
   href,
   footer,
   highlighted = false,
+  teaching = false,
   showLocation = false,
 }: WorkshopCardProps): ReactNode {
   const { t, locale } = useI18n();
@@ -124,7 +127,11 @@ export function WorkshopCard({
     return () => ro.disconnect();
   }, [expandable, expanded, description]);
 
-  const surface = highlighted ? 'border-success/40 bg-success/5' : 'border-border bg-surface';
+  const surface = teaching
+    ? 'border-accent bg-accent/5 ring-1 ring-accent'
+    : highlighted
+      ? 'border-success/40 bg-success/5'
+      : 'border-border bg-surface';
 
   const body = (
     <>
@@ -144,6 +151,11 @@ export function WorkshopCard({
           />
         )}
         <div className="min-w-0 flex-1">
+          {teaching && (
+            <p className="mb-1.5 inline-flex rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-foreground">
+              {t('publicApp.me.workshops.teachingChip')}
+            </p>
+          )}
           <h3 className="font-display text-lg font-semibold text-foreground">{w.title}</h3>
           {instructorNames.length > 0 && (
             <p className="mt-0.5 text-sm text-muted">{instructorNames.join(', ')}</p>

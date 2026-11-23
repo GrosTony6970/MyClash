@@ -1,8 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { Button } from '@myclash/ui';
 import type { ReactNode } from 'react';
 import type { WorkshopBooking } from './workshop-booking';
+
+/** The anchor of a Workshop's card on the instructor's page; that page opens its Edit panel. */
+export const instructorEditAnchor = (workshopId: string): string => `edit-${workshopId}`;
 
 export interface WorkshopRegisterLabels {
   register: string;
@@ -17,8 +21,8 @@ export interface WorkshopRegisterLabels {
   refused: string;
   registerAgain: string;
   full: string;
-  /** Shown on the disabled button when the viewer teaches this workshop. */
-  instructorOwn: string;
+  /** The link a viewer who teaches this workshop follows to edit it. */
+  instructorEdit: string;
 }
 
 /** The words of the register controls, in the reader's language. */
@@ -34,17 +38,19 @@ export function registerLabels(t: (key: string) => string): WorkshopRegisterLabe
     refused: t('publicApp.me.workshops.refused'),
     registerAgain: t('publicApp.me.workshops.registerAgain'),
     full: t('publicApp.me.workshops.full'),
-    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
+    instructorEdit: t('publicApp.me.workshops.instructorEdit'),
   };
 }
 
 export interface WorkshopRegisterControlsProps {
+  /** The parent Workshop: an instructor's link opens its card on the instructor's page. */
+  workshopId: string;
   /** What the viewer's booking of this session is. */
   booking: WorkshopBooking;
   full: boolean;
   conflict?: string | null;
   busy?: boolean;
-  /** The viewer teaches this workshop — no participant seat, button disabled. */
+  /** The viewer teaches this workshop — no participant seat: the button opens its editor. */
   isInstructor?: boolean;
   /**
    * The viewer holds a place in another session of this Workshop, said in words ("You have a
@@ -116,13 +122,15 @@ function BookingNotice({
  * A seat says "Registered"; a place on the waitlist says so and can be given up
  * (ruling 235); a refusal is told, with one button that books again (ruling 236).
  *
- * `isInstructor` disables the button: someone who teaches the workshop takes no
- * participant seat, so the conflict badge is meaningless too. The API enforces
+ * `isInstructor` replaces the button with a link to the Workshop's card on the
+ * instructor's page, its Edit panel open: someone who teaches the workshop takes
+ * no participant seat, so the conflict badge is meaningless too. The API enforces
  * the same rule. The one exception is a seat that predates the rule — teaching
  * AND enrolled still gets its Cancel button, so the seat can be released here
  * rather than only from the instructor roster.
  */
 export function WorkshopRegisterControls({
+  workshopId,
   booking,
   full,
   conflict,
@@ -134,12 +142,22 @@ export function WorkshopRegisterControls({
   onCancel,
 }: WorkshopRegisterControlsProps): ReactNode {
   const booked = booking === 'confirmed' || booking === 'waitlisted';
-  const closedBecause = isInstructor ? labels.instructorOwn : placeElsewhere;
-  if (closedBecause && !booked) {
+  if (isInstructor && !booked) {
+    return (
+      <div>
+        <Button asChild variant="primary" size="sm" className="w-full">
+          <Link href={`/me/instructor#${instructorEditAnchor(workshopId)}`}>
+            {labels.instructorEdit}
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+  if (placeElsewhere && !booked) {
     return (
       <div>
         <Button variant="secondary" size="sm" className="w-full" disabled>
-          {closedBecause}
+          {placeElsewhere}
         </Button>
       </div>
     );
