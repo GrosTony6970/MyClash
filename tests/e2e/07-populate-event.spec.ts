@@ -379,6 +379,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
           endDate: '2027-05-23',
           // Testers may upload photos, shown as soon as they arrive (operator, 2026-11-21).
           photoMode: 'live',
+          // A public Event: FightBook refuses a test-kind one whatever the clock says (ruling
+          // 665), and testers use FightBook here (operator, 2026-11-23).
+          eventKind: 'standard',
         },
       }),
     ),
