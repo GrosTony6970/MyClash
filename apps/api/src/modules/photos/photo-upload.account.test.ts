@@ -4,7 +4,7 @@ import { mockSupabase, writesTo, type RpcAnswer } from '../../common/testing/sup
 import type { PhotoStore } from './photo-bucket';
 import { DEVICE_PHOTOS_PER_HOUR, PhotoUploadService } from './photo-upload.service';
 import { ACCOUNT_PHOTOS_PER_HOUR } from './photo-upload.service';
-import { platformClock } from './testing/platform-clock';
+import { platformClock } from '../../common/testing/platform-clock';
 import { loadedJpeg } from './testing/synthetic-jpeg';
 import { photoToken } from './photo-token';
 

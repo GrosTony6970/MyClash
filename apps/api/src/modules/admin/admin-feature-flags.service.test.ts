@@ -634,5 +634,15 @@ describe('AdminFeatureFlagsService', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('boom'));
       warn.mockRestore();
     });
+
+    it('falls back to real time whatever the read throws, null included', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      fromMock.mockImplementation(() => {
+        throw null;
+      });
+      expect((await service.platformNow()).toISOString()).toBe(REAL);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('null'));
+      warn.mockRestore();
+    });
   });
 });

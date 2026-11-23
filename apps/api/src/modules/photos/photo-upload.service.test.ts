@@ -22,7 +22,7 @@ import {
   PHOTO_UPLOAD_SLOTS,
   PhotoUploadService,
 } from './photo-upload.service';
-import { platformClock } from './testing/platform-clock';
+import { platformClock } from '../../common/testing/platform-clock';
 import { loadedJpeg } from './testing/synthetic-jpeg';
 
 const SECRET = 'test-photo-token-secret-at-least-32-characters';

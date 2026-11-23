@@ -12,7 +12,7 @@ import {
 import { MyPhotosController } from './my-photos.controller';
 import { myPhotoQuerySchema } from './photo-public.dto';
 import { MyPhotosService } from './my-photos.service';
-import { platformClock } from './testing/platform-clock';
+import { platformClock } from '../../common/testing/platform-clock';
 
 /**
  * A personal space's own photos (design Goal 11, slice 6a): she lists the photos she sent from

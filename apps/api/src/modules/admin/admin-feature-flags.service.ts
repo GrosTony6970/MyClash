@@ -233,7 +233,9 @@ export class AdminFeatureFlagsService {
         serverNowIso,
       };
     } catch (err) {
-      this.logger.warn(`Public flags read threw, served all off: ${(err as Error).message}`);
+      // Whatever was thrown (`null` has no `.message`): the fallback itself must not throw.
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Public flags read threw, served all off: ${reason}`);
       return empty;
     }
   }

@@ -12,7 +12,7 @@ import { PhotoDeviceService } from '../photo-device';
 import { photoToken } from '../photo-token';
 import { PhotoUploadService } from '../photo-upload.service';
 import { PhotosController } from '../photos.controller';
-import { platformClock } from './platform-clock';
+import { platformClock } from '../../../common/testing/platform-clock';
 import { MyPhotosController } from '../my-photos.controller';
 
 const SECRET = 'test-photo-secret-at-least-32-characters-long';
