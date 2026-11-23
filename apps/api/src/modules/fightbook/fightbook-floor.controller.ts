@@ -39,6 +39,7 @@ import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archi
 import { ThrottleFightBookCall } from '../../common/throttling/throttle-fightbook-call';
 import { ThrottleFightBookQrMint } from '../../common/throttling/throttle-fightbook-qr-mint';
 import { ThrottleFightBookScan } from '../../common/throttling/throttle-fightbook-scan';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { fightBookCaller, requireFightBookOn, requireProfile } from './fightbook-caller';
 import { FreeNowService } from './free-now.service';
@@ -85,6 +86,8 @@ export class FightBookFloorController {
     private readonly freeNow: FreeNowService,
     private readonly calls: OpenCallsService,
     private readonly qr: SparQrService,
+    /** The platform clock: an Event's days and a call's window follow a time simulation. */
+    private readonly clock: AdminFeatureFlagsService,
   ) {}
 
   @Put('events/:eventId/free')
@@ -93,7 +96,11 @@ export class FightBookFloorController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async switchOn(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    return this.freeNow.switchOn(requireFightBookOn(caller), eventId);
+    return this.freeNow.switchOn(
+      requireFightBookOn(caller),
+      eventId,
+      await this.clock.platformNow(),
+    );
   }
 
   @Delete('events/:eventId/free')
@@ -113,7 +120,7 @@ export class FightBookFloorController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async readCalls(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    return this.calls.read(requireFightBookOn(caller), eventId);
+    return this.calls.read(requireFightBookOn(caller), eventId, await this.clock.platformNow());
   }
 
   // Throttled in its own bucket, apart from the asks (Ruling L): the cap bounds OPEN calls only,
@@ -129,7 +136,8 @@ export class FightBookFloorController {
     @Req() req: FastifyRequest,
   ) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    return this.calls.post(requireFightBookOn(caller), eventId, dto);
+    const now = await this.clock.platformNow();
+    return this.calls.post(requireFightBookOn(caller), eventId, dto, now);
   }
 
   @Delete('calls/:id')
@@ -147,7 +155,7 @@ export class FightBookFloorController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async answerCall(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    await this.calls.answer(requireFightBookOn(caller), id);
+    await this.calls.answer(requireFightBookOn(caller), id, await this.clock.platformNow());
   }
 
   @Delete('calls/:id/answer')
@@ -169,7 +177,8 @@ export class FightBookFloorController {
     @Req() req: FastifyRequest,
   ) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    return this.calls.pick(requireFightBookOn(caller), id, dto.globalPersonId);
+    const now = await this.clock.platformNow();
+    return this.calls.pick(requireFightBookOn(caller), id, dto.globalPersonId, now);
   }
 
   // Each in its own bucket, apart from the asks (Ruling L): sixty codes and twenty scans an hour.
@@ -179,6 +188,7 @@ export class FightBookFloorController {
   @ApiOperation({ summary: 'A new code for my FightBook QR: five minutes, one scan' })
   async mintQr(@Req() req: FastifyRequest) {
     const caller = await fightBookCaller(req, this.supabase.service);
+    // Real time on purpose: the database checks a code's five minutes against its own clock.
     return this.qr.mint(requireFightBookOn(caller));
   }
 
@@ -188,6 +198,6 @@ export class FightBookFloorController {
   @ApiOperation({ summary: "Scan a fighter's FightBook QR: a spar request to them, today" })
   async scanQr(@Body() dto: ScanDto, @Req() req: FastifyRequest) {
     const caller = await fightBookCaller(req, this.supabase.service);
-    return this.qr.scan(requireFightBookOn(caller), dto);
+    return this.qr.scan(requireFightBookOn(caller), dto, await this.clock.platformNow());
   }
 }

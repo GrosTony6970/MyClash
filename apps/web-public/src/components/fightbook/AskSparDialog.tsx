@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { FightBookEvent } from '@myclash/types';
-import { Button, Modal } from '@myclash/ui';
+import { Button, Modal, useNow } from '@myclash/ui';
 import {
   readFightBookEvents,
   readWeaponCatalog,
@@ -23,9 +23,12 @@ export interface AskSparDialogProps {
   onSent?: () => void;
 }
 
-/** Today in the browser's zone, `YYYY-MM-DD`. */
-function localToday(): string {
-  const now = new Date();
+/**
+ * Today in the browser's zone, `YYYY-MM-DD`, on the platform clock (`useNow`): a super admin's time
+ * simulation moves it, as it moves the API's (operator, 2026-11-23).
+ */
+function localToday(nowMs: number): string {
+  const now = new Date(nowMs);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
@@ -51,11 +54,18 @@ function useAskChoices(apiUrl: string) {
 }
 
 /** The form's values. The Event, its day and the kind are the caller's pick, else a default. */
-function useAskValues(events: FightBookEvent[], preferredEventId: string | undefined) {
+function useAskValues(
+  apiUrl: string,
+  events: FightBookEvent[],
+  preferredEventId: string | undefined,
+) {
+  const today = localToday(useNow(apiUrl));
   const [pickedKind, setKind] = useState<'event' | 'free' | null>(null);
   const [pickedEventId, setEventId] = useState<string | null>(null);
   const [pickedDay, setDay] = useState<string | null>(null);
-  const [date, setDate] = useState(localToday);
+  // Unpicked, the date follows today: the simulation may load after the dialog opens.
+  const [pickedDate, setDate] = useState<string | null>(null);
+  const date = pickedDate ?? today;
   const [place, setPlace] = useState('');
   const [weapons, setWeapons] = useState<string[]>([]);
   const [time, setTime] = useState('');
@@ -78,6 +88,7 @@ function useAskValues(events: FightBookEvent[], preferredEventId: string | undef
     kind,
     event,
     day,
+    today,
     date,
     place,
     weapons,
@@ -149,7 +160,7 @@ function FreeDateFields({ id, v }: { id: string; v: AskValues }) {
         <input
           id={`${id}-date`}
           type="date"
-          min={localToday()}
+          min={v.today}
           className={inputClass}
           value={v.date}
           onChange={(e) => v.setDate(e.target.value)}
@@ -264,7 +275,7 @@ export function AskSparDialog(props: AskSparDialogProps) {
   const { t } = useI18n();
   const id = useId();
   const { events, eventsFailed, catalog } = useAskChoices(props.apiUrl);
-  const v = useAskValues(events ?? [], props.eventId);
+  const v = useAskValues(props.apiUrl, events ?? [], props.eventId);
   const ready = events !== null && catalog !== null;
   const { sending, sent, refusal, send } = useAskSend(props, v, catalog ?? []);
   const complete =

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { FightBookBlocksService } from './fightbook-blocks.service';
@@ -34,7 +35,10 @@ import { SparThanksService } from './spar-thanks.service';
     ClubSparFlagsController,
     PlatformSparFlagsController,
   ],
+  // AdminFeatureFlagsService: the platform clock the controllers read (`platformNow`). It needs
+  // only SupabaseService, so it is provided here rather than importing the heavyweight AdminModule.
   providers: [
+    AdminFeatureFlagsService,
     FightBookSettingsService,
     SparRequestsService,
     SparReadsService,

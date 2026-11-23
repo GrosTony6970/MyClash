@@ -97,7 +97,7 @@ export class SparQrService {
    * whatever she decided about me: the notice is started, not awaited, and only when the
    * database says she did not block me, so a blocked scan answers the same and as fast (714).
    */
-  async scan(me: string, input: QrScanInput, now = new Date()): Promise<{ id: string }> {
+  async scan(me: string, input: QrScanInput, now: Date): Promise<{ id: string }> {
     if (!input.code.startsWith(QR_CODE_PREFIX)) {
       throw badRequest('bad_code', 'This is not a FightBook code');
     }

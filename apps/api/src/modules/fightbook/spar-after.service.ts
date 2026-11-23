@@ -33,7 +33,7 @@ export class SparAfterService {
    * the row's immutable day and zone), not after two days past its end (the update's `gt`). The
    * other fighter is told, started and not awaited.
    */
-  async markDone(me: string, requestId: string, now = new Date()): Promise<void> {
+  async markDone(me: string, requestId: string, now: Date): Promise<void> {
     const { row, side, other } = await readMySide(this.supabase.service, me, requestId);
     if (now < sparWindows(row).markFrom) throw notOpen();
     const moved = await this.move(requestId, side, me, 'agreed', 'done', now);
@@ -41,7 +41,7 @@ export class SparAfterService {
   }
 
   /** Put a done spar back to agreed, either fighter, until two days past its end. No notice. */
-  async undo(me: string, requestId: string, now = new Date()): Promise<void> {
+  async undo(me: string, requestId: string, now: Date): Promise<void> {
     const { side } = await readMySide(this.supabase.service, me, requestId);
     await this.move(requestId, side, me, 'done', 'agreed', now);
   }
@@ -53,12 +53,7 @@ export class SparAfterService {
    * `fightbook_review` (0267) re-checks the side under its lock and checks the status, the window
    * and the one review per writer, answering `not_open` for each.
    */
-  async review(
-    me: string,
-    requestId: string,
-    input: SparReviewInput,
-    now = new Date(),
-  ): Promise<void> {
+  async review(me: string, requestId: string, input: SparReviewInput, now: Date): Promise<void> {
     await readMySide(this.supabase.service, me, requestId);
     const { error } = await this.supabase.service.rpc('fightbook_review', {
       p_request: requestId,

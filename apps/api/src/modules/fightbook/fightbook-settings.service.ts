@@ -22,10 +22,10 @@ export class FightBookSettingsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   /** The caller's switches and their own line (spars done, stars): the stars show here whatever the switch. */
-  async get(caller: FightBookCaller): Promise<FightBookSettings> {
+  async get(caller: FightBookCaller, now: Date): Promise<FightBookSettings> {
     const me = caller.globalPersonId;
     if (me === null) return emptySettings(false, false);
-    return this.answer(me, caller.enabled, await this.readShowStars(me));
+    return this.answer(me, caller.enabled, await this.readShowStars(me), now);
   }
 
   private async readShowStars(me: string): Promise<boolean> {
@@ -45,7 +45,11 @@ export class FightBookSettingsService {
    * it is: it is already a "Not this time", and withdrawing it would free its asker from the
    * no-asking-twice rule. Only the caller's own row is written; a key left out is left as it is.
    */
-  async set(caller: FightBookCaller, patch: FightBookSettingsPatch): Promise<FightBookSettings> {
+  async set(
+    caller: FightBookCaller,
+    patch: FightBookSettingsPatch,
+    now: Date,
+  ): Promise<FightBookSettings> {
     const profile = requireProfile(caller);
     const saved = await this.saveSwitches(profile, patch);
     await this.saveLimit(profile, patch.dailyLimit);
@@ -56,7 +60,7 @@ export class FightBookSettingsService {
         .update({ status: 'withdrawn' })
         .eq('asker_global_person_id', profile)
         .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
+        .gt('expires_at', now.toISOString());
       if (withdrawError) {
         throw new Error(`FightBook is off, but its open requests stay: ${withdrawError.message}`);
       }
@@ -66,6 +70,7 @@ export class FightBookSettingsService {
       profile,
       saved?.fightbook_enabled === true,
       saved?.fightbook_show_stars === true,
+      now,
     );
   }
 
@@ -151,9 +156,10 @@ export class FightBookSettingsService {
     if (calls.error) throw failed('its open calls stay', calls.error.message);
   }
 
-  private async answer(me: string, enabled: boolean, showStars: boolean) {
+  /** `now`: the platform clock, which says which spars are done (a time simulation moves it). */
+  private async answer(me: string, enabled: boolean, showStars: boolean, now: Date) {
     const dailyLimit = await this.readLimit(me);
-    const own = await readOwnSparLine(this.supabase.service, me);
+    const own = await readOwnSparLine(this.supabase.service, me, now);
     return { hasProfile: true, enabled, showStars, dailyLimit, ...own };
   }
 }

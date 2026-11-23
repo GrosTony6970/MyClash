@@ -41,7 +41,7 @@ describe('who starts the reminder', () => {
   it('a pick starts it with the new spar id', async () => {
     vi.mocked(scheduleSparReminders).mockClear();
     const { open } = world({ calls: [callRow({ poster_global_person_id: MARC })] });
-    await open.pick(MARC, callRow().id as string, PAUL);
+    await open.pick(MARC, callRow().id as string, PAUL, new Date());
     expect(scheduleSparReminders).toHaveBeenCalledTimes(1);
     expect(vi.mocked(scheduleSparReminders).mock.calls[0]?.[1]).toBe(SPAR);
   });

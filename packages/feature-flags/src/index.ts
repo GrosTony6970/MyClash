@@ -154,7 +154,8 @@ export interface MaintenanceBannerPayload {
  * aid that shifts the browser clock of every app (the public app, the
  * organiser live board, the display wall). The API keeps real time, except
  * where it reads `AdminFeatureFlagsService.platformNow()`: the photo upload
- * door and a personal space's photo form. It catches up with a change within
+ * door and a personal space's photo form, and FightBook's routes (an Event's
+ * days, the floor, a spar's windows). It catches up with a change within
  * 5 s (each module caches the flag).
  * A running clock is stored as an anchor:
  * `simulatedNowIso` is what the clock should read as "now" at

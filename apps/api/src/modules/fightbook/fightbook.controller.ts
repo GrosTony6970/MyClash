@@ -42,6 +42,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { publicReader } from '../../common/auth/competition-visibility';
 import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   fightBookCaller,
@@ -148,18 +149,20 @@ export class FightBookController {
     private readonly reads: SparReadsService,
     private readonly blocks: FightBookBlocksService,
     private readonly find: SparFindService,
+    /** The platform clock: an Event's days and a spar's windows follow a time simulation. */
+    private readonly clock: AdminFeatureFlagsService,
   ) {}
 
   @Get('settings')
   @ApiOperation({ summary: "The caller's FightBook switch, and whether they have a profile" })
   async getSettings(@Req() req: FastifyRequest) {
-    return this.settings.get(await this.callerOf(req));
+    return this.settings.get(await this.callerOf(req), await this.clock.platformNow());
   }
 
   @Patch('settings')
   @ApiOperation({ summary: 'Switch FightBook on or off' })
   async setSettings(@Body() dto: FightBookSettingsDto, @Req() req: FastifyRequest) {
-    return this.settings.set(await this.callerOf(req), dto);
+    return this.settings.set(await this.callerOf(req), dto, await this.clock.platformNow());
   }
 
   @Post('requests')
@@ -168,7 +171,7 @@ export class FightBookController {
   @ApiOperation({ summary: 'Ask a fighter for a spar' })
   async ask(@Body() dto: AskSparDto, @Req() req: FastifyRequest) {
     const caller = await this.callerOf(req);
-    return this.requests.ask(requireFightBookOn(caller), dto);
+    return this.requests.ask(requireFightBookOn(caller), dto, await this.clock.platformNow());
   }
 
   @Post('requests/:id/answer')
@@ -191,7 +194,8 @@ export class FightBookController {
   @ApiOperation({ summary: 'Take back my spar request still waiting' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async withdraw(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.requests.withdraw(requireProfile(await this.callerOf(req)), id);
+    const me = requireProfile(await this.callerOf(req));
+    await this.requests.withdraw(me, id, await this.clock.platformNow());
   }
 
   @Post('requests/:id/cancel')
@@ -203,20 +207,26 @@ export class FightBookController {
     @Body() dto: CancelSparDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.requests.cancel(requireProfile(await this.callerOf(req)), id, dto.message);
+    const me = requireProfile(await this.callerOf(req));
+    await this.requests.cancel(me, id, dto.message, await this.clock.platformNow());
   }
 
   @Get('inbox')
   @ApiOperation({ summary: 'Spar requests waiting for my answer' })
   async inbox(@Req() req: FastifyRequest) {
-    return this.reads.inbox(requireFightBookOn(await this.callerOf(req)));
+    const me = requireFightBookOn(await this.callerOf(req));
+    return this.reads.inbox(me, await this.clock.platformNow());
   }
 
   @Get('spars')
   @ApiOperation({ summary: 'My agreed spars, and the requests I sent' })
   async spars(@Req() req: FastifyRequest) {
     const caller = await this.callerOf(req);
-    return this.reads.mySpars(requireProfile(caller), caller.enabled);
+    return this.reads.mySpars(
+      requireProfile(caller),
+      caller.enabled,
+      await this.clock.platformNow(),
+    );
   }
 
   // Blocks need a profile, not the switch: a fighter who turned FightBook off still manages them.
@@ -258,7 +268,8 @@ export class FightBookController {
   @Get('events')
   @ApiOperation({ summary: 'The published Events I am on, with the days still open to ask for' })
   async myEvents(@Req() req: FastifyRequest) {
-    return this.find.myEvents(requireFightBookOn(await this.callerOf(req)));
+    const me = requireFightBookOn(await this.callerOf(req));
+    return this.find.myEvents(me, await this.clock.platformNow());
   }
 
   @Get('events/:eventId/askable')
@@ -282,7 +293,8 @@ export class FightBookController {
     @Req() req: FastifyRequest,
   ) {
     const me = requireFightBookOn(await this.callerOf(req));
-    return this.find.atEvent(me, eventId, query.weapon, publicReader(req));
+    const now = await this.clock.platformNow();
+    return this.find.atEvent(me, eventId, query.weapon, publicReader(req), now);
   }
 
   @Get('find')

@@ -133,9 +133,11 @@ describe('SparAfterService.undo', () => {
 
   it('answers 404 to a stranger and not_open to a spar no longer done or past its window', async () => {
     const stranger = setup();
-    await expect(stranger.service.undo(PAUL, REQUEST)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(stranger.service.undo(PAUL, REQUEST, new Date())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     const late = setup({ data: [], error: null });
-    expect(await codeOf(late.service.undo(MARC, REQUEST))).toEqual([409, 'not_open']);
+    expect(await codeOf(late.service.undo(MARC, REQUEST, new Date()))).toEqual([409, 'not_open']);
   });
 });
 

@@ -40,7 +40,7 @@ export class SparReadsService {
    * out in the query, before the cap, and again here past the in-list limit. Only my own blocks
    * are read (ruling 672). If I unblock, the request shows again while it is open.
    */
-  async inbox(me: string, now = new Date()): Promise<IncomingSparRequest[]> {
+  async inbox(me: string, now: Date): Promise<IncomingSparRequest[]> {
     const db = this.supabase.service;
     const blocked = await blockedBy(db, me);
     const query = db
@@ -73,7 +73,7 @@ export class SparReadsService {
    * My agreed, cancelled and done spars, both ways, each with what was written on it, then the
    * requests I sent and their answer.
    */
-  async mySpars(me: string, enabled: boolean, now = new Date()): Promise<MySpars> {
+  async mySpars(me: string, enabled: boolean, now: Date): Promise<MySpars> {
     const since = addDays(now.toISOString().slice(0, 10), -LOOK_BACK_DAYS) ?? '';
     const [asked, wasAsked, sent] = await Promise.all([
       this.sparsOf('asker_global_person_id', me, since),

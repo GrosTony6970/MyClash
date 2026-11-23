@@ -67,7 +67,7 @@ export class FreeNowService {
    * of the row: two taps at once leave one row). 400 `bad_event` unless the Event is public, the
    * caller is on its roster and a day of it has started and not ended.
    */
-  async switchOn(me: string, eventId: string, now = new Date()): Promise<{ until: string }> {
+  async switchOn(me: string, eventId: string, now: Date): Promise<{ until: string }> {
     const db = this.supabase.service;
     const { today, zone } = await floorEvent(db, me, eventId, now);
     if (!today) throw offTheFloor();

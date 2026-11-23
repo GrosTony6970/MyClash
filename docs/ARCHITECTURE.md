@@ -2863,6 +2863,23 @@ cards only. Marking sends the other fighter a notice (§11ter.2), started not aw
 none. `sendImmediate` dedupes per kind, spar and account for 24 h, so a mark and undo ping-pong
 buzzes once a day.
 
+**The clock.** "The API's clock" in FightBook is the platform clock
+(`AdminFeatureFlagsService.platformNow`): real time, or a super admin's time simulation while one
+runs, so a demo Event dated months ahead has its days, its floor and its windows (operator,
+2026-11-23). The controllers read it and hand it to every service method that decides by time; the
+methods take it as a required argument. The settings page's own line ("spars done") counts on it
+too; a public profile's line stays on real time. The web reads the same simulation (`useNow` of
+`@myclash/ui`, a 30-second tick, in My spars, "We sparred" and "Free to spar now"; the ask dialog's
+"today"). Real time stays where the database keeps a lifetime with `now()`: a QR code's five
+minutes (the mint), the hourly expiry sweep, the reminders, `created_at` and `agreed_at`.
+
+Known limits, while a simulation runs: the database ends a waiting request when `expires_at <=
+now()` on real time (`fightbook_ask`, `fightbook_qr_log`). A request already past its end on the
+simulated clock still waits there, so asking that fighter again, or scanning their code, answers
+409 `already_asked` where the page shows "Not this time". And `fightbook_answer`,
+`fightbook_call_pick` and `fightbook_call_take_back` compare with real time: a call closed on the
+simulated clock is still picked, and a simulation set in the PAST refuses all three.
+
 **Two review tables, and why.** `spar_thanks` is a signed thank-you: 1-5 stars and an optional text
 of up to 500 characters; its subject sees who wrote it (ruling 690). `spar_anonymous_reviews` is the
 same without a text, and the writer is never named to the subject, in a payload, on a card, in a
@@ -5144,7 +5161,7 @@ mode is not Off; the upload window is open (`photo-window.ts`: from the start of
 Event's first day to the end of the day after its last day, on the Event's clock); the limits are
 not reached. "Now" for the window is the platform clock (`AdminFeatureFlagsService.platformNow`):
 real time, or a super admin's time simulation while one runs, so a demo Event dated months ahead
-takes photos. It is the one server door that follows the simulation; the rest of the API keeps
+takes photos. FightBook follows it too (§11septies, "The clock"); the rest of the API keeps
 real time (operator, 2026-11-23). The limits are 20 photos an hour per phone or per account, 300 an hour per Event, and
 15 GB stored per Event. Two uploads may read a count before either writes, so a cap can be passed
 by at most four photos (`PHOTO_UPLOAD_SLOTS`); accepted.

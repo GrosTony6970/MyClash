@@ -81,7 +81,7 @@ async function publicLine(
 export async function readOwnSparLine(
   db: Db,
   me: string,
-  now: Date = new Date(),
+  now: Date,
 ): Promise<Pick<FightBookSettings, 'sparred' | 'stars'>> {
   try {
     const [sparred, stars] = await Promise.all([countSparred(db, me, now), readStars(db, me)]);

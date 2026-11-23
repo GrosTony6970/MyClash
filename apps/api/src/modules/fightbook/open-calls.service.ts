@@ -61,7 +61,7 @@ export class OpenCallsService {
   ) {}
 
   /** Today's calls at an Event I am at (Decision 8); none on a day the Event does not run. */
-  async read(me: string, eventId: string, now = new Date()): Promise<OpenCallsAtEvent> {
+  async read(me: string, eventId: string, now: Date): Promise<OpenCallsAtEvent> {
     const db = this.supabase.service;
     const { today } = await floorEvent(db, me, eventId, now);
     if (!today) return { mine: [], others: [] };
@@ -76,7 +76,7 @@ export class OpenCallsService {
     me: string,
     eventId: string,
     input: { weapons: string[]; time: string },
-    now = new Date(),
+    now: Date,
   ): Promise<{ id: string }> {
     const db = this.supabase.service;
     const { today, zone } = await floorEvent(db, me, eventId, now);
@@ -133,7 +133,7 @@ export class OpenCallsService {
    * once its Event is no longer public, as the read; 409 `not_open` once it closed or was picked.
    * The poster's notice is started, not awaited.
    */
-  async answer(me: string, callId: string, now = new Date()): Promise<void> {
+  async answer(me: string, callId: string, now: Date): Promise<void> {
     const db = this.supabase.service;
     const call = await this.visibleCall(me, callId);
     if (call.poster_global_person_id === me) throw badRequest('self', 'This is your own call');
@@ -178,7 +178,7 @@ export class OpenCallsService {
     me: string,
     callId: string,
     answerer: string,
-    now = new Date(),
+    now: Date,
   ): Promise<{ requestId: string }> {
     const db = this.supabase.service;
     const { data: row, error: readError } = await db

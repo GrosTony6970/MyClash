@@ -5,7 +5,9 @@ import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
 import { configureHttpApp } from '../../common/http-bootstrap';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FightBookBlocksService } from './fightbook-blocks.service';
 import { FightBookSettingsService } from './fightbook-settings.service';
@@ -33,7 +35,9 @@ const claimedGuard: CanActivate = {
   },
 };
 
-const set = vi.fn(async (_caller: unknown, dto: unknown) => dto);
+/** The platform clock under a time simulation: the save takes it (it withdraws requests not yet over). */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
+const set = vi.fn(async (_caller: unknown, dto: unknown, _now: Date) => dto);
 let app: NestFastifyApplication;
 
 beforeAll(async () => {
@@ -61,6 +65,7 @@ beforeAll(async () => {
       { provide: SparReadsService, useValue: {} },
       { provide: FightBookBlocksService, useValue: {} },
       { provide: SparFindService, useValue: {} },
+      { provide: AdminFeatureFlagsService, useValue: platformClock(SIM) },
     ],
   }).compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
@@ -97,5 +102,6 @@ describe('PATCH /api/v1/me/fightbook/settings (the real pipe)', () => {
     expect(res.statusCode).toBe(200);
     expect(set).toHaveBeenCalledTimes(1);
     expect(set.mock.calls[0]?.[1]).toEqual({ dailyLimit: 3 });
+    expect(set.mock.calls[0]?.[2]).toBe(SIM);
   });
 });

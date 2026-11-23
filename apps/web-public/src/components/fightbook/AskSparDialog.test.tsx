@@ -61,7 +61,8 @@ function serve(events: unknown, post: Answer = { ok: true, data: { id: 'r-1' } }
 
 const settled = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 
-async function openDialog(eventId?: string) {
+// The runtime flags are cached per API address: a test that serves its own flags uses its own.
+async function openDialog(eventId?: string, apiUrl = 'http://api.test') {
   await act(async () =>
     root.render(
       <I18nProvider locale="en">
@@ -69,7 +70,7 @@ async function openDialog(eventId?: string) {
           receiverGlobalPersonId={MARC}
           name="Marc Probe"
           eventId={eventId}
-          apiUrl="http://api.test"
+          apiUrl={apiUrl}
           onSent={onSent}
         />
       </I18nProvider>,
@@ -148,6 +149,41 @@ describe('AskSparDialog', () => {
       message: 'Un petit assaut',
       weapons: ['Rapier'],
     });
+  });
+
+  it('starts a free date on the platform clock: today under a time simulation', async () => {
+    // Frozen on 23 May 2027 by a super admin while this browser's clock reads November 2026.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-23T10:00:00Z'));
+    const flags = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        maintenanceBanner: { enabled: false, message: null, severity: null },
+        realtimeDisabled: false,
+        timeSimulation: {
+          enabled: true,
+          simulatedNowIso: '2027-05-23T11:31:00.000Z',
+          anchorRealIso: '2026-11-23T09:00:00.000Z',
+          mode: 'frozen',
+        },
+        serverNowIso: '2026-11-23T10:00:00.000Z',
+      }),
+    }));
+    vi.stubGlobal('fetch', flags);
+    try {
+      serve([]);
+      await openDialog(undefined, 'http://simulated.test');
+      await settled();
+      const date = dialog().querySelector<HTMLInputElement>('input[type="date"]')!;
+      expect(flags).toHaveBeenCalledWith(
+        'http://simulated.test/api/v1/public/feature-flags',
+        expect.anything(),
+      );
+      expect(date.value).toBe('2027-05-23');
+      expect(date.min).toBe('2027-05-23');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('offers no Event choice when she is on no Event', async () => {

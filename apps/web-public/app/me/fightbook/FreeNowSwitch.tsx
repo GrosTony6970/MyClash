@@ -2,11 +2,10 @@
 
 import { useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { Switch } from '@myclash/ui';
+import { Switch, useNow } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { signInAgainHere } from '@/lib/sign-in-return';
 import { useInFlight } from './use-in-flight';
-import { useNow } from './use-now';
 
 /**
  * "Free to spar now" at one Event. On posts for an hour (the API answers the end, capped at the
@@ -14,13 +13,14 @@ import { useNow } from './use-now';
  * never errs. The end shows as a clock time in the reader's zone: `freeUntil` is an instant and
  * the Event block reads no zone for the Event, so the phone's zone is the one at hand (the same
  * zone the ask dialog sends for a free-date spar). The switch drops off on its own when the end
- * passes (`useNow`). Mount it keyed by the Event so the state never carries to another.
+ * passes, within the platform clock's 30-second tick (`useNow`, which a time simulation moves).
+ * Mount it keyed by the Event so the state never carries to another.
  */
 function useFreeNow(apiUrl: string, eventId: string, freeUntil: string | null) {
   const [until, setUntil] = useState(freeUntil);
   const [failed, setFailed] = useState(false);
   const { inFlight, run } = useInFlight();
-  const now = useNow(until ? [until] : []);
+  const now = useNow(apiUrl);
   const on = until !== null && Date.parse(until) > now;
   const change = async (next: boolean) => {
     setFailed(false);

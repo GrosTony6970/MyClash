@@ -148,7 +148,7 @@ describe('SparRequestsService.cancel', () => {
 
   it('answers 404 to a stranger: a 403 would confirm the request exists', async () => {
     const { service, send } = setup();
-    await expect(service.cancel(PAUL, REQUEST, undefined)).rejects.toBeInstanceOf(
+    await expect(service.cancel(PAUL, REQUEST, undefined, new Date())).rejects.toBeInstanceOf(
       NotFoundException,
     );
     await settle();

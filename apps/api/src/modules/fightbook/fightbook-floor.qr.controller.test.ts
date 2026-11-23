@@ -3,11 +3,15 @@ import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
 import { ThrottleFightBookQrMint } from '../../common/throttling/throttle-fightbook-qr-mint';
 import { ThrottleFightBookScan } from '../../common/throttling/throttle-fightbook-scan';
 import { FightBookFloorController, scanSchema } from './fightbook-floor.controller';
+
+/** The platform clock under a super admin's time simulation: what every route must pass on. */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -41,6 +45,7 @@ function controller({ on = false } = {}) {
     {} as never,
     {} as never,
     qr as never,
+    platformClock(SIM),
   );
   return { ctl, qr };
 }
@@ -64,12 +69,13 @@ describe('FightBookFloorController, my FightBook QR', () => {
     const { ctl, qr } = controller({ on: true });
     expect(await ctl.mintQr(req())).toEqual({ code: CODE, expiresAt: '2026-05-23T14:05:00.000Z' });
     expect(qr.mint).toHaveBeenCalledWith(MARC);
+    expect(qr.mint.mock.calls[0]).toHaveLength(1);
   });
 
   it('scans as the caller own profile', async () => {
     const { ctl, qr } = controller({ on: true });
     expect(await ctl.scanQr(ELSEWHERE, req())).toEqual({ id: 'spar-1' });
-    expect(qr.scan).toHaveBeenCalledWith(MARC, ELSEWHERE);
+    expect(qr.scan).toHaveBeenCalledWith(MARC, ELSEWHERE, SIM);
   });
 
   it('refuses both with FightBook off (they add presence)', async () => {

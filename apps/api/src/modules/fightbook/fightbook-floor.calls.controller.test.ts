@@ -3,10 +3,14 @@ import { HTTP_CODE_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constant
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { ThrottleFightBookAsk } from '../../common/throttling/throttle-fightbook-ask';
 import { ThrottleFightBookCall } from '../../common/throttling/throttle-fightbook-call';
 import { FightBookFloorController, pickSchema, postCallSchema } from './fightbook-floor.controller';
+
+/** The platform clock under a super admin's time simulation: what every route must pass on. */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const PAUL = '2d9e5c74-9f7b-4c79-9b77-3d3b5b7e4c23';
@@ -47,6 +51,7 @@ function controller({ on = false, hasProfile = true } = {}) {
     {} as never,
     open as never,
     {} as never,
+    platformClock(SIM),
   );
   return { ctl, open };
 }
@@ -65,25 +70,25 @@ describe('FightBookFloorController, open calls that add presence: FightBook on',
       'readCalls',
       (c: FightBookFloorController) => c.readCalls(EVENT, req()),
       'read',
-      [MARC, EVENT],
+      [MARC, EVENT, SIM],
     ],
     [
       'postCall',
       (c: FightBookFloorController) => c.postCall(EVENT, BODY, req()),
       'post',
-      [MARC, EVENT, BODY],
+      [MARC, EVENT, BODY, SIM],
     ],
     [
       'answerCall',
       (c: FightBookFloorController) => c.answerCall(CALL, req()),
       'answer',
-      [MARC, CALL],
+      [MARC, CALL, SIM],
     ],
     [
       'pickAnswer',
       (c: FightBookFloorController) => c.pickAnswer(CALL, { globalPersonId: PAUL }, req()),
       'pick',
-      [MARC, CALL, PAUL],
+      [MARC, CALL, PAUL, SIM],
     ],
   ] as const)('%s acts on my own profile', async (_, call, method, args) => {
     const { ctl, open } = controller({ on: true });

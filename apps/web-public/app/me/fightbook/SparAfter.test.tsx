@@ -118,6 +118,47 @@ async function type(field: Element, value: string) {
 // Joined, not written whole: the route-contract test reads every /api/v1 literal as a real route.
 const R = ['/api', 'v1', 'me/fightbook/requests/s-1'].join('/');
 
+describe('We sparred on the platform clock', () => {
+  // A super admin froze the platform clock on the spar day; this browser's own clock is the day
+  // before. The page reads the platform's time, as the API does (operator, 2026-11-23).
+  const SIM_API = 'http://simulated.test';
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is offered on the simulated spar day while the real clock is the day before', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          maintenanceBanner: { enabled: false, message: null, severity: null },
+          realtimeDisabled: false,
+          timeSimulation: {
+            enabled: true,
+            simulatedNowIso: SPAR_DAY,
+            anchorRealIso: BEFORE,
+            mode: 'frozen',
+          },
+          serverNowIso: BEFORE,
+        }),
+      })),
+    );
+    at(BEFORE);
+    await act(async () =>
+      root.render(
+        <I18nProvider locale="en">
+          <MySparsTab apiUrl={SIM_API} spars={{ spars: [spar()], sent: [] }} {...handlers} />
+        </I18nProvider>,
+      ),
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      `${SIM_API}/api/v1/public/feature-flags`,
+      expect.anything(),
+    );
+    expect(button('We sparred')).toBeDefined();
+  });
+});
+
 describe('We sparred and Undo', () => {
   it('is not offered before the spar day, and Cancel still is', async () => {
     await show(spar(), BEFORE);

@@ -3,6 +3,7 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
   askableQuerySchema,
@@ -10,6 +11,9 @@ import {
   FightBookController,
   findQuerySchema,
 } from './fightbook.controller';
+
+/** The platform clock under a super admin's time simulation: what every route must pass on. */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -46,6 +50,7 @@ function controller({ on = false } = {}) {
     askableAtEvent: vi.fn(),
     atEvent: vi.fn(),
     browse: vi.fn(),
+    myEvents: vi.fn(),
   };
   const ctl = new FightBookController(
     supabase as never,
@@ -54,6 +59,7 @@ function controller({ on = false } = {}) {
     reads as never,
     {} as never,
     find as never,
+    platformClock(SIM),
   );
   return { ctl, reads, requests, find };
 }
@@ -68,19 +74,19 @@ describe('FightBookController, a fighter who switched FightBook off', () => {
   it('still reads My spars (ruling 666: Julie keeps the Saturday she agreed)', async () => {
     const { ctl, reads } = controller();
     await ctl.spars(req);
-    expect(reads.mySpars).toHaveBeenCalledWith(MARC, false);
+    expect(reads.mySpars).toHaveBeenCalledWith(MARC, false, SIM);
   });
 
   it('still cancels an agreed spar', async () => {
     const { ctl, requests } = controller();
     await ctl.cancel(SPAR, { message: 'Sick' } as never, req);
-    expect(requests.cancel).toHaveBeenCalledWith(MARC, SPAR, 'Sick');
+    expect(requests.cancel).toHaveBeenCalledWith(MARC, SPAR, 'Sick', SIM);
   });
 
   it('still takes back a request left waiting (the switch-off withdraw failed half way)', async () => {
     const { ctl, requests } = controller();
     await ctl.withdraw(SPAR, req);
-    expect(requests.withdraw).toHaveBeenCalledWith(MARC, SPAR);
+    expect(requests.withdraw).toHaveBeenCalledWith(MARC, SPAR, SIM);
   });
 
   it('may not ask, answer or read the Inbox', async () => {
@@ -133,14 +139,33 @@ describe('FightBookController, the find routes', () => {
     expect(parse({ foo: 'x' }).success).toBe(false);
   });
 
+  // A day of a demo Event months ahead is past the last askable day on real time: every ask
+  // would be refused there. The platform clock must reach the ask, the Inbox and my Events.
+  it('asks, reads the Inbox and lists my Events on the platform clock', async () => {
+    const { ctl, requests, reads, find } = controller({ on: true });
+    const body = { kind: 'event' } as never;
+    await ctl.ask(body, req);
+    await ctl.inbox(req);
+    await ctl.myEvents(req);
+    expect(requests.ask).toHaveBeenCalledWith(MARC, body, SIM);
+    expect(reads.inbox).toHaveBeenCalledWith(MARC, SIM);
+    expect(find.myEvents).toHaveBeenCalledWith(MARC, SIM);
+  });
+
   // q and weapon are both optional strings: a swap would still type-check.
   it('hands the Event block my profile, the Event, the weapon and who reads', async () => {
     const { ctl, find } = controller({ on: true });
     await ctl.findAtEvent(SPAR, { weapon: WEAPON } as never, req);
-    expect(find.atEvent).toHaveBeenCalledWith(MARC, SPAR, WEAPON, {
-      userId: ACCOUNT,
-      staff: null,
-    });
+    expect(find.atEvent).toHaveBeenCalledWith(
+      MARC,
+      SPAR,
+      WEAPON,
+      {
+        userId: ACCOUNT,
+        staff: null,
+      },
+      SIM,
+    );
   });
 
   it('hands the browse my profile, the name, the weapon and the page, in that order', async () => {

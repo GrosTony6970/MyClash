@@ -34,7 +34,7 @@ export class SparFlagService {
     me: string,
     requestId: string,
     input: { reason: SparFlagReason; text: string },
-    now = new Date(),
+    now: Date,
   ): Promise<void> {
     const db = this.supabase.service;
     const { row } = await readMySide(db, me, requestId);

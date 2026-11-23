@@ -26,7 +26,7 @@ const pickArgs = (supabase: ReturnType<typeof world>['supabase']) =>
 describe('OpenCallsService.pick', () => {
   it('agrees the spar in one database call, ending with the Event day, and answers its id', async () => {
     const { open, supabase } = world({ calls: [MINE] });
-    expect(await open.pick(MARC, CALL, PAUL)).toEqual({ requestId: SPAR });
+    expect(await open.pick(MARC, CALL, PAUL, new Date())).toEqual({ requestId: SPAR });
     expect(supabase.rpc.mock.calls[0]?.[0]).toBe('fightbook_call_pick');
     expect(Object.keys(pickArgs(supabase) ?? {})).toEqual(
       lastFunctionParams('fightbook_call_pick'),
@@ -48,7 +48,7 @@ describe('OpenCallsService.pick', () => {
 
   it('tells the fighter picked, about the spar', async () => {
     const { open, send } = world({ calls: [MINE] });
-    await open.pick(MARC, CALL, PAUL);
+    await open.pick(MARC, CALL, PAUL, new Date());
     await settle();
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(
@@ -62,22 +62,22 @@ describe('OpenCallsService.pick', () => {
 
   it('answers 404 for a call that is not mine, and calls nothing', async () => {
     const { open, supabase } = world({ calls: [callRow()] });
-    expect((await codeOf(open.pick(MARC, callRow().id as string, PAUL)))[0]).toBe(404);
+    expect((await codeOf(open.pick(MARC, callRow().id as string, PAUL, new Date())))[0]).toBe(404);
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('refuses a pick at an Event turned draft, as the read does: bad_event, and calls nothing', async () => {
     const { open, supabase } = world({ calls: [{ ...MINE, event_id: DRAFT_EVENT }] });
-    expect(await codeOf(open.pick(MARC, CALL, PAUL))).toEqual([400, 'bad_event']);
+    expect(await codeOf(open.pick(MARC, CALL, PAUL, new Date()))).toEqual([400, 'bad_event']);
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('answers the database’s not_open as 409, and tells nobody', async () => {
     const refused = { data: null, error: { code: 'P0001', message: 'not_open' } };
     const { open, send } = world({ calls: [MINE], pick: refused as never });
-    const outcome = open.pick(MARC, CALL, PAUL);
+    const outcome = open.pick(MARC, CALL, PAUL, new Date());
     await expect(outcome).rejects.toBeInstanceOf(ConflictException);
-    expect(await codeOf(open.pick(MARC, CALL, PAUL))).toEqual([409, 'not_open']);
+    expect(await codeOf(open.pick(MARC, CALL, PAUL, new Date()))).toEqual([409, 'not_open']);
     await settle();
     expect(send).not.toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe('OpenCallsService.pick', () => {
   it('turns any other database error into a 5xx', async () => {
     const broken = { data: null, error: { code: 'XX000', message: 'boom' } };
     const { open } = world({ calls: [MINE], pick: broken as never });
-    await expect(open.pick(MARC, CALL, PAUL)).rejects.toThrow('boom');
+    await expect(open.pick(MARC, CALL, PAUL, new Date())).rejects.toThrow('boom');
   });
 
   it('answers before the notice settles', async () => {
@@ -101,7 +101,7 @@ describe('OpenCallsService.pick', () => {
     } as unknown as SparNoticeDeps;
     const answered = await Promise.race([
       withNoticeDeps(open, deps)
-        .pick(MARC, CALL, PAUL)
+        .pick(MARC, CALL, PAUL, new Date())
         .then(() => 'answered'),
       new Promise((resolve) => setTimeout(() => resolve('waited'), 50)),
     ]);

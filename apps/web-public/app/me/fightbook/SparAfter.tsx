@@ -3,9 +3,8 @@
 import { useId, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { AgreedSpar } from '@myclash/types';
-import { Button } from '@myclash/ui';
+import { Button, useNow } from '@myclash/ui';
 import { SparFlag } from './SparFlag';
-import { useNow } from './use-now';
 import { useSparAfter, type AfterHandlers, type ReviewInput } from './use-spar-after';
 
 const TEXT_BOX =
@@ -175,7 +174,7 @@ export function SparAfter(props: { apiUrl: string; spar: AgreedSpar } & AfterHan
   const { t } = useI18n();
   const { apiUrl, spar, ...handlers } = props;
   const momentLabel = useMomentLabel();
-  const now = useNow([spar.markFrom, spar.markUntil]);
+  const now = useNow(apiUrl);
   const after = useSparAfter(apiUrl, spar.id, handlers);
   const closed = now >= Date.parse(spar.markUntil);
   const open = !closed && now >= Date.parse(spar.markFrom);

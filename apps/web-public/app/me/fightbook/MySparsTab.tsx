@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { AgreedSpar, MySpars, SentSparRequest } from '@myclash/types';
-import { Button, EmptyState, usePrompt } from '@myclash/ui';
+import { Button, EmptyState, useNow, usePrompt } from '@myclash/ui';
 import { writeFightBook } from '@/lib/fightbook/read-fightbook';
 import { sparRefusalKey } from '@/lib/fightbook/refusal';
 import { useDayLabel } from '@/components/fightbook/day-label';
@@ -12,7 +12,6 @@ import { SparAfter } from './SparAfter';
 import { SparCard } from './SparCard';
 import { ThanksList } from './ThanksList';
 import { useInFlight } from './use-in-flight';
-import { useNow } from './use-now';
 import type { AfterHandlers } from './use-spar-after';
 
 type Hearted = (globalPersonId: string, favourite: boolean) => void;
@@ -195,7 +194,7 @@ function SparDays(
 ) {
   const dayLabel = useDayLabel();
   // Cancel goes at the day's end; the API judges it again.
-  const now = useNow(props.spars.map((s) => s.cancelUntil));
+  const now = useNow(props.apiUrl);
   return byDay(props.spars).map(([day, ofDay]) => (
     <section key={day}>
       <h3 data-spar-day className="mb-2 text-sm font-semibold text-foreground">

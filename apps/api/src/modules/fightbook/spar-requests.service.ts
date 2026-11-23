@@ -122,7 +122,7 @@ export class SparRequestsService {
    * notice of a waiting ask is started and NOT awaited, so the blocked ask (which sends none) is
    * no faster (ruling 660 accepts that an instant no may still be guessed).
    */
-  async ask(asker: string, input: AskSparInput, now = new Date()): Promise<{ id: string }> {
+  async ask(asker: string, input: AskSparInput, now: Date): Promise<{ id: string }> {
     const where = input.kind === 'event' ? await this.atEvent(asker, input) : onFreeDate(input);
     const expires = sparExpiresAt(input.kind, input.day, where.zone);
     const lastDay = addDays(now.toISOString().slice(0, 10), SPAR_MAX_DAYS_AHEAD);
@@ -179,7 +179,7 @@ export class SparRequestsService {
    * past its end is already a "no": withdrawing it would show the asker it ran out, and free them
    * from the no-asking-twice rule. Lost to an answer or to its end: 409 `not_open`. No notice.
    */
-  async withdraw(me: string, requestId: string, now = new Date()): Promise<void> {
+  async withdraw(me: string, requestId: string, now: Date): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('spar_requests')
       .update({ status: 'withdrawn' })
@@ -203,7 +203,7 @@ export class SparRequestsService {
     me: string,
     requestId: string,
     message: string | undefined,
-    now = new Date(),
+    now: Date,
   ): Promise<void> {
     const { side, other } = await readMySide(this.supabase.service, me, requestId);
     const { data: won, error: writeError } = await this.supabase.service

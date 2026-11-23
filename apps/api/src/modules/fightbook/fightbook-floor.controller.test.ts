@@ -3,8 +3,12 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { FightBookFloorController } from './fightbook-floor.controller';
+
+/** The platform clock under a super admin's time simulation: what every route must pass on. */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -40,6 +44,7 @@ function controller({ on = false, hasProfile = true } = {}) {
       freeNow as never,
       {} as never,
       {} as never,
+      platformClock(SIM),
     ),
     freeNow,
   };
@@ -55,7 +60,7 @@ describe('FightBookFloorController, switching on', () => {
   it('acts on the caller own profile and answers the time', async () => {
     const { ctl, freeNow } = controller({ on: true });
     expect(await ctl.switchOn(EVENT, req(claimed))).toEqual({ until: '2026-05-23T19:00:00.000Z' });
-    expect(freeNow.switchOn).toHaveBeenCalledWith(MARC, EVENT);
+    expect(freeNow.switchOn).toHaveBeenCalledWith(MARC, EVENT, SIM);
   });
 
   it('is refused when FightBook is off (it adds presence)', async () => {

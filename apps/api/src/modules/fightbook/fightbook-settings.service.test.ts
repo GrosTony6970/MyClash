@@ -9,6 +9,8 @@ import {
 import { settingsSchema } from './fightbook.controller';
 import { FightBookSettingsService } from './fightbook-settings.service';
 
+/** The clock for the reads and saves that do not test it. */
+const NOW = new Date();
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const LEA = '2d1e5c74-9f7b-4c79-9b77-3d3d5b7e4c03';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -64,7 +66,7 @@ describe('settingsSchema', () => {
 describe('FightBookSettingsService', () => {
   it('answers the switches and the caller’s own line, stars shown whatever the switch', async () => {
     const { settings, supabase } = service(true, false);
-    expect(await settings.get(live(true))).toEqual({
+    expect(await settings.get(live(true), NOW)).toEqual({
       hasProfile: true,
       enabled: true,
       showStars: false,
@@ -97,7 +99,7 @@ describe('FightBookSettingsService', () => {
         { fightbook_star_line: () => (failure === 'star' ? boom : { data: STARS, error: null }) },
       );
       const settings = new FightBookSettingsService(supabase as never);
-      expect(await settings.get(live(true))).toEqual({
+      expect(await settings.get(live(true), NOW)).toEqual({
         hasProfile: true,
         enabled: true,
         showStars: true,
@@ -114,7 +116,9 @@ describe('FightBookSettingsService', () => {
 
   it('answers a caller with no profile with no read', async () => {
     const { settings, supabase } = service(true);
-    expect(await settings.get({ userId: ACCOUNT, globalPersonId: null, enabled: false })).toEqual({
+    expect(
+      await settings.get({ userId: ACCOUNT, globalPersonId: null, enabled: false }, NOW),
+    ).toEqual({
       hasProfile: false,
       enabled: false,
       showStars: false,
@@ -132,14 +136,14 @@ describe('FightBookSettingsService', () => {
 
     it("reads the caller's own limit, never another profile's", async () => {
       const { settings, supabase } = service(true, false, 3);
-      expect(await settings.get(live(true))).toMatchObject({ dailyLimit: 3 });
+      expect(await settings.get(live(true), NOW)).toMatchObject({ dailyLimit: 3 });
       expect(selectsFor(supabase.from, 'fightbook_daily_limits')).toEqual(['daily_limit']);
       expect(limitFilters(supabase)).toEqual([['global_person_id', MARC]]);
     });
 
     it('answers null when no row is stored', async () => {
       const { settings } = service(true, false, null);
-      expect(await settings.get(live(true))).toMatchObject({ dailyLimit: null });
+      expect(await settings.get(live(true), NOW)).toMatchObject({ dailyLimit: null });
     });
 
     it('throws when the limit read fails, as the stars read does', async () => {
@@ -147,14 +151,14 @@ describe('FightBookSettingsService', () => {
         global_persons: { data: { fightbook_show_stars: false }, error: null },
         fightbook_daily_limits: { data: null, error: { message: 'boom' } },
       });
-      await expect(new FightBookSettingsService(supabase as never).get(live(true))).rejects.toThrow(
-        'FightBook daily limit read failed: boom',
-      );
+      await expect(
+        new FightBookSettingsService(supabase as never).get(live(true), NOW),
+      ).rejects.toThrow('FightBook daily limit read failed: boom');
     });
 
     it('upserts the limit on the profile column, and writes nothing to global_persons', async () => {
       const { settings, supabase } = service(true, false, 4);
-      expect(await settings.set(live(true), { dailyLimit: 4 })).toMatchObject({
+      expect(await settings.set(live(true), { dailyLimit: 4 }, NOW)).toMatchObject({
         enabled: true,
         dailyLimit: 4,
       });
@@ -174,7 +178,7 @@ describe('FightBookSettingsService', () => {
 
     it('answers the stored switches on a limit-only save', async () => {
       const { settings, supabase } = service(true, true, 4);
-      expect(await settings.set(live(true), { dailyLimit: 4 })).toMatchObject({
+      expect(await settings.set(live(true), { dailyLimit: 4 }, NOW)).toMatchObject({
         enabled: true,
         showStars: true,
       });
@@ -186,7 +190,7 @@ describe('FightBookSettingsService', () => {
 
     it('deletes the caller’s row on null, and only theirs', async () => {
       const { settings, supabase } = service(true, false, null);
-      expect(await settings.set(live(true), { dailyLimit: null })).toMatchObject({
+      expect(await settings.set(live(true), { dailyLimit: null }, NOW)).toMatchObject({
         dailyLimit: null,
       });
       const [write] = writesTo(supabase, 'fightbook_daily_limits');
@@ -200,7 +204,9 @@ describe('FightBookSettingsService', () => {
 
     it('a switch-only save touches no limit row and answers the stored limit', async () => {
       const { settings, supabase } = service(true, false, 3);
-      expect(await settings.set(live(false), { enabled: true })).toMatchObject({ dailyLimit: 3 });
+      expect(await settings.set(live(false), { enabled: true }, NOW)).toMatchObject({
+        dailyLimit: 3,
+      });
       expect(writesTo(supabase, 'fightbook_daily_limits')).toEqual([]);
     });
 
@@ -216,7 +222,7 @@ describe('FightBookSettingsService', () => {
         fightbook_daily_limits: { data: null, error: { message: 'boom' } },
       });
       await expect(
-        new FightBookSettingsService(supabase as never).set(live(true), { dailyLimit }),
+        new FightBookSettingsService(supabase as never).set(live(true), { dailyLimit }, NOW),
       ).rejects.toThrow('FightBook daily limit write failed: boom');
     });
 
@@ -229,14 +235,14 @@ describe('FightBookSettingsService', () => {
         fightbook_daily_limits: { rows: [] },
       });
       await expect(
-        new FightBookSettingsService(supabase as never).set(live(true), patch),
+        new FightBookSettingsService(supabase as never).set(live(true), patch, NOW),
       ).rejects.toThrow(message);
     });
   });
 
   it('saves the switch on the caller’s own profile and answers what was saved', async () => {
     const { settings, supabase } = service(true);
-    expect(await settings.set(live(false), { enabled: true })).toMatchObject({
+    expect(await settings.set(live(false), { enabled: true }, NOW)).toMatchObject({
       hasProfile: true,
       enabled: true,
       showStars: false,
@@ -249,7 +255,7 @@ describe('FightBookSettingsService', () => {
 
   it('saves the stars switch on the caller’s row only, leaving FightBook as it is', async () => {
     const { settings, supabase } = service(true, true);
-    const saved = await settings.set(live(true), { showStars: true });
+    const saved = await settings.set(live(true), { showStars: true }, NOW);
     expect(saved).toMatchObject({ enabled: true, showStars: true, stars: STARS });
     const [write] = writesTo(supabase, 'global_persons');
     expect(write?.row).toEqual({ fightbook_show_stars: true });
@@ -263,13 +269,14 @@ describe('FightBookSettingsService', () => {
 
   it('switching on takes back nothing', async () => {
     const { settings, supabase } = service(true);
-    await settings.set(live(false), { enabled: true });
+    await settings.set(live(false), { enabled: true }, NOW);
     expect(writesTo(supabase, 'spar_requests')).toEqual([]);
   });
 
   it("switching off takes back the caller's own requests still open", async () => {
     const { settings, supabase } = service(false);
-    await settings.set(live(true), { enabled: false });
+    const now = new Date('2027-05-23T11:31:00.000Z'); // the clock given, a simulation's included
+    await settings.set(live(true), { enabled: false }, now);
     const [withdraw] = writesTo(supabase, 'spar_requests');
     expect(withdraw?.row).toEqual({ status: 'withdrawn' });
     // The first two filters are the withdrawal's; the own-line count after it is a second read.
@@ -279,114 +286,18 @@ describe('FightBookSettingsService', () => {
     ]);
     // Past its end, a request is already a no: withdrawing it would let its asker ask again.
     expect(filtersFor(supabase.from, 'spar_requests', 'gt')).toEqual([
-      ['expires_at', expect.any(String)],
+      ['expires_at', now.toISOString()],
     ]);
-  });
-
-  describe('switching off takes the caller off the floor', () => {
-    const FOE = '3e2f6d85-0a8c-4d8a-8c88-4e4e6c8f5d34';
-    function floorService(overrides: Record<string, unknown> = {}) {
-      const supabase = mockSupabase({
-        global_persons: {
-          data: { fightbook_enabled: false, fightbook_show_stars: false },
-          error: null,
-        },
-        spar_requests: { data: [], error: null, count: 3 },
-        fightbook_daily_limits: { rows: [] },
-        fightbook_free_now: {
-          rows: [
-            { id: 'fn-1', global_person_id: MARC },
-            { id: 'fn-2', global_person_id: FOE },
-          ],
-        },
-        fightbook_qr_codes: {
-          rows: [
-            { id: 'q-1', global_person_id: MARC },
-            { id: 'q-2', global_person_id: FOE },
-          ],
-        },
-        spar_open_call_answers: {
-          rows: [
-            { id: 'oa-1', answerer_global_person_id: MARC },
-            { id: 'oa-2', answerer_global_person_id: FOE },
-          ],
-        },
-        spar_open_calls: {
-          rows: [
-            { id: 'c-1', poster_global_person_id: MARC, status: 'open' },
-            { id: 'c-2', poster_global_person_id: MARC, status: 'picked' },
-            { id: 'c-3', poster_global_person_id: FOE, status: 'open' },
-          ],
-        },
-        ...overrides,
-      } as never);
-      return supabase;
-    }
-    const build = (overrides: Record<string, unknown> = {}) => {
-      const supabase = floorService(overrides);
-      return { settings: new FightBookSettingsService(supabase as never), supabase };
-    };
-
-    it("deletes the caller's free-now row, codes and answers, each scoped to the caller", async () => {
-      const { settings, supabase } = build();
-      await settings.set(live(true), { enabled: false });
-      expect(filtersFor(supabase.from, 'fightbook_free_now', 'eq')).toEqual([
-        ['global_person_id', MARC],
-      ]);
-      expect(filtersFor(supabase.from, 'fightbook_qr_codes', 'eq')).toEqual([
-        ['global_person_id', MARC],
-      ]);
-      expect(filtersFor(supabase.from, 'spar_open_call_answers', 'eq')).toEqual([
-        ['answerer_global_person_id', MARC],
-      ]);
-      for (const table of ['fightbook_free_now', 'fightbook_qr_codes', 'spar_open_call_answers']) {
-        expect(writesTo(supabase, table).map((w) => w.op)).toEqual(['delete']);
-      }
-    });
-
-    it("closes only the caller's OPEN calls", async () => {
-      const { settings, supabase } = build();
-      await settings.set(live(true), { enabled: false });
-      const [close] = writesTo(supabase, 'spar_open_calls');
-      expect(close?.op).toBe('update');
-      expect(close?.row).toEqual({ status: 'closed' });
-      expect(filtersFor(supabase.from, 'spar_open_calls', 'eq')).toEqual([
-        ['poster_global_person_id', MARC],
-        ['status', 'open'],
-      ]);
-    });
-
-    it('switching on, or saving the stars switch alone, touches no floor row', async () => {
-      const { settings, supabase } = build();
-      await settings.set(live(false), { enabled: true });
-      await settings.set(live(true), { showStars: true });
-      for (const table of [
-        'fightbook_free_now',
-        'fightbook_qr_codes',
-        'spar_open_call_answers',
-        'spar_open_calls',
-      ]) {
-        expect(writesTo(supabase, table), table).toEqual([]);
-      }
-    });
-
-    it.each([
-      ['fightbook_free_now', 'its free-now mark stays'],
-      ['fightbook_qr_codes', 'its QR codes stay'],
-      ['spar_open_call_answers', 'its open-call answers stay'],
-      ['spar_open_calls', 'its open calls stay'],
-    ])('a failed %s write throws, naming what stays', async (table, what) => {
-      const { settings } = build({ [table]: { data: null, error: { message: 'boom' } } });
-      await expect(settings.set(live(true), { enabled: false })).rejects.toThrow(
-        `FightBook is off, but ${what}: boom`,
-      );
-    });
   });
 
   it('refuses a caller with no profile', async () => {
     const { settings } = service(true);
     await expect(
-      settings.set({ userId: ACCOUNT, globalPersonId: null, enabled: false }, { enabled: true }),
+      settings.set(
+        { userId: ACCOUNT, globalPersonId: null, enabled: false },
+        { enabled: true },
+        new Date(),
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

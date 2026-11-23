@@ -39,6 +39,7 @@ function controller(on: boolean) {
     {} as never,
     favourites as never,
     {} as never,
+    {} as never,
   );
   return { ctl, favourites };
 }

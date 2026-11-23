@@ -223,7 +223,7 @@ describe('SparFindService.atEvent', () => {
 
   it('reads the roster of that Event only, and the askable fighters among it', async () => {
     const { find, supabase } = service();
-    await find.atEvent(MARC, EVENT, undefined, reader);
+    await find.atEvent(MARC, EVENT, undefined, reader, new Date());
     expect(selectsFor(supabase.from, 'events')).toEqual([
       'id, status, organization_id, event_kind',
     ]);
@@ -243,7 +243,9 @@ describe('SparFindService.atEvent', () => {
   // The control for the hidden entrant: Paul is askable, so only the draft entry hid him.
   it("shows the draft Tournament's entrant to a member of the Event's club", async () => {
     const { find } = service({ insider: true });
-    const names = (await find.atEvent(MARC, EVENT, undefined, reader)).map((c) => c.fighter.name);
+    const names = (await find.atEvent(MARC, EVENT, undefined, reader, new Date())).map(
+      (c) => c.fighter.name,
+    );
     expect(names).toEqual(['alpha Fighter', 'Bravo Fighter', 'Echo Fighter']);
   });
 
@@ -253,7 +255,10 @@ describe('SparFindService.atEvent', () => {
     ['an unknown Event', 'eeeeeeee-0000-4000-8000-0000000000ff'],
   ])('refuses %s: bad_event', async (_, id) => {
     const { find, supabase } = service();
-    expect(await codeOf(find.atEvent(MARC, id, undefined, reader))).toEqual([400, 'bad_event']);
+    expect(await codeOf(find.atEvent(MARC, id, undefined, reader, new Date()))).toEqual([
+      400,
+      'bad_event',
+    ]);
     expect(selectsFor(supabase.from, 'global_persons')).toEqual([]);
   });
 
@@ -261,7 +266,7 @@ describe('SparFindService.atEvent', () => {
   // the query only; the probe on a real PostgREST is the behaviour test (task 6 report).
   it('filters on a weapon through the inner-joined embed', async () => {
     const { find, supabase } = service();
-    await find.atEvent(MARC, EVENT, WEAPON, reader);
+    await find.atEvent(MARC, EVENT, WEAPON, reader, new Date());
     expect(selectsFor(supabase.from, 'global_persons')[0]).toBe(
       'id, fighter_weapons!inner(weapon_id)',
     );
@@ -273,7 +278,7 @@ describe('SparFindService.atEvent', () => {
 
   it('names no weapon embed and no weapon filter without a weapon', async () => {
     const { find, supabase } = service();
-    await find.atEvent(MARC, EVENT, undefined, reader);
+    await find.atEvent(MARC, EVENT, undefined, reader, new Date());
     expect(selectsFor(supabase.from, 'global_persons').join()).not.toContain('fighter_weapons');
     expect(filtersFor(supabase.from, 'global_persons', 'eq').flat()).not.toContain(
       'fighter_weapons.weapon_id',
@@ -306,7 +311,7 @@ describe('SparFindService.atEvent, a large Event', () => {
 
   it('answers the first 200 askable fighters by name, reading in pieces', async () => {
     const { find, supabase } = largeService();
-    const cards = await find.atEvent(MARC, EVENT, undefined, reader);
+    const cards = await find.atEvent(MARC, EVENT, undefined, reader, new Date());
     expect(cards).toHaveLength(200);
     expect(cards[0]?.fighter.name).toBe('Fighter 000');
     expect(cards[199]?.fighter.name).toBe('Fighter 199');
@@ -339,7 +344,7 @@ describe('SparFindService.atEvent, a roster longer than one read', () => {
       fightbook_free_now: { rows: [] },
     });
     const find = new SparFindService(supabase as never, {} as never);
-    const cards = await find.atEvent(MARC, EVENT, undefined, reader);
+    const cards = await find.atEvent(MARC, EVENT, undefined, reader, new Date());
     expect(cards.map((card) => card.fighter.globalPersonId)).toEqual([JULIE]);
     const rosterReads = selectsFor(supabase.from, 'persons').filter(
       (select) => select === 'id, global_person_id',

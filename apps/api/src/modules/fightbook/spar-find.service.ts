@@ -142,7 +142,7 @@ export class SparFindService {
     eventId: string,
     weaponId: string | undefined,
     reader: PublicReader,
-    now = new Date(),
+    now: Date,
   ): Promise<EventFindCard[]> {
     const db = this.supabase.service;
     const event = await this.publicEvent(eventId);
@@ -232,7 +232,7 @@ export class SparFindService {
    * The published Events `me` is on whose days have not all ended, soonest first day first, then
    * by name. Each carries its open days and today on its own clock (`openEventDays`).
    */
-  async myEvents(me: string, now = new Date()): Promise<FightBookEvent[]> {
+  async myEvents(me: string, now: Date): Promise<FightBookEvent[]> {
     const eventIds = await this.myEventIds(me);
     // A day stays open until 06:00 the next morning on the Event's clock, and that clock's date
     // is at most one day behind UTC's: an Event ending two days before the UTC date is over

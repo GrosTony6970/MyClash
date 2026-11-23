@@ -3,8 +3,12 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { Identity } from '../../common/auth/identity';
+import { platformClock } from '../../common/testing/platform-clock';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { FightBookAfterController } from './fightbook-after.controller';
+
+/** The platform clock under a super admin's time simulation: what every route must pass on. */
+const SIM = new Date('2027-05-23T11:31:00.000Z');
 
 const MARC = '0b9c3a52-7d59-4a57-9f55-1b1f3f5c2a01';
 const ACCOUNT = '9a8b7c6d-1111-4222-8333-944455566677';
@@ -45,6 +49,7 @@ function controller(profile = true) {
       thanks as never,
       {} as never,
       flags as never,
+      platformClock(SIM),
     ),
     after,
     thanks,
@@ -64,11 +69,11 @@ describe('FightBookAfterController', () => {
     await ctl.note(SPAR, { body: null }, req);
     await ctl.flag(SPAR, FLAG, req);
     await ctl.receivedThanks({ page: 2 }, req);
-    expect(after.markDone).toHaveBeenCalledWith(MARC, SPAR);
-    expect(after.undo).toHaveBeenCalledWith(MARC, SPAR);
-    expect(after.review).toHaveBeenCalledWith(MARC, SPAR, REVIEW);
+    expect(after.markDone).toHaveBeenCalledWith(MARC, SPAR, SIM);
+    expect(after.undo).toHaveBeenCalledWith(MARC, SPAR, SIM);
+    expect(after.review).toHaveBeenCalledWith(MARC, SPAR, REVIEW, SIM);
     expect(after.setNote).toHaveBeenCalledWith(MARC, SPAR, null);
-    expect(flags.raise).toHaveBeenCalledWith(MARC, SPAR, FLAG);
+    expect(flags.raise).toHaveBeenCalledWith(MARC, SPAR, FLAG, SIM);
     expect(thanks.received).toHaveBeenCalledWith(MARC, 2);
   });
 

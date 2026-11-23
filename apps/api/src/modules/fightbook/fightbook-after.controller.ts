@@ -31,6 +31,7 @@ import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { SPAR_FLAG_REASONS } from '@myclash/types';
 import { z } from 'zod';
+import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   fightBookCaller,
@@ -81,6 +82,8 @@ export class FightBookAfterController {
     private readonly thanks: SparThanksService,
     private readonly favouritesService: FightBookFavouritesService,
     private readonly flags: SparFlagService,
+    /** The platform clock: a spar's windows follow a time simulation. */
+    private readonly clock: AdminFeatureFlagsService,
   ) {}
 
   @Post('requests/:id/done')
@@ -88,7 +91,8 @@ export class FightBookAfterController {
   @ApiOperation({ summary: 'Mark an agreed spar as done: we sparred' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async done(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.after.markDone(requireProfile(await this.callerOf(req)), id);
+    const me = requireProfile(await this.callerOf(req));
+    await this.after.markDone(me, id, await this.clock.platformNow());
   }
 
   @Post('requests/:id/undo')
@@ -96,7 +100,8 @@ export class FightBookAfterController {
   @ApiOperation({ summary: 'Undo "We sparred": the spar is agreed again' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async undo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.after.undo(requireProfile(await this.callerOf(req)), id);
+    const me = requireProfile(await this.callerOf(req));
+    await this.after.undo(me, id, await this.clock.platformNow());
   }
 
   @Post('requests/:id/review')
@@ -108,7 +113,8 @@ export class FightBookAfterController {
     @Body() dto: ReviewDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.after.review(requireProfile(await this.callerOf(req)), id, dto);
+    const me = requireProfile(await this.callerOf(req));
+    await this.after.review(me, id, dto, await this.clock.platformNow());
   }
 
   @Post('requests/:id/flag')
@@ -120,7 +126,8 @@ export class FightBookAfterController {
     @Body() dto: FlagDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.flags.raise(requireProfile(await this.callerOf(req)), id, dto);
+    const me = requireProfile(await this.callerOf(req));
+    await this.flags.raise(me, id, dto, await this.clock.platformNow());
   }
 
   @Put('requests/:id/note')
