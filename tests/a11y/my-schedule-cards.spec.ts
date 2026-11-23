@@ -56,6 +56,53 @@ test('a duty whose role has no name is a plain "Referee"', async ({ page }) => {
   await expect(page.getByText(/arbitre/i)).toHaveCount(0);
 });
 
+// A finished bout showed "3 – 8" in the side colours alone: the fighter had to remember their
+// side to know if they won. The card now says the result and bolds the winner's number. The
+// result is the server's `outcome`: a forfeit can be won on the lower score.
+test("a finished bout says the viewer's result and bolds the winner's number", async ({ page }) => {
+  const done = (id: string, at: string, red: number, blue: number, outcome: unknown) =>
+    scheduledBout(id, at, { status: 'completed', redScore: red, blueScore: blue, outcome });
+  await openGuestSchedule(page, {
+    ...emptySchedule,
+    matches: [
+      done('m-1', '2027-06-12T07:00:00.000Z', 8, 3, 'win'),
+      done('m-2', '2027-06-12T08:00:00.000Z', 3, 8, 'loss'),
+      done('m-3', '2027-06-12T09:00:00.000Z', 2, 5, 'win'),
+      done('m-4', '2027-06-12T10:00:00.000Z', 4, 4, 'draw'),
+      done('m-5', '2027-06-12T11:00:00.000Z', 6, 1, undefined),
+    ],
+  });
+
+  const card = (id: string) =>
+    page.getByRole('link').filter({ has: page.getByText(`LSW-P1-${id}`, { exact: true }) });
+  const score = (id: string, n: number) => card(id).getByText(String(n), { exact: true });
+  const BOLD = '700';
+  const PLAIN = '400';
+
+  await expect(card('m-1').getByText('Won', { exact: true })).toBeVisible();
+  await expect(score('m-1', 8)).toHaveCSS('font-weight', BOLD);
+  await expect(score('m-1', 3)).toHaveCSS('font-weight', PLAIN);
+
+  await expect(card('m-2').getByText('Lost', { exact: true })).toBeVisible();
+  await expect(score('m-2', 8)).toHaveCSS('font-weight', BOLD);
+  await expect(score('m-2', 3)).toHaveCSS('font-weight', PLAIN);
+
+  // Won on the lower score: the numbers alone would say lost.
+  await expect(card('m-3').getByText('Won', { exact: true })).toBeVisible();
+  await expect(score('m-3', 2)).toHaveCSS('font-weight', BOLD);
+  await expect(score('m-3', 5)).toHaveCSS('font-weight', PLAIN);
+
+  await expect(card('m-4').getByText('Draw', { exact: true })).toBeVisible();
+  await expect(score('m-4', 4).first()).toHaveCSS('font-weight', PLAIN);
+  await expect(score('m-4', 4).last()).toHaveCSS('font-weight', PLAIN);
+
+  // A copy cached before the API sent `outcome`: the score, and no claim about it.
+  await expect(card('m-5').getByText(/^(Won|Lost|Draw)$/)).toHaveCount(0);
+  await expect(score('m-5', 6)).toHaveCSS('font-weight', PLAIN);
+
+  await expectNoCriticalAxeViolations(page);
+});
+
 // A halted bout is still on the piste: the hub calls it "Paused", and so does the card. It had no
 // badge at all, as if the bout were over or not begun.
 test('a running bout says "Live"; a halted one says "Paused"; a coming one says neither', async ({

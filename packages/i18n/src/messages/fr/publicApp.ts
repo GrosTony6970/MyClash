@@ -1844,6 +1844,9 @@ export const publicApp = {
     refereePrefix: 'Arbitre',
     conflictsWith: '⚠ En conflit avec : {items}',
     live: 'EN DIRECT',
+    won: 'Gagné',
+    lost: 'Perdu',
+    draw: 'Nul',
   },
   clubs: {
     notFoundTitle: 'Club introuvable',

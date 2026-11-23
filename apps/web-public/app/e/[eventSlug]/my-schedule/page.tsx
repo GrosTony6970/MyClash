@@ -59,6 +59,39 @@ function scoreColors(match: ScheduleMatch): { red: string; blue: string } {
   return sideColorsForTokens(match.sideColors, 'light');
 }
 
+/**
+ * The side that won, from the server's `outcome` (the viewer's view, decided from the
+ * recorded winner). Never from the numbers: a forfeit can be won on the lower score.
+ * A copy cached before the API sent `outcome` names no winner.
+ */
+function winnerSide(match: ScheduleMatch): 'red' | 'blue' | null {
+  if (match.outcome !== 'win' && match.outcome !== 'loss') return null;
+  const mine = match.isRed ? 'red' : 'blue';
+  const theirs = match.isRed ? 'blue' : 'red';
+  return match.outcome === 'win' ? mine : theirs;
+}
+
+const RESULT_PILL = {
+  win: { key: 'publicApp.mySchedule.won', tone: 'bg-success/15 text-success' },
+  // Grey, not red: a red pill beside a red score would read as "the red side".
+  loss: { key: 'publicApp.mySchedule.lost', tone: 'bg-foreground/10 text-foreground-secondary' },
+  draw: { key: 'publicApp.mySchedule.draw', tone: 'bg-warning/15 text-warning' },
+} as const;
+
+/** "Won" / "Lost" / "Draw" beside a finished bout's score. No `outcome`, no pill. */
+function ResultPill({ outcome }: { outcome: ScheduleMatch['outcome'] }): ReactNode {
+  const { t } = useI18n();
+  if (!outcome) return null;
+  const pill = RESULT_PILL[outcome];
+  return (
+    <span
+      className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${pill.tone}`}
+    >
+      {t(pill.key)}
+    </span>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ScheduleItem =
@@ -430,14 +463,27 @@ export default function MySchedulePage() {
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
                           </p>
                           {item.data.status === 'completed' && (
-                            <p className="text-xs font-mono mt-0.5">
-                              <span style={{ color: scoreColors(item.data).red }}>
-                                {item.data.redScore}
+                            <p className="mt-0.5 flex items-center text-xs">
+                              <span className="font-mono">
+                                <span
+                                  className={
+                                    winnerSide(item.data) === 'red' ? 'font-bold' : undefined
+                                  }
+                                  style={{ color: scoreColors(item.data).red }}
+                                >
+                                  {item.data.redScore}
+                                </span>
+                                <span className="text-foreground-secondary mx-1">–</span>
+                                <span
+                                  className={
+                                    winnerSide(item.data) === 'blue' ? 'font-bold' : undefined
+                                  }
+                                  style={{ color: scoreColors(item.data).blue }}
+                                >
+                                  {item.data.blueScore}
+                                </span>
                               </span>
-                              <span className="text-foreground-secondary mx-1">–</span>
-                              <span style={{ color: scoreColors(item.data).blue }}>
-                                {item.data.blueScore}
-                              </span>
+                              <ResultPill outcome={item.data.outcome} />
                             </p>
                           )}
                         </>

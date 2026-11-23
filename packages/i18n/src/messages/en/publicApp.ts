@@ -1827,6 +1827,9 @@ export const publicApp = {
     refereePrefix: 'Referee',
     conflictsWith: '⚠ Conflicts with: {items}',
     live: 'LIVE',
+    won: 'Won',
+    lost: 'Lost',
+    draw: 'Draw',
   },
   clubs: {
     notFoundTitle: 'Club not found',
