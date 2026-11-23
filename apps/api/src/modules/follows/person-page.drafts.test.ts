@@ -27,6 +27,7 @@ import { PublicPersonService } from './public-person.service';
 vi.mock('../schedule/duty-windows', () => ({
   resolveDutyWindows: vi.fn(async () => new Map()),
   resolvePoolSpans: vi.fn(async () => []),
+  resolvePhaseSpans: vi.fn(async () => []),
 }));
 
 const EVENT = '11111111-1111-4111-8111-111111111111';

@@ -20,6 +20,7 @@ import { PublicScheduleService } from './public-schedule.service';
 vi.mock('../schedule/duty-windows', () => ({
   resolveDutyWindows: vi.fn(async () => new Map()),
   resolvePoolSpans: vi.fn(async () => []),
+  resolvePhaseSpans: vi.fn(async () => []),
 }));
 vi.mock('../schedule/match-lengths', () => ({
   resolveMatchLengths: vi.fn(

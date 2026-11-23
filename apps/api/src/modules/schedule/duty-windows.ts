@@ -49,10 +49,15 @@ interface DutyMatch {
   phaseId: string;
   scheduledAt: string | null;
   plannedDurationOverrideMinutes: number | null;
+  /** Read for a phase's span only, which skips a `voided` row (a replayed bracket slot keeps one). */
+  status?: string;
 }
 
 const MATCH_COLUMNS =
   'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes';
+
+/** A phase's span also reads each Match's status: a `voided` row sits beside the live one. */
+const PHASE_MATCH_COLUMNS = `${MATCH_COLUMNS}, status`;
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
@@ -65,22 +70,24 @@ const IN_CHUNK = 200;
 
 async function readMatches(
   db: SupabaseClient,
-  column: 'id' | 'pool_id',
+  column: 'id' | 'pool_id' | 'phase_id',
   values: readonly string[],
+  columns: string = MATCH_COLUMNS,
 ): Promise<DutyMatch[]> {
   const chunks: string[][] = [];
   for (let i = 0; i < values.length; i += IN_CHUNK) chunks.push(values.slice(i, i + IN_CHUNK));
   const pages = await Promise.all(
     chunks.map(async (chunk) => {
-      const { data, error } = await db.from('matches').select(MATCH_COLUMNS).in(column, chunk);
+      const { data, error } = await db.from('matches').select(columns).in(column, chunk);
       if (error) throw new BadRequestException(error.message);
-      return (data ?? []) as Array<{
+      return (data ?? []) as unknown as Array<{
         id: string;
         pool_id: string | null;
         lice_id: string | null;
         phase_id: string;
         scheduled_at: string | null;
         planned_duration_override_minutes: number | null;
+        status?: string;
       }>;
     }),
   );
@@ -91,6 +98,7 @@ async function readMatches(
     phaseId: row.phase_id,
     scheduledAt: row.scheduled_at,
     plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
+    ...(row.status !== undefined && { status: row.status }),
   }));
 }
 
@@ -292,6 +300,49 @@ export async function resolvePoolSpans<P extends { poolId: string }>(
     ...pool,
     ...dutyWindow(
       matches.filter((match) => match.poolId === pool.poolId),
+      ends,
+    ),
+  }));
+}
+
+/**
+ * A fighter's bracket and Swiss phases, each from its earliest placed Match to the planned end of
+ * its last, whoever fights them (operator, 2026-11-23): a fighter is busy for the whole phase, as
+ * for a Pool. A bracket's Matches all exist from its generation, placed before their fighters are
+ * known, so the span reaches the Final. A `voided` row is skipped: a replayed slot keeps one
+ * beside its live Match. The caller cuts a bracket span short where the fighter is out
+ * (`elimination-end.ts`).
+ *
+ * Same contract as `resolvePoolSpans`: every phase asked about comes back, in order, null times
+ * where nothing is placed or known; a failed read is logged, never thrown.
+ */
+export async function resolvePhaseSpans<P extends { phaseId: string }>(
+  db: SupabaseClient,
+  logger: Pick<Logger, 'warn'>,
+  eventId: string,
+  phases: readonly P[],
+): Promise<Array<P & DutyWindow>> {
+  let matches: DutyMatch[];
+  try {
+    matches = (
+      await readMatches(
+        db,
+        'phase_id',
+        phases.map((phase) => phase.phaseId),
+        PHASE_MATCH_COLUMNS,
+      )
+    ).filter((match) => match.status !== 'voided');
+  } catch (err) {
+    logger.warn(
+      `Phase spans unreadable for event ${eventId}; every bracket and Swiss phase is untimed: ${messageOf(err)}`,
+    );
+    return phases.map((phase) => ({ ...phase, startsAt: null, endsAt: null }));
+  }
+  const ends = await eventEnds(db, logger, eventId, matches, 'its bracket and Swiss spans');
+  return phases.map((phase) => ({
+    ...phase,
+    ...dutyWindow(
+      matches.filter((match) => match.phaseId === phase.phaseId),
       ends,
     ),
   }));

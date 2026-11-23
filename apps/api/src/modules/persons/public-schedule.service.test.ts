@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
+import { resolveDutyWindows, resolvePhaseSpans, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 import { resolveNextBoutEnds } from '../schedule/next-bout-end';
 import {
@@ -19,12 +19,14 @@ import {
 vi.mock('../schedule/duty-windows', () => ({
   resolveDutyWindows: vi.fn(),
   resolvePoolSpans: vi.fn(),
+  resolvePhaseSpans: vi.fn(),
 }));
 vi.mock('../schedule/match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
 vi.mock('../schedule/next-bout-end', () => ({ resolveNextBoutEnds: vi.fn() }));
 
 const dutyWindows = vi.mocked(resolveDutyWindows);
 const poolSpans = vi.mocked(resolvePoolSpans);
+const phaseSpans = vi.mocked(resolvePhaseSpans);
 const matchLengths = vi.mocked(resolveMatchLengths);
 const nextBoutEnds = vi.mocked(resolveNextBoutEnds);
 
@@ -32,6 +34,9 @@ const nextBoutEnds = vi.mocked(resolveNextBoutEnds);
 beforeEach(() => {
   poolSpans.mockImplementation(async (_db, _logger, _eventId, pools) =>
     pools.map((pool) => ({ ...pool, startsAt: null, endsAt: null })),
+  );
+  phaseSpans.mockImplementation(async (_db, _logger, _eventId, phases) =>
+    phases.map((phase) => ({ ...phase, startsAt: null, endsAt: null })),
   );
   nextBoutEnds.mockImplementation(
     async (_db, _logger, _eventId, bouts) => new Map(bouts.map((bout) => [bout.id, null])),
@@ -63,6 +68,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   dutyWindows.mockReset();
   poolSpans.mockReset();
+  phaseSpans.mockReset();
   matchLengths.mockReset();
   nextBoutEnds.mockReset();
 });
@@ -122,23 +128,103 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
     expect(schedule.matches.map((m) => m.roundCode)).toEqual(['LSW-P4-M01']);
   });
 
-  it("says what the fighter's own bout is: a Pool bout, or the bracket round it plays", async () => {
+  it('ignores a pool bout for the phase spans', async () => {
     windowsAre({});
-    const pool = fighterMatch('p', null, 'published', { id: 'pool-1', name: 'Pool 1' });
-    const qf = fighterMatch('qf', null);
     const { service } = buildService(rows([]), {
       registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
-      matches: [
-        pool,
-        {
-          ...qf,
-          bracket_slots: { round: 1 },
-          phases: { ...qf.phases, type: 'single_elim', config_json: { bracketSize: 8 } },
-        },
-      ],
+      matches: [fighterMatch('p', null, 'published', { id: 'pool-1', name: 'Pool 1' })],
     });
     const schedule = await service.getSchedule('e-1', 'p-1', null);
-    expect(schedule.matches.map((m) => m.matchKind)).toEqual(['pool', 'quarter_final']);
+    expect(schedule.phaseSpans).toEqual([]);
+    expect(phaseSpans.mock.calls[0]?.[3]).toEqual([]);
+  });
+});
+
+describe("PublicScheduleService.getSchedule — a fighter's bracket and Swiss phases", () => {
+  const inPhase = (
+    id: string,
+    phaseId: string,
+    type: string,
+    over: Record<string, unknown> = {},
+  ) => {
+    const bout = fighterMatch(id, null);
+    return { ...bout, phase_id: phaseId, phases: { ...bout.phases, type }, ...over };
+  };
+  // Léa lost her quarter-final at 10:00 (blue won); the Swiss bout is another Tournament's.
+  const lostQuarter = inPhase('qf', 'phase-b', 'single_elim', {
+    status: 'completed',
+    winner_registration_id: 'reg-2',
+    red_score: 3,
+    blue_score: 5,
+  });
+
+  function run(matches: unknown[]) {
+    windowsAre({});
+    matchLengths.mockImplementation(
+      async (_db, _eventId, inputs) => new Map(inputs.map((input) => [input.id, 10])),
+    );
+    phaseSpans.mockImplementation(async (_db, _logger, _eventId, phases) =>
+      phases.map((phase) => ({
+        ...phase,
+        startsAt: '2027-05-22T09:00:00.000Z',
+        endsAt: '2027-05-22T18:00:00.000Z',
+      })),
+    );
+    const { service } = buildService(rows([]), {
+      registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
+      matches,
+    });
+    return service.getSchedule('e-1', 'p-1', null);
+  }
+
+  it('hands the helper each bracket and Swiss phase once, and passes its span on', async () => {
+    const schedule = await run([
+      inPhase('b1', 'phase-b', 'single_elim'),
+      inPhase('sw', 'phase-s', 'swiss'),
+      inPhase('b2', 'phase-b', 'double_elim'),
+    ]);
+
+    expect(phaseSpans.mock.calls[0]?.[3]).toEqual([
+      { phaseId: 'phase-b', kind: 'bracket', tournamentName: 'Open' },
+      { phaseId: 'phase-s', kind: 'swiss', tournamentName: 'Open' },
+    ]);
+    expect(schedule.phaseSpans.map((s) => [s.phaseId, s.endsAt])).toEqual([
+      ['phase-b', '2027-05-22T18:00:00.000Z'],
+      ['phase-s', '2027-05-22T18:00:00.000Z'],
+    ]);
+    expect(schedule.matches.map((m) => m.phaseId)).toEqual(['phase-b', 'phase-s', 'phase-b']);
+  });
+
+  it('ends the bracket for her at the end of the bout that put her out', async () => {
+    const schedule = await run([lostQuarter]);
+
+    expect(schedule.phaseSpans).toEqual([
+      {
+        phaseId: 'phase-b',
+        kind: 'bracket',
+        tournamentName: 'Open',
+        startsAt: '2027-05-22T09:00:00.000Z',
+        endsAt: '2027-05-22T10:10:00.000Z',
+      },
+    ]);
+  });
+
+  it('keeps the whole bracket while she has a bout left: the bronze match', async () => {
+    const schedule = await run([lostQuarter, inPhase('bronze', 'phase-b', 'single_elim')]);
+
+    expect(schedule.phaseSpans[0]?.endsAt).toBe('2027-05-22T18:00:00.000Z');
+  });
+
+  it('never cuts a Swiss phase short: nobody is out of one', async () => {
+    const lostSwiss = inPhase('sw', 'phase-s', 'swiss', {
+      status: 'completed',
+      winner_registration_id: 'reg-2',
+      red_score: 3,
+      blue_score: 5,
+    });
+    const schedule = await run([lostSwiss]);
+
+    expect(schedule.phaseSpans[0]?.endsAt).toBe('2027-05-22T18:00:00.000Z');
   });
 
   it('exposes the assignment id — matchId is empty for every pool-scoped duty', async () => {

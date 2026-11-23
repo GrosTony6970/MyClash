@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { readDutyStarts, resolveDutyWindows, resolvePoolSpans } from './duty-windows';
+import {
+  readDutyStarts,
+  resolveDutyWindows,
+  resolvePhaseSpans,
+  resolvePoolSpans,
+} from './duty-windows';
 
 /**
  * The seeded double, which applies `.in()`, and decoys: another Pool with an
@@ -395,5 +400,63 @@ describe('resolvePoolSpans', () => {
     expect(log.warn).toHaveBeenCalledTimes(1);
     expect(String(log.warn.mock.calls[0]?.[0])).toContain('matches exploded');
     expect(String(log.warn.mock.calls[0]?.[0])).toContain(EVENT_A);
+  });
+});
+
+describe('resolvePhaseSpans', () => {
+  /**
+   * A bracket phase reaches its Final, whoever fights it (operator, 2026-11-23). Phase A's
+   * earliest start and latest live end sit in middle rows; its voided row is the latest of all
+   * and must not stretch the span (a replayed slot keeps one beside its live Match).
+   */
+  const live = (row: ReturnType<typeof match>) => ({ ...row, status: 'scheduled' });
+  const PHASES = [
+    live(match('f1', null, '2026-06-01T10:30:00+00:00')),
+    live(match('f2', null, '2026-06-01T10:00:00+00:00')),
+    live(match('f3', null, '2026-06-01T14:00:00+00:00')),
+    { ...match('f-void', null, '2026-06-01T18:00:00+00:00'), status: 'voided' },
+    live(match('g1', null, '2026-06-01T16:00:00+00:00', { phaseId: 'phase-b' })),
+  ];
+  const asked = [
+    { phaseId: 'phase-a', kind: 'bracket' as const },
+    { phaseId: 'phase-b', kind: 'swiss' as const },
+  ];
+
+  it('spans each phase over its live placed Matches, skips a voided one, and keeps what it was given', async () => {
+    const { client, supabase } = db({ matches: { rows: PHASES } });
+
+    const spans = await resolvePhaseSpans(client, logger(), EVENT_A, asked);
+
+    expect(spans).toEqual([
+      {
+        phaseId: 'phase-a',
+        kind: 'bracket',
+        startsAt: '2026-06-01T10:00:00.000Z',
+        endsAt: '2026-06-01T14:05:00.000Z',
+      },
+      {
+        phaseId: 'phase-b',
+        kind: 'swiss',
+        startsAt: '2026-06-01T16:00:00.000Z',
+        endsAt: '2026-06-01T16:05:00.000Z',
+      },
+    ]);
+    expect(selectsFor(supabase.from, 'matches')).toEqual([`${MATCH_COLUMNS}, status`]);
+    expect(filtersFor(supabase.from, 'matches', 'in')).toEqual([
+      ['phase_id', ['phase-a', 'phase-b']],
+    ]);
+  });
+
+  it('answers every phase untimed, and says so, when the Matches cannot be read', async () => {
+    const { client } = db({ matches: { data: null, error: { message: 'matches exploded' } } });
+    const log = logger();
+
+    const spans = await resolvePhaseSpans(client, log, EVENT_A, asked);
+
+    expect(spans.map((span) => [span.startsAt, span.endsAt])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain('matches exploded');
   });
 });

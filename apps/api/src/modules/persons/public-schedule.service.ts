@@ -34,7 +34,8 @@ import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
 import { roundCodeFromMatchRow } from '../matches/round-code.helper';
-import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
+import { resolveDutyWindows, resolvePhaseSpans, resolvePoolSpans } from '../schedule/duty-windows';
+import { eliminationEnd } from './elimination-end';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import { resolveNextBoutEnds, type BoutRef } from '../schedule/next-bout-end';
 import { plannedLengthOf } from '../schedule/planned-length';
@@ -84,13 +85,8 @@ export interface ScheduleMatch {
    *  Swiss bout at the Bracket block's end time, or at no block at all.
    *  Mirrors the generated `— Pools` / `— Swiss` / `— Bracket` blocks. */
   phase: 'pool' | 'swiss' | 'bracket' | null;
-  /** What the bout is, in words a page can translate (`computeMatchKind`): a Workshop clash
-   *  names "Quarter-final · Longsword", never the opponent. Same tokens as a referee duty's. */
-  matchKind: string | null;
-  /** Fighter count for matchKind === 'round_of' (e.g. 16). */
-  roundOfCount: number | null;
-  /** Which Swiss round, for matchKind === 'swiss'. */
-  swissRound: number | null;
+  /** The bout's phase — the key into `PersonSchedule.phaseSpans` for a bracket or Swiss bout. */
+  phaseId: string;
   liceName: string | null;
 }
 
@@ -145,6 +141,20 @@ export interface PoolSpan {
   endsAt: string | null;
 }
 
+/**
+ * One of the fighter's bracket or Swiss phases (operator, 2026-11-23): busy from the phase's
+ * earliest placed Match, whoever fights it, to the planned end of its last — or, in a bracket, to
+ * the end of the bout that put them out (`elimination-end.ts`). Null times where nothing is placed
+ * or the span could not be worked out.
+ */
+export interface PhaseSpan {
+  phaseId: string;
+  kind: 'bracket' | 'swiss';
+  tournamentName: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
 export interface PersonSchedule {
   personId: string;
   /**
@@ -157,6 +167,8 @@ export interface PersonSchedule {
   matches: ScheduleMatch[];
   /** The Pools of `matches`, one entry each. */
   poolSpans: PoolSpan[];
+  /** The bracket and Swiss phases of `matches`, one entry each. */
+  phaseSpans: PhaseSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
   /** Sessions whose instructor refused the person: their own read only (ruling 236). */
@@ -166,7 +178,6 @@ export interface PersonSchedule {
 /** A fighter's bout's phase, as `fetchMatches` embeds it. */
 type FighterBoutPhase = {
   type?: string | null;
-  config_json?: unknown;
   tournaments: { id: string; name: string; scoring_config_json?: unknown; status?: string } | null;
 } | null;
 
@@ -214,7 +225,7 @@ export class PublicScheduleService {
     personId: string,
     requesterPersonId: string | null,
   ): Promise<PersonSchedule> {
-    const [{ matches, poolSpans }, refereeSlots, showWorkshops, timezone] = await Promise.all([
+    const [fights, refereeSlots, showWorkshops, timezone] = await Promise.all([
       this.fetchFights(eventId, personId),
       this.fetchRefereeSlots(eventId, personId),
       this.privacy.canSeeWorkshops(personId, requesterPersonId),
@@ -227,19 +238,52 @@ export class PublicScheduleService {
       ? await readPersonWorkshops(this.supabase.service, personId, own)
       : { workshops: null, refusedWorkshopIds: [] };
 
-    return { personId, timezone, matches, poolSpans, refereeSlots, ...booked };
+    return { personId, timezone, ...fights, refereeSlots, ...booked };
   }
 
   /**
-   * The fighter's bouts, then the spans of their Pools — after, because the bouts
-   * name the Pools, and still alongside the duty read rather than behind it.
-   * Published bouts only name a Pool: `fetchMatches` dropped the rest.
+   * The fighter's bouts, then the spans of their Pools and of their bracket and Swiss phases —
+   * after, because the bouts name them, and still alongside the duty read rather than behind it.
+   * Published bouts only name one: `fetchMatches` dropped the rest.
    */
   private async fetchFights(
     eventId: string,
     personId: string,
-  ): Promise<{ matches: ScheduleMatch[]; poolSpans: PoolSpan[] }> {
+  ): Promise<Pick<PersonSchedule, 'matches' | 'poolSpans' | 'phaseSpans'>> {
     const matches = await this.fetchMatches(eventId, personId);
+    const [poolSpans, phaseSpans] = await Promise.all([
+      this.poolSpansOf(eventId, matches),
+      this.phaseSpansOf(eventId, matches),
+    ]);
+    return { matches, poolSpans, phaseSpans };
+  }
+
+  /**
+   * Each bracket or Swiss phase the fighter has a bout in, busy for the whole of it; a bracket
+   * ends for them at the bout that put them out (operator, 2026-11-23).
+   */
+  private async phaseSpansOf(eventId: string, matches: ScheduleMatch[]): Promise<PhaseSpan[]> {
+    const phases = new Map<string, Omit<PhaseSpan, 'startsAt' | 'endsAt'>>();
+    for (const m of matches) {
+      if (m.phase === 'bracket' || m.phase === 'swiss') {
+        phases.set(m.phaseId, {
+          phaseId: m.phaseId,
+          kind: m.phase,
+          tournamentName: m.tournamentName,
+        });
+      }
+    }
+    const spans = await resolvePhaseSpans(this.supabase.service, this.logger, eventId, [
+      ...phases.values(),
+    ]);
+    return spans.map((span) => {
+      if (span.kind !== 'bracket') return span;
+      const out = eliminationEnd(matches.filter((m) => m.phaseId === span.phaseId));
+      return out === null ? span : { ...span, endsAt: out };
+    });
+  }
+
+  private async poolSpansOf(eventId: string, matches: ScheduleMatch[]): Promise<PoolSpan[]> {
     // One entry per Pool, in the order its first bout comes: a Map keeps the first
     // insertion's place, and every bout of a Pool carries the same names.
     const pools = new Map<string, Omit<PoolSpan, 'startsAt' | 'endsAt'>>();
@@ -252,10 +296,7 @@ export class PublicScheduleService {
         });
       }
     }
-    const poolSpans = await resolvePoolSpans(this.supabase.service, this.logger, eventId, [
-      ...pools.values(),
-    ]);
-    return { matches, poolSpans };
+    return resolvePoolSpans(this.supabase.service, this.logger, eventId, [...pools.values()]);
   }
 
   /**
@@ -316,17 +357,6 @@ export class PublicScheduleService {
       if (!PUBLIC_TOURNAMENT_STATUSES.has(phase?.tournaments?.status ?? '')) return [];
 
       const phaseType = phase?.type ?? null;
-      const slot = m['bracket_slots'] as { round?: number | null } | null;
-      const swiss = m['swiss_rounds'] as { round_number?: number | null } | null;
-      const config = (phase?.config_json ?? null) as Record<string, unknown> | null;
-      const size = config?.['bracketSize'] ?? config?.['mainBracketSize'];
-      const kind = computeMatchKind(
-        phaseType,
-        slot?.round ?? null,
-        typeof size === 'number' ? size : null,
-        swiss?.round_number ?? null,
-      );
-
       return [
         {
           id: m['id'] as string,
@@ -379,9 +409,7 @@ export class PublicScheduleService {
               : phaseType
                 ? 'bracket'
                 : null) as 'pool' | 'swiss' | 'bracket' | null,
-          matchKind: kind.kind,
-          roundOfCount: kind.roundOfCount,
-          swissRound: kind.swissRound,
+          phaseId: m['phase_id'] as string,
           liceName: lice?.name ?? null,
         },
       ];
