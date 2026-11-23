@@ -151,23 +151,34 @@ export interface RosterClub {
  * Each roster person's club, by their folded "Given Family" name: what `isolateRoster` blanks
  * before the import. The demo gives it back after the import through the person edit, which sets
  * the club and matches no profile (`persons.service.ts` `update`). A row with no club name is left
- * out.
+ * out, and so is a name the roster holds twice: by name alone, the club could go to the wrong one.
+ *
+ * Read as strictly as `isolateRoster`: a line whose cell count is not its header's stops the run
+ * (a shifted column would put another cell in the club's place), and so does a club cell holding
+ * an `@` — an address never becomes a public club name.
  */
 export function rosterClubs(csv: string): Map<string, RosterClub> {
-  const { lines, header, delimiter, given, family } = readRoster(csv);
+  const { lines, header, delimiter, columns: kept, given, family } = readRoster(csv);
   const columns = header.split(delimiter).map((h) => CLUB_COLUMN_BY_KEY.get(headerKey(h)) ?? null);
   const at = (column: string) => columns.indexOf(column);
   const clubs = new Map<string, RosterClub>();
-  for (const line of lines.slice(1)) {
+  const twice = new Set<string>();
+  for (const [index, line] of lines.slice(1).entries()) {
     const cells = line.split(delimiter);
-    const cell = (column: string) => cells[at(column)]?.trim() || null;
-    const name = at('club') >= 0 ? cell('club') : null;
-    if (!name) continue;
-    clubs.set(fold(`${cells[given]} ${cells[family]}`), {
-      name,
-      abbreviation: at('club_abv') >= 0 ? cell('club_abv') : null,
-      city: at('club_city') >= 0 ? cell('club_city') : null,
-    });
+    if (cells.length !== kept.length) {
+      throw new Error(
+        `[e2e] roster line ${index + 2} has ${cells.length} cells, its header ${kept.length}`,
+      );
+    }
+    const cell = (column: string) => (at(column) >= 0 ? cells[at(column)]!.trim() || null : null);
+    const club = { name: cell('club'), abbreviation: cell('club_abv'), city: cell('club_city') };
+    if (Object.values(club).some((value) => value?.includes('@'))) {
+      throw new Error(`[e2e] roster line ${index + 2} has an address in a club cell`);
+    }
+    const person = fold(`${cells[given]} ${cells[family]}`);
+    if (clubs.has(person) || twice.has(person)) twice.add(person);
+    if (club.name) clubs.set(person, { ...club, name: club.name });
   }
+  for (const person of twice) clubs.delete(person);
   return clubs;
 }

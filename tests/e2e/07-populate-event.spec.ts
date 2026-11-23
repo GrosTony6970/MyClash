@@ -275,10 +275,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
       `  ✓ clubs: ${wanted.size} on the roster, ${made} made, all ${ids.length} verified`,
     );
   });
+  // Only a person who already has a profile gets a club. One the import could not give a
+  // profile is matched again when registered, by name + club: with a club, that match could
+  // reach a real person's profile. Such a person keeps no club, and the run says so.
   const clubWanted = (p: Person) => {
-    const club = clubOf.get(fold(`${p.givenName} ${p.familyName}`));
+    const club = p.globalPersonId ? clubOf.get(fold(`${p.givenName} ${p.familyName}`)) : undefined;
     return club ? clubIds.get(fold(club.name)) : undefined;
   };
+  const noProfile = persons.filter((p) => !p.globalPersonId).length;
+  if (noProfile > 0) console.log(`  – ${noProfile} people have no profile: they get no club`);
   let attached = 0;
   for (const p of persons) {
     const id = clubWanted(p);
