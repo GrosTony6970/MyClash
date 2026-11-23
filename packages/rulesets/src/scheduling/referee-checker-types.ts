@@ -48,14 +48,15 @@ interface CommitmentBase {
 }
 
 /**
- * Something a person is doing. A fight is one bout; a fight-pool is the whole group a
- * person fights in — a Pool, or a Swiss round across its pistes — as its hull, and it
- * carries the two Pool rules; a referee duty sits on a board unit (a Pool, a Swiss round
- * on one piste, a bracket bout).
+ * Something a person is doing. A fight is one bout; a fight-pool is the whole block a
+ * person fights in, as its span: a Pool or a Swiss phase across its rounds and pistes (their
+ * hull), or a bracket from its first bout until the person is out (operator, 2026-11-23). It
+ * carries the two Pool rules — a bracket only the span rule, as no target is "in" it. A
+ * referee duty sits on a board unit (a Pool, a Swiss round on one piste, a bracket bout).
  *
- * A fight's `groupId` is the group whose span the bout is part of (the Pool, or the Swiss
- * round). A bout of that group on another piste at the same time is still two places at
- * once: the group decides the two Pool rules, never whether an overlap counts.
+ * A fight's `groupId` is the block whose span the bout is part of (the Pool, the Swiss phase,
+ * the bracket). A bout of that block on another piste at the same time is still two places at
+ * once: the block decides the two Pool rules, never whether an overlap counts.
  */
 export type RefereeCommitment =
   | (CommitmentBase & {
@@ -87,7 +88,10 @@ export interface RefereeTarget {
   unitId: string;
   /** The real Pool the unit or bout belongs to, when there is one. */
   poolId: string | null;
-  /** The group whose fighters make this "their own" (a Pool, a Swiss round); null for a bracket bout. */
+  /**
+   * The group whose fighters make this "their own" (a Pool, a Swiss phase); null for a bracket
+   * bout: a fighter out of the bracket referees its later rounds as anybody does.
+   */
   groupId: string | null;
   matchIds: readonly string[];
   window: TimeWindowMs | null;

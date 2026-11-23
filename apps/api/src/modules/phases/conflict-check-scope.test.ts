@@ -41,6 +41,7 @@ function unit(
 const units = [
   unit('pool-ls', T, ['ls1']),
   unit('swiss-ls-r2-l1', T, ['sw1'], { kind: 'swiss', swissRoundId: 'r2' }),
+  unit('match-ls-qf', T, ['qf1'], { kind: 'bracket' }),
   unit('pool-sb', OTHER, ['sb1']),
   unit('pool-sb2', OTHER, ['sb2']),
 ];
@@ -82,11 +83,15 @@ describe('conflictsTouchingTournament', () => {
     expect(conflictsTouchingTournament([crossing], units, T)).toEqual([crossing]);
   });
 
-  it("keeps one that points at T's Pool, T's Swiss round, or T's unit", () => {
+  it("keeps one that points at T's Pool, T's Swiss phase, T's bracket, or T's unit", () => {
     const atPool = entry('pool-sb', OTHER, [{ kind: 'pool', id: 'pool-ls', label: 'x' }]);
-    const atRound = entry('pool-sb', OTHER, [{ kind: 'pool', id: 'swiss:r2', label: 'x' }]);
+    const atSwiss = entry('pool-sb', OTHER, [{ kind: 'pool', id: `swiss:${T}`, label: 'x' }]);
+    // A referee still in T's bracket (operator, 2026-11-23).
+    const atBracket = entry('pool-sb', OTHER, [{ kind: 'pool', id: `elim:${T}`, label: 'x' }]);
     const atUnit = entry('pool-sb', OTHER, [{ kind: 'unit', id: 'swiss-ls-r2-l1', label: 'x' }]);
-    expect(conflictsTouchingTournament([atPool, atRound, atUnit], units, T)).toHaveLength(3);
+    expect(
+      conflictsTouchingTournament([atPool, atSwiss, atBracket, atUnit], units, T),
+    ).toHaveLength(4);
   });
 
   it('drops a verdict of another Tournament that points nowhere in T', () => {

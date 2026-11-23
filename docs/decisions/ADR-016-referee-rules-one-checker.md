@@ -91,7 +91,10 @@ ahead after confirming:
 - refereeing anywhere while a Pool one fights in is running, outside one's own bouts — the
   whole-Pool span (operator, 2026-09-18, ruling 5; its own switch, ruling 21). A fighter is busy
   for their Pool's hull everywhere, refereeing included. Their own bouts overlapping stay
-  Impossible.
+  Impossible. The same switch covers a Swiss phase (its whole hull) and a bracket from its first
+  bout until one is out — a lost completed bout with nothing left to fight in it (operator,
+  2026-11-23). A bracket is a span, never a group: out of it, one referees its later rounds as
+  anybody does.
 - refereeing without rest: another duty of that day within `referee_rest_min_slots` day slots
   (ADR-019; its switch is `enforce_referee_no_back_to_back`);
 - refereeing past the day's bout cap, `max_bouts_per_day` (ADR-019; 0 = no cap).
@@ -100,8 +103,9 @@ ahead after confirming:
 
 The level is the worst reason's, and every reason that applies is returned. **Reason codes have
 one list**, in the checker (`REFEREE_REASON_CODES`), and every screen's words come from it by
-code. A Swiss round is a group like a Pool for the two Pool rules. A bout of one's own group —
-Pool or round — on another piste at the same time is still two places at once (Impossible).
+code. A Swiss phase is a group like a Pool for the two Pool rules (it was the Swiss round until
+2026-11-23). A bout of one's own group — Pool or Swiss phase — on another piste at the same time
+is still two places at once (Impossible).
 
 "Not enough referees at this time" is not a verdict on a person. It stays a warning about the whole
 slate, with its own switch, and it never blocks.
@@ -129,7 +133,7 @@ slate, with its own switch, and it never blocks.
   picker's words. It asks the checker for every candidate, with its own proposals counted as
   duties, over the commitments the run keeps (never the auto rows it replaces); Apply re-judges
   every proposal before it deletes anything, and a refused one is an engine bug and a 5xx (W1.3).
-  It never proposes someone for a Pool or Swiss round they fight in, even with the own-Pool rule
+  It never proposes someone for a Pool or Swiss phase they fight in, even with the own-Pool rule
   switched off: the switch lets the organiser do that by hand (operator, 2026-09-26, ruling 140).
 - **The schedule board's instant check calls the same checker.** The second detector retires, and
   `apps/api/src/modules/phases/conflict-check.controller.ts` answers from the checker.

@@ -115,12 +115,15 @@ describe('buildCommitments', () => {
       window: { startMs: ms('10:00'), endMs: ms('10:10') },
       label: 'Longsword · A',
     });
-    // A Swiss bout's group is its round.
+    // A Swiss bout's group is its Swiss phase (operator, 2026-11-23; it was the round).
     expect(fights.find((c) => c.personId === 'ann' && c.matchId === 's1')).toMatchObject({
-      groupId: 'swiss:r3',
+      groupId: 'swiss:t-ls',
     });
-    // An unplaced bracket bout is still a fight, with no window and no group.
-    expect(fights.find((c) => c.matchId === 'f1')).toMatchObject({ window: null, groupId: null });
+    // An unplaced bracket bout is still a fight, with no window; its block is the bracket.
+    expect(fights.find((c) => c.matchId === 'f1')).toMatchObject({
+      window: null,
+      groupId: 'elim:t-ls',
+    });
   });
 
   it('gives each person the hull of every group they fight in, across its units', () => {
@@ -135,14 +138,111 @@ describe('buildCommitments', () => {
       startMs: ms('10:00'),
       endMs: ms('10:20'),
     });
-    // Round 3 spans both pistes: 10:00 to 10:15.
+    // The Swiss phase spans both pistes: 10:00 to 10:15, named by its Tournament.
     expect(groups.find((c) => c.personId === 'dan')).toEqual({
       kind: 'fight-pool',
       personId: 'dan',
-      groupId: 'swiss:r3',
+      groupId: 'swiss:t-ls',
       window: { startMs: ms('10:00'), endMs: ms('10:15') },
-      label: 'Longsword · LSW-S3',
+      label: 'Longsword',
     });
+  });
+
+  /**
+   * Paul's Longsword bracket (operator, 2026-11-23): its first bout at 14:00 (Ann v Bob), his
+   * quarter-final at 14:30, the bronze at 16:00 and the Final at 17:00, ten minutes each. He is
+   * busy from 14:00 until he is out; still in, to 17:10.
+   */
+  describe('a bracket, from its start until the fighter is out', () => {
+    const bracketBout = (
+      id: string,
+      start: string,
+      red: string | null,
+      blue: string | null,
+      result: { status: string; winnerRegistrationId: string | null } = {
+        status: 'scheduled',
+        winnerRegistrationId: null,
+      },
+    ) => ({ ...bout(id, start, red as string, blue as string), ...result });
+    const bracketUnit = (
+      id: string,
+      kind: 'bracket' | 'finals',
+      b: ReturnType<typeof bracketBout>,
+    ) => unit({ id, kind, matchIds: [b.id], matches: [b] });
+    const spanOfPaul = (units: AssignmentBoardPool[]) =>
+      buildCommitments(inputs({ units })).find(
+        (c) => c.kind === 'fight-pool' && c.personId === 'paul',
+      );
+    const first = bracketUnit('r1', 'bracket', bracketBout('r1', '14:00', 'reg-ann', 'reg-bob'));
+    const final = bracketUnit('f', 'finals', bracketBout('f', '17:00', null, null));
+
+    it('holds him from the bracket start, before his own first bout, to its end while he is in', () => {
+      const quarter = bracketUnit(
+        'qf',
+        'bracket',
+        bracketBout('qf', '14:30', 'reg-paul', 'reg-dan'),
+      );
+      expect(spanOfPaul([first, quarter, final])).toEqual({
+        kind: 'fight-pool',
+        personId: 'paul',
+        groupId: 'elim:t-ls',
+        window: { startMs: ms('14:00'), endMs: ms('17:10') },
+        label: 'Longsword',
+      });
+    });
+
+    it('frees him at the end of the bout that put him out', () => {
+      const lost = { status: 'completed', winnerRegistrationId: 'reg-dan' };
+      const quarter = bracketUnit(
+        'qf',
+        'bracket',
+        bracketBout('qf', '14:30', 'reg-paul', 'reg-dan', lost),
+      );
+      expect(spanOfPaul([first, quarter, final])?.window).toEqual({
+        startMs: ms('14:00'),
+        endMs: ms('14:40'),
+      });
+    });
+
+    it('keeps him while a bout of his is left: the bronze after a lost semi-final', () => {
+      const lost = { status: 'completed', winnerRegistrationId: 'reg-dan' };
+      const semi = bracketUnit(
+        'sf',
+        'bracket',
+        bracketBout('sf', '14:30', 'reg-paul', 'reg-dan', lost),
+      );
+      const bronze = bracketUnit('b', 'finals', bracketBout('b', '16:00', 'reg-paul', 'reg-marc'));
+      expect(spanOfPaul([first, semi, bronze, final])?.window?.endMs).toBe(ms('17:10'));
+    });
+
+    it('never makes the bracket his own group: a target in it has no group', () => {
+      expect(unitTarget(final, 'decl', clock).groupId).toBeNull();
+    });
+  });
+
+  it('holds a Swiss fighter for the whole phase, across its rounds', () => {
+    const round4 = unit({
+      id: 'swiss-r4-l1',
+      name: 'LSW-S4',
+      kind: 'swiss',
+      swissRoundId: 'r4',
+      matchIds: ['s9'],
+      members: [],
+      matches: [bout('s9', '13:00', 'reg-dan', 'reg-ann')],
+    });
+    const spans = buildCommitments(inputs({ units: [swissP1, swissP2, round4] })).filter(
+      (c) => c.kind === 'fight-pool' && c.personId === 'dan',
+    );
+    // One span, round 3 at 10:00 to round 4's end at 13:10 — the hours between included.
+    expect(spans).toEqual([
+      {
+        kind: 'fight-pool',
+        personId: 'dan',
+        groupId: 'swiss:t-ls',
+        window: { startMs: ms('10:00'), endMs: ms('13:10') },
+        label: 'Longsword',
+      },
+    ]);
   });
 
   it('counts a roster member with no bout wired yet as in the Pool', () => {
@@ -297,7 +397,7 @@ describe('targets', () => {
     expect(unitTarget(swissP1, 'decl', clock)).toMatchObject({
       scope: 'match',
       poolId: null,
-      groupId: 'swiss:r3',
+      groupId: 'swiss:t-ls',
       slot: 0,
     });
     expect(unitTarget(final, 'decl', clock)).toMatchObject({

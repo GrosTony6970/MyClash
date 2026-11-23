@@ -183,9 +183,9 @@ function bestMatchingQual(
 }
 
 /**
- * Whether the person fights in the unit's group (its Pool or Swiss round). Everyone who fights a
- * bout of a group holds that group's fight-pool; a bracket bout has no group, and fighting it is
- * already `own_match`.
+ * Whether the person fights in the unit's group (its Pool or Swiss phase). Everyone who fights a
+ * bout of a group holds that group's fight-pool; a bracket bout has no group (its span is
+ * `own_pool_span`'s, until the person is out), and fighting it is already `own_match`.
  */
 function fightsIn(
   commitments: readonly RefereeCommitment[],

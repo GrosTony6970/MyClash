@@ -16,8 +16,10 @@
  * Teaching, attending, availability, rest and the daily bout cap (ADR-019: day slots and
  * days on the Event clock) need data the board does not hold; the server's
  * half (`useRefereeCrewConflicts`, re-read after each move) reports those. So do a Swiss
- * round's two group rules: the board's bouts carry no round, so here a Swiss bout is judged
- * as a bout on its own (its overlaps still fire). The banner says which half is which.
+ * phase's two group rules and a bracket's span until the fighter is out (operator,
+ * 2026-11-23): the board's bouts carry no phase or result, so here a Swiss or bracket bout
+ * is judged as a bout on its own (its overlaps still fire). The banner says which half is
+ * which.
  *
  * A bout on the Unscheduled panel has no window: it overlaps nothing, so a clash appears
  * the instant a drag creates it and never a moment before. Refereeing one's own bout needs

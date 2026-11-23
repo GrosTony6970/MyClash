@@ -2193,9 +2193,8 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   elimination bracket from its first bout until they are out (operator, 2026-11-23: the same rule
   as the fighter's own schedule). The tooltip names the person and the other place ("Longsword
   Open · Elimination", the block's word in the reader's language). The busy times come from
-  `GET events/:eventId/workshop-instructor-busy`: Pools and duties from the referee checker's own
-  commitments (ADR-016), Swiss phases and brackets as one block each (`instructor-busy.ts`; the
-  checker itself keeps its per-round and per-bout windows), for the Event's instructors only;
+  `GET events/:eventId/workshop-instructor-busy`, from the referee checker's own commitments
+  (ADR-016; `instructor-busy.ts`), which hold the same blocks, for the Event's instructors only;
   the overlap is worked out in the page
   (`instructor-clashes.ts`). A session counts with a start and an end and not cancelled, as in
   the checker. A failed read says the fights and refereeing were not checked. ADR-016 is the
@@ -2411,7 +2410,8 @@ in the pool.
 **Inputs:** every board unit (a Pool, a Swiss round on one piste, a bracket bout) as the one
 referee checker judges it (`referees/event-commitments.ts`: its window is the hull of its Matches'
 planned windows, ADR-017, plus its day and its day slot), each referee's active
-`referee_qualifications`, every commitment of the Event (fights, the Pools one fights in, teaching and
+`referee_qualifications`, every commitment of the Event (fights, the blocks one fights in — a Pool, a
+Swiss phase, a bracket from its first bout until one is out (operator, 2026-11-23) — teaching and
 attending Workshop sessions, the manual duties the run keeps — never the auto rows it replaces), each
 referee's declared availability, and `pool_assignment_settings`.
 
@@ -2420,7 +2420,8 @@ the engine keeps the candidates holding a skill the slot allows (`no_qualified_u
 not already sit in that role on the unit (`all_qualified_already_seated`), and asks
 `checkReferee` about each, with the run's own proposals so far counted as duties. Only a Fine
 candidate is picked: the engine never proposes what the organiser would have to confirm (Discouraged:
-own Pool, Pool running, two roles, attending a Workshop, rest, the daily cap) or could not assign at all
+own Pool or Swiss phase, a Pool, Swiss phase or bracket running, two roles, attending a Workshop, rest,
+the daily cap) or could not assign at all
 (Impossible: own bout, fighting, refereeing or teaching at an overlapping time, outside availability).
 Among the Fine candidates it prefers the higher rating (`rating_based_ordering`), then the less loaded
 (`workload_balance`). An empty slot says why by the checker's codes, one per reason that refused a

@@ -1847,7 +1847,8 @@ export const organizer = {
       teaches_overlap: 'anime un atelier au même moment ({against})',
       outside_availability: 'hors de ses disponibilités déclarées',
       own_pool: 'combat dans cette poule ({against})',
-      own_pool_span: 'combat dans une poule en cours au même moment ({against})',
+      own_pool_span:
+        'combat dans une poule, une phase suisse ou un tableau en cours au même moment ({against})',
       two_roles: 'tient déjà un autre rôle ici ({against})',
       attends_overlap: 'suit un atelier au même moment ({against})',
       rest: 'sans repos depuis un autre arbitrage ({against})',
@@ -3361,7 +3362,8 @@ export const organizer = {
       teaches_overlap: 'Anime un atelier au même moment',
       outside_availability: 'Indisponible pour ce tournoi, ce jour ou cette heure',
       own_pool: 'Combat dans cette poule',
-      own_pool_span: 'Combat dans une poule en cours au même moment',
+      own_pool_span:
+        'Combat dans une poule, une phase suisse ou un tableau en cours au même moment',
       two_roles: 'Tient déjà un autre rôle ici',
       attends_overlap: 'Suit un atelier au même moment',
       rest: 'A besoin de repos après un autre arbitrage',
@@ -3381,9 +3383,9 @@ export const organizer = {
           'Demande confirmation avant qu’une personne arbitre pendant un atelier auquel elle est inscrite. Animer un atelier n’est jamais permis.',
       },
       ownPoolSpan: {
-        label: 'Poule en cours',
+        label: 'Poule, suisse ou tableau en cours',
         description:
-          'Demande confirmation avant qu’une personne arbitre pendant qu’une poule où elle combat est en cours, hors de ses propres matchs.',
+          'Demande confirmation avant qu’une personne arbitre pendant qu’une poule ou une phase suisse où elle combat est en cours, ou un tableau où elle est encore en lice, hors de ses propres matchs.',
       },
       twoRoles: {
         label: 'Deux rôles',

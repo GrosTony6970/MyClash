@@ -5,8 +5,10 @@
  * unit?" from a person's commitments, each already windowed (ADR-016, ADR-017). This file
  * is the one place the API builds them, from what the board already loaded:
  *   - a fight is one bout's window, for each of its two fighters;
- *   - a fight-pool is the hull of a group a person fights in: a Pool (its members and its
- *     bouts' fighters), or a Swiss round across its pistes (every competitor of the round);
+ *   - a fight-pool is the span of a block a person fights in (operator, 2026-11-23): a Pool
+ *     (its members and its bouts' fighters) or a Swiss phase across its rounds and pistes —
+ *     the hull of its bouts, whoever fights them; or a bracket, from its first bout until the
+ *     person is out (`eliminationEnd`), to its last while they are still in;
  *   - a referee duty is a Pool's hull for a Pool-scoped row, one bout's window for a
  *     Match-scoped row, with the bouts it covers, its day and its unit's day slot;
  *   - teaching and attending are the Workshop session's own times.
@@ -30,6 +32,7 @@ import type {
 } from '@myclash/rulesets/scheduling/referee-checker';
 import type { RefereeCommitmentPool } from '@myclash/types';
 import { sessionWindowMs } from '@myclash/schedule-core';
+import { eliminationEnd } from '../persons/elimination-end';
 import { boutWindowMs, unitWindowMs } from './board-unit-ends';
 import type { AssignmentBoardPool } from './assignment-board.service';
 import type { PoolAssignmentSettings } from './settings.service';
@@ -114,11 +117,25 @@ export function unitLabel(unit: Pick<AssignmentBoardPool, 'tournamentName' | 'na
   return unit.tournamentName ? `${unit.tournamentName} · ${unit.name}` : unit.name;
 }
 
-/** The group whose fighters make a unit "their own": the Pool, or the Swiss round. */
+/**
+ * The group whose fighters make a unit "their own": the Pool, or the Swiss phase (operator,
+ * 2026-11-23; it was the Swiss round). A bracket bout belongs to no group: a fighter out of the
+ * bracket referees its later rounds as anybody does. One Swiss phase per Tournament.
+ */
 export function groupIdOf(unit: AssignmentBoardPool): string | null {
   if ((unit.kind ?? 'pool') === 'pool') return unit.id;
-  if (unit.kind === 'swiss' && unit.swissRoundId) return `swiss:${unit.swissRoundId}`;
+  if (unit.kind === 'swiss') return `swiss:${unit.tournamentId}`;
   return null;
+}
+
+/**
+ * The block a unit's fighters are busy for: its group, or its Tournament's bracket. A bracket is a
+ * span, never a group: `own_pool_span` fires while the person is still in it, `own_pool` never.
+ */
+export function spanIdOf(unit: AssignmentBoardPool): string | null {
+  const group = groupIdOf(unit);
+  if (group !== null) return group;
+  return unit.kind === 'bracket' || unit.kind === 'finals' ? `elim:${unit.tournamentId}` : null;
 }
 
 function poolIdOf(unit: AssignmentBoardPool): string | null {
@@ -151,7 +168,8 @@ function fightCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
           kind: 'fight',
           personId,
           matchId: bout.id,
-          groupId: groupIdOf(unit),
+          // Its block: a bout that clashes on its own (Impossible) silences its block's span.
+          groupId: spanIdOf(unit),
           window: boutWindowMs(bout),
           label: unitLabel(unit),
         });
@@ -161,11 +179,47 @@ function fightCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
   return out;
 }
 
-/** One fight-pool per person per group, over the hull of every unit of the group. */
+type BoardBout = AssignmentBoardPool['matches'][number];
+
+/**
+ * When a bracket ends for one fighter: the end of the bout that put them out, or null while
+ * they are still in. A bout the board read no result for is still to fight; a completed bout
+ * they did not win put them out, one with no winner (both out) too.
+ */
+function outOfBracketMs(
+  bouts: readonly BoardBout[],
+  personId: string,
+  personIdByRegistration: ReadonlyMap<string, string>,
+): number | null {
+  const own = bouts.flatMap((bout) => {
+    const reg = [bout.redRegistrationId, bout.blueRegistrationId].find(
+      (r) => r !== null && personIdByRegistration.get(r) === personId,
+    );
+    if (!reg) return [];
+    const status = bout.status ?? 'scheduled';
+    const won = bout.winnerRegistrationId === reg;
+    return [
+      {
+        status,
+        outcome: status === 'completed' ? (won ? ('win' as const) : ('loss' as const)) : null,
+        scheduledAt: bout.scheduledAt,
+        durationMinutes: bout.durationMinutes,
+        fallbackEndsAt: null,
+      },
+    ];
+  });
+  const out = eliminationEnd(own);
+  return out === null ? null : Date.parse(out);
+}
+
+/**
+ * One fight-pool per person per block, over the hull of every unit of the block: a Pool, a
+ * Swiss phase, a bracket. A bracket ends for a person at the bout that put them out.
+ */
 function groupCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
   const groups = new Map<string, { units: AssignmentBoardPool[]; people: Set<string> }>();
   for (const unit of inputs.units) {
-    const groupId = groupIdOf(unit);
+    const groupId = spanIdOf(unit);
     if (groupId === null) continue;
     const group = groups.get(groupId) ?? { units: [], people: new Set<string>() };
     group.units.push(unit);
@@ -174,9 +228,16 @@ function groupCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
   }
   const out: RefereeCommitment[] = [];
   for (const [groupId, group] of groups) {
-    const window = unitWindowMs({ matches: group.units.flatMap((u) => u.matches) });
-    const label = unitLabel(group.units[0]!);
+    const bouts = group.units.flatMap((u) => u.matches);
+    const hull = unitWindowMs({ matches: bouts });
+    const first = group.units[0]!;
+    // A Pool is named by its own name; a Swiss phase and a bracket by their Tournament.
+    const label = (first.kind ?? 'pool') === 'pool' ? unitLabel(first) : first.tournamentName;
+    const bracket = groupId.startsWith('elim:');
     for (const personId of group.people) {
+      const outMs =
+        bracket && hull ? outOfBracketMs(bouts, personId, inputs.personIdByRegistration) : null;
+      const window = hull && outMs !== null ? { startMs: hull.startMs, endMs: outMs } : hull;
       out.push({ kind: 'fight-pool', personId, groupId, window, label });
     }
   }

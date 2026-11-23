@@ -56,8 +56,7 @@ import {
   unitTarget,
 } from './event-commitments';
 import { loadInstructorIds, loadWorkshopSessions } from './workshop-sessions';
-import { eliminationBoutIds, instructorBusy } from './instructor-busy';
-import { readBoutResults } from './bout-results';
+import { instructorBusy } from './instructor-busy';
 import { refereeBoardLocked } from './referee-lock';
 import { qualifiedCandidate, refuseUnlessFine } from './write-verdict';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -173,6 +172,12 @@ export interface AssignmentBoardPool {
     liceId: string | null;
     redRegistrationId: string | null;
     blueRegistrationId: string | null;
+    /**
+     * A bracket bout's status and recorded winner, so the checker knows who is out of the
+     * bracket (`event-commitments.ts`, operator 2026-11-23). Absent on Pool and Swiss bouts.
+     */
+    status?: string;
+    winnerRegistrationId?: string | null;
   }>;
   /**
    * One entry per slot in the tournament's resolved `pool` config.
@@ -544,24 +549,15 @@ export class AssignmentBoardService {
 
   /**
    * When the Event's Workshop instructors fight or referee, for the Workshop board's red card
-   * (rulings 553-555): Pools and duties from the commitments the checker reads, Swiss phases and
-   * brackets as one block each (`instructor-busy.ts`). An Event with no unit has no fight and no
-   * duty, so nobody is busy: the instructors are not read.
+   * (rulings 553-555), from the same commitments the checker reads: a Pool, a Swiss phase, a
+   * bracket until they are out. An Event with no unit has no fight and no duty, so nobody is
+   * busy: the instructors are not read.
    */
   async getInstructorBusy(eventId: string): Promise<WorkshopInstructorBusyResult> {
     const context = await this.loadContext(eventId);
     if (context.pools.length === 0) return { busy: [] };
     const instructorIds = await loadInstructorIds(this.supabase.service, eventId);
-    const ids = eliminationBoutIds(context.pools, context.personIdByRegistration, instructorIds);
-    return {
-      busy: instructorBusy({
-        commitments: context.commitments,
-        units: context.pools,
-        personIdByRegistration: context.personIdByRegistration,
-        instructorIds,
-        results: await readBoutResults(this.supabase.service, this.logger, eventId, ids),
-      }),
-    };
+    return { busy: instructorBusy(context.commitments, instructorIds) };
   }
 
   /**
@@ -1301,7 +1297,7 @@ export class AssignmentBoardService {
     const { data: matches, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label',
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label, status, winner_registration_id',
       )
       .in(
         'phase_id',
@@ -1319,6 +1315,8 @@ export class AssignmentBoardService {
       blue_registration_id: string | null;
       bracket_slot_id: string | null;
       match_number_label: string | null;
+      status: string;
+      winner_registration_id: string | null;
     }>;
     if (matchRows.length === 0) return [];
 
@@ -1398,6 +1396,8 @@ export class AssignmentBoardService {
             liceId: m.lice_id,
             redRegistrationId: m.red_registration_id,
             blueRegistrationId: m.blue_registration_id,
+            status: m.status,
+            winnerRegistrationId: m.winner_registration_id,
           },
         ],
         roleSlots: [],

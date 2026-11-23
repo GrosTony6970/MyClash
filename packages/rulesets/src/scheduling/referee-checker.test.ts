@@ -201,8 +201,52 @@ describe('own_pool_span (Discouraged, switch ownPoolSpan — ruling 5)', () => {
   });
 });
 
-describe('a Swiss round is a group, not a Pool', () => {
-  // Round 3 on piste 1, 10:00–10:30. Léa fights round 3 on piste 2.
+/**
+ * Léa still in the Longsword bracket (operator, 2026-11-23): the bracket is a span, never a group.
+ * It runs from the bracket's first bout until she is out (`event-commitments.ts` builds it); while
+ * it runs she should not referee elsewhere, and once she is out she referees its later rounds as
+ * anybody does. Same switch as a Pool's span.
+ */
+describe('a bracket is a span, never a group', () => {
+  const span = (to: number) => fightPool('elim:longsword', w(60, to));
+  const laterBout: RefereeTarget = {
+    ...poolB,
+    scope: 'match',
+    unitId: 'match-final',
+    poolId: null,
+    groupId: null,
+    matchIds: ['final'],
+    window: w(300, 310),
+  };
+
+  it('asks before she referees elsewhere while she is still in', () => {
+    const v = check([span(320)]);
+    expect(v.level).toBe('discouraged');
+    expect(codes(v)).toEqual(['own_pool_span']);
+  });
+
+  it('asks before she referees a later bout of her own bracket while still in, never as own_pool', () => {
+    expect(codes(check([span(320)], laterBout))).toEqual(['own_pool_span']);
+  });
+
+  it('lets her referee once she is out, her own bracket included', () => {
+    expect(check([span(100)]).level).toBe('fine');
+    expect(check([span(100)], laterBout).level).toBe('fine');
+  });
+
+  it('is fine with the switch off', () => {
+    expect(check([span(320)], poolB, { ...ALL_ON, ownPoolSpan: false }).level).toBe('fine');
+  });
+
+  it('gives way to fights_overlap when her own bracket bout overlaps', () => {
+    const v = check([span(320), fight('qf', 'elim:longsword', w(130, 140))]);
+    expect(codes(v)).toEqual(['fights_overlap']);
+  });
+});
+
+describe('a Swiss phase is a group, not a Pool', () => {
+  // A round on piste 1, 10:00–10:30. Léa fights in the same Swiss phase (operator, 2026-11-23:
+  // the group is the phase, not one round).
   const r3p1: RefereeTarget = {
     scope: 'match',
     unitId: 'swiss-r3-p1',
@@ -224,12 +268,12 @@ describe('a Swiss round is a group, not a Pool', () => {
     label: `bout ${matchId}`,
   });
 
-  it('her round at another time is own_pool (the round rule the board always had)', () => {
+  it('her Swiss phase at another time is own_pool', () => {
     const v = check([swissBout('s9', w(160, 170)), fightPool('round-3', w(120, 170))], r3p1);
     expect(codes(v)).toEqual(['own_pool']);
   });
 
-  it('her bout of the same round on another piste at the same time is Impossible', () => {
+  it('her bout of the same phase on another piste at the same time is Impossible', () => {
     const v = check([swissBout('s8', w(125, 135)), fightPool('round-3', w(120, 170))], r3p1);
     expect(codes(v)).toEqual(['fights_overlap', 'own_pool']);
     expect(v.level).toBe('impossible');

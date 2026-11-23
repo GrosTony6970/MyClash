@@ -139,6 +139,35 @@ describe('the checker decides who may take a slot', () => {
     expect(reasonsOf(r)).toEqual(['A:teaches_overlap+outside_availability+own_pool']);
   });
 
+  it('proposes a fighter for a bout of his bracket once he is out, never while he is still in', () => {
+    // Paul's bracket span ends where he lost (operator, 2026-11-23); the Final is at 05:00.
+    const final: PoolSlot = {
+      ...pool('final', null, 300, 310),
+      target: {
+        ...pool('final', null, 300, 310).target,
+        scope: 'match',
+        poolId: null,
+        groupId: null,
+      },
+    };
+    const span = (to: number) =>
+      at('paul', { kind: 'fight-pool', groupId: 'elim:ls', window: w(0, to) });
+    const out = assignReferees(
+      [final],
+      [ref('paul', 9), ref('free', 1)],
+      RANKED,
+      rules([span(40)]),
+    );
+    expect(picked(out)).toEqual(['final:paul']);
+    const stillIn = assignReferees(
+      [final],
+      [ref('paul', 9), ref('free', 1)],
+      RANKED,
+      rules([span(320)]),
+    );
+    expect(picked(stillIn)).toEqual(['final:free']);
+  });
+
   it('never proposes someone for a Pool they fight in, even with the own-Pool rule off (ruling 140)', () => {
     const lea = at('lea', { kind: 'fight-pool', groupId: 'A', window: w(0, 60) });
     const off = rules([lea], { ownPool: false });

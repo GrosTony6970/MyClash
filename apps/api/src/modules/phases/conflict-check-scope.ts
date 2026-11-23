@@ -15,7 +15,7 @@ import type {
   AssignmentBoardPool,
   RefereeConflictEntry,
 } from '../referees/assignment-board.service';
-import { groupIdOf } from '../referees/event-commitments';
+import { spanIdOf } from '../referees/event-commitments';
 
 export function conflictsTouchingTournament(
   conflicts: readonly RefereeConflictEntry[],
@@ -25,7 +25,8 @@ export function conflictsTouchingTournament(
   const own = units.filter((u) => u.tournamentId === tournamentId);
   const unitIds = new Set(own.map((u) => u.id));
   const matchIds = new Set(own.flatMap((u) => u.matches.map((m) => m.id)));
-  const groupIds = new Set(own.map(groupIdOf).filter((id): id is string => id !== null));
+  // A Pool, a Swiss phase, a bracket: a block of T's that someone is still busy in.
+  const groupIds = new Set(own.map(spanIdOf).filter((id): id is string => id !== null));
   const pointsIntoT = (entry: RefereeConflictEntry) =>
     entry.reasons.some((r) => {
       if (!r.against) return false;

@@ -620,7 +620,8 @@ describe('AssignmentBoardService', () => {
         { id: 'bout-1', phaseId: 'bracket-phase-1', plannedDurationOverrideMinutes: null },
       ]);
       expect(selectsFor(fromMock as never, 'matches')).toEqual([
-        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label',
+        // Its status and winner: who is out of the bracket (operator, 2026-11-23).
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label, status, winner_registration_id',
       ]);
     });
 

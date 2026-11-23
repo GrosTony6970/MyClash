@@ -1862,7 +1862,8 @@ export const organizer = {
       teaches_overlap: 'teaches a Workshop at the same time ({against})',
       outside_availability: 'outside their declared availability',
       own_pool: 'fights in this Pool ({against})',
-      own_pool_span: 'fights in a Pool running at the same time ({against})',
+      own_pool_span:
+        'fights in a Pool, Swiss phase or bracket running at the same time ({against})',
       two_roles: 'already holds another role here ({against})',
       attends_overlap: 'attends a Workshop at the same time ({against})',
       rest: 'no rest since another duty ({against})',
@@ -3390,7 +3391,7 @@ export const organizer = {
       teaches_overlap: 'Teaches a Workshop at the same time',
       outside_availability: 'Unavailable for this tournament, day or time',
       own_pool: 'Fights in this Pool',
-      own_pool_span: 'Fights in a Pool running at the same time',
+      own_pool_span: 'Fights in a Pool, Swiss phase or bracket running at the same time',
       two_roles: 'Already holds another role here',
       attends_overlap: 'Attends a Workshop at the same time',
       rest: 'Needs rest after another duty',
@@ -3405,9 +3406,9 @@ export const organizer = {
           'Asks before a fighter referees their own Pool at another time. Their own bout is never allowed.',
       },
       ownPoolSpan: {
-        label: 'Pool running',
+        label: 'Pool, Swiss or bracket running',
         description:
-          'Asks before someone referees while a Pool they fight in is running, outside their own bouts.',
+          'Asks before someone referees while a Pool or Swiss phase they fight in is running, or a bracket they are still in, outside their own bouts.',
       },
       attendWorkshop: {
         label: 'Attending a Workshop',

@@ -11,8 +11,9 @@
  *     outside one's declared availability.
  *   - Discouraged: each rule has one per-Event switch; the organiser may go ahead
  *     after confirming. One's own Pool at another time; two roles on one unit;
- *     attending a Workshop at an overlapping time; refereeing while a Pool one fights
- *     in is running, outside one's own bouts (operator ruling 5); no rest between two
+ *     attending a Workshop at an overlapping time; refereeing while a Pool, a Swiss phase
+ *     or a bracket one fights in is running — the bracket until one is out — outside
+ *     one's own bouts (operator ruling 5; 2026-11-23); no rest between two
  *     duties of one day, and past the day's bout cap (ADR-019, `referee-load.ts`).
  * The verdict is the worst level; every reason that applies is returned.
  *

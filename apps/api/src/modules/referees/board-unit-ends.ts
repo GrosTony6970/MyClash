@@ -83,6 +83,11 @@ export function finishBoardUnits(
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
       durationMinutes: plannedLengthOf(lengths, match.id),
+      // A bracket bout's result (who is out); absent on the other kinds.
+      ...(match.status !== undefined && { status: match.status }),
+      ...(match.winnerRegistrationId !== undefined && {
+        winnerRegistrationId: match.winnerRegistrationId,
+      }),
     }));
     const hull = unitWindowMs({ matches: timed });
     return {
