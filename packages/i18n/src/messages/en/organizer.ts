@@ -2374,6 +2374,9 @@ export const organizer = {
     autoCheckIn: 'Tick people when the front desk marks them arrived',
     autoCheckInHint:
       'Ticks this Workshop’s people in the sessions of the day they arrive. The instructor can still clear or add a tick.',
+    waitlistEnabled: 'Keep a waiting list when a session is full',
+    waitlistEnabledHint:
+      'Off: a full session says "Full" and takes no more bookings, yours included. People already waiting keep their place. The instructor can change it too.',
     linked: 'Linked',
     guestTag: 'Guest',
     searchGlobalPersonPlaceholder: 'Search global person…',

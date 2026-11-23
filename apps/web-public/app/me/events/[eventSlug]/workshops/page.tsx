@@ -258,6 +258,7 @@ function WorkshopsContent({
                                 workshopId={w.id}
                                 booking={booking}
                                 full={full}
+                                waitlistEnabled={w.waitlistEnabled}
                                 conflict={conflictFor(session)}
                                 busy={busy.has(session.id)}
                                 isInstructor={teaches}

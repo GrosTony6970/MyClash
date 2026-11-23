@@ -329,6 +329,9 @@ export const publicApp = {
       descriptionLabel: 'Description',
       shortDescriptionLabel: 'Short description (one line for the catalogue)',
       prerequisitesLabel: 'Prerequisites (what to know or bring)',
+      waitlistEnabledLabel: 'Keep a waiting list when a session is full',
+      waitlistEnabledHint:
+        'Off: a full session says "Full" and takes no more bookings. People already waiting keep their place.',
       save: 'Save',
       saveError: 'Could not save the changes.',
       myDetails: 'About me here',
@@ -541,6 +544,7 @@ export const publicApp = {
       refused: 'The instructor removed you from this workshop.',
       registerAgain: 'Register again',
       full: 'Full · waitlist',
+      fullClosed: 'Full',
       instructorEdit: 'Edit my workshop',
       teachingChip: 'You teach this',
       placeElsewhere: 'You have a place on {when}',
@@ -1441,6 +1445,7 @@ export const publicApp = {
     instructorCannotEnroll: 'You cannot register for a workshop you teach.',
     sessionCancelled: 'This session was cancelled.',
     notBookable: 'This workshop is not open for booking.',
+    fullNoWaitlist: 'This session is full, and this workshop keeps no waiting list.',
     prerequisites: 'Before you come',
     instructorsHeading: 'Instructors',
     alreadyBooked:

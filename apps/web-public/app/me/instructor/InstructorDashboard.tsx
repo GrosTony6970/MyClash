@@ -55,6 +55,7 @@ interface InstructorWorkshop {
   color: string | null;
   coverImageUrl: string | null;
   capacity: number | null;
+  waitlistEnabled: boolean;
   durationMinutes: number | null;
   sessions: InstructorSession[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
@@ -68,6 +69,8 @@ interface EditFields {
   descriptionMd: string;
   shortDescription: string;
   prerequisites: string;
+  /** Off: a full session takes no more bookings (0280). */
+  waitlistEnabled: boolean;
 }
 
 interface InstructorGroup {
@@ -230,6 +233,7 @@ function WorkshopManageCard({
     descriptionMd: workshop.descriptionMd ?? '',
     shortDescription: workshop.shortDescription ?? '',
     prerequisites: workshop.prerequisites ?? '',
+    waitlistEnabled: workshop.waitlistEnabled,
   });
   const [panel, setPanel] = useState<'none' | 'edit' | 'me' | 'notify' | 'feedback'>(
     startEditing ? 'edit' : 'none',
@@ -244,6 +248,7 @@ function WorkshopManageCard({
     language: fields.language || null,
     descriptionMd: fields.descriptionMd || null,
     shortDescription: fields.shortDescription.trim() || null,
+    waitlistEnabled: fields.waitlistEnabled,
   };
 
   return (
@@ -374,6 +379,10 @@ export function EditPanel({
           // box sent back would wipe what they wrote meanwhile. Both changed: the last wins.
           ...changedText('shortDescription', draft, fields),
           ...changedText('prerequisites', draft, fields),
+          // The organiser sets it too: only a flip made here is sent, as for the two texts.
+          ...(draft.waitlistEnabled !== fields.waitlistEnabled && {
+            waitlistEnabled: draft.waitlistEnabled,
+          }),
         }),
       });
       if (!res.ok) throw new Error('save');
@@ -451,6 +460,20 @@ export function EditPanel({
           value={draft.prerequisites}
           onChange={(e) => setDraft((d) => ({ ...d, prerequisites: e.target.value }))}
         />
+      </label>
+      <label className="mt-3 flex items-start gap-2 text-sm text-foreground">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={draft.waitlistEnabled}
+          onChange={(e) => setDraft((d) => ({ ...d, waitlistEnabled: e.target.checked }))}
+        />
+        <span>
+          {t('publicApp.me.instructor.waitlistEnabledLabel')}
+          <span className="block text-xs text-muted">
+            {t('publicApp.me.instructor.waitlistEnabledHint')}
+          </span>
+        </span>
       </label>
       {error && (
         <p className="mt-2 text-sm text-danger">{t('publicApp.me.instructor.saveError')}</p>

@@ -157,7 +157,7 @@ export function guestPersonAt(me: MeSession | null, eventId: string | null): str
 
 /** Why the server refused a tap, as far as a page has its own words for it. */
 export type BookingRefusal =
-  'nobody' | 'teaches' | 'removed' | 'cancelled' | 'closed' | 'booked' | 'other';
+  'nobody' | 'teaches' | 'removed' | 'cancelled' | 'closed' | 'booked' | 'full' | 'other';
 
 export type BookingChange =
   | { ok: true; status: 'confirmed' | 'waitlisted' | 'cancelled' }
@@ -170,6 +170,8 @@ const REFUSAL_CODES = new Map<string, BookingRefusal>([
   ['WORKSHOP_NOT_BOOKABLE', 'closed'],
   // A place in another session of the same Workshop (rulings 520, 521).
   ['WORKSHOP_ALREADY_BOOKED', 'booked'],
+  // Full, and the Workshop keeps no waiting list (0280): the page showed a seat that went.
+  ['WORKSHOP_FULL', 'full'],
 ]);
 
 /** One tap on a session, as one call: book (or book again), or give the booking up. */
@@ -211,6 +213,7 @@ export function refusalWords(
   if (change.why === 'cancelled') return t('publicApp.workshopDetail.sessionCancelled');
   if (change.why === 'closed') return t('publicApp.workshopDetail.notBookable');
   if (change.why === 'booked') return t('publicApp.workshopDetail.alreadyBooked');
+  if (change.why === 'full') return t('publicApp.workshopDetail.fullNoWaitlist');
   return failureMessage(change.failure, t);
 }
 

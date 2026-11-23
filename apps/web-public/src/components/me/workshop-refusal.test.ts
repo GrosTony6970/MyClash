@@ -79,6 +79,12 @@ describe('the sentence of a refused tap', () => {
       'publicApp.workshopDetail.alreadyBooked',
     ],
     [
+      'the session filled up, and the Workshop keeps no waiting list (0280)',
+      409,
+      { code: 'WORKSHOP_FULL', detail: 'This workshop is full and keeps no waiting list.' },
+      'publicApp.workshopDetail.fullNoWaitlist',
+    ],
+    [
       'the Event is archived',
       403,
       { code: 'event_archived', detail: 'This event is archived' },

@@ -55,6 +55,7 @@ const workshop = (id: string, title: string) => ({
   color: null,
   coverImageUrl: null,
   capacity: 10,
+  waitlistEnabled: true,
   durationMinutes: null,
   sessions: [],
   instructors: [],
@@ -69,6 +70,7 @@ describe("the instructor's own Workshop", () => {
           workshopId="w-3"
           booking="none"
           full={false}
+          waitlistEnabled
           isInstructor
           labels={registerLabels(t)}
         />,

@@ -87,6 +87,7 @@ const createWorkshopSchema = z
     color: z.string().nullish(),
     venueId: z.uuid().nullish(),
     autoCheckIn: z.boolean().optional(),
+    waitlistEnabled: z.boolean().optional(),
   })
   .strict();
 class CreateWorkshopBody extends createZodDto(createWorkshopSchema) {}
@@ -111,12 +112,13 @@ const updateWorkshopSchema = z
     coverImageUrl: z.string().nullish(),
     venueId: z.uuid().nullish(),
     autoCheckIn: z.boolean().optional(),
+    waitlistEnabled: z.boolean().optional(),
   })
   .strict();
 class UpdateWorkshopBody extends createZodDto(updateWorkshopSchema) {}
 
-// Instructor-scoped edit: only the fields an instructor may change (557 adds the last two).
-// `.nullish()` (= nullable + optional) lets the FE send null to clear a field.
+// Instructor-scoped edit: only the fields an instructor may change (557 adds the two texts, 0280
+// the waiting-list switch). `.nullish()` (= nullable + optional) lets the FE send null to clear a field.
 const instructorUpdateWorkshopSchema = z
   .object({
     weapon: z.string().nullish(),
@@ -125,6 +127,7 @@ const instructorUpdateWorkshopSchema = z
     language: z.string().nullish(),
     shortDescription: z.string().max(SHORT_DESCRIPTION_MAX).nullish(),
     prerequisites: z.string().max(PREREQUISITES_MAX).nullish(),
+    waitlistEnabled: z.boolean().optional(),
   })
   .strict();
 class InstructorUpdateWorkshopBody extends createZodDto(instructorUpdateWorkshopSchema) {}

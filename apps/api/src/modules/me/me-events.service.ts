@@ -234,6 +234,8 @@ export interface InstructorWorkshop {
   color: string | null;
   coverImageUrl: string | null;
   capacity: number | null;
+  /** The waiting-list switch: the instructor flips it here (0280). */
+  waitlistEnabled: boolean;
   durationMinutes: number | null;
   sessions: InstructorWorkshopSession[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
@@ -1262,7 +1264,7 @@ export class MeEventsService {
         `workshops (
           id, slug, title, short_description, prerequisites, description_md,
           category, level, weapon, language, color, cover_image_url,
-          capacity, duration_minutes,
+          capacity, waitlist_enabled, duration_minutes,
           events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
           workshop_sessions (
             id, starts_at, ends_at, status, location_label,
@@ -1328,6 +1330,7 @@ export class MeEventsService {
         color: (workshop['color'] as string | null) ?? null,
         coverImageUrl: (workshop['cover_image_url'] as string | null) ?? null,
         capacity,
+        waitlistEnabled: workshop['waitlist_enabled'] === true,
         durationMinutes: (workshop['duration_minutes'] as number | null) ?? null,
         sessions: mappedSessions,
         instructors: [],

@@ -142,6 +142,18 @@ describe('WorkshopsService — public gate', () => {
     for (const column of REACHABLE_COLUMNS) expect(profileEmbed).toContain(column);
   });
 
+  it('the list and the Workshop page read and pass on the waiting-list switch (0280)', async () => {
+    const fake = buildSupabase([{ ...workshopRow([]), waitlist_enabled: false }]);
+    const svc = makeSvc(fake);
+
+    const [listed] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
+    const page = await svc.getPublicWorkshopBySlug('fal-2027', 'longsword', ANONYMOUS);
+
+    expect(listed?.waitlistEnabled).toBe(false);
+    expect(page.waitlistEnabled).toBe(false);
+    for (const read of workshopReads(fake)) expect(read).toContain('waitlist_enabled');
+  });
+
   it('returns [] for an unknown event slug', async () => {
     const fake = buildSupabase([]);
     // Override events.maybeSingle to resolve null.

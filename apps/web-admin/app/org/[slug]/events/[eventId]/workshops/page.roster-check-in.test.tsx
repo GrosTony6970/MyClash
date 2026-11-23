@@ -74,6 +74,7 @@ const workshop = (sessionStatus = 'scheduled', autoCheckIn = false) => ({
   venueId: null,
   venue: null,
   autoCheckIn,
+  waitlistEnabled: true,
   instructors: [],
   sessions: [SESSION(sessionStatus)],
 });
@@ -289,5 +290,45 @@ describe("the Workshop's auto check-in switch (543)", () => {
     await press('Save');
 
     expect(sent('PATCH')).toMatchObject({ autoCheckIn: true });
+  });
+});
+
+describe("the Workshop's waiting-list switch (0280)", () => {
+  const patch = () =>
+    vi.mocked(apiRequest).mock.calls.find(([, , init]) => init?.method === 'PATCH')?.[2]?.body as
+      Record<string, unknown> | undefined;
+
+  async function openEdit() {
+    reads['/api/v1/events/ev1/workshops'] = [workshop()];
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="en">
+          <ToastProvider>
+            <WorkshopsAdminPage />
+          </ToastProvider>
+        </I18nProvider>,
+      );
+    });
+    await settle();
+    await press('Edit');
+  }
+
+  it("sends nothing of it through an edit that does not flip it: the instructor's choice stays", async () => {
+    await openEdit();
+    await press('Save');
+
+    expect(patch()).not.toHaveProperty('waitlistEnabled');
+  });
+
+  it('sends it off when the organiser unticks it', async () => {
+    await openEdit();
+    const box = [...document.querySelectorAll('label')]
+      .find((label) => label.textContent?.startsWith('Keep a waiting list'))!
+      .querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    await act(async () => box.click());
+    await press('Save');
+
+    expect(patch()).toMatchObject({ waitlistEnabled: false });
   });
 });

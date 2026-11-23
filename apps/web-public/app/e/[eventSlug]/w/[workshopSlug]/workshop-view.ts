@@ -46,6 +46,8 @@ export interface Workshop {
   instructors: Instructor[];
   /** The signed-in caller teaches this workshop — no participant seat for them. */
   viewerIsInstructor: boolean;
+  /** Off: a full session takes no more bookings — its button says "Full" (0280). */
+  waitlistEnabled: boolean;
 }
 
 /** Read at the first load, and again after every tap on a session. */

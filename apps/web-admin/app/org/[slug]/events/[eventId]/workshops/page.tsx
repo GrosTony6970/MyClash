@@ -120,6 +120,8 @@ interface Workshop {
   venue: NamedRef | null;
   /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
   autoCheckIn?: boolean;
+  /** Off: a full session takes no more bookings (0280). */
+  waitlistEnabled: boolean;
   /** `hasDetails`: this Workshop says something of its own about them (2.6b). */
   instructors: Array<{ globalPersonId: string | null; displayName: string; hasDetails?: boolean }>;
   sessions: WorkshopSessionView[];
@@ -185,6 +187,9 @@ const EMPTY_FORM = {
   status: 'draft',
   /** Off by default (543). */
   autoCheckIn: false,
+  /** On by default (0280). The instructor sets it too: an edit sends it only when flipped here. */
+  waitlistEnabled: true,
+  waitlistAsLoaded: true,
   /** One line per session (rulings 515, 524). */
   sessions: [blankLine('')] as SessionLine[],
   instructorIds: [] as string[],
@@ -333,6 +338,8 @@ export default function WorkshopsAdminPage() {
       color: w.color ?? '',
       status: w.status,
       autoCheckIn: w.autoCheckIn === true,
+      waitlistEnabled: w.waitlistEnabled,
+      waitlistAsLoaded: w.waitlistEnabled,
       sessions: linesOf(w.sessions, eventTz, w.venueId ?? ''),
       instructorIds: w.instructors
         .map((i) => i.globalPersonId)
@@ -596,6 +603,9 @@ export default function WorkshopsAdminPage() {
             color: form.color || null,
             venueId: form.venueId || null,
             autoCheckIn: form.autoCheckIn,
+            ...(form.waitlistEnabled !== form.waitlistAsLoaded && {
+              waitlistEnabled: form.waitlistEnabled,
+            }),
             ...changedTexts(form, form.textsAsLoaded),
             // Clear a saved logo when the operator removed it. Setting a
             // new logo goes through the dedicated upload endpoint below.
@@ -666,6 +676,7 @@ export default function WorkshopsAdminPage() {
           color: form.color || undefined,
           venueId: form.venueId || undefined,
           autoCheckIn: form.autoCheckIn,
+          waitlistEnabled: form.waitlistEnabled,
           ...formTexts(form),
         },
       });
@@ -1550,6 +1561,21 @@ export default function WorkshopsAdminPage() {
             </label>
             <p className="mt-1 text-xs text-muted">
               {t('organizer.workshopsPage.autoCheckInHint')}
+            </p>
+          </div>
+          {/* A full session queues people, or says "Full" (0280). The instructor sets it too. */}
+          <div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.waitlistEnabled}
+                onChange={(e) => setForm((f) => ({ ...f, waitlistEnabled: e.target.checked }))}
+                className="rounded"
+              />
+              {t('organizer.workshopsPage.waitlistEnabled')}
+            </label>
+            <p className="mt-1 text-xs text-muted">
+              {t('organizer.workshopsPage.waitlistEnabledHint')}
             </p>
           </div>
           <div>

@@ -2335,6 +2335,9 @@ export const organizer = {
     autoCheckIn: "Cocher les participants quand l'accueil les marque arrivés",
     autoCheckInHint:
       "Coche les participants de cet atelier dans les sessions du jour de leur arrivée. L'instructeur peut toujours retirer ou ajouter une coche.",
+    waitlistEnabled: "Garder une liste d'attente quand une séance est complète",
+    waitlistEnabledHint:
+      "Désactivé : une séance complète affiche « Complet » et ne prend plus d'inscription, même les vôtres. Les personnes déjà en attente gardent leur place. L'instructeur peut aussi le changer.",
     linked: 'Lié',
     guestTag: 'Invité',
     searchGlobalPersonPlaceholder: 'Rechercher une personne globale…',

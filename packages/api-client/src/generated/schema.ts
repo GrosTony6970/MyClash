@@ -13255,6 +13255,7 @@ export interface components {
       /** Format: uuid */
       venueId?: string | null;
       autoCheckIn?: boolean;
+      waitlistEnabled?: boolean;
     };
     UpdateWorkshopBody: {
       title?: string;
@@ -13274,6 +13275,7 @@ export interface components {
       /** Format: uuid */
       venueId?: string | null;
       autoCheckIn?: boolean;
+      waitlistEnabled?: boolean;
     };
     InstructorUpdateWorkshopBody: {
       weapon?: string | null;
@@ -13282,6 +13284,7 @@ export interface components {
       language?: string | null;
       shortDescription?: string | null;
       prerequisites?: string | null;
+      waitlistEnabled?: boolean;
     };
     NotifyWorkshopBody: {
       title: string;

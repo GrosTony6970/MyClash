@@ -313,6 +313,7 @@ export default function WorkshopDetailPage() {
                       workshopId={workshop.id}
                       booking={booking}
                       full={isFull}
+                      waitlistEnabled={workshop.waitlistEnabled}
                       conflict={conflictFor(session)}
                       busy={busy.has(session.id)}
                       isInstructor={workshop.viewerIsInstructor}

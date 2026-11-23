@@ -309,6 +309,7 @@ describe('MeEventsService.getInstructorWorkshops — sessions', () => {
             title: 'Intro',
             short_description: 'First steps',
             prerequisites: 'Bring a mask',
+            waitlist_enabled: true,
             events: EVENT(),
             workshop_sessions: [],
           },
@@ -317,9 +318,11 @@ describe('MeEventsService.getInstructorWorkshops — sessions', () => {
     });
     const groups = await service.getInstructorWorkshops('user-1');
 
+    // …and the waiting-list switch, which the instructor flips beside them (0280).
     expect(groups[0]!.workshops[0]).toMatchObject({
       shortDescription: 'First steps',
       prerequisites: 'Bring a mask',
+      waitlistEnabled: true,
     });
     // The double ignores projections: the SELECT itself names the column.
     const from = (
@@ -333,5 +336,6 @@ describe('MeEventsService.getInstructorWorkshops — sessions', () => {
         : [],
     );
     expect(selects.join('\n')).toMatch(/short_description, prerequisites, description_md/);
+    expect(selects.join('\n')).toMatch(/capacity, waitlist_enabled,/);
   });
 });

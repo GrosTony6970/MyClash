@@ -2035,7 +2035,7 @@ A user can be a **competitor** AND a **workshop attendee** AND a **referee** at 
 
 - **Workshop** = the thing being taught (title, description, instructor, level, language, capacity, category).
 - **WorkshopSession** = a concrete time-and-place instance. A single Workshop can have multiple sessions (Saturday 10:00 AND Sunday 14:00).
-- **WorkshopEnrollment** = a user's intent to attend a session. Capacity-managed: when full, new enrollments go to waitlist.
+- **WorkshopEnrollment** = a user's intent to attend a session. Capacity-managed: when full, new enrollments go to waitlist — unless the Workshop keeps none (`workshops.waitlist_enabled` off, 0280; set by the organiser or the instructor): then a booking of a full session is refused (409 `WorkshopFull`, the organiser's roster add included), and the page shows a dead "Full" button. People already queued keep their place and still auto-promote.
 
 ### 11bis.3 Schedule conflict detection
 
@@ -2199,7 +2199,7 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - Roster view per session: seats, waiting list, and refusals (a refusal stays, so the person cannot
   book again; Remove lifts it, ruling 538). From the roster the organiser adds one of the Event's
   people (535) through `POST workshop-sessions/:id/enrollments/:personId`, which waitlists when the
-  session is full (536) and refuses a person who is not on the session's Event (404
+  session is full (536) — or refuses when the Workshop keeps no waiting list (0280) — and refuses a person who is not on the session's Event (404
   `PersonNotInEvent`, `apps/api/src/modules/workshops/workshop-person-on-event.ts`): a booking's
   person has no foreign key, so nothing else ties it to the Event. The roster prints and exports
   as a sign-in sheet (537): seats by name, then the waiting list, refusals left out

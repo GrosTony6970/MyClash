@@ -21,6 +21,8 @@ export interface WorkshopRegisterLabels {
   refused: string;
   registerAgain: string;
   full: string;
+  /** The dead button of a full session in a Workshop that keeps no waiting list (0280). */
+  fullClosed: string;
   /** The link a viewer who teaches this workshop follows to edit it. */
   instructorEdit: string;
 }
@@ -38,6 +40,7 @@ export function registerLabels(t: (key: string) => string): WorkshopRegisterLabe
     refused: t('publicApp.me.workshops.refused'),
     registerAgain: t('publicApp.me.workshops.registerAgain'),
     full: t('publicApp.me.workshops.full'),
+    fullClosed: t('publicApp.me.workshops.fullClosed'),
     instructorEdit: t('publicApp.me.workshops.instructorEdit'),
   };
 }
@@ -48,6 +51,8 @@ export interface WorkshopRegisterControlsProps {
   /** What the viewer's booking of this session is. */
   booking: WorkshopBooking;
   full: boolean;
+  /** Off: a full session offers no waiting list, only a dead "Full" button (0280). */
+  waitlistEnabled: boolean;
   conflict?: string | null;
   busy?: boolean;
   /** The viewer teaches this workshop — no participant seat: the button opens its editor. */
@@ -117,7 +122,8 @@ function BookingNotice({
  * Registration footer for a personal-space workshop card: the warn-but-allow
  * conflict badge, the chip of the viewer's booking, and the action button
  * (Register / Register-anyway / Join-waitlist / Cancel / Leave-waitlist /
- * Register-again). Slotted into the shared `WorkshopCard` footer.
+ * Register-again, or a dead "Full" when the Workshop keeps no waiting list).
+ * Slotted into the shared `WorkshopCard` footer.
  *
  * A seat says "Registered"; a place on the waitlist says so and can be given up
  * (ruling 235); a refusal is told, with one button that books again (ruling 236).
@@ -133,6 +139,7 @@ export function WorkshopRegisterControls({
   workshopId,
   booking,
   full,
+  waitlistEnabled,
   conflict,
   busy,
   isInstructor = false,
@@ -180,6 +187,10 @@ export function WorkshopRegisterControls({
       ) : booking === 'refused' ? (
         <Button variant="primary" size="sm" className="w-full" loading={busy} onClick={onRegister}>
           {labels.registerAgain}
+        </Button>
+      ) : full && !waitlistEnabled ? (
+        <Button variant="secondary" size="sm" className="w-full" disabled>
+          {labels.fullClosed}
         </Button>
       ) : full ? (
         <Button

@@ -324,6 +324,9 @@ export const publicApp = {
       descriptionLabel: 'Description',
       shortDescriptionLabel: 'Description courte (une ligne pour le catalogue)',
       prerequisitesLabel: 'Prérequis (ce qu’il faut savoir ou apporter)',
+      waitlistEnabledLabel: "Garder une liste d'attente quand une séance est complète",
+      waitlistEnabledHint:
+        "Désactivé : une séance complète affiche « Complet » et ne prend plus d'inscription. Les personnes déjà en attente gardent leur place.",
       save: 'Enregistrer',
       saveError: 'Impossible d’enregistrer les modifications.',
       myDetails: 'Me présenter ici',
@@ -539,6 +542,7 @@ export const publicApp = {
       refused: "L'instructeur vous a retiré de cet atelier.",
       registerAgain: "S'inscrire à nouveau",
       full: "Complet · liste d'attente",
+      fullClosed: 'Complet',
       instructorEdit: 'Modifier mon atelier',
       teachingChip: 'Vous animez',
       placeElsewhere: 'Vous avez une place le {when}',
@@ -1444,6 +1448,7 @@ export const publicApp = {
     instructorCannotEnroll: 'Vous ne pouvez pas vous inscrire à un atelier que vous animez.',
     sessionCancelled: 'Cette séance a été annulée.',
     notBookable: "Cet atelier n'est pas ouvert aux inscriptions.",
+    fullNoWaitlist: "Cette séance est complète, et cet atelier n'a pas de liste d'attente.",
     prerequisites: 'Avant de venir',
     instructorsHeading: 'Instructeurs',
     alreadyBooked:

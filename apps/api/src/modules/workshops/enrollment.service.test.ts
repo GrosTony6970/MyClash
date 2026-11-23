@@ -35,10 +35,13 @@ function buildFake(opts: {
   globalUpdateError?: { message: string } | null;
   /** global_persons.id values tagged as instructors of workshop 'w-1'. */
   instructorGlobalIds?: string[];
+  /** The Workshop's waiting-list switch (0280); the column's default when left out. */
+  waitlistEnabled?: boolean;
 }) {
   const rows: Row[] = [...(opts.seed ?? [])];
   let idc = rows.length;
   const inserts: Record<string, unknown>[] = [];
+  const sessionSelects: string[] = [];
   const globalUpdates: Array<{
     payload: Record<string, unknown> | null;
     filters: Record<string, unknown>;
@@ -47,20 +50,27 @@ function buildFake(opts: {
   function table(name: string) {
     if (name === 'workshop_sessions') {
       return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () =>
-              Promise.resolve({
-                data: {
-                  workshop_id: 'w-1',
-                  workshops: { capacity: opts.capacity, event_id: 'ev-1' },
-                },
-                error: null,
-              }),
-            // The one-session rule's read of the Workshop's other live sessions: it has none.
-            neq: () => Promise.resolve({ data: [], error: null }),
-          }),
-        }),
+        select: (columns: string) => {
+          sessionSelects.push(columns);
+          return {
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    workshop_id: 'w-1',
+                    workshops: {
+                      capacity: opts.capacity,
+                      event_id: 'ev-1',
+                      waitlist_enabled: opts.waitlistEnabled ?? true,
+                    },
+                  },
+                  error: null,
+                }),
+              // The one-session rule's read of the Workshop's other live sessions: it has none.
+              neq: () => Promise.resolve({ data: [], error: null }),
+            }),
+          };
+        },
       };
     }
     if (name === 'persons') {
@@ -225,6 +235,7 @@ function buildFake(opts: {
     rows,
     inserts,
     globalUpdates,
+    sessionSelects,
   };
 }
 
@@ -271,6 +282,41 @@ describe('EnrollmentService.enroll', () => {
     expect(res.status).toBe('waitlisted');
     expect(res.waitlistPosition).toBe(1);
     expect(fake.inserts[0]).toMatchObject({ status: 'waitlisted', position: 1, user_id: 'p-b' });
+  });
+
+  it('refuses a full session of a Workshop that keeps no waiting list, and queues nobody', async () => {
+    // Twelve places, twelve taken, and the instructor switched the waiting list off.
+    const fake = buildFake({
+      capacity: 1,
+      waitlistEnabled: false,
+      seed: [
+        {
+          id: 'e-1',
+          workshop_session_id: 's-1',
+          user_id: 'p-a',
+          status: 'confirmed',
+          position: null,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
+
+    await expect(svc.enroll('s-1', 'p-b')).rejects.toMatchObject({
+      response: { error: 'WorkshopFull' },
+    });
+    expect(fake.inserts).toEqual([]);
+    expect(fake.sessionSelects[0]).toBe(
+      'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in, waitlist_enabled )',
+    );
+  });
+
+  it('still gives a free seat in a Workshop that keeps no waiting list', async () => {
+    const fake = buildFake({ capacity: 2, waitlistEnabled: false });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
+
+    const res = await svc.enroll('s-1', 'p-b');
+
+    expect(res.status).toBe('confirmed');
   });
 
   it('always confirms when workshop capacity is null (unlimited)', async () => {

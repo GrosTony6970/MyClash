@@ -17,6 +17,8 @@ export interface WorkshopListItem {
   color: string | null;
   coverImageUrl: string | null;
   capacity: number | null;
+  /** Off: a full session takes no more bookings — its button says "Full" (0280). */
+  waitlistEnabled: boolean;
   durationMinutes: number | null;
   sessions: Array<{
     id: string;

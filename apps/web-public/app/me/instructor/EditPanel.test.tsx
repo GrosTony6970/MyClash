@@ -59,6 +59,7 @@ describe("the instructor's edit panel", () => {
               descriptionMd: '',
               shortDescription: 'First steps',
               prerequisites: '',
+              waitlistEnabled: true,
             }}
             onSaved={onSaved}
           />
@@ -96,6 +97,7 @@ describe("the instructor's edit panel", () => {
               descriptionMd: '',
               shortDescription: 'First steps',
               prerequisites: 'A mask',
+              waitlistEnabled: true,
             }}
             onSaved={vi.fn()}
           />
@@ -111,5 +113,40 @@ describe("the instructor's edit panel", () => {
     expect(body).toMatchObject({ level: 'Beginner' });
     expect(body).not.toHaveProperty('shortDescription');
     expect(body).not.toHaveProperty('prerequisites');
+    // The waiting-list switch was not flipped: the organiser's choice is left alone (0280).
+    expect(body).not.toHaveProperty('waitlistEnabled');
+  });
+
+  it('sends the waiting-list switch when he flips it (0280)', async () => {
+    act(() =>
+      root.render(
+        <I18nProvider locale="en">
+          <EditPanel
+            workshopId="w-1"
+            apiUrl="http://api.test"
+            fields={{
+              weapon: '',
+              level: '',
+              language: 'en',
+              descriptionMd: '',
+              shortDescription: '',
+              prerequisites: '',
+              waitlistEnabled: true,
+            }}
+            onSaved={vi.fn()}
+          />
+        </I18nProvider>,
+      ),
+    );
+
+    const box = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.startsWith('Keep a waiting list'))!
+      .querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    act(() => box.click());
+    const save = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save')!;
+    await act(async () => save.click());
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+    expect(body).toMatchObject({ waitlistEnabled: false });
   });
 });

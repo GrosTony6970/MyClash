@@ -85,6 +85,8 @@ export interface CreateWorkshopDto {
   venueId?: string | null;
   /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
   autoCheckIn?: boolean;
+  /** Off: a booking of a full session is refused instead of queued (0280). Default on. */
+  waitlistEnabled?: boolean;
 }
 
 export interface UpdateWorkshopDto {
@@ -109,6 +111,8 @@ export interface UpdateWorkshopDto {
   venueId?: string | null;
   /** The front desk ticks this Workshop's people on the day they arrive (rulings 540, 543). */
   autoCheckIn?: boolean;
+  /** Off: a booking of a full session is refused instead of queued (0280). */
+  waitlistEnabled?: boolean;
   /**
    * Workshop logo URL. Set via the dedicated upload endpoint; the
    * update path only carries it so the operator can clear it — send
@@ -174,6 +178,8 @@ export interface WorkshopView {
   weapon: string | null;
   language: string | null;
   capacity: number | null;
+  /** Off: a full session takes no more bookings, and its page says "Full" (0280). */
+  waitlistEnabled: boolean;
   durationMinutes: number | null;
   status: string;
   sortOrder: number;
@@ -258,6 +264,7 @@ interface RawWorkshop {
   weapon: string | null;
   language: string | null;
   capacity: number | null;
+  waitlist_enabled: boolean;
   duration_minutes: number | null;
   status: string | null;
   sort_order: number | null;
@@ -291,6 +298,7 @@ function newWorkshopRow(eventId: string, dto: CreateWorkshopDto, weapon: string 
     color: dto.color ?? null,
     venue_id: dto.venueId ?? null,
     auto_check_in: dto.autoCheckIn ?? false,
+    waitlist_enabled: dto.waitlistEnabled ?? true,
   };
 }
 
@@ -300,7 +308,7 @@ function sessionsInOrder(row: RawWorkshop): RawSession[] {
 
 const workshopSelect = (instructorColumns: string) => `
   id, slug, title, short_description, prerequisites, description_md, category, level, weapon, language,
-  capacity, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
+  capacity, waitlist_enabled, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
   workshop_instructors ( ${instructorColumns} )
@@ -589,6 +597,7 @@ export class WorkshopsService {
     if (dto.coverImageUrl !== undefined) updates['cover_image_url'] = dto.coverImageUrl;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
     if (dto.autoCheckIn !== undefined) updates['auto_check_in'] = dto.autoCheckIn;
+    if (dto.waitlistEnabled !== undefined) updates['waitlist_enabled'] = dto.waitlistEnabled;
 
     const { data, error } = await this.supabase.service
       .from('workshops')
@@ -642,8 +651,8 @@ export class WorkshopsService {
   }
 
   /**
-   * Instructor-scoped workshop edit: only weapon / description / level / language, and the
-   * catalogue line and prerequisites (ruling 557),
+   * Instructor-scoped workshop edit: only weapon / description / level / language, the
+   * catalogue line and prerequisites (ruling 557), and the waiting-list switch (0280),
    * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
    * is validated against the catalog exactly like the organizer update path.
    */
@@ -656,6 +665,7 @@ export class WorkshopsService {
       language?: string | null;
       shortDescription?: string | null;
       prerequisites?: string | null;
+      waitlistEnabled?: boolean;
     },
     userId: string,
   ) {
@@ -663,6 +673,7 @@ export class WorkshopsService {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     writeTexts(updates, dto);
+    if (dto.waitlistEnabled !== undefined) updates['waitlist_enabled'] = dto.waitlistEnabled;
     if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.level !== undefined) updates['level'] = dto.level;
     if (dto.language !== undefined) updates['language'] = dto.language;
@@ -1206,6 +1217,7 @@ export class WorkshopsService {
       weapon: row.weapon,
       language: row.language,
       capacity,
+      waitlistEnabled: row.waitlist_enabled,
       durationMinutes: row.duration_minutes,
       status: row.status ?? 'draft',
       sortOrder: row.sort_order ?? 0,

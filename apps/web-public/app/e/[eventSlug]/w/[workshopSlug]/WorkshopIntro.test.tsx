@@ -54,6 +54,7 @@ const workshop = (over: Partial<Workshop> = {}): Workshop => ({
   sessions: [],
   instructors: [paul, lea],
   viewerIsInstructor: false,
+  waitlistEnabled: true,
   ...over,
 });
 

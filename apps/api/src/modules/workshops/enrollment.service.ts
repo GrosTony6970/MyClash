@@ -142,7 +142,7 @@ export class EnrollmentService {
     const { data: session, error } = await this.supabase.service
       .from('workshop_sessions')
       .select(
-        'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in )',
+        'status, workshop_id, starts_at, workshops ( capacity, status, event_id, auto_check_in, waitlist_enabled )',
       )
       .eq('id', sessionId)
       .maybeSingle();
@@ -217,6 +217,16 @@ export class EnrollmentService {
       if (error)
         throw new Error(`The seats of session ${sessionId} were not counted: ${error.message}`);
       isFull = (confirmedCount ?? 0) >= capacity;
+    }
+
+    // A Workshop with no waiting list (0280) takes no booking once full, whoever books: the
+    // organiser raises the capacity instead. People already queued keep their place. Named, so
+    // a page that still offered the seat says it in the reader's language.
+    if (isFull && workshopOf(session)?.waitlist_enabled === false) {
+      throw new ConflictException({
+        error: 'WorkshopFull',
+        message: 'This workshop is full and keeps no waiting list.',
+      });
     }
 
     if (isFull) {
@@ -607,19 +617,17 @@ export class EnrollmentService {
 const OPEN_TO_OWN_BOOKINGS = ['published', 'running'];
 
 /** The Workshop embed of a session row (Supabase joins as object or array). */
-function workshopOf(session: unknown): {
+interface SessionWorkshop {
   capacity?: number | null;
   status?: string | null;
   event_id?: string | null;
   auto_check_in?: boolean;
-} | null {
+  waitlist_enabled?: boolean;
+}
+
+function workshopOf(session: unknown): SessionWorkshop | null {
   const w = (session as { workshops?: unknown }).workshops;
-  return ((Array.isArray(w) ? w[0] : w) ?? null) as {
-    capacity?: number | null;
-    status?: string | null;
-    event_id?: string | null;
-    auto_check_in?: boolean;
-  } | null;
+  return ((Array.isArray(w) ? w[0] : w) ?? null) as SessionWorkshop | null;
 }
 
 /** Read `workshops.capacity` off a nested session row. */
