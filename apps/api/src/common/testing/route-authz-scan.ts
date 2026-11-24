@@ -38,7 +38,7 @@ import ts from 'typescript';
 import { apiSourceFiles } from './supabase-query-scan';
 
 export type RouteVerdict =
-  'public' | 'platform-guard' | 'agent-door' | 'decides' | 'self' | 'undecided';
+  'public' | 'platform-guard' | 'agent-door' | 'mcp-door' | 'decides' | 'self' | 'undecided';
 
 export interface RouteHandler {
   /** `modules/x/x.controller.ts#XController.method`, relative to the scanned root. */
@@ -252,8 +252,9 @@ function verdictOf(
 ): RouteVerdict {
   const own = ts.getDecorators(handler) ?? [];
   const outer = ts.getDecorators(owner) ?? [];
-  // Before `Public`: the door is public to the login check and closed by its own key guard.
+  // Before `Public`: each door is public to the login check and closed by its own guard.
   if ([...outer, ...own].some((d) => decoratorName(d) === 'AgentDoor')) return 'agent-door';
+  if ([...outer, ...own].some((d) => decoratorName(d) === 'McpDoor')) return 'mcp-door';
   if ([...outer, ...own].some((d) => decoratorName(d) === 'Public')) return 'public';
   if (guardedByPlatformRole(outer) || guardedByPlatformRole(own)) return 'platform-guard';
   const text = body();

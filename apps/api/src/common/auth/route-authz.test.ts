@@ -40,9 +40,17 @@ describe('route authorization, API-wide', () => {
   it('finds the routes, so an empty sweep cannot pass as a clean one', () => {
     expect(handlers.length).toBeGreaterThanOrEqual(600);
     // Every kind is present, or a verdict is exempting everything or nothing.
-    for (const kind of ['public', 'platform-guard', 'agent-door', 'decides', 'self', 'undecided']) {
+    const kinds = ['public', 'platform-guard', 'agent-door', 'mcp-door', 'decides', 'self'];
+    for (const kind of [...kinds, 'undecided']) {
       expect(handlers.filter((h) => h.verdict === kind).length, kind).toBeGreaterThan(0);
     }
+  });
+
+  it('opens the MCP door on exactly the MCP routes', () => {
+    const door = handlers.filter((h) => h.verdict === 'mcp-door').map((h) => h.key);
+    expect(door.sort()).toEqual(
+      ['handle', 'noStream'].map((m) => `modules/mcp/mcp.controller.ts#McpController.${m}`),
+    );
   });
 
   it('opens the agent door on exactly the ops-agent routes', () => {
@@ -285,6 +293,12 @@ const RULE: Array<[string, Shape, RouteVerdict]> = [
     'the agent door on the class, though a handler also says @Public()',
     { classDecorators: '@AgentDoor()', methodDecorators: '@Public()' },
     'agent-door',
+  ],
+  ['the MCP door on the class', { classDecorators: '@McpDoor()' }, 'mcp-door'],
+  [
+    'the MCP door on the class, though a handler also says @Public()',
+    { classDecorators: '@McpDoor()', methodDecorators: '@Public()' },
+    'mcp-door',
   ],
   [
     'a route declared with @All, read like any other',

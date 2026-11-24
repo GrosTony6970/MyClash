@@ -282,6 +282,9 @@ importers:
       '@mistralai/mistralai':
         specifier: ^3.5.0
         version: 3.5.0(@aws-sdk/client-s3@3.1169.0)(@opentelemetry/api@1.10.0)(supports-color@10.2.2)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(supports-color@10.2.2)(zod@4.6.7)
       '@myclash/feature-flags':
         specifier: workspace:^
         version: link:../../packages/feature-flags

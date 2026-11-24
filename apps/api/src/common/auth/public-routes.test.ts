@@ -100,6 +100,12 @@ const EXPECTED_PUBLIC = [
   // Claude reads the resource metadata (RFC 9728) before it has any token.
   'GET /.well-known/oauth-protected-resource',
   'GET /.well-known/oauth-protected-resource/api/v1/mcp',
+  // The MCP door: public to the login check so that the door, not AuthGuard, answers the 401
+  // with the challenge Claude reads; closed by McpDoorGuard, which lets through a Claude
+  // connector token sent as a Bearer and nothing else. The test "closes every mcp-door route
+  // with the MCP guard" below holds that no door route lacks it. The GET only answers 405.
+  'GET /mcp',
+  'POST /mcp',
   // ── public event site (web-public, logged out) ──
   // The club search (ruling 98): a club row names nobody. Archived clubs only
   // for platform staff.
@@ -257,6 +263,13 @@ const AGENT_DOOR_POSTS = new Set([
   'POST /ops-agent/tls/renew',
 ]);
 
+/**
+ * The MCP door (`@McpDoor()`). Public to the login check only: `McpDoorGuard` refuses every
+ * caller but a Claude connector token sent as a Bearer (the test below holds every door route to
+ * that guard). Not session bootstrap, so listed apart.
+ */
+const MCP_DOOR_POSTS = new Set(['POST /mcp']);
+
 const PUBLIC_POST_ALLOWLIST = new Set([
   'POST /auth/logout',
   'POST /auth/magic-link',
@@ -369,6 +382,12 @@ describe('@Public() route surface', () => {
     expect(door.filter((r) => !r.guards.includes('AgentKeyGuard')).map((r) => r.route)).toEqual([]);
   });
 
+  it('closes every mcp-door route with the MCP guard', () => {
+    const door = rows.filter((r) => r.isPublic && /^\w+ \/mcp(\/|$)/.test(r.route));
+    expect(door.map((r) => r.route).sort()).toEqual(['GET /mcp', 'POST /mcp']);
+    expect(door.filter((r) => !r.guards.includes('McpDoorGuard')).map((r) => r.route)).toEqual([]);
+  });
+
   it('never exposes a destructive verb publicly', () => {
     const destructive = rows
       .filter((r) => r.isPublic && ['DELETE', 'PUT', 'PATCH'].includes(r.verb))
@@ -383,7 +402,8 @@ describe('@Public() route surface', () => {
           r.isPublic &&
           r.verb === 'POST' &&
           !PUBLIC_POST_ALLOWLIST.has(r.route) &&
-          !AGENT_DOOR_POSTS.has(r.route),
+          !AGENT_DOOR_POSTS.has(r.route) &&
+          !MCP_DOOR_POSTS.has(r.route),
       )
       .map((r) => r.route);
     expect(unexpected).toEqual([]);

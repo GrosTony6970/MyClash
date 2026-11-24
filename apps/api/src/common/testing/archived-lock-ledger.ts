@@ -252,6 +252,10 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'PUT admin/fightbook/flags/:flagId/handled',
     'PUT organizations/:orgId/fightbook/flags/:flagId/handled',
   ],
+  // One POST carries every MCP tool, so the lock cannot read an Event from its path. Today's one
+  // tool, whoami, reads; a tool that writes an Event row must refuse an archived one itself, and
+  // this line moves when one does.
+  'The MCP door: its one tool reads, and writes no row of an Event.': ['POST mcp'],
 };
 
 /** The lock reads the Event the body names (`body.eventId`), when it names one. */

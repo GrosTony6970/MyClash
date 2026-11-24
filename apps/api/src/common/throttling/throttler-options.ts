@@ -18,6 +18,7 @@ import {
   skipFightBookQrMintThrottle,
 } from './throttle-fightbook-qr-mint';
 import { FIGHTBOOK_SCAN_THROTTLER, skipFightBookScanThrottle } from './throttle-fightbook-scan';
+import { MCP_THROTTLER, skipMcpThrottle } from './throttle-mcp';
 import {
   AUTH_ACCOUNT_THROTTLE,
   AUTH_EMAIL_THROTTLE,
@@ -26,6 +27,7 @@ import {
   FIGHTBOOK_CALL_THROTTLE,
   FIGHTBOOK_QR_MINT_THROTTLE,
   FIGHTBOOK_SCAN_THROTTLE,
+  MCP_THROTTLE,
 } from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
@@ -51,6 +53,9 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                @ThrottleFightBookScan; keyed as fightbook-ask is, in a bucket apart from it.
  * `fightbook-qr-mint` — QR codes minted per hour per signed-in account, on routes
  *                marked @ThrottleFightBookQrMint; keyed as fightbook-ask is, in its own bucket.
+ * `mcp`        — MCP requests per minute per signed-in account, on the MCP door
+ *                (@ThrottleMcp, which `McpDoor` puts on its class); keyed as fightbook-ask
+ *                is, in its own bucket. The door skips `global`: Claude calls from few IPs.
  * `auth-account` — checks of a current password per hour per signed-in account,
  *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
  *                account of the request's login, never on `req.ip`.
@@ -138,6 +143,15 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       getTracker: authAccountTracker,
       generateKey: (_context, tracker) => `${FIGHTBOOK_QR_MINT_THROTTLER}:${tracker}`,
       skipIf: skipFightBookQrMintThrottle,
+    },
+    {
+      name: MCP_THROTTLER,
+      ttl: MCP_THROTTLE.ttl,
+      limit: MCP_THROTTLE.limit,
+      // The account, hashed, as for fightbook-ask; its own bucket by name.
+      getTracker: authAccountTracker,
+      generateKey: (_context, tracker) => `${MCP_THROTTLER}:${tracker}`,
+      skipIf: skipMcpThrottle,
     },
   ],
   skipIf: isThrottleWhitelisted,

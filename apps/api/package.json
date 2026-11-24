@@ -21,6 +21,7 @@
     "@fastify/multipart": "^10.1.9",
     "@google/genai": "^3.3.0",
     "@mistralai/mistralai": "^3.5.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
     "@myclash/rules": "workspace:^",
