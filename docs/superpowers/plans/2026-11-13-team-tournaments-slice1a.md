@@ -328,7 +328,7 @@ task widens the grammar and changes no archive.
 **Interfaces:**
 
 - Produces: column `tournaments.entrant_kind text not null default 'individual'`
-  (`'individual' | 'team'`), column `tournaments.team_default_size integer` (1–20, nullable),
+  (`'individual' | 'team'`), column `tournaments.team_default_size integer` (1–10, nullable),
   tables `teams` and `team_slots` as below, functions `entrant_kind_holds()` and
   `entrant_kind_is_settled()`.
 
@@ -345,7 +345,7 @@ alter table public.tournaments
     check (case when entrant_kind in ('individual', 'team') then true else false end),
   add constraint tournaments_team_default_size_range
     check (case when team_default_size is null then true
-                when team_default_size between 1 and 20 then true else false end);
+                when team_default_size between 1 and 10 then true else false end);
 
 create table if not exists public.teams (
   id            uuid primary key default gen_random_uuid(),
@@ -358,7 +358,7 @@ create table if not exists public.teams (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   constraint teams_id_tournament_key unique (id, tournament_id),
-  constraint teams_size_range check (case when size between 1 and 20 then true else false end),
+  constraint teams_size_range check (case when size between 1 and 10 then true else false end),
   constraint teams_name_filled
     check (case when length(btrim(name)) between 1 and 120 then true else false end),
   constraint teams_slug_shape check (case when slug ~ '^[a-z0-9-]{2,100}$' then true else false end)
@@ -395,7 +395,8 @@ create index if not exists team_slots_person_idx
 There is no `logo_url` yet: the archive's guard wants every `_url` column carried or listed and
 pins their number (`archive.migration-coverage.test.ts:359-382`), and nothing can write a logo
 before the upload route of slice 1b. The column comes with that route.
-The size limit of 20 is this plan's call; the design gives none. `team_slots.person_id` is
+The size limit of 10 is the operator's (2026-11-24: "lower, e.g. 10"; the plan had proposed 20).
+A team's size counts its numbered seats; reserves hold no position and are not counted by it. `team_slots.person_id` is
 `NO ACTION DEFERRABLE INITIALLY DEFERRED` because a Person and a slot both die by cascade from
 one Event, the case 0237 rules on. A slot's number is checked against its team's `size` by the
 API in slice 1b, not here.
@@ -440,7 +441,7 @@ authenticated` (redundant since 0275 closes new functions, kept as the statement
       a second slot for one person in one Tournament is refused by `team_slots_one_team_per_person`;
       a second captain by `team_slots_one_captain`; a captain with no person by
       `team_slots_captain_is_named`; a slot with no position and no person by
-      `team_slots_seat_or_reserve`; a team of size 21 by `teams_size_range`; a Registration in a team Tournament and a Team in an individual
+      `team_slots_seat_or_reserve`; a team of size 11 by `teams_size_range`; a Registration in a team Tournament and a Team in an individual
       one by the kind trigger; a change of kind with an entrant by the kind trigger; a change of kind
       with no entrant is taken; **an update that sends the same kind on a Tournament with entrants is
       taken**. The `VERDICTS` lines prove the policy: an outsider reads the published team and not the
@@ -984,7 +985,8 @@ packages/rulesets/test/fixtures packages/rulesets/test/tf_v1.fal2026.test.ts` �
 - **The archive learns to collect a table through two parents** (Task 3b). The design did not
   foresee it; a team member has no Registration to be found through.
 - **No "team of the same Tournament" trigger.** No such rule exists for a Registration.
-- **The limit of 20 Fighters per team** is this plan's call.
+- **A team's size is 1 to 10** (operator, 2026-11-24; the design gave no number).
+- **The operator gave "go" on 2026-11-24** and accepted the gate's cost for the other sessions.
 - **The kind race is argued and tested one writer at a time**, not under forced overlap; that
   probe comes with the teams routes in 1b.
 - **Indexes on the twin columns** come in 1b with their first readers. `db:review` does not warn
