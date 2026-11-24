@@ -108,6 +108,7 @@ export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
   tournament_id: { map: 'tournaments', target: 'tournament' },
   competition_id: { map: 'tournaments' },
   registration_id: { map: 'registrations' },
+  team_id: { map: 'teams' },
   red_registration_id: { map: 'registrations' },
   blue_registration_id: { map: 'registrations' },
   winner_registration_id: { map: 'registrations' },
@@ -151,7 +152,11 @@ const TABLES = {
     key: 'persons',
     collect: {
       event: EVENT_SCOPED,
-      tournament: { from: 'registrations', local: 'id', parent: 'person_id' },
+      // A team Tournament names its people on its team slots, not on Registrations (0281).
+      tournament: [
+        { from: 'registrations', local: 'id', parent: 'person_id' },
+        { from: 'team_slots', local: 'id', parent: 'person_id' },
+      ],
     },
     // A restored copy is a fresh event: nobody has claimed its people yet, and
     // inheriting a claim would hand the copy's rows to whoever claimed the
@@ -275,6 +280,13 @@ const TABLES = {
     collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
     idMap: 'registrations',
   },
+  // A team Tournament's entrants (0281): a team before its slots, its persons before both.
+  teams: {
+    key: 'teams',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+    idMap: 'teams',
+  },
+  team_slots: { key: 'teamSlots', collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT } },
 
   phases: {
     key: 'phases',

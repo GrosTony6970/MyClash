@@ -33,6 +33,7 @@ export const ID_MAP_NAMES = [
   'fighters',
   'tournaments',
   'registrations',
+  'teams',
   'phases',
   'pools',
   'bracketSlots',

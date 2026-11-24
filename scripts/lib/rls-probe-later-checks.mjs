@@ -20,6 +20,7 @@ import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
 import { signedInReadsFailures } from './signed-in-reads-probe.mjs';
 import { swissFailures } from './swiss-probe.mjs';
 import { swissStatusFailures } from './swiss-status-probe.mjs';
+import { teamTablesFailures } from './team-tables-probe.mjs';
 import { tfV1CopiesFailures } from './tf-v1-copies-probe.mjs';
 import { webWriteDoorsFailures } from './web-write-doors-probe.mjs';
 
@@ -45,5 +46,6 @@ export async function laterCheckFailures(tx) {
     ...(await signedInReadsFailures(tx)),
     ...(await deadPolicyFailures(tx)),
     ...(await functionDoorFailures(tx)),
+    ...(await teamTablesFailures(tx)),
   ];
 }

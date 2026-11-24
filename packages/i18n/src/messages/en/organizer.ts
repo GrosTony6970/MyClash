@@ -3174,6 +3174,8 @@ export const organizer = {
       eventRefereeTournaments: 'Referee availability by tournament',
       eventRefereeDays: 'Referee availability by day',
       registrations: 'Registrations',
+      teams: 'Teams',
+      teamSlots: 'Team slots',
       phases: 'Phases',
       pools: 'Pools',
       poolMembers: 'Pool members',

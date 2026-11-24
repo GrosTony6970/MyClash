@@ -23,7 +23,8 @@
  *   - no key a cascade can trip by trigger order is left: any RESTRICT key, deferrable or not
  *     (Postgres checks RESTRICT at once), and any immediate NO ACTION key, whose child and parent
  *     both die by cascade from one ancestor; and, so an empty scan cannot pass, the same search
- *     without the "immediate" filter finds exactly the nine keys of 0237;
+ *     without the "immediate" filter finds exactly the deferred keys (the nine of 0237 and
+ *     `team_slots.person_id`, 0281);
  *   - each seeded row was written;
  *   - a delete of the Event, the Tournament, the phase and the club succeeds and takes the bouts;
  *   - a delete of a registration a bout names, a person with a registration, the copy a bout holds,
@@ -73,7 +74,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 78;
+const EXPECTED_CHECKS = 83;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -88,7 +89,7 @@ const REFEREE = 'ca5c0000-0000-4000-8000-000000000701';
 const SKILL = 'cascade-probe-skill';
 const PLAN = 'ca5c0000-0000-4000-8000-000000000a01';
 
-/** The nine keys 0237 made deferred. */
+/** The keys checked at commit, sorted: the nine 0237 made deferred, the team slot's Person (0281). */
 const DEFERRED_KEYS = [
   'event_slot_config_default_skills_skill_id_fkey',
   'match_forfeits_forfeiting_registration_id_fkey',
@@ -98,6 +99,7 @@ const DEFERRED_KEYS = [
   'matches_red_registration_id_fkey',
   'referee_compensation_event_settings_plan_id_fkey',
   'registrations_person_id_fkey',
+  'team_slots_person_id_fkey',
   'tournament_slot_allowed_skills_skill_id_fkey',
 ];
 
@@ -129,6 +131,12 @@ const SEEDED = [
   ['event_slot_config_default_skills', 'skill_id', SKILL],
   ['referee_compensation_plans', 'id', PLAN],
   ['referee_compensation_event_settings', 'plan_id', PLAN],
+  // A team Tournament of the Event, its phase and copy of the rules, a team and a named slot (0281).
+  ['tournaments', 'id', 'ca5c0000-0000-4000-8000-0000000000f2'],
+  ['phases', 'id', 'ca5c0000-0000-4000-8000-0000000000b2'],
+  ['match_rules', 'id', 'ca5c0000-0000-4000-8000-0000000000d2'],
+  ['teams', 'id', 'ca5c0000-0000-4000-8000-000000000c11'],
+  ['team_slots', 'id', 'ca5c0000-0000-4000-8000-000000000c21'],
   PHOTO_SEEDED,
   REPORT_SEEDED,
 ];
@@ -171,7 +179,7 @@ async function noKeyTrippableByOrder() {
   check('keys a cascade can trip by order', left.length === 0, left.join(', '));
   const all = await trippableKeys(false);
   check(
-    'the search finds the nine keys of 0237 without its timing filter',
+    'the search finds the deferred keys without its timing filter',
     JSON.stringify(all) === JSON.stringify(DEFERRED_KEYS),
     `found ${all.join(', ') || 'none'}`,
   );

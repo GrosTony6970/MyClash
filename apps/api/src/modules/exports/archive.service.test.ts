@@ -339,8 +339,24 @@ describe('ArchiveService', () => {
     workshops: [{ id: 'w-1', event_id: 'event-1', title: 'Drills', venue_id: 'venue-1' }],
     persons: [
       { id: 'p-1', event_id: 'event-1', given_name: 'A', family_name: 'B', email: 'a@b.c' },
+      // On a team and on no Registration: a tournament archive finds them through their slot.
+      { id: 'p-3', event_id: 'event-1', given_name: 'E', family_name: 'F', email: 'e@f.g' },
     ],
     registrations: [{ id: 'r-1', tournament_id: 't-1', person_id: 'p-1' }],
+    // A team with a named seat and an empty one (0281). The database keeps a team out of a
+    // Tournament with Registrations; this double does not, and the archive does not ask.
+    teams: [{ id: 'tm-1', tournament_id: 't-1', name: 'Team', slug: 'team', size: 3 }],
+    team_slots: [
+      {
+        id: 'ts-1',
+        team_id: 'tm-1',
+        tournament_id: 't-1',
+        position: 1,
+        person_id: 'p-3',
+        is_captain: true,
+      },
+      { id: 'ts-2', team_id: 'tm-1', tournament_id: 't-1', position: 2, person_id: null },
+    ],
     phases: [
       {
         id: 'ph-1',
@@ -1214,8 +1230,9 @@ describe('ArchiveService', () => {
   });
 
   /**
-   * A tournament archive carries only the persons its registrations name: `p-2`
-   * is on the Event's roster and does not fight, so the file does not hold them.
+   * A tournament archive carries only the persons its registrations and team slots
+   * name: `p-2` is on the Event's roster and does not fight, so the file does not
+   * hold them. `p-3` holds a team seat and no Registration, so the file holds them.
    * (A bout carries no referee since 0209: duties are referee_assignments rows.)
    */
   const rosterRows = () => {

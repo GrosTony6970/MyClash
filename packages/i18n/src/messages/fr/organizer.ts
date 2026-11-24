@@ -3144,6 +3144,8 @@ export const organizer = {
       eventRefereeTournaments: 'Disponibilités des arbitres par tournoi',
       eventRefereeDays: 'Disponibilités des arbitres par jour',
       registrations: 'Inscriptions',
+      teams: 'Équipes',
+      teamSlots: 'Places des équipes',
       phases: 'Phases',
       pools: 'Poules',
       poolMembers: 'Membres des poules',

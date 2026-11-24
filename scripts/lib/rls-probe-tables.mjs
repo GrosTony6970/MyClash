@@ -14,11 +14,12 @@ export const VERDICTS = [
   {
     table: 'tournaments',
     key: 'id',
-    visible: ['77777777-0000-4000-8000-00000000000a'],
+    visible: ['77777777-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000007a'],
     hidden: [
       '77777777-0000-4000-8000-00000000000b',
       '77777777-0000-4000-8000-00000000000c',
       '77777777-0000-4000-8000-00000000000d',
+      '77777777-0000-4000-8000-00000000007c',
     ],
   },
   {
@@ -38,6 +39,20 @@ export const VERDICTS = [
     key: 'id',
     visible: ['cccccccc-0000-4000-8000-00000000000a'],
     hidden: ['cccccccc-0000-4000-8000-00000000000c'],
+  },
+  // A team and its slot are read with their Tournament (0281): the draft team Tournament's are
+  // hidden although its Event is published.
+  {
+    table: 'teams',
+    key: 'id',
+    visible: ['7ea00000-0000-4000-8000-00000000000a'],
+    hidden: ['7ea00000-0000-4000-8000-00000000000c'],
+  },
+  {
+    table: 'team_slots',
+    key: 'id',
+    visible: ['75100000-0000-4000-8000-00000000000a'],
+    hidden: ['75100000-0000-4000-8000-00000000000c'],
   },
   {
     table: 'referee_assignments',
@@ -269,6 +284,9 @@ export const API_ONLY_WRITES = [
   // 100; their inserts and updates, 0247).
   { table: 'phases', key: 'id', row: '99999999-0000-4000-8000-00000000000a' },
   { table: 'registrations', key: 'id', row: 'cccccccc-0000-4000-8000-00000000000a' },
+  // A team and its slot, past the API's checks of a team's seats (0281).
+  { table: 'teams', key: 'id', row: '7ea00000-0000-4000-8000-00000000000a' },
+  { table: 'team_slots', key: 'id', row: '75100000-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';

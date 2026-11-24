@@ -8,7 +8,9 @@
 -- One club, one Event and one Tournament, with what a played Event holds: a piste, a Pool, two
 -- Fighters, the copy of the rules, a bout with a piste, a Pool, both Fighters and a winner, its
 -- exchange, a card and a forfeit, a second bout, a referee on the bout, a referee skill two slots
--- list, a compensation plan the Event uses. Every one of the nine keys of 0237 has a row on it.
+-- list, a compensation plan the Event uses. And a second, team Tournament with its own phase and
+-- copy of the rules, one team and one slot naming the Blue Fighter (0281). Every key checked at
+-- commit (the nine of 0237, the slot's Person of 0281) has a row on it.
 -- Ids start with `ca5c`, apart from the RLS seed's.
 
 INSERT INTO organizations (id, slug, name) VALUES
@@ -81,6 +83,22 @@ INSERT INTO referee_compensation_plans (id, name, organization_id) VALUES
   ('ca5c0000-0000-4000-8000-000000000a01', 'Probe plan', 'ca5c0000-0000-4000-8000-000000000001');
 INSERT INTO referee_compensation_event_settings (event_id, plan_id) VALUES
   ('ca5c0000-0000-4000-8000-0000000000e1', 'ca5c0000-0000-4000-8000-000000000a01');
+-- The team Tournament (0281). The Blue Fighter also holds its team's first seat: a Person of the
+-- Event may fight in an individual and a team Tournament.
+INSERT INTO tournaments (id, event_id, slug, name, status, entrant_kind) VALUES
+  ('ca5c0000-0000-4000-8000-0000000000f2', 'ca5c0000-0000-4000-8000-0000000000e1', 'ls-teams',
+   'LS teams', 'published', 'team');
+INSERT INTO phases (id, tournament_id, type) VALUES
+  ('ca5c0000-0000-4000-8000-0000000000b2', 'ca5c0000-0000-4000-8000-0000000000f2', 'pool');
+INSERT INTO match_rules (id, tournament_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, digest) VALUES
+  ('ca5c0000-0000-4000-8000-0000000000d2', 'ca5c0000-0000-4000-8000-0000000000f2', 'TF_v1', '1.1.0',
+   '{}', '{}', 'cascade-probe-teams');
+INSERT INTO teams (id, tournament_id, name, slug, size) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c11', 'ca5c0000-0000-4000-8000-0000000000f2', 'Probe team',
+   'probe-team', 3);
+INSERT INTO team_slots (id, team_id, tournament_id, position, person_id) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c21', 'ca5c0000-0000-4000-8000-000000000c11',
+   'ca5c0000-0000-4000-8000-0000000000f2', 1, 'ca5c0000-0000-4000-8000-000000000102');
 -- A photo on the Event, tagged with its Tournament: every delete path must queue its two keys
 -- (0250). Synthetic keys; no image exists anywhere.
 INSERT INTO event_photos (id, event_id, tournament_id, status, device_id, original_key, preview_key,
