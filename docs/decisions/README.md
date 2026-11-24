@@ -52,3 +52,4 @@ What did we look at and reject? Why?
 | [ADR-019](./ADR-019-referee-rest-cap-availability.md)         | Referee rest in slots, cap in bouts, availability windows   | Accepted                        |
 | [ADR-020](./ADR-020-crew-grain-pinned-repair.md)              | Crew = Pool or Match; hand-placed bouts pinned; repair      | Accepted                        |
 | [ADR-021](./ADR-021-schedule-board-shape.md)                  | Boards: one banner, rooms, day tabs, 12 fields, 2 routes    | Accepted                        |
+| [ADR-022](./ADR-022-team-is-a-second-kind-of-side.md)         | A Match side is a Registration or a Team; side key + gate   | Accepted                        |

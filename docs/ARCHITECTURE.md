@@ -400,6 +400,15 @@ What is **not** derivable from the DDL, and so belongs here:
   sequence that `postgres` or `supabase_admin` makes in `public` starts closed. For the functions
   those two make, PUBLIC's default stays only in `realtime`, for Realtime's own functions (ruling
   838). A read rule that calls a NEW helper grants it to `anon` by name.
+- **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
+  `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
+  new team. A team has 1 to 10 slots. `teams` holds the team of one team Tournament; `team_slots`
+  holds its numbered slots, each with an optional Person of the Event. Ten columns beside the
+  Registration links give each its team twin: the Pool seat, the two bracket slots, the two sides
+  and the winner of a Match, a card, the forfeiting side and the winning side of a forfeit, and a protest, with a check "a
+  Registration or a Team, never both". The Registration links keep their names, because they hold
+  Registrations. Code that compares sides compares one side key that is never empty, not the two
+  columns.
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
