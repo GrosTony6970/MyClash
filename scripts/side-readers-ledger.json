@@ -293,9 +293,9 @@
       "why": "1c: the personal data export's reach map (`:147`, `:156`)"
     },
     "apps/api/src/modules/programme/programme.service.ts": {
-      "verdict": "not-yet",
-      "hits": 36,
-      "why": "1b: the programme and the scheduler read bout sides by Registration (`:1136`, `:1702`)"
+      "verdict": "side-key",
+      "hits": 26,
+      "why": "every scheduler feed (Pool, Swiss, bracket, the re-fan) reads the team twins and hands the scheduler `schedulerSides` (`sideKey`, else `UNKNOWN_SIDE`)"
     },
     "apps/api/src/modules/protests/dto/protests.dto.ts": {
       "verdict": "not-yet",
@@ -338,19 +338,19 @@
       "why": "1b: the live board reads both sides through the foreign-key names (`:243`-`:244`)"
     },
     "apps/api/src/modules/schedule/match-scheduler.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: the scheduler's \"who is busy\" by Registration (`:267`-`:287`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the scheduler's \"who is busy\" by side key (`schedulerSides`); a side not known yet shares `UNKNOWN_SIDE`, as the null id did"
     },
     "apps/api/src/modules/schedule/schedule-grid-match.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: the schedule grid bout names sides by Registration (`:21`-`:22`)"
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "a grid card's type: `redSideId` / `blueSideId` are filled by schedule-grid.service (`sideKey`); a comment names the old field"
     },
     "apps/api/src/modules/schedule/schedule-grid.service.ts": {
-      "verdict": "not-yet",
-      "hits": 8,
-      "why": "1b: the schedule grid reads sides by Registration (`:187`, `:361`-`:362`)"
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the grid reads the team twins and keys each side with `sideKey`; names come from the view (0284)"
     },
     "apps/api/src/modules/staff/lice-matches.ts": {
       "verdict": "not-yet",

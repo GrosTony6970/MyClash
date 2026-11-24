@@ -13,6 +13,7 @@ import { readProgrammeSheet } from '../programme/programme-sheet';
 import { resolveMatchLengths } from './match-lengths';
 import { plannedLengthOf, sheetRestFor } from './planned-length';
 import type { ScheduleGridMatch } from './schedule-grid-match';
+import { sideKey } from '@myclash/types/side-key';
 
 interface PhaseRow {
   id: string;
@@ -50,6 +51,8 @@ interface MatchRow {
   swiss_round_id: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   planned_duration_override_minutes: number | null;
 }
 
@@ -184,7 +187,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, swiss_round_id, red_registration_id, blue_registration_id, planned_duration_override_minutes',
+        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, swiss_round_id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, planned_duration_override_minutes',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -358,8 +361,8 @@ export class ScheduleGridService {
         endedAt: m.ended_at ?? null,
         redFighterName,
         blueFighterName,
-        redRegistrationId: m.red_registration_id ?? '',
-        blueRegistrationId: m.blue_registration_id ?? '',
+        redSideId: sideKey(m.red_registration_id, m.red_team_id),
+        blueSideId: sideKey(m.blue_registration_id, m.blue_team_id),
         tournamentName,
         tournamentColor: tournament?.color ?? null,
         tournamentSlug: tournament?.slug ?? null,

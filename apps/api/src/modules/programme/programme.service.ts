@@ -27,7 +27,8 @@ import {
   readableEvent,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { scheduleMatches } from '../schedule/match-scheduler';
+import { scheduleMatches, schedulerSides } from '../schedule/match-scheduler';
+import type { SideColumns } from '../matches/winner-columns';
 import {
   embeddedOne,
   resolveMatchLengths,
@@ -133,8 +134,10 @@ function trimSeconds(raw: string | null | undefined): string {
 /** A bracket (non-pool) match hydrated with its resolved bracket coordinates. */
 interface BracketMatchRow {
   id: string;
-  red_registration_id: string;
-  blue_registration_id: string;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   pool_id: string | null;
   pool_sort_order: number | null;
   match_number_label: string | null;
@@ -1133,8 +1136,7 @@ export class ProgrammeService {
         const result = scheduleMatches(
           matches.map((m) => ({
             id: m.id,
-            redRegistrationId: m.red_registration_id,
-            blueRegistrationId: m.blue_registration_id,
+            ...schedulerSides(m),
             // By the Match's own kind, not the bar's: a lone bracket bar holds
             // the final too, and the final runs at the finals length.
             estimatedDurationMinutes: sheetLengthFor(m.kind, sheet, tournamentId),
@@ -1699,14 +1701,16 @@ export class ProgrammeService {
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
+        'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
       )
       .in('id', dto.matchIds);
     if (mErr) throw new BadRequestException(mErr.message);
     const rows = (matchRows ?? []) as unknown as Array<
       LengthRow & {
-        red_registration_id: string;
-        blue_registration_id: string;
+        red_registration_id: string | null;
+        blue_registration_id: string | null;
+        red_team_id: string | null;
+        blue_team_id: string | null;
         pool_id: string | null;
         match_number_label: string | null;
         bracket_slot_id: string | null;
@@ -1791,8 +1795,7 @@ export class ProgrammeService {
             : undefined;
         return {
           id: r.id,
-          redRegistrationId: r.red_registration_id,
-          blueRegistrationId: r.blue_registration_id,
+          ...schedulerSides(r),
           estimatedDurationMinutes: plannedLengthOf(lengths, r.id),
           poolId: dto.mode === 'pool' ? r.pool_id : null,
           matchNumberLabel: r.match_number_label,
@@ -2015,8 +2018,10 @@ export class ProgrammeService {
   ): Promise<
     Array<{
       id: string;
-      red_registration_id: string;
-      blue_registration_id: string;
+      red_registration_id: string | null;
+      blue_registration_id: string | null;
+      red_team_id: string | null;
+      blue_team_id: string | null;
       pool_id: string | null;
       pool_sort_order: number | null;
       match_number_label: string | null;
@@ -2050,14 +2055,18 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id, pool_id, match_number_label')
+        .select(
+          'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, pool_id, match_number_label',
+        )
         .in('pool_id', poolIds)
         .order('pool_id', { ascending: true })
         .order('match_number_label', { ascending: true });
       const rows = (matchesData ?? []) as Array<{
         id: string;
-        red_registration_id: string;
-        blue_registration_id: string;
+        red_registration_id: string | null;
+        blue_registration_id: string | null;
+        red_team_id: string | null;
+        blue_team_id: string | null;
         pool_id: string | null;
         match_number_label: string | null;
       }>;
@@ -2162,20 +2171,20 @@ export class ProgrammeService {
     const { data: matchesData } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, swiss_round_id, swiss_rounds(round_number)',
+        'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, pool_id, match_number_label, phase_id, swiss_round_id, swiss_rounds(round_number)',
       )
       .in('phase_id', swissPhaseIds)
       .order('match_number_label', { ascending: true });
 
-    const raw = (matchesData ?? []) as unknown as Array<{
-      id: string;
-      red_registration_id: string;
-      blue_registration_id: string;
-      pool_id: string | null;
-      match_number_label: string | null;
-      phase_id: string;
-      swiss_rounds: { round_number: number } | Array<{ round_number: number }> | null;
-    }>;
+    const raw = (matchesData ?? []) as unknown as Array<
+      SideColumns & {
+        id: string;
+        pool_id: string | null;
+        match_number_label: string | null;
+        phase_id: string;
+        swiss_rounds: { round_number: number } | Array<{ round_number: number }> | null;
+      }
+    >;
     const roundOf = (row: (typeof raw)[number]): number => {
       const rel = Array.isArray(row.swiss_rounds) ? row.swiss_rounds[0] : row.swiss_rounds;
       return rel?.round_number ?? 0;
@@ -2188,6 +2197,8 @@ export class ProgrammeService {
         id: r.id,
         red_registration_id: r.red_registration_id,
         blue_registration_id: r.blue_registration_id,
+        red_team_id: r.red_team_id,
+        blue_team_id: r.blue_team_id,
         pool_id: r.pool_id,
         pool_sort_order: null,
         match_number_label: r.match_number_label,
@@ -2287,14 +2298,16 @@ export class ProgrammeService {
     const { data: matchesData } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
+        'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, pool_id, match_number_label, phase_id, bracket_slot_id',
       )
       .in('phase_id', bracketPhaseIds)
       .order('match_number_label', { ascending: true });
     const raw = (matchesData ?? []) as Array<{
       id: string;
-      red_registration_id: string;
-      blue_registration_id: string;
+      red_registration_id: string | null;
+      blue_registration_id: string | null;
+      red_team_id: string | null;
+      blue_team_id: string | null;
       pool_id: string | null;
       match_number_label: string | null;
       phase_id: string;
@@ -2311,6 +2324,8 @@ export class ProgrammeService {
         id: r.id,
         red_registration_id: r.red_registration_id,
         blue_registration_id: r.blue_registration_id,
+        red_team_id: r.red_team_id,
+        blue_team_id: r.blue_team_id,
         pool_id: r.pool_id,
         pool_sort_order: null,
         match_number_label: r.match_number_label,

@@ -17,11 +17,35 @@
 
 import { boutsBeforeRest } from './lay-run';
 import { groupBracketBranches } from '@myclash/rules/scheduling';
+import { sideKey } from '@myclash/types/side-key';
+
+/**
+ * The busy key of a side not known yet: a bracket placeholder (`bracket-placeholder-match.ts`)
+ * waits for the winner of a bout still to fight. Every such side shares this one key, so two
+ * placeholder bouts never run at once: exactly what the scheduler did when it keyed sides by
+ * Registration id and a null id became the object key "null". Not `''`, which a reader takes for
+ * a missing value (`quality:side-readers` refuses `?? ''`).
+ */
+export const UNKNOWN_SIDE = 'unknown-side';
+
+/** A bout's two sides as the scheduler keys them: its side keys (ADR-022), else `UNKNOWN_SIDE`. */
+export function schedulerSides(bout: {
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
+}): { redSideId: string; blueSideId: string } {
+  return {
+    redSideId: sideKey(bout.red_registration_id, bout.red_team_id) ?? UNKNOWN_SIDE,
+    blueSideId: sideKey(bout.blue_registration_id, bout.blue_team_id) ?? UNKNOWN_SIDE,
+  };
+}
 
 export interface SchedulerMatch {
   id: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** The red side's key (`schedulerSides`): nobody is placed in two bouts at once. */
+  redSideId: string;
+  blueSideId: string;
   /** The Match's planned length in minutes, from the planner sheet (ADR-018). */
   estimatedDurationMinutes: number;
   /**
@@ -264,8 +288,8 @@ export function scheduleMatches(
     let cursor = liceStart;
     for (const match of orderedMatches) {
       const duration = match.estimatedDurationMinutes * 60_000;
-      const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
-      const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
+      const redFree = fighterNextFree[match.redSideId] ?? startTime;
+      const blueFree = fighterNextFree[match.blueSideId] ?? startTime;
       // Nobody fights twice at once: a fighter still in an earlier bout holds
       // this one back, and the Lice sits idle until they are out of it. This
       // is a floor, not a rest — see `midRestMinutes`.
@@ -283,8 +307,8 @@ export function scheduleMatches(
       cursor = end + transition;
       placedInUnit += 1;
       if (placedInUnit === restAfter) cursor += midRest;
-      fighterNextFree[match.redRegistrationId] = end;
-      fighterNextFree[match.blueRegistrationId] = end;
+      fighterNextFree[match.redSideId] = end;
+      fighterNextFree[match.blueSideId] = end;
     }
     liceNextFree[assignedLice.id] = cursor;
   }
