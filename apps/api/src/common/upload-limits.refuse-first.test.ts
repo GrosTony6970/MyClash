@@ -12,6 +12,7 @@ import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
 import { describe, expect, it } from 'vitest';
 import { EventsController } from '../modules/events/events.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
+import { TeamsController } from '../modules/teams/teams.controller';
 import { WorkshopInstructorDetailsController } from '../modules/workshops/workshop-instructor-details.controller';
 import { WorkshopsController } from '../modules/workshops/workshops.controller';
 import { anyService, authAs, EVENT, ORG, tooLargeUpload } from './testing/upload-request';
@@ -25,6 +26,10 @@ const ROUTES: Array<[string, Door]> = [
   ['POST events/:id/logo', (req) => events().uploadEventLogo(EVENT, req)],
   ['POST events/:id/hero', (req) => events().uploadEventHero(EVENT, req)],
   ['POST tournaments/:id/logo', (req) => events().uploadTournamentLogo(EVENT, req)],
+  [
+    'POST tournaments/:tournamentId/teams/:teamId/logo',
+    (req) => new TeamsController(any(), authAs(), any()).uploadLogo(EVENT, ORG, req),
+  ],
   [
     'POST organizations/:id/logo',
     (req) => new OrganizationsController(any(), authAs()).uploadLogo(ORG, req),

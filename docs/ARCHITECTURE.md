@@ -408,7 +408,13 @@ What is **not** derivable from the DDL, and so belongs here:
   waitlist and takes no forfeit rules (ruling 972); a save checks both against the kind in force
   (`events/tournament-kind.ts`). `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
   team's numbered Slots. A team's optional `logo_url` (0283) is stored as a Tournament's logo; an
-  Event archive carries the file, a Tournament archive keeps the link (ruling 975). `team_slots` holds both its numbered Slots, each with an optional Person
+  Event archive carries the file, a Tournament archive keeps the link (ruling 975). The teams
+  module (`modules/teams/`, routes `tournaments/:tournamentId/teams/…`) lists, creates, saves,
+  deletes and gives a logo to a team; it holds every team id to the Tournament of the URL (404
+  otherwise), slugs the name (`-2` on a collision, `team-N` for a name too short), counts teams
+  against `max_participants`, and answers 409 `tournament_full`, `team_name_taken`,
+  `team_size_locked` (a bout of the team has started) and `team_in_bouts` (a delete while a bout
+  names the team). `team_slots` holds both its numbered Slots, each with an optional Person
   of the Event, and its Reserves, each with a Person and no number. The database bounds `size`
   only; the API checks a team's Slots against it in slice 1b. Ten columns beside the
   Registration links give each its team twin: the Pool seat, the two bracket slots, the two sides

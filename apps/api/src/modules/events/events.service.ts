@@ -8,14 +8,8 @@ import {
   Optional,
 } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { ensurePublicBucket } from '../../common/storage-bucket';
 import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
-import {
-  ALLOWED_EVENT_HERO_MIME_TYPES,
-  ALLOWED_EVENT_LOGO_MIME_TYPES,
-  EVENT_LOGO_BUCKET,
-  EVENT_LOGO_MAX_BYTES,
-} from './event-assets';
+import { storeEventImage } from './event-assets';
 import {
   allowsDirectHardDelete,
   asEventKind,
@@ -4282,29 +4276,7 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `events/${eventId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (error) throw new BadRequestException(error.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(this.supabase.service.storage, `events/${eventId}`, file);
 
     const { error: updateError } = await this.supabase.service
       .from('events')
@@ -4337,29 +4309,12 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No hero file uploaded.');
-    if (!ALLOWED_EVENT_HERO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Hero upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `events/${eventId}/hero-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (error) throw new BadRequestException(error.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(
+      this.supabase.service.storage,
+      `events/${eventId}`,
+      file,
+      'hero',
+    );
 
     // Upsert themes.hero_image_url. The themes row may or may not
     // exist for a freshly-created event; mirror the existing-row
@@ -4385,15 +4340,6 @@ export class EventsService {
     }
 
     return { url };
-  }
-
-  private async ensureLogoBucket(): Promise<void> {
-    await ensurePublicBucket(
-      this.supabase.service.storage,
-      EVENT_LOGO_BUCKET,
-      EVENT_LOGO_MAX_BYTES,
-      ALLOWED_EVENT_LOGO_MIME_TYPES,
-    );
   }
 
   /**
@@ -4424,29 +4370,11 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `tournaments/${tournamentId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error: uploadError } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (uploadError) throw new BadRequestException(uploadError.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(
+      this.supabase.service.storage,
+      `tournaments/${tournamentId}`,
+      file,
+    );
 
     const { error: updateError } = await this.supabase.service
       .from('tournaments')
