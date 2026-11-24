@@ -34,6 +34,7 @@ export const IMAGE_TABLES = [
   'tournaments',
   'workshops',
   'workshop_instructors',
+  'teams',
 ] as const;
 export type ImageTable = (typeof IMAGE_TABLES)[number];
 
@@ -110,6 +111,17 @@ export const ARCHIVE_IMAGE_COLUMNS: readonly ImageColumn[] = [
     maxBytes: WORKSHOP_LOGO_MAX_BYTES,
     mimeTypes: ALLOWED_WORKSHOP_LOGO_MIME_TYPES,
     kind: 'photo',
+  },
+  {
+    // A team's logo (0283): a Tournament archive keeps it as a link (ruling 975; 407 stands).
+    table: 'teams',
+    column: 'logo_url',
+    scopes: ['event'],
+    bucket: EVENT_LOGO_BUCKET,
+    bucketMaxBytes: EVENT_LOGO_MAX_BYTES,
+    maxBytes: EVENT_LOGO_MAX_BYTES,
+    mimeTypes: ALLOWED_EVENT_LOGO_MIME_TYPES,
+    kind: 'logo',
   },
 ];
 

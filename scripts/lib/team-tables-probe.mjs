@@ -16,13 +16,18 @@
  *
  * The team twins of the side links (migration 0282), on a phase, a copy of the rules, a Pool and a
  * second team each case builds in its savepoint. Refused, each by its check: a row that names both
- * a Registration and a Team for one side, on each table; a Pool member or a protest with neither;
- * the same team twice in one Pool; a Match with a Registration on one side and a Team on the
- * other; a team Match with a winner Registration; a team forfeit with a winner Registration; a draw
- * that names a winner Team. Taken: a team win on a forfeit that is not a draw.
+ * a Registration and a Team for one side, on each table; a Pool member, a card, a protest or a
+ * forfeit with neither; the same team twice in one Pool; a Match with a Registration on one side
+ * and a Team on the other; a team Match with a winner Registration; a team forfeit with a winner
+ * Registration; a draw that names a winner Team. Taken: a team win on a forfeit that is not a draw.
+ *
+ * And the index on each key that names a team (migration 0283, `team-key-indexes-probe.mjs`). The
+ * kind trigger's race needs two connections on committed rows: the cascade probe runs it
+ * (`team-kind-race.mjs`).
  */
 
 import { errorOf, OPEN, TOURNAMENT } from './match-rules-probe-kit.mjs';
+import { teamKeyIndexFailures } from './team-key-indexes-probe.mjs';
 
 // The seed's published team Tournament, its team and the two Fighters of the published Event
 // (rls-probe-seed.sql). The first holds the team's captain slot.
@@ -296,6 +301,20 @@ const TWIN_CASES = [
     write: (sp) => sheetEntry(sp, 'match_protests', {}),
   },
   {
+    // A yellow card, so `match_penalties_card_check`, first by name, holds.
+    what: 'a card for neither',
+    refusedBy: 'match_penalties_one_side',
+    write: (sp) => sheetEntry(sp, 'match_penalties', {}),
+  },
+  {
+    // A loss with its winner, so `match_forfeits_draw_has_no_winner`, first by name, holds, and
+    // no Fighter outcome, so `match_forfeits_fighter_outcome_allowed` holds.
+    what: 'a forfeit by neither',
+    refusedBy: 'match_forfeits_forfeiting_one_kind',
+    write: (sp) =>
+      forfeit(sp, (stage) => ({ winner_team_id: stage.rival, score_policy: 'fixed_loss' })),
+  },
+  {
     // A loss with its winner, so `match_forfeits_draw_has_no_winner`, first by name, holds.
     what: 'a forfeit by a Registration and a Team',
     refusedBy: 'match_forfeits_forfeiting_one_kind',
@@ -341,7 +360,7 @@ const TWIN_CASES = [
 
 /** What is wrong, as sentences; none when all is right. */
 export async function teamTablesFailures(tx) {
-  const failures = [];
+  const failures = await teamKeyIndexFailures(tx);
   for (const { what, refusedBy, write } of [...CASES, ...TWIN_CASES]) {
     const error = await errorOf(tx, async (sp) => {
       await write(sp);

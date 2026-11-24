@@ -274,3 +274,72 @@ describe('a Tournament archive carries its logo only (ruling 407)', () => {
     expect(target.uploads.map((upload) => upload.path.split('/')[0])).toEqual(['tournaments']);
   });
 });
+
+/**
+ * A team's logo (0283), a file this server stores, as a Tournament's logo is. An Event archive
+ * carries the file; a Tournament archive keeps the link (ruling 975; ruling 407 stands).
+ */
+describe("a team's logo: a file in an Event archive, a link in a Tournament archive (ruling 975)", () => {
+  const TEAM_LOGO = `${PUBLIC}/event-assets/teams/team-src/logo-1.png`;
+  const withTeam = () => ({
+    ...rows(),
+    tournaments: rows().tournaments.map((row) =>
+      row.id === 'tour-a' ? { ...row, entrant_kind: 'team' } : row,
+    ),
+    teams: [
+      {
+        id: 'team-src',
+        tournament_id: 'tour-a',
+        name: 'Lyon Blades',
+        slug: 'lyon-blades',
+        size: 3,
+        logo_url: TEAM_LOGO,
+      },
+    ],
+  });
+  const objects = {
+    ...OBJECTS,
+    'event-assets/teams/team-src/logo-1.png': { bytes: imageBytes(600, 6), type: 'image/png' },
+  };
+
+  it('keeps the link in a Tournament archive, and uploads nothing under teams/', async () => {
+    const source = makeService(withTeam(), undefined, makeStorage(objects).storage).service;
+    const archive = await source.generateTournamentArchive('tour-a', 'user-1', {
+      include: 'structure',
+    });
+    const zip = await source.archiveToZipBuffer(archive);
+    expect([...readStoredZip(zip).keys()].filter((name) => name.startsWith('images/'))).toEqual([
+      'images/1.webp',
+    ]);
+
+    const target = makeStorage(objects);
+    const restore = makeService(withTeam(), undefined, target.storage);
+    await restore.service.restoreArchiveCopy(zip, 'user-1', {
+      targetEventId: 'ev-src',
+      confirmation: CONFIRM,
+    });
+
+    expect(restore.inserted.teams!.map((team) => team['logo_url'])).toEqual([TEAM_LOGO]);
+    expect(target.uploads.map((upload) => upload.path.split('/')[0])).toEqual(['tournaments']);
+  });
+
+  it("carries the file in an Event archive: the copy's team shows a file of its own", async () => {
+    const source = makeService(withTeam(), undefined, makeStorage(objects).storage).service;
+    const archive = await source.generateEventArchive('ev-src', 'user-1', {
+      include: 'structure',
+    });
+    const zip = await source.archiveToZipBuffer(archive);
+    const target = makeStorage();
+    const { service, inserted } = makeService(withTeam(), undefined, target.storage);
+    await service.restoreArchiveCopy(zip, 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: CONFIRM,
+    });
+
+    const team = inserted.teams![0]!;
+    expect(pathOf(team['logo_url'])).toMatch(
+      new RegExp(`^event-assets/teams/${String(team['id'])}/logo-\\d+-\\d+\\.png$`, 'u'),
+    );
+    expect(target.store.get(pathOf(team['logo_url']))!.bytes).toEqual(imageBytes(600, 6));
+  });
+});

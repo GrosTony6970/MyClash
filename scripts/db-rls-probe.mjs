@@ -47,7 +47,8 @@
  *      `lib/function-door-probe.mjs`); check 25: a Tournament holds only entrants of its kind and
  *      keeps its kind once it holds one, a team's slots keep their rules (0281), and each side
  *      link names a Registration or a Team, never both, with a Match and a forfeit of one kind
- *      (0282, `lib/team-tables-probe.mjs`).
+ *      (0282, `lib/team-tables-probe.mjs`), and each key that names a team has its index (0283,
+ *      `lib/team-key-indexes-probe.mjs`).
  * Since 0274 four of the five helper loops (ruling 111a left them) have no way back; the last,
  * `can_manage_penalty_ruleset` over `penalty_rulesets`, needs an account id under the anon role. No
  * table read as `authenticated` reaches any helper: checks 5, 7, 21 and 22 expect a refusal on

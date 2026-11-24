@@ -27,9 +27,9 @@
  *     `team_slots.person_id` of 0281, and the four Team sides of a Match and a forfeit, 0282);
  *   - each seeded row was written;
  *   - a delete of the Event, the Tournament, the phase and the club succeeds and takes the bouts;
- *   - a delete of a registration a bout names, a person with a registration, the copy a bout holds,
- *     a referee skill slots list and a compensation plan an Event uses is refused (23503) by one of
- *     the keys that protect it;
+ *   - a delete of a registration a bout names, a team a bout names (0282's keys checked at commit),
+ *     a person with a registration, the copy a bout holds, a referee skill slots list and a
+ *     compensation plan an Event uses is refused (23503) by one of the keys that protect it;
  *   - every path that removes a photo row (its delete and the Event delete, by the API's role too;
  *     the club delete; a TRUNCATE, a cascading one too) queues both its image keys and takes its
  *     report (0252), a Tournament delete only untags it, a second report by the same phone adds no
@@ -39,6 +39,9 @@
  *   - a photo sent from an account refuses the auth server's delete of that account, erasure's
  *     delete of it queues both keys first, and a photo has one sender and a name of 40 (a phone)
  *     or 200 (an account) characters at most (0254, `lib/photo-account-probe.mjs`);
+ *   - a team added while its Tournament's kind changes, and a change of kind while a team is added,
+ *     forced to overlap on two connections: the second waits and is refused by the kind trigger
+ *     (0281, `lib/team-kind-race.mjs`); its Tournaments stay committed until the club delete;
  *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
@@ -55,6 +58,7 @@ import {
   tombstonesAfterClubDelete,
 } from './lib/photo-tombstone-probe.mjs';
 import { photoAccountCases } from './lib/photo-account-probe.mjs';
+import { teamKindRaces } from './lib/team-kind-race.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -74,7 +78,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 87;
+const EXPECTED_CHECKS = 95;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -85,6 +89,8 @@ const COPY = 'ca5c0000-0000-4000-8000-0000000000d1';
 const RED_PERSON = 'ca5c0000-0000-4000-8000-000000000101';
 const RED = 'ca5c0000-0000-4000-8000-000000000201';
 const BOUT = 'ca5c0000-0000-4000-8000-000000000301';
+// The red side and the winner of the team bout, and the winner of its forfeit.
+const TEAM = 'ca5c0000-0000-4000-8000-000000000c11';
 const REFEREE = 'ca5c0000-0000-4000-8000-000000000701';
 const SKILL = 'cascade-probe-skill';
 const PLAN = 'ca5c0000-0000-4000-8000-000000000a01';
@@ -238,43 +244,55 @@ async function deletesSucceed() {
   }
 }
 
+/** Each delete that must be refused (23503), and the keys that may refuse it. */
+const REFUSALS = [
+  [
+    'a registration a bout names',
+    (tx) => tx`DELETE FROM registrations WHERE id = ${RED}`,
+    [
+      'matches_red_registration_id_fkey',
+      'matches_blue_registration_id_fkey',
+      'match_forfeits_winner_registration_id_fkey',
+      'match_forfeits_forfeiting_registration_id_fkey',
+    ],
+  ],
+  [
+    'a person with a registration',
+    (tx) => tx`DELETE FROM persons WHERE id = ${RED_PERSON}`,
+    ['registrations_person_id_fkey'],
+  ],
+  [
+    'a team a bout names',
+    (tx) => tx`DELETE FROM teams WHERE id = ${TEAM}`,
+    [
+      'matches_red_team_id_fkey',
+      'matches_blue_team_id_fkey',
+      'match_forfeits_winner_team_id_fkey',
+      'match_forfeits_forfeiting_team_id_fkey',
+    ],
+  ],
+  [
+    'the copy a bout holds',
+    (tx) => tx`DELETE FROM match_rules WHERE id = ${COPY}`,
+    ['matches_match_rules_id_fkey'],
+  ],
+  [
+    'a referee skill slots list',
+    (tx) => tx`DELETE FROM referee_skills WHERE id = ${SKILL}`,
+    [
+      'tournament_slot_allowed_skills_skill_id_fkey',
+      'event_slot_config_default_skills_skill_id_fkey',
+    ],
+  ],
+  [
+    'a plan an Event uses',
+    (tx) => tx`DELETE FROM referee_compensation_plans WHERE id = ${PLAN}`,
+    ['referee_compensation_event_settings_plan_id_fkey'],
+  ],
+];
+
 async function refusalsHold() {
-  const cases = [
-    [
-      'a registration a bout names',
-      (tx) => tx`DELETE FROM registrations WHERE id = ${RED}`,
-      [
-        'matches_red_registration_id_fkey',
-        'matches_blue_registration_id_fkey',
-        'match_forfeits_winner_registration_id_fkey',
-        'match_forfeits_forfeiting_registration_id_fkey',
-      ],
-    ],
-    [
-      'a person with a registration',
-      (tx) => tx`DELETE FROM persons WHERE id = ${RED_PERSON}`,
-      ['registrations_person_id_fkey'],
-    ],
-    [
-      'the copy a bout holds',
-      (tx) => tx`DELETE FROM match_rules WHERE id = ${COPY}`,
-      ['matches_match_rules_id_fkey'],
-    ],
-    [
-      'a referee skill slots list',
-      (tx) => tx`DELETE FROM referee_skills WHERE id = ${SKILL}`,
-      [
-        'tournament_slot_allowed_skills_skill_id_fkey',
-        'event_slot_config_default_skills_skill_id_fkey',
-      ],
-    ],
-    [
-      'a plan an Event uses',
-      (tx) => tx`DELETE FROM referee_compensation_plans WHERE id = ${PLAN}`,
-      ['referee_compensation_event_settings_plan_id_fkey'],
-    ],
-  ];
-  for (const [what, statement, keys] of cases) {
+  for (const [what, statement, keys] of REFUSALS) {
     const { error } = await tryAndRollBack(statement);
     check(`delete of ${what} refused`, error?.code === '23503', error?.message ?? 'accepted');
     check(
@@ -338,6 +356,7 @@ try {
     await refusalsHold();
     await photoTombstoneCases({ tryAndRollBack, check });
     await photoAccountCases({ tryAndRollBack, check });
+    await teamKindRaces({ databaseUrl, watch: sql, check, event: EVENT });
   } finally {
     await seedDeleted();
     await tombstonesAfterClubDelete(sql, check);
@@ -352,7 +371,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind.`,
     );
   }
 } catch (error) {

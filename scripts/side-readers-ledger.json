@@ -970,7 +970,7 @@
     "scripts/db-cascade-probe.mjs": {
       "verdict": "no-side-read",
       "hits": 8,
-      "why": "a probe's list of foreign-key names (`:98`-`:105`, `:247`)"
+      "why": "a probe's list of foreign-key names (`:104`-`:111`, `:253`)"
     },
     "scripts/db-synthetic-fixture.mjs": {
       "verdict": "individual-only",

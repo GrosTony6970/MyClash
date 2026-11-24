@@ -403,7 +403,8 @@ What is **not** derivable from the DDL, and so belongs here:
 - **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
   `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
   new team. `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
-  team's numbered Slots. `team_slots` holds both its numbered Slots, each with an optional Person
+  team's numbered Slots. A team's optional `logo_url` (0283) is stored as a Tournament's logo; an
+  Event archive carries the file, a Tournament archive keeps the link (ruling 975). `team_slots` holds both its numbered Slots, each with an optional Person
   of the Event, and its Reserves, each with a Person and no number. The database bounds `size`
   only; the API checks a team's Slots against it in slice 1b. Ten columns beside the
   Registration links give each its team twin: the Pool seat, the two bracket slots, the two sides
