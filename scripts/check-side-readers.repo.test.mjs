@@ -224,13 +224,33 @@ test('package.json exposes the gate on its own', () => {
   assert.equal(manifest.scripts?.['quality:side-readers'], 'node scripts/check-side-readers.mjs');
 });
 
+/**
+ * The trimmed lines of the CI step named `name`: its `- name:` line, then every line indented
+ * deeper than it, up to the next step. Read line by line, so no regex can backtrack on the YAML.
+ */
+const ciStep = (ci, name) => {
+  const lines = ci.split('\n').map((line) => line.replace(/\r$/, ''));
+  const start = lines.findIndex((line) => line.trim() === `- name: ${name}`);
+  if (start === -1) return [];
+  const indent = lines[start].search(/\S/);
+  const step = [lines[start].trim()];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    if (line.search(/\S/) <= indent) break;
+    step.push(line.trim());
+  }
+  return step;
+};
+
 test('CI runs the gate as its own step, which a red gate before it does not stop', () => {
   const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-  const step =
-    /- name: Check Match side readers\n(?:\s+.+\n)*?\s+run: pnpm quality:side-readers/.exec(ci);
+  const step = ciStep(ci, 'Check Match side readers');
 
-  assert.ok(step, 'CI lint job must run the gate in the step "Check Match side readers"');
-  assert.match(step[0], /\n\s+if: '!cancelled\(\)'\n/, "the step needs if: '!cancelled()'");
+  assert.ok(
+    step.includes('run: pnpm quality:side-readers'),
+    'CI lint job must run the gate in the step "Check Match side readers"',
+  );
+  assert.ok(step.includes("if: '!cancelled()'"), "the step needs if: '!cancelled()'");
   assert.ok(
     !/&&\s*pnpm quality:side-readers/.test(ci),
     'quality:side-readers must be its own step, never &&-chained behind another gate',
