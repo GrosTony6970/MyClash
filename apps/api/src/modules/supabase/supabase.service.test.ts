@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
-import { SupabaseService, verifyAccessTokenLocally } from './supabase.service';
+import { SupabaseService, connectorClaimOf, verifyAccessTokenLocally } from './supabase.service';
 
 const SECRET = 'test-supabase-jwt-secret-at-least-32-characters-long';
 
@@ -39,6 +39,23 @@ describe('verifyAccessTokenLocally', () => {
   });
 });
 
+describe('connectorClaimOf', () => {
+  it('reads the claim without verifying the signature', () => {
+    const wrongSecret = jwt.sign({ sub: 'u', client_id: 'claude-client' }, 'another-secret-value');
+    const unsigned = jwt.sign({ sub: 'u', client_id: 'claude-client' }, '', { algorithm: 'none' });
+    expect(connectorClaimOf(wrongSecret)).toBe('claude-client');
+    expect(connectorClaimOf(unsigned)).toBe('claude-client');
+  });
+
+  it('is null for no claim, an empty claim, a non-string claim or garbage', () => {
+    expect(connectorClaimOf(jwt.sign({ sub: 'u' }, SECRET))).toBeNull();
+    expect(connectorClaimOf(jwt.sign({ sub: 'u', client_id: '' }, SECRET))).toBeNull();
+    expect(connectorClaimOf(jwt.sign({ sub: 'u', client_id: 7 }, SECRET))).toBeNull();
+    expect(connectorClaimOf('junk')).toBeNull();
+    expect(connectorClaimOf('')).toBeNull();
+  });
+});
+
 describe('SupabaseService.getAuthUser', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -47,6 +64,32 @@ describe('SupabaseService.getAuthUser', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  it('refuses a connector token without asking GoTrue', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'user-1' }),
+    });
+    const svc = new SupabaseService(makeConfig());
+    const token = jwt.sign({ sub: 'user-1', client_id: 'claude-client' }, SECRET, {
+      expiresIn: '1h',
+    });
+    expect(await svc.getAuthUser(token)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still asks GoTrue about a normal login', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'user-1' }),
+    });
+    const svc = new SupabaseService(makeConfig());
+    const token = jwt.sign({ sub: 'user-1' }, SECRET, { expiresIn: '1h' });
+    expect(await svc.getAuthUser(token)).toMatchObject({ id: 'user-1' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 
   it('returns the GoTrue user when GoTrue is reachable and the token is valid', async () => {
     fetchMock.mockResolvedValue({

@@ -14,6 +14,7 @@ import { StaffJwtService } from '../../modules/staff/staff-jwt.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import {
   ANONYMOUS,
+  presentedConnectorClient,
   presentedLogin,
   type Identity,
   type RequestWithIdentity,
@@ -96,9 +97,11 @@ export class AuthGuard implements CanActivate {
     // the caller anonymous would not stop them. This guard runs before every
     // interceptor and handler, so a throw here covers the whole API: it is the
     // only place the wall can hold. It throws in shadow mode too — a wall that
-    // only logs is no wall.
-    const connectorClientId = (request as RequestWithIdentity).connectorClientId;
-    if (connectorClientId) {
+    // only logs is no wall. Its input is every login the request carries (Bearer
+    // AND cookie), read unverified: a junk Bearer or a token that fails local
+    // verification must not hide a connector token from it. The verified claim
+    // (`connectorClientId`) is a separate thing, and is what the MCP door trusts.
+    if (presentedConnectorClient(request)) {
       const isConnectorDoor = this.reflector.getAllAndOverride<boolean>(CONNECTOR_DOOR_KEY, [
         context.getHandler(),
         context.getClass(),

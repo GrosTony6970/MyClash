@@ -15,6 +15,7 @@
 
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthGuard } from './auth.guard';
 import { CONNECTOR_DOOR_KEY } from './connector-door';
@@ -247,7 +248,31 @@ describe('AuthGuard', () => {
 
   // ── Claude connector token ──────────────────────────────────────────────────
 
-  const connectorLogin = { headers: { authorization: 'Bearer tok' } };
+  // The wall reads the claim unverified, so the tokens must really carry it.
+  const connectorToken = jwt.sign({ sub: 'user-1', client_id: 'claude-client' }, 'any-secret');
+  const connectorLogin = { headers: { authorization: `Bearer ${connectorToken}` } };
+
+  it('refuses a connector token in the cookie behind a junk Bearer', async () => {
+    const { context } = makeContext({
+      headers: { authorization: 'Bearer junk' },
+      cookies: { 'sb-access-token': connectorToken },
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow('connector_token_outside_mcp');
+  });
+
+  it('refuses a connector token that fails verification', async () => {
+    verifyAccessTokenLocal.mockReturnValue(null);
+    const { context } = makeContext(connectorLogin);
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('does not make an unverified connector claim the door identity', async () => {
+    verifyAccessTokenLocal.mockReturnValue(null);
+    const { context, request } = makeContext({ ...connectorLogin, connectorDoor: true });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getConnectorClientId(request as never)).toBeNull();
+  });
 
   it('refuses a connector token on an unmarked route, in shadow mode', async () => {
     verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: 'claude-client' });
@@ -288,7 +313,7 @@ describe('AuthGuard', () => {
 
   it('a login without client_id carries no connector client', async () => {
     verifyAccessTokenLocal.mockReturnValue({ id: 'user-1' });
-    const { context, request } = makeContext(connectorLogin);
+    const { context, request } = makeContext({ headers: { authorization: 'Bearer tok' } });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(getConnectorClientId(request as never)).toBeNull();
@@ -296,7 +321,10 @@ describe('AuthGuard', () => {
 
   it('an empty client_id claim is no connector', async () => {
     verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: '' });
-    const { context, request } = makeContext(connectorLogin);
+    const emptyClaim = jwt.sign({ sub: 'user-1', client_id: '' }, 'any-secret');
+    const { context, request } = makeContext({
+      headers: { authorization: `Bearer ${emptyClaim}` },
+    });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(getConnectorClientId(request as never)).toBeNull();

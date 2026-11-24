@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { connectorClaimOf } from '../../modules/supabase/supabase.service';
 
 /**
  * The caller of a request, as resolved by AuthGuard.
@@ -35,8 +36,8 @@ export interface RequestWithIdentity extends FastifyRequest {
    */
   staffSession?: StaffSession | null;
   /**
-   * The OAuth client of a Claude connector token (its `client_id` claim), or
-   * null for an ordinary login. Wrapper only, like `staffSession`: the
+   * The OAuth client of a VERIFIED Claude connector token (its `client_id` claim), or
+   * null for an ordinary login or a token that did not verify. Wrapper only, like `staffSession`: the
    * `Identity` union stays the same for a connector and a browser login.
    */
   connectorClientId?: string | null;
@@ -71,6 +72,22 @@ export function presentedLogin(req: FastifyRequest): string | null {
  */
 export function carriesEndedLogin(req: FastifyRequest): boolean {
   return getIdentity(req).kind === 'anonymous' && Boolean(presentedLogin(req));
+}
+
+/**
+ * The connector client named by ANY login the request carries — the Bearer and the
+ * login cookie both, unverified. `presentedLogin` returns only the Bearer when there
+ * is one, so a junk Bearer would hide a connector token in the cookie from the wall.
+ * For the wall only: it can refuse a request, never identify one.
+ */
+export function presentedConnectorClient(req: FastifyRequest): string | null {
+  const authHeader = req.headers['authorization'];
+  const bearer =
+    typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const cookie = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies?.[
+    'sb-access-token'
+  ];
+  return (bearer && connectorClaimOf(bearer)) || (cookie && connectorClaimOf(cookie)) || null;
 }
 
 /** The OAuth client the request's login was issued to, or null when it is no connector token. */
