@@ -35,8 +35,8 @@ interface BoutOnScreen {
     pendingProtests: MatchProtest[];
   };
   match: {
-    redRegistrationId: string;
-    blueRegistrationId: string;
+    redRegistrationId: string | null;
+    blueRegistrationId: string | null;
     redFighterName?: string;
     blueFighterName?: string;
   };

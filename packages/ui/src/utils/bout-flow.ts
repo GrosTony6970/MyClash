@@ -34,6 +34,7 @@ import {
 } from '@myclash/types';
 import { ascendingWithNumbers } from './exchange-timeline';
 import { foldPauses, type BoutFlowPause } from './bout-flow-clock';
+import { isSideRegistration } from './side-registration';
 import type { ClockEvent, ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
 
 export type { BoutFlowPause } from './bout-flow-clock';
@@ -84,8 +85,8 @@ export type BoutFlowClockEvent = ClockEvent;
 export interface BuildBoutFlowArgs {
   exchanges: ExchangeRow[];
   penalties: Penalty[];
-  redRegId: string;
-  blueRegId: string;
+  redRegId: string | null;
+  blueRegId: string | null;
   matchFormat: MatchFormatConfig;
   /** The bout's phase: the double cap holds in Pools and Swiss only. Unknown reads as none. */
   phaseType: PhaseType | null | undefined;
@@ -162,15 +163,18 @@ function exchangeDrafts(exchanges: ExchangeRow[], inRound: (r?: number | null) =
  */
 function penaltyDrafts(
   penalties: Penalty[],
-  redRegId: string,
-  blueRegId: string,
+  redRegId: string | null,
+  blueRegId: string | null,
   inRound: (round?: number | null) => boolean,
 ) {
   return penalties
     .filter((p) => !p.voided && inRound(p.round_number))
     .map((p): FlowDraft => {
-      const side: 'red' | 'blue' | null =
-        p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
+      const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, redRegId)
+        ? 'red'
+        : isSideRegistration(p.registration_id, blueRegId)
+          ? 'blue'
+          : null;
       const delta = p.score_delta ?? 0;
       return {
         occurredAt: p.occurred_at ?? '',

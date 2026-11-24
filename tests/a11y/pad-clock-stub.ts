@@ -15,8 +15,9 @@ const ROW = {
   match_number_label: 'M1',
   status: 'scheduled',
   decision_edition: '2026-10',
-  red_registration_id: 'red-1',
-  blue_registration_id: 'blue-1',
+  // Null: the side waits for a Fighter (a bracket slot still to fill).
+  red_registration_id: 'red-1' as string | null,
+  blue_registration_id: 'blue-1' as string | null,
   red_score: 0,
   blue_score: 0,
   winner_registration_id: null as string | null,
@@ -246,7 +247,9 @@ export async function openBout(page: Page, start: Start = {}) {
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto(`${PAD}/matches/${BOUT}`);
-  await expect(primary(page)).toBeEnabled();
+  // A bout waiting for a Fighter opens with its Start greyed: the page is up all the same.
+  const waits = stub.row.red_registration_id === null || stub.row.blue_registration_id === null;
+  await expect(primary(page)).toBeEnabled({ enabled: !waits });
   return stub;
 }
 

@@ -12,8 +12,8 @@ type FighterColor = 'red' | 'blue';
 
 export interface ForfeitPanelProps {
   matchId: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   redName: string;
   blueName: string;
   apiUrl?: string;

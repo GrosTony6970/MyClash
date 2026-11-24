@@ -104,8 +104,8 @@ export interface PadSeriesArgs {
   matchNumberLabel: string | null | undefined;
   matchFormat: MatchFormatConfig;
   server: ServerRounds;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   /** The server's hits, not voided. Each carries its round (`round_number`). */
   exchanges: readonly ExchangeRow[];
   /** The server's cards, not voided, each with its round. Its row's score holds their points. */

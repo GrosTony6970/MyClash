@@ -24,7 +24,7 @@ import { ProtestButton } from './ProtestButton';
 interface ProtestControlProps {
   side: 'red' | 'blue';
   matchId: string;
-  registrationId: string;
+  registrationId: string | null;
   fighterName: string;
   disabled: boolean;
   /** The pad's one protest tap: the `clientUuid` written, or null for a tap it ignored. */

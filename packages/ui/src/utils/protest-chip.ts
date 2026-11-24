@@ -5,6 +5,7 @@
  */
 
 import type { MatchProtest } from '../types/match-events';
+import { isSideRegistration } from './side-registration';
 
 /**
  * The protests a chip counts: the Fighter's, not voided. The one rule for the
@@ -12,9 +13,9 @@ import type { MatchProtest } from '../types/match-events';
  */
 export function liveProtestsOf(
   rows: readonly MatchProtest[],
-  registrationId: string,
+  registrationId: string | null,
 ): MatchProtest[] {
-  return rows.filter((p) => !p.voided && p.registration_id === registrationId);
+  return rows.filter((p) => !p.voided && isSideRegistration(p.registration_id, registrationId));
 }
 
 /** `"2"` with no limit, `"2/2"` with a limit of 2. */

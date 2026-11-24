@@ -54,8 +54,10 @@ export interface BoutRow {
   id: string;
   match_number_label: string | null;
   status: string;
-  red_registration_id: string;
-  blue_registration_id: string;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   red_score: number | null;
   blue_score: number | null;
   winner_registration_id: string | null;
@@ -134,6 +136,8 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     status: raw.status,
     redRegistrationId: raw.red_registration_id,
     blueRegistrationId: raw.blue_registration_id,
+    redTeamId: raw.red_team_id,
+    blueTeamId: raw.blue_team_id,
     redScore: raw.red_score ?? 0,
     blueScore: raw.blue_score ?? 0,
     // GET /matches/:id is a select('*'), so this has always been on the wire:

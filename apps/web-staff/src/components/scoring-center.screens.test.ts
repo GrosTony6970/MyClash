@@ -52,3 +52,36 @@ describe('the corrections drawer', () => {
     expect(timelineArgs(drawer)).toContain('protests: activeProtests,');
   });
 });
+
+/**
+ * A bout waiting for a Fighter (operator, 2026-11-24): the wiring only. The decision is
+ * `sideMissing` (`lib/bout-sides.test.ts`); the behaviour is the browser story
+ * `tests/a11y/pad-bout-waits-for-fighter.spec.ts`.
+ */
+describe('a bout waiting for a Fighter', () => {
+  const view = read('MatchView.tsx');
+
+  it('is asked once, of the bout on screen', () => {
+    expect(view).toContain('const waitingForFighter = sideMissing(match);');
+  });
+
+  it('refuses a Start at the one door of the clock, forced or not', () => {
+    const door = view.slice(view.indexOf('const onClockAction = useCallback('));
+    const refusal = "if (action === 'start' && waitingForFighter) {";
+    expect(door.indexOf(refusal)).toBeGreaterThan(0);
+    expect(door.indexOf(refusal)).toBeLessThan(door.indexOf('!force &&'));
+  });
+
+  it('takes no hit or card, greys Start, and says why', () => {
+    expect(view).toMatch(/!series\.awaitingStart &&\s+!waitingForFighter;/);
+    expect(view).toContain('startBlocked={waitingForFighter}');
+    expect(centre).toContain("(primary.action === 'start' && startBlocked)");
+    expect(view).toContain("{t('scoring.match.waitingForFighter')}");
+  });
+
+  it('greys the colour swap and the direct card of the drawer', () => {
+    expect(view).toContain('sideMissing={waitingForFighter}');
+    expect(drawer).toContain('disabled={disabled || sideMissing}');
+    expect(drawer).toContain('disabled={busy || locked || sideMissing}');
+  });
+});

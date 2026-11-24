@@ -36,8 +36,8 @@ import { ProtestPair } from './ProtestButton';
 export interface MatchResultOverlayProps {
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   redScore: number;
   blueScore: number;
   /** The recorded winner. The overlay ANNOUNCES the result to the hall, so it

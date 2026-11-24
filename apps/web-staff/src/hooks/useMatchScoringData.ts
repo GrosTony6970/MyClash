@@ -80,7 +80,7 @@ export interface MatchScoringData {
    * numeral — the count it replaced was the whole match's, so a card against
    * blue was announced under red's score too.
    */
-  queuedCardsFor: (registrationId: string) => { priced: number; unpriced: number };
+  queuedCardsFor: (registrationId: string | null) => { priced: number; unpriced: number };
   /**
    * The "Start round" and "End round" rows the tablet still holds of this bout,
    * in the order they were made. `padSeries` reads the rounds from them.
@@ -93,9 +93,9 @@ export interface MatchScoringData {
   boutHeld: boolean;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  countFor: (registrationId: string, card: PenaltyCard) => number;
+  countFor: (registrationId: string | null, card: PenaltyCard) => number;
   /** A Fighter's protests: the server's and the tablet's, each counted once (`protestCountFor`). */
-  protestCountFor: (registrationId: string) => number;
+  protestCountFor: (registrationId: string | null) => number;
   /**
    * Which card this entry will ACTUALLY produce for this fighter, counting the
    * offences they already have in the same rule group: the server's, and the
@@ -105,7 +105,10 @@ export interface MatchScoringData {
    * card. On a fighter's second offence in a group the button said yellow and
    * the server issued red.
    */
-  resolveCard: (entry: PenaltyRulesetEntry, registrationId: string) => PenaltyCard | undefined;
+  resolveCard: (
+    entry: PenaltyRulesetEntry,
+    registrationId: string | null,
+  ) => PenaltyCard | undefined;
   refreshExchanges: () => void;
 }
 
@@ -182,7 +185,7 @@ export function useMatchScoringData(args: {
     [pendingEntries],
   );
 
-  const countFor = (registrationId: string, card: PenaltyCard) =>
+  const countFor = (registrationId: string | null, card: PenaltyCard) =>
     cardCountFor({
       server: activePenalties,
       pending: pending.penalties,
@@ -190,19 +193,22 @@ export function useMatchScoringData(args: {
       card,
     });
 
-  const protestCountFor = (registrationId: string) =>
+  const protestCountFor = (registrationId: string | null) =>
     protestCount({ server: activeProtests, pending: pending.protests, registrationId });
 
   // Same function the server calls (`resolveEntryCard`), on the offences the
   // server will count: the ones it told the pad and the cards the tablet holds.
-  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string) =>
-    resolveEntryCard(
-      entry,
-      registrationId,
-      priorsWithQueued(priors?.[registrationId], pending.penalties, registrationId),
-    );
+  // A side with no Fighter yet has no offence: the first card of the entry.
+  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string | null) =>
+    registrationId === null
+      ? entry.sanctions[0]
+      : resolveEntryCard(
+          entry,
+          registrationId,
+          priorsWithQueued(priors?.[registrationId], pending.penalties, registrationId),
+        );
 
-  const queuedCardsFor = (registrationId: string) =>
+  const queuedCardsFor = (registrationId: string | null) =>
     queuedCardsForRegistration({
       pending: pending.penalties,
       unpricedCardUuids: pending.unpricedCardUuids,

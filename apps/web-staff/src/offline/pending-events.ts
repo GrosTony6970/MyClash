@@ -27,7 +27,13 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import { liveProtestsOf, type ExchangeRow, type MatchProtest, type Penalty } from '@myclash/ui';
+import {
+  isSideRegistration,
+  liveProtestsOf,
+  type ExchangeRow,
+  type MatchProtest,
+  type Penalty,
+} from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
@@ -250,7 +256,7 @@ function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProte
 export function protestCountFor(args: {
   server: readonly MatchProtest[];
   pending: readonly MatchProtest[];
-  registrationId: string;
+  registrationId: string | null;
 }): number {
   return protestsOf(args).length;
 }
@@ -262,7 +268,7 @@ export function protestCountFor(args: {
 export function protestsOf(args: {
   server: readonly MatchProtest[];
   pending: readonly MatchProtest[];
-  registrationId: string;
+  registrationId: string | null;
 }): MatchProtest[] {
   const { server, pending, registrationId } = args;
   return [...liveProtestsOf(server, registrationId), ...liveProtestsOf(pending, registrationId)];
@@ -282,11 +288,12 @@ export function protestsOf(args: {
 export function cardCountFor(args: {
   server: readonly Penalty[];
   pending: readonly Penalty[];
-  registrationId: string;
+  registrationId: string | null;
   card: PenaltyCard;
 }): number {
   const { server, pending, registrationId, card } = args;
-  const mine = (p: Penalty) => !p.voided && p.registration_id === registrationId && p.card === card;
+  const mine = (p: Penalty) =>
+    !p.voided && isSideRegistration(p.registration_id, registrationId) && p.card === card;
   return server.filter(mine).length + pending.filter(mine).length;
 }
 
@@ -306,11 +313,11 @@ export function cardCountFor(args: {
 export function queuedCardsFor(args: {
   pending: readonly Penalty[];
   unpricedCardUuids: readonly string[];
-  registrationId: string;
+  registrationId: string | null;
 }): { priced: number; unpriced: number } {
   const { pending, unpricedCardUuids, registrationId } = args;
   const unpriced = new Set(unpricedCardUuids);
-  const mine = pending.filter((p) => p.registration_id === registrationId);
+  const mine = pending.filter((p) => isSideRegistration(p.registration_id, registrationId));
   const notPriced = mine.filter((p) => p.client_uuid && unpriced.has(p.client_uuid)).length;
   return { priced: mine.length - notPriced, unpriced: notPriced };
 }
@@ -341,8 +348,8 @@ export function queuedCardsFor(args: {
 export function provisionalDeltas(args: {
   exchanges: readonly ExchangeRow[];
   penalties: readonly Penalty[];
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
 }): { red: number; blue: number } {
   const { exchanges, penalties, redRegistrationId, blueRegistrationId } = args;
   let red = 0;
@@ -360,8 +367,10 @@ export function provisionalDeltas(args: {
   }
   for (const penalty of penalties) {
     if (penalty.voided) continue;
-    if (penalty.registration_id === redRegistrationId) red += penalty.score_delta;
-    if (penalty.registration_id === blueRegistrationId) blue += penalty.score_delta;
+    // A side with no Registration takes no card's delta (`isSideRegistration`).
+    if (isSideRegistration(penalty.registration_id, redRegistrationId)) red += penalty.score_delta;
+    if (isSideRegistration(penalty.registration_id, blueRegistrationId))
+      blue += penalty.score_delta;
   }
   return { red, blue };
 }

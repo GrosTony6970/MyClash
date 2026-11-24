@@ -75,7 +75,13 @@ export class ProtestsService {
     // taken" and holds a protest the server already has.
     await this.frozenResults.assertExchangeCreationAllowed(matchId, actor?.userId);
     this.assertNotLocked(bout, actor);
-    await assertBoutTakes(this.supabase.service, bout, { occurredAt: dto.occurredAt });
+    // The sides are not judged: protests are outside the operator's ruling of 2026-11-24, which
+    // refuses a Start, a hit, a card and the colour swap of a bout waiting for a Fighter.
+    await assertBoutTakes(
+      this.supabase.service,
+      { id: bout.id, status: bout.status, sides: 'not-judged' },
+      { occurredAt: dto.occurredAt },
+    );
     if (![bout.redRegistrationId, bout.blueRegistrationId].includes(dto.registrationId)) {
       throw new BadRequestException('A protest is made by one of the two Fighters of the Match');
     }

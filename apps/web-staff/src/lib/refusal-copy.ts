@@ -135,6 +135,8 @@ const REFUSED_WHOLE = new Map([
   ['reset_after_level_step', RESET_AFTER_LEVEL_STEP],
   // A forfeit recorded on rules that do not parse (a hand-edited archive, rulings 63-76).
   ['forfeit_rules_invalid', 'scoring.forfeits.rulesInvalid'],
+  // The colour swap on a bout that waits for a Fighter (operator, 2026-11-24).
+  ['bout_side_missing', 'scoring.corrections.boutSideMissing'],
 ]);
 
 /**
@@ -152,6 +154,9 @@ const HELD_PRESS = new Map([
   // An "End match" on a board the server reads as level, at its time. An "End
   // round" too: a round row with no words of its own for a code reads this map.
   ['level_at_time_unresolved', HELD_END_LEVEL],
+  // A Start, a hit or a card for a bout that waits for a Fighter (operator, 2026-11-24). Every
+  // kind of held row falls through to this map, so its words fit each one.
+  ['bout_side_missing', 'scoring.quarantine.boutSideMissing'],
 ]);
 
 /**

@@ -5,6 +5,8 @@
  * clock is read at the tap, also while it runs.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from '../offline/db';
@@ -32,6 +34,7 @@ function tapWith(over: Partial<ProtestTapArgs> = {}) {
     submit: SUBMIT,
     clockTimeMs: () => 61_000,
     onRecorded: vi.fn(),
+    onNoFighter: vi.fn(),
     ...over,
   };
   return { tap: protestTap(args, new Set()), args };
@@ -101,6 +104,34 @@ describe('a tap of the protest button', () => {
     expect(rows).toHaveLength(1);
     expect(answers).toEqual([rows[0]?.clientUuid, null]);
     expect(args.onRecorded).toHaveBeenCalledOnce();
+  });
+
+  // A bracket bout whose blue Fighter is still to come: nobody is there to protest for.
+  it('a tap of a corner with no Fighter records nothing, and says why', async () => {
+    const { tap, args } = tapWith({ match: { ...MATCH, blueRegistrationId: null } });
+
+    expect(await tap('blue')).toBeNull();
+
+    expect(await getAllPending()).toEqual([]);
+    expect(args.onRecorded).not.toHaveBeenCalled();
+    expect(args.onNoFighter).toHaveBeenCalledOnce();
+  });
+
+  it('a tap of a corner with its Fighter says nothing of a missing one', async () => {
+    const { tap, args } = tapWith({ match: { ...MATCH, blueRegistrationId: null } });
+
+    await tap('red');
+
+    expect(args.onNoFighter).not.toHaveBeenCalled();
+    expect(args.onRecorded).toHaveBeenCalledOnce();
+  });
+
+  // The words the screen says: the pad's own refusal of a card with no Fighter.
+  it('the screen says it in the reader’s language', () => {
+    const view = readFileSync(join(__dirname, '..', 'components', 'MatchView.tsx'), 'utf8');
+    expect(view).toContain(
+      "onNoFighter: () => setClockError(t('scoring.corrections.boutSideMissing')),",
+    );
   });
 
   // Both taps read the same `nextSequence`: the screen has not drawn again between them.

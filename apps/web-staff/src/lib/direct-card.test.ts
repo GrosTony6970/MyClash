@@ -240,7 +240,8 @@ describe('the screens', () => {
     const panel = read('components', 'DirectCardPanel.tsx');
     for (const field of [
       'sequence: props.nextSequence,',
-      "registrationId: fighter === 'red' ? props.redRegistrationId : props.blueRegistrationId,",
+      "const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;",
+      'registrationId,',
       'clockTimeMs: props.clockTimeMs,',
       'bout: props.bout,',
       'cardedColor: fighter,',
@@ -254,7 +255,10 @@ describe('the screens', () => {
   it('the card buttons are live with no connection', () => {
     const panel = read('components', 'DirectCardPanel.tsx');
     expect(panel).toContain('disabled={disabled || busy || reason.trim().length === 0}');
-    expect(read('components', 'MatchCorrectionsDrawer.tsx')).toContain('disabled={busy || locked}');
+    // A bout waiting for a Fighter greys them (operator, 2026-11-24): that needs no network either.
+    expect(read('components', 'MatchCorrectionsDrawer.tsx')).toContain(
+      'disabled={busy || locked || sideMissing}',
+    );
   });
 
   it('the panel says so with no connection (ruling 315), and a fault in the reader’s language', () => {

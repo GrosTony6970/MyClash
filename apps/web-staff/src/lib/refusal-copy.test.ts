@@ -104,6 +104,24 @@ describe('heldReason', () => {
     );
   });
 
+  // Operator, 2026-11-24: a hit, a card or a Start queued for a bout that waits for a Fighter.
+  // The Fighter may arrive later, so the entry keeps its Retry.
+  it.each<[string, string | undefined]>([
+    ['a hit', undefined],
+    ['a card', 'penalty'],
+    ['a clock press', 'press'],
+  ])('says %s held for a bout waiting for a Fighter in the reader’s language', (_row, kind) => {
+    const held = { rejectedReason: 'API words', rejectedCode: 'bout_side_missing', kind };
+
+    expect(heldReason(held, t)).toBe('scoring.quarantine.boutSideMissing');
+    expect(en.scoring.quarantine.boutSideMissing).toBe(
+      'Held here, not lost: this bout was waiting for a Fighter. Retry once both Fighters are on the bout, or discard it.',
+    );
+    expect(fr.scoring.quarantine.boutSideMissing).toBe(
+      "Conservée ici, pas perdue : cet assaut attendait un combattant. Réessayez quand les deux combattants sont sur l'assaut, ou supprimez-la.",
+    );
+  });
+
   it('lets every other held hit be sent again', () => {
     expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'bout_not_started' })).toBe(true);
     expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'event_results_frozen' })).toBe(true);
@@ -219,6 +237,23 @@ describe('refusalMessage', () => {
         FALLBACK,
       ),
     ).toBe('scoring.corrections.boutNotStarted');
+  });
+
+  // Operator, 2026-11-24: the colour swap, sent at once, on a bout that waits for a Fighter.
+  it('says the bout waits for a Fighter, instead of the API sentence', () => {
+    expect(
+      refusalMessage(
+        refusal(409, { code: 'bout_side_missing', detail: 'This bout is waiting for a Fighter.' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.boutSideMissing');
+    expect(en.scoring.corrections.boutSideMissing).toBe(
+      'This bout is waiting for a Fighter. Try again once both sides are known.',
+    );
+    expect(fr.scoring.corrections.boutSideMissing).toBe(
+      'Cet assaut attend un combattant. Réessayez une fois les deux côtés connus.',
+    );
   });
 
   it('says the bout is locked, instead of the API sentence', () => {

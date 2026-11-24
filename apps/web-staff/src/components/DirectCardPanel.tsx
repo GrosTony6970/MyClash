@@ -45,8 +45,8 @@ export interface DirectCardPanelProps {
   draft: DirectCardDraft;
   onDraft: (draft: DirectCardDraft) => void;
   matchId: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   redName: string;
   blueName: string;
   ruleSetCards: readonly PenaltyCard[];
@@ -148,10 +148,17 @@ function useDirectCard(props: DirectCardPanelProps, t: Translate) {
   const [error, setError] = useState<string | null>(null);
 
   async function give(card: PenaltyCard) {
+    const { redRegistrationId, blueRegistrationId } = props;
+    const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;
+    // A corner with no Fighter yet: the card has nobody to go to. The server refuses it too.
+    if (registrationId === null) {
+      setError(t('scoring.corrections.boutSideMissing'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await giveDirectCard(directCardRow(props, card), {
+      await giveDirectCard(directCardRow(props, card, registrationId), {
         notKept: () => setError(t('scoring.corrections.actionFailed')),
         close: () => {
           onDraft({ ...draft, reason: '' });
@@ -211,12 +218,12 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
 }
 
 /** The card as the queue keeps it: the model is a card of the list (`ScoringColumn`). */
-function directCardRow(props: DirectCardPanelProps, card: PenaltyCard) {
+function directCardRow(props: DirectCardPanelProps, card: PenaltyCard, registrationId: string) {
   const { fighter, reason } = props.draft;
   return {
     matchId: props.matchId,
     sequence: props.nextSequence,
-    registrationId: fighter === 'red' ? props.redRegistrationId : props.blueRegistrationId,
+    registrationId,
     clockTimeMs: props.clockTimeMs,
     bout: props.bout,
     round: props.round,

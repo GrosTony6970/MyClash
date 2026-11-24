@@ -64,9 +64,11 @@ interface ScoringCenterControlsProps {
   config: TournamentScoringConfig;
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   canScore: boolean;
+  /** The bout waits for a Fighter: Start is greyed. `onClockAction` refuses it too, for the keys. */
+  startBlocked: boolean;
   /** Current clock state. */
   clockState: ClockState | null;
   /** Loading + error from the clock action POST. */
@@ -149,6 +151,7 @@ export function ScoringCenterControls({
   redRegistrationId,
   blueRegistrationId,
   canScore,
+  startBlocked,
   clockState,
   clockLoading,
   clockError,
@@ -242,12 +245,15 @@ export function ScoringCenterControls({
   // Black card closed the match (per the penalty ruleset). Name the carded
   // fighter so the banner reads "Black card — {fighter}".
   const blackCardLoserRegId = blackCardLossRegistrationId(endReason, activePenalties);
+  // A side with no Registration is null too: null is nobody, never that side.
   const blackCardLoserName =
-    blackCardLoserRegId === redRegistrationId
-      ? redName
-      : blackCardLoserRegId === blueRegistrationId
-        ? blueName
-        : null;
+    blackCardLoserRegId === null
+      ? null
+      : blackCardLoserRegId === redRegistrationId
+        ? redName
+        : blackCardLoserRegId === blueRegistrationId
+          ? blueName
+          : null;
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
     if (doubleCount >= maxDoubles) return 'bg-danger/15 text-danger border border-danger';
@@ -421,7 +427,11 @@ export function ScoringCenterControls({
               // turn, so `data-action` is the only reliable way to say WHICH
               // transition was just taken.
               data-action={primary.action}
-              disabled={clockLoading || (primary.action === 'reopen' && pressesWaiting)}
+              disabled={
+                clockLoading ||
+                (primary.action === 'reopen' && pressesWaiting) ||
+                (primary.action === 'start' && startBlocked)
+              }
               onClick={() => onClockAction(primary.action)}
               className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
             >

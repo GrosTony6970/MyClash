@@ -52,7 +52,7 @@ interface ScoringColumnProps {
    * what pushes it out once it is safely on disk.
    */
   syncEngine?: SyncEngine | null;
-  registrationId: string;
+  registrationId: string | null;
   fighterName: string;
   club?: string | null;
   score: number;
@@ -190,6 +190,11 @@ export function ScoringColumn({
    * outbox path was missing.
    */
   async function submitPenalty(payload: ReturnType<typeof listedCard>) {
+    // A column with no Fighter yet: the card has nobody to go to. The server refuses it too.
+    if (registrationId === null) {
+      setPenaltyError(t('scoring.corrections.boutSideMissing'));
+      return;
+    }
     setPenaltySubmitting(true);
     setPenaltyError(null);
     try {

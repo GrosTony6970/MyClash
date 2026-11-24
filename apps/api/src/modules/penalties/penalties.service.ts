@@ -35,6 +35,7 @@ import { restampUnstartedMatches } from '../phases/match-ruleset';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
+import { sidesOf } from '../matches/bout-sides';
 import { BOUT_CARD_PIN, cardPinOf } from '../matches/bout-rules';
 import { scoredAtServer } from '../matches/late-press';
 import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
@@ -930,7 +931,12 @@ export class PenaltiesService {
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     this.assertMatchNotLocked(match, context);
-    await assertBoutTakes(this.supabase.service, match, dto);
+    const sides = { red: match.redSideId, blue: match.blueSideId };
+    await assertBoutTakes(
+      this.supabase.service,
+      { id: match.id, status: match.status, sides },
+      dto,
+    );
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting
@@ -1387,7 +1393,7 @@ export class PenaltiesService {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance, ' +
+        'id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, phase_id, locked_at, current_round, awaiting_round_advance, ' +
           BOUT_CARD_PIN,
       )
       .eq('id', matchId)
@@ -1421,12 +1427,17 @@ export class PenaltiesService {
       .eq('id', tournament['event_id'] as string)
       .maybeSingle();
     const event = (eventData ?? {}) as Row;
+    const sides = sidesOf(match);
 
     return {
       id: match['id'] as string,
       lockedAt: (match['locked_at'] as string | null) ?? null,
       redRegistrationId: match['red_registration_id'] as string,
       blueRegistrationId: match['blue_registration_id'] as string,
+      redTeamId: (match['red_team_id'] as string | null) ?? null,
+      blueTeamId: (match['blue_team_id'] as string | null) ?? null,
+      redSideId: sides.red,
+      blueSideId: sides.blue,
       tournamentId: tournament['id'] as string,
       eventId: tournament['event_id'] as string,
       organizationId: event['organization_id'] as string,
@@ -1949,6 +1960,12 @@ interface MatchContext {
   lockedAt: string | null;
   redRegistrationId: string;
   blueRegistrationId: string;
+  /** A team's side (0282); null on a bout of individuals. */
+  redTeamId: string | null;
+  blueTeamId: string | null;
+  /** Each side's one key (`sideKey`), or null while the side waits for a Fighter. */
+  redSideId: string | null;
+  blueSideId: string | null;
   tournamentId: string;
   eventId: string;
   organizationId: string;

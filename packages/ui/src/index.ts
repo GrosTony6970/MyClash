@@ -315,6 +315,7 @@ export { useLiveMatch } from './hooks/useLiveMatch';
 export { readLiveMatch } from './hooks/live-match-read';
 export { boutIsOver } from './utils/bout-is-over';
 export { liveProtestsOf, protestAtLimit, protestChipText } from './utils/protest-chip';
+export { isSideRegistration } from './utils/side-registration';
 export { useLoginKeepAlive } from './hooks/useLoginKeepAlive';
 export { useWakeLock } from './hooks/useWakeLock';
 export { useDisplayMirror } from './hooks/useDisplayMirror';

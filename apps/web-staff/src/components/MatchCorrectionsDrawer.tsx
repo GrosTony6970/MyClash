@@ -42,6 +42,8 @@ interface MatchCorrectionsDrawerProps {
   apiUrl: string;
   online: boolean;
   locked: boolean;
+  /** The bout waits for a Fighter: no colour swap and no direct card (`sideMissing`). */
+  sideMissing: boolean;
   onDone: () => void;
   /** Display-anchored time adjust: the operator's add/subtract acts on the
    *  clock THEY see. Countdown inverts elapsed-vs-display, and a clock that
@@ -54,8 +56,8 @@ interface MatchCorrectionsDrawerProps {
   // numbered timeline the centre history shows, so the `#`s match.
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
   config: TournamentScoringConfig;
   /**
    * The match's events, read once by `MatchView`.
@@ -89,6 +91,7 @@ export function MatchCorrectionsDrawer({
   apiUrl,
   online,
   locked,
+  sideMissing,
   onDone,
   timerMode,
   elapsedMs,
@@ -248,7 +251,7 @@ export function MatchCorrectionsDrawer({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              disabled={disabled}
+              disabled={disabled || sideMissing}
               onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-color`)}
               className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
             >
@@ -404,7 +407,7 @@ export function MatchCorrectionsDrawer({
             round={round}
             syncEngine={syncEngine}
             online={online}
-            disabled={busy || locked}
+            disabled={busy || locked || sideMissing}
             onClose={onClose}
             onRecorded={onCardQueued}
           />

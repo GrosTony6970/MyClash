@@ -3746,6 +3746,17 @@ the only coded refusals that function maps. A Tournament restored from an archiv
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 
+A bout waiting for a Fighter (a bracket placeholder, or a side still to come) takes no Start,
+hit, card or colour swap (operator, 2026-11-24, `matches/bout-sides.ts`): each door judges the
+sides of the row it read through `sideKey`, so a team's side is a known side, and refuses with
+the code `bout_side_missing`, a 409 the pad holds with its Retry. A hit, a card (a direct one
+too) and a Start sent late meet it after their replay probe. `assertBoutTakes` takes the sides
+or `'not-judged'`, never nothing: protests say `'not-judged'`, as they are outside the ruling. A
+card void and the side swap are not judged. The pad asks the same of the bout on its screen
+(`lib/bout-sides.ts`): Start, the scoring buttons, the colour swap and the direct card are
+greyed, a protest tap on the empty corner is refused, and the bout says why. A side with no
+Registration matches no card or protest row (`isSideRegistration` in `@myclash/ui`).
+
 A correction moves a finished bout's RESULT with its score (rulings 225 to 230;
 `matches/correction-outcome.ts` is the one owner, asked by the recompute). On an over Event
 nobody can end the bout again, so it stays completed and names its result as the End button

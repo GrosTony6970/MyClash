@@ -635,6 +635,32 @@ describe('provisionalDeltas', () => {
       }),
     ).toEqual({ red: 0, blue: 0 });
   });
+
+  /**
+   * A final waits for its blue Fighter: blue has no Registration. A card row that carries none
+   * (the wire allows it, whatever the type says) is nobody's: `null === null` must not land it
+   * on blue, nor count it under blue's numeral.
+   */
+  it('a side with no Fighter takes no card, and a card with no Fighter is nobody’s', () => {
+    const nobodys = {
+      id: 'p1',
+      client_uuid: 'card-nobody',
+      sequence: 1,
+      registration_id: null as unknown as string,
+      card: 'yellow',
+      source: 'ruleset',
+      short_name: null,
+      reason: null,
+      score_delta: -1,
+      causes_match_forfeit: false,
+      voided: false,
+    } satisfies Penalty;
+    const card = { pending: [nobodys], registrationId: null };
+
+    expect(deltas({ penalties: [nobodys], blueRegistrationId: null })).toEqual({ red: 0, blue: 0 });
+    expect(cardCountFor({ ...card, server: [], card: 'yellow' })).toBe(0);
+    expect(queuedCardsFor({ ...card, unpricedCardUuids: [] })).toEqual({ priced: 0, unpriced: 0 });
+  });
 });
 
 describe('protests', () => {

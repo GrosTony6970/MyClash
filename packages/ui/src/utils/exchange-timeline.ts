@@ -19,6 +19,7 @@
 import type { TournamentScoringConfig } from '@myclash/types';
 import { formatMatchClock } from './format-match-clock';
 import { sideStyle } from './side-color';
+import { isSideRegistration } from './side-registration';
 import { exchangeDeltaLabel, afterblowDefenderLabel } from './exchange-delta-label';
 import type { ExchangeRow, MatchProtest, Penalty, PenaltyCard } from '../types/match-events';
 
@@ -174,8 +175,8 @@ export interface BuildTimelineArgs {
   protests: MatchProtest[];
   redName: string;
   blueName: string;
-  redRegId: string;
-  blueRegId: string;
+  redRegId: string | null;
+  blueRegId: string | null;
   t: (k: string, p?: Record<string, string>) => string;
   config: TournamentScoringConfig;
 }
@@ -247,8 +248,11 @@ export function buildUnifiedTimeline({
   const penaltyRows: UnifiedEventDraft[] = penalties
     .filter((p) => !p.voided)
     .map((p) => {
-      const side: 'red' | 'blue' | null =
-        p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
+      const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, redRegId)
+        ? 'red'
+        : isSideRegistration(p.registration_id, blueRegId)
+          ? 'blue'
+          : null;
       const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
       // A direct card carries no ruleset entry, so it has neither short_name
       // nor reason — name it rather than rendering a blank cell.
@@ -287,8 +291,11 @@ function protestRow(
   p: MatchProtest,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
-  const side: 'red' | 'blue' | null =
-    p.registration_id === a.redRegId ? 'red' : p.registration_id === a.blueRegId ? 'blue' : null;
+  const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, a.redRegId)
+    ? 'red'
+    : isSideRegistration(p.registration_id, a.blueRegId)
+      ? 'blue'
+      : null;
   return {
     id: `pro-${p.id}`,
     kind: 'protest',

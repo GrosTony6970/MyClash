@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { assertBothSides, type BoutSides } from './bout-sides';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 
 /** The code of the refusal below. The pad says it in the reader's language. */
@@ -39,6 +40,9 @@ export interface NewScore {
  * saved row.
  *
  *   - scored before the bout's last reset: never (ruling 290);
+ *   - for a bout waiting for a Fighter: no, a direct card neither (operator,
+ *     2026-11-24). Every door names the bout's `sides`, or says `'not-judged'`
+ *     out loud: a door that forgets them does not compile;
  *   - for a bout nobody started: no (ruling 286), but a DIRECT card is taken
  *     there, for a Fighter who is late on the piste (ruling 286a).
  *
@@ -47,9 +51,10 @@ export interface NewScore {
  */
 export async function assertBoutTakes(
   supabase: SupabaseService['service'],
-  bout: { id: string; status: unknown },
+  bout: { id: string; status: unknown; sides: BoutSides | 'not-judged' },
   scored: NewScore,
 ): Promise<void> {
   await assertScoredAfterLastReset(supabase, bout.id, scored.occurredAt);
+  if (bout.sides !== 'not-judged') assertBothSides(bout.sides);
   if (scored.directCard === undefined) assertBoutStarted(bout.status);
 }

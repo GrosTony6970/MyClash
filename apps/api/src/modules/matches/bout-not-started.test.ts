@@ -123,7 +123,8 @@ describe('a hit for a bout that is not started (ruling 286)', () => {
     expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
     // The double ignores the projection: without the column the check reads nothing.
     expect(selectsFor(db.from, 'matches')).toContain(
-      'status, current_round, awaiting_round_advance',
+      'status, current_round, awaiting_round_advance, ' +
+        'red_registration_id, blue_registration_id, red_team_id, blue_team_id',
     );
   });
 

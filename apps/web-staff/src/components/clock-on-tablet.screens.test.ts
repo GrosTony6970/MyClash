@@ -243,8 +243,8 @@ describe('what needs the network while presses wait', () => {
     expect(view).toContain(
       'pressesWaiting={padClock.pressesWaiting > 0 || padClock.heldPresses.length > 0}',
     );
-    expect(controls).toContain(
-      "disabled={clockLoading || (primary.action === 'reopen' && pressesWaiting)}",
+    expect(controls).toMatch(
+      /disabled=\{\s*clockLoading \|\|\s*\(primary\.action === 'reopen' && pressesWaiting\) \|\|/,
     );
     expect(controls).toContain('disabled={clockLoading || pressesWaiting}');
   });

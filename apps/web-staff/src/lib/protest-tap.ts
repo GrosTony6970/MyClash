@@ -23,6 +23,8 @@ export interface ProtestTapArgs {
   clockTimeMs: () => number | null;
   syncEngine?: SyncEngine | null;
   onRecorded: () => void;
+  /** A tap of a corner with no Fighter yet: the screen says why nothing was written. */
+  onNoFighter: () => void;
 }
 
 /**
@@ -62,6 +64,13 @@ export function protestTap(
 ): (corner: 'red' | 'blue') => Promise<string | null> {
   const { match, nextSequence, submit, clockTimeMs, syncEngine, onRecorded } = args;
   return async (corner) => {
+    const registrationId = corner === 'red' ? match.redRegistrationId : match.blueRegistrationId;
+    // A corner with no Fighter yet (a bracket slot to fill) has nobody to protest for: the
+    // screen says so, and nothing is written.
+    if (registrationId === null) {
+      args.onNoFighter();
+      return null;
+    }
     if (inFlight.has(corner)) return null;
     inFlight.add(corner);
     let written: string;
@@ -69,7 +78,7 @@ export function protestTap(
       written = await queueProtest({
         matchId: match.id,
         sequence: nextSequence,
-        registrationId: corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
+        registrationId,
         clockTimeMs: clockTimeMs(),
         round: submit.round,
         bout: submit.bout,

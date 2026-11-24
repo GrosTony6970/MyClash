@@ -241,6 +241,8 @@ export const scoring = {
       "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
     boutLocked:
       "Cet assaut est verrouillé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Rouvrez l'assaut, puis réessayez.",
+    boutSideMissing:
+      "Conservée ici, pas perdue : cet assaut attendait un combattant. Réessayez quand les deux combattants sont sur l'assaut, ou supprimez-la.",
     typePressStart: 'Chrono : Démarrer',
     typePressHalt: 'Chrono : Pause',
     typePressResume: 'Chrono : Reprendre',
@@ -430,6 +432,8 @@ export const scoring = {
     unlockFailed: 'Impossible de rouvrir cet assaut.',
     configFromCache:
       '⚠ Règles de score chargées depuis cette tablette — non confirmées avec le serveur.',
+    waitingForFighter:
+      "En attente d'un combattant. Cet assaut n'accepte ni démarrage, ni touche, ni carton, ni inversion des couleurs tant que les deux côtés ne sont pas connus.",
   },
   corrections: {
     onlineOnly: 'Connexion requise',
@@ -497,6 +501,7 @@ export const scoring = {
     boutCompletedMeanwhile:
       "Cet assaut vient de se terminer : le chrono n'a pas bougé. Rouvrez-le pour continuer.",
     boutLocked: 'Cet assaut est verrouillé. Rouvrez-le, puis réessayez.',
+    boutSideMissing: 'Cet assaut attend un combattant. Réessayez une fois les deux côtés connus.',
     accountCannotScore:
       "Le compte connecté sur cette tablette n'a pas de rôle pour scorer cet événement : rien ne sera enregistré. Déconnectez ce compte, ou adressez-vous à un organisateur.",
     pinDisabled:

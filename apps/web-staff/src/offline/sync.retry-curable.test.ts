@@ -149,6 +149,30 @@ describe('what a drain says of the hits it holds', () => {
   });
 });
 
+// Operator, 2026-11-24: the bout waited for a Fighter. The Fighter may arrive later.
+describe('a hit held because its bout waits for a Fighter', () => {
+  const SIDE_MISSING = { message: 'This bout is waiting for a Fighter', code: 'bout_side_missing' };
+
+  it('is held with its code, not resent on every drain, and Retry sends it again', async () => {
+    await addHit(1, 'uuid-waiting');
+    const { posted } = mockApi(() => ({ status: 409, body: SIDE_MISSING }));
+    const engine = new SyncEngine(API_URL);
+    const last = watch(engine);
+
+    await engine.drain();
+    await engine.drain();
+
+    expect(posted).toEqual(['uuid-waiting']);
+    const held = await getRejected();
+    expect(held.map((row) => row.rejectedCode)).toEqual(['bout_side_missing']);
+    expect(canSendAgain(held[0]!)).toBe(true);
+    expect(last()).toMatchObject({ status: 'error', rejectedCount: 1, sendableCount: 1 });
+
+    expect(await engine.retryRejected()).toBe(1);
+    expect(posted).toEqual(['uuid-waiting', 'uuid-waiting']);
+  });
+});
+
 describe('a held hit another tab dealt with', () => {
   it('leaves the bar once the inbox opens: Review alone has no other way to find out', async () => {
     await hold(1, 'uuid-before-reset', BEFORE_RESET);
