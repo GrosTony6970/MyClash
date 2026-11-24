@@ -36,7 +36,7 @@ const build = (over: Record<string, unknown> = {}) => {
         registration('rGone', { status: 'withdrawn' }),
       ],
     },
-    tournaments: { rows: [{ id: 't1', weapon: 'longsword' }] },
+    tournaments: { rows: [{ id: 't1', weapon: 'longsword', entrant_kind: 'individual' }] },
     swiss_entrants: { rows: [] as SupabaseRow[] },
     audit_log: { rows: [] as SupabaseRow[] },
     ...over,

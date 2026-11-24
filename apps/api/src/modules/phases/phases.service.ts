@@ -26,6 +26,7 @@ import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema
 import { randomInt } from 'node:crypto';
 import type { TeamEmbed } from '../matches/side-label';
 import { storedKind } from '../events/tournament-kind';
+import { teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
 import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
 import {
   assertSeatFitsKind,
@@ -513,7 +514,7 @@ export class PhasesService {
     if (actorUserId !== 'system') {
       const { data: tournamentRow } = await this.supabase.service
         .from('tournaments')
-        .select('id, events!inner(organization_id)')
+        .select('id, entrant_kind, events!inner(organization_id)')
         .eq('id', tournamentId)
         .maybeSingle();
       const eventEmbed = (tournamentRow as Record<string, unknown> | null)?.['events'];
@@ -524,6 +525,11 @@ export class PhasesService {
       }
       await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
       organizationId = orgId;
+      // A team Tournament runs Pools only in 1b-1: refused before any read or write of a phase.
+      // Every caller names its actor (the controller, the organiser's assistant); 'system' is
+      // the default no caller passes.
+      const kind = (tournamentRow as { entrant_kind?: unknown }).entrant_kind;
+      if (storedKind(kind) === 'team') throw teamTournamentNotSupported();
     }
 
     const phaseType = dto.phaseType ?? 'single_elim';

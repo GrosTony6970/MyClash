@@ -8,6 +8,8 @@ import {
 import { recommendedRoundCount } from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
+import { storedKind } from '../events/tournament-kind';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
 // Value imports, not `import type`: Nest DI metadata.
 import { FighterStatusService } from '../matches/fighter-status.service';
@@ -51,6 +53,7 @@ export class SwissService {
     force = false,
     actorUserId: string | null = null,
   ) {
+    await this.assertIndividualTournament(tournamentId);
     await this.clearExistingPhase(tournamentId, force);
 
     const registrations = await this.seeding.loadRegistrations(tournamentId);
@@ -315,6 +318,21 @@ export class SwissService {
     this.logger.log(
       `generateSwiss tournament=${tournamentId} phase=${phaseId} entrants=${entrants} rounds=${config.roundCount} seeding=${config.seedingStrategy}`,
     );
+  }
+
+  /**
+   * Swiss has no team path (ADR-022): a team Tournament is refused (409), first, before
+   * `clearExistingPhase` can delete anything.
+   */
+  private async assertIndividualTournament(tournamentId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('entrant_kind')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const kind = (data as { entrant_kind?: unknown } | null)?.entrant_kind;
+    if (storedKind(kind) === 'team') throw teamTournamentNotSupported();
   }
 
   /**

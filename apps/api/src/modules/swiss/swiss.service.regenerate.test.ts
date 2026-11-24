@@ -11,7 +11,7 @@ import { SwissService } from './swiss.service';
 /**
  * The force-regenerate guard.
  *
- * `clearExistingPhase` is the first statement in `generateSwiss`, so these reach
+ * `clearExistingPhase` follows only the kind read in `generateSwiss`, so these reach
  * it without configuring the rest of the generation path — the collaborators are
  * never touched before the refusal.
  */
@@ -40,6 +40,8 @@ const withExistingPhase = (matches: unknown[]) =>
       ],
     },
     matches: { data: matches, error: null },
+    // An individual Tournament: Swiss refuses a team one first (team-tournament-refusals.test.ts).
+    tournaments: { rows: [{ id: 't1', entrant_kind: 'individual' }] },
   });
 
 describe('SwissService.generateSwiss — regenerating over an existing phase', () => {
@@ -49,7 +51,7 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
 
     await expect(service.generateSwiss('t1', dto, false)).rejects.toBeInstanceOf(ConflictException);
     // Never asks about matches — the force check refuses first.
-    expect(queriedTables(supabase.from)).toEqual(['phases']);
+    expect(queriedTables(supabase.from)).toEqual(['tournaments', 'phases']);
   });
 
   it('refuses with force when a bout is under way', async () => {
@@ -57,7 +59,7 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
     const service = new SwissService(as(supabase), ...unusedCollaborators());
 
     await expect(service.generateSwiss('t1', dto, true)).rejects.toThrow(/bout under way/);
-    expect(queriedTables(supabase.from)).toEqual(['phases', 'matches']);
+    expect(queriedTables(supabase.from)).toEqual(['tournaments', 'phases', 'matches']);
   });
 
   /**
@@ -76,6 +78,7 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
       // it would report this phase as under way and refuse a regeneration that
       // nothing in this phase blocks.
       matches: { rows: [...matches, { id: 'm-other', phase_id: 'other-1', status: 'completed' }] },
+      tournaments: { rows: [{ id: 't1', entrant_kind: 'individual' }] },
     });
 
   it('still refuses when a voided bout sits beside a fought one', async () => {
@@ -101,7 +104,7 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
     const failure = await service.generateSwiss('t1', dto, true).catch((error: unknown) => error);
 
     expect(String((failure as Error)?.message)).not.toMatch(/bout under way/);
-    expect(queriedTables(supabase.from).length).toBeGreaterThan(2);
+    expect(queriedTables(supabase.from).length).toBeGreaterThan(3);
   });
 
   it('deletes only the phase it found', async () => {

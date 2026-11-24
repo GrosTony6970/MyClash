@@ -255,7 +255,7 @@
     "apps/api/src/modules/phases/phases.service.ts": {
       "verdict": "not-yet",
       "hits": 98,
-      "why": "1c: bracket generation and seeding name slots by Registration (`:612`-`:684`, `:910`-`:945`); the Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
+      "why": "1c: bracket generation and seeding name slots by Registration (`:618`-`:690`, `:916`-`:951`); a team Tournament is refused before it (`team_tournament_not_supported`); the Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
     },
     "apps/api/src/modules/phases/pool-entrant.ts": {
       "verdict": "no-side-read",
