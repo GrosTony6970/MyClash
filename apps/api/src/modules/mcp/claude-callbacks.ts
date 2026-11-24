@@ -1,3 +1,5 @@
+import type { ConsentCallback } from '@myclash/types';
+
 /**
  * The only places a MyClash login may be sent from the consent page: Claude's callbacks.
  *
@@ -21,8 +23,8 @@ const CLAUDE_CALLBACKS = new Set([
 /** Claude Code's local callback: `http://<host>:<port>/callback`, any port 1–65535. */
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
 
-/** Where a callback goes back to: Claude on the web, or Claude Code on the person's computer. */
-export type CallbackKind = 'claude' | 'this-computer';
+/** Where a callback goes back to (`ConsentCallback` is owned by `@myclash/types`: the page reads it too). */
+export type CallbackKind = ConsentCallback;
 
 function parse(value: string): URL | null {
   try {

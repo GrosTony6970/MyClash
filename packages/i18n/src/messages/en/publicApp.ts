@@ -1284,6 +1284,22 @@ export const publicApp = {
     unaffiliatedLabel: 'Unaffiliated',
     clubLedBy: 'Led by {names}',
   },
+  oauthConsent: {
+    title: 'Connect {client} to your MyClash account',
+    back: 'After you approve, you go back to {where}.',
+    whereClaude: 'Claude',
+    whereThisComputer: 'Claude Code on this computer',
+    privacy:
+      "Claude will see what you can see in MyClash, including other people's names and results, and send it to Anthropic to answer you. You can disconnect at any time from Account › Security.",
+    refused:
+      'MyClash only connects to Claude. This request would send your account to {host}, so it was refused.',
+    unknownHost: 'an unknown address',
+    expired: 'This request has expired. Start again from Claude.',
+    approve: 'Approve',
+    deny: 'Deny',
+    unavailable: 'The sign-in server did not answer. Try again in a moment.',
+    loading: 'Checking the request…',
+  },
   notFound: {
     title: 'Page not found',
     body: 'This address leads nowhere on MyClash. Check the link or the QR code.',
@@ -1335,6 +1351,7 @@ export const publicApp = {
     security: 'Security',
     settings: 'Settings',
     claimConfirm: 'Confirm my profile',
+    oauthConsent: 'Connect to Claude',
   },
   participants: {
     metaDescription: 'Roster for {name}.',

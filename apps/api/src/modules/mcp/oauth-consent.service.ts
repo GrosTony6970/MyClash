@@ -6,24 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { ConsentAction, ConsentAnswer, ConsentView } from '@myclash/types';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { GOTRUE_TIMEOUT_MS } from '../supabase/supabase.service';
-import {
-  type CallbackKind,
-  describeCallback,
-  hostOf,
-  isClaudeCallback,
-  redirectsToClaude,
-} from './claude-callbacks';
-
-/** What the consent page shows for one connection request. */
-export type ConsentView =
-  | { kind: 'ask'; clientName: string; callback: CallbackKind; scopes: string[] }
-  | { kind: 'refused'; reason: 'not-claude'; redirectHost: string }
-  | { kind: 'go'; redirectUrl: string }
-  | { kind: 'expired' };
-
-export type ConsentAction = 'approve' | 'deny';
+import { describeCallback, hostOf, isClaudeCallback, redirectsToClaude } from './claude-callbacks';
 
 /** GoTrue's pending request, as the person is asked about it. */
 interface Details {
@@ -93,7 +79,7 @@ export class OAuthConsentService {
     authorizationId: string,
     login: string,
     action: ConsentAction,
-  ): Promise<{ redirectUrl: string }> {
+  ): Promise<ConsentAnswer> {
     if (!AUTHORIZATION_ID.test(authorizationId)) throw new GoneException('expired');
     if (action === 'deny') return this.toClaude(await this.consent(authorizationId, login, 'deny'));
 
@@ -108,7 +94,7 @@ export class OAuthConsentService {
     return this.toClaude(await this.consent(authorizationId, login, 'approve'));
   }
 
-  private toClaude(redirectUrl: string): { redirectUrl: string } {
+  private toClaude(redirectUrl: string): ConsentAnswer {
     if (redirectsToClaude(redirectUrl)) return { redirectUrl };
     this.refused(redirectUrl);
     throw new ForbiddenException('not_claude');

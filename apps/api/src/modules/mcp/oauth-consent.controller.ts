@@ -10,12 +10,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { ConsentAnswer, ConsentView } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import { presentedLogin } from '../../common/auth/identity';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AnswerConsentDto } from './dto';
-import { type ConsentView, OAuthConsentService } from './oauth-consent.service';
+import { OAuthConsentService } from './oauth-consent.service';
 
 /**
  * The consent page's API. GoTrue sends the person's browser to the page with an
@@ -58,7 +59,7 @@ export class OAuthConsentController {
     @Param('authorizationId') authorizationId: string,
     @Body() dto: AnswerConsentDto,
     @Req() req: FastifyRequest,
-  ): Promise<{ redirectUrl: string }> {
+  ): Promise<ConsentAnswer> {
     return this.consent.answer(authorizationId, await this.login(req), dto.action);
   }
 

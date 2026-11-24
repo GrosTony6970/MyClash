@@ -26,6 +26,7 @@ export * from './match-clock';
 export * from './match-status';
 export * from './match-winner';
 export * from './org-menu-profile';
+export * from './oauth-consent';
 export * from './own-site-path';
 export * from './password';
 export * from './penalties';
