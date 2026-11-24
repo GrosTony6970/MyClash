@@ -2675,6 +2675,7 @@ describe('PhasesService', () => {
         red_score: null,
         blue_score: null,
         winner_registration_id: null,
+        winner_team_id: null,
         phases: { tournament_id: 'tournament-1' },
         'phases.tournament_id': 'tournament-1',
         ...over,
@@ -2712,6 +2713,7 @@ describe('PhasesService', () => {
           red_score: 5,
           blue_score: 3,
           winner_registration_id: 'reg-blue',
+          winner_team_id: null,
         },
         {
           id: 'm-2',
@@ -2719,13 +2721,14 @@ describe('PhasesService', () => {
           red_score: null,
           blue_score: null,
           winner_registration_id: null,
+          winner_team_id: null,
         },
       ]);
       // The SELECT must NOT include privileged fields like the crew
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
       expect(selectsFor(supabase.from, 'matches')).toEqual([
-        'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
+        'id, status, red_score, blue_score, winner_registration_id, winner_team_id, phases!inner(tournament_id)',
       ]);
     });
   });

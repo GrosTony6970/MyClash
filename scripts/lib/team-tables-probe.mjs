@@ -21,13 +21,15 @@
  * and a Team on the other; a team Match with a winner Registration; a team forfeit with a winner
  * Registration; a draw that names a winner Team. Taken: a team win on a forfeit that is not a draw.
  *
- * And the index on each key that names a team (migration 0283, `team-key-indexes-probe.mjs`). The
- * kind trigger's race needs two connections on committed rows: the cascade probe runs it
+ * And the index on each key that names a team (migration 0283, `team-key-indexes-probe.mjs`), and
+ * the view of bouts that names a team side (migration 0284, `team-view-probe.mjs`). The kind
+ * trigger's race needs two connections on committed rows: the cascade probe runs it
  * (`team-kind-race.mjs`).
  */
 
 import { errorOf, OPEN, TOURNAMENT } from './match-rules-probe-kit.mjs';
 import { teamKeyIndexFailures } from './team-key-indexes-probe.mjs';
+import { teamViewFailures } from './team-view-probe.mjs';
 
 // The seed's published team Tournament, its team and the two Fighters of the published Event
 // (rls-probe-seed.sql). The first holds the team's captain slot.
@@ -360,7 +362,7 @@ const TWIN_CASES = [
 
 /** What is wrong, as sentences; none when all is right. */
 export async function teamTablesFailures(tx) {
-  const failures = await teamKeyIndexFailures(tx);
+  const failures = [...(await teamKeyIndexFailures(tx)), ...(await teamViewFailures(tx))];
   for (const { what, refusedBy, write } of [...CASES, ...TWIN_CASES]) {
     const error = await errorOf(tx, async (sp) => {
       await write(sp);

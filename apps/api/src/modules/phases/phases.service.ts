@@ -23,6 +23,8 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
+import type { TeamEmbed } from '../matches/side-label';
+import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService, type JudgedWrite } from '../referees/assignment-board.service';
@@ -1474,8 +1476,8 @@ export class PhasesService {
       .from('pools')
       .select(
         // 0083 retired registrations.fighter_id; identity flows via
-        // persons.global_person_id.
-        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name), hema_ratings_id, global_persons(hema_ratings_id))))',
+        // persons.global_person_id. A seat holds a Registration or a team (0282).
+        'id, name, sort_order, pool_members(registration_id, team_id, seed, registrations(id, persons(given_name, family_name, clubs(name), hema_ratings_id, global_persons(hema_ratings_id))), teams(id, name, color, logo_url))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -1488,22 +1490,14 @@ export class PhasesService {
       pools: ((data ?? []) as Array<Record<string, unknown>>).map((pool) => ({
         id: pool['id'],
         name: pool['name'],
-        members: ((pool['pool_members'] ?? []) as Array<Record<string, unknown>>).map((member) => {
-          const registration = member['registrations'] as Record<string, unknown> | null;
-          const person = registration?.['persons'] as Record<string, unknown> | null;
-          const club = person?.['clubs'] as Record<string, unknown> | null;
-          const hemaRatingsId = eventHemaRatingsId(person as RatedPerson | null);
-          return {
-            registrationId: member['registration_id'],
-            personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
-            clubLabel: (club?.['name'] as string | null) ?? null,
-            seed: member['seed'] ?? 0,
-            hemaWeightedRating:
-              hemaRatingsId && weightedRatings.has(hemaRatingsId)
-                ? (weightedRatings.get(hemaRatingsId) ?? null)
-                : null,
-          };
-        }),
+        members: ((pool['pool_members'] ?? []) as Array<Record<string, unknown>>).map((member) => ({
+          ...poolSeatOf(
+            member['registrations'] as PoolSeatRegistration | null,
+            member['teams'] as TeamEmbed | null,
+            weightedRatings,
+          ),
+          seed: member['seed'] ?? 0,
+        })),
       })),
     };
   }
@@ -3047,7 +3041,7 @@ export class PhasesService {
     const { data: viewMatches } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, winner_registration_id, status, match_number_label, scheduled_at',
+        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, winner_registration_id, status, match_number_label, scheduled_at, red_team_id, blue_team_id, winner_team_id, red_team_color, blue_team_color',
       )
       .eq('tournament_id', tournamentId)
       .eq('phase_type', 'pool')
@@ -3183,6 +3177,12 @@ export class PhasesService {
        * with no times on it — the one thing a piste sheet is for.
        */
       scheduled_at: string | null;
+      /** A team bout's sides and winner (0284); `red_name`/`blue_name` are then the teams'. */
+      red_team_id: string | null;
+      blue_team_id: string | null;
+      winner_team_id: string | null;
+      red_team_color: string | null;
+      blue_team_color: string | null;
     };
 
     const matchesByPool = new Map<string, ViewMatch[]>();
@@ -3238,6 +3238,11 @@ export class PhasesService {
             red_score: m.red_score,
             blue_score: m.blue_score,
             winner_registration_id: m.winner_registration_id,
+            red_team_id: m.red_team_id,
+            blue_team_id: m.blue_team_id,
+            winner_team_id: m.winner_team_id,
+            red_team_color: m.red_team_color,
+            blue_team_color: m.blue_team_color,
             status: m.status,
             lice_id: m.lice_id,
             lice_name: m.lice_name ?? null,
@@ -3280,6 +3285,8 @@ export class PhasesService {
        *  score. Without it the 30s poll re-staled every corrected result it
        *  touched. */
       winner_registration_id: string | null;
+      /** The winner of a team bout (0282): a team bout's Registration winner is always null. */
+      winner_team_id: string | null;
     }>
   > {
     // `matches` has NO tournament_id — it hangs off phases (0001). Filtering on
@@ -3290,7 +3297,7 @@ export class PhasesService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
+        'id, status, red_score, blue_score, winner_registration_id, winner_team_id, phases!inner(tournament_id)',
       )
       .eq('phases.tournament_id', tournamentId);
     if (error) return [];
@@ -3302,6 +3309,7 @@ export class PhasesService {
       red_score: row['red_score'] as number | null,
       blue_score: row['blue_score'] as number | null,
       winner_registration_id: row['winner_registration_id'] as string | null,
+      winner_team_id: row['winner_team_id'] as string | null,
     }));
   }
 }

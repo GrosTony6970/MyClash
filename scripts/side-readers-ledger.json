@@ -788,9 +788,9 @@
       "why": "its `compact_fighter_stats` was replaced by 0214"
     },
     "packages/db/migrations/0193_tournament_query_matches_end_reason.sql": {
-      "verdict": "not-yet",
+      "verdict": "individual-only",
       "hits": 6,
-      "why": "1b: the view `vw_tournament_query_matches` names sides by Registration (`:35`-`:60`); the piste queue reads its names (`match-summaries.ts`), and so do the assistant's Tournament queries and the reopen preview"
+      "why": "its view `vw_tournament_query_matches` was replaced by 0284"
     },
     "packages/db/migrations/0214_compact_fighter_stats_public_only.sql": {
       "verdict": "individual-only",
@@ -851,6 +851,11 @@
       "verdict": "no-side-read",
       "hits": 44,
       "why": "the team twins: each side is one Registration or one team (CHECKs and their checks); reads no side"
+    },
+    "packages/db/migrations/0284_query_matches_team_sides.sql": {
+      "verdict": "no-side-read",
+      "hits": 5,
+      "why": "a view: projects each side's Registration and team columns and names whichever is set (COALESCE, `:51`-`:52`); it keys and compares no side, its readers key a side with `sideKey`"
     },
     "packages/rules/src/domain.ts": {
       "verdict": "no-side-read",
@@ -996,6 +1001,11 @@
       "verdict": "no-side-read",
       "hits": 12,
       "why": "probes the twin CHECKs of 0282 with rows that name both kinds; reads no side"
+    },
+    "scripts/lib/team-view-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 5,
+      "why": "probes the view of 0284: reads back the columns of a team bout and of an individual bout it wrote, and compares them with what it wrote; keys no side"
     }
   },
   "rawSideAssignments": {

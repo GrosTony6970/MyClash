@@ -114,7 +114,6 @@ const NOT_YET = [
   'apps/web-staff/src/offline/sync.ts',
   'packages/db/migrations/0135_tournament_target_value_stats.sql',
   'packages/db/migrations/0189_blow_value_stats_any_value.sql',
-  'packages/db/migrations/0193_tournament_query_matches_end_reason.sql',
   'packages/rules/src/results/bracket-r1-seeding.ts',
   'packages/types/src/final-ranking-core.ts',
   'packages/types/src/final-ranking.ts',
