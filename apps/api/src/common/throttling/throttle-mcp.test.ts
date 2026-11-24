@@ -141,10 +141,21 @@ describe('mcp-anon throttler (wired)', () => {
     for (let i = 0; i < 70; i++) expect(await post('/u/other', null, '10.57.0.1')).toBe(200);
   });
 
-  it('does not count a call that carries an expired login, so a 429 never hides invalid_token', async () => {
+  it('does not count a call with an expired but signed login, so a 429 never hides invalid_token', async () => {
     const expired = jwt.sign({ sub: 'mcp-expired' }, SECRET, { expiresIn: -60 });
     for (let i = 0; i < 70; i++) expect(await post('/t/mcp', expired, '10.58.0.1')).toBe(200);
     for (let i = 0; i < 60; i++) expect(await post('/t/mcp', null, '10.58.0.1')).toBe(200);
     expect(await post('/t/mcp', null, '10.58.0.1')).toBe(429);
+  });
+
+  it('counts a junk Bearer like no login', async () => {
+    for (let i = 0; i < 60; i++) expect(await post('/t/mcp', 'junk', '10.59.0.1')).toBe(200);
+    expect(await post('/t/mcp', 'junk', '10.59.0.1')).toBe(429);
+  });
+
+  it('counts a token signed with the wrong secret like no login', async () => {
+    const forged = jwt.sign({ sub: 'mcp-forged' }, `${SECRET}-other`, { expiresIn: -60 });
+    for (let i = 0; i < 60; i++) expect(await post('/t/mcp', forged, '10.60.0.1')).toBe(200);
+    expect(await post('/t/mcp', forged, '10.60.0.1')).toBe(429);
   });
 });

@@ -1,4 +1,5 @@
 import { SetMetadata, type CustomDecorator, type ExecutionContext } from '@nestjs/common';
+import { signedByAuthServer } from '../../modules/supabase/access-token';
 import { requestAccount } from './throttle-by-account';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
@@ -37,17 +38,20 @@ export function skipMcpThrottle(context: ExecutionContext): boolean {
   return !hasAccount(context);
 }
 
-const hasBearer = (context: ExecutionContext): boolean => {
+/** A Bearer that our auth server signed, even if it has expired. Junk or a forgery is not one. */
+const hasSignedBearer = (context: ExecutionContext): boolean => {
   const header = context.switchToHttp().getRequest<{ headers?: Record<string, unknown> }>()
     .headers?.authorization;
-  return typeof header === 'string' && header.startsWith('Bearer ');
+  const secret = process.env.SUPABASE_JWT_SECRET;
+  if (typeof header !== 'string' || !header.startsWith('Bearer ') || !secret) return false;
+  return signedByAuthServer(header.slice(7), secret);
 };
 
 export function skipMcpAnonThrottle(context: ExecutionContext): boolean {
   if (isThrottleWhitelisted(context)) return true;
   if (!isMcpRoute(context)) return true;
-  // A login counts against its account (`mcp`), never against the address Claude shares. A Bearer
-  // that is expired or invalid has no account either, but it must not be counted here: a 429
-  // would replace the `invalid_token` challenge Claude refreshes on.
-  return hasAccount(context) || hasBearer(context);
+  // A login counts against its account (`mcp`), never against the address Claude shares. An
+  // expired token we signed has no account either, but it must not be counted here: a 429 would
+  // replace the `invalid_token` challenge Claude refreshes on. Junk or a forgery is counted.
+  return hasAccount(context) || hasSignedBearer(context);
 }

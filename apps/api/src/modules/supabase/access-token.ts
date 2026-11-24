@@ -26,6 +26,20 @@ export function connectorClaimOf(token: string): string | null {
 }
 
 /**
+ * True when the token carries a valid HS256 signature of the shared secret, whatever its expiry.
+ * An expired token of ours is still ours; a made-up one is not. No secret means false.
+ */
+export function signedByAuthServer(token: string, secret: string): boolean {
+  if (!secret) return false;
+  try {
+    jwt.verify(token, secret, { algorithms: ['HS256'], ignoreExpiration: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Verify a Supabase access token locally (HS256, shared JWT secret). Returns the
  * user built from the JWT claims, or null if the signature/expiry is invalid or
  * the secret is not configured. Used as a fallback when GoTrue is unreachable so

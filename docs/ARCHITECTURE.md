@@ -5359,7 +5359,10 @@ Every refusal logs the host it would have sent the person to.
   Every person's Claude calls from Anthropic's few addresses, so a per-IP limit would let one busy
   person stop everybody. `mcp-anon`: 60 a minute **per IP**, for calls with no login only. They have
   no account, and each earns just a 401, so this stops the 401s being asked without end; a call with
-  a login never counts against the shared address.
+  a login never counts against the shared address. Neither does a validly signed token, even an
+  expired one (`signedByAuthServer`: signature only), so a 429 never replaces the `invalid_token`
+  challenge Claude refreshes on. A junk, unsigned or wrong-secret Bearer counts like no login, and
+  with no `SUPABASE_JWT_SECRET` everything counts.
 - **Errors after the hijack.** The controller hijacks the reply, so Nest's exception filter can no
   longer answer. A failure writes a JSON-RPC `-32603` itself (500, or just closes a stream that has
   started), logs the cause only (never the body or the token) and always closes server and
