@@ -60,9 +60,9 @@ const READS = {
     tournaments: [
       {
         ...TOURNAMENT,
-        fighterCount: 0,
+        entrantCount: 7,
         waitlistedCount: 0,
-        maxParticipants: null,
+        maxParticipants: 16,
         maxWaitlist: null,
         assignedRefereeCount: 0,
       },
@@ -242,5 +242,13 @@ describe('the links of a Tournament row on the Event dashboard (O7)', () => {
     for (const page of ['persons', 'pools', 'swiss', 'bracket']) {
       expect(hrefs).toContain(`/org/club/events/ev1/${page}?tournamentId=t-1`);
     }
+  });
+
+  it("shows the Tournament's entrants against its cap, linked to its persons", async () => {
+    await open();
+    const persons = [...document.body.querySelectorAll('tbody a')].find(
+      (a) => a.getAttribute('href') === '/org/club/events/ev1/persons?tournamentId=t-1',
+    );
+    expect(persons?.textContent).toBe('7 / 16');
   });
 });

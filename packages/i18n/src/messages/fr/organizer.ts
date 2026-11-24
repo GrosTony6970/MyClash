@@ -617,6 +617,11 @@ export const organizer = {
         critical:
           '{count} combattant(s) inscrits. Il en faut au moins 2 pour générer les poules et le tableau.',
       },
+      teams: {
+        label: 'Équipes',
+        ok: '{count} équipe(s) créées.',
+        critical: '{count} équipe(s) créées. Il en faut au moins 2 pour générer les poules.',
+      },
       format: {
         label: 'Format',
         warn: "Ni poules ni tableau générés - ce tournoi n'a pas encore de format.",

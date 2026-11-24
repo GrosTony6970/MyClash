@@ -114,6 +114,14 @@ import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
 import { readWorkshopTotals } from './workshop-totals';
 import {
+  assertFitsKind,
+  countTournamentEntrants,
+  kindColumnsOfSave,
+  kindInForce,
+  type EntrantKind,
+} from './tournament-kind';
+import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
+import {
   appliedRow,
   assertConfirmedName,
   assertReadAsExpected,
@@ -496,15 +504,22 @@ export class EventsService {
     const eventIds = rows.map((row) => row['id'] as string);
     const tournamentCountByEvent = new Map<string, number>();
     const tournamentToEvent = new Map<string, string>();
+    // Events with a team Tournament: the organiser's menu offers "Teams" for those alone.
+    const eventsWithTeams = new Set<string>();
     if (eventIds.length > 0) {
       const { data: tournRows, error: tournErr } = await this.supabase.service
         .from('tournaments')
-        .select('id, event_id')
+        .select('id, event_id, entrant_kind')
         .in('event_id', eventIds);
       if (tournErr) throw new BadRequestException(tournErr.message);
-      for (const t of (tournRows ?? []) as Array<{ id: string; event_id: string }>) {
+      for (const t of (tournRows ?? []) as Array<{
+        id: string;
+        event_id: string;
+        entrant_kind: string;
+      }>) {
         tournamentCountByEvent.set(t.event_id, (tournamentCountByEvent.get(t.event_id) ?? 0) + 1);
         if (t.id) tournamentToEvent.set(t.id, t.event_id);
+        if (t.entrant_kind === 'team') eventsWithTeams.add(t.event_id);
       }
     }
 
@@ -577,6 +592,7 @@ export class EventsService {
         tournament_count: tournamentCountByEvent.get(evId) ?? 0,
         participant_count: distinctPeopleByEvent.get(evId)?.size ?? 0,
         has_recorded_results: eventsWithResults.has(evId),
+        hasTeamTournament: eventsWithTeams.has(evId),
       };
     });
   }
@@ -974,7 +990,7 @@ export class EventsService {
 
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, persons, qualificationRows, refereeCounts, phases, workshops] =
+    const [registrations, persons, qualificationRows, refereeCounts, phases, workshops, teams] =
       await Promise.all([
         this.getRegistrationsForTournaments(tournamentIds),
         this.getEventPersons(eventId),
@@ -983,8 +999,16 @@ export class EventsService {
         this.getPhasesForTournaments(tournamentIds),
         // A Workshops-only club's overview shows these in place of the fighter cards (slice 2.7).
         readWorkshopTotals(this.supabase.service, eventId),
+        this.getTeamsOfTeamTournaments(tournaments),
       ]);
     const globalByPersonId = new Map(persons.map((person) => [person.id, person.global_person_id]));
+    const teamsByTournament = new Map<string, number>();
+    for (const team of teams) {
+      teamsByTournament.set(
+        team.tournament_id,
+        (teamsByTournament.get(team.tournament_id) ?? 0) + 1,
+      );
+    }
 
     const registrationsByTournament = new Map<string, number>();
     const waitlistByTournament = new Map<string, number>();
@@ -1010,7 +1034,11 @@ export class EventsService {
       const capped = values.filter((v): v is number => v != null);
       return capped.length === 0 ? null : capped.reduce((a, b) => a + b, 0);
     };
-    const totalMaxParticipants = sumNullable(tournaments.map((t) => t.max_participants));
+    // Fighters only: a team Tournament's cap counts teams, and the total it is shown against
+    // (`registeredFighters`) counts Fighters.
+    const totalMaxParticipants = sumNullable(
+      tournaments.filter((t) => t.entrant_kind !== 'team').map((t) => t.max_participants),
+    );
     const totalMaxWaitlist = sumNullable(tournaments.map((t) => t.max_waitlist));
     const totalWaitlistedFighters = Array.from(waitlistByTournament.values()).reduce(
       (a, b) => a + b,
@@ -1114,7 +1142,13 @@ export class EventsService {
             : null,
           bracketSize,
           eliminationType: elimPhase ? elimPhase.type : null,
-          fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
+          entrantKind: tournament.entrant_kind,
+          // Counted against `maxParticipants`: active Registrations, or a team Tournament's teams.
+          entrantCount:
+            (tournament.entrant_kind === 'team'
+              ? teamsByTournament
+              : registrationsByTournament
+            ).get(tournament.id) ?? 0,
           waitlistedCount: waitlistByTournament.get(tournament.id) ?? 0,
           maxParticipants: tournament.max_participants ?? null,
           maxWaitlist: tournament.max_waitlist ?? null,
@@ -1155,7 +1189,7 @@ export class EventsService {
   private async loadReadinessRows(eventId: string): Promise<ReadinessRows> {
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, phases, liceCount, persons] = await Promise.all([
+    const [registrations, phases, liceCount, persons, teams] = await Promise.all([
       this.getRegistrationsForTournaments(tournamentIds),
       this.getPhasesForTournaments(tournamentIds),
       this.countEventLices(eventId),
@@ -1163,6 +1197,7 @@ export class EventsService {
       // there are no active registrations, the roster-quality rules omit
       // themselves, and this would be a round trip for an answer nothing reads.
       tournamentIds.length === 0 ? [] : this.getRosterQualityRows(eventId),
+      this.getTeamsOfTeamTournaments(tournaments),
     ]);
 
     // Nothing hangs off an event with no phases, and assignments can only
@@ -1185,8 +1220,10 @@ export class EventsService {
         id: tournament.id,
         name: tournament.name,
         ruleset_code: tournament.ruleset_code,
+        entrant_kind: tournament.entrant_kind,
       })),
       registrations,
+      teams,
       persons,
       phases,
       pools,
@@ -2514,7 +2551,9 @@ export class EventsService {
   private async getEventTournaments(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, slug, name, status, color, ruleset_code, max_participants, max_waitlist')
+      .select(
+        'id, slug, name, status, color, ruleset_code, max_participants, max_waitlist, entrant_kind',
+      )
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -2527,7 +2566,22 @@ export class EventsService {
       ruleset_code: string | null;
       max_participants: number | null;
       max_waitlist: number | null;
+      entrant_kind: EntrantKind;
     }>;
+  }
+
+  /** The teams of the team Tournaments among `tournaments`; no read when there is none. */
+  private async getTeamsOfTeamTournaments(
+    tournaments: Array<{ id: string; entrant_kind: EntrantKind }>,
+  ): Promise<Array<{ tournament_id: string }>> {
+    const ids = tournaments.filter((t) => t.entrant_kind === 'team').map((t) => t.id);
+    if (ids.length === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('teams')
+      .select('tournament_id')
+      .in('tournament_id', ids);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ tournament_id: string }>;
   }
 
   private async getRegistrationsForTournaments(tournamentIds: string[]) {
@@ -3133,6 +3187,8 @@ export class EventsService {
       userId,
       'admin',
     );
+    const entrantKind = dto.entrantKind ?? 'individual';
+    assertFitsKind(entrantKind, dto);
 
     const { data: existing } = await this.supabase.service
       .from('tournaments')
@@ -3215,6 +3271,8 @@ export class EventsService {
         // page's UpdateTournamentDto path.
         max_participants: dto.maxParticipants ?? null,
         max_waitlist: dto.maxWaitlist ?? null,
+        entrant_kind: entrantKind,
+        team_default_size: dto.teamDefaultSize ?? null,
         status: 'draft',
         ruleset_config: rulesetConfig,
         scoring_config_json: scoringConfig,
@@ -3254,6 +3312,7 @@ export class EventsService {
    *
    * `viewer_may_edit` is true when the reader holds admin or higher in the Tournament's club: the
    * role bar of the settings saves, so the settings page closes them for anyone else (ruling 101).
+   * `entrant_count` is what the kind trigger counts: every Registration and every team.
    * The re-pin (owner), an archived Event and the platform read-only mode refuse on their own.
    */
   async getTournamentById(tournamentId: string, userId: string) {
@@ -3300,6 +3359,8 @@ export class EventsService {
       ruleset_is_system: isSystem,
       ruleset_base_code: baseCode,
       viewer_may_edit: roleAtLeast(role, 'admin'),
+      // Above zero, the kind is fixed: the screens say so before a save is refused.
+      entrant_count: await countTournamentEntrants(this.supabase.service, tournamentId),
     };
   }
 
@@ -3335,6 +3396,7 @@ export class EventsService {
 
     const currentJson = current as Record<string, unknown>;
     const eventRow = event as Record<string, unknown>;
+    assertFitsKind(kindInForce(currentJson['entrant_kind'], dto), dto);
     // Does this save move the pair: the ONE answer, asked by the audited form and the switch.
     const currentCode = currentJson['ruleset_code'] as string | undefined;
     const currentVersionRaw = currentJson['ruleset_version'] as string | undefined;
@@ -3392,6 +3454,7 @@ export class EventsService {
     // for no limit, fills in for a hard ceiling.
     if (dto.maxParticipants !== undefined) updates['max_participants'] = dto.maxParticipants;
     if (dto.maxWaitlist !== undefined) updates['max_waitlist'] = dto.maxWaitlist;
+    Object.assign(updates, kindColumnsOfSave(currentJson['entrant_kind'], dto));
 
     // Monotonic: the operator can jump back and re-save an earlier step, and
     // that must not un-complete the later ones. Recorded rather than inferred —
@@ -3671,7 +3734,7 @@ export class EventsService {
     let query = this.supabase.service.from('tournaments').update(updates).eq('id', read['id']);
     if (conditional) query = query.eq('updated_at', read['updated_at']);
     const { data, error } = await query.select('*').maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     if (data) return data as Record<string, unknown>;
     if (conditional) {
       throw new ConflictException({

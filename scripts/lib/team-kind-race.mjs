@@ -24,11 +24,11 @@ import postgres from 'postgres';
 
 const WAIT_MS = 500;
 
-/** A call's outcome: its value, or the message it raised. */
+/** A call's outcome: its value, or the message and SQLSTATE it raised. */
 const settle = (promise) =>
   promise.then(
     (value) => ({ value }),
-    (error) => ({ refused: error.message }),
+    (error) => ({ refused: error.message, code: error.code }),
   );
 
 const pidOf = async (q) => (await q`SELECT pg_backend_pid() AS pid`)[0].pid;
@@ -94,7 +94,12 @@ async function stateOf(watch, tournament) {
   return [row.kind, row.teams];
 }
 
-const refusedWith = (outcome, prefix) => outcome?.refused?.startsWith(prefix) === true;
+/**
+ * Refused as the API's `entrantKindRefusal` reads it (`apps/api/src/common/entrant-kind-refusal.ts`):
+ * SQLSTATE 23514 and the message starting with the trigger's prefix. PostgREST passes both on.
+ */
+const refusedWith = (outcome, prefix) =>
+  outcome?.code === '23514' && outcome.refused?.startsWith(prefix) === true;
 
 /**
  * The two races: what A does and keeps open, what B does, the prefix B must be refused with, and
@@ -129,7 +134,7 @@ async function oneRace(conns, { check, event }, spec) {
   );
   check(`${spec.what}: the second waits on the first`, waited, 'not blocked');
   check(
-    `${spec.what}: the second is refused with ${spec.refusedWith}`,
+    `${spec.what}: the second is refused 23514 with ${spec.refusedWith}`,
     refusedWith(b, spec.refusedWith),
     JSON.stringify(b),
   );

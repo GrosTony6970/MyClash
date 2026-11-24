@@ -563,7 +563,7 @@ describe('EventsService', () => {
       tournaments: [
         {
           id: 'tournament-1',
-          fighterCount: 1,
+          entrantCount: 1,
           assignedRefereeCount: 0,
           color: 'amber',
           rulesetCode: 'TF_v1',
@@ -729,14 +729,14 @@ describe('EventsService', () => {
     expect(result.tournaments).toMatchObject([
       {
         id: 'tournament-a',
-        fighterCount: 12,
+        entrantCount: 12,
         waitlistedCount: 2,
         maxParticipants: 32,
         maxWaitlist: 10,
       },
       {
         id: 'tournament-b',
-        fighterCount: 4,
+        entrantCount: 4,
         waitlistedCount: 0,
         maxParticipants: null,
         maxWaitlist: null,

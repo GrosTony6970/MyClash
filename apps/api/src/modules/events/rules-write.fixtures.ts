@@ -175,6 +175,9 @@ function seededDb(
       penalty_rulesets: { rows: [] },
       tournament_ruleset_repins: { rows: [] },
       audit_log: { rows: [] },
+      // The read's `entrant_count` (`countTournamentEntrants`).
+      registrations: { rows: [] },
+      teams: { rows: [] },
       ...tables,
     },
     {

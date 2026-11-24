@@ -402,7 +402,11 @@ What is **not** derivable from the DDL, and so belongs here:
   838). A read rule that calls a NEW helper grants it to `anon` by name.
 - **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
   `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
-  new team. `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
+  new team. The kind changes only while the Tournament holds no entrant (its read's
+  `entrant_count`); the database refuses the rest and the API answers 409 `entrant_kind_settled`
+  or `entrant_kind_mismatch` (`common/entrant-kind-refusal.ts`). A team Tournament has no
+  waitlist and takes no forfeit rules (ruling 972); a save checks both against the kind in force
+  (`events/tournament-kind.ts`). `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
   team's numbered Slots. A team's optional `logo_url` (0283) is stored as a Tournament's logo; an
   Event archive carries the file, a Tournament archive keeps the link (ruling 975). `team_slots` holds both its numbered Slots, each with an optional Person
   of the Event, and its Reserves, each with a Person and no number. The database bounds `size`

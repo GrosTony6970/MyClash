@@ -619,6 +619,11 @@ export const organizer = {
         critical:
           '{count} fighter(s) registered. Pools and brackets need at least 2 before they can be generated.',
       },
+      teams: {
+        label: 'Teams',
+        ok: '{count} team(s) created.',
+        critical: '{count} team(s) created. Pools need at least 2 before they can be generated.',
+      },
       format: {
         label: 'Format',
         warn: 'No pools or bracket generated yet — this tournament has no format.',

@@ -12390,6 +12390,9 @@ export interface components {
       color?: string;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+      /** @enum {string} */
+      entrantKind?: 'individual' | 'team';
+      teamDefaultSize?: number | null;
     };
     UpdateTournamentDto: {
       name?: string;
@@ -12525,6 +12528,9 @@ export interface components {
       color?: string | null;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+      /** @enum {string} */
+      entrantKind?: 'individual' | 'team';
+      teamDefaultSize?: number | null;
       audit?: {
         justification: string;
         confirm: string;

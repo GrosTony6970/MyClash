@@ -83,7 +83,7 @@ interface DashboardStats {
   workshops: WorkshopTotals;
   tournaments: Array<
     Tournament & {
-      fighterCount: number;
+      entrantCount: number;
       waitlistedCount: number;
       maxParticipants: number | null;
       maxWaitlist: number | null;
@@ -682,7 +682,7 @@ export default function EventDetailPage() {
                           )}
                           className={cellLinkClass}
                         >
-                          {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
+                          {formatCountOfMax(tournament.entrantCount, tournament.maxParticipants)}
                         </Link>
                       </DataTableCell>
                       <DataTableCell>

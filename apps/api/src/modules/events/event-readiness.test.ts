@@ -17,6 +17,8 @@ function readyTournament(
     name: 'Longsword Open',
     rulesetCode: 'TF_v1',
     activeFighterCount: 16,
+    entrantKind: 'individual',
+    teamCount: 0,
     hasPoolPhase: true,
     hasSwissPhase: false,
     hasElimPhase: true,

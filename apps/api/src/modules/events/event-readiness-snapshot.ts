@@ -43,6 +43,7 @@ export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
 
   const refereedPoolIds = collectRefereedPoolIds(rows, tournamentByPool);
   const fighters = countActiveRegistrations(rows.registrations);
+  const teams = countTeams(rows.teams);
   const poolStats = summarisePoolMatches(rows.matches, tournamentByPool);
 
   return {
@@ -57,6 +58,8 @@ export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
         name: tournament.name,
         rulesetCode: tournament.ruleset_code,
         activeFighterCount: fighters.get(tournament.id) ?? 0,
+        entrantKind: tournament.entrant_kind,
+        teamCount: teams.get(tournament.id) ?? 0,
         hasPoolPhase: types.has('pool'),
         hasSwissPhase: types.has('swiss'),
         hasElimPhase: types.has('single_elim') || types.has('double_elim'),
@@ -136,6 +139,15 @@ function collectRefereedPoolIds(
     if (poolId) refereed.add(poolId);
   }
   return refereed;
+}
+
+/** Every team counts: a team has no status (no waitlist, no withdrawal). */
+function countTeams(teams: ReadinessRows['teams']): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const team of teams) {
+    counts.set(team.tournament_id, (counts.get(team.tournament_id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function countActiveRegistrations(
