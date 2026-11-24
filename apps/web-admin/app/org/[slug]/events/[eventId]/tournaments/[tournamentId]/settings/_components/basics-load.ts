@@ -2,6 +2,7 @@ import { apiRequest } from '@myclash/api-client';
 import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
+import { kindOfRow } from '../../../_shared/entrant-kind';
 import type { TournamentBasics } from './basics-save';
 
 const apiUrl = getPublicApiUrl();
@@ -46,15 +47,20 @@ export async function loadBasics(orgSlug: string, tournamentId: string, eventId:
   return { row, rulesets: rulesets as Ruleset[], penaltyRulesets };
 }
 
-/** The Basics form of a Tournament row, and its forfeit changes as stored. */
+/** The Basics form of a Tournament row, its forfeit changes as stored, and its entrants. */
 export function basicsOf(row: Record<string, unknown>): {
   form: TournamentBasics;
   forfeit: ForfeitChanges | null;
+  entrantCount: number;
 } {
   // As stored: a restored archive's `{}` is no change, as the server reads it.
   const forfeit = applyForfeitPatch((row['forfeit_rules'] as ForfeitChanges | null) ?? null, {});
+  const { kind, teamDefaultSize, entrantCount } = kindOfRow(row);
   return {
+    entrantCount,
     form: {
+      entrantKind: kind,
+      teamDefaultSize,
       name: row['name'] as string,
       slug: row['slug'] as string,
       weapon: row['weapon'] as string,

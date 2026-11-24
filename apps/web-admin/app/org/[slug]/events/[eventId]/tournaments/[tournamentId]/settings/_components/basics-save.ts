@@ -3,11 +3,16 @@ import {
   type ForfeitChanges,
   type ForfeitPatch,
 } from '@myclash/types/forfeit-rules';
+import { bodyForKind, type EntrantKind } from '../../../_shared/entrant-kind';
 import { patchOf } from '../../../_shared/patch-of';
 import type { StoredForfeit } from '../../../_shared/useForfeitRules';
 
 /** The Basics tab's form. */
 export interface TournamentBasics {
+  /** Individual Fighters or teams; fixed once the Tournament holds an entrant. */
+  entrantKind: EntrantKind;
+  /** A team Tournament's default team size; null for none. */
+  teamDefaultSize: number | null;
   name: string;
   slug: string;
   weapon: string | null;
@@ -24,28 +29,33 @@ export interface TournamentBasics {
 
 /**
  * The Save's body, and what the Tournament stores once it is taken. The forfeit changes are sent
- * only when the form changed them (`patchOf`), so a name-only Save keeps the stored ones.
+ * only when the form changed them (`patchOf`), so a name-only Save keeps the stored ones. A team
+ * Tournament sends neither them nor a waitlist cap (`bodyForKind`); the kind is sent only when it
+ * differs from `storedKind`, the kind as last read or saved.
  */
 export function saveBody(
   data: TournamentBasics,
   stored: StoredForfeit | null,
+  storedKind: EntrantKind,
 ): { body: Record<string, unknown>; stored: StoredForfeit } {
-  const forfeitRules = patchOf(stored?.forfeit ?? {}, data.forfeitRules ?? {});
+  const forfeitRules =
+    data.entrantKind === 'team' ? null : patchOf(stored?.forfeit ?? {}, data.forfeitRules ?? {});
+  const fields = {
+    // Send null (not undefined) so selecting "None" actually clears the
+    // weapon — the DTO is nullish and the service maps null to a clear.
+    name: data.name,
+    weapon: data.weapon,
+    // Ruleset is deliberately NOT saved here — a ruleset change is applied
+    // through `changeRuleset` so it can fall back to the audited re-pin
+    // ceremony, and so an unrelated Save never 403s (and loses these
+    // edits) when the tournament already has results.
+    penaltyRulesetId: data.penaltyRulesetId,
+    maxParticipants: data.maxParticipants,
+    maxWaitlist: data.maxWaitlist,
+    ...(forfeitRules ? { forfeitRules } : {}),
+  };
   return {
-    body: {
-      // Send null (not undefined) so selecting "None" actually clears the
-      // weapon — the DTO is nullish and the service maps null to a clear.
-      name: data.name,
-      weapon: data.weapon,
-      // Ruleset is deliberately NOT saved here — a ruleset change is applied
-      // through `changeRuleset` so it can fall back to the audited re-pin
-      // ceremony, and so an unrelated Save never 403s (and loses these
-      // edits) when the tournament already has results.
-      penaltyRulesetId: data.penaltyRulesetId,
-      maxParticipants: data.maxParticipants,
-      maxWaitlist: data.maxWaitlist,
-      ...(forfeitRules ? { forfeitRules } : {}),
-    },
+    body: bodyForKind(fields, data.entrantKind, data.teamDefaultSize, storedKind),
     stored: {
       pin: data.penaltyRulesetId,
       forfeit: forfeitRules

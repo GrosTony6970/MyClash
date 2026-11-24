@@ -25,7 +25,7 @@ const context = vi.hoisted(() => ({
   catalog: [{ code: 'TF_v1', version: '1', label: 'TF v1' }],
 }));
 vi.mock('@/components/organizer-event-context', () => ({
-  useOrganizerSelectedEvent: () => ({ orgId: context.orgId }),
+  useOrganizerSelectedEvent: () => ({ orgId: context.orgId, refetchEvents: async () => {} }),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
 vi.mock('@/hooks/useWeaponOptions', () => ({ useWeaponOptions: () => [] }));

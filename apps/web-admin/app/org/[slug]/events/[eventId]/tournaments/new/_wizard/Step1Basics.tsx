@@ -16,6 +16,10 @@ import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 import { PenaltyPickField } from '../../_shared/PenaltyPickField';
 import { TournamentForfeitRules } from '../../_shared/TournamentForfeitRules';
 import { useForfeitForm } from '../../_shared/useForfeitForm';
+import { CapacityFields } from '../../_shared/CapacityFields';
+import { EntrantKindField } from '../../_shared/EntrantKindField';
+import { kindSettledRefusal } from '../../_shared/entrant-kind';
+import { useEntrantKind } from '../../_shared/useEntrantKind';
 
 const apiUrl = getPublicApiUrl();
 
@@ -73,8 +77,10 @@ export function Step1Basics({
   const { t } = useI18n();
 
   const toast = useToast();
-  const { orgId } = useOrganizerSelectedEvent();
+  const { orgId, refetchEvents } = useOrganizerSelectedEvent();
   const weaponOptions = useWeaponOptions();
+  const entrants = useEntrantKind();
+  const adoptKind = entrants.adopt;
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [weapon, setWeapon] = useState('');
@@ -136,9 +142,10 @@ export function Step1Basics({
         const maxW = row['max_waitlist'] as number | null;
         setMaxParticipants(maxP != null ? String(maxP) : '');
         setMaxWaitlist(maxW != null ? String(maxW) : '');
+        adoptKind(row);
       });
     }
-  }, [initialTournamentId, adoptForfeit]);
+  }, [initialTournamentId, adoptForfeit, adoptKind]);
 
   async function submit() {
     if (!name.trim()) {
@@ -154,7 +161,7 @@ export function Step1Basics({
         // Resume flow — PATCH the existing draft
         const r = await apiRequest(apiUrl, `/api/v1/tournaments/${initialTournamentId}`, {
           method: 'PATCH',
-          body: {
+          body: entrants.save({
             name: name.trim(),
             weapon: weapon || null,
             rulesetCode,
@@ -164,7 +171,7 @@ export function Step1Basics({
             color: color || null,
             maxParticipants: parsedMaxParticipants,
             maxWaitlist: parsedMaxWaitlist,
-          },
+          }),
         });
         // Guard the response so a failed save surfaces a toast instead of
         // silently advancing the wizard and discarding the edits.
@@ -173,10 +180,15 @@ export function Step1Basics({
         if (!r.ok) {
           const message = locked
             ? null
-            : (rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.updateFailed')));
+            : (kindSettledRefusal(r, t) ??
+              rulesChangeRefusal(r, t) ??
+              failureMessage(r, t, t('admin.common.updateFailed')));
           if (message) toast.error(message);
           return;
         }
+        // The menu's Teams entry follows the Event's kinds of Tournament: read the list again.
+        // The context keeps the newest answer, so an older read landing late cannot undo it.
+        void refetchEvents();
         onCreated(initialTournamentId);
       } else {
         // Initial flow — POST new draft tournament
@@ -185,7 +197,7 @@ export function Step1Basics({
           `/api/v1/events/${eventId}/tournaments`,
           {
             method: 'POST',
-            body: {
+            body: entrants.create({
               name: name.trim(),
               slug: slug || slugify(name),
               weapon: weapon || undefined,
@@ -196,7 +208,7 @@ export function Step1Basics({
               color: color || undefined,
               maxParticipants: parsedMaxParticipants ?? undefined,
               maxWaitlist: parsedMaxWaitlist ?? undefined,
-            },
+            }),
           },
         );
         if (!r.ok) {
@@ -208,6 +220,7 @@ export function Step1Basics({
         }
         const newUrl = `${window.location.pathname}?id=${r.data.id}&step=2`;
         window.history.replaceState(null, '', newUrl);
+        void refetchEvents();
         onCreated(r.data.id);
       }
     } finally {
@@ -220,6 +233,8 @@ export function Step1Basics({
       <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.wizard.basics')}
       </h2>
+
+      <EntrantKindField {...entrants.field} />
 
       <label className="block">
         <span className="block text-xs font-medium text-foreground-secondary mb-1">
@@ -317,7 +332,10 @@ export function Step1Basics({
         options={penaltyRulesets}
         onChange={setPenaltyRulesetId}
       />
-      <TournamentForfeitRules {...forfeit.block} disabled={readOnly} />
+      {/* A team Tournament takes no forfeit rules (ruling 972): hidden, and not sent. */}
+      {entrants.kind === 'individual' && (
+        <TournamentForfeitRules {...forfeit.block} disabled={readOnly} />
+      )}
 
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-foreground-secondary">
@@ -341,36 +359,14 @@ export function Step1Basics({
         <p className="text-[11px] text-muted">{t('organizer.tournaments.settings.colorHelp')}</p>
       </fieldset>
 
-      {/* Capacity caps — labels mirror the settings BasicsTab so
-          the wizard and post-creation edit page look identical. */}
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className="block text-xs font-medium text-foreground-secondary mb-1">
-            {t('admin.orgTournaments.maxParticipants')}
-          </span>
-          <input
-            type="number"
-            min={1}
-            value={maxParticipants}
-            onChange={(e) => setMaxParticipants(e.target.value)}
-            placeholder={t('admin.orgTournaments.noCap')}
-            className="w-full rounded-md border border-border px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-foreground-secondary mb-1">
-            {t('admin.orgTournaments.maxWaitlist')}
-          </span>
-          <input
-            type="number"
-            min={0}
-            value={maxWaitlist}
-            onChange={(e) => setMaxWaitlist(e.target.value)}
-            placeholder={t('admin.orgTournaments.noCap')}
-            className="w-full rounded-md border border-border px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
+      {/* The same caps as the settings Basics tab. */}
+      <CapacityFields
+        kind={entrants.kind}
+        maxParticipants={maxParticipants}
+        maxWaitlist={maxWaitlist}
+        onMaxParticipants={setMaxParticipants}
+        onMaxWaitlist={setMaxWaitlist}
+      />
 
       {needsAudit && initialTournamentId && (
         <RulesChangeElsewhere tournamentId={initialTournamentId} tab="basics" />

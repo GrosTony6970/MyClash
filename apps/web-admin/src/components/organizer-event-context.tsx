@@ -184,23 +184,34 @@ export function OrganizerEventContextProvider({
   // Non-200s and network errors now surface via `eventsError` instead
   // of being silently swallowed. The shell renders the error inline so
   // the next 403/500 is debuggable rather than ambiguous-empty.
+  //
+  // THE RACE, as `refetchOrg`'s: the mount's read and a page's re-read after its save (a
+  // Tournament created, its kind changed) can be in flight together, and the older one can land
+  // last: it would put back a list without the Event's new team Tournament, and the menu would
+  // lose its Teams entry. Only the newest read's answer is kept.
+  const latestEventsRead = useRef(0);
   const refetchEvents = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!orgId) return;
+      const read = ++latestEventsRead.current;
       try {
         const res = await fetchRenewingLogin(apiUrl, `/api/v1/organizations/${orgId}/events`, {
           credentials: 'include',
           ...(signal ? { signal } : {}),
         });
+        if (read !== latestEventsRead.current) return;
         if (!res.ok) {
           setEventsError(`${res.status} ${res.statusText || t('admin.common.requestFailed')}`);
           return;
         }
         const data = (await res.json()) as OrgEventSummary[];
+        if (read !== latestEventsRead.current) return;
         setEvents(data ?? []);
         setEventsError(null);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
+        // An older read that fails late says nothing over the newer one's list.
+        if (read !== latestEventsRead.current) return;
         setEventsError(err instanceof Error ? err.message : t('admin.common.loadEventsFailed'));
       }
     },

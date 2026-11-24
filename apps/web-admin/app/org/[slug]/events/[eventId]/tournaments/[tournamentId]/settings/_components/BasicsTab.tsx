@@ -6,6 +6,15 @@ import { useParams } from 'next/navigation';
 import { withPinnedVersion } from '@/lib/selectable-rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
+import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
+import { CapacityFields } from '../../../_shared/CapacityFields';
+import { EntrantKindField } from '../../../_shared/EntrantKindField';
+import {
+  kindSettledRefusal,
+  numberOrNull,
+  textOf,
+  type EntrantKind,
+} from '../../../_shared/entrant-kind';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
@@ -47,7 +56,12 @@ export function BasicsTab({
   const eventId = params.eventId;
   const toast = useToast();
   const weaponOptions = useWeaponOptions();
+  const { refetchEvents } = useOrganizerSelectedEvent();
   const [data, setData] = useState<TournamentBasics | null>(null);
+  // Registrations plus teams, as read: above zero the kind is fixed (`entrant_kind_is_settled`).
+  const [entrantCount, setEntrantCount] = useState(0);
+  // The kind as last read or saved: a Save sends the kind only when the form changed it.
+  const [storedKind, setStoredKind] = useState<EntrantKind>('individual');
   // Save and the ruleset change each mark the fields they sent: a picked ruleset not applied
   // yet is unsaved too.
   const markSaved = useSavedSnapshot(data, onDirtyChange);
@@ -92,8 +106,10 @@ export function BasicsTab({
     if (!orgSlug) return;
     void loadBasics(orgSlug, tournamentId, eventId).then(({ row, rulesets, penaltyRulesets }) => {
       if (row) {
-        const { form, forfeit } = basicsOf(row);
+        const { form, forfeit, entrantCount: entrants } = basicsOf(row);
         setData(form);
+        setEntrantCount(entrants);
+        setStoredKind(form.entrantKind);
         markSaved(form);
         setStored({ pin: form.penaltyRulesetId, forfeit });
         setOriginalRuleset({ code: form.rulesetCode, version: form.rulesetVersion });
@@ -133,7 +149,7 @@ export function BasicsTab({
     setSaving(true);
     try {
       const sent = data;
-      const { body, stored: after } = saveBody(sent, stored);
+      const { body, stored: after } = saveBody(sent, stored, storedKind);
       const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
         body,
@@ -143,10 +159,18 @@ export function BasicsTab({
         if (locked) audit.open({ ...locked, body, sent: { form: sent, after } });
         else {
           const message =
-            rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.saveFailed'));
+            kindSettledRefusal(r, t) ??
+            rulesChangeRefusal(r, t) ??
+            failureMessage(r, t, t('admin.common.saveFailed'));
           if (message) toast.error(message);
         }
         return;
+      }
+      // The menu's Teams entry follows the Event's kinds of Tournament: a change of kind reads the
+      // list again. The context keeps the newest answer, so an older read cannot undo it.
+      if (sent.entrantKind !== storedKind) {
+        setStoredKind(sent.entrantKind);
+        void refetchEvents();
       }
       // The written row (the PATCH answers it): its name and card pin are what a re-pin then
       // confirms and sends back.
@@ -215,6 +239,15 @@ export function BasicsTab({
       <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.settings.basics')}
       </h2>
+
+      <EntrantKindField
+        kind={data.entrantKind}
+        onKind={(entrantKind) => setData({ ...data, entrantKind })}
+        teamDefaultSize={textOf(data.teamDefaultSize)}
+        onTeamDefaultSize={(text) => setData({ ...data, teamDefaultSize: numberOrNull(text) })}
+        fixed={entrantCount > 0}
+        disabled={readOnly}
+      />
 
       <Field label={t('organizer.tournaments.settings.name')}>
         <input
@@ -292,54 +325,28 @@ export function BasicsTab({
         options={penaltyRulesets}
         onChange={(id) => setData({ ...data, penaltyRulesetId: id || null })}
       />
-      <TournamentForfeitRules
-        shown={forfeitRead}
-        saved={stored?.forfeit ?? null}
-        value={data.forfeitRules}
-        onChange={(forfeitRules) => setData({ ...data, forfeitRules })}
-        disabled={readOnly}
-      />
+      {/* A team Tournament takes no forfeit rules (ruling 972): hidden, and not sent. */}
+      {data.entrantKind === 'individual' && (
+        <TournamentForfeitRules
+          shown={forfeitRead}
+          saved={stored?.forfeit ?? null}
+          value={data.forfeitRules}
+          onChange={(forfeitRules) => setData({ ...data, forfeitRules })}
+          disabled={readOnly}
+        />
+      )}
 
       {/* Slice 4: capacity caps. Leaving either field blank means "no cap".
        *  When the participant cap is reached, the registrations create
        *  endpoint returns 409 and the admin UI offers an explicit
        *  'Add to waitlist instead?' confirmation. */}
-      <Field label={t('admin.orgTournaments.maxParticipants')}>
-        <input
-          aria-label={t('admin.orgTournaments.maxParticipants')}
-          type="number"
-          min={1}
-          value={data.maxParticipants ?? ''}
-          onChange={(e) =>
-            setData({
-              ...data,
-              maxParticipants: e.target.value === '' ? null : Number(e.target.value),
-            })
-          }
-          placeholder={t('admin.orgTournaments.noCap')}
-          className="w-full rounded-md border border-border px-3 py-2 text-sm"
-        />
-      </Field>
-
-      <Field label={t('admin.orgTournaments.maxWaitlist')}>
-        <input
-          aria-label={t('admin.orgTournaments.maxWaitlist')}
-          type="number"
-          min={0}
-          value={data.maxWaitlist ?? ''}
-          onChange={(e) =>
-            setData({
-              ...data,
-              maxWaitlist: e.target.value === '' ? null : Number(e.target.value),
-            })
-          }
-          placeholder={t('admin.orgTournaments.noCap')}
-          className="w-full rounded-md border border-border px-3 py-2 text-sm"
-        />
-        {data.maxWaitlist != null && data.maxWaitlist > 0 && data.maxParticipants == null && (
-          <p className="mt-1 text-xs text-warning">{t('admin.orgTournaments.waitlistNeedsCap')}</p>
-        )}
-      </Field>
+      <CapacityFields
+        kind={data.entrantKind}
+        maxParticipants={textOf(data.maxParticipants)}
+        maxWaitlist={textOf(data.maxWaitlist)}
+        onMaxParticipants={(text) => setData({ ...data, maxParticipants: numberOrNull(text) })}
+        onMaxWaitlist={(text) => setData({ ...data, maxWaitlist: numberOrNull(text) })}
+      />
 
       <button
         type="button"

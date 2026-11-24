@@ -699,6 +699,17 @@ export const organizer = {
       'Un tournoi est une compétition au sein de cet événement - épée longue, messer, sabre, etc. Ajoutez-en un pour commencer à gérer les poules, le tableau et les inscriptions.',
     loadError: 'Échec du chargement des tournois.',
     loading: 'Chargement des tournois...',
+    kind: {
+      legend: 'Participants',
+      individual: 'Combattants individuels',
+      team: 'Équipes',
+      fixed: 'Ce tournoi a déjà des participants : son type ne peut plus changer.',
+      settled: 'Ce tournoi a maintenant des participants : son type ne peut plus changer.',
+      teamDefaultSize: "Taille d'équipe par défaut",
+      forfeitNotForTeams: "Les règles de forfait automatiques ne s'appliquent pas aux équipes.",
+      maxTeams: 'Équipes max.',
+      badge: 'Équipe',
+    },
     wizard: {
       eyebrow: 'Nouveau tournoi',
       title: 'Créer un tournoi',

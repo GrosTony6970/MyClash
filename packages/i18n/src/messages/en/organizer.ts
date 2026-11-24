@@ -704,6 +704,17 @@ export const organizer = {
       'A tournament is a competition inside this event - longsword, messer, sabre and so on. Add one to start managing pools, the bracket, and registrations.',
     loadError: 'Failed to load tournaments.',
     loading: 'Loading tournaments...',
+    kind: {
+      legend: 'Entrants',
+      individual: 'Individual fighters',
+      team: 'Teams',
+      fixed: 'This tournament already has entrants, so its kind cannot change.',
+      settled: 'This tournament has entrants now, so its kind cannot change.',
+      teamDefaultSize: 'Default team size',
+      forfeitNotForTeams: 'The automatic forfeit rules do not act on teams.',
+      maxTeams: 'Max teams',
+      badge: 'Team',
+    },
     wizard: {
       eyebrow: 'New tournament',
       title: 'Create a tournament',
