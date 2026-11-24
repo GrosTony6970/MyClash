@@ -17,8 +17,10 @@ import { configureHttpApp } from '../../common/http-bootstrap';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { MeEventsService } from '../me/me-events.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
-import { SupabaseService, verifyAccessTokenLocally } from '../supabase/supabase.service';
-import { McpController } from './mcp.controller';
+import { verifyAccessTokenLocally } from '../supabase/access-token';
+import { SupabaseService } from '../supabase/supabase.service';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { MCP_INTERNAL_ERROR, McpController } from './mcp.controller';
 
 const SECRET = 'test-supabase-jwt-secret-at-least-32-characters-long';
 const env: Record<string, string> = {
@@ -141,6 +143,37 @@ describe('the MCP door, over HTTP', () => {
     };
     expect(body.result.isError).toBe(true);
     expect(body.result.content[0].text).toBe('MyClash could not answer this. Try again later.');
+  });
+
+  it('answers 500 with a JSON-RPC error when the transport fails, and ends the reply', async () => {
+    const spy = vi
+      .spyOn(StreamableHTTPServerTransport.prototype, 'handleRequest')
+      .mockRejectedValueOnce(new Error('transport broke'));
+    try {
+      const res = await rpc('tools/list', {});
+      expect(res.status).toBe(500);
+      expect(res.headers.get('content-type')).toBe('application/json');
+      expect(await res.text()).toBe(MCP_INTERNAL_ERROR);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('ends the reply when the transport fails after it began to answer', async () => {
+    const spy = vi
+      .spyOn(StreamableHTTPServerTransport.prototype, 'handleRequest')
+      .mockImplementationOnce(async (_req, res) => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.write('{"jsonrpc":');
+        throw new Error('transport broke mid-answer');
+      });
+    try {
+      const res = await rpc('tools/list', {});
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('{"jsonrpc":');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('answers a call with no login 401, with the challenge past the exception filter', async () => {

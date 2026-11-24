@@ -1,5 +1,4 @@
 import { applyDecorators, UseGuards } from '@nestjs/common';
-import { ApiExcludeController } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ConnectorDoor } from '../../common/auth/connector-door';
 import { Public } from '../../common/auth/public.decorator';
@@ -12,7 +11,7 @@ import { McpDoorGuard } from './mcp-door.guard';
  * `Public()` tells AuthGuard not to answer 401 itself: the door answers it, with the challenge
  * Claude reads to start the sign-in (`McpDoorGuard`). `ConnectorDoor()` lets a connector token
  * past AuthGuard's wall. The per-IP throttle is off because every person's Claude calls from
- * Anthropic's few addresses; the door counts per account instead (`ThrottleMcp`). The four never
+ * Anthropic's few addresses; the door counts per account instead (`ThrottleMcp`). They never
  * appear apart.
  *
  * The route scanner (`route-authz-scan.ts`) reads this decorator by name and gives its routes the
@@ -25,6 +24,5 @@ export function McpDoor(): ClassDecorator {
     UseGuards(McpDoorGuard),
     SkipThrottle({ global: true }),
     ThrottleMcp(),
-    ApiExcludeController(),
   );
 }

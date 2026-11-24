@@ -9,7 +9,7 @@ import { Reflector } from '@nestjs/core';
 import * as jwt from 'jsonwebtoken';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AuthGuard } from '../../common/auth/auth.guard';
-import { verifyAccessTokenLocally } from '../supabase/supabase.service';
+import { verifyAccessTokenLocally } from '../supabase/access-token';
 import { McpController } from './mcp.controller';
 import { McpDoorGuard, mcpCallerOf } from './mcp-door.guard';
 import { ProtectedResourceController } from './protected-resource.controller';

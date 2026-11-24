@@ -91,23 +91,7 @@ export class AuthGuard implements CanActivate {
     this.attach(request, identity);
     (request as RequestWithIdentity).staffSession = staff;
 
-    // The connector wall. A Claude connector token is a normal login plus a
-    // `client_id` claim, and GoTrue accepts it at /user. Many routes re-read the
-    // raw Bearer and validate it through SupabaseService.getAuthUser, so making
-    // the caller anonymous would not stop them. This guard runs before every
-    // interceptor and handler, so a throw here covers the whole API: it is the
-    // only place the wall can hold. It throws in shadow mode too — a wall that
-    // only logs is no wall. Its input is every login the request carries (Bearer
-    // AND cookie), read unverified: a junk Bearer or a token that fails local
-    // verification must not hide a connector token from it. The verified claim
-    // (`connectorClientId`) is a separate thing, and is what the MCP door trusts.
-    if (presentedConnectorClient(request)) {
-      const isConnectorDoor = this.reflector.getAllAndOverride<boolean>(CONNECTOR_DOOR_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]);
-      if (!isConnectorDoor) throw new ForbiddenException('connector_token_outside_mcp');
-    }
+    this.holdConnectorWall(context, request);
 
     if (identity.kind !== 'anonymous') return true;
 
@@ -128,6 +112,27 @@ export class AuthGuard implements CanActivate {
       `auth-shadow would-401 ${request.method} ${this.routeOf(context)} reason=${this.reasonOf(request)}`,
     );
     return true;
+  }
+
+  /**
+   * The connector wall. A Claude connector token is a normal login plus a
+   * `client_id` claim, and GoTrue accepts it at /user. Many routes re-read the
+   * raw Bearer and validate it through SupabaseService.getAuthUser, so making
+   * the caller anonymous would not stop them. This guard runs before every
+   * interceptor and handler, so a throw here covers the whole API: it is the
+   * only place the wall can hold. It throws in shadow mode too — a wall that
+   * only logs is no wall. Its input is every login the request carries (Bearer
+   * AND cookie), read unverified: a junk Bearer or a token that fails local
+   * verification must not hide a connector token from it. The verified claim
+   * (`connectorClientId`) is a separate thing, and is what the MCP door trusts.
+   */
+  private holdConnectorWall(context: ExecutionContext, request: FastifyRequest): void {
+    if (!presentedConnectorClient(request)) return;
+    const isConnectorDoor = this.reflector.getAllAndOverride<boolean>(CONNECTOR_DOOR_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!isConnectorDoor) throw new ForbiddenException('connector_token_outside_mcp');
   }
 
   /** First identity that verifies wins; claimed outranks guest outranks staff. */

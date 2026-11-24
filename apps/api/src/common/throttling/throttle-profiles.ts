@@ -140,6 +140,15 @@ export const MCP_THROTTLE = {
   ttl: 60_000,
 } as const;
 
+/**
+ * MCP requests with no login per minute per address (see ThrottleMcp). Each one only earns the
+ * 401 challenge; Claude asks once, then signs in.
+ */
+export const MCP_ANON_THROTTLE = {
+  limit: 60,
+  ttl: 60_000,
+} as const;
+
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;

@@ -1,6 +1,6 @@
 import { SetMetadata, type CustomDecorator, type ExecutionContext } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { verifyAccessTokenLocally } from '../../modules/supabase/supabase.service';
+import { verifyAccessTokenLocally } from '../../modules/supabase/access-token';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
 /** Name of the account-keyed throttler registered in AppModule. */

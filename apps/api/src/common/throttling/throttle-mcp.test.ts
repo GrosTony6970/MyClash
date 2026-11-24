@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { McpDoor } from '../../modules/mcp/mcp-door.decorator';
 import { McpDoorGuard } from '../../modules/mcp/mcp-door.guard';
 import { trustOneLocalProxy } from '../trust-proxy';
-import { MCP_THROTTLE } from './throttle-profiles';
+import { MCP_ANON_THROTTLE, MCP_THROTTLE } from './throttle-profiles';
 import { throttlerOptions } from './throttler-options';
 
 /**
@@ -115,7 +115,29 @@ describe('mcp throttler (wired)', () => {
     expect(await post('/t/mcp', paul)).toBe(200);
   });
 
-  it('does not put the calls with no login in one bucket', async () => {
+  it('does not put the calls with no login in one account bucket', async () => {
     for (let i = 0; i < 122; i++) expect(await post('/t/mcp', null)).toBe(200);
+  });
+});
+
+describe('mcp-anon throttler (wired)', () => {
+  it('is 60 a minute', () => {
+    expect(MCP_ANON_THROTTLE).toEqual({ limit: 60, ttl: 60_000 });
+  });
+
+  it('refuses the 61st call with no login from one address', async () => {
+    for (let i = 0; i < 60; i++) expect(await post('/t/mcp', null, '10.54.0.1')).toBe(200);
+    expect(await post('/t/mcp', null, '10.54.0.1')).toBe(429);
+  });
+
+  it('counts no call that carries a login, from that same address', async () => {
+    for (let i = 0; i < 61; i++) await post('/t/mcp', null, '10.55.0.1');
+    expect(await post('/t/mcp', login('mcp-claude-user'), '10.55.0.1')).toBe(200);
+    for (let i = 0; i < 70; i++) await post('/t/mcp', login(`mcp-many-${i}`), '10.56.0.1');
+    expect(await post('/t/mcp', null, '10.56.0.1')).toBe(200);
+  });
+
+  it('counts nothing on a route without the mark', async () => {
+    for (let i = 0; i < 70; i++) expect(await post('/u/other', null, '10.57.0.1')).toBe(200);
   });
 });

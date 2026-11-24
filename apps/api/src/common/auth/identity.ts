@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import { connectorClaimOf } from '../../modules/supabase/supabase.service';
+import { connectorClaimOf } from '../../modules/supabase/access-token';
 
 /**
  * The caller of a request, as resolved by AuthGuard.

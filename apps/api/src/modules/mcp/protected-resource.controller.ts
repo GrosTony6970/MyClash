@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiExcludeController } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/auth/public.decorator';
 import { MCP_SCOPES, mcpUrls } from './mcp-urls';
 
@@ -9,18 +9,20 @@ import { MCP_SCOPES, mcpUrls } from './mcp-urls';
  * signs a person in. Served at the root of `api.${DOMAIN}` (see `API_GLOBAL_PREFIX_EXCLUDE`),
  * both at the path-aware address and at the bare one.
  */
+@ApiTags('mcp')
 @Public()
-@ApiExcludeController()
 @Controller()
 export class ProtectedResourceController {
   constructor(private readonly config: ConfigService) {}
 
   @Get('.well-known/oauth-protected-resource/api/v1/mcp')
+  @ApiOperation({ summary: 'OAuth protected-resource metadata of the MCP door (RFC 9728)' })
   pathAware() {
     return this.document();
   }
 
   @Get('.well-known/oauth-protected-resource')
+  @ApiOperation({ summary: 'OAuth protected-resource metadata, at the origin root (RFC 9728)' })
   root() {
     return this.document();
   }

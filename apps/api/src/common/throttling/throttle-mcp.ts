@@ -5,24 +5,41 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
 /** Name of the account-keyed throttler that counts MCP requests (registered in AppModule). */
 export const MCP_THROTTLER = 'mcp';
 
+/** Name of the address-keyed throttler that counts MCP requests with no login. */
+export const MCP_ANON_THROTTLER = 'mcp-anon';
+
 const THROTTLE_MCP = 'throttle:mcp';
 
 /**
- * Opts a controller or a route into the MCP throttler: requests per minute per account. Every
- * person's Claude calls from Anthropic's few addresses, so a per-IP limit would let one busy person
- * stop everybody; this counts the account, in its own bucket. Every configured throttler runs on
- * every route; this one skips anything without the marker.
+ * Opts a controller or a route into the two MCP throttlers. A request with a login counts against
+ * its account (`mcp`): every person's Claude calls from Anthropic's few addresses, so a per-IP
+ * limit would let one busy person stop everybody. A request with no login has no account, and
+ * counts against its address instead (`mcp-anon`), so the 401s cannot be asked without end. Every
+ * configured throttler runs on every route; these two skip anything without the marker.
  */
 export const ThrottleMcp = (): CustomDecorator => SetMetadata(THROTTLE_MCP, true);
+
+/** `McpDoor` marks the whole controller, so the class counts as well as the handler. */
+function isMcpRoute(context: ExecutionContext): boolean {
+  return [context.getHandler(), context.getClass()].some(
+    (target) => Reflect.getMetadata(THROTTLE_MCP, target) === true,
+  );
+}
+
+const hasAccount = (context: ExecutionContext): boolean =>
+  requestAccount(context.switchToHttp().getRequest()) !== '';
 
 export function skipMcpThrottle(context: ExecutionContext): boolean {
   // A per-throttler skipIf replaces the module-level one, so the whitelist is asked here too.
   if (isThrottleWhitelisted(context)) return true;
-  // `McpDoor` marks the whole controller, so the class counts as well as the handler.
-  const marked = [context.getHandler(), context.getClass()].some(
-    (target) => Reflect.getMetadata(THROTTLE_MCP, target) === true,
-  );
-  if (!marked) return true;
-  // No account: the door answers 401, and requests with no login must not share one bucket.
-  return requestAccount(context.switchToHttp().getRequest()) === '';
+  if (!isMcpRoute(context)) return true;
+  // No account: `mcp-anon` counts it, by address; such requests must not share one bucket here.
+  return !hasAccount(context);
+}
+
+export function skipMcpAnonThrottle(context: ExecutionContext): boolean {
+  if (isThrottleWhitelisted(context)) return true;
+  if (!isMcpRoute(context)) return true;
+  // A login counts against its account (`mcp`), never against the address Claude shares.
+  return hasAccount(context);
 }

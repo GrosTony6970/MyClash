@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
-import { SupabaseService, connectorClaimOf, verifyAccessTokenLocally } from './supabase.service';
+import { connectorClaimOf, verifyAccessTokenLocally } from './access-token';
+import { SupabaseService } from './supabase.service';
 
 const SECRET = 'test-supabase-jwt-secret-at-least-32-characters-long';
 

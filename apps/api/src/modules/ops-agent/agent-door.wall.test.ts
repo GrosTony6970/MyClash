@@ -9,7 +9,7 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readSources } from '../../common/testing/route-authz-scan';
-import { verifyAccessTokenLocally } from '../supabase/supabase.service';
+import { verifyAccessTokenLocally } from '../supabase/access-token';
 
 const SRC = join(__dirname, '..', '..').replace(/\\/g, '/');
 const SOURCES = readSources(SRC);
