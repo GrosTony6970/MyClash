@@ -628,6 +628,153 @@ describe('sideKey', () => {
 - [ ] **Step 6:** `pnpm turbo run build --filter=@myclash/types`.
 - [ ] **Step 7: Commit:** `feat(types): one key for a Match side`.
 
+### Task 7a: A bout waiting for a Fighter takes no Start, hit, card or colour swap
+
+**Operator ruling, 2026-11-24.** Task 7 Step 0 found that a bracket bout with a missing side (a
+placeholder with no side, or a one-sided bout whose other Fighter is still to come) can be
+started and scored today: `clockAction` "validates nothing against the slot"
+(`phases/bracket-dependents.ts:226-228`), and the pad opens such a bout with blank names
+(`apps/web-staff/src/lib/bout-read.ts:112-118`). The operator ruled: **refuse it before saving**,
+on the server and on the pad, with a message in English and French, in this slice. This task
+touches the clock's Start doors, which the Global Constraints keep untouched; the ruling
+supersedes that constraint for this one check, and only this check.
+
+**Files:**
+
+- Create: `apps/api/src/modules/matches/bout-sides.ts` (+ `bout-sides.test.ts`), and
+  `bout-sides.doors.test.ts` (one test per door).
+- Modify (server): `matches/bout-not-started.ts` (`assertBoutTakes`, `:48-55`),
+  `matches/matches.service.ts` (`openRoundOf` select `:700`, `swapFighterColor` `:951-985`,
+  `getLockableMatch` select `:1259`), `matches/clock.service.ts` (`clockAction` after the lock
+  check `:255-257`; `BOUT_COLUMNS` `:156-161` gains `red_team_id, blue_team_id`),
+  `matches/late-press.ts` (`placeLatePress`, after the lock check `:302-317`),
+  `penalties/penalties.service.ts` (`:933`, `getMatchContext` carries the team ids too).
+- Modify (pad): create `apps/web-staff/src/lib/bout-sides.ts` (+ test);
+  `lib/refusal-copy.ts` (`REFUSED_WHOLE` `:121-138`, `HELD_PRESS` `:144-155`);
+  `components/MatchView.tsx` (`onClockAction` `:430-461`, `scoringEnabled` `:511-517`, a banner
+  in the locked-banner style `:785-798`), `components/ScoringCenterControls.tsx` (Start
+  `:416-430`, a `startBlocked` prop), `components/MatchCorrectionsDrawer.tsx` (colour swap
+  `:249-256`, direct card `:407`), `lib/bout-read.ts` (`BoutRow` `:53-75`, `boutOf` `:129-169`) and
+  the file of the `MatchInfo` type: the side ids widen to `string | null` and gain the team ids —
+  the compiler's complaints are the checklist, no cast to quiet them.
+- Modify (API, named): `penalties.service.ts` `getMatchContext` (`:1390`) and its `MatchContext`
+  interface (`:1945-1960`) gain the team ids and `redSideId`/`blueSideId`.
+- Tests (browser): `tests/a11y/pad-clock-stub.ts` gains an option for a bout with an empty side
+  (its `ROW` side ids widen to `string | null`, `:18`; `openBout` must not wait for an enabled
+  Start, `:249`); a new spec in `tests/a11y/` uses it (the stub's `arrived`/`sent` recorders,
+  `:57`, `:71`, show that the Space key posts nothing).
+- Modify (strings): `packages/i18n/src/messages/{en,fr}/scoring.ts`: `scoring.match.waitingForFighter`
+  (the banner), `scoring.corrections.boutSideMissing` (a call sent at once),
+  `scoring.quarantine.boutSideMissing` (a held entry: kept, not lost; retry once both Fighters are
+  on the bout, or discard it).
+
+**Interfaces:**
+
+- Produces (API): `BOUT_SIDE_MISSING = 'bout_side_missing'` and
+  `assertBothSides(sides: { red: string | null; blue: string | null })`. It throws
+  `ConflictException({ message: 'This bout is waiting for a Fighter. It takes no Start, hit, card
+or colour swap until both sides are known.', code: BOUT_SIDE_MISSING })`. A **409**: the pad's
+  queue keeps a coded 409 as held, shown, and resendable by the referee (`sync.ts:443-460`); a 422
+  would be resent on every drain (`sync.ts:751`, `:811-829`). The code is **not** added to
+  `NEVER_AGAIN` (`offline/can-send-again.ts:15-23`): the Fighter may arrive later.
+- A side is judged **by side, not by Registration**: each guarded door computes
+  `sides = { red: sideKey(red_registration_id, red_team_id), blue: sideKey(…) }` (Task 6) from the
+  row it read, so a team bout of slice 1b is never refused. `assertBoutTakes` gains an **explicit,
+  optional** field: `bout: { id; status; sides?: { red: string | null; blue: string | null } }`.
+  "Not judged" means **`sides` was not passed** — never "a key happens to be missing": the card
+  door's `MatchContext` is camelCase (`penalties.service.ts:1428-1429`, `:1945-1960`) and the hit
+  door builds a fresh object (`matches.service.ts:709-713`), so a key-based rule would silently never
+  fire there. Hit door: pass `sides` into the object at `:709-713` from the widened `openRoundOf`
+  select (`:700`; do not share that literal with `round-advance.ts:121`, pinned at
+  `round-advance.writes.test.ts:264`). Card door: `getMatchContext` (`:1390`) selects the team ids
+  and exposes `redSideId`/`blueSideId`; `:933` passes `sides`. Protests (`protests.service.ts:78-79`)
+  pass no `sides`: they are outside the ruling.
+- Produces (pad), one owner for the decision: `apps/web-staff/src/lib/bout-sides.ts` exports
+  `sideMissing(match)` (pure, unit-tested). The raw bout reads are `select('*')`
+  (`matches.service.ts:127-129`, `staff/lice-bouts.ts:52-54`), so the team ids are on the wire since
+  0282: `BoutRow` (`bout-read.ts:53-75`), `boutOf` (`:129-169`) and `MatchInfo` gain
+  `red_team_id`/`blue_team_id` (`redTeamId`/`blueTeamId`), so a kept copy (`offline/kept-bout.ts:30-34`)
+  carries them, and `sideMissing` judges each side through `sideKey`.
+- Pad Start has **one owner**: `onClockAction` (`MatchView.tsx:430-461`) refuses `start` when
+  `sideMissing` (outside its `!force` branch), which covers the button, the Space key
+  (`:703-714`) and the resume dialog's force path (`:976`). The button is also greyed
+  (`startBlocked` prop on `ScoringCenterControls`, `:416-430`) for the eye. Hits, double,
+  no-exchange and ruleset cards follow `scoringEnabled` (`:511-517`); the letter keys press only
+  enabled buttons (`lib/pad-keys.ts:29-33`). The drawer gets `sideMissing` and disables the swap
+  and the direct card.
+- An offline tablet whose kept copy was saved while a side was empty refuses Start until it reads
+  the bout again online, even if the Fighter was placed meanwhile (controller's ruling: its names
+  are blank anyway; a read online cures it).
+- Words (EN; FR in the vocabulary `packages/i18n/src/messages/fr/scoring.ts` already uses for
+  bout, Fighter and side): `scoring.match.waitingForFighter` "Waiting for a Fighter. This bout
+  takes no Start, hit, card or colour swap until both sides are known.";
+  `scoring.corrections.boutSideMissing` "This bout is waiting for a Fighter. Try again once both
+  sides are known."; `scoring.quarantine.boutSideMissing` "Held here, not lost: this bout was
+  waiting for a Fighter. Retry once both Fighters are on the bout, or discard it." The held key is
+  generic: `heldReason` falls back to `HELD_PRESS` for every kind (`refusal-copy.ts:232-233`), so it
+  words held hits and cards too.
+
+**Where the check runs, and where it does not:**
+
+- Hits and cards: inside `assertBoutTakes`, after `assertScoredAfterLastReset` and **before** the
+  direct-card exemption (so a direct card is refused too). The replay probes (`savedHitOf`
+  `matches.service.ts:554`, `savedCardOf` `penalties.service.ts:927-928`) run before it, so a resend
+  of a saved hit or card is still answered "saved". Protests (`protests.service.ts:78`) pass no
+  sides and are not judged: protests are outside the ruling.
+- Start: `clockAction` for `action === 'start'`, right after the lock check (`clock.service.ts:255-257`;
+  this door has no replay probe); `placeLatePress` for `'start'`, after its lock check
+  (`late-press.ts:311`). On the late door `pressIsSaved` (`clock.service.ts:380`) and `alreadyTrue`
+  (`:390`) run first, so a saved queued Start is still answered.
+- Colour swap: `swapFighterColor`, after `assertMatchUnlocked`, on the row it already reads.
+- **Not guarded, on purpose:** card void (`penalties.service.ts:1127-1171`) — the only way to clear
+  a direct card left on a bout that `clearDependentPairing` emptied (`bracket-dependents.ts:231-236`);
+  exchange void/revert/edit, clock End, end-round — unreachable once Start is refused; the side-order
+  swap (`MatchCorrectionsDrawer.tsx:257-264`, `matches.service.ts:987-999`), which changes no side;
+  and a `resume` of a bout started before a side was cleared (its hits are refused anyway).
+  `getLockableMatch`'s select (`matches.service.ts:1259`) is shared with `swapFighterSide` and the
+  lock checks: widening it is harmless; pin it with the others.
+
+- [ ] **Step 1: Failing tests (API).** `bout-sides.test.ts`: both known → passes; red missing →
+      throws `bout_side_missing`; blue missing → throws; `assertBoutTakes` without `sides` → not
+      judged. A team side is a door concern: the door computes `sideKey(null, 't') === 't'`.
+      `bout-sides.doors.test.ts`, one test per door, each asserting the 409 code AND that **nothing
+      was written** (no insert/update on the mock): a hit, a queued card, a direct card, an HTTP
+      Start, a late Start (asserting `bout_side_missing` exactly: the late door has other coded
+      refusals, `late-press.ts:311-312`), a colour swap; a team bout (Registration ids null, team ids
+      set) passes each door; and a resend of a saved hit, of a saved card and of a saved queued Start
+      is still answered as saved. Every select string the guard widens is pinned whole
+      (`selectsFor` + `toEqual`).
+- [ ] **Step 2:** Run — FAIL. Implement. Run — PASS. Then the API suite directly
+      (`pnpm --filter @myclash/api test`) — green; tests that pin `BOUT_COLUMNS` or the widened
+      selects gain the team columns and nothing else (known: `bout-not-started.test.ts:126`,
+      `penalties.bout-copy.test.ts:148`; list each in the commit body).
+- [ ] **Step 3: Failing tests (pad).** The decision is pure code, so it is tested as code:
+      `lib/bout-sides.test.ts` (`sideMissing`: both known, red empty, blue empty, a team side, a
+      kept copy without team ids); `refusal-copy.test.ts`: `bout_side_missing` in both maps, with the
+      exact EN words pinned in the shape of `:69-75`; a test that `canSendAgain` answers `true`
+      for the code `bout_side_missing`, beside `offline/sync.retry-curable.test.ts`. The
+      web-staff vitest runs in `node` with no React setup (`apps/web-staff/vitest.config.ts`), so
+      `scoring-center.screens.test.ts` (text pins) holds the wiring only. **The behaviour is proved in
+      the browser:** a new a11y story in `tests/a11y/` on the pad clock stub
+      (`tests/a11y/pad-clock-stub.ts`, with `red_registration_id: null`): Start is disabled, the
+      Space key records no POST (the route-recording pattern of `pad-offline-drill.spec.ts:30-37`),
+      the banner text shows, and the drawer's swap and direct card are disabled. Run — FAIL.
+      Implement. Run — PASS (`pnpm test:e2e` runs `tests/a11y` in CI's `Playwright and Axe` job;
+      locally run the one spec with `pnpm exec playwright test <file>`).
+- [ ] **Step 4: i18n.** The three keys in `en` and `fr`; `pnpm --filter @myclash/i18n test` run
+      directly — green.
+- [ ] **Step 5: Falsify, once per call site** (same collected count each time; scratch copies
+      outside the repo; restore and compare): remove the check in `assertBoutTakes` → the hit and
+      card door tests go red; in `clockAction` → the HTTP Start test; in `placeLatePress` → the late
+      Start test; in `swapFighterColor` → the swap test. On the pad, make `onClockAction` ignore
+      `sideMissing` → the a11y story's "Space records no POST" goes red.
+- [ ] **Step 6:** `pnpm --filter @myclash/web-staff test`, `pnpm turbo run typecheck`,
+      `pnpm --filter @myclash/api build`, prettier, `pnpm quality:complexity`. Hard rule 3: the
+      offline E2E specs pick only bouts with both sides (`06-offline-sync.spec.ts:104`,
+      `40-offline-bout.spec.ts:95`, `tests/a11y/pad-clock-stub.ts:18-19`), so they stay green; they
+      run in Task 9.
+- [ ] **Step 7: Commit:** `feat(scoring): a bout waiting for a Fighter takes no Start, hit, card or swap`.
+
 ### Task 7: The API feeds the engine the side key, and writes its winner back by side
 
 This task is the scoring service only. Its reads and its writes sit in one file, so a test can
@@ -670,7 +817,8 @@ null }`. It finds the winner's colour by comparing `winnerSideId` with `sideKey`
 Not in this task, and left "not yet, 1b" in the gate's ledger, each for a stated reason:
 
 - `matches/time-limit-result.ts` (mappers at `:48-54`, `:138-144`, and a **fourth winner write at
-  `:147-148`**): its rows come through the clock's read list, which this slice does not touch.
+  `:147-148`**): its rows come through the clock's read list, which this slice touches only to add
+  the team ids for Task 7a's guard; its mappers wait for 1b.
 - `pool-standings/compute-rows.ts` and `ruleset-scores.ts`: a team bout is skipped at
   `compute-rows.ts:102-104` before any side is read, their reads live in
   `pool-standings.service.ts:155`, and Swiss feeds them too
@@ -694,6 +842,11 @@ Not in this task, and left "not yet, 1b" in the gate's ledger, each for a stated
       one does, the throw turns a write that succeeds today into a 500 after the write, and the
       pad's queue retries it (`matches.service.ts:555-558`, `:607-610`): **stop and ask the
       operator** before building Step 4.
+      **Settled 2026-11-24:** such a Match does reach scoring (pad Start, hits, swap, a direct card,
+      a card void). The operator ruled "refuse before saving": Task 7a guards Start, hits, cards and
+      swap. One door stays open on purpose: the card void, which is how a direct card left on a bout
+      that `clearDependentPairing` emptied is cleared, and which recomputes after it writes. So
+      **Step 4 does not throw** (controller's ruling): a missing side is passed through as today.
 - [ ] **Step 1: Failing test for `winnerColumns`.** Cases: individual red wins →
       `{ winner_registration_id: 'reg-r', winner_team_id: null }`; team blue wins →
       `{ winner_registration_id: null, winner_team_id: 'team-b' }`; `null` → both `null`; an id that is
@@ -709,13 +862,16 @@ blue_registration_id: null, blue_team_id: 'team-b' }` hands the engine a Match w
     (`MATCH_ROW_SELECT`, `ROUND_CONTEXT_SELECT`, `scoring.service.ts:115-122`) is pinned whole with
     `toEqual` and holds `red_team_id`, `blue_team_id` and `winner_team_id`. Selects that read no side
     (e.g. `heldResult`, `'status, red_score, blue_score'`, `:1516`) are left as they are;
-  - a bout row with no side on red (`red_registration_id: null, red_team_id: null`) is refused with
-    an error naming the Match, not scored.
+  - a bout row with no side on red (`red_registration_id: null, red_team_id: null`) hands the
+    engine `redSideId === null` exactly as today's `m['red_registration_id'] as string` did (the
+    card-void path of Step 0 must still recompute), and never `''`.
 - [ ] **Step 4:** Run them — FAIL. Change `rulesetMatch` and `storedBout` to
       `sideKey(row.red_registration_id, row.red_team_id)` and add the team columns to the selects.
-      `Match.redSideId` is a `string`: when `sideKey` returns `null`, `rulesetMatch` **throws**.
-      Never `?? ''`: two empty sides would compare equal (the `null === null` trap). If an existing
-      test scores a bout with no side, stop and ask before changing it. Run — PASS.
+      `Match.redSideId` is a `string`, and today a missing side already arrives as `null` through a
+      cast. Keep that value: `sideKey(...) as string`, with a one-line comment naming Task 7a's guard
+      and the card-void path that still recomputes such a bout. Never `?? ''`: two empty sides would
+      compare equal (the `null === null` trap) and a card on `''` would match. The gate's raw-assignment
+      rule accepts this, because the value contains `sideKey(`. Run — PASS.
 - [ ] **Step 5: Failing tests for the outbound writes**, one per write: a team Match the engine
       ends for red writes `winner_team_id: 'team-r'` and `winner_registration_id: null`, for the
       single-fight path (`:232`, `:254`) and for a best-of round closure (`:840-845`). And: a reopened
@@ -994,6 +1150,13 @@ packages/rulesets/test/fixtures packages/rulesets/test/tf_v1.fal2026.test.ts` �
 - **Reopen and replay clear `winner_team_id`**, so the clock's writes gain one null column in 1a;
   its files and logic do not change.
 - **Protests get their team twin now** (operator, 2026-11-24); filing one for a team is 1b.
+- **A bout waiting for a Fighter is refused before saving** (Task 7a, operator, 2026-11-24). It was
+  not in the design; Task 7 Step 0 found that such a bout can be started and scored today. The card
+  void stays open, and the scoring code passes a missing side through as before.
+- **For 1b, from the Task 7a review:** `clearDependentPairing` nulls only the Registration ids
+  (`bracket-dependents.ts:234`) and `swapFighterColor` swaps only the Registration ids
+  (`matches.service.ts:955-958`). An emptied team bout would keep its team ids and the guard would
+  not fire. Both are side readers the gate lists `not-yet 1b`.
 - **Deleting a Person who holds a team slot** fails at commit with a raw foreign-key error: the
   delete checks Registrations only (`persons.service.ts:267-282`). No slot can be created through
   the API before 1b, so 1b adds the check with the teams routes.
@@ -1067,6 +1230,12 @@ gate's file before it exists; the docs-drift claims are seven in six files; move
   `git commit -F`, `docs/superpowers/README.md` in the closing commit, the real recompute callers
   and the `loadRoundContext` doors in Task 7 Step 0, `level-step.ts` and the golden test in the
   Task 9 diff.
+
+- Task 7a (added 2026-11-24 after the operator's ruling), one cold pass: 0 BLOCKER, 2 MAJOR,
+  4 MINOR, 5 NIT, all folded in. MAJOR: the guard judged snake_case keys that the card door
+  (camelCase `MatchContext`) and the hit door (a fresh object) never carry, so it would never fire
+  there — now an explicit `sides` input computed by each door; the pad's text-pin tests could not
+  show behaviour — now a pure `sideMissing` plus one browser a11y story.
 
 ```text
 NOT CONVERGED — 4 passes, 0 BLOCKER, 1 MAJOR outstanding at the fourth pass
