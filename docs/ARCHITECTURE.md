@@ -5409,6 +5409,11 @@ disconnected.
   `GET /user` (for now) and `/oauth/userinfo` still answer it. The e2e records both: the refusals,
   and `GET /user` at 200. GoTrue announced it will refuse OAuth client tokens on `/user` in a later
   release; when that step goes red, move to `/oauth/userinfo`.
+  `GET /user` still answers a connector token with the full account record (identities,
+  `user_metadata`, phone), well beyond the `email` scope, until GoTrue removes it. We probed
+  `PUT /user`, `/user/oauth/grants` and `/logout` (each refused) and `GET /user` (200). The
+  other endpoints (identities, factors, passkeys, reauthenticate and the rest) are taken from the
+  release notes, not probed.
 
 ---
 

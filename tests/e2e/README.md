@@ -1372,6 +1372,10 @@ unless `E2E_API_URL` says otherwise.
 - **It leaves two OAuth clients registered in GoTrue on every run.** Only
   GoTrue's admin can delete one; neither grants anything once step 7 (or the
   clean-up) has disconnected the approved one.
+- **Step 6 makes two deliberate 403s on `/auth/v1/user*`.** The
+  `myclash-fail2ban-auth` jail counts 401, 403 and 429 (20 in 10 minutes, a 30-minute
+  ban), so about ten back-to-back runs from one address ban it from the login doors. Run
+  from an address in `TRAEFIK_BAN_ALLOWLIST`, or space the runs.
 - **The `/user` step goes red when GoTrue stops answering `GET /user`** with a
   connector token (announced for a later release). That is the upgrade working:
   move the check to `/oauth/userinfo`.
