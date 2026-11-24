@@ -1,9 +1,11 @@
 # Team Tournaments — design
 
-Status: agreed with the operator on 2026-11-13, in a brainstorm. Nothing is built. The decisions
-in "What the operator decided" are rulings. The items in "My calls" are proposals the operator has
-read and not overturned. The plan of slice 1a is
-`docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`. Reviewed with
+Status: agreed with the operator on 2026-11-13, in a brainstorm. Slice 1a (foundations, no screen)
+shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59bdaebe`
+`08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
+`bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slices 1b to 8 are not built; what
+1a left them is listed under "Slices". The decisions in "What the operator decided" are rulings.
+The items in "My calls" are proposals the operator has read and not overturned. Reviewed with
 `myclash-plan-review`; the record is at the end.
 
 ## Context
@@ -412,16 +414,57 @@ Each slice is usable alone and lands as several single-concern commits.
 1. **Teams enter a Tournament**, in three parts.
    - **1a, foundations, no screen changes.** Words in HIERARCHY and ADR-022. The limit of rule 8
      written into ADR-016 and `CLAUDE.md` (decision 11). The side-key rename in
-     the engine packages, as one commit that changes names and no value. The schema (tables, nine
+     the engine packages, as one commit that changes names and no value. The schema (tables, ten
      twins, trigger, policies). `sideKey`, used where the API feeds the engine and where it writes
-     the engine's winner back. The **ledger gate**. Planned in full in
-     `docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`.
+     the engine's winner back. The **ledger gate**. **Shipped** on branch `feat/team-tournaments`
+     (draft PR #109), with a bout waiting for a Fighter refused Start, hits, cards and colour swap
+     (operator, 2026-11-24). Its plan is deleted; what it left for later is in the 1b and 1c
+     lists below.
    - **1b, an organiser can run Pools.** The side resolver. The Tournament creator, the Teams screen with colour and
      logo, Pool generation, standings, team cards and forfeits Match by Match, team names on the
      schedule, the scorekeeper screen, TV and public pages. A team Match is scored as one unit.
+     Also owed by 1b, carried over from slice 1a:
+     - The side resolver: no reader called it in 1a.
+     - The team logo column, with its upload route; the archive's guard refuses a `_url` column
+       nothing carries (`packages/db/migrations/0281_team_tables.sql:13-14`).
+     - Standings and the time-limit result take the side key; the clock's read list gains the team
+       columns (`clock.service.ts:157` `BOUT_COLUMNS`, `time-limit-result.ts:139-147`).
+     - The kind race probed under forced overlap, with the teams routes (`0281_team_tables.sql:147`
+       `entrant_kind_holds`, `scripts/lib/team-tables-probe.mjs`).
+     - Indexes on the ten twin columns, with their first readers; `db:review` does not warn about
+       them, it reads only `create table` lines (`0282_team_twins.sql:54`).
+     - An index for the team → team_slots delete cascade (`0281_team_tables.sql:100`,
+       `team_slots_team_fkey`).
+     - `deletePerson` checks Registrations only: a Person who holds a team slot fails at commit with
+       a raw foreign-key error (`apps/api/src/modules/persons/persons.service.ts:267-282`).
+     - The forfeit snapshot's JSON paths map `winner_registration_id` only; the `winner_team_id`
+       paths come with the forfeit code (`apps/api/src/modules/exports/archive.tables.ts:439-440`).
+     - The colour swap swaps the Registration ids only (`matches.service.ts:968-969`,
+       `swapFighterColor`).
+     - The forfeit panel would send a null id for a team bout (`ForfeitPanel.tsx:67`).
+     - The protest tap, ScoringColumn and DirectCardPanel null branches say "waiting for a Fighter"
+       on a team bout (`protest-tap.ts:70`, `ScoringColumn.tsx:194`, `DirectCardPanel.tsx:154`).
+     - TVScoreboard compares a nullable Registration id with `===` (`TVScoreboard.tsx:470`).
+     - The winner writers that write `winner_registration_id` only: `matches.service.ts:281`
+       (`setStatus`), `fighter-reconcile.ts:162`, `fighter-bouts.ts:142`, `:182`, `:268`,
+       `time-limit-result.ts:147`, `match-forfeits.service.ts:239`, and the test harness
+       `double-elim-simulation.harness.ts:133`.
+     - `MatchContext.redTeamId` / `blueTeamId` are filled and read by nobody
+       (`penalties.service.ts:1437-1438`, `:1964-1965`).
+     - A cascade probe case: deleting a Team that a bout or a forfeit names is refused (23503)
+       (`scripts/db-cascade-probe.mjs`).
+     - "Neither" probe cases for `match_penalties_one_side` and
+       `match_forfeits_forfeiting_one_kind` (`scripts/lib/team-tables-probe.mjs`).
+     - The offline specs `tests/e2e/06-offline-sync.spec.ts`, `08-offline-custom-ruleset.spec.ts`
+       and `40-offline-bout.spec.ts`, skipped for 1a (operator, 2026-11-24).
+     - The `not-yet 1b` lines of `scripts/side-readers-ledger.json` (gate `quality:side-readers`).
    - **1c, the rest of a Tournament.** Single elimination, final ranking, League link refused, the
      referee rule with its mark and notice, personal schedule and double-booking check for named members, the four people
      and privacy paths, HEMA Ratings export skips team Tournaments and says so.
+     Also owed by 1c, carried over from slice 1a:
+     - `clearDependentPairing` nulls the Registration ids only, so an emptied team bout keeps its
+       team ids and the waiting-for-a-Fighter guard does not fire (`bracket-dependents.ts:234`).
+     - The `not-yet 1c` lines of `scripts/side-readers-ledger.json`.
 2. **Who is on, for teams with names.** "Who starts?", "Change fighter", slot stamps on Exchanges,
    `match_lineups`, the new offline queue kind, the kept line-up, Fighter on piste on TV and public
    pages. A team with no names is untouched by this slice.
@@ -599,7 +642,8 @@ It answers "has every place that reads a Match side been visited?".
 
 ## Next
 
-1. The plan of slice 1a is `docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`.
+1. Slice 1a shipped on branch `feat/team-tournaments` (draft PR #109); its commits are named in
+   the status line at the top, and its carry-over is listed under 1b and 1c in "Slices".
 2. Each later slice gets its own plan and its own review before it is built.
 3. No code before the operator says so.
 
