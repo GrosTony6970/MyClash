@@ -34,6 +34,12 @@ export interface RequestWithIdentity extends FastifyRequest {
    * this. Wrapper only: no middleware reads it.
    */
   staffSession?: StaffSession | null;
+  /**
+   * The OAuth client of a Claude connector token (its `client_id` claim), or
+   * null for an ordinary login. Wrapper only, like `staffSession`: the
+   * `Identity` union stays the same for a connector and a browser login.
+   */
+  connectorClientId?: string | null;
 }
 
 export interface StaffSession {
@@ -65,6 +71,11 @@ export function presentedLogin(req: FastifyRequest): string | null {
  */
 export function carriesEndedLogin(req: FastifyRequest): boolean {
   return getIdentity(req).kind === 'anonymous' && Boolean(presentedLogin(req));
+}
+
+/** The OAuth client the request's login was issued to, or null when it is no connector token. */
+export function getConnectorClientId(req: FastifyRequest): string | null {
+  return (req as RequestWithIdentity).connectorClientId ?? null;
 }
 
 /** Signature and expiry only: whether the account is still active is the caller's check. */

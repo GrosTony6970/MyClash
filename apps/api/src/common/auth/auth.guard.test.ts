@@ -13,11 +13,12 @@
  *   ✓ non-http contexts are ignored
  */
 
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthGuard } from './auth.guard';
-import type { Identity } from './identity';
+import { CONNECTOR_DOOR_KEY } from './connector-door';
+import { getConnectorClientId, type Identity } from './identity';
 
 const verifyAccessTokenLocal = vi.fn();
 const mockSupabase = { verifyAccessTokenLocal };
@@ -47,11 +48,21 @@ function makeContext(opts: {
   headers?: Record<string, string>;
   cookies?: Record<string, string>;
   isPublic?: boolean;
+  connectorDoor?: boolean;
   type?: string;
 }): { context: ExecutionContext; request: RequestShape } {
-  const { headers = {}, cookies = {}, isPublic = false, type = 'http' } = opts;
+  const {
+    headers = {},
+    cookies = {},
+    isPublic = false,
+    connectorDoor = false,
+    type = 'http',
+  } = opts;
 
-  reflectorGetAllAndOverride.mockReturnValue(isPublic ? true : undefined);
+  reflectorGetAllAndOverride.mockImplementation((key: string) => {
+    if (key === CONNECTOR_DOOR_KEY) return connectorDoor ? true : undefined;
+    return isPublic ? true : undefined;
+  });
 
   // NOTE: `.raw` is present on purpose. The sibling harness
   // (event-readonly.guard.test.ts) mocks a bare object without it, which is
@@ -232,6 +243,63 @@ describe('AuthGuard', () => {
     await guard.canActivate(context);
     expect(request.identity).toEqual({ kind: 'anonymous' });
     expect(request.raw.identity).toEqual({ kind: 'anonymous' });
+  });
+
+  // ── Claude connector token ──────────────────────────────────────────────────
+
+  const connectorLogin = { headers: { authorization: 'Bearer tok' } };
+
+  it('refuses a connector token on an unmarked route, in shadow mode', async () => {
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: 'claude-client' });
+    const { context } = makeContext(connectorLogin);
+    const refusal = guard.canActivate(context);
+    await expect(refusal).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(refusal).rejects.toThrow('connector_token_outside_mcp');
+  });
+
+  it('refuses a connector token on an unmarked route, in enforce mode', async () => {
+    mode = 'enforce';
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: 'claude-client' });
+    const { context } = makeContext(connectorLogin);
+    const refusal = guard.canActivate(context);
+    await expect(refusal).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(refusal).rejects.toThrow('connector_token_outside_mcp');
+  });
+
+  it('refuses a connector token even on a @Public() route', async () => {
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: 'claude-client' });
+    const { context } = makeContext({ ...connectorLogin, isPublic: true });
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets a connector token through a ConnectorDoor route', async () => {
+    mode = 'enforce';
+    verifyAccessTokenLocal.mockReturnValue({
+      id: 'user-1',
+      email: 'a@b.c',
+      clientId: 'claude-client',
+    });
+    const { context, request } = makeContext({ ...connectorLogin, connectorDoor: true });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.identity).toEqual({ kind: 'claimed', userId: 'user-1', email: 'a@b.c' });
+    expect(getConnectorClientId(request as never)).toBe('claude-client');
+  });
+
+  it('a login without client_id carries no connector client', async () => {
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1' });
+    const { context, request } = makeContext(connectorLogin);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getConnectorClientId(request as never)).toBeNull();
+  });
+
+  it('an empty client_id claim is no connector', async () => {
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1', clientId: '' });
+    const { context, request } = makeContext(connectorLogin);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getConnectorClientId(request as never)).toBeNull();
   });
 
   // ── non-http ────────────────────────────────────────────────────────────────

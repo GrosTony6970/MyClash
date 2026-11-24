@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as jwt from 'jsonwebtoken';
-import { SupabaseService } from './supabase.service';
+import { SupabaseService, verifyAccessTokenLocally } from './supabase.service';
 
 const SECRET = 'test-supabase-jwt-secret-at-least-32-characters-long';
 
@@ -22,6 +22,22 @@ function makeConfig(overrides: Record<string, string | undefined> = {}) {
     },
   } as never;
 }
+
+describe('verifyAccessTokenLocally', () => {
+  const sign = (claims: Record<string, unknown>) =>
+    jwt.sign({ sub: 'user-1', ...claims }, SECRET, { algorithm: 'HS256', expiresIn: 60 });
+
+  it('keeps the client_id claim', () => {
+    expect(verifyAccessTokenLocally(sign({ client_id: 'claude-client' }), SECRET)?.clientId).toBe(
+      'claude-client',
+    );
+  });
+
+  it('leaves clientId unset for a plain login or an empty claim', () => {
+    expect(verifyAccessTokenLocally(sign({}), SECRET)?.clientId).toBeUndefined();
+    expect(verifyAccessTokenLocally(sign({ client_id: '' }), SECRET)?.clientId).toBeUndefined();
+  });
+});
 
 describe('SupabaseService.getAuthUser', () => {
   let fetchMock: ReturnType<typeof vi.fn>;

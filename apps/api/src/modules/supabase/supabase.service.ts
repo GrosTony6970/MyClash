@@ -16,6 +16,8 @@ export interface SupabaseAuthUser {
   created_at?: string;
   last_sign_in_at?: string | null;
   banned_until?: string | null;
+  /** The `client_id` claim: set only on a token GoTrue issued to an OAuth client (a Claude connector). */
+  clientId?: string;
 }
 
 /** Tokens returned by GoTrue's `/token` endpoint (password & refresh grants). */
@@ -53,10 +55,13 @@ export function verifyAccessTokenLocally(token: string, secret: string): Supabas
       email?: unknown;
       user_metadata?: unknown;
       app_metadata?: unknown;
+      client_id?: unknown;
     };
     if (typeof claims.sub !== 'string') return null;
     return {
       id: claims.sub,
+      clientId:
+        typeof claims.client_id === 'string' && claims.client_id ? claims.client_id : undefined,
       email: typeof claims.email === 'string' ? claims.email : undefined,
       user_metadata:
         claims.user_metadata && typeof claims.user_metadata === 'object'

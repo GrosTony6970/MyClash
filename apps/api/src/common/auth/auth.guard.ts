@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -18,6 +19,7 @@ import {
   type RequestWithIdentity,
   type StaffSession,
 } from './identity';
+import { CONNECTOR_DOOR_KEY } from './connector-door';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 export type AuthGuardMode = 'shadow' | 'enforce';
@@ -88,6 +90,22 @@ export class AuthGuard implements CanActivate {
     this.attach(request, identity);
     (request as RequestWithIdentity).staffSession = staff;
 
+    // The connector wall. A Claude connector token is a normal login plus a
+    // `client_id` claim, and GoTrue accepts it at /user. Many routes re-read the
+    // raw Bearer and validate it through SupabaseService.getAuthUser, so making
+    // the caller anonymous would not stop them. This guard runs before every
+    // interceptor and handler, so a throw here covers the whole API: it is the
+    // only place the wall can hold. It throws in shadow mode too — a wall that
+    // only logs is no wall.
+    const connectorClientId = (request as RequestWithIdentity).connectorClientId;
+    if (connectorClientId) {
+      const isConnectorDoor = this.reflector.getAllAndOverride<boolean>(CONNECTOR_DOOR_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!isConnectorDoor) throw new ForbiddenException('connector_token_outside_mcp');
+    }
+
     if (identity.kind !== 'anonymous') return true;
 
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -152,6 +170,7 @@ export class AuthGuard implements CanActivate {
     if (!token) return null;
     const user = this.supabase.verifyAccessTokenLocal(token);
     if (!user) return null;
+    (request as RequestWithIdentity).connectorClientId = user.clientId || null;
     return { kind: 'claimed', userId: user.id, email: user.email ?? null };
   }
 
