@@ -2602,10 +2602,14 @@ export class PhasesService {
     // Defence in depth: only ACTIVE registrations can be pooled. The
     // unassigned panel filters these out too, but a stale FE list (or any
     // other caller) must not be able to pool a waitlisted/withdrawn fighter.
+    // The Registration must be of the Pool's own Tournament: an editor of one club's Event must
+    // not pool a Registration of another's. The refusal is the one of a missing id, so an
+    // outsider learns nothing about an id that exists elsewhere.
     const { data: registration } = await this.supabase.service
       .from('registrations')
       .select('id, status')
       .eq('id', registrationId)
+      .eq('tournament_id', dst.tournamentId)
       .maybeSingle();
     if (!registration) {
       throw new BadRequestException(`Registration ${registrationId} not found`);

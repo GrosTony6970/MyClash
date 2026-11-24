@@ -3138,9 +3138,31 @@ describe('PhasesService', () => {
 
     /** The registration under test, plus an active one it must not be mistaken for. */
     const registrations = (status: string): SupabaseRow[] => [
-      { id: 'reg-other', status: 'registered' },
-      { id: 'reg-1', status },
+      { id: 'reg-other', status: 'registered', tournament_id: 'tournament-1' },
+      { id: 'reg-1', status, tournament_id: 'tournament-1' },
     ];
+
+    it("refuses a Registration of another Tournament and writes nothing to the Pool's members", async () => {
+      const { service: svc, supabase } = makeService({
+        // reg-1 is a Fighter of Tournament 9; the Pool is of Tournament 1.
+        registrations: {
+          rows: [{ id: 'reg-1', status: 'registered', tournament_id: 'tournament-9' }],
+        },
+        pool_members: { rows: [] },
+      });
+      stubPoolAuth(svc);
+
+      await expect(svc.addPoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
+        'Registration reg-1 not found',
+      );
+
+      expect(selectsFor(supabase.from, 'registrations')).toEqual(['id, status']);
+      expect(filtersFor(supabase.from, 'registrations', 'eq')).toEqual([
+        ['id', 'reg-1'],
+        ['tournament_id', 'tournament-1'],
+      ]);
+      expect(writesTo(supabase, 'pool_members')).toEqual([]);
+    });
 
     it('rejects adding a waitlisted registration to a pool', async () => {
       const { service: svc } = makeService({

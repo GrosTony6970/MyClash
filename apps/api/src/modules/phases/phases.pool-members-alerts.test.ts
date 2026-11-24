@@ -130,7 +130,7 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
 
   it('names both Pools when a Fighter moves from one to the other', async () => {
     const { service, matchAlerts } = makeService({
-      registrations: { rows: [{ id: 'reg-1', status: 'registered' }] },
+      registrations: { rows: [{ id: 'reg-1', status: 'registered', tournament_id: 't-1' }] },
       // reg-1 sits in pool-0 and moves to pool-1, which holds reg-2.
       pool_members: { rows: [member('reg-1', 1, 'pool-0'), member('reg-2', 1)] },
       matches: { rows: [] },
