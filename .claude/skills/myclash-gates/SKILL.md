@@ -5,8 +5,8 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-eight
-further steps — twenty-five gates and three builds. Running only the three and pushing is the most
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-nine
+further steps — twenty-six gates and three builds. Running only the three and pushing is the most
 common way to turn `main` red here.
 
 Those three numbers **are** gated, as of 2026-08-20. `check-docs-drift.mjs` derives them from
@@ -50,6 +50,7 @@ pnpm quality:source-bytes        # a raw NUL makes git call the file binary — 
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget (see below)
 pnpm quality:test-code-leak      # test code kept out of the emit surface
+pnpm quality:side-readers        # every reader of a Match side is listed in scripts/side-readers-ledger.json
 pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes

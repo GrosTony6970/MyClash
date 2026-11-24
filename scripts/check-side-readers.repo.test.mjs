@@ -1,0 +1,256 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import test from 'node:test';
+
+import { countSideHits, gate } from './check-side-readers.mjs';
+
+// The real ledger and the gate's registrations. The rule itself is tested on made-up sources in
+// check-side-readers.test.mjs.
+
+/**
+ * Every `not-yet` line of the ledger. The set may only shrink: a line that a slice resolves leaves
+ * this list in the same commit, and a new `not-yet` line is refused even when another one left.
+ */
+const NOT_YET = [
+  'apps/api/src/modules/checkin/checkin.service.ts',
+  'apps/api/src/modules/checkin/gear.service.ts',
+  'apps/api/src/modules/event-stats/dto/event-stats.dto.ts',
+  'apps/api/src/modules/event-stats/event-stats.service.ts',
+  'apps/api/src/modules/events/events.service.ts',
+  'apps/api/src/modules/exports/archive-reports.ts',
+  'apps/api/src/modules/exports/archive.tables.ts',
+  'apps/api/src/modules/exports/exports.service.ts',
+  'apps/api/src/modules/leagues/leagues.service.ts',
+  'apps/api/src/modules/matches/clock.service.ts',
+  'apps/api/src/modules/matches/dto/matches.dto.ts',
+  'apps/api/src/modules/matches/fighter-bouts.ts',
+  'apps/api/src/modules/matches/forfeit-void.ts',
+  'apps/api/src/modules/matches/level-step.ts',
+  'apps/api/src/modules/matches/match-forfeits.service.ts',
+  'apps/api/src/modules/matches/match-summaries.ts',
+  'apps/api/src/modules/matches/matches.service.ts',
+  'apps/api/src/modules/matches/scoring.service.ts',
+  'apps/api/src/modules/matches/time-limit-result.ts',
+  'apps/api/src/modules/me/me-events.service.ts',
+  'apps/api/src/modules/penalties/black-card-undo.ts',
+  'apps/api/src/modules/penalties/dto/penalties.dto.ts',
+  'apps/api/src/modules/penalties/penalties.service.ts',
+  'apps/api/src/modules/people-context/people-context.service.ts',
+  'apps/api/src/modules/persons/public-schedule.service.ts',
+  'apps/api/src/modules/phases/bracket-advance.service.ts',
+  'apps/api/src/modules/phases/bracket-dependents.ts',
+  'apps/api/src/modules/phases/bracket-downstream.ts',
+  'apps/api/src/modules/phases/bracket-match-sync.ts',
+  'apps/api/src/modules/phases/bracket-placeholder-match.ts',
+  'apps/api/src/modules/phases/bracket-refs.ts',
+  'apps/api/src/modules/phases/bracket-slots.controller.ts',
+  'apps/api/src/modules/phases/dto/phases.dto.ts',
+  'apps/api/src/modules/phases/match-completion.service.ts',
+  'apps/api/src/modules/phases/phases.controller.ts',
+  'apps/api/src/modules/phases/phases.service.ts',
+  'apps/api/src/modules/pool-standings/compute-rows.ts',
+  'apps/api/src/modules/pool-standings/pool-rows.ts',
+  'apps/api/src/modules/pool-standings/pool-standings.service.ts',
+  'apps/api/src/modules/pool-standings/ruleset-scores.ts',
+  'apps/api/src/modules/privacy/subject-export.service.ts',
+  'apps/api/src/modules/privacy/subject-export.tables.ts',
+  'apps/api/src/modules/programme/programme.service.ts',
+  'apps/api/src/modules/protests/dto/protests.dto.ts',
+  'apps/api/src/modules/protests/protests.service.ts',
+  'apps/api/src/modules/referees/assignment-board.service.ts',
+  'apps/api/src/modules/referees/board-unit-ends.ts',
+  'apps/api/src/modules/referees/event-commitments.ts',
+  'apps/api/src/modules/registrations/assignments.service.ts',
+  'apps/api/src/modules/schedule/live-state.service.ts',
+  'apps/api/src/modules/schedule/match-scheduler.ts',
+  'apps/api/src/modules/schedule/schedule-grid-match.ts',
+  'apps/api/src/modules/schedule/schedule-grid.service.ts',
+  'apps/api/src/modules/staff/lice-matches.ts',
+  'apps/api/src/modules/staff/staff.service.ts',
+  'apps/api/src/modules/tournament-completion/tournament-completion.service.ts',
+  'apps/api/src/modules/tournament-placement/tournament-placement.service.ts',
+  'apps/api/src/modules/tournament-query/tournament-query.tools.service.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowTimeline.tsx',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/count-pool-fighters.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/match-scores-merge.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/print/build-print-data.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/conflict-detection.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts',
+  'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/schedule-types.ts',
+  'apps/web-admin/src/components/statistics/types.ts',
+  'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-event-feed.tsx',
+  'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx',
+  'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-row.ts',
+  'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx',
+  'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx',
+  'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx',
+  'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts',
+  'apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx',
+  'apps/web-staff/src/components/DirectCardPanel.tsx',
+  'apps/web-staff/src/components/ForfeitPanel.tsx',
+  'apps/web-staff/src/components/MatchCorrectionsDrawer.tsx',
+  'apps/web-staff/src/components/MatchResultOverlay.tsx',
+  'apps/web-staff/src/components/MatchView.tsx',
+  'apps/web-staff/src/components/ProtestControl.tsx',
+  'apps/web-staff/src/components/ScoringCenterControls.tsx',
+  'apps/web-staff/src/components/ScoringColumn.tsx',
+  'apps/web-staff/src/components/black-card-loss.ts',
+  'apps/web-staff/src/components/tournament-context-types.ts',
+  'apps/web-staff/src/hooks/useMatchScoringData.ts',
+  'apps/web-staff/src/hooks/usePadRounds.ts',
+  'apps/web-staff/src/hooks/usePenalties.ts',
+  'apps/web-staff/src/lib/bout-read.ts',
+  'apps/web-staff/src/lib/protest-tap.ts',
+  'apps/web-staff/src/lib/undone-line.ts',
+  'apps/web-staff/src/offline/db.ts',
+  'apps/web-staff/src/offline/pad-series.ts',
+  'apps/web-staff/src/offline/pad-server-score.ts',
+  'apps/web-staff/src/offline/pending-events.ts',
+  'apps/web-staff/src/offline/price-queued-cards.ts',
+  'apps/web-staff/src/offline/protest-queue.ts',
+  'apps/web-staff/src/offline/resolve-entry-card.ts',
+  'apps/web-staff/src/offline/sync.ts',
+  'packages/db/migrations/0135_tournament_target_value_stats.sql',
+  'packages/db/migrations/0189_blow_value_stats_any_value.sql',
+  'packages/db/migrations/0193_tournament_query_matches_end_reason.sql',
+  'packages/rules/src/formula/derive-stats.ts',
+  'packages/rules/src/results/bracket-r1-seeding.ts',
+  'packages/rules/src/results/standings.ts',
+  'packages/rules/src/tf_v1/score.ts',
+  'packages/types/src/final-ranking-core.ts',
+  'packages/types/src/final-ranking.ts',
+  'packages/types/src/match-winner.ts',
+  'packages/types/src/penalties.ts',
+  'packages/ui/src/components/MatchScoreboard.tsx',
+  'packages/ui/src/components/TVScoreboard.tsx',
+  'packages/ui/src/components/TvProtestChip.tsx',
+  'packages/ui/src/components/bracket/MatchCard.tsx',
+  'packages/ui/src/components/bracket/types.ts',
+  'packages/ui/src/types/match-events.ts',
+  'packages/ui/src/utils/bout-flow.ts',
+  'packages/ui/src/utils/exchange-timeline.ts',
+  'packages/ui/src/utils/protest-chip.ts',
+];
+
+const realLedger = () => JSON.parse(readFileSync('scripts/side-readers-ledger.json', 'utf8'));
+
+test('the ratchet: the ledger holds exactly the pinned not-yet lines', () => {
+  const notYet = Object.entries(realLedger().readers)
+    .filter(([, line]) => line.verdict === 'not-yet')
+    .map(([path]) => path)
+    .sort();
+  const added = notYet.filter((path) => !NOT_YET.includes(path));
+  const resolved = NOT_YET.filter((path) => !notYet.includes(path));
+
+  assert.deepEqual(
+    added,
+    [],
+    `${added.length} not-yet lines are new (${added.join(', ')}): this number may only go down`,
+  );
+  assert.deepEqual(
+    resolved,
+    [],
+    `resolved, so take them out of NOT_YET in this test: ${resolved.join(', ')}`,
+  );
+});
+
+test('the real ledger lists the readers earlier drafts of this gate missed', () => {
+  const { readers } = realLedger();
+
+  for (const path of [
+    'apps/api/src/modules/schedule/live-state.service.ts',
+    'apps/web-staff/src/offline/db.ts',
+    'packages/ui/src/utils/protest-chip.ts',
+    'apps/web-staff/src/offline/resolve-entry-card.ts',
+    'packages/types/src/penalties.ts',
+    'packages/ui/src/utils/bout-flow.ts',
+    'packages/ui/src/utils/exchange-timeline.ts',
+    'apps/api/src/modules/matches/match-summaries.ts',
+    'apps/api/src/modules/phases/match-completion.service.ts',
+  ]) {
+    const line = readers[path];
+    assert.ok(line, `${path} has no ledger line`);
+    assert.ok(
+      line.byHand === true || countSideHits(readFileSync(path, 'utf8')) > 0,
+      `${path} is neither a hit nor listed by hand`,
+    );
+  }
+});
+
+test('the real repo is clean', () => {
+  const result = gate.run({ argv: [] });
+
+  assert.deepEqual(result.findings, []);
+});
+
+test('scanned is the number of files the filters keep', () => {
+  // Built here, apart from the gate, so a filter that drifts in the gate goes red.
+  const listed = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--deduplicate'],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  )
+    .split('\0')
+    .filter(Boolean);
+  const kept = listed.filter(
+    (path) =>
+      /^(apps|packages|scripts)\//.test(path) &&
+      /\.(ts|tsx|mjs|sql)$/.test(path) &&
+      !/\.(test|spec|fixtures)\./.test(path) &&
+      !/\.harness\.ts$/.test(path) &&
+      !path.includes('test-helpers') &&
+      !path.includes('/testing/') &&
+      !path.startsWith('packages/db/fixtures/') &&
+      !path.startsWith('packages/api-client/src/generated/') &&
+      path !== 'scripts/check-side-readers.mjs' &&
+      existsSync(path),
+  );
+
+  const { scanned } = gate.run({ argv: [] });
+
+  assert.equal(scanned, kept.length);
+  assert.ok(kept.length > 100, `expected the real source tree, got ${kept.length}`);
+});
+
+// ── Registration ─────────────────────────────────────────────────────────────
+
+test('package.json exposes the gate on its own', () => {
+  const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+
+  assert.equal(manifest.scripts?.['quality:side-readers'], 'node scripts/check-side-readers.mjs');
+});
+
+test('CI runs the gate as its own step, which a red gate before it does not stop', () => {
+  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const step =
+    /- name: Check Match side readers\n(?:\s+.+\n)*?\s+run: pnpm quality:side-readers/.exec(ci);
+
+  assert.ok(step, 'CI lint job must run the gate in the step "Check Match side readers"');
+  assert.match(step[0], /\n\s+if: '!cancelled\(\)'\n/, "the step needs if: '!cancelled()'");
+  assert.ok(
+    !/&&\s*pnpm quality:side-readers/.test(ci),
+    'quality:side-readers must be its own step, never &&-chained behind another gate',
+  );
+});
+
+test('the API carries the new step in CI_GATES', () => {
+  const gates = readFileSync('apps/api/src/modules/admin/ci-health/gates.ts', 'utf8');
+
+  assert.ok(
+    gates.includes("step: 'Check Match side readers'"),
+    'add the step to CI_GATES in apps/api, or the gate-health card cannot see it',
+  );
+});
+
+test('CONTRIBUTING lists the gate in the before-pushing chain', () => {
+  // gates.drift.test.ts compares ci.yml with CI_GATES only; nothing else reads CONTRIBUTING.
+  assert.ok(readFileSync('CONTRIBUTING.md', 'utf8').includes('pnpm quality:side-readers'));
+});
+
+test('importing the gate does not run it', () => {
+  assert.equal(process.exitCode, undefined);
+});

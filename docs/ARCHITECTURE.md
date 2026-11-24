@@ -4709,11 +4709,11 @@ build record.
 
 ### 20.1 The gate harness
 
-CI's Lint job runs `pnpm turbo run lint` plus twenty-eight further steps, each its own verdict.
+CI's Lint job runs `pnpm turbo run lint` plus twenty-nine further steps, each its own verdict.
 `.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
 source of truth when they disagree.
 
-Twenty-one of the twenty-six `scripts/check-*.mjs` gates run through **`defineGate`**
+Twenty-two of the twenty-seven `scripts/check-*.mjs` gates run through **`defineGate`**
 (`scripts/lib/gate.mjs`), which owns reporting, exit codes and anti-vacuity. Two invariants there
 are not obvious and are easy to break:
 
