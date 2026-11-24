@@ -779,7 +779,6 @@
     "apps/web-public/app/notifications/NotificationSettingsClient.tsx:57",
     "apps/web-public/app/o/[slug]/page.tsx:102",
     "apps/web-public/app/o/[slug]/page.tsx:225",
-    "apps/web-public/app/oauth/consent/ConsentCard.tsx:21",
     "apps/web-public/app/organisers/OrganiserSearchBar.tsx:15",
     "apps/web-public/app/organisers/page.tsx:145",
     "apps/web-public/app/profile/fighter/AvatarCropper.tsx:63",

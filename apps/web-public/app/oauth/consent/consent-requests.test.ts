@@ -91,4 +91,12 @@ describe('answerConsent', () => {
     expect(await answerConsent('a', 'approve')).toEqual({ kind: 'expired' });
     expect(await answerConsent('a', 'approve')).toEqual({ kind: 'network' });
   });
+
+  it('sends a lapsed login back to sign-in, then to this very request', async () => {
+    answers.push(json(401, { status: 401, code: 'UNAUTHORIZED', detail: 'No session' }));
+    expect(await answerConsent('auth-1', 'approve')).toEqual({
+      kind: 'login',
+      href: '/login?next=%2Foauth%2Fconsent%3Fauthorization_id%3Dauth-1',
+    });
+  });
 });

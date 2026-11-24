@@ -53,13 +53,20 @@ export async function openConsent(authorizationId: string | null): Promise<Opene
 export async function answerConsent(
   authorizationId: string,
   action: ConsentAction,
-): Promise<ConsentAnswer | { kind: 'refused' | 'expired' | 'network' }> {
+): Promise<
+  ConsentAnswer | { kind: 'refused' | 'expired' | 'network' } | { kind: 'login'; href: string }
+> {
   const res = await apiRequest<ConsentAnswer>(getPublicApiUrl(), pathOf(authorizationId), {
     method: 'POST',
     body: { action },
     signal: AbortSignal.timeout(15000),
   });
   if (res.ok) return res.data;
+  // `apiRequest` already renewed the login once; a 401 now means it is gone, not that the
+  // server did not answer.
+  if (res.kind === 'unauthenticated' && res.status === 401) {
+    return { kind: 'login', href: backHere(authorizationId) };
+  }
   if (res.kind === 'unauthenticated' && res.status === 403) return { kind: 'refused' };
   if (res.kind === 'http' && res.status === 410) return { kind: 'expired' };
   return { kind: 'network' };

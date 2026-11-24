@@ -25,7 +25,6 @@ export function ConsentCard({
   authorizationId: string;
   view: ConsentShown;
 }) {
-  const { t } = useI18n();
   const [view, setView] = useState<ConsentShown>(first);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -34,9 +33,14 @@ export function ConsentCard({
     setBusy(true);
     setFailed(false);
     const result = await answerConsent(authorizationId, action);
+    // The browser is leaving in both of these: the buttons stay disabled.
     if ('redirectUrl' in result) {
-      // Stay disabled: the browser is leaving.
       window.location.assign(result.redirectUrl);
+      return;
+    }
+    if (result.kind === 'login') {
+      // The login lapsed while the card was open: sign in, then come back to this request.
+      window.location.replace(result.href);
       return;
     }
     if (result.kind === 'refused')
@@ -46,25 +50,45 @@ export function ConsentCard({
     setBusy(false);
   }
 
-  if (view.kind === 'expired') {
-    return (
-      <Frame>
-        <p role="alert">{t('publicApp.oauthConsent.expired')}</p>
-      </Frame>
-    );
-  }
+  if (view.kind === 'expired') return <ExpiredView />;
+  if (view.kind === 'refused') return <RefusedView host={view.redirectHost} />;
+  return <AskView view={view} busy={busy} failed={failed} onAnswer={(a) => void answer(a)} />;
+}
 
-  if (view.kind === 'refused') {
-    const host = view.redirectHost || t('publicApp.oauthConsent.unknownHost');
-    return (
-      <Frame>
-        <p className="text-danger" role="alert">
-          {t('publicApp.oauthConsent.refused', { host })}
-        </p>
-      </Frame>
-    );
-  }
+function ExpiredView() {
+  const { t } = useI18n();
+  return (
+    <Frame>
+      <p role="alert">{t('publicApp.oauthConsent.expired')}</p>
+    </Frame>
+  );
+}
 
+function RefusedView({ host }: { host: string }) {
+  const { t } = useI18n();
+  return (
+    <Frame>
+      <p className="text-danger" role="alert">
+        {t('publicApp.oauthConsent.refused', {
+          host: host || t('publicApp.oauthConsent.unknownHost'),
+        })}
+      </p>
+    </Frame>
+  );
+}
+
+function AskView({
+  view,
+  busy,
+  failed,
+  onAnswer,
+}: {
+  view: Extract<ConsentShown, { kind: 'ask' }>;
+  busy: boolean;
+  failed: boolean;
+  onAnswer: (action: ConsentAction) => void;
+}) {
+  const { t } = useI18n();
   const where =
     view.callback === 'this-computer'
       ? t('publicApp.oauthConsent.whereThisComputer')
@@ -80,10 +104,10 @@ export function ConsentCard({
         </p>
       ) : null}
       <div className="mt-6 flex flex-col gap-2">
-        <Button disabled={busy} onClick={() => void answer('approve')}>
+        <Button disabled={busy} onClick={() => onAnswer('approve')}>
           {t('publicApp.oauthConsent.approve')}
         </Button>
-        <Button variant="outline" disabled={busy} onClick={() => void answer('deny')}>
+        <Button variant="outline" disabled={busy} onClick={() => onAnswer('deny')}>
           {t('publicApp.oauthConsent.deny')}
         </Button>
       </div>

@@ -121,6 +121,22 @@ describe('ConsentCard', () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it('sends a lapsed login to sign-in with a way back, and keeps the buttons off', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign, replace });
+    answer.mockResolvedValueOnce({
+      kind: 'login',
+      href: '/login?next=%2Foauth%2Fconsent%3Fauthorization_id%3Dauth-1',
+    });
+    await show(ASK);
+    await act(async () => button('Approve').click());
+    expect(replace).toHaveBeenCalledWith(
+      '/login?next=%2Foauth%2Fconsent%3Fauthorization_id%3Dauth-1',
+    );
+    expect(assign).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('says to try again on a network failure, and leaves the buttons live', async () => {
     answer.mockResolvedValueOnce({ kind: 'network' });
     await show(ASK);
