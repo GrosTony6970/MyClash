@@ -1286,6 +1286,15 @@ export const publicApp = {
     unaffiliatedLabel: 'Sans club',
     clubLedBy: 'Emmené par {names}',
   },
+  connectedApps: {
+    title: 'Applications connectées',
+    none: "Aucune application n'est connectée à votre compte.",
+    granted: 'Connectée le {date}',
+    disconnect: 'Déconnecter',
+    lag: "Claude peut garder l'accès jusqu'à une heure après la déconnexion.",
+    loadError: 'Impossible de charger vos applications connectées. Réessayez plus tard.',
+    disconnectError: 'Impossible de déconnecter {name}. Réessayez.',
+  },
   oauthConsent: {
     title: 'Connecter {client} à votre compte MyClash',
     back: 'Après votre accord, vous retournez vers {where}.',

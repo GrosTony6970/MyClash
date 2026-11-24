@@ -1,5 +1,5 @@
 import { apiRequest, failureCode, type ApiResult } from '@myclash/api-client';
-import { WRONG_CURRENT_PASSWORD_CODE } from '@myclash/types';
+import { WRONG_CURRENT_PASSWORD_CODE, type ConnectedApps } from '@myclash/types';
 
 /**
  * The security page's two doors that ask the current password again.
@@ -105,6 +105,35 @@ export async function readSecurityStatus(
   if (result.kind === 'aborted') return 'aborted';
   const ended = result.kind === 'unauthenticated' && result.status === 401 && result.code;
   return ended ? 'session_ended' : 'failed';
+}
+
+/**
+ * The apps connected to the account (Claude). Same answers as the first read: an ended session
+ * only after the login was renewed once, and `failed` for anything else — never an empty list.
+ */
+export async function readConnectedApps(
+  apiUrl: string,
+  signal: AbortSignal,
+): Promise<ConnectedApps | 'session_ended' | 'aborted' | 'failed'> {
+  const result = await apiRequest<ConnectedApps>(apiUrl, '/api/v1/me/connected-apps', { signal });
+  if (result.ok) return result.data;
+  if (result.kind === 'aborted') return 'aborted';
+  const ended = result.kind === 'unauthenticated' && result.status === 401 && result.code;
+  return ended ? 'session_ended' : 'failed';
+}
+
+/** One app disconnected. The id is the app's, from the list: the person never types it. */
+export async function requestDisconnectApp(
+  apiUrl: string,
+  clientId: string,
+): Promise<'ok' | 'session_ended' | 'network' | 'failed'> {
+  const answer = answerOf(
+    await apiRequest(apiUrl, `/api/v1/me/connected-apps/${encodeURIComponent(clientId)}`, {
+      method: 'DELETE',
+    }),
+  );
+  if (answer === 'ok' || answer === 'session_ended' || answer === 'network') return answer;
+  return 'failed';
 }
 
 export async function requestPasswordChange(

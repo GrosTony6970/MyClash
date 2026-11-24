@@ -8,6 +8,7 @@ import { signInAgainHere } from '@/lib/sign-in-return';
 import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
+import { ConnectedAppsSection } from './ConnectedAppsSection';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
 import { PasswordChangedNotice } from './PasswordChangedNotice';
 import { PasswordSetLink } from './PasswordSetLink';
@@ -59,6 +60,7 @@ export default function SecurityPage() {
             <p className="rounded-md border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
               {t('publicApp.security.loadError')}
             </p>
+            <ConnectedAppsSection apiUrl={apiUrl} />
             <DataAndPrivacySection apiUrl={apiUrl} t={t} />
           </>
         )}
@@ -70,6 +72,7 @@ export default function SecurityPage() {
               hasPassword={status.hasPassword}
             />
             <ChangePasswordSection apiUrl={apiUrl} status={status} t={t} />
+            <ConnectedAppsSection apiUrl={apiUrl} />
             {/* Before the delete section on purpose: exporting your data is the
                 thing you want to do BEFORE deleting the account, not after. */}
             <DataAndPrivacySection apiUrl={apiUrl} t={t} />

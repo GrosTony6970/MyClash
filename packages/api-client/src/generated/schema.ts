@@ -5515,6 +5515,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/connected-apps': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The apps the signed-in person has connected to their account */
+    get: operations['ConnectedAppsController_list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/connected-apps/{clientId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Disconnect one app; it may keep access for up to an hour */
+    delete: operations['ConnectedAppsController_disconnect'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/events': {
     parameters: {
       query?: never;
@@ -21622,6 +21656,79 @@ export interface operations {
       };
       /** @description expired: the request is gone; start again */
       410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The sign-in server gave no usable answer */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ConnectedAppsController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description { apps: { clientId, name, grantedAt }[] } */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Signed out, or the login ended */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The sign-in server gave no usable answer */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ConnectedAppsController_disconnect: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        clientId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Disconnected, or it already was */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The client id is not a UUID */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Signed out, or the login ended */
+      401: {
         headers: {
           [name: string]: unknown;
         };

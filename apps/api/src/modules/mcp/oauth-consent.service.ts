@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { ConsentAction, ConsentAnswer, ConsentView } from '@myclash/types';
 import { OperationalUnavailableException } from '../../common/operational-exception';
-import { GOTRUE_TIMEOUT_MS } from '../supabase/supabase.service';
+import { callGoTrueAsPerson } from './gotrue-as-person';
 import { describeCallback, hostOf, isClaudeCallback, redirectsToClaude } from './claude-callbacks';
 
 /** GoTrue's pending request, as the person is asked about it. */
@@ -151,36 +151,17 @@ export class OAuthConsentService {
     return redirectUrl;
   }
 
-  /**
-   * One call to GoTrue with the person's login; null when the request is gone (404 or 400).
-   * No Origin header: GoTrue accepts an empty one from a server, and checks any other against
-   * its SITE_URL.
-   */
+  /** One call to GoTrue with the person's login; null when the request is gone (404 or 400). */
   private async ask(
     path: string,
     login: string,
     payload?: { action: ConsentAction },
   ): Promise<Record<string, unknown> | null> {
-    const authUrl =
-      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
-      this.config.getOrThrow<string>('SUPABASE_URL');
-    const headers: Record<string, string> = {
-      apikey: this.config.getOrThrow<string>('SUPABASE_ANON_KEY'),
-      Authorization: `Bearer ${login}`,
-    };
-    if (payload) headers['Content-Type'] = 'application/json';
-
-    let response: Response;
-    try {
-      response = await fetch(`${authUrl.replace(/\/+$/u, '')}${path}`, {
-        method: payload ? 'POST' : 'GET',
-        headers,
-        ...(payload ? { body: JSON.stringify(payload) } : {}),
-        signal: AbortSignal.timeout(GOTRUE_TIMEOUT_MS),
-      });
-    } catch (error) {
-      throw this.unavailable(`no answer (${error instanceof Error ? error.name : 'unknown'})`);
-    }
+    const response = await callGoTrueAsPerson(
+      this.config,
+      { path, login, method: payload ? 'POST' : 'GET', body: payload },
+      (why) => this.unavailable(why),
+    );
 
     if (response.status === 404 || response.status === 400) return null;
     // The page renews the login on a 401 and asks again.

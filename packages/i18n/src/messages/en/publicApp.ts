@@ -1284,6 +1284,15 @@ export const publicApp = {
     unaffiliatedLabel: 'Unaffiliated',
     clubLedBy: 'Led by {names}',
   },
+  connectedApps: {
+    title: 'Connected apps',
+    none: 'No app is connected to your account.',
+    granted: 'Connected on {date}',
+    disconnect: 'Disconnect',
+    lag: 'Claude may keep access for up to an hour after you disconnect.',
+    loadError: 'Could not load your connected apps. Try again later.',
+    disconnectError: 'Could not disconnect {name}. Try again.',
+  },
   oauthConsent: {
     title: 'Connect {client} to your MyClash account',
     back: 'After you approve, you go back to {where}.',

@@ -352,8 +352,9 @@ describe('the readers of the security status', () => {
   it('the security page keeps the data export when its status read failed', () => {
     const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
     expect(page).toMatch(
-      /\{statusError && \(\s+<>\s+<p [^>]+>\s+\{t\('publicApp\.security\.loadError'\)\}\s+<\/p>\s+<DataAndPrivacySection apiUrl=\{apiUrl\} t=\{t\} \/>\s+<\/>\s+\)\}/,
+      /\{statusError && \(\s+<>\s+<p [^>]+>\s+\{t\('publicApp\.security\.loadError'\)\}\s+<\/p>\s+<ConnectedAppsSection apiUrl=\{apiUrl\} \/>\s+<DataAndPrivacySection apiUrl=\{apiUrl\} t=\{t\} \/>\s+<\/>\s+\)\}/,
     );
+    expect(page.match(/<ConnectedAppsSection /g)).toHaveLength(2);
     expect(page.match(/<DataAndPrivacySection /g)).toHaveLength(2);
     expect(page.match(/<DeleteAccountSection /g)).toHaveLength(1);
   });

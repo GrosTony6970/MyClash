@@ -1,21 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { ConsentAnswer, ConsentView } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
-import { presentedLogin } from '../../common/auth/identity';
-import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AnswerConsentDto } from './dto';
+import { signedInLogin } from './gotrue-as-person';
 import { OAuthConsentService } from './oauth-consent.service';
 
 /**
@@ -63,11 +52,7 @@ export class OAuthConsentController {
     return this.consent.answer(authorizationId, await this.login(req), dto.action);
   }
 
-  /** The person's own login, raw, once it is known to be a live one. */
-  private async login(req: FastifyRequest): Promise<string> {
-    const login = presentedLogin(req);
-    if (!login) throw new UnauthorizedException('Authentication required');
-    await requireRequestUserId(req, this.supabase);
-    return login;
+  private login(req: FastifyRequest): Promise<string> {
+    return signedInLogin(req, this.supabase);
   }
 }
