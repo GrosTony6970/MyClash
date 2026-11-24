@@ -47,7 +47,8 @@ this case as the one where MCP is worth it: reaching production from the claude.
 
 ## Constraints (found in code and docs, 2026-11-24)
 
-- **Auth server.** Self-hosted GoTrue `v2.195.0` (`infra/docker-compose.prod.yml:227`) has an OAuth
+- **Auth server.** Self-hosted GoTrue `v2.195.0` (updated to 2.198 on 2026-11-24, see
+  `2026-11-24-gotrue-2198-design.md`; `infra/docker-compose.prod.yml:227`) has an OAuth
   2.1 server — beta, since v2.180; v2.195 fixed `offline_access` for MCP refresh clients. Env:
   `GOTRUE_OAUTH_SERVER_ENABLED`, `GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH`,
   `GOTRUE_OAUTH_SERVER_ALLOW_DYNAMIC_REGISTRATION`. GoTrue does **not** support Client ID Metadata

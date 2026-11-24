@@ -121,7 +121,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 **Supabase surface** — each fronted directly by Traefik, in both dev and prod (no gateway in between)
 
-- `supabase-auth` (`supabase/gotrue:v2.195.0`) — password, email magic link and Google OAuth.
+- `supabase-auth` (`supabase/gotrue:v2.198.0`) — password, email magic link and Google OAuth.
 - `supabase-realtime` (`supabase/realtime:v2.124.1`) — Phoenix Channels broadcasting Postgres row changes. Its browser clients are anonymous: a signed-in token is refused there (migration `0273`).
 - `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (fighter photos, Event assets, Workshop pictures). Event photos are not here: they have their own bucket.
 - `supabase-rest` (`postgrest/postgrest:v14.16`) — PostgREST over the public schema, served at `/rest/v1`. Only the anonymous visitor reads through it, bounded by RLS; a signed-in reader goes through the API, and no web role writes (migrations `0247`, `0273`).

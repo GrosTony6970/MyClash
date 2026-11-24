@@ -236,7 +236,7 @@ services:
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
-    image: supabase/gotrue:v2.195.0
+    image: supabase/gotrue:v2.198.0
     container_name: myclash-supabase-auth
     restart: unless-stopped
     environment:

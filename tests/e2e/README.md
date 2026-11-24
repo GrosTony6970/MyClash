@@ -1359,21 +1359,22 @@ local callback on `127.0.0.1:53682`, answered by the browser context) as fighter
 A. It runs whenever fighter A is set. The API is `api.` beside `E2E_PUBLIC_URL`
 unless `E2E_API_URL` says otherwise.
 
-| step       | what it proves                                                                                    |
-| ---------- | ------------------------------------------------------------------------------------------------- |
-| login      | a password login still reads `claimed` from `/me` after `GOTRUE_JWT_ISSUER` changed every `iss`   |
-| discovery  | the door's metadata names a sign-in server whose RFC 8414 document has that issuer, and DCR is on |
-| flow       | register, authorize with PKCE, Approve, swap the code; `initialize`, `tools/list`, `whoami`       |
-| other door | the connector token on `GET /api/v1/me/events` is 403                                             |
-| stranger   | a client whose callback is `https://evil.example/cb` gets the refusal and no Approve button       |
-| /user      | GoTrue's own `/user` answers the connector token 200 on 2.195 — recorded, not wanted              |
-| disconnect | a refresh works; Disconnect on `/me/security`; the next refresh is refused (4xx)                  |
+| step       | what it proves                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| login      | a password login still reads `claimed` from `/me` after `GOTRUE_JWT_ISSUER` changed every `iss`            |
+| discovery  | the door's metadata names a sign-in server whose RFC 8414 document has that issuer, and DCR is on          |
+| flow       | register, authorize with PKCE, Approve, swap the code; `initialize`, `tools/list`, `whoami`                |
+| other door | the connector token on `GET /api/v1/me/events` is 403                                                      |
+| stranger   | a client whose callback is `https://evil.example/cb` gets the refusal and no Approve button                |
+| /user      | GoTrue 2.198 refuses the connector token on `PUT /user` and `/user/oauth/grants` (403); `GET /user` is 200 |
+| disconnect | a refresh works; Disconnect on `/me/security`; the next refresh is refused (4xx)                           |
 
 - **It leaves two OAuth clients registered in GoTrue on every run.** Only
   GoTrue's admin can delete one; neither grants anything once step 7 (or the
   clean-up) has disconnected the approved one.
-- **The `/user` step goes red on GoTrue 2.198 or later**, which restricts OAuth
-  tokens there. That is the upgrade working: change the expectation.
+- **The `/user` step goes red when GoTrue stops answering `GET /user`** with a
+  connector token (announced for a later release). That is the upgrade working:
+  move the check to `/oauth/userinfo`.
 - Written from the code, not yet seen passing: read its first run as a first run.
 
 ## Protests, from the settings to the TV (opt-in)

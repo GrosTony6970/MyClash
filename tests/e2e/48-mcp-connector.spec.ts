@@ -26,7 +26,8 @@ import { FIGHTER_LOGINS, publicBase, signInFighter, type Fighter } from './_figh
  *   4. the connector token opens no other API route;
  *   5. a client whose callback is not Claude's is refused on the consent page,
  *      with no Approve button;
- *   6. GoTrue's own /user with the connector token: recorded, not wanted
+ *   6. GoTrue's own account endpoints with the connector token: refused since
+ *      2.198 (PUT /user, grants: 403); GET /user still 200, for now
  *      (Review Focus 1 of the slice's plan);
  *   7. a refreshed token still calls the door and opens no other route, and
  *      GoTrue's plain refresh grant gives the connector's refresh token no
@@ -294,14 +295,24 @@ test.describe.serial('mcp connector', () => {
     await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   });
 
-  test("GoTrue's own /user with a connector token", async () => {
-    const res = await bare.get(`${server.issuer}/user`, {
-      headers: { authorization: `Bearer ${tokens.access}` },
-    });
+  test("GoTrue's own account endpoints with a connector token", async () => {
+    // No X-Supabase-Api-Version header: the answer is the one a plain client gets.
+    // /logout is left out on purpose: it would end the session the later steps use.
+    const headers = { authorization: `Bearer ${tokens.access}` };
+
+    const put = await bare.put(`${server.issuer}/user`, { headers, data: { data: {} } });
+    expect(put.status(), 'GoTrue 2.198 refuses a connector token on PUT /user').toBe(403);
+    expect((await json<{ error_code?: string }>(put)).error_code).toBe('no_authorization');
+
+    const grants = await bare.get(`${server.issuer}/user/oauth/grants`, { headers });
+    expect(grants.status(), 'GoTrue 2.198 refuses a connector token on the grants list').toBe(403);
+    expect((await json<{ error_code?: string }>(grants)).error_code).toBe('no_authorization');
+
+    const res = await bare.get(`${server.issuer}/user`, { headers });
     expect(
       res.status(),
-      'Review Focus 1: GoTrue ≥2.198 restricts OAuth tokens on /user — when this goes red after ' +
-        'an upgrade, update the expectation',
+      'GoTrue announced it will refuse OAuth client tokens on /user in a later release — when ' +
+        'this goes red, move to /oauth/userinfo',
     ).toBe(200);
   });
 
