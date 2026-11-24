@@ -30,6 +30,7 @@ describe('popLastClosedRoundColumns', () => {
       current_round: 3,
       awaiting_round_advance: false,
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
     });
     expect(cols?.['rounds_json']).toHaveLength(2);
@@ -98,6 +99,13 @@ describe('unplayedMatchColumns', () => {
     });
   });
 
+  it('keeps no winner in either column: a Registration or a team (0282)', () => {
+    expect(unplayedMatchColumns(RULES)).toMatchObject({
+      winner_registration_id: null,
+      winner_team_id: null,
+    });
+  });
+
   it("takes the Tournament's copy of now and forgets the copies the bout held before", () => {
     // A bout fought again is fought under the new copy only (a bout not started keeps
     // everything it starts under, from its start: operator, 2026-10-17).
@@ -112,6 +120,7 @@ describe('reopenedResultColumns', () => {
     expect(cols).toEqual({
       status: 'paused',
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
       ended_at: null,
     });

@@ -35,6 +35,7 @@ import type {
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
+import { sideKey } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
@@ -67,6 +68,7 @@ import {
   type ScoreChange,
   type ScoreRows,
 } from './correction-preflight';
+import { winnerColumns, type SideColumns } from './winner-columns';
 
 export type { ClosedRound };
 
@@ -113,13 +115,16 @@ interface SingleFightScore {
  * constant, the schema gate cannot read it, so `bout-columns.schema.test.ts` does.
  */
 export const MATCH_ROW_SELECT =
-  'id, red_registration_id, blue_registration_id, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
+  'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, status, winner_registration_id, winner_team_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
   BOUT_RULES;
 
 /** The bout a round end or a round advance decides, with its copy. Exported as the one above. */
 export const ROUND_CONTEXT_SELECT =
-  'id, red_registration_id, blue_registration_id, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
+  'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, status, winner_registration_id, winner_team_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
   BOUT_RULES;
+
+/** A side's id column of a `matches` row: an id, or null while the side is not that kind. */
+type Id = string | null;
 
 /** Map a `matches` row, its copy embedded (`BOUT_RULES`), to the ruleset's own type. */
 function rulesetMatch(
@@ -128,10 +133,12 @@ function rulesetMatch(
 ): RulesetMatch {
   // The engine of the bout's copy, the pair the pad is told to decide with (`withBoutRules`).
   const engine = boutEngineOf(m);
+  // A side not known yet stays null, as before: `assertBothSides` (Task 7a) refuses Start, hits,
+  // cards and swap on such a bout, and a card void still recomputes it. Never `''`.
   return {
     id: m['id'] as string,
-    redSideId: m['red_registration_id'] as string,
-    blueSideId: m['blue_registration_id'] as string,
+    redSideId: sideKey(m['red_registration_id'] as Id, m['red_team_id'] as Id) as string,
+    blueSideId: sideKey(m['blue_registration_id'] as Id, m['blue_team_id'] as Id) as string,
     rulesetCode: engine.code,
     rulesetVersion: engine.version,
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
@@ -143,10 +150,10 @@ function rulesetMatch(
 function storedBout(m: Record<string, unknown>): CorrectionInput['bout'] {
   return {
     status: m['status'] as string,
-    winnerSideId: (m['winner_registration_id'] as string | null) ?? null,
+    winnerSideId: sideKey(m['winner_registration_id'] as Id, m['winner_team_id'] as Id),
     endReason: (m['end_reason'] as string | null) ?? null,
-    redSideId: (m['red_registration_id'] as string | null) ?? null,
-    blueSideId: (m['blue_registration_id'] as string | null) ?? null,
+    redSideId: sideKey(m['red_registration_id'] as Id, m['red_team_id'] as Id),
+    blueSideId: sideKey(m['blue_registration_id'] as Id, m['blue_team_id'] as Id),
     redScore: Number(m['red_score'] ?? 0),
     blueScore: Number(m['blue_score'] ?? 0),
   };
@@ -229,7 +236,7 @@ export class ScoringService {
       // At the time of the hit that decided it, when a tablet sent it late: a clock that never
       // ran has no End to stop at that time, and the row kept the queue's arrival.
       matchUpdates['ended_at'] = endedAtOf(causedAt, m);
-      matchUpdates['winner_registration_id'] = scored.winnerSideId;
+      Object.assign(matchUpdates, winnerColumns(m as SideColumns, scored.winnerSideId));
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
       matchUpdates['end_reason'] = decision.reason;
@@ -251,7 +258,7 @@ export class ScoringService {
       );
     }
     if (outcome.kind === 'redecide') {
-      matchUpdates['winner_registration_id'] = outcome.winnerSideId;
+      Object.assign(matchUpdates, winnerColumns(m as SideColumns, outcome.winnerSideId));
       matchUpdates['end_reason'] = outcome.endReason;
     }
     if (outcome.kind === 'refuse') {
@@ -808,6 +815,7 @@ export class ScoringService {
    */
   private buildRoundClosure(
     match: RulesetMatch,
+    row: SideColumns,
     closedRounds: ClosedRound[],
     currentRound: number,
     openRed: number,
@@ -837,12 +845,13 @@ export class ScoringService {
         // A DRAWN series writes no winner, exactly as a single bout at the
         // ceiling does. Only reachable where the organiser allowed a drawn
         // round — the ceiling in a pool, or a phase chain containing a `draw`.
-        updates['winner_registration_id'] =
+        const winner =
           series.winnerColor === 'red'
             ? match.redSideId
             : series.winnerColor === 'blue'
               ? match.blueSideId
               : null;
+        Object.assign(updates, winnerColumns(row, winner));
         updates['end_reason'] = this.seriesEndReason(newClosed, series.roundsSpent, endReason);
       }
     } else {
@@ -961,6 +970,7 @@ export class ScoringService {
     if (!currentAlreadyClosed && ev.autoOver) {
       const closure = this.buildRoundClosure(
         match,
+        args.matchRow as SideColumns,
         closedRounds,
         currentRound,
         openRed,
@@ -1124,6 +1134,7 @@ export class ScoringService {
 
     const closure = this.buildRoundClosure(
       ctx.match,
+      ctx.matchRow as SideColumns,
       closedRounds,
       currentRound,
       redScore,
