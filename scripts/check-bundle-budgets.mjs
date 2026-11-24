@@ -59,12 +59,16 @@ export const budgets = [
   // budgeted with ~8% headroom. Per app, because they now differ by a lot: the
   // pad reads 480 of 6,418 keys and the organiser workspace 5,257, so one shared
   // ceiling would be slack for two of them and no guard at all for the third.
+  // Raised on 2026-11-24 (operator, ruling 967 "Public budget"): 369,358 measured against 360 KiB
+  // (718 bytes over) when every public page gained the MCP consent and connected-apps sentences,
+  // since each page carries the whole public dictionary. 365 KiB guards against real growth (a
+  // library on every page), not against a few sentences.
   {
     name: 'web-public every page load',
     type: 'page-load',
     root: join('apps', 'web-public'),
     app: 'web-public',
-    budgetBytes: 360 * 1024,
+    budgetBytes: 365 * 1024,
   },
   // The pad's raised on 2026-10-17 (operator, "Pad budget"): 327,694 measured
   // against 320 KiB when the end decision gained its editions, the headroom
