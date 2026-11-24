@@ -4,6 +4,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './modules/admin/admin.module';
 import { OpsAgentModule } from './modules/ops-agent/ops-agent.module';
+import { McpModule } from './modules/mcp/mcp.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ClubsModule } from './modules/clubs/clubs.module';
@@ -87,6 +88,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     AuthModule,
     AdminModule,
     OpsAgentModule,
+    McpModule,
     MeModule,
     PrivacyModule,
     PersonsModule,

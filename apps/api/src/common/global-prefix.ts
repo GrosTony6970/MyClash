@@ -17,12 +17,21 @@ export const API_GLOBAL_PREFIX = 'api/v1';
 /**
  * Routes served WITHOUT the prefix.
  *
- * Only /health belongs here: the Docker healthcheck and the deploy/rollback
- * smoke tests hit localhost:4000/health directly.
+ * /health: the Docker healthcheck and the deploy/rollback smoke tests hit
+ * localhost:4000/health directly.
+ *
+ * The two `.well-known/oauth-protected-resource` paths (MCP connector discovery,
+ * RFC 9728): Claude reads them at the root of the host it was given, with no
+ * token. Deliberate — the host is api.${DOMAIN}, which the `myclash-api` Traefik
+ * router sends whole to the API, so they answer exactly where Claude asks.
  *
  * Think hard before adding another. Traefik routes app./admin./scoring. by
  * `PathPrefix(/api/v1)`, so an excluded route answers on api.${DOMAIN} and 404s
  * on the three hosts the apps actually call — while still answering a local
  * curl, which is what let a stale `version` entry sit here unnoticed.
  */
-export const API_GLOBAL_PREFIX_EXCLUDE: string[] = ['health'];
+export const API_GLOBAL_PREFIX_EXCLUDE: string[] = [
+  'health',
+  '.well-known/oauth-protected-resource/api/v1/mcp',
+  '.well-known/oauth-protected-resource',
+];

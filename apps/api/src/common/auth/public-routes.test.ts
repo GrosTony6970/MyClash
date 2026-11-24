@@ -96,6 +96,10 @@ const EXPECTED_PUBLIC = [
   // fighters — and nothing that names or could re-identify anybody. It replaces
   // three hardcoded figures that were not true.
   'GET /public/site-stats',
+  // ── MCP connector discovery ──
+  // Claude reads the resource metadata (RFC 9728) before it has any token.
+  'GET /.well-known/oauth-protected-resource',
+  'GET /.well-known/oauth-protected-resource/api/v1/mcp',
   // ── public event site (web-public, logged out) ──
   // The club search (ruling 98): a club row names nobody. Archived clubs only
   // for platform staff.
