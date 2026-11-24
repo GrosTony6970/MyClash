@@ -41,6 +41,7 @@ export * from './referee-capacity';
 export * from './workshop-instructor-busy';
 export * from './workshop-texts';
 export * from './round-code';
+export * from './side-key';
 export * from './rules-change';
 export * from './forfeit-rules-change';
 export * from './tournament-name';
