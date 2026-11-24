@@ -6,6 +6,7 @@
  * staff-scoped routes. The generated OpenAPI client carries the paths but no
  * response schemas — those services return plain objects, not DTO classes.
  */
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 /** A referee on a pool's default crew (`scope_type='pool'`). */
 export interface PoolReferee {
@@ -62,16 +63,6 @@ export interface StandingsColumn {
   decimals?: number;
 }
 
-export interface StandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: string;
-  /** Keyed by `StandingsColumn.key`. Shape varies with the ruleset. */
-  stats: Record<string, number | string>;
-}
-
 /**
  * `GET /tournaments/:id/pool-standings?mode=by-pool`.
  *
@@ -84,7 +75,7 @@ export interface PoolStandingsPayload {
     poolId: string;
     poolName: string;
     status: string;
-    rows: StandingsRow[];
+    rows: PoolStandingsRow[];
   }>;
 }
 

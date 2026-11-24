@@ -10,11 +10,12 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
 export interface StandingRow {
-  registrationId: string;
+  entrantId: string;
   fighterName: string;
   clubName: string | null;
   wins: number;
@@ -284,24 +285,8 @@ export function colorTokenToHex(token: string | null | undefined): string {
 
 // ── Pool standings (live) ────────────────────────────────────────────────────
 
-/**
- * A row as the API returns it from `tournaments/:id/pool-standings`.
- *
- * `stats` is ruleset-driven: the active ruleset decides which keys exist
- * (Generic_PointsCap declares none of the extended ones), so every read must
- * tolerate a missing key rather than assume the shape.
- */
-export interface ApiStandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
-}
-
 export interface ApiPoolStandings {
-  pools?: Array<{ poolId: string; poolName: string; rows: ApiStandingsRow[] }>;
+  pools?: Array<{ poolId: string; poolName: string; rows: PoolStandingsRow[] }>;
 }
 
 function statNum(stats: Record<string, number | string>, key: string): number {
@@ -317,9 +302,9 @@ function statNum(stats: Record<string, number | string>, key: string): number {
  * `seed` has no equivalent on the API row and is unused by the table — it is
  * only in the type. Kept at 0 rather than faked.
  */
-export function toStandingRow(row: ApiStandingsRow): StandingRow {
+export function toStandingRow(row: PoolStandingsRow): StandingRow {
   return {
-    registrationId: row.registrationId,
+    entrantId: row.entrantId,
     fighterName: row.displayName,
     clubName: row.club?.name ?? null,
     wins: statNum(row.stats, 'W'),

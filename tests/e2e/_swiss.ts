@@ -84,7 +84,7 @@ export interface SwissRounds {
 
 export interface SwissStandingsRow {
   rank: number;
-  registrationId: string;
+  entrantId: string;
   displayName: string;
   status: string;
   stats: Record<string, number | string>;

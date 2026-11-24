@@ -79,7 +79,7 @@ export class TournamentPlacementService {
       const rawScore = row.stats?.['score'];
       const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
       return {
-        registrationId: row.registrationId,
+        registrationId: row.entrantId,
         fighterName: row.displayName,
         clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
         poolScore: Number.isFinite(score) ? score : null,
@@ -151,8 +151,8 @@ export class TournamentPlacementService {
         resultKind: 'pool',
         totalRanked,
       };
-      byRegistrationId.set(row.registrationId, placement);
-      return { registrationId: row.registrationId, ...placement };
+      byRegistrationId.set(row.entrantId, placement);
+      return { registrationId: row.entrantId, ...placement };
     });
     return { byRegistrationId, ordered, decided: true };
   }
@@ -178,7 +178,7 @@ export class TournamentPlacementService {
     if (!complete || standings.rows.length === 0) return null;
 
     const entries: PoolEntry[] = standings.rows.map((row) => ({
-      registrationId: row.registrationId,
+      registrationId: row.entrantId,
       fighterName: row.displayName,
       clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
       poolScore: null,

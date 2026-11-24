@@ -195,7 +195,7 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     const displayName = `${person.given_name} ${person.family_name}`.trim();
     return {
       rank: 0,
-      registrationId: member.registration_id,
+      entrantId: member.registration_id,
       displayName,
       club: person.clubs,
       status,

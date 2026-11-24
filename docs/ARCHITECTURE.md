@@ -766,7 +766,7 @@ export interface Ruleset {
 
   /** This ruleset's `score` for each fighter, over a set of finished bouts */
   scorePoolFighters(input: {
-    registrationIds: string[];
+    entrantIds: string[];
     completedMatches: ScoredMatch[];
     afterblowMode: AfterblowMode;
     config: unknown;

@@ -3056,20 +3056,20 @@ describe('PhasesService', () => {
               poolId: 'p1',
               poolName: 'Pool 1',
               status: 'completed',
-              rows: [{ rank: 1, registrationId: 'r1' }],
+              rows: [{ rank: 1, entrantId: 'r1' }],
             },
             {
               poolId: 'p2',
               poolName: 'Pool 2',
               status: 'completed',
-              rows: [{ rank: 1, registrationId: 'r2' }],
+              rows: [{ rank: 1, entrantId: 'r2' }],
             },
           ],
         },
         {
           rows: [
-            { rank: 1, registrationId: 'r1' },
-            { rank: 2, registrationId: 'r2' },
+            { rank: 1, entrantId: 'r1' },
+            { rank: 2, entrantId: 'r2' },
           ],
         },
       );
@@ -3233,21 +3233,21 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       poolId: 'p1',
       poolName: 'Pool 1',
       status: 'completed',
-      rows: [{ rank: 1, registrationId: 'r1' }],
+      rows: [{ rank: 1, entrantId: 'r1' }],
     },
   ];
   const OVERALL_ROWS = [
-    { rank: 1, registrationId: 'r1' },
-    { rank: 2, registrationId: 'r2' },
-    { rank: 3, registrationId: 'r3' },
-    { rank: 4, registrationId: 'r4' },
+    { rank: 1, entrantId: 'r1' },
+    { rank: 2, entrantId: 'r2' },
+    { rank: 3, entrantId: 'r3' },
+    { rank: 4, entrantId: 'r4' },
   ];
 
   function buildService(input: {
     strategy?: string;
     poolPhaseExists?: boolean;
     perPool?: unknown[];
-    overallRows?: Array<{ rank: number; registrationId: string }>;
+    overallRows?: Array<{ rank: number; entrantId: string }>;
     slots: SupabaseRow[];
     matches?: SupabaseRow[];
     swiss?: {
@@ -3255,7 +3255,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       roundCount: number;
       roundsCompleted: number;
       finalized?: boolean;
-      rows: Array<{ rank: number; registrationId: string; displayName: string }>;
+      rows: Array<{ rank: number; entrantId: string; displayName: string }>;
     };
   }) {
     // Another tournament's pool phase is always present: the gate reads
@@ -3419,7 +3419,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
           registration_b_id: 'r7',
         },
       ],
-      overallRows: [{ rank: 1, registrationId: 'r1' }],
+      overallRows: [{ rank: 1, entrantId: 'r1' }],
     });
 
     const result = await service.getTournamentBracket('tournament-1');
@@ -3455,10 +3455,10 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
         roundCount: 4,
         roundsCompleted: 4,
         rows: [
-          { rank: 1, registrationId: 'r1', displayName: 'One' },
-          { rank: 2, registrationId: 'r2', displayName: 'Two' },
-          { rank: 3, registrationId: 'r3', displayName: 'Three' },
-          { rank: 4, registrationId: 'r4', displayName: 'Four' },
+          { rank: 1, entrantId: 'r1', displayName: 'One' },
+          { rank: 2, entrantId: 'r2', displayName: 'Two' },
+          { rank: 3, entrantId: 'r3', displayName: 'Three' },
+          { rank: 4, entrantId: 'r4', displayName: 'Four' },
         ],
       },
     });

@@ -4155,7 +4155,7 @@ export class EventsService {
       const rows = 'rows' in standings ? standings.rows : [];
       return rows.map((r) => ({
         rank: r.rank,
-        registrationId: r.registrationId,
+        registrationId: r.entrantId,
         displayName: r.displayName,
         stats: r.stats,
       }));

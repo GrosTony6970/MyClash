@@ -163,11 +163,10 @@ export function StandingsTable({
           </thead>
           <tbody>
             {standings.map((row, idx) => {
-              const isYou =
-                !!highlightRegistrationId && row.registrationId === highlightRegistrationId;
+              const isYou = !!highlightRegistrationId && row.entrantId === highlightRegistrationId;
               return (
                 <tr
-                  key={row.registrationId}
+                  key={row.entrantId}
                   className={[
                     'border-b border-border last:border-0',
                     isYou ? 'bg-accent/5' : '',

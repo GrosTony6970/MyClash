@@ -187,7 +187,7 @@ describe('Generic_PointsCap', () => {
 
     const scores = () =>
       Generic_PointsCap.scorePoolFighters({
-        registrationIds: ['r1', 'r2'],
+        entrantIds: ['r1', 'r2'],
         completedMatches: [bout],
         afterblowMode: 'full',
         config: {},
@@ -203,7 +203,7 @@ describe('Generic_PointsCap', () => {
       // A fighter with no bouts must still appear, or the standings table drops
       // a row rather than showing a zero.
       const withBye = Generic_PointsCap.scorePoolFighters({
-        registrationIds: ['r1', 'r2', 'r3'],
+        entrantIds: ['r1', 'r2', 'r3'],
         completedMatches: [bout],
         afterblowMode: 'full',
         config: {},
@@ -220,15 +220,16 @@ describe('Generic_PointsCap', () => {
         { id: 'r1', W: 1, diff: 3 },
       ].map((r) => ({
         rank: 0,
-        registrationId: r.id,
+        entrantId: r.id,
         displayName: r.id,
         club: null,
         status: 'completed' as const,
         stats: { W: r.W, diff: r.diff, ptsScored: 0 },
       }));
-      expect(
-        applyRanking(rows, Generic_PointsCap.rankingChain).map((r) => r.registrationId),
-      ).toEqual(['r1', 'r2']);
+      expect(applyRanking(rows, Generic_PointsCap.rankingChain).map((r) => r.entrantId)).toEqual([
+        'r1',
+        'r2',
+      ]);
     });
   });
 });

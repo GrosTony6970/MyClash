@@ -618,8 +618,7 @@ export class PeopleContextService {
           );
           return;
         }
-        for (const row of rows)
-          map.set(row.registrationId, { poolRank: row.rank, finalRank: null });
+        for (const row of rows) map.set(row.entrantId, { poolRank: row.rank, finalRank: null });
 
         // Final placement (best-effort). computeFinalRanking returns [] until the
         // Final is decided, so finalRank stays null during the pool/bracket phases.
@@ -628,7 +627,7 @@ export class PeopleContextService {
             const rawScore = row.stats?.['score'];
             const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
             return {
-              registrationId: row.registrationId,
+              registrationId: row.entrantId,
               fighterName: row.displayName,
               clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
               poolScore: Number.isFinite(score) ? score : null,

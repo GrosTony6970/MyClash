@@ -11,6 +11,7 @@ import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { downloadCsv } from '@/lib/csv-file';
 import { csvFile, type CsvFormat } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 const apiUrl = getPublicApiUrl();
 
@@ -33,20 +34,11 @@ function formatStat(c: StandingsColumn, value: unknown, empty: string): string {
   return String(value);
 }
 
-interface StandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
-}
-
 interface OverallResponse {
   rulesetCode: string;
   rulesetVersion: string;
   columns: StandingsColumn[];
-  rows: StandingsRow[];
+  rows: PoolStandingsRow[];
 }
 
 interface ByPoolResponse {
@@ -57,7 +49,7 @@ interface ByPoolResponse {
     poolId: string;
     poolName: string;
     status: 'in_progress' | 'completed';
-    rows: StandingsRow[];
+    rows: PoolStandingsRow[];
   }>;
 }
 
@@ -158,7 +150,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
 
   function exportStandings(
     columns: StandingsColumn[],
-    rows: Array<StandingsRow & { _poolName?: string }>,
+    rows: Array<PoolStandingsRow & { _poolName?: string }>,
     filename: string,
     format: CsvFormat,
     includePool?: boolean,
@@ -322,7 +314,7 @@ function StandingsTable({
   showFilter,
 }: {
   columns: StandingsColumn[];
-  rows: StandingsRow[];
+  rows: PoolStandingsRow[];
   /** Draw a qualification cut line after this many fighters (= bracket size).
    *  Only meaningful in the overall ranking; omitted in by-pool mode. */
   cutAfterIndex?: number | null;
@@ -444,7 +436,7 @@ function StandingsTable({
             const isCut = showCut && idx === cutAfterIndex - 1 && idx < view.length - 1;
             return (
               <tr
-                key={row.registrationId}
+                key={row.entrantId}
                 className={`${
                   isCut ? 'border-b-2 border-foreground' : 'border-b border-border'
                 } last:border-0 hover:bg-background`}

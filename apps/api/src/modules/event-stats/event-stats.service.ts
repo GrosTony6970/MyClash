@@ -216,7 +216,7 @@ export class EventStatsService {
         columns: standings.columns,
         rows: rows.map((r: StandingsRow) => ({
           rank: r.rank,
-          registrationId: r.registrationId,
+          entrantId: r.entrantId,
           displayName: r.displayName,
           club: r.club,
           stats: r.stats,

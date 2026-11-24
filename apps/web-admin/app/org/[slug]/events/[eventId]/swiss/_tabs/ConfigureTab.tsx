@@ -25,6 +25,7 @@ import {
   type UseSwissAdmin,
 } from '../useSwissAdmin';
 import { GroupingField, type BandPreviewPlayer } from '../_components/GroupingField';
+import type { SwissStandingsWireRow } from '@myclash/types/pool-standings';
 import { LifecyclePanel, WithdrawPanel } from '../_components/LifecyclePanel';
 import { FormatSection } from '../_components/FormatSection';
 import { TiebreakChainField } from '../_components/TiebreakChainField';
@@ -81,7 +82,7 @@ export function ConfigureTab({
     ).then((r) => {
       setStandings(
         (r.ok ? (r.data.rows ?? []) : []).map((row) => ({
-          registrationId: row.registrationId,
+          registrationId: row.entrantId,
           displayName: row.displayName,
           score: Number(row.stats['score'] ?? 0),
         })),
@@ -312,11 +313,7 @@ export function ConfigureTab({
 }
 
 interface StandingsPayload {
-  rows: Array<{
-    registrationId: string;
-    displayName: string;
-    stats: Record<string, number | string>;
-  }>;
+  rows: SwissStandingsWireRow[];
 }
 
 function draftFrom(config: SwissConfig | null, recommended: number): Draft {

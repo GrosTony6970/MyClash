@@ -104,9 +104,9 @@ const build = (over: Record<string, unknown> = {}) => {
   };
 };
 
-/** registrationId -> Swiss points, which is what the table is ranked on. */
-const points = (rows: Array<{ registrationId: string; stats: Record<string, unknown> }>) =>
-  Object.fromEntries(rows.map((r) => [r.registrationId, r.stats['swissPts']]));
+/** entrantId -> Swiss points, which is what the table is ranked on. */
+const points = (rows: Array<{ entrantId: string; stats: Record<string, unknown> }>) =>
+  Object.fromEntries(rows.map((r) => [r.entrantId, r.stats['swissPts']]));
 
 describe('SwissStandingsService — the points a result is worth', () => {
   it('awards the configured points for a win and a loss', async () => {
@@ -163,7 +163,7 @@ describe('SwissStandingsService — the points a result is worth', () => {
     const standings = await service.getSwissStandings('t1');
 
     expect(points(standings.rows)).toEqual({ r1: 0, r2: 3 });
-    expect(standings.rows.find((r) => r.registrationId === 'r2')?.stats['byes']).toBe(1);
+    expect(standings.rows.find((r) => r.entrantId === 'r2')?.stats['byes']).toBe(1);
   });
 
   it('ignores a bout that has not been fought to a result', async () => {
@@ -200,7 +200,7 @@ describe('SwissStandingsService — who appears in the table', () => {
 
     const standings = await service.getSwissStandings('t1');
 
-    expect(standings.rows.find((r) => r.registrationId === 'r2')).toMatchObject({
+    expect(standings.rows.find((r) => r.entrantId === 'r2')).toMatchObject({
       withdrawn: true,
       withdrawnAtRound: 2,
     });
@@ -211,7 +211,7 @@ describe('SwissStandingsService — who appears in the table', () => {
 
     const standings = await service.getSwissStandings('t1');
 
-    expect(standings.rows.find((r) => r.registrationId === 'r1')).toMatchObject({
+    expect(standings.rows.find((r) => r.entrantId === 'r1')).toMatchObject({
       withdrawn: false,
       withdrawnAtRound: null,
     });
@@ -222,7 +222,7 @@ describe('SwissStandingsService — who appears in the table', () => {
 
     const standings = await service.getSwissStandings('t1');
 
-    expect(standings.rows.map((r) => r.registrationId).sort()).toEqual(['r1', 'r2']);
+    expect(standings.rows.map((r) => r.entrantId).sort()).toEqual(['r1', 'r2']);
   });
 });
 
@@ -310,7 +310,7 @@ describe('SwissStandingsService — separating fighters who are level', () => {
 
     const standings = await service.getSwissStandings('t1');
 
-    expect(standings.rows.map((r) => r.registrationId)).toEqual(['r1', 'r2']);
+    expect(standings.rows.map((r) => r.entrantId)).toEqual(['r1', 'r2']);
   });
 
   it('separates two fighters level on points by the bout between them', async () => {
@@ -372,7 +372,7 @@ describe('SwissStandingsService — separating fighters who are level', () => {
 
     // Level on six points each, and r2 is placed first because r2 beat r1.
     expect(points(standings.rows)).toMatchObject({ r1: 6, r2: 6 });
-    const order = standings.rows.map((r) => r.registrationId);
+    const order = standings.rows.map((r) => r.entrantId);
     expect(order.indexOf('r2')).toBeLessThan(order.indexOf('r1'));
   });
 });

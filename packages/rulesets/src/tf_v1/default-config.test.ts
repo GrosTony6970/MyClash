@@ -65,7 +65,7 @@ describe('TF_v1 with no config', () => {
       exchanges: EXCHANGES,
     };
     const pool = {
-      registrationIds: ['reg-red', 'reg-blue'],
+      entrantIds: ['reg-red', 'reg-blue'],
       completedMatches: [bout],
       afterblowMode: 'full' as const,
     };

@@ -26,7 +26,7 @@ export interface DecidingTiebreak {
 
 export interface StandingsRow {
   rank: number;
-  registrationId: string;
+  entrantId: string;
   displayName: string;
   club: { id: string; name: string; abbreviation: string | null } | null;
   status: 'in_progress' | 'completed';
@@ -62,9 +62,7 @@ export function applyRanking(rows: StandingsRow[], rankingChain: RankingRule[]):
     // order, which is whatever PostgREST happened to return -- so two exactly
     // level fighters could swap places between two reads of the same pool. That
     // is not only a display wobble: pool rank feeds bracket promotion.
-    return (
-      byCodepoint(a.displayName, b.displayName) || byCodepoint(a.registrationId, b.registrationId)
-    );
+    return byCodepoint(a.displayName, b.displayName) || byCodepoint(a.entrantId, b.entrantId);
   });
   return sorted.map((row, i) => ({
     ...row,

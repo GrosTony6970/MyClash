@@ -153,7 +153,7 @@ describe('PeopleContextService.enrich', () => {
         rows: [
           {
             rank: 2,
-            registrationId: 'r-1',
+            entrantId: 'r-1',
             displayName: '',
             club: null,
             status: 'in_progress',
@@ -327,7 +327,7 @@ describe('PeopleContextService.enrich', () => {
         rows: [
           {
             rank: 1,
-            registrationId: 'r-3',
+            entrantId: 'r-3',
             displayName: 'Cara Vega',
             club: null,
             status: 'completed',
@@ -335,7 +335,7 @@ describe('PeopleContextService.enrich', () => {
           },
           {
             rank: 2,
-            registrationId: 'r-4',
+            entrantId: 'r-4',
             displayName: 'Dan Roe',
             club: null,
             status: 'completed',
@@ -627,7 +627,7 @@ describe('PeopleContextService.enrich', () => {
         rows: [
           {
             rank: 3,
-            registrationId: 'r-5',
+            entrantId: 'r-5',
             displayName: 'Idle Fighter',
             club: null,
             status: 'completed',

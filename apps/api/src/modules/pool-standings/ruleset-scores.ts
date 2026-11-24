@@ -41,7 +41,7 @@ export function poolScoresByRegistration(
 ): Map<string, number> {
   try {
     return ruleset.scorePoolFighters({
-      registrationIds: poolMembers.map((m) => m.registration_id),
+      entrantIds: poolMembers.map((m) => m.registration_id),
       // `ScoredMatch` is exactly this shape, so a PostgREST row maps onto it
       // field by field. This used to cast rows into `Match[]` and `Registration[]`
       // with `as unknown as`, invent a `Pool` of `{ id: '', name: '' }`, and then

@@ -10,16 +10,6 @@
       "hits": 16,
       "why": "1c: the gear check names the Fighters of a bout by Registration (`:144`-`:152`); named members are people of 1c"
     },
-    "apps/api/src/modules/event-stats/dto/event-stats.dto.ts": {
-      "verdict": "not-yet",
-      "hits": 1,
-      "why": "1b: standings rows keyed `registrationId` (`:100`); the entrant key of standings is renamed in 1b"
-    },
-    "apps/api/src/modules/event-stats/event-stats.service.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: passes standings rows keyed by Registration (`:219`)"
-    },
     "apps/api/src/modules/events/events.service.ts": {
       "verdict": "not-yet",
       "hits": 35,
@@ -540,7 +530,7 @@
     "apps/web-admin/src/components/statistics/types.ts": {
       "verdict": "not-yet",
       "hits": 2,
-      "why": "1b: standings and blow statistics rows keyed `registrationId` (`:85`, `:112`)"
+      "why": "1b: the blow statistics row `FighterStats` is keyed `registrationId` (`:85`); the standings row is keyed `entrantId`"
     },
     "apps/web-admin/src/lib/rules-change-refusal.ts": {
       "verdict": "individual-only",
@@ -867,11 +857,6 @@
       "hits": 1,
       "why": "a history comment quotes the old cast's `winnerRegistrationId` (`:60`); the fields are side ids"
     },
-    "packages/rules/src/formula/derive-stats.ts": {
-      "verdict": "not-yet",
-      "hits": 3,
-      "why": "1b: compares a side id with the entrant key `registrationId` (`:87`-`:88`); the entrant key is renamed in 1b"
-    },
     "packages/rules/src/match-format.ts": {
       "verdict": "no-side-read",
       "hits": 1,
@@ -893,14 +878,9 @@
       "why": "names `pool_members` / `registration_id` in a comment (`:14`); reads no side"
     },
     "packages/rules/src/results/standings.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: standings rows keyed `registrationId` (`:29`, `:66`)"
-    },
-    "packages/rules/src/tf_v1/score.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: compares a side id with the entrant key `registrationId` (`:44`-`:50`); the entrant key is renamed in 1b"
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `registration_id` in a comment about the embed shape (`:7`); its rows are keyed `entrantId`"
     },
     "packages/types/src/final-ranking-core.ts": {
       "verdict": "not-yet",

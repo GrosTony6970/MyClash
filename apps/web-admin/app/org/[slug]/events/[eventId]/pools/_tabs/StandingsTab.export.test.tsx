@@ -25,7 +25,7 @@ const OVERALL = {
   rows: [
     {
       rank: 1,
-      registrationId: 'r-1',
+      entrantId: 'r-1',
       displayName: 'Géraldine Roux',
       club: { id: 'c-1', name: 'Lyon Escrime', abbreviation: 'LYE' },
       status: 'in_progress',

@@ -109,7 +109,7 @@ export interface StandingsColumn {
 
 export interface StandingsRow {
   rank: number;
-  registrationId: string;
+  entrantId: string;
   displayName: string;
   club: { id: string; name: string; abbreviation: string | null } | null;
   stats: Record<string, number | string>;

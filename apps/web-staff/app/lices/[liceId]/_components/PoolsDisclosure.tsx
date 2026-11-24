@@ -10,11 +10,11 @@ import {
   orderLicePoolSummaries,
   type LicePoolSummary,
 } from '../../../../src/components/lice-pool-focus';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import type {
   PoolStandingsPayload,
   PoolWithMatches,
   StandingsColumn,
-  StandingsRow,
 } from '../../../../src/components/tournament-context-types';
 import { ContextStatus } from './ContextStatus';
 import { PoolMatchList } from './PoolMatchList';
@@ -70,7 +70,7 @@ function PoolCard({
   pool: PoolWithMatches | undefined;
   liceId: string;
   columns: StandingsColumn[] | undefined;
-  rows: StandingsRow[] | undefined;
+  rows: PoolStandingsRow[] | undefined;
   scoringConfig: TournamentScoringConfig | null;
 }) {
   // Seeded once, from whether the pool touches this piste: expanding "Pools"

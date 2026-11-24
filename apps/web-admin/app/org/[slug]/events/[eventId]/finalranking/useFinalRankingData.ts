@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import type { PoolEntry, RankingSlot } from '@myclash/ui';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { apiRequest } from '@myclash/api-client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -21,13 +22,6 @@ export interface BracketResponse {
   lbRounds?: number | null;
   bronzeSlotId?: string | null;
   slots: RankingSlot[];
-}
-
-interface StandingsRow {
-  registrationId: string;
-  displayName: string;
-  club: { name: string; abbreviation: string | null } | null;
-  stats: Record<string, number | string>;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -45,14 +39,14 @@ async function readRanking(
   ]);
   if (!bracketResult.ok || !standingsResult.ok) return null;
   const bracket = bracketResult.data as BracketResponse | null;
-  const rows = (standingsResult.data as { rows?: StandingsRow[] } | null)?.rows ?? [];
+  const rows = (standingsResult.data as { rows?: PoolStandingsRow[] } | null)?.rows ?? [];
   return {
     bracket: bracket && Array.isArray(bracket.slots) ? bracket : null,
     poolEntries: rows.map((row) => {
       const raw = row.stats?.['score'];
       const n = typeof raw === 'number' ? raw : Number(raw);
       return {
-        registrationId: row.registrationId,
+        registrationId: row.entrantId,
         fighterName: row.displayName,
         clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
         poolScore: Number.isFinite(n) ? n : null,

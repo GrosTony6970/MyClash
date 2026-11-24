@@ -16,11 +16,7 @@ import { useEffect, useState } from 'react';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
-
-interface SwissStandingsRow {
-  registrationId: string;
-  displayName: string;
-}
+import type { SwissStandingsWireRow } from '@myclash/types/pool-standings';
 
 export function SwissPodiumPanel({ tournamentId }: { tournamentId: string }) {
   const { t } = useI18n();
@@ -34,7 +30,7 @@ export function SwissPodiumPanel({ tournamentId }: { tournamentId: string }) {
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        const rows = (data as { rows?: SwissStandingsRow[] } | null)?.rows ?? [];
+        const rows = (data as { rows?: SwissStandingsWireRow[] } | null)?.rows ?? [];
         if (rows.length === 0) return;
         setPodium({
           gold: rows[0] ? { fighterName: rows[0].displayName } : null,

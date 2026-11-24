@@ -56,6 +56,8 @@ would be a lie the next reader trusts. The rename boundary is:
 - The database columns keep their names, because they really do hold Registrations.
 - The fields that key an **entrant** (a standings row, a Pool seat, a bracket seed) are not renamed
   in slice 1a. Each is renamed in the slice that first sends a Team through it. Swiss is left alone.
+  The shared standings field name (`entrantId`) follows into Swiss by name only, because a Swiss
+  row extends the standings row. Swiss still has no team path.
 - One person's history (`packages/rules/src/results/fighter-career.ts`) keeps its own names.
 
 **A missed reader is not safe. The gate is the guard.** Under approach B, a place that compares

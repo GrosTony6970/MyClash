@@ -319,7 +319,7 @@ export class PhasesService {
         const person = r['persons'] as (RatedPerson & { club_id: string | null }) | null;
         const hemaRatingsId = eventHemaRatingsId(person);
         return {
-          registrationId: r['id'] as string,
+          entrantId: r['id'] as string,
           clubId: person?.club_id ?? null,
           skillRating: hemaRatingsId ? (weightedRatings.get(hemaRatingsId) ?? null) : null,
           seed: (r['seed'] as number | null) ?? (r['bib_number'] as number | null) ?? idx + 1,
@@ -345,7 +345,7 @@ export class PhasesService {
 
       for (const a of optimized) {
         const existing = poolMap.get(a.poolIndex) ?? [];
-        existing.push(a.registrationId);
+        existing.push(a.entrantId);
         poolMap.set(a.poolIndex, existing);
       }
     }
@@ -1442,7 +1442,7 @@ export class PhasesService {
         rankings: buildCrossPoolSnakeRanking(
           perPool.map((p) => ({
             poolId: p.poolId,
-            rows: p.rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId })),
+            rows: p.rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId })),
           })),
           topN,
         ),
@@ -1455,7 +1455,7 @@ export class PhasesService {
       ok: true,
       source: 'pool-standings',
       warnings: [],
-      rankings: rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId })),
+      rankings: rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId })),
     };
   }
 
@@ -1531,7 +1531,7 @@ export class PhasesService {
     }
     const overallResponse = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
     const rows = 'rows' in overallResponse ? overallResponse.rows : [];
-    return rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId }));
+    return rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId }));
   }
 
   /**
@@ -1646,7 +1646,7 @@ export class PhasesService {
     return {
       rankings: standings.rows.map((row) => ({
         rank: row.rank,
-        registrationId: row.registrationId,
+        registrationId: row.entrantId,
       })),
       warnings,
     };

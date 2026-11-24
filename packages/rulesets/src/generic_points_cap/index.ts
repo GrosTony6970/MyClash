@@ -168,15 +168,15 @@ function matchOver(
  * configured `pointValues.hit` first.
  */
 function scoreFighters({
-  registrationIds,
+  entrantIds,
   completedMatches,
   config,
 }: {
-  registrationIds: string[];
+  entrantIds: string[];
   completedMatches: ScoredMatch[];
   config: GenericPointsCapConfig;
 }): Map<string, number> {
-  const stats = new Map(registrationIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
+  const stats = new Map(entrantIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
 
   for (const match of completedMatches) {
     // No ceiling here, and that is now the RULE rather than an omission: this
@@ -241,9 +241,9 @@ const GENERIC_SHARED = {
     );
   },
 
-  scorePoolFighters({ registrationIds, completedMatches, config }: ScorePoolFightersInput) {
+  scorePoolFighters({ entrantIds, completedMatches, config }: ScorePoolFightersInput) {
     return scoreFighters({
-      registrationIds,
+      entrantIds,
       completedMatches,
       config: normalizeGenericPointsCapConfig(config),
     });

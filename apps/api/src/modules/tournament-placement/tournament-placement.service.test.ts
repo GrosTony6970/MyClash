@@ -29,8 +29,8 @@ describe('TournamentPlacementService', () => {
 
   const standings = {
     rows: [
-      { registrationId, displayName: 'Me', rank: 1, club: null, stats: { score: 9 } },
-      { registrationId: 'reg-2', displayName: 'Them', rank: 2, club: null, stats: { score: 3 } },
+      { entrantId: registrationId, displayName: 'Me', rank: 1, club: null, stats: { score: 9 } },
+      { entrantId: 'reg-2', displayName: 'Them', rank: 2, club: null, stats: { score: 3 } },
     ],
   };
 
@@ -171,10 +171,10 @@ describe('TournamentPlacementService', () => {
     ];
     const standingsRows = {
       rows: [
-        { registrationId: 'A', displayName: 'A', rank: 1, club: null, stats: { score: 10 } },
-        { registrationId: 'B', displayName: 'B', rank: 2, club: null, stats: { score: 8 } },
-        { registrationId: 'C', displayName: 'C', rank: 3, club: null, stats: { score: 6 } },
-        { registrationId: 'D', displayName: 'D', rank: 4, club: null, stats: { score: 4 } },
+        { entrantId: 'A', displayName: 'A', rank: 1, club: null, stats: { score: 10 } },
+        { entrantId: 'B', displayName: 'B', rank: 2, club: null, stats: { score: 8 } },
+        { entrantId: 'C', displayName: 'C', rank: 3, club: null, stats: { score: 6 } },
+        { entrantId: 'D', displayName: 'D', rank: 4, club: null, stats: { score: 4 } },
       ],
     };
     const service = makeService({ slots, openMatches: 0, standingsRows });

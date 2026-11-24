@@ -25,7 +25,7 @@ const C = 'reg-c';
 
 type Rows = ReturnType<typeof computeStandingsRows>;
 
-const statsOf = (rows: Rows, id: string) => rows.find((r) => r.registrationId === id)!.stats;
+const statsOf = (rows: Rows, id: string) => rows.find((r) => r.entrantId === id)!.stats;
 
 function member(registrationId: string, givenName: string): StandingsMember {
   return {
@@ -90,8 +90,8 @@ function exchange(over: Partial<Exchange>): Exchange {
  */
 function stubRuleset(scores: Record<string, number> = {}) {
   const scorePoolFighters = vi.fn(
-    ({ registrationIds }: { registrationIds: string[] }) =>
-      new Map(registrationIds.map((id) => [id, scores[id] ?? 0])),
+    ({ entrantIds }: { entrantIds: string[] }) =>
+      new Map(entrantIds.map((id) => [id, scores[id] ?? 0])),
   );
   const ruleset = {
     code: 'Stub',
@@ -384,7 +384,7 @@ describe('computeStandingsRows — the row itself', () => {
     );
 
     expect(rows[0]).toMatchObject({
-      registrationId: A,
+      entrantId: A,
       displayName: 'Ada Lovelace',
       club: { id: 'club-1', name: 'Lyon AMHE', abbreviation: 'LAM' },
       status: 'in_progress',
@@ -403,7 +403,7 @@ describe('computeStandingsRows — the row itself', () => {
       }),
     );
 
-    expect(rows.map((row) => row.registrationId)).toEqual([C, A, B]);
+    expect(rows.map((row) => row.entrantId)).toEqual([C, A, B]);
     expect(rows.map((row) => row.rank)).toEqual([1, 2, 3]);
   });
 });

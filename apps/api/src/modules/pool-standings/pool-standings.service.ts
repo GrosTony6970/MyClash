@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule, Exchange, Ruleset } from '@myclash/rulesets';
 import { afterblowModeInForce } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { computeStandingsRows } from './compute-rows';
 import { applyRanking, type StandingsRow } from '@myclash/rules/results';
 import type { PoolWithMembers } from './pool-rows';
@@ -38,7 +39,7 @@ export type PoolStandingsResponse =
       rulesetVersion: string;
       ruleset: RulesetDerivationMeta;
       columns: StandingsColumn[];
-      rows: StandingsRow[];
+      rows: PoolStandingsRow[];
     }
   | {
       rulesetCode: string;
@@ -49,7 +50,7 @@ export type PoolStandingsResponse =
         poolId: string;
         poolName: string;
         status: 'in_progress' | 'completed';
-        rows: StandingsRow[];
+        rows: PoolStandingsRow[];
       }>;
     };
 

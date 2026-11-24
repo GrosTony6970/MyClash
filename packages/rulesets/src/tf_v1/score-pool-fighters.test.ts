@@ -63,7 +63,7 @@ function bout(
 
 const score = (ids: string[], matches: ScoredMatch[], mode: 'full' | 'deductive' = 'full') =>
   TF_v1.scorePoolFighters({
-    registrationIds: ids,
+    entrantIds: ids,
     completedMatches: matches,
     afterblowMode: mode,
     config: TFv1DefaultConfig,
@@ -149,7 +149,7 @@ describe('TF_v1 scorePoolFighters', () => {
     const matches = [bout('m1', 'r1', 'r2', 'r1', [clean('m1', 1, 'red'), double('m1', 2)])];
     const withBonus = (winBonus: number) =>
       TF_v1.scorePoolFighters({
-        registrationIds: ['r1'],
+        entrantIds: ['r1'],
         completedMatches: matches,
         afterblowMode: 'full',
         config: { ...TFv1DefaultConfig, winBonus },
@@ -162,7 +162,7 @@ describe('TF_v1 scorePoolFighters', () => {
 describe('the TF_v1 ranking chain, executed', () => {
   const row = (id: string, stats: Record<string, number>): StandingsRow => ({
     rank: 0,
-    registrationId: id,
+    entrantId: id,
     displayName: id,
     club: null,
     status: 'completed',
@@ -170,7 +170,7 @@ describe('the TF_v1 ranking chain, executed', () => {
   });
 
   const order = (rows: StandingsRow[]) =>
-    applyRanking(rows, TF_v1.rankingChain).map((r) => r.registrationId);
+    applyRanking(rows, TF_v1.rankingChain).map((r) => r.entrantId);
 
   it('declares score, then wins, then doubles, then hits received', () => {
     // The chain IS the tiebreak order. Pinning it here is what makes the three

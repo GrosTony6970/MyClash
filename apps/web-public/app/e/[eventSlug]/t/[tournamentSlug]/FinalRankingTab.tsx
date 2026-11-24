@@ -27,6 +27,7 @@ import {
 } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { SelfRowFocus } from './SelfRowFocus';
+import type { PoolStandingsRow, SwissStandingsWireRow } from '@myclash/types/pool-standings';
 import type { BracketSlot } from './page';
 import type { TournamentPhaseType } from './tournament-data';
 
@@ -61,13 +62,6 @@ function YouChip({ label }: { label: string }) {
       {label}
     </span>
   );
-}
-
-interface OverallStandingsRow {
-  registrationId: string;
-  displayName: string;
-  club: { name: string; abbreviation: string | null } | null;
-  stats: Record<string, number | string>;
 }
 
 export function FinalRankingTab({
@@ -105,13 +99,14 @@ export function FinalRankingTab({
     void fetch(endpoint, { cache: 'no-store', signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        const rows = (data as { rows?: OverallStandingsRow[] } | null)?.rows ?? [];
+        const rows =
+          (data as { rows?: Array<PoolStandingsRow | SwissStandingsWireRow> } | null)?.rows ?? [];
         setPoolEntries(
           rows.map((row) => {
             const raw = row.stats?.['score'];
             const n = typeof raw === 'number' ? raw : Number(raw);
             return {
-              registrationId: row.registrationId,
+              registrationId: row.entrantId,
               fighterName: row.displayName,
               clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
               poolScore: Number.isFinite(n) ? n : null,

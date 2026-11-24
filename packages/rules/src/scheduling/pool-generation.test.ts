@@ -11,7 +11,7 @@ import {
 
 function makeFighters(count: number, clubCount = 1): Fighter[] {
   return Array.from({ length: count }, (_, i) => ({
-    registrationId: `reg-${i + 1}`,
+    entrantId: `reg-${i + 1}`,
     clubId: `club-${(i % clubCount) + 1}`,
     skillRating: count - i, // descending skill
     seed: i + 1,
@@ -51,9 +51,9 @@ describe('computePoolSizes', () => {
 describe('sortBySkill', () => {
   it('sorts by skillRating descending', () => {
     const fighters: Fighter[] = [
-      { registrationId: 'r1', clubId: null, skillRating: 3, seed: 1 },
-      { registrationId: 'r2', clubId: null, skillRating: 5, seed: 2 },
-      { registrationId: 'r3', clubId: null, skillRating: 1, seed: 3 },
+      { entrantId: 'r1', clubId: null, skillRating: 3, seed: 1 },
+      { entrantId: 'r2', clubId: null, skillRating: 5, seed: 2 },
+      { entrantId: 'r3', clubId: null, skillRating: 1, seed: 3 },
     ];
     const sorted = sortBySkill(fighters);
     expect(sorted.map((f) => f.skillRating)).toEqual([5, 3, 1]);
@@ -61,8 +61,8 @@ describe('sortBySkill', () => {
 
   it('places unrated fighters last', () => {
     const fighters: Fighter[] = [
-      { registrationId: 'r1', clubId: null, skillRating: null, seed: 1 },
-      { registrationId: 'r2', clubId: null, skillRating: 5, seed: 2 },
+      { entrantId: 'r1', clubId: null, skillRating: null, seed: 1 },
+      { entrantId: 'r2', clubId: null, skillRating: 5, seed: 2 },
     ];
     const sorted = sortBySkill(fighters);
     expect(sorted[0]?.skillRating).toBe(5);
@@ -71,9 +71,9 @@ describe('sortBySkill', () => {
 
   it('tiebreaks by seed ascending', () => {
     const fighters: Fighter[] = [
-      { registrationId: 'r1', clubId: null, skillRating: 5, seed: 3 },
-      { registrationId: 'r2', clubId: null, skillRating: 5, seed: 1 },
-      { registrationId: 'r3', clubId: null, skillRating: 5, seed: 2 },
+      { entrantId: 'r1', clubId: null, skillRating: 5, seed: 3 },
+      { entrantId: 'r2', clubId: null, skillRating: 5, seed: 1 },
+      { entrantId: 'r3', clubId: null, skillRating: 5, seed: 2 },
     ];
     const sorted = sortBySkill(fighters);
     expect(sorted.map((f) => f.seed)).toEqual([1, 2, 3]);
@@ -142,7 +142,7 @@ describe('localSearch', () => {
     // We use 18 fighters (6 clubs × 3 each) which satisfies the spirit of the AC.
     // Note: 24 fighters with 6 clubs = 4 per club → minimum 6 pairs (unavoidable).
     const fighters: Fighter[] = Array.from({ length: 18 }, (_, i) => ({
-      registrationId: `reg-${i + 1}`,
+      entrantId: `reg-${i + 1}`,
       clubId: `club-${(i % 6) + 1}`, // 3 fighters per club
       skillRating: 18 - i,
       seed: i + 1,
@@ -163,17 +163,17 @@ describe('localSearch', () => {
 describe('buildCostReport', () => {
   it('reports same-club pairs correctly', () => {
     const fighters: Fighter[] = [
-      { registrationId: 'r1', clubId: 'club-A', skillRating: 5, seed: 1 },
-      { registrationId: 'r2', clubId: 'club-A', skillRating: 4, seed: 2 }, // same club as r1
-      { registrationId: 'r3', clubId: 'club-B', skillRating: 3, seed: 3 },
-      { registrationId: 'r4', clubId: 'club-B', skillRating: 2, seed: 4 }, // same club as r3
+      { entrantId: 'r1', clubId: 'club-A', skillRating: 5, seed: 1 },
+      { entrantId: 'r2', clubId: 'club-A', skillRating: 4, seed: 2 }, // same club as r1
+      { entrantId: 'r3', clubId: 'club-B', skillRating: 3, seed: 3 },
+      { entrantId: 'r4', clubId: 'club-B', skillRating: 2, seed: 4 }, // same club as r3
     ];
     // Force both same-club pairs into pool 0
     const assignments = [
-      { poolIndex: 0, registrationId: 'r1' },
-      { poolIndex: 0, registrationId: 'r2' },
-      { poolIndex: 1, registrationId: 'r3' },
-      { poolIndex: 1, registrationId: 'r4' },
+      { poolIndex: 0, entrantId: 'r1' },
+      { poolIndex: 0, entrantId: 'r2' },
+      { poolIndex: 1, entrantId: 'r3' },
+      { poolIndex: 1, entrantId: 'r4' },
     ];
     const report = buildCostReport(assignments, fighters, 2, DEFAULT_SETTINGS);
     expect(report.sameClubPairsPerPool[0]?.count).toBe(1); // r1+r2 in pool 0
@@ -183,12 +183,12 @@ describe('buildCostReport', () => {
 
   it('reports schoolSeparationSatisfied=true when no same-club pairs', () => {
     const fighters: Fighter[] = [
-      { registrationId: 'r1', clubId: 'club-A', skillRating: 5, seed: 1 },
-      { registrationId: 'r2', clubId: 'club-B', skillRating: 4, seed: 2 },
+      { entrantId: 'r1', clubId: 'club-A', skillRating: 5, seed: 1 },
+      { entrantId: 'r2', clubId: 'club-B', skillRating: 4, seed: 2 },
     ];
     const assignments = [
-      { poolIndex: 0, registrationId: 'r1' },
-      { poolIndex: 1, registrationId: 'r2' },
+      { poolIndex: 0, entrantId: 'r1' },
+      { poolIndex: 1, entrantId: 'r2' },
     ];
     const report = buildCostReport(assignments, fighters, 2, DEFAULT_SETTINGS);
     expect(report.schoolSeparationSatisfied).toBe(true);

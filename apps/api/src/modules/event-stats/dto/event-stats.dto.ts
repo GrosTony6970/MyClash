@@ -97,7 +97,7 @@ export interface TournamentStatsDetailResponse {
     columns: StandingsColumn[];
     rows: Array<{
       rank: number;
-      registrationId: string;
+      entrantId: string;
       displayName: string;
       club: { id: string; name: string; abbreviation: string | null } | null;
       stats: Record<string, number | string>;

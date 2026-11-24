@@ -167,7 +167,7 @@ describe('defaultAfterblowMode is a seed, never a runtime input', () => {
     // The ruleset here declares 'full'. The tournament says 'deductive', and
     // deductive is what must win: attacker keeps 2 - 1 = 1, defender gets 0.
     const scores = hitsGivenRuleset('full').scorePoolFighters({
-      registrationIds: ['r1', 'r2'],
+      entrantIds: ['r1', 'r2'],
       completedMatches: [bout],
       afterblowMode: 'deductive',
       config: {},
@@ -181,7 +181,7 @@ describe('defaultAfterblowMode is a seed, never a runtime input', () => {
     // full both sides keep what they landed. Asserting only the case above
     // would pass even if the mode were ignored and 'deductive' hardcoded.
     const scores = hitsGivenRuleset('deductive').scorePoolFighters({
-      registrationIds: ['r1', 'r2'],
+      entrantIds: ['r1', 'r2'],
       completedMatches: [bout],
       afterblowMode: 'full',
       config: {},

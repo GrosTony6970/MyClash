@@ -70,7 +70,7 @@ function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): M
  * different ways.
  */
 export function deriveFighterStats(
-  registrationId: string,
+  entrantId: string,
   completedMatches: ScoredMatch[],
   afterblowMode: AfterblowMode,
 ): DerivedFighterStats {
@@ -84,8 +84,8 @@ export function deriveFighterStats(
   };
 
   for (const match of completedMatches) {
-    const isRed = match.redSideId === registrationId;
-    const isBlue = match.blueSideId === registrationId;
+    const isRed = match.redSideId === entrantId;
+    const isBlue = match.blueSideId === entrantId;
     if (!isRed && !isBlue) continue;
 
     const exchanges = match.exchanges;
