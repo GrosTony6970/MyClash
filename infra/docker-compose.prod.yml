@@ -123,7 +123,7 @@ services:
       # throttle-profiles.ts): this is a volumetric backstop, not the primary
       # auth control.
       #
-      # BOTH JAILS RIDE LOGIN SURFACES ONLY. Counting 401/403 on a router that
+      # THE JAILS RIDE LOGIN SURFACES ONLY. Counting 401/403 on a router that
       # carries authenticated APP traffic bans real people: an expired sliding
       # session emits a burst of 401s that is indistinguishable from an attack.
       # That is why myclash-admin-api has never chained one, and why
@@ -146,6 +146,18 @@ services:
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
+      # -oauth — GoTrue's OAuth server (/auth/v1/oauth/*), which Claude calls.
+      # The -auth jail's numbers, and its allowlist plus Anthropic's egress
+      # range (TRAEFIK_OAUTH_BAN_ALLOWLIST): Claude registers, swaps codes and
+      # refreshes tokens for EVERY person who connects from those few
+      # addresses, so one person's failures must not ban everyone's Claude.
+      # A jail of its own, so that exemption never reaches the password door.
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.allowlist.ip=${TRAEFIK_OAUTH_BAN_ALLOWLIST}
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.statuscode=401,403,429
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.maxretry=20
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.bantime=30m
       # -staff — scoring PIN login. An entire venue shares one NAT'd IP on
       # tournament day and a referee fumbling a PIN is normal, so the threshold
       # is high: 60/10m still cuts the unthrottled PIN surface from ~7,200
@@ -250,6 +262,19 @@ services:
       GOTRUE_CORS_ALLOWED_HEADERS: apikey
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
+      # GoTrue's OAuth server: how a person connects Claude to their account
+      # (MCP slice 1). GoTrue has no default issuer. This one becomes the `iss`
+      # of EVERY login token, not only Claude's — nothing reads `iss` today —
+      # and the base of every URL in its discovery document, so it must name
+      # the address the API advertises (`${SUPABASE_URL}/auth/v1`, mcp-urls.ts).
+      # Claude registers itself; the consent API, not GoTrue, refuses every
+      # redirect but Claude's (claude-callbacks.ts). /authorize sends the
+      # browser to GOTRUE_SITE_URL + the path below, the web-public consent page.
+      GOTRUE_JWT_ISSUER: https://app.${DOMAIN}/auth/v1
+      GOTRUE_OAUTH_SERVER_ENABLED: 'true'
+      GOTRUE_OAUTH_SERVER_ALLOW_DYNAMIC_REGISTRATION: 'true'
+      GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH: /oauth/consent
+      GOTRUE_OAUTH_SERVER_DEFAULT_SCOPE: email
       # Password policy. This is the REAL boundary, not our Zod: the
       # myclash-auth router below exposes /auth/v1/* on app.${DOMAIN}, so a
       # client can POST straight to /signup or /user and miss every DTO in the
@@ -872,6 +897,29 @@ services:
       - traefik.http.routers.myclash-auth-signup.middlewares=myclash-security-headers@file,myclash-gotrue-signup-refused@docker
       - traefik.http.routers.myclash-auth-signup.priority=60
       - traefik.http.routers.myclash-auth-signup.service=myclash-supabase-auth
+      # GoTrue's OAuth server (/auth/v1/oauth/*: Claude's registration, the
+      # authorize redirect, the token swap) behind its own jail, which lets
+      # Anthropic's servers through (myclash-fail2ban-oauth above). Above
+      # myclash-auth's 20, or the auth jail answers these paths.
+      - traefik.http.routers.myclash-auth-oauth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1/oauth/`)
+      - traefik.http.routers.myclash-auth-oauth.entrypoints=websecure
+      - traefik.http.routers.myclash-auth-oauth.tls=true
+      - traefik.http.routers.myclash-auth-oauth.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth-oauth.middlewares=${MW_GEO_PUBLIC}${MW_F2B_OAUTH}myclash-security-headers@file,supabase-auth-strip
+      - traefik.http.routers.myclash-auth-oauth.priority=30
+      - traefik.http.routers.myclash-auth-oauth.service=myclash-supabase-auth
+      # GoTrue's discovery document. Claude looks for it by RFC 8414's path
+      # insertion (/.well-known/oauth-authorization-server/auth/v1); GoTrue
+      # serves it only at its own root, so this one path is rewritten there.
+      # One public document, no 401 or 403 to count: no jail.
+      - traefik.http.middlewares.myclash-auth-discovery-path.replacepath.path=/.well-known/oauth-authorization-server
+      - traefik.http.routers.myclash-auth-discovery.rule=Host(`app.${DOMAIN}`) && Path(`/.well-known/oauth-authorization-server/auth/v1`)
+      - traefik.http.routers.myclash-auth-discovery.entrypoints=websecure
+      - traefik.http.routers.myclash-auth-discovery.tls=true
+      - traefik.http.routers.myclash-auth-discovery.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth-discovery.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-auth-discovery-path
+      - traefik.http.routers.myclash-auth-discovery.priority=30
+      - traefik.http.routers.myclash-auth-discovery.service=myclash-supabase-auth
       # Realtime REST: /realtime/v1/api/ping -> /api/ping, and nothing else. The
       # edge TLS check probes ping (it resolves the tenant from the Host, as the
       # socket does); our apps call no other /api route (the API's RealtimeService

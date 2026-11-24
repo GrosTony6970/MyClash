@@ -66,6 +66,13 @@ services:
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
+      # Prod's OAuth jail: the auth jail plus Anthropic's egress range.
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,160.79.104.0/21
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.statuscode=401,403,429
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.maxretry=20
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.rules.bantime=30m
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.enabled=true
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,403,429
@@ -160,6 +167,13 @@ services:
       GOTRUE_CORS_ALLOWED_HEADERS: apikey
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       GOTRUE_JWT_EXP: 3600
+      # GoTrue's OAuth server, as prod (see there). Dev serves /auth/v1 on
+      # api.myclash.localhost, so that is the issuer: the API's SUPABASE_URL.
+      GOTRUE_JWT_ISSUER: https://api.myclash.localhost/auth/v1
+      GOTRUE_OAUTH_SERVER_ENABLED: 'true'
+      GOTRUE_OAUTH_SERVER_ALLOW_DYNAMIC_REGISTRATION: 'true'
+      GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH: /oauth/consent
+      GOTRUE_OAUTH_SERVER_DEFAULT_SCOPE: email
       # Mirrors prod so a password accepted here is accepted there. Groups are
       # ':'-delimited, hence no ':' in the punctuation group. ONE OWNER:
       # identical to PASSWORD_SPECIAL_CHARS in packages/types/src/password.ts.
@@ -198,6 +212,22 @@ services:
       - traefik.http.routers.dev-auth-signup.middlewares=dev-gotrue-signup-refused@docker
       - traefik.http.routers.dev-auth-signup.priority=60
       - traefik.http.routers.dev-auth-signup.service=dev-auth
+      # Dev twins of prod's myclash-auth-oauth (GoTrue's OAuth server, its own
+      # jail) and myclash-auth-discovery (RFC 8414's path onto GoTrue's root
+      # document). Priority 30 beats dev-api's rule-length 29 on this host.
+      - traefik.http.routers.dev-auth-oauth.rule=Host(`api.myclash.localhost`) && PathPrefix(`/auth/v1/oauth/`)
+      - traefik.http.routers.dev-auth-oauth.entrypoints=websecure
+      - traefik.http.routers.dev-auth-oauth.tls=true
+      - traefik.http.routers.dev-auth-oauth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-oauth@docker,dev-supabase-auth-strip
+      - traefik.http.routers.dev-auth-oauth.priority=30
+      - traefik.http.routers.dev-auth-oauth.service=dev-auth
+      - traefik.http.middlewares.dev-auth-discovery-path.replacepath.path=/.well-known/oauth-authorization-server
+      - traefik.http.routers.dev-auth-discovery.rule=Host(`api.myclash.localhost`) && Path(`/.well-known/oauth-authorization-server/auth/v1`)
+      - traefik.http.routers.dev-auth-discovery.entrypoints=websecure
+      - traefik.http.routers.dev-auth-discovery.tls=true
+      - traefik.http.routers.dev-auth-discovery.middlewares=myclash-geoblock-public@file,dev-auth-discovery-path
+      - traefik.http.routers.dev-auth-discovery.priority=30
+      - traefik.http.routers.dev-auth-discovery.service=dev-auth
 
   # ── Supabase REST (PostgREST) ─────────────────────────────────────
   supabase-rest:

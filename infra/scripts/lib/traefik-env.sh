@@ -31,6 +31,13 @@ fi
 # whitelist yields the local ranges with no trailing comma.
 export TRAEFIK_BAN_ALLOWLIST="127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16${_mc_throttle_whitelist:+,$_mc_throttle_whitelist}"
 
+# The OAuth jail's list: the same, plus Anthropic's egress range. Claude's
+# servers call GoTrue's OAuth server (/auth/v1/oauth/*) for every person who
+# connects Claude, from those few addresses; banning one bans everyone's Claude.
+# The base list above always starts with the local ranges, so this join never
+# leads with a comma.
+export TRAEFIK_OAUTH_BAN_ALLOWLIST="$TRAEFIK_BAN_ALLOWLIST,160.79.104.0/21"
+
 # --- Studio allowlist -------------------------------------------------------
 # Same source, opposite semantics — so NOT the same value. The ban allowlist
 # carries the RFC1918 ranges because "don't ban the local network" is right;
@@ -65,7 +72,7 @@ unset _mc_throttle_whitelist
 #   TRAEFIK_PLUGINS=off ./infra/scripts/start.sh
 #
 if [[ "${TRAEFIK_PLUGINS:-on}" == "off" ]]; then
-  export MW_GEO_ADMIN="" MW_GEO_PUBLIC="" MW_F2B_AUTH="" MW_F2B_STAFF=""
+  export MW_GEO_ADMIN="" MW_GEO_PUBLIC="" MW_F2B_AUTH="" MW_F2B_STAFF="" MW_F2B_OAUTH=""
   warn "TRAEFIK_PLUGINS=off — GeoBlock and Fail2Ban middlewares are DETACHED."
   warn "The edge is serving without country filtering or ban protection."
 else
@@ -73,6 +80,7 @@ else
   export MW_GEO_PUBLIC="myclash-geoblock-public@file,"
   export MW_F2B_AUTH="myclash-fail2ban-auth@docker,"
   export MW_F2B_STAFF="myclash-fail2ban-staff@docker,"
+  export MW_F2B_OAUTH="myclash-fail2ban-oauth@docker,"
 fi
 
 # --- Post-start warning -----------------------------------------------------

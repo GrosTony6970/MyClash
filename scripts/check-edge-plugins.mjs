@@ -117,12 +117,13 @@ export const PROD_PROBES = [
   },
 ];
 
-/** The four instances declared across middlewares.yml and the traefik labels. */
+/** The five instances declared across middlewares.yml and the traefik labels. */
 export const EXPECTED_MIDDLEWARES = [
   'myclash-geoblock-admin@file',
   'myclash-geoblock-public@file',
   'myclash-fail2ban-auth@docker',
   'myclash-fail2ban-staff@docker',
+  'myclash-fail2ban-oauth@docker',
 ];
 
 /**
@@ -159,6 +160,13 @@ export const EXPECTED_ROUTERS = {
       middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker'],
       outranks: ['myclash-staff-auth@docker', 'myclash-admin-api@docker'],
     },
+    {
+      // GoTrue's OAuth server. myclash-auth matches these paths too and chains
+      // the same headers, so only this table can tell which jail answered.
+      name: 'myclash-auth-oauth@docker',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker'],
+      outranks: ['myclash-auth@docker'],
+    },
   ],
   dev: [
     {
@@ -170,6 +178,11 @@ export const EXPECTED_ROUTERS = {
       name: 'dev-staff-auth-admin@docker',
       middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker'],
       outranks: ['dev-staff-auth@docker', 'dev-admin-api@docker'],
+    },
+    {
+      name: 'dev-auth-oauth@docker',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker'],
+      outranks: ['dev-auth@docker', 'dev-api@docker'],
     },
   ],
 };

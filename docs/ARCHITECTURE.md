@@ -4198,6 +4198,8 @@ flowchart LR
   H_APP -->|"/api/v1 · 30"| API
   H_APP -->|"/realtime/v1/api/ping · 25"| RT
   H_APP -->|"/realtime/v1 · 20"| RT
+  H_APP -->|"/auth/v1/oauth/ · 30 🔒"| AUTH
+  H_APP -->|"/.well-known/oauth-authorization-server/auth/v1 · 30"| AUTH
   H_APP -->|"/auth/v1 · 20 🔒"| AUTH
   H_APP -->|"/rest/v1 · 20"| REST
   H_APP -->|"/storage/v1 · 20"| STOR
@@ -4223,9 +4225,13 @@ flowchart LR
   STOR["supabase-storage :5000"]
 ```
 
-🔒 marks the two paths guarded by Fail2Ban. They are guarded precisely because the application-level
+🔒 marks the paths guarded by Fail2Ban. They are guarded precisely because the application-level
 throttler cannot reach them: `/auth/v1` proxies straight to GoTrue without passing through NestJS, and
-staff PIN login carries no `@Throttle` override (see §14.3). Port 80 exists only to redirect to 443, and
+staff PIN login carries no `@Throttle` override (see §14.3). `/auth/v1/oauth/` (GoTrue's OAuth server,
+which Claude's connector calls) has a jail of its own, `myclash-fail2ban-oauth`: the auth jail's
+numbers, with Anthropic's egress range `160.79.104.0/21` allowed, because Claude reaches it from those
+few addresses for every person who connects. The discovery path is rewritten onto GoTrue's own
+document, which GoTrue serves only at its root. Port 80 exists only to redirect to 443, and
 **Traefik is the only container that publishes ports**.
 
 #### Internal service dependencies

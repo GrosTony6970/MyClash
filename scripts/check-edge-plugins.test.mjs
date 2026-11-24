@@ -111,12 +111,12 @@ function enabledMiddlewares() {
   return EXPECTED_MIDDLEWARES.map((name) => ({ name, status: 'enabled', error: [] }));
 }
 
-/** One router referencing all four, so the reference check is satisfied. */
+/** One router referencing all of them, so the reference check is satisfied. */
 function routersUsingAll() {
   return [{ name: 'myclash-api@docker', status: 'enabled', middlewares: EXPECTED_MIDDLEWARES }];
 }
 
-test('deep mode passes when all four middlewares and every router are enabled', () => {
+test('deep mode passes when every expected middleware and router is enabled', () => {
   const errors = deepVerdicts(enabledMiddlewares(), routersUsingAll());
   assert.deepEqual(errors, []);
 });
@@ -181,6 +181,28 @@ test('deep mode reports routers that failed to build', () => {
  * carrying no priority label.
  */
 const CHAIN_TAIL = ['myclash-security-headers@file', 'myclash-compress@file'];
+/**
+ * GoTrue's two routers on app., written from the compose labels (the OAuth one
+ * was not deployed when this was written): the OAuth server's jail must win
+ * over the /auth/v1 one on its own paths.
+ */
+const GOTRUE_TAIL = ['myclash-security-headers@file', 'supabase-auth-strip@docker'];
+const GOTRUE_ROUTERS = [
+  {
+    name: 'myclash-auth@docker',
+    rule: 'Host(`app.myclash.fr`) && PathPrefix(`/auth/v1`)',
+    priority: 20,
+    status: 'enabled',
+    middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-auth@docker', ...GOTRUE_TAIL],
+  },
+  {
+    name: 'myclash-auth-oauth@docker',
+    rule: 'Host(`app.myclash.fr`) && PathPrefix(`/auth/v1/oauth/`)',
+    priority: 30,
+    status: 'enabled',
+    middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker', ...GOTRUE_TAIL],
+  },
+];
 function liveRouters(patch = {}) {
   return [
     {
@@ -225,6 +247,7 @@ function liveRouters(patch = {}) {
       status: 'enabled',
       middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker', ...CHAIN_TAIL],
     },
+    ...GOTRUE_ROUTERS,
   ]
     .map((router) => ({ ...router, ...(patch[router.name] ?? {}) }))
     .filter((router) => !patch.absent?.includes(router.name));

@@ -1405,6 +1405,73 @@ assertGoTrueSignupRefused(devComposeText, 'infra/docker-compose.dev.yml', {
   host: 'api.myclash.localhost',
 });
 
+// Claude's connector signs a person in through GoTrue's own OAuth server (MCP
+// slice 1). GoTrue writes GOTRUE_JWT_ISSUER into every token's `iss` and builds
+// every URL of its discovery document from it, and the API tells Claude where
+// that server is from its own SUPABASE_URL (mcp-urls.ts): the two must name the
+// same address, or Claude reads a discovery document for a server it was not
+// sent to. Claude finds the document by RFC 8414's path insertion, which GoTrue
+// does not serve, so the edge rewrites that one path onto GoTrue's root form.
+assertGoTrueOAuthServer('prod', services, composeText, {
+  host: 'app.${DOMAIN}',
+  discovery: { router: 'myclash-auth-discovery', path: 'myclash-auth-discovery-path' },
+  discoveryChain: '${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-auth-discovery-path',
+  oauthRouter: 'myclash-auth-oauth',
+  oauthChain: '${MW_GEO_PUBLIC}${MW_F2B_OAUTH}myclash-security-headers@file,supabase-auth-strip',
+  service: 'myclash-supabase-auth',
+});
+assertGoTrueOAuthServer('dev', devServices, devComposeText, {
+  host: 'api.myclash.localhost',
+  discovery: { router: 'dev-auth-discovery', path: 'dev-auth-discovery-path' },
+  discoveryChain: 'myclash-geoblock-public@file,dev-auth-discovery-path',
+  oauthRouter: 'dev-auth-oauth',
+  oauthChain: 'myclash-geoblock-public@file,myclash-fail2ban-oauth@docker,dev-supabase-auth-strip',
+  service: 'dev-auth',
+});
+
+function assertGoTrueOAuthServer(mode, serviceMap, text, options) {
+  const { host, discovery, discoveryChain, oauthRouter, oauthChain, service } = options;
+  const label = `infra/docker-compose.${mode}.yml`;
+  const gotrue = serviceMap.get('supabase-auth') ?? '';
+  const supabaseUrl = /^\s+SUPABASE_URL: (\S+)\s*$/mu.exec(serviceMap.get('api') ?? '')?.[1];
+  if (!supabaseUrl) {
+    errors.push(
+      `${label} api must set SUPABASE_URL: the MCP door names its sign-in server from it.`,
+    );
+  }
+  for (const expected of [
+    "GOTRUE_OAUTH_SERVER_ENABLED: 'true'",
+    // Claude registers itself (RFC 7591). The consent API, not this switch,
+    // decides which redirect a person can be sent to (claude-callbacks.ts).
+    "GOTRUE_OAUTH_SERVER_ALLOW_DYNAMIC_REGISTRATION: 'true'",
+    // The consent page of web-public, under GOTRUE_SITE_URL.
+    'GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH: /oauth/consent',
+    'GOTRUE_OAUTH_SERVER_DEFAULT_SCOPE: email',
+    `GOTRUE_JWT_ISSUER: ${supabaseUrl}/auth/v1`,
+  ]) {
+    requireLine(gotrue, `${mode} supabase-auth`, expected);
+  }
+  const replace = `traefik.http.middlewares.${discovery.path}.replacepath.path=/.well-known/oauth-authorization-server`;
+  const discoveryRule = `Host(\`${host}\`) && Path(\`/.well-known/oauth-authorization-server/auth/v1\`)`;
+  const oauthRule = `Host(\`${host}\`) && PathPrefix(\`/auth/v1/oauth/\`)`;
+  for (const expected of [
+    replace,
+    `traefik.http.routers.${discovery.router}.rule=${discoveryRule}`,
+    `traefik.http.routers.${discovery.router}.middlewares=${discoveryChain}`,
+    `traefik.http.routers.${discovery.router}.service=${service}`,
+    // Above the host's catch-all (the public app, or dev's whole-host API
+    // router at its rule-length 29), below the sign-up refusal's 60.
+    `traefik.http.routers.${discovery.router}.priority=30`,
+    `traefik.http.routers.${oauthRouter}.rule=${oauthRule}`,
+    `traefik.http.routers.${oauthRouter}.middlewares=${oauthChain}`,
+    `traefik.http.routers.${oauthRouter}.service=${service}`,
+    // Above the /auth/v1 router's 20, or the auth jail answers these paths.
+    `traefik.http.routers.${oauthRouter}.priority=30`,
+  ]) {
+    requireLine(text, label, `- ${expected}`);
+  }
+}
+
 function assertGoTrueSignupRefused(text, label, { router, middleware, host }) {
   requireContains(
     text,
@@ -3020,6 +3087,8 @@ const publicRouters = [
   'myclash-api',
   'myclash-auth',
   'myclash-auth-signup',
+  'myclash-auth-oauth',
+  'myclash-auth-discovery',
   'myclash-realtime',
   'myclash-storage',
   'myclash-public',
@@ -3245,7 +3314,11 @@ if (!/allowUnknownCountries:\s*true/u.test(publicGeoblockBlock)) {
 // Fail2Ban lives in labels, not the file provider: its allowlist carries the
 // operator IP, and only labels are interpolated by Compose. Keeping it out of
 // middlewares.yml is what keeps that address out of this public repo.
-for (const middleware of ['myclash-fail2ban-auth', 'myclash-fail2ban-staff']) {
+for (const middleware of [
+  'myclash-fail2ban-auth',
+  'myclash-fail2ban-staff',
+  'myclash-fail2ban-oauth',
+]) {
   const labelPattern = new RegExp(
     `traefik\\.http\\.middlewares\\.${escapeRegExp(middleware)}\\.plugin\\.fail2ban\\.allowlist\\.ip=`,
     'u',
@@ -3264,21 +3337,52 @@ if (traefikMiddlewareText.includes('fail2ban')) {
   );
 }
 // EVERY allowlist label must interpolate — checking that one of them does would
-// let a hardcoded IP slip in beside a correct one.
-const prodAllowlistValues = [...composeText.matchAll(/allowlist\.ip=([^\n]*)/gu)].map((match) =>
-  match[1].trim(),
-);
-if (prodAllowlistValues.length === 0) {
+// let a hardcoded IP slip in beside a correct one. Each jail names the variable
+// traefik-env.sh derives for it; a jail not in this map gets the plain list.
+const prodAllowlistVariables = {
+  'myclash-fail2ban-auth': 'TRAEFIK_BAN_ALLOWLIST',
+  'myclash-fail2ban-staff': 'TRAEFIK_BAN_ALLOWLIST',
+  // The same list plus Anthropic's egress range: every person who connects
+  // Claude reaches /auth/v1/oauth/* from those few addresses.
+  'myclash-fail2ban-oauth': 'TRAEFIK_OAUTH_BAN_ALLOWLIST',
+};
+const prodAllowlists = [
+  ...composeText.matchAll(/(?:middlewares\.([\w-]+)\.plugin\.fail2ban\.)?allowlist\.ip=([^\n]*)/gu),
+];
+if (prodAllowlists.length === 0) {
   errors.push('No Fail2Ban allowlist label found in infra/docker-compose.prod.yml.');
 }
-for (const value of prodAllowlistValues) {
-  if (value !== '${TRAEFIK_BAN_ALLOWLIST}') {
+for (const [, jail, raw] of prodAllowlists) {
+  const variable = prodAllowlistVariables[jail] ?? 'TRAEFIK_BAN_ALLOWLIST';
+  const value = raw.trim();
+  if (value !== `\${${variable}}`) {
     errors.push(
-      `Fail2Ban allowlist must interpolate \${TRAEFIK_BAN_ALLOWLIST} (derived from ` +
-        `THROTTLE_IP_WHITELIST), got "${value}". A literal IP here would be committed to this ` +
-        "public repo and would drift from the app throttler's whitelist.",
+      `Fail2Ban allowlist of ${jail ?? 'an unnamed jail'} must interpolate \${${variable}} ` +
+        `(derived from THROTTLE_IP_WHITELIST), got "${value}". A literal IP here would be ` +
+        "committed to this public repo and would drift from the app throttler's whitelist.",
     );
   }
+}
+// Joined in bash, where the syntax is certain. TRAEFIK_BAN_ALLOWLIST always
+// starts with the local ranges, so the join never leads with a comma.
+requireContains(
+  traefikEnvLibText,
+  'infra/scripts/lib/traefik-env.sh',
+  'export TRAEFIK_OAUTH_BAN_ALLOWLIST="$TRAEFIK_BAN_ALLOWLIST,160.79.104.0/21"',
+);
+requireLine(
+  devComposeText,
+  'infra/docker-compose.dev.yml',
+  '- traefik.http.middlewares.myclash-fail2ban-oauth.plugin.fail2ban.allowlist.ip=' +
+    '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,160.79.104.0/21',
+);
+// The kill-switch detaches the OAuth jail with the others: a router left
+// pointing at an unloaded plugin serves 404.
+for (const expected of [
+  'MW_F2B_OAUTH=""',
+  'export MW_F2B_OAUTH="myclash-fail2ban-oauth@docker,"',
+]) {
+  requireContains(traefikEnvLibText, 'infra/scripts/lib/traefik-env.sh', expected);
 }
 
 // Compose reads MW_*/TRAEFIK_BAN_ALLOWLIST from the invoking shell, not
@@ -3381,6 +3485,8 @@ const geoblockRouters = {
   'myclash-public-api': 'public',
   'myclash-rest': 'public',
   'myclash-auth': 'public',
+  'myclash-auth-oauth': 'public',
+  'myclash-auth-discovery': 'public',
   'myclash-realtime': 'public',
   'myclash-realtime-api': 'public',
   'myclash-storage': 'public',
@@ -3402,6 +3508,9 @@ for (const [router, variant] of Object.entries(geoblockRouters)) {
 // on an attacker — see the refusal list below.
 const fail2banRouters = {
   'myclash-auth': 'MW_F2B_AUTH',
+  // GoTrue's OAuth server, which Claude calls. Its discovery router has no
+  // jail: it serves one public document and answers no 401 or 403.
+  'myclash-auth-oauth': 'MW_F2B_OAUTH',
   'myclash-studio': 'MW_F2B_AUTH',
   'myclash-traefik-dashboard': 'MW_F2B_AUTH',
   // Both halves of the staff-auth pair, or the endpoint goes back to being
@@ -3517,7 +3626,11 @@ for (const [label, text] of [
   ['infra/docker-compose.prod.yml', composeText],
   ['infra/docker-compose.dev.yml', devComposeText],
 ]) {
-  for (const jail of ['myclash-fail2ban-auth', 'myclash-fail2ban-staff']) {
+  for (const jail of [
+    'myclash-fail2ban-auth',
+    'myclash-fail2ban-staff',
+    'myclash-fail2ban-oauth',
+  ]) {
     const pattern = new RegExp(
       `middlewares\\.${escapeRegExp(jail)}\\.plugin\\.fail2ban\\.rules\\.statuscode=([^\\n]*)`,
       'u',
@@ -3529,6 +3642,25 @@ for (const [label, text] of [
       errors.push(
         `${label} ${jail} statuscode must be 401,403,429 (found ${match[1].trim()}). ` +
           '403 covers disabled accounts; without it, probing for them is uncounted.',
+      );
+    }
+  }
+  // The OAuth jail is the auth jail with Anthropic's range allowed, nothing
+  // else: same counted statuses, same threshold, same ban.
+  const ruleOf = (jail, rule) =>
+    new RegExp(
+      `middlewares\\.${escapeRegExp(jail)}\\.plugin\\.fail2ban\\.rules\\.${rule}=([^\\n]*)`,
+      'u',
+    )
+      .exec(text)?.[1]
+      ?.trim() ?? null;
+  for (const rule of ['enabled', 'statuscode', 'maxretry', 'findtime', 'bantime']) {
+    const auth = ruleOf('myclash-fail2ban-auth', rule);
+    const oauth = ruleOf('myclash-fail2ban-oauth', rule);
+    if (auth === null || oauth !== auth) {
+      errors.push(
+        `${label} myclash-fail2ban-oauth rules.${rule} must equal myclash-fail2ban-auth's ` +
+          `(auth ${auth ?? 'unset'}, oauth ${oauth ?? 'unset'}).`,
       );
     }
   }
@@ -3553,6 +3685,8 @@ const devGeoblockRouters = {
   'dev-staff': 'public',
   'dev-api': 'public',
   'dev-auth': 'public',
+  'dev-auth-oauth': 'public',
+  'dev-auth-discovery': 'public',
   'dev-rest': 'public',
   'dev-realtime': 'public',
   'dev-realtime-api': 'public',
@@ -3575,6 +3709,7 @@ for (const [router, variant] of Object.entries(devGeoblockRouters)) {
 // what pins it now.
 for (const [router, middleware] of Object.entries({
   'dev-auth': 'myclash-fail2ban-auth@docker',
+  'dev-auth-oauth': 'myclash-fail2ban-oauth@docker',
 })) {
   const pattern = new RegExp(
     `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*${escapeRegExp(middleware)}`,

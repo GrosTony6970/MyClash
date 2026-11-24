@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`47` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`48` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -123,6 +123,7 @@ the pass/fail record.
 | `45` | forfeit settings         | `E2E_FORFEIT`                                                                                                                                                                                                            |
 | `46` | workshop join            | `E2E_CLEANUP`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`, `E2E_WORKSHOP_JOIN`                                                                   |
 | `47` | fightbook                | `E2E_CLEANUP`, `E2E_FIGHTBOOK`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`                                                                       |
+| `48` | mcp connector            | `E2E_API_URL`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_PUBLIC_URL`                                                                                                                                         |
 
 </div>
 
@@ -1288,7 +1289,7 @@ The default injury rule keeps the score as it stood, so a forfeit under it on a
 bout with no hits would read 0 – 0: a 0 – 7 can come only from the saved rule.
 Written from the code, not yet seen passing: read its first run as a first run.
 
-## The fighter accounts (`46`, `47`)
+## The fighter accounts (`46`, `47`, `48`)
 
 Every other spec runs as the organisation's owner. The fighter-side specs need
 **personal accounts holding a claimed fighter profile**, and FightBook needs two.
@@ -1300,7 +1301,8 @@ The operator provisions them once and sets `E2E_FIGHTER_A_EMAIL`/`_PASSWORD` and
 - neither is a member of the E2E organisation, and neither holds a platform role;
 - FightBook sends real push/email notices to both, through the worker.
 
-Without all four, `46` and `47` skip and say which variables are missing.
+Without all four, `46` and `47` skip and say which variables are missing. `48`
+needs fighter A only.
 `_fighters.ts` signs each in once per spec, in a context with no organizer
 cookie, and reads its profile id from `me/personal-space`.
 
@@ -1348,6 +1350,30 @@ the asker must be on the roster.
   Event open on the real clock at the venue), the 10-minute reminder and the
   end-of-day expiry (both in the worker), and thank-yous (a review opens only
   two days after the spar).
+- Written from the code, not yet seen passing: read its first run as a first run.
+
+## Connecting Claude to an account (`48`)
+
+`pnpm test:e2e:prod tests/e2e/48-mcp-connector.spec.ts` plays Claude Code (its
+local callback on `127.0.0.1:53682`, answered by the browser context) as fighter
+A. It runs whenever fighter A is set. The API is `api.` beside `E2E_PUBLIC_URL`
+unless `E2E_API_URL` says otherwise.
+
+| step       | what it proves                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| login      | a password login still reads `claimed` from `/me` after `GOTRUE_JWT_ISSUER` changed every `iss`   |
+| discovery  | the door's metadata names a sign-in server whose RFC 8414 document has that issuer, and DCR is on |
+| flow       | register, authorize with PKCE, Approve, swap the code; `initialize`, `tools/list`, `whoami`       |
+| other door | the connector token on `GET /api/v1/me/events` is 403                                             |
+| stranger   | a client whose callback is `https://evil.example/cb` gets the refusal and no Approve button       |
+| /user      | GoTrue's own `/user` answers the connector token 200 on 2.195 — recorded, not wanted              |
+| disconnect | a refresh works; Disconnect on `/me/security`; the next refresh is refused (4xx)                  |
+
+- **It leaves two OAuth clients registered in GoTrue on every run.** Only
+  GoTrue's admin can delete one; neither grants anything once step 7 (or the
+  clean-up) has disconnected the approved one.
+- **The `/user` step goes red on GoTrue 2.198 or later**, which restricts OAuth
+  tokens there. That is the upgrade working: change the expectation.
 - Written from the code, not yet seen passing: read its first run as a first run.
 
 ## Protests, from the settings to the TV (opt-in)
@@ -1446,6 +1472,7 @@ E2E_CLEANUP=1 pnpm guide:screenshots
 | 45  | Forfeit rules set on screen, audited    | `45-forfeit-settings.spec.ts`       | opt-in (`E2E_FORFEIT=1`), runs with `35`              |
 | 46  | Join an Event from a Workshop page      | `46-workshop-join.spec.ts`          | opt-in (`E2E_WORKSHOP_JOIN=1`) + the fighter accounts |
 | 47  | FightBook between two fighters          | `47-fightbook.spec.ts`              | opt-in (`E2E_FIGHTBOOK=1`) + the fighter accounts     |
+| 48  | Connect Claude, then disconnect it      | `48-mcp-connector.spec.ts`          | needs fighter A; skips without it                     |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow
