@@ -5,8 +5,6 @@ import { loginHref } from '@/lib/sign-in-return';
 
 /** The two calls the consent page makes to the API, and the one that decides which to make. */
 
-const CONSENT_PATH = '/api/v1/me/oauth-consent';
-
 /** The request could not be asked about: the network is down, or GoTrue gave no usable answer. */
 type Unreachable = { kind: 'network' };
 
@@ -14,7 +12,7 @@ type Unreachable = { kind: 'network' };
 export type Opened = ConsentView | Unreachable | { kind: 'login'; href: string };
 
 function pathOf(authorizationId: string): string {
-  return `${CONSENT_PATH}/${encodeURIComponent(authorizationId)}`;
+  return `/api/v1/me/oauth-consent/${encodeURIComponent(authorizationId)}`;
 }
 
 /** Where sign-in sends a person to come back to this very request. */

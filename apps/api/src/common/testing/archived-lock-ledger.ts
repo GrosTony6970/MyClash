@@ -180,6 +180,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'DELETE fighters/me/photo',
     'DELETE guest-sessions/me',
     'DELETE me/ai-keys/:id',
+    'DELETE me/connected-apps/:clientId',
     'DELETE me/follows/by-global-person/:globalPersonId',
     'DELETE me/follows/organizations/:organizationId',
     'DELETE me/groups/:groupId',
