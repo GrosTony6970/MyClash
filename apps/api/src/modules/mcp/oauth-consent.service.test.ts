@@ -75,10 +75,11 @@ describe('OAuthConsentService.view', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('falls back to SUPABASE_URL when there is no internal auth address', async () => {
-    fetchMock.mockResolvedValueOnce(answer(200, details(CLAUDE)));
-    await service({ SUPABASE_AUTH_INTERNAL_URL: undefined as unknown as string }).view(ID, LOGIN);
-    expect(call(0).url).toBe(`https://api.myclash.localhost/oauth/authorizations/${ID}`);
+  it('refuses to call anything when there is no internal auth address', async () => {
+    await expect(
+      service({ SUPABASE_AUTH_INTERNAL_URL: undefined as unknown as string }).view(ID, LOGIN),
+    ).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('asks for a Claude client', async () => {
@@ -185,6 +186,9 @@ describe('OAuthConsentService.answer', () => {
     const refused = service().answer(ID, LOGIN, 'approve');
     await expect(refused).rejects.toBeInstanceOf(ForbiddenException);
     await expect(refused).rejects.toThrow('not_claude');
+    await expect(refused).rejects.toMatchObject({
+      response: { code: 'not_claude' },
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(call(0).init.method).toBe('GET');

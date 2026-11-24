@@ -37,9 +37,17 @@ export function skipMcpThrottle(context: ExecutionContext): boolean {
   return !hasAccount(context);
 }
 
+const hasBearer = (context: ExecutionContext): boolean => {
+  const header = context.switchToHttp().getRequest<{ headers?: Record<string, unknown> }>()
+    .headers?.authorization;
+  return typeof header === 'string' && header.startsWith('Bearer ');
+};
+
 export function skipMcpAnonThrottle(context: ExecutionContext): boolean {
   if (isThrottleWhitelisted(context)) return true;
   if (!isMcpRoute(context)) return true;
-  // A login counts against its account (`mcp`), never against the address Claude shares.
-  return hasAccount(context);
+  // A login counts against its account (`mcp`), never against the address Claude shares. A Bearer
+  // that is expired or invalid has no account either, but it must not be counted here: a 429
+  // would replace the `invalid_token` challenge Claude refreshes on.
+  return hasAccount(context) || hasBearer(context);
 }

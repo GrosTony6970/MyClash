@@ -27,8 +27,8 @@ export interface GoTrueCall {
 }
 
 /**
- * The one owner of "call GoTrue as this person": the internal address (falling back to
- * SUPABASE_URL), the anon key, the Bearer login, and the timeout. No Origin header: GoTrue
+ * The one owner of "call GoTrue as this person": the internal address
+ * (SUPABASE_AUTH_INTERNAL_URL, required: SUPABASE_URL is the web app, not GoTrue), the anon key, the Bearer login, and the timeout. No Origin header: GoTrue
  * accepts an empty one from a server, and checks any other against its SITE_URL.
  *
  * A call that gets no answer (timeout, refused connection) throws what `noAnswer` builds from
@@ -39,8 +39,7 @@ export async function callGoTrueAsPerson(
   call: GoTrueCall,
   noAnswer: (why: string) => Error,
 ): Promise<Response> {
-  const authUrl =
-    config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ?? config.getOrThrow<string>('SUPABASE_URL');
+  const authUrl = config.getOrThrow<string>('SUPABASE_AUTH_INTERNAL_URL');
   const headers: Record<string, string> = {
     apikey: config.getOrThrow<string>('SUPABASE_ANON_KEY'),
     Authorization: `Bearer ${call.login}`,

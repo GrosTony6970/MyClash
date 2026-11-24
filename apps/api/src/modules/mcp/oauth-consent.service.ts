@@ -27,6 +27,10 @@ interface AutoApproved {
 
 const EXPIRED = { kind: 'expired' } as const;
 
+/** The 403 for a redirect outside Claude's list. The code is explicit: the page reads it by name. */
+const notClaude = (): ForbiddenException =>
+  new ForbiddenException({ code: 'not_claude', message: 'not_claude' });
+
 /**
  * GoTrue's ids are letters, digits and dashes. Anything else never reaches it: Fastify decodes
  * `%2F` in a path parameter, and the id goes into the path of an internal call.
@@ -89,7 +93,7 @@ export class OAuthConsentService {
     if (!isClaudeCallback(pending.redirectUri)) {
       this.refused(pending.redirectUri);
       await this.consent(authorizationId, login, 'deny');
-      throw new ForbiddenException('not_claude');
+      throw notClaude();
     }
     return this.toClaude(await this.consent(authorizationId, login, 'approve'));
   }
@@ -97,7 +101,7 @@ export class OAuthConsentService {
   private toClaude(redirectUrl: string): ConsentAnswer {
     if (redirectsToClaude(redirectUrl)) return { redirectUrl };
     this.refused(redirectUrl);
-    throw new ForbiddenException('not_claude');
+    throw notClaude();
   }
 
   /** The wall's trace: a client outside the list is the phishing this file exists to stop. */

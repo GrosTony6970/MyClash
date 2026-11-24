@@ -1,4 +1,4 @@
-import { apiRequest, fetchMe } from '@myclash/api-client';
+import { apiRequest, failureCode, fetchMe } from '@myclash/api-client';
 import type { ConsentAction, ConsentAnswer, ConsentView } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { loginHref } from '@/lib/sign-in-return';
@@ -67,7 +67,10 @@ export async function answerConsent(
   if (res.kind === 'unauthenticated' && res.status === 401) {
     return { kind: 'login', href: backHere(authorizationId) };
   }
-  if (res.kind === 'unauthenticated' && res.status === 403) return { kind: 'refused' };
+  // Only the API's `not_claude` is "this is not Claude"; any other 403 is a failed request.
+  if (res.kind === 'unauthenticated' && res.status === 403 && failureCode(res) === 'not_claude') {
+    return { kind: 'refused' };
+  }
   if (res.kind === 'http' && res.status === 410) return { kind: 'expired' };
   return { kind: 'network' };
 }

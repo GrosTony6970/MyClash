@@ -3503,7 +3503,7 @@ for (const [router, variant] of Object.entries(geoblockRouters)) {
   }
 }
 
-// Fail2Ban guards LOGIN surfaces only. Both jails count 401/403, which on a
+// Fail2Ban guards LOGIN surfaces only. Every jail counts 401/403, which on a
 // router carrying authenticated app traffic is a ban on real people rather than
 // on an attacker — see the refusal list below.
 const fail2banRouters = {
@@ -3618,7 +3618,7 @@ for (const [router, priority] of [
   }
 }
 
-// Both jails must count 403 as well as 401. A disabled staff account answers
+// Every jail must count 403 as well as 401. A disabled staff account answers
 // 403, not 401, so without it an attacker can enumerate which usernames exist
 // and which have been switched off for free. Nothing else pins this value, and
 // a silent drift back to `401,429` looks identical from the outside.

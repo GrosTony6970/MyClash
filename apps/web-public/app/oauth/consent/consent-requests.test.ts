@@ -92,6 +92,11 @@ describe('answerConsent', () => {
     expect(await answerConsent('a', 'approve')).toEqual({ kind: 'network' });
   });
 
+  it('reads a 403 with any other code as a failed request, not as refused', async () => {
+    answers.push(json(403, { status: 403, code: 'FORBIDDEN', detail: 'x' }));
+    expect(await answerConsent('a', 'approve')).toEqual({ kind: 'network' });
+  });
+
   it('sends a lapsed login back to sign-in, then to this very request', async () => {
     answers.push(json(401, { status: 401, code: 'UNAUTHORIZED', detail: 'No session' }));
     expect(await answerConsent('auth-1', 'approve')).toEqual({

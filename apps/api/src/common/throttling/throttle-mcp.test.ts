@@ -140,4 +140,11 @@ describe('mcp-anon throttler (wired)', () => {
   it('counts nothing on a route without the mark', async () => {
     for (let i = 0; i < 70; i++) expect(await post('/u/other', null, '10.57.0.1')).toBe(200);
   });
+
+  it('does not count a call that carries an expired login, so a 429 never hides invalid_token', async () => {
+    const expired = jwt.sign({ sub: 'mcp-expired' }, SECRET, { expiresIn: -60 });
+    for (let i = 0; i < 70; i++) expect(await post('/t/mcp', expired, '10.58.0.1')).toBe(200);
+    for (let i = 0; i < 60; i++) expect(await post('/t/mcp', null, '10.58.0.1')).toBe(200);
+    expect(await post('/t/mcp', null, '10.58.0.1')).toBe(429);
+  });
 });

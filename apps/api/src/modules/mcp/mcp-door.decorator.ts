@@ -10,9 +10,10 @@ import { McpDoorGuard } from './mcp-door.guard';
  *
  * `Public()` tells AuthGuard not to answer 401 itself: the door answers it, with the challenge
  * Claude reads to start the sign-in (`McpDoorGuard`). `ConnectorDoor()` lets a connector token
- * past AuthGuard's wall. The per-IP throttle is off because every person's Claude calls from
- * Anthropic's few addresses; the door counts per account instead (`ThrottleMcp`). They never
- * appear apart.
+ * past AuthGuard's wall. The global per-IP throttle is off because every person's Claude calls
+ * from Anthropic's few addresses; the door counts per account instead (`mcp`), and counts calls
+ * with no login per address (`mcp-anon`, never one that carries a Bearer; `ThrottleMcp`). They
+ * never appear apart.
  *
  * The route scanner (`route-authz-scan.ts`) reads this decorator by name and gives its routes the
  * verdict `mcp-door`.

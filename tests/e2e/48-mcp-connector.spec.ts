@@ -28,7 +28,10 @@ import { FIGHTER_LOGINS, publicBase, signInFighter, type Fighter } from './_figh
  *      with no Approve button;
  *   6. GoTrue's own /user with the connector token: recorded, not wanted
  *      (Review Focus 1 of the slice's plan);
- *   7. Disconnect on /me/security ends the refresh.
+ *   7. a refreshed token still calls the door and opens no other route, and
+ *      GoTrue's plain refresh grant gives the connector's refresh token no
+ *      client-less login;
+ *   8. Disconnect on /me/security ends the refresh.
  *
  * Leaves behind: the two OAuth clients it registers. GoTrue lets nobody but its
  * admin delete a client, and an unapproved one grants nothing. The grant of the
@@ -302,13 +305,59 @@ test.describe.serial('mcp connector', () => {
     ).toBe(200);
   });
 
-  test('disconnect', async () => {
-    // The refresh works while connected, so the refusal below is the disconnect's.
-    const renewed = await json<{ refresh_token: string }>(
+  test('a refreshed token is still a connector token', async () => {
+    // The refresh works while connected, so the refusal after Disconnect is the disconnect's.
+    // Each refresh rotates the refresh token: the newest one is always kept.
+    const renewed = await json<{ access_token: string; refresh_token: string }>(
       await refresh(bare, server, clientId, tokens.refresh),
     );
-    tokens = { ...tokens, refresh: renewed.refresh_token };
+    tokens = { access: renewed.access_token, refresh: renewed.refresh_token };
 
+    const called = await bare.post(`${apiBase}/api/v1/mcp`, {
+      headers: { ...MCP_HEADERS, authorization: `Bearer ${tokens.access}` },
+      data: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'whoami', arguments: {} },
+      },
+    });
+    const answer = await json<{ result?: { content: { text: string }[] } }>(called);
+    const who = JSON.parse(answer.result?.content[0]?.text ?? '{}') as { email: string | null };
+    expect(who.email?.toLowerCase(), 'the refreshed token calls the door').toBe(
+      FIGHTER_A!.email.toLowerCase(),
+    );
+
+    const other = await bare.get(`${apiBase}/api/v1/me/events`, {
+      headers: { authorization: `Bearer ${tokens.access}` },
+    });
+    expect(other.status(), 'a refreshed connector token on an ordinary route').toBe(403);
+  });
+
+  test("GoTrue's plain refresh grant with the connector's refresh token", async () => {
+    // GoTrue's own refresh endpoint, not the OAuth one: it must not turn the connector's
+    // refresh token into a login that carries no `client_id`. Behind Traefik GoTrue is reached
+    // directly, so no `apikey` header is needed (there is no Kong in front).
+    const res = await bare.post(`${server.issuer}/token?grant_type=refresh_token`, {
+      data: { refresh_token: tokens.refresh },
+    });
+    if (res.status() >= 400) {
+      expect(res.status(), `the plain refresh was refused: ${await res.text()}`).toBeLessThan(500);
+      return;
+    }
+    const plain = (await res.json()) as { access_token: string; refresh_token?: string };
+    // Keep the newest refresh token for the Disconnect step.
+    tokens = { access: plain.access_token, refresh: plain.refresh_token ?? tokens.refresh };
+    const payload = JSON.parse(
+      Buffer.from(plain.access_token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { client_id?: unknown };
+    expect(
+      typeof payload.client_id === 'string' && payload.client_id.length > 0,
+      'a token from the plain refresh grant must still carry the connector client_id',
+    ).toBe(true);
+  });
+
+  test('disconnect', async () => {
     await page.goto(`${publicBase}/me/security`);
     const row = page.getByRole('listitem').filter({ hasText: clientName });
     await expect(row).toHaveCount(1);

@@ -5327,7 +5327,9 @@ trailing slash or a look-alike host each fail.
 The consent service (`oauth-consent.service.ts`) applies it four times:
 
 - **View:** a client outside the list gets a `refused` view, which names the host and has no Approve
-  button. The page never shows a client's own name as proof of who it is.
+  button. The title of the ask card shows the name the client registered, which anyone can choose,
+  so the name proves nothing. The protection is the callback allowlist; the "you go back to" line
+  comes from the callback kind, never from the name.
 - **Approve** reads the request again first: the earlier read proves nothing about this request. A
   client outside the list is **denied at GoTrue**, so it cannot be approved later from another tab,
   and the API answers 403 `not_claude`.
