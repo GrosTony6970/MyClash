@@ -552,7 +552,7 @@ describe('AssignmentBoardService', () => {
       await service.getBoard('event-1');
 
       expect(selectsFor(fromMock as never, 'pools')).toEqual([
-        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+        'id, phase_id, name, sort_order, pool_members(registration_id, team_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name))), teams(id, name, color, logo_url)), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
       ]);
     });
 

@@ -48,7 +48,15 @@ function unit(
 const poolA = unit({
   id: 'pool-a',
   name: 'A',
-  members: [{ registrationId: 'reg-lea', personId: 'lea', personName: 'Léa', clubLabel: null }],
+  members: [
+    {
+      sideId: 'reg-lea',
+      registrationId: 'reg-lea',
+      personId: 'lea',
+      personName: 'Léa',
+      clubLabel: null,
+    },
+  ],
   matches: [
     bout('a1', '10:00', 'reg-lea', 'reg-paul'),
     bout('a2', '10:10', 'reg-paul', 'reg-marc'),
@@ -248,7 +256,15 @@ describe('buildCommitments', () => {
   it('counts a roster member with no bout wired yet as in the Pool', () => {
     const early = unit({
       id: 'pool-z',
-      members: [{ registrationId: 'reg-zoe', personId: 'zoe', personName: 'Zoé', clubLabel: null }],
+      members: [
+        {
+          sideId: 'reg-zoe',
+          registrationId: 'reg-zoe',
+          personId: 'zoe',
+          personName: 'Zoé',
+          clubLabel: null,
+        },
+      ],
       matches: [bout('z1', '12:00', 'reg-x', 'reg-y')],
     });
     const groups = buildCommitments(inputs({ units: [early] })).filter(

@@ -263,24 +263,24 @@
       "why": "a key-name list: the seat and bout columns of each kind for the Pool writers; it keys and compares no side"
     },
     "apps/api/src/modules/pool-standings/compute-rows.ts": {
-      "verdict": "not-yet",
-      "hits": 18,
-      "why": "1b: standings feed the engine raw Registration ids (`:119`-`:134`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "standings key each seat (`seatKey`) and each side and winner of a bout (`boutSideKeys`, `sideKey`) by side; a team is named by `sideLabel`"
     },
     "apps/api/src/modules/pool-standings/pool-rows.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: the Pool member row is keyed `registration_id` (`:14`)"
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "the Pool seat and bout row shapes with their team twins; `seatKey` and `boutSideKeys` build each key with `sideKey`, `withSideOf` names a side with `sideLabel`"
     },
     "apps/api/src/modules/pool-standings/pool-standings.service.ts": {
-      "verdict": "not-yet",
-      "hits": 14,
-      "why": "1b: standings read Pool members and bouts by Registration (`:140`-`:210`)"
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "reads the team twins of the seats, bouts, winners and forfeits; a forfeit counts against its side key (`sideKey`)"
     },
     "apps/api/src/modules/pool-standings/ruleset-scores.ts": {
-      "verdict": "not-yet",
-      "hits": 8,
-      "why": "1b: feeds the engine raw Registration ids (`:51`-`:53`)"
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "hands the ruleset each entrant and each side and winner by side key (`seatKey`, `boutSideKeys`, `sideKey`)"
     },
     "apps/api/src/modules/privacy/subject-export.service.ts": {
       "verdict": "not-yet",
@@ -1037,14 +1037,6 @@
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "count": 3,
       "why": "1c: a person's schedule judges their own bout by Registration (`:387`-`:389`); personal schedule of named members is 1c"
-    },
-    "apps/api/src/modules/pool-standings/compute-rows.ts": {
-      "count": 4,
-      "why": "1b: standings feed the engine raw Registration ids (`:119`-`:121`, `:134`)"
-    },
-    "apps/api/src/modules/pool-standings/ruleset-scores.ts": {
-      "count": 3,
-      "why": "1b: standings feed the engine raw Registration ids (`:51`-`:53`)"
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
