@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { sideKey } from '@myclash/types';
+import { sideKey } from '@myclash/types/side-key';
 
 /** The code of the refusal below. The pad says it in the reader's language. */
 export const BOUT_SIDE_MISSING = 'bout_side_missing';

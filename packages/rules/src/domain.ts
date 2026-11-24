@@ -57,7 +57,7 @@ export interface Match {
  * what happened in it.
  *
  * Every ruleset used to reach these two extra fields through a cast --
- * `(match as Match & { exchanges?: Exchange[]; winnerSideId?: string })`
+ * `(match as Match & { exchanges?: Exchange[]; winnerRegistrationId?: string })`
  * -- because `Match` carries neither, and the API then built a `Match` it did
  * not have by casting a PostgREST row through `as unknown as`. Naming the shape
  * that was actually being passed removes both.

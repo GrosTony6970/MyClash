@@ -81,7 +81,7 @@ describe('both out of points in a bout that counts down', () => {
     });
   });
 
-  it('the winner as a registration follows the edition', () => {
+  it('the winner as a side follows the edition', () => {
     const match = { ...BRACKET, redSideId: 'r', blueSideId: 'b' } as Match;
     expect(getPointCapWinnerSideId(match, BOTH_OUT, config(), EDITION_2026_04)).toBeNull();
     expect(getPointCapWinnerSideId(match, BOTH_OUT, config(), EDITION_2026_10)).toBe('b');

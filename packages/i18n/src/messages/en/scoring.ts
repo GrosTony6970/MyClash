@@ -234,9 +234,6 @@ export const scoring = {
       'This bout is not started, or it was reset after this entry. It is held here, not lost. Start the bout and retry, or discard it.',
     boutLocked:
       'This bout is locked, so the server did not accept this entry. It is held here, not lost. Reopen the bout, then retry.',
-    // The API's `bout_side_missing`: a hit, a card or a Start for a bout that waits for a Fighter.
-    boutSideMissing:
-      'Held here, not lost: this bout was waiting for a Fighter. Retry once both Fighters are on the bout, or discard it.',
     // A clock press the server refused (the offline bout, rulings 11 to 14).
     typePressStart: 'Clock: Start',
     typePressHalt: 'Clock: Pause',
@@ -456,9 +453,6 @@ export const scoring = {
     // server. Said out loud because the state this replaced was the federal
     // default arming itself silently — and a wrong button is invisible.
     configFromCache: '⚠ Scoring rules loaded from this tablet — not confirmed with the server.',
-    // A bracket bout with a side still to come (operator, 2026-11-24).
-    waitingForFighter:
-      'Waiting for a Fighter. This bout takes no Start, hit, card or colour swap until both sides are known.',
   },
   corrections: {
     onlineOnly: 'Online required',
@@ -529,8 +523,6 @@ export const scoring = {
       'This bout was just completed, so the clock did not move. Reopen it to go on.',
     // The API's `match_locked`: the lock came after this screen read the bout.
     boutLocked: 'This bout is locked. Reopen it, then try again.',
-    // The API's `bout_side_missing`, on a call sent at once (the colour swap), and the pad's own.
-    boutSideMissing: 'This bout is waiting for a Fighter. Try again once both sides are known.',
     accountCannotScore:
       'The account signed in on this tablet has no scoring role for this event, so nothing will save. Sign that account out, or ask an organiser.',
     pinDisabled: "This tablet's staff account is disabled, so nothing will save. Ask an organiser.",

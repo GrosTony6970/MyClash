@@ -553,7 +553,7 @@ export function capLeader(
 
 /**
  * Which side reached the point cap, as a colour (mirrors
- * {@link getPointCapWinnerSideId} without needing the registration ids).
+ * {@link getPointCapWinnerSideId} without needing the side ids).
  */
 export function pointCapWinnerColor(
   score: CapScore,
@@ -843,7 +843,7 @@ export function getPointCapWinnerSideId(
   config: MatchFormatConfig,
   edition: DecisionEdition,
 ): string | null {
-  // The registration-id shape of {@link pointCapWinnerColor}, delegating so the
+  // The side-id shape of {@link pointCapWinnerColor}, delegating so the
   // two cannot answer differently — which they would have done the moment both
   // fighters could sit over the cap at once.
   const color = pointCapWinnerColor(score, config, edition);

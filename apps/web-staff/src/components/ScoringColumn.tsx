@@ -192,7 +192,7 @@ export function ScoringColumn({
   async function submitPenalty(payload: ReturnType<typeof listedCard>) {
     // A column with no Fighter yet: the card has nobody to go to. The server refuses it too.
     if (registrationId === null) {
-      setPenaltyError(t('scoring.corrections.boutSideMissing'));
+      setPenaltyError(t('pad.corrections.boutSideMissing'));
       return;
     }
     setPenaltySubmitting(true);

@@ -446,7 +446,7 @@ export function MatchView({
       endScore?: PressedOn,
     ) => {
       if (action === 'start' && waitingForFighter) {
-        setClockError(t('scoring.corrections.boutSideMissing'));
+        setClockError(t('pad.corrections.boutSideMissing'));
         return;
       }
       if (
@@ -763,7 +763,7 @@ export function MatchView({
     clockTimeMs: () => clockAtTap(clockState),
     syncEngine,
     onRecorded: moveSequenceOn,
-    onNoFighter: () => setClockError(t('scoring.corrections.boutSideMissing')),
+    onNoFighter: () => setClockError(t('pad.corrections.boutSideMissing')),
   });
   const protestPair: ProtestPairProps = {
     redName,
@@ -825,7 +825,7 @@ export function MatchView({
           data-testid="bout-waiting-for-fighter"
           className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-center text-sm font-bold text-warning"
         >
-          {t('scoring.match.waitingForFighter')}
+          {t('pad.match.waitingForFighter')}
         </div>
       )}
 

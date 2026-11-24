@@ -37,6 +37,10 @@
  * - A read through a view's name columns (`vw_tournament_query_matches`
  *   `red_name`, `blue_name`) holds no token. Such a file is listed by hand
  *   (`"byHand": true`, hits 0) when a slice finds it.
+ * - The raw-assignment rule below scans `.ts` / `.tsx` under `apps/` only. A
+ *   raw mapper in a `packages/` file (`packages/types/src/match-winner.ts`,
+ *   `packages/ui/src/utils/*`, `packages/rules/src/formula/derive-stats.ts`) is
+ *   caught only through its ledger line.
  *
  * ── Raw side ids ────────────────────────────────────────────────────────────
  * In `.ts` / `.tsx` under `apps/`, a value put into `redSideId`, `blueSideId`

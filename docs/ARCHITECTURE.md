@@ -402,13 +402,16 @@ What is **not** derivable from the DDL, and so belongs here:
   838). A read rule that calls a NEW helper grants it to `anon` by name.
 - **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
   `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
-  new team. A team has 1 to 10 slots. `teams` holds the team of one team Tournament; `team_slots`
-  holds its numbered slots, each with an optional Person of the Event. Ten columns beside the
+  new team. `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
+  team's numbered Slots. `team_slots` holds both its numbered Slots, each with an optional Person
+  of the Event, and its Reserves, each with a Person and no number. The database bounds `size`
+  only; the API checks a team's Slots against it in slice 1b. Ten columns beside the
   Registration links give each its team twin: the Pool seat, the two bracket slots, the two sides
   and the winner of a Match, a card, the forfeiting side and the winning side of a forfeit, and a protest, with a check "a
   Registration or a Team, never both". The Registration links keep their names, because they hold
   Registrations. Code that compares sides compares one side key that is never empty, not the two
-  columns.
+  columns; the readers that do not yet are listed in `scripts/side-readers-ledger.json` (gate
+  `quality:side-readers`).
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
@@ -3755,7 +3758,10 @@ or `'not-judged'`, never nothing: protests say `'not-judged'`, as they are outsi
 card void and the side swap are not judged. The pad asks the same of the bout on its screen
 (`lib/bout-sides.ts`): Start, the scoring buttons, the colour swap and the direct card are
 greyed, a protest tap on the empty corner is refused, and the bout says why. A side with no
-Registration matches no card or protest row (`isSideRegistration` in `@myclash/ui`).
+Registration matches no card or protest row (`isSideRegistration`,
+`@myclash/types/side-registration`, on the pad). The shared timelines and protest chip of
+`@myclash/ui` hold the same rule without the import (`rowSide`, `liveProtestsOf`): they ship on
+every public page, whose page-load budget had no room for it.
 
 A correction moves a finished bout's RESULT with its score (rulings 225 to 230;
 `matches/correction-outcome.ts` is the one owner, asked by the recompute). On an over Event

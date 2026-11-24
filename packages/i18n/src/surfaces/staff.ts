@@ -5,6 +5,9 @@
  * shipped all 6,418 keys in both locales — 181KB gzip on every page, of which it
  * read 4%. It is also the app on venue wifi, in a Scorekeeper's hand.
  *
+ * `pad` is here and not in the public surface: it holds strings only the pad
+ * reads, so the public site does not ship them on every page.
+ *
  * `statusHelp` is here because packages/ui is one CJS barrel with no
  * tree-shaking: whatever status-help.ts imports, every app that touches
  * @myclash/ui ships. Give packages/ui subpath exports and this can drop out.
@@ -15,6 +18,7 @@ import { navigation as enNavigation } from '../messages/en/navigation.js';
 import { metadata as enMetadata } from '../messages/en/metadata.js';
 import { offline as enOffline } from '../messages/en/offline.js';
 import { scoring as enScoring } from '../messages/en/scoring.js';
+import { pad as enPad } from '../messages/en/pad.js';
 import { test as enTest } from '../messages/en/test.js';
 import { statusHelp as enStatusHelp } from '../messages/en/statusHelp.js';
 import { app as frApp } from '../messages/fr/app.js';
@@ -23,6 +27,7 @@ import { navigation as frNavigation } from '../messages/fr/navigation.js';
 import { metadata as frMetadata } from '../messages/fr/metadata.js';
 import { offline as frOffline } from '../messages/fr/offline.js';
 import { scoring as frScoring } from '../messages/fr/scoring.js';
+import { pad as frPad } from '../messages/fr/pad.js';
 import { test as frTest } from '../messages/fr/test.js';
 import { statusHelp as frStatusHelp } from '../messages/fr/statusHelp.js';
 
@@ -34,6 +39,7 @@ export const messages = {
     metadata: enMetadata,
     offline: enOffline,
     scoring: enScoring,
+    pad: enPad,
     test: enTest,
     statusHelp: enStatusHelp,
   },
@@ -44,6 +50,7 @@ export const messages = {
     metadata: frMetadata,
     offline: frOffline,
     scoring: frScoring,
+    pad: frPad,
     test: frTest,
     statusHelp: frStatusHelp,
   },

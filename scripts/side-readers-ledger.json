@@ -862,6 +862,11 @@
       "hits": 44,
       "why": "the team twins: each side is one Registration or one team (CHECKs and their checks); reads no side"
     },
+    "packages/rules/src/domain.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "a history comment quotes the old cast's `winnerRegistrationId` (`:60`); the fields are side ids"
+    },
     "packages/rules/src/formula/derive-stats.ts": {
       "verdict": "not-yet",
       "hits": 3,

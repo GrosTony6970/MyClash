@@ -14,7 +14,8 @@ export type SideColumns = {
  * The engine names a side by its key (`sideKey`). A Registration wins into
  * `winner_registration_id`, a team into `winner_team_id`, and the other column is cleared, so a
  * row never names two winners. No winner clears both. A key that is neither side of the bout is
- * a fault, and nothing is written: a bout with no side has no side to win.
+ * a fault: a bout with no side has no side to win. The throw stops the write of the bout row
+ * only. On a recompute (`ScoringService`), the hit or card that caused it is already saved.
  */
 export function winnerColumns(
   row: SideColumns,

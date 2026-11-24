@@ -1089,8 +1089,12 @@ src/modules/admin/ci-health` â€” green (`gates.drift.test.ts` compares `ci.yml` 
 apps/api/src/modules/matches/late-press.ts packages/rules/src/clock.ts
 apps/api/src/modules/matches/level-step.ts apps/api/src/modules/matches/fighter-status.service.ts
 packages/rulesets/test/fixtures packages/rulesets/test/tf_v1.fal2026.test.ts` â€”
-      expected: no output. (The clock's writes do widen by `winner_team_id: null` through
-      `noResultColumns`, Task 7; its files do not change.)
+      expected: no output, except `clock.service.ts` and `late-press.ts`. Those two changed under
+      Task 7a (the operator's ruling of 2026-11-24, which supersedes "clock not touched" for that
+      guard only): their expected diff is Task 7a's guard (with the two team columns it reads)
+      and the one `row` cast. (The clock's
+      writes also widen by `winner_team_id: null` through `noResultColumns`, Task 7, with no
+      change to its files.)
 - [ ] **Step 2b: Hard rule 3.** Task 3 changes `@myclash/rules` and `winnerColorFrom`, which the
       scoring pad reaches (`packages/types/src/match-winner.ts:45`,
       `apps/web-staff/src/components/MatchResultOverlay.tsx:133`). Only one of the four offline
@@ -1116,6 +1120,9 @@ packages/rulesets/test/fixtures packages/rulesets/test/tf_v1.fal2026.test.ts` â€
       it runs `main`, not this branch.
       The slice is not reported done until the three are green here and the a11y drill is green on
       the pull request.
+      **Operator ruling, 2026-11-24:** the three offline specs 06, 08 and 40 are skipped for
+      slice 1a and owed by slice 1b, which changes the pad far more. The a11y drill runs on the
+      pull request.
 - [ ] **Step 3:** Review the slice with `code-architecture-reviewer` (CLAUDE.md routing). Then
       `git fetch`, rebase onto `origin/main` (renumber 0281/0282 if `main` took them, re-run the
       replay and both probes), the gate chain again, and
@@ -1156,7 +1163,8 @@ packages/rulesets/test/fixtures packages/rulesets/test/tf_v1.fal2026.test.ts` â€
 - **For 1b, from the Task 7a review:** `clearDependentPairing` nulls only the Registration ids
   (`bracket-dependents.ts:234`) and `swapFighterColor` swaps only the Registration ids
   (`matches.service.ts:955-958`). An emptied team bout would keep its team ids and the guard would
-  not fire. Both are side readers the gate lists `not-yet 1b`.
+  not fire. Both are side readers the gate lists `not-yet`: `swapFighterColor` for 1b,
+  `clearDependentPairing` for 1c (brackets are 1c in the design).
 - **Deleting a Person who holds a team slot** fails at commit with a raw foreign-key error: the
   delete checks Registrations only (`persons.service.ts:267-282`). No slot can be created through
   the API before 1b, so 1b adds the check with the teams routes.

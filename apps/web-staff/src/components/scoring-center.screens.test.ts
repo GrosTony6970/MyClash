@@ -76,7 +76,7 @@ describe('a bout waiting for a Fighter', () => {
     expect(view).toMatch(/!series\.awaitingStart &&\s+!waitingForFighter;/);
     expect(view).toContain('startBlocked={waitingForFighter}');
     expect(centre).toContain("(primary.action === 'start' && startBlocked)");
-    expect(view).toContain("{t('scoring.match.waitingForFighter')}");
+    expect(view).toContain("{t('pad.match.waitingForFighter')}");
   });
 
   it('greys the colour swap and the direct card of the drawer', () => {

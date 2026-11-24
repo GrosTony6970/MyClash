@@ -35,7 +35,7 @@ import type {
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
-import { sideKey } from '@myclash/types';
+import { sideKey } from '@myclash/types/side-key';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
@@ -69,6 +69,7 @@ import {
   type ScoreRows,
 } from './correction-preflight';
 import { winnerColumns, type SideColumns } from './winner-columns';
+import { sidesOf } from './bout-sides';
 
 export type { ClosedRound };
 
@@ -135,10 +136,11 @@ function rulesetMatch(
   const engine = boutEngineOf(m);
   // A side not known yet stays null, as before: `assertBothSides` (Task 7a) refuses Start, hits,
   // cards and swap on such a bout, and a card void still recomputes it. Never `''`.
+  const { red: redSideId, blue: blueSideId } = sidesOf(m);
   return {
     id: m['id'] as string,
-    redSideId: sideKey(m['red_registration_id'] as Id, m['red_team_id'] as Id) as string,
-    blueSideId: sideKey(m['blue_registration_id'] as Id, m['blue_team_id'] as Id) as string,
+    redSideId: redSideId as string,
+    blueSideId: blueSideId as string,
     rulesetCode: engine.code,
     rulesetVersion: engine.version,
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
@@ -148,12 +150,13 @@ function rulesetMatch(
 }
 
 function storedBout(m: Record<string, unknown>): CorrectionInput['bout'] {
+  const { red: redSideId, blue: blueSideId } = sidesOf(m);
   return {
     status: m['status'] as string,
     winnerSideId: sideKey(m['winner_registration_id'] as Id, m['winner_team_id'] as Id),
     endReason: (m['end_reason'] as string | null) ?? null,
-    redSideId: sideKey(m['red_registration_id'] as Id, m['red_team_id'] as Id),
-    blueSideId: sideKey(m['blue_registration_id'] as Id, m['blue_team_id'] as Id),
+    redSideId,
+    blueSideId,
     redScore: Number(m['red_score'] ?? 0),
     blueScore: Number(m['blue_score'] ?? 0),
   };

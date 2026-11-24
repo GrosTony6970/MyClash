@@ -11,6 +11,12 @@ describe('liveProtestsOf', () => {
     expect(liveProtestsOf(rows, 'red').map((p) => p.id)).toEqual(['a', 'd']);
     expect(liveProtestsOf(rows, 'blue').map((p) => p.id)).toEqual(['c']);
   });
+
+  // A side waiting for a Fighter has no Registration: null is nobody (`isSideRegistration`).
+  it('keeps a protest with no Registration off the chip of a side with none', () => {
+    const row = { id: 'pr-1', registration_id: null as unknown as string, voided: false };
+    expect(liveProtestsOf([row as never], null)).toEqual([]);
+  });
 });
 
 describe('protestChipText', () => {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
-import { buildUnifiedTimeline, exchangeOptionLabel, orderedWithNumbers } from './exchange-timeline';
+import {
+  buildUnifiedTimeline,
+  exchangeOptionLabel,
+  orderedWithNumbers,
+  rowSide,
+} from './exchange-timeline';
 import type { ExchangeRow, MatchProtest, Penalty } from '../types/match-events';
 
 function row<E extends object>(seq: number, occurredAt: string, extra: E = {} as E) {
@@ -359,5 +364,21 @@ describe('exchangeOptionLabel', () => {
         delta: '+1',
       }),
     ).toBe('#2 · Jane · clean +1');
+  });
+});
+
+describe('rowSide', () => {
+  it('names the side whose Registration the row carries', () => {
+    expect(rowSide('reg-red', 'reg-red', 'reg-blue')).toBe('red');
+    expect(rowSide('reg-blue', 'reg-red', 'reg-blue')).toBe('blue');
+    expect(rowSide('reg-other', 'reg-red', 'reg-blue')).toBeNull();
+  });
+
+  // A side waiting for a Fighter has no Registration: null is nobody, a row with none included.
+  it('gives a row with no Registration to no side, a side with none included', () => {
+    expect(rowSide(null, null, 'reg-blue')).toBeNull();
+    expect(rowSide(undefined, 'reg-red', null)).toBeNull();
+    expect(rowSide(null, null, null)).toBeNull();
+    expect(rowSide('reg-blue', null, 'reg-blue')).toBe('blue');
   });
 });

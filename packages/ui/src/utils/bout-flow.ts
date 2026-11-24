@@ -32,9 +32,8 @@ import {
   type MatchFormatConfig,
   type PhaseType,
 } from '@myclash/types';
-import { ascendingWithNumbers } from './exchange-timeline';
+import { ascendingWithNumbers, rowSide } from './exchange-timeline';
 import { foldPauses, type BoutFlowPause } from './bout-flow-clock';
-import { isSideRegistration } from './side-registration';
 import type { ClockEvent, ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
 
 export type { BoutFlowPause } from './bout-flow-clock';
@@ -170,11 +169,7 @@ function penaltyDrafts(
   return penalties
     .filter((p) => !p.voided && inRound(p.round_number))
     .map((p): FlowDraft => {
-      const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, redRegId)
-        ? 'red'
-        : isSideRegistration(p.registration_id, blueRegId)
-          ? 'blue'
-          : null;
+      const side = rowSide(p.registration_id, redRegId, blueRegId);
       const delta = p.score_delta ?? 0;
       return {
         occurredAt: p.occurred_at ?? '',

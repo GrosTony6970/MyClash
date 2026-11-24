@@ -136,7 +136,7 @@ const REFUSED_WHOLE = new Map([
   // A forfeit recorded on rules that do not parse (a hand-edited archive, rulings 63-76).
   ['forfeit_rules_invalid', 'scoring.forfeits.rulesInvalid'],
   // The colour swap on a bout that waits for a Fighter (operator, 2026-11-24).
-  ['bout_side_missing', 'scoring.corrections.boutSideMissing'],
+  ['bout_side_missing', 'pad.corrections.boutSideMissing'],
 ]);
 
 /**
@@ -156,7 +156,7 @@ const HELD_PRESS = new Map([
   ['level_at_time_unresolved', HELD_END_LEVEL],
   // A Start, a hit or a card for a bout that waits for a Fighter (operator, 2026-11-24). Every
   // kind of held row falls through to this map, so its words fit each one.
-  ['bout_side_missing', 'scoring.quarantine.boutSideMissing'],
+  ['bout_side_missing', 'pad.quarantine.boutSideMissing'],
 ]);
 
 /**

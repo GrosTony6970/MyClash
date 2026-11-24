@@ -25,6 +25,14 @@
     "./sentry-trace-propagation": {
       "types": "./dist/sentry-trace-propagation.d.ts",
       "default": "./dist/sentry-trace-propagation.js"
+    },
+    "./side-key": {
+      "types": "./dist/side-key.d.ts",
+      "default": "./dist/side-key.js"
+    },
+    "./side-registration": {
+      "types": "./dist/side-registration.d.ts",
+      "default": "./dist/side-registration.js"
     }
   },
   "scripts": {

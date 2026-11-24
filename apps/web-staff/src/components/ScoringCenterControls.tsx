@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { LevelStep, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import { isSideRegistration } from '@myclash/types/side-registration';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import {
@@ -246,14 +247,11 @@ export function ScoringCenterControls({
   // fighter so the banner reads "Black card — {fighter}".
   const blackCardLoserRegId = blackCardLossRegistrationId(endReason, activePenalties);
   // A side with no Registration is null too: null is nobody, never that side.
-  const blackCardLoserName =
-    blackCardLoserRegId === null
-      ? null
-      : blackCardLoserRegId === redRegistrationId
-        ? redName
-        : blackCardLoserRegId === blueRegistrationId
-          ? blueName
-          : null;
+  const blackCardLoserName = isSideRegistration(blackCardLoserRegId, redRegistrationId)
+    ? redName
+    : isSideRegistration(blackCardLoserRegId, blueRegistrationId)
+      ? blueName
+      : null;
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
     if (doubleCount >= maxDoubles) return 'bg-danger/15 text-danger border border-danger';

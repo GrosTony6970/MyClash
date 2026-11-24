@@ -19,7 +19,6 @@
 import type { TournamentScoringConfig } from '@myclash/types';
 import { formatMatchClock } from './format-match-clock';
 import { sideStyle } from './side-color';
-import { isSideRegistration } from './side-registration';
 import { exchangeDeltaLabel, afterblowDefenderLabel } from './exchange-delta-label';
 import type { ExchangeRow, MatchProtest, Penalty, PenaltyCard } from '../types/match-events';
 
@@ -248,11 +247,7 @@ export function buildUnifiedTimeline({
   const penaltyRows: UnifiedEventDraft[] = penalties
     .filter((p) => !p.voided)
     .map((p) => {
-      const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, redRegId)
-        ? 'red'
-        : isSideRegistration(p.registration_id, blueRegId)
-          ? 'blue'
-          : null;
+      const side = rowSide(p.registration_id, redRegId, blueRegId);
       const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
       // A direct card carries no ruleset entry, so it has neither short_name
       // nor reason — name it rather than rendering a blank cell.
@@ -286,16 +281,29 @@ export function buildUnifiedTimeline({
   return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
 }
 
+/**
+ * Whose row this is (a card, a protest): red's, blue's, or neither. A side's Registration is null
+ * while the side waits for a Fighter, or while it is a team's: null is nobody, so a row with no
+ * Registration is nobody's, and a bare `===` would read `null === null` as "this side". The
+ * rule of `isSideRegistration` (`@myclash/types/side-registration`), which the pad imports.
+ * This file does not import it: it ships on every page of the public site, and the import cost
+ * that page load more than its budget had left.
+ */
+export function rowSide(
+  rowRegistrationId: string | null | undefined,
+  redRegId: string | null,
+  blueRegId: string | null,
+): 'red' | 'blue' | null {
+  if (rowRegistrationId === null || rowRegistrationId === undefined) return null;
+  return rowRegistrationId === redRegId ? 'red' : rowRegistrationId === blueRegId ? 'blue' : null;
+}
+
 /** A protest as a row: the fighter, the word, an icon. No points and no number. */
 function protestRow(
   p: MatchProtest,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
-  const side: 'red' | 'blue' | null = isSideRegistration(p.registration_id, a.redRegId)
-    ? 'red'
-    : isSideRegistration(p.registration_id, a.blueRegId)
-      ? 'blue'
-      : null;
+  const side = rowSide(p.registration_id, a.redRegId, a.blueRegId);
   return {
     id: `pro-${p.id}`,
     kind: 'protest',

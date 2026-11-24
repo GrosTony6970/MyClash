@@ -39,8 +39,10 @@ the Pool seat, both bracket slots, both sides and the winner of a Match, a card,
 side and the winning side of a forfeit, and a protest. That is ten links. Links that were `NOT NULL` become nullable under that check. The new foreign keys follow the
 deferred-delete rule of migration 0237.
 
-**Every Match gets one side key that is never empty, and every comparison of sides uses it.** The
-side key is the Registration id or the Team id. It lives in `packages/types`, because the API and
+**Every Match gets one side key, and every comparison of sides uses it.** The side key is the
+Registration id or the Team id. It is never `''`: it is null while a side is not known, and a bout
+with a side not known is refused Start, hits, cards and colour swap (`docs/ARCHITECTURE.md`, "A
+bout waiting for a Fighter"). It lives in `packages/types`, because the API and
 the scorekeeper screen both need it. The engine never calls it: the engine receives ids already
 resolved.
 

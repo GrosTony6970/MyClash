@@ -113,11 +113,11 @@ describe('heldReason', () => {
   ])('says %s held for a bout waiting for a Fighter in the reader’s language', (_row, kind) => {
     const held = { rejectedReason: 'API words', rejectedCode: 'bout_side_missing', kind };
 
-    expect(heldReason(held, t)).toBe('scoring.quarantine.boutSideMissing');
-    expect(en.scoring.quarantine.boutSideMissing).toBe(
+    expect(heldReason(held, t)).toBe('pad.quarantine.boutSideMissing');
+    expect(en.pad.quarantine.boutSideMissing).toBe(
       'Held here, not lost: this bout was waiting for a Fighter. Retry once both Fighters are on the bout, or discard it.',
     );
-    expect(fr.scoring.quarantine.boutSideMissing).toBe(
+    expect(fr.pad.quarantine.boutSideMissing).toBe(
       "Conservée ici, pas perdue : cet assaut attendait un combattant. Réessayez quand les deux combattants sont sur l'assaut, ou supprimez-la.",
     );
   });
@@ -247,11 +247,11 @@ describe('refusalMessage', () => {
         t,
         FALLBACK,
       ),
-    ).toBe('scoring.corrections.boutSideMissing');
-    expect(en.scoring.corrections.boutSideMissing).toBe(
+    ).toBe('pad.corrections.boutSideMissing');
+    expect(en.pad.corrections.boutSideMissing).toBe(
       'This bout is waiting for a Fighter. Try again once both sides are known.',
     );
-    expect(fr.scoring.corrections.boutSideMissing).toBe(
+    expect(fr.pad.corrections.boutSideMissing).toBe(
       'Cet assaut attend un combattant. Réessayez une fois les deux côtés connus.',
     );
   });

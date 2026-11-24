@@ -130,7 +130,7 @@ describe('a tap of the protest button', () => {
   it('the screen says it in the reader’s language', () => {
     const view = readFileSync(join(__dirname, '..', 'components', 'MatchView.tsx'), 'utf8');
     expect(view).toContain(
-      "onNoFighter: () => setClockError(t('scoring.corrections.boutSideMissing')),",
+      "onNoFighter: () => setClockError(t('pad.corrections.boutSideMissing')),",
     );
   });
 

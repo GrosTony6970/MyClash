@@ -7,6 +7,8 @@ import {
   negotiateLocale,
   type Locale,
 } from './index';
+import { messages as publicSurface } from './surfaces/public';
+import { messages as staffSurface } from './surfaces/staff';
 
 function collectKeys(value: unknown, prefix = ''): string[] {
   if (!value || typeof value !== 'object') return [prefix];
@@ -30,6 +32,14 @@ const t = createTranslator({
 assert.equal(t('greeting.welcome', { name: 'Tony' }), 'Welcome, Tony.');
 assert.equal(t('missing.key'), '[missing.key]');
 assert.deepEqual(collectKeys(messages.fr).sort(), collectKeys(messages.en).sort());
+
+// --- the pad's own strings ---
+// The scoring pad reads `pad`, so its surface carries it. The public site loads its surface on
+// every page and never reads `pad`, so it does not ship it (scripts/check-bundle-budgets.mjs).
+assert.deepEqual(staffSurface.en.pad, messages.en.pad);
+assert.deepEqual(staffSurface.fr.pad, messages.fr.pad);
+assert.equal('pad' in publicSurface.en, false);
+assert.equal('pad' in publicSurface.fr, false);
 
 // --- negotiateLocale ---
 // Cookie is an explicit choice and wins over the header.

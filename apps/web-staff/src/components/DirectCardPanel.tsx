@@ -152,7 +152,7 @@ function useDirectCard(props: DirectCardPanelProps, t: Translate) {
     const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;
     // A corner with no Fighter yet: the card has nobody to go to. The server refuses it too.
     if (registrationId === null) {
-      setError(t('scoring.corrections.boutSideMissing'));
+      setError(t('pad.corrections.boutSideMissing'));
       return;
     }
     setBusy(true);

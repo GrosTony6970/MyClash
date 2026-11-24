@@ -27,13 +27,8 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import {
-  isSideRegistration,
-  liveProtestsOf,
-  type ExchangeRow,
-  type MatchProtest,
-  type Penalty,
-} from '@myclash/ui';
+import { isSideRegistration } from '@myclash/types/side-registration';
+import { liveProtestsOf, type ExchangeRow, type MatchProtest, type Penalty } from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 

@@ -9,7 +9,7 @@
  * reads them as absent. Pure: the bout screen asks it of the bout it shows, the server's or the
  * tablet's copy.
  */
-import { sideKey } from '@myclash/types';
+import { sideKey } from '@myclash/types/side-key';
 import type { MatchInfo } from '../components/MatchView';
 
 export function sideMissing(
