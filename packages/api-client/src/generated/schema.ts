@@ -5497,7 +5497,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/oauth-consent/{authorizationId}': {
+  '/api/v1/me/oauth-consent/{authorizationId}': {
     parameters: {
       query?: never;
       header?: never;

@@ -22,12 +22,12 @@ import { type ConsentView, OAuthConsentService } from './oauth-consent.service';
  * `authorization_id`; the page cannot read the httpOnly login cookie, so it calls these routes on
  * the same site, and they call GoTrue with the person's own login.
  *
- * A signed-in person only: AuthGuard refuses a connector token on every route but the MCP door,
+ * A `me` route: the signed-in person's own consent. AuthGuard refuses a connector token on every route but the MCP door,
  * so the login here is always the person's browser login. GoTrue binds the request to that
  * login and answers 404 to anyone else.
  */
 @ApiTags('mcp')
-@Controller('oauth-consent')
+@Controller('me/oauth-consent')
 export class OAuthConsentController {
   constructor(
     private readonly consent: OAuthConsentService,

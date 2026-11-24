@@ -258,7 +258,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
   'The MCP door: its one tool reads, and writes no row of an Event.': ['POST mcp'],
   // The answer is written in GoTrue's own tables, on the person's account.
   "The consent page: a person's answer to a Claude connection request, not the Event record.": [
-    'POST oauth-consent/:authorizationId',
+    'POST me/oauth-consent/:authorizationId',
   ],
 };
 
