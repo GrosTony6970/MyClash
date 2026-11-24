@@ -302,11 +302,17 @@ test.describe.serial('mcp connector', () => {
 
     const put = await bare.put(`${server.issuer}/user`, { headers, data: { data: {} } });
     expect(put.status(), 'GoTrue 2.198 refuses a connector token on PUT /user').toBe(403);
-    expect((await json<{ error_code?: string }>(put)).error_code).toBe('no_authorization');
+    expect(
+      ((await put.json()) as { error_code?: string }).error_code,
+      'PUT /user refusal error_code',
+    ).toBe('no_authorization');
 
     const grants = await bare.get(`${server.issuer}/user/oauth/grants`, { headers });
     expect(grants.status(), 'GoTrue 2.198 refuses a connector token on the grants list').toBe(403);
-    expect((await json<{ error_code?: string }>(grants)).error_code).toBe('no_authorization');
+    expect(
+      ((await grants.json()) as { error_code?: string }).error_code,
+      'grants refusal error_code',
+    ).toBe('no_authorization');
 
     const res = await bare.get(`${server.issuer}/user`, { headers });
     expect(
