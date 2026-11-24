@@ -523,6 +523,47 @@ describe('ArchiveService', () => {
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
   });
 
+  /**
+   * `scopedRows()` with a team bout (0282): a second team, a team in a Pool, a team Match won by
+   * the first team, and a protest the second team filed. Kept apart so the tests that expect the
+   * one bout of `scopedRows()` still find exactly one.
+   */
+  const teamSideRows = () => {
+    const rows = scopedRows();
+    return {
+      ...rows,
+      teams: [
+        ...rows.teams,
+        { id: 'tm-2', tournament_id: 't-1', name: 'Rivals', slug: 'rivals', size: 3 },
+      ],
+      pools: [{ id: 'pool-1', phase_id: 'ph-1' }],
+      pool_members: [{ id: 'pm-team', pool_id: 'pool-1', team_id: 'tm-1' }],
+      matches: [
+        ...rows.matches,
+        {
+          id: 'm-team',
+          phase_id: 'ph-1',
+          status: 'completed',
+          red_team_id: 'tm-1',
+          blue_team_id: 'tm-2',
+          winner_team_id: 'tm-1',
+          match_rules_id: 'mr-now',
+        },
+      ],
+      match_protests: [
+        {
+          id: 'mpr-team',
+          client_uuid: 'cu-protest',
+          match_id: 'm-team',
+          tournament_id: 't-1',
+          team_id: 'tm-2',
+          sequence: 1,
+          occurred_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    };
+  };
+
   it('captures the newly-wired scoped tables in an event archive', async () => {
     const { service } = makeService(scopedRows());
     const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
@@ -798,11 +839,11 @@ describe('ArchiveService', () => {
    * collected as `[]`.
    *
    * Bounded by the fixture, deliberately: it can only speak for the tables
-   * `scopedRows()` provides, which is why the registry's own suite asserts the
+   * `teamSideRows()` provides, which is why the registry's own suite asserts the
    * shape of the rules rather than their effect.
    */
   it('carries every fixture table the registry says an event archive collects', async () => {
-    const rows = scopedRows();
+    const rows = teamSideRows();
     const { service } = makeService(rows);
 
     const archive = await service.generateEventArchive('event-1', 'user-1', {
@@ -839,11 +880,11 @@ describe('ArchiveService', () => {
    * declared?" It walks to any depth and needs nothing declared.
    *
    * Its limit is the mirror image, and worth stating rather than implying: it
-   * only sees shapes `scopedRows()` contains. A JSON key the fixture never
+   * only sees shapes `teamSideRows()` contains. A JSON key the fixture never
    * carries is invisible here too. Neither test is a guarantee on its own.
    */
   it('leaves no source id anywhere in a restored copy', async () => {
-    const rows = scopedRows();
+    const rows = teamSideRows();
     const sourceIds = new Set<string>();
     for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
       for (const row of table) {

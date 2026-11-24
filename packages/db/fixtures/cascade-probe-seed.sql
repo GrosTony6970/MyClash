@@ -9,8 +9,9 @@
 -- Fighters, the copy of the rules, a bout with a piste, a Pool, both Fighters and a winner, its
 -- exchange, a card and a forfeit, a second bout, a referee on the bout, a referee skill two slots
 -- list, a compensation plan the Event uses. And a second, team Tournament with its own phase and
--- copy of the rules, one team and one slot naming the Blue Fighter (0281). Every key checked at
--- commit (the nine of 0237, the slot's Person of 0281) has a row on it.
+-- copy of the rules, two teams, a slot naming the Blue Fighter (0281), a team bout with a winner,
+-- its forfeit and a protest (0282). Every key checked at commit (the nine of 0237, the slot's
+-- Person of 0281, the Team sides of a bout and a forfeit of 0282) has a row on it.
 -- Ids start with `ca5c`, apart from the RLS seed's.
 
 INSERT INTO organizations (id, slug, name) VALUES
@@ -99,6 +100,24 @@ INSERT INTO teams (id, tournament_id, name, slug, size) VALUES
 INSERT INTO team_slots (id, team_id, tournament_id, position, person_id) VALUES
   ('ca5c0000-0000-4000-8000-000000000c21', 'ca5c0000-0000-4000-8000-000000000c11',
    'ca5c0000-0000-4000-8000-0000000000f2', 1, 'ca5c0000-0000-4000-8000-000000000102');
+-- A second team, and a team bout between the two (0282). Its winner team is cleared (SET NULL)
+-- when a delete takes the teams before the bout; its forfeit and protest name the second team.
+INSERT INTO teams (id, tournament_id, name, slug, size) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c12', 'ca5c0000-0000-4000-8000-0000000000f2', 'Rival team',
+   'rival-team', 3);
+INSERT INTO matches (id, phase_id, match_rules_id, red_team_id, blue_team_id, winner_team_id, status) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c31', 'ca5c0000-0000-4000-8000-0000000000b2',
+   'ca5c0000-0000-4000-8000-0000000000d2', 'ca5c0000-0000-4000-8000-000000000c11',
+   'ca5c0000-0000-4000-8000-000000000c12', 'ca5c0000-0000-4000-8000-000000000c11', 'completed');
+INSERT INTO match_forfeits (id, match_id, tournament_id, forfeiting_team_id, winner_team_id, reason,
+                            score_policy) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c41', 'ca5c0000-0000-4000-8000-000000000c31',
+   'ca5c0000-0000-4000-8000-0000000000f2', 'ca5c0000-0000-4000-8000-000000000c12',
+   'ca5c0000-0000-4000-8000-000000000c11', 'injury', 'keep_current');
+INSERT INTO match_protests (id, client_uuid, match_id, tournament_id, team_id, sequence, occurred_at) VALUES
+  ('ca5c0000-0000-4000-8000-000000000c51', 'ca5c0000-0000-4000-8000-000000000c52',
+   'ca5c0000-0000-4000-8000-000000000c31', 'ca5c0000-0000-4000-8000-0000000000f2',
+   'ca5c0000-0000-4000-8000-000000000c12', 1, '2026-10-01T11:00:00Z');
 -- A photo on the Event, tagged with its Tournament: every delete path must queue its two keys
 -- (0250). Synthetic keys; no image exists anywhere.
 INSERT INTO event_photos (id, event_id, tournament_id, status, device_id, original_key, preview_key,

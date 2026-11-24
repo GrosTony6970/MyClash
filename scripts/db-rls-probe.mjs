@@ -45,8 +45,9 @@
  *      check 24: anon runs only the helpers its read rules need, every one of them needed, and
  *      nothing else of `public` is open to a web role or PUBLIC (0275,
  *      `lib/function-door-probe.mjs`); check 25: a Tournament holds only entrants of its kind and
- *      keeps its kind once it holds one, and a team's slots keep their rules (0281,
- *      `lib/team-tables-probe.mjs`).
+ *      keeps its kind once it holds one, a team's slots keep their rules (0281), and each side
+ *      link names a Registration or a Team, never both, with a Match and a forfeit of one kind
+ *      (0282, `lib/team-tables-probe.mjs`).
  * Since 0274 four of the five helper loops (ruling 111a left them) have no way back; the last,
  * `can_manage_penalty_ruleset` over `penalty_rulesets`, needs an account id under the anon role. No
  * table read as `authenticated` reaches any helper: checks 5, 7, 21 and 22 expect a refusal on
@@ -250,7 +251,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, a roster row says claimed exactly when an account holds it, a ruleset code has one row, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed, no table takes a web write and a new table starts closed, no web role reads a fighter profile, a signed-in reader reads nothing, every rule can run for the role it names, the web roles run only the helpers the read rules need, a Tournament holds only entrants of its kind and a team's slots keep their rules.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, a roster row says claimed exactly when an account holds it, a ruleset code has one row, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed, no table takes a web write and a new table starts closed, no web role reads a fighter profile, a signed-in reader reads nothing, every rule can run for the role it names, the web roles run only the helpers the read rules need, a Tournament holds only entrants of its kind, a team's slots keep their rules and a side is a Registration or a Team.`,
     );
   }
 } catch (error) {

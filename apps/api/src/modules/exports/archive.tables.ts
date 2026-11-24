@@ -116,6 +116,13 @@ export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
   replacement_registration_id: { map: 'registrations' },
   registration_a_id: { map: 'registrations' },
   registration_b_id: { map: 'registrations' },
+  // The Team twin of each side link above (0282).
+  red_team_id: { map: 'teams' },
+  blue_team_id: { map: 'teams' },
+  winner_team_id: { map: 'teams' },
+  forfeiting_team_id: { map: 'teams' },
+  team_a_id: { map: 'teams' },
+  team_b_id: { map: 'teams' },
   // `swiss_rounds.bye_registration_id`. Missed when the Swiss tables were
   // registered, and silently: the FK points at `registrations(id)` and the
   // SOURCE row still exists, so the constraint is satisfied and the restore

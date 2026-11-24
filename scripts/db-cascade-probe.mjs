@@ -23,8 +23,8 @@
  *   - no key a cascade can trip by trigger order is left: any RESTRICT key, deferrable or not
  *     (Postgres checks RESTRICT at once), and any immediate NO ACTION key, whose child and parent
  *     both die by cascade from one ancestor; and, so an empty scan cannot pass, the same search
- *     without the "immediate" filter finds exactly the deferred keys (the nine of 0237 and
- *     `team_slots.person_id`, 0281);
+ *     without the "immediate" filter finds exactly the deferred keys (the nine of 0237,
+ *     `team_slots.person_id` of 0281, and the four Team sides of a Match and a forfeit, 0282);
  *   - each seeded row was written;
  *   - a delete of the Event, the Tournament, the phase and the club succeeds and takes the bouts;
  *   - a delete of a registration a bout names, a person with a registration, the copy a bout holds,
@@ -74,7 +74,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 83;
+const EXPECTED_CHECKS = 87;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -89,14 +89,21 @@ const REFEREE = 'ca5c0000-0000-4000-8000-000000000701';
 const SKILL = 'cascade-probe-skill';
 const PLAN = 'ca5c0000-0000-4000-8000-000000000a01';
 
-/** The keys checked at commit, sorted: the nine 0237 made deferred, the team slot's Person (0281). */
+/**
+ * The keys checked at commit, sorted: the nine 0237 made deferred, the team slot's Person (0281),
+ * the Team sides of a Match and of a forfeit (0282).
+ */
 const DEFERRED_KEYS = [
   'event_slot_config_default_skills_skill_id_fkey',
   'match_forfeits_forfeiting_registration_id_fkey',
+  'match_forfeits_forfeiting_team_id_fkey',
   'match_forfeits_winner_registration_id_fkey',
+  'match_forfeits_winner_team_id_fkey',
   'matches_blue_registration_id_fkey',
+  'matches_blue_team_id_fkey',
   'matches_match_rules_id_fkey',
   'matches_red_registration_id_fkey',
+  'matches_red_team_id_fkey',
   'referee_compensation_event_settings_plan_id_fkey',
   'registrations_person_id_fkey',
   'team_slots_person_id_fkey',
@@ -137,6 +144,11 @@ const SEEDED = [
   ['match_rules', 'id', 'ca5c0000-0000-4000-8000-0000000000d2'],
   ['teams', 'id', 'ca5c0000-0000-4000-8000-000000000c11'],
   ['team_slots', 'id', 'ca5c0000-0000-4000-8000-000000000c21'],
+  // A second team, a team bout with a winner, its forfeit and a protest (0282).
+  ['teams', 'id', 'ca5c0000-0000-4000-8000-000000000c12'],
+  ['matches', 'id', 'ca5c0000-0000-4000-8000-000000000c31'],
+  ['match_forfeits', 'id', 'ca5c0000-0000-4000-8000-000000000c41'],
+  ['match_protests', 'id', 'ca5c0000-0000-4000-8000-000000000c51'],
   PHOTO_SEEDED,
   REPORT_SEEDED,
 ];
