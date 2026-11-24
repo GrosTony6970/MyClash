@@ -12,7 +12,7 @@ import type { Exchange, Match } from './types';
 import { DEFAULT_FORMULA_CONSTANTS, Generic_PointsCap, TF_v1, createFormulaRuleset } from './index';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   EDITION_2026_04,
   EDITION_2026_10,
 } from './match-format';
@@ -28,8 +28,8 @@ const TF_CONFIG = { ...TFv1DefaultConfig, matchFormat: FORMAT };
 
 const match = (over: Partial<Match>): Match => ({
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'TF_v1',
   rulesetVersion: '1.0.0',
   status: 'running',
@@ -70,16 +70,14 @@ describe('TF_v1, both at zero in a bout that counts down', () => {
       const score = scored(bout, story());
       expect(score).toMatchObject({ redScore: 0, blueScore: 0 });
       expect(TF_v1.isMatchOver(bout, score, TF_CONFIG)).toEqual(OVER);
-      expect(getPointCapWinnerRegistrationId(bout, score, FORMAT, EDITION_2026_10)).toBe(
-        'reg-blue',
-      );
+      expect(getPointCapWinnerSideId(bout, score, FORMAT, EDITION_2026_10)).toBe('reg-blue');
     }
   });
 
   it('ends a true tie as a draw in a Pool', () => {
     const score = scored(POOL, trueTie());
     expect(TF_v1.isMatchOver(POOL, score, TF_CONFIG)).toEqual(OVER);
-    expect(getPointCapWinnerRegistrationId(POOL, score, FORMAT, EDITION_2026_10)).toBeNull();
+    expect(getPointCapWinnerSideId(POOL, score, FORMAT, EDITION_2026_10)).toBeNull();
   });
 
   it('keeps a true tie open in a bracket, and the next hit ends it', () => {
@@ -87,9 +85,7 @@ describe('TF_v1, both at zero in a bout that counts down', () => {
 
     const after = scored(BRACKET, [...trueTie(), hit('red', 1)]);
     expect(TF_v1.isMatchOver(BRACKET, after, TF_CONFIG)).toEqual(OVER);
-    expect(getPointCapWinnerRegistrationId(BRACKET, after, FORMAT, EDITION_2026_10)).toBe(
-      'reg-red',
-    );
+    expect(getPointCapWinnerSideId(BRACKET, after, FORMAT, EDITION_2026_10)).toBe('reg-red');
   });
 });
 

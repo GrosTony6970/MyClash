@@ -188,7 +188,7 @@ describe('roundOutcome', () => {
   });
 
   it('is what `evaluateRound` answers, on the score its scorer gives', () => {
-    const match = { ...BRACKET, redRegistrationId: 'r', blueRegistrationId: 'b' } as Match;
+    const match = { ...BRACKET, redSideId: 'r', blueSideId: 'b' } as Match;
     const score = { redScore: 5, blueScore: 3, doubles: 1 };
     const scored = evaluateRound(match, [], config(), EDITION_2026_10, () => score as never);
     expect(scored).toEqual({ score, ...roundOutcome(match, score, config(), EDITION_2026_10) });

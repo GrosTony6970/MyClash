@@ -9,9 +9,9 @@ import { boutOutcomes, winnerColorFrom } from './match-format';
  * W/L tiles counted it in NEITHER column, and the form badge said D.
  */
 const bout = (over: Record<string, unknown> = {}) => ({
-  winnerRegistrationId: null,
-  redRegistrationId: 'red',
-  blueRegistrationId: 'blue',
+  winnerSideId: null,
+  redSideId: 'red',
+  blueSideId: 'blue',
   redScore: 0,
   blueScore: 0,
   endReason: null,
@@ -22,12 +22,10 @@ describe('boutOutcomes', () => {
   it('honours a recorded winner OVER the score', () => {
     // A forfeit, a walkover or a referee override can award a bout to the
     // fighter behind on points — the canonical reason explicit scores exist.
-    expect(boutOutcomes(bout({ winnerRegistrationId: 'blue', redScore: 5, blueScore: 3 }))).toEqual(
-      {
-        red: 'loss',
-        blue: 'win',
-      },
-    );
+    expect(boutOutcomes(bout({ winnerSideId: 'blue', redScore: 5, blueScore: 3 }))).toEqual({
+      red: 'loss',
+      blue: 'win',
+    });
   });
 
   it('falls back to the score when no winner is recorded', () => {
@@ -57,7 +55,7 @@ describe('boutOutcomes', () => {
     expect(boutOutcomes(bout({ endReason: 'max_doubles_draw' })).red).toBe('draw');
     expect(
       boutOutcomes(
-        bout({ endReason: 'max_doubles_result_stands', winnerRegistrationId: 'red', redScore: 2 }),
+        bout({ endReason: 'max_doubles_result_stands', winnerSideId: 'red', redScore: 2 }),
       ),
     ).toEqual({ red: 'win', blue: 'loss' });
   });
@@ -65,21 +63,21 @@ describe('boutOutcomes', () => {
   it('answers "nobody" for a winner naming neither side, rather than inventing one', () => {
     // A mismatched pairing. Falling through to the scores would crown someone
     // on data that is already known to be wrong.
-    expect(
-      boutOutcomes(bout({ winnerRegistrationId: 'someone-else', redScore: 5, blueScore: 3 })),
-    ).toEqual({ red: 'draw', blue: 'draw' });
+    expect(boutOutcomes(bout({ winnerSideId: 'someone-else', redScore: 5, blueScore: 3 }))).toEqual(
+      { red: 'draw', blue: 'draw' },
+    );
   });
 });
 
 describe('winnerColorFrom', () => {
   it('is the ladder resolveMatchWinner delegates to', () => {
-    expect(winnerColorFrom(bout({ winnerRegistrationId: 'blue', redScore: 9 }))).toBe('blue');
+    expect(winnerColorFrom(bout({ winnerSideId: 'blue', redScore: 9 }))).toBe('blue');
     expect(winnerColorFrom(bout({ redScore: 3, blueScore: 1 }))).toBe('red');
     expect(winnerColorFrom(bout({ redScore: 1, blueScore: 1 }))).toBeNull();
-    expect(winnerColorFrom(bout({ winnerRegistrationId: 'nobody' }))).toBeNull();
+    expect(winnerColorFrom(bout({ winnerSideId: 'nobody' }))).toBeNull();
   });
 
   it('treats absent scores as zero, so an unplayed bout is not a win', () => {
-    expect(winnerColorFrom({ redRegistrationId: 'red', blueRegistrationId: 'blue' })).toBeNull();
+    expect(winnerColorFrom({ redSideId: 'red', blueSideId: 'blue' })).toBeNull();
   });
 });

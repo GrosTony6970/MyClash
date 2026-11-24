@@ -89,7 +89,17 @@ export function buildProfileRecentMatch(
     redScore: row.redScore,
     blueScore: row.blueScore,
     isRed,
-    outcome: deriveMatchOutcome(row, isRed ? 'red' : 'blue'),
+    outcome: deriveMatchOutcome(
+      {
+        winnerSideId: row.winnerRegistrationId,
+        redSideId: row.redRegistrationId,
+        blueSideId: row.blueRegistrationId,
+        redScore: row.redScore,
+        blueScore: row.blueScore,
+        endReason: row.endReason,
+      },
+      isRed ? 'red' : 'blue',
+    ),
     eventName: row.eventName,
     eventSlug: row.eventSlug,
     scheduledAt: row.scheduledAt,

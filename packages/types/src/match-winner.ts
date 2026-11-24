@@ -42,5 +42,11 @@ export function resolveMatchWinner(input: {
   blueScore?: number | null;
 }): 'red' | 'blue' | null {
   if (input.status !== 'completed') return null;
-  return winnerColorFrom(input);
+  return winnerColorFrom({
+    winnerSideId: input.winnerRegistrationId,
+    redSideId: input.redRegistrationId,
+    blueSideId: input.blueRegistrationId,
+    redScore: input.redScore,
+    blueScore: input.blueScore,
+  });
 }

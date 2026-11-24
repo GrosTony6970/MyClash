@@ -145,8 +145,8 @@ function bestOfFor(row: ViewRow, matchFormat: ReturnType<typeof normalizeMatchFo
   return getEffectiveBestOf(
     {
       id: row.match_id,
-      redRegistrationId: '',
-      blueRegistrationId: '',
+      redSideId: '',
+      blueSideId: '',
       rulesetCode: 'TF_v1',
       rulesetVersion: '1.0.0',
       status: 'running',

@@ -27,24 +27,24 @@ export type CorrectionOutcome =
   /** A running Event's bout is no longer over: it goes back to the referee. */
   | { kind: 'reopen' }
   /** The bout stays finished and names its result again. */
-  | { kind: 'redecide'; winnerRegistrationId: string | null; endReason: string }
+  | { kind: 'redecide'; winnerSideId: string | null; endReason: string }
   | { kind: 'refuse'; code: CorrectionRefusalCode };
 
 export interface CorrectionInput {
   /** The bout as it is stored, before the correction. */
   bout: {
     status: string;
-    winnerRegistrationId: string | null;
+    winnerSideId: string | null;
     endReason: string | null;
-    redRegistrationId: string | null;
-    blueRegistrationId: string | null;
+    redSideId: string | null;
+    blueSideId: string | null;
     redScore: number;
     blueScore: number;
   };
   /** The score once the correction is in. */
   score: { redScore: number; blueScore: number };
   /** What the ruleset says about that score: the cap, the doubles ceiling. */
-  engine: { isOver: false } | { isOver: true; reason: string; winnerRegistrationId: string | null };
+  engine: { isOver: false } | { isOver: true; reason: string; winnerSideId: string | null };
   /**
    * Nobody will end this bout again: the Event is over (completed or archived),
    * or a later Swiss round was already drawn, which refuses a reopen.
@@ -79,7 +79,7 @@ const DECIDED_ON_THE_BOARD: readonly string[] = [
  */
 function storedReason(bout: CorrectionInput['bout']): string | null {
   if (bout.endReason !== null) return bout.endReason;
-  const drawn = bout.winnerRegistrationId === null && bout.redScore === bout.blueScore;
+  const drawn = bout.winnerSideId === null && bout.redScore === bout.blueScore;
   return drawn ? 'time_limit' : null;
 }
 
@@ -98,17 +98,17 @@ export function correctionOutcome(input: CorrectionInput): CorrectionOutcome {
   // Decided as the End button decides: the engine's own answer while its end
   // condition holds, else whoever leads, and nobody when the board is level.
   const leader = leadingColor(score);
-  const winnerRegistrationId = engine.isOver
-    ? engine.winnerRegistrationId
+  const winnerSideId = engine.isOver
+    ? engine.winnerSideId
     : leader === 'red'
-      ? bout.redRegistrationId
+      ? bout.redSideId
       : leader === 'blue'
-        ? bout.blueRegistrationId
+        ? bout.blueSideId
         : null;
   const endReason = engine.isOver ? engine.reason : 'time_limit';
 
   const before = boutOutcomes(bout);
-  const after = boutOutcomes({ ...bout, ...score, winnerRegistrationId, endReason });
+  const after = boutOutcomes({ ...bout, ...score, winnerSideId, endReason });
   const changes = before.red !== after.red || before.blue !== after.blue;
 
   if (changes && laterBoutFought) return { kind: 'refuse', code: 'correction_later_bout_fought' };
@@ -117,5 +117,5 @@ export function correctionOutcome(input: CorrectionInput): CorrectionOutcome {
   if (!engine.isOver && leader === null && !drawAllowed) {
     return { kind: 'refuse', code: 'correction_leaves_bout_level' };
   }
-  return { kind: 'redecide', winnerRegistrationId, endReason };
+  return { kind: 'redecide', winnerSideId, endReason };
 }

@@ -40,7 +40,7 @@ export {
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   isMedalMatchLabel,
   isPointCapReached,
   pointCapEndsBout,

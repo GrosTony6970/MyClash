@@ -6,8 +6,8 @@ import { applyRanking } from '@myclash/rules/results';
 
 const BASE_MATCH: Match = {
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'Generic_PointsCap',
   rulesetVersion: '1.0.0',
   status: 'running',
@@ -171,9 +171,9 @@ describe('Generic_PointsCap', () => {
   describe('scorePoolFighters', () => {
     const bout: ScoredMatch = {
       id: 'm1',
-      redRegistrationId: 'r1',
-      blueRegistrationId: 'r2',
-      winnerRegistrationId: 'r1',
+      redSideId: 'r1',
+      blueSideId: 'r2',
+      winnerSideId: 'r1',
       endReason: null,
       // The recorded winner decides; the board agrees with it here.
       redScore: 2,

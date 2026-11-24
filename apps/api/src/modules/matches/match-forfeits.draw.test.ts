@@ -56,9 +56,9 @@ describe('a forfeit that counts as a draw', () => {
       // What the standings and the pad read off that row.
       expect(
         boutOutcomes({
-          winnerRegistrationId: ended!['winner_registration_id'] as string | null,
-          redRegistrationId: 'reg-red',
-          blueRegistrationId: 'reg-blue',
+          winnerSideId: ended!['winner_registration_id'] as string | null,
+          redSideId: 'reg-red',
+          blueSideId: 'reg-blue',
           redScore: ended!['red_score'] as number,
           blueScore: ended!['blue_score'] as number,
           endReason: ended!['end_reason'] as string,

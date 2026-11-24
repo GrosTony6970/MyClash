@@ -105,8 +105,8 @@ describe('the end decisions both rulesets run', () => {
     // but the cap question is the same one and the answer must not differ.
     const match = (over: Partial<Match>): Match => ({
       id: 'm1',
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
       rulesetCode: 'Generic_PointsCap',
       rulesetVersion: '1.0.0',
       status: 'running',
@@ -138,8 +138,8 @@ describe('the end decisions both rulesets run', () => {
 describe('evaluateRound at the point cap', () => {
   const roundMatch = (over: Partial<Match>): Match => ({
     id: 'm1',
-    redRegistrationId: 'reg-red',
-    blueRegistrationId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     rulesetCode: 'Generic_PointsCap',
     rulesetVersion: '1.0.0',
     status: 'running',

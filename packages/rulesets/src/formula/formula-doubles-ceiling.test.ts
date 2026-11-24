@@ -26,8 +26,8 @@ describe('createFormulaRuleset — the doubles ceiling', () => {
   );
   const poolMatch = {
     id: 'm1',
-    redRegistrationId: 'reg-red',
-    blueRegistrationId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     rulesetCode: 'org_custom',
     rulesetVersion: '1.0.0',
     status: 'running' as const,

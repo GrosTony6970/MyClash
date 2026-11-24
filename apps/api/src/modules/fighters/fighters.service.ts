@@ -1061,9 +1061,9 @@ export class FightersService {
 
       const outcome = deriveMatchOutcome(
         {
-          winnerRegistrationId: winnerRegId,
-          redRegistrationId: redId,
-          blueRegistrationId: blueId,
+          winnerSideId: winnerRegId,
+          redSideId: redId,
+          blueSideId: blueId,
           redScore: Number(match['red_score'] ?? 0),
           blueScore: Number(match['blue_score'] ?? 0),
           endReason: (match['end_reason'] as string | null) ?? null,

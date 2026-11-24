@@ -22,8 +22,8 @@ import {
 
 const BASE_MATCH: Match = {
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'TF_v1',
   rulesetVersion: '1.0.0',
   status: 'running',

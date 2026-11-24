@@ -65,13 +65,13 @@ describe('createFormulaRuleset', () => {
   function makeMatch(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
     return {
       id,
-      redRegistrationId: red,
-      blueRegistrationId: blue,
+      redSideId: red,
+      blueSideId: blue,
       endReason: null,
       // No winner, so the board decides — and here it says what the exchanges
       // do. Only clean hits and doubles appear below, and a double has no
       // striker, so counting strikers is the whole score.
-      winnerRegistrationId: null,
+      winnerSideId: null,
       redScore: exchanges.filter((e) => e.firstStrikerColor === 'red').length,
       blueScore: exchanges.filter((e) => e.firstStrikerColor === 'blue').length,
       exchanges,
@@ -241,9 +241,9 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
     }));
     return {
       id: 'm1',
-      redRegistrationId: 'A',
-      blueRegistrationId: 'B',
-      winnerRegistrationId: null,
+      redSideId: 'A',
+      blueSideId: 'B',
+      winnerSideId: null,
       endReason: null,
       redScore: 0, // doubles only, so the board is level and nobody won it
       blueScore: 0,

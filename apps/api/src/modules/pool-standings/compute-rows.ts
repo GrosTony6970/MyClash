@@ -116,9 +116,9 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     // live score while naming the OPPONENT as winner, so the fighter who
     // forfeited was credited with the W in the table they are ranked on.
     const outcome = boutOutcomes({
-      winnerRegistrationId: m.winner_registration_id,
-      redRegistrationId: m.red_registration_id,
-      blueRegistrationId: m.blue_registration_id,
+      winnerSideId: m.winner_registration_id,
+      redSideId: m.red_registration_id,
+      blueSideId: m.blue_registration_id,
       redScore: rs,
       blueScore: bs,
       endReason: m.end_reason,
@@ -131,7 +131,7 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     // formula needs. `computeAggregates` asks for the one field it reads, so
     // this is a plain object rather than a row cast into a domain type.
     const matchExchanges = exchangesByMatch.get(m.id) ?? [];
-    const rulesetMatch = { redRegistrationId: m.red_registration_id };
+    const rulesetMatch = { redSideId: m.red_registration_id };
     for (const regId of [m.red_registration_id, m.blue_registration_id]) {
       const acc = aggByReg.get(regId);
       if (!acc) continue;

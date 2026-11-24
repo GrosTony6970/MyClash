@@ -21,7 +21,7 @@ import {
   isDecisionEdition,
   capLeader,
   evaluateRound,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   pointCapEndsBout,
   pointCapWinnerColor,
   roundOutcome,
@@ -82,13 +82,13 @@ describe('both out of points in a bout that counts down', () => {
   });
 
   it('the winner as a registration follows the edition', () => {
-    const match = { ...BRACKET, redRegistrationId: 'r', blueRegistrationId: 'b' } as Match;
-    expect(getPointCapWinnerRegistrationId(match, BOTH_OUT, config(), EDITION_2026_04)).toBeNull();
-    expect(getPointCapWinnerRegistrationId(match, BOTH_OUT, config(), EDITION_2026_10)).toBe('b');
+    const match = { ...BRACKET, redSideId: 'r', blueSideId: 'b' } as Match;
+    expect(getPointCapWinnerSideId(match, BOTH_OUT, config(), EDITION_2026_04)).toBeNull();
+    expect(getPointCapWinnerSideId(match, BOTH_OUT, config(), EDITION_2026_10)).toBe('b');
   });
 
   it('a round of a best-of bout follows the edition it is evaluated with', () => {
-    const match = { ...BRACKET, redRegistrationId: 'r', blueRegistrationId: 'b' } as Match;
+    const match = { ...BRACKET, redSideId: 'r', blueSideId: 'b' } as Match;
     const scored = () => BOTH_OUT as never;
     expect(evaluateRound(match, [], config(), EDITION_2026_04, scored)).toMatchObject({
       autoOver: false,

@@ -17,7 +17,7 @@ import { LeagueRescoreService } from './league-rescore.service';
 import {
   evaluateRound,
   getEffectiveBestOf,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   isDoubleLossBout,
   leadingColor,
   pendingLevelStep,
@@ -102,7 +102,7 @@ interface LoadedBout extends ScoreRows {
 interface SingleFightScore {
   score: MatchScore;
   decision: MatchEndDecision;
-  winnerRegistrationId: string | null;
+  winnerSideId: string | null;
 }
 
 /**
@@ -130,8 +130,8 @@ function rulesetMatch(
   const engine = boutEngineOf(m);
   return {
     id: m['id'] as string,
-    redRegistrationId: m['red_registration_id'] as string,
-    blueRegistrationId: m['blue_registration_id'] as string,
+    redSideId: m['red_registration_id'] as string,
+    blueSideId: m['blue_registration_id'] as string,
     rulesetCode: engine.code,
     rulesetVersion: engine.version,
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
@@ -143,10 +143,10 @@ function rulesetMatch(
 function storedBout(m: Record<string, unknown>): CorrectionInput['bout'] {
   return {
     status: m['status'] as string,
-    winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
+    winnerSideId: (m['winner_registration_id'] as string | null) ?? null,
     endReason: (m['end_reason'] as string | null) ?? null,
-    redRegistrationId: (m['red_registration_id'] as string | null) ?? null,
-    blueRegistrationId: (m['blue_registration_id'] as string | null) ?? null,
+    redSideId: (m['red_registration_id'] as string | null) ?? null,
+    blueSideId: (m['blue_registration_id'] as string | null) ?? null,
     redScore: Number(m['red_score'] ?? 0),
     blueScore: Number(m['blue_score'] ?? 0),
   };
@@ -229,7 +229,7 @@ export class ScoringService {
       // At the time of the hit that decided it, when a tablet sent it late: a clock that never
       // ran has no End to stop at that time, and the row kept the queue's arrival.
       matchUpdates['ended_at'] = endedAtOf(causedAt, m);
-      matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
+      matchUpdates['winner_registration_id'] = scored.winnerSideId;
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
       matchUpdates['end_reason'] = decision.reason;
@@ -251,7 +251,7 @@ export class ScoringService {
       );
     }
     if (outcome.kind === 'redecide') {
-      matchUpdates['winner_registration_id'] = outcome.winnerRegistrationId;
+      matchUpdates['winner_registration_id'] = outcome.winnerSideId;
       matchUpdates['end_reason'] = outcome.endReason;
     }
     if (outcome.kind === 'refuse') {
@@ -529,7 +529,7 @@ export class ScoringService {
     return {
       score,
       decision,
-      winnerRegistrationId: this.endWinnerRegistrationId(
+      winnerSideId: this.endWinnerSideId(
         decision.reason,
         match,
         score,
@@ -600,7 +600,7 @@ export class ScoringService {
           ? {
               isOver: true,
               reason: decision.reason,
-              winnerRegistrationId: scored.winnerRegistrationId,
+              winnerSideId: scored.winnerSideId,
             }
           : { isOver: false },
       staysFinished: context.staysFinished,
@@ -625,8 +625,8 @@ export class ScoringService {
     let { redScore, blueScore } = score;
     for (const row of penaltyRows) {
       const delta = (row['score_delta'] as number | null) ?? 0;
-      if (row['registration_id'] === match.redRegistrationId) redScore += delta;
-      if (row['registration_id'] === match.blueRegistrationId) blueScore += delta;
+      if (row['registration_id'] === match.redSideId) redScore += delta;
+      if (row['registration_id'] === match.blueSideId) blueScore += delta;
     }
     return { ...score, redScore, blueScore };
   }
@@ -641,7 +641,7 @@ export class ScoringService {
    * `max_doubles` and `max_doubles_draw` both wipe the board, so neither has a
    * winner to name; a plain `max_doubles` is a loss for both.
    */
-  private endWinnerRegistrationId(
+  private endWinnerSideId(
     reason: MatchEndDecision['reason'],
     match: RulesetMatch,
     score: MatchScore,
@@ -649,12 +649,12 @@ export class ScoringService {
     edition: DecisionEdition,
   ): string | null {
     if (reason === 'first_to_points') {
-      return getPointCapWinnerRegistrationId(match, score, matchFormat, edition);
+      return getPointCapWinnerSideId(match, score, matchFormat, edition);
     }
     if (reason === 'max_doubles_result_stands') {
       const leader = leadingColor(score);
       if (leader === null) return null;
-      return leader === 'red' ? match.redRegistrationId : match.blueRegistrationId;
+      return leader === 'red' ? match.redSideId : match.blueSideId;
     }
     return null;
   }
@@ -839,9 +839,9 @@ export class ScoringService {
         // round — the ceiling in a pool, or a phase chain containing a `draw`.
         updates['winner_registration_id'] =
           series.winnerColor === 'red'
-            ? match.redRegistrationId
+            ? match.redSideId
             : series.winnerColor === 'blue'
-              ? match.blueRegistrationId
+              ? match.blueSideId
               : null;
         updates['end_reason'] = this.seriesEndReason(newClosed, series.roundsSpent, endReason);
       }

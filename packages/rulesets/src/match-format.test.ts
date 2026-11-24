@@ -10,7 +10,7 @@ import {
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   isMedalMatchLabel,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   isSoftClockLocked,
   MatchFormatConfigSchema,
   normalizeMatchFormatConfig,
@@ -21,8 +21,8 @@ import {
 
 const BASE_MATCH: Match = {
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'TF_v1',
   rulesetVersion: '1.0.0',
   status: 'running',
@@ -267,7 +267,7 @@ describe('match format config', () => {
 
   it('resolves point-cap winners for normal and reverse scoring', () => {
     expect(
-      getPointCapWinnerRegistrationId(
+      getPointCapWinnerSideId(
         BASE_MATCH,
         { redScore: 5, blueScore: 3 },
         {
@@ -280,7 +280,7 @@ describe('match format config', () => {
     ).toBe('reg-red');
 
     expect(
-      getPointCapWinnerRegistrationId(
+      getPointCapWinnerSideId(
         BASE_MATCH,
         { redScore: 2, blueScore: 0 },
         {

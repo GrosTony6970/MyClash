@@ -82,14 +82,14 @@ const TF_V1_SHARED = {
     );
 
     for (const match of completedMatches) {
-      for (const regId of [match.redRegistrationId, match.blueRegistrationId]) {
+      for (const regId of [match.redSideId, match.blueSideId]) {
         const running = totals.get(regId);
         if (!running) continue;
         const bout = computeAggregates(
           regId,
           match,
           match.exchanges,
-          match.winnerRegistrationId === regId,
+          match.winnerSideId === regId,
           afterblowMode,
         );
         running.wins += bout.wins;

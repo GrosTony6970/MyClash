@@ -125,9 +125,9 @@ describe('defaultAfterblowMode is a seed, never a runtime input', () => {
   // One afterblow: red struck for 2, blue retaliated for 1.
   const bout: ScoredMatch = {
     id: 'm1',
-    redRegistrationId: 'r1',
-    blueRegistrationId: 'r2',
-    winnerRegistrationId: 'r1',
+    redSideId: 'r1',
+    blueSideId: 'r2',
+    winnerSideId: 'r1',
     endReason: null,
     redScore: 2,
     blueScore: 1,

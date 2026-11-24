@@ -46,9 +46,9 @@ export function matchFormatContext(match: Record<string, unknown>): MatchFormatC
 export function isLevelBout(match: Record<string, unknown>): boolean {
   return (
     winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
+      winnerSideId: (match['winner_registration_id'] as string | null) ?? null,
+      redSideId: (match['red_registration_id'] as string | null) ?? null,
+      blueSideId: (match['blue_registration_id'] as string | null) ?? null,
       redScore: Number(match['red_score'] ?? 0),
       blueScore: Number(match['blue_score'] ?? 0),
     }) === null
@@ -136,9 +136,9 @@ export function timeLimitResult(
 
   if (!isLevelBout(match)) {
     const leader = winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
+      winnerSideId: (match['winner_registration_id'] as string | null) ?? null,
+      redSideId: (match['red_registration_id'] as string | null) ?? null,
+      blueSideId: (match['blue_registration_id'] as string | null) ?? null,
       redScore: Number(match['red_score'] ?? 0),
       blueScore: Number(match['blue_score'] ?? 0),
     });

@@ -49,9 +49,9 @@ function bout(
 ): ScoredMatch {
   return {
     id,
-    redRegistrationId: red,
-    blueRegistrationId: blue,
-    winnerRegistrationId: winner,
+    redSideId: red,
+    blueSideId: blue,
+    winnerSideId: winner,
     endReason: null,
     // TF_v1 counts a win off the recorded winner, so the board is incidental
     // here — stated rather than implied so the fixture cannot be misread.

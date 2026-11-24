@@ -184,16 +184,16 @@ function scoreFighters({
     // false), so there is nothing for pool standings to zero. `phaseType`
     // stays undefined because a finished bout carries no phase.
     const score = computeScore({ phaseType: undefined }, match.exchanges, config);
-    const red = stats.get(match.redRegistrationId);
-    const blue = stats.get(match.blueRegistrationId);
+    const red = stats.get(match.redSideId);
+    const blue = stats.get(match.blueSideId);
 
     if (red) {
-      red.wins += match.winnerRegistrationId === match.redRegistrationId ? 1 : 0;
+      red.wins += match.winnerSideId === match.redSideId ? 1 : 0;
       red.ptsFor += score.redScore;
       red.ptsAgainst += score.blueScore;
     }
     if (blue) {
-      blue.wins += match.winnerRegistrationId === match.blueRegistrationId ? 1 : 0;
+      blue.wins += match.winnerSideId === match.blueSideId ? 1 : 0;
       blue.ptsFor += score.blueScore;
       blue.ptsAgainst += score.redScore;
     }

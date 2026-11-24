@@ -1981,8 +1981,8 @@ export class StaffService {
     const effectiveBestOf = getEffectiveBestOf(
       {
         id: String(match['id'] ?? ''),
-        redRegistrationId: '',
-        blueRegistrationId: '',
+        redSideId: '',
+        blueSideId: '',
         rulesetCode: 'TF_v1',
         rulesetVersion: '1.0.0',
         status: 'running',

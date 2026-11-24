@@ -41,8 +41,8 @@ const BLUE = 'reg-blue';
 
 const match: Match = {
   id: 'match-1',
-  redRegistrationId: RED,
-  blueRegistrationId: BLUE,
+  redSideId: RED,
+  blueSideId: BLUE,
   rulesetCode: 'TF_v1',
   rulesetVersion: '1.0.0',
   status: 'completed',

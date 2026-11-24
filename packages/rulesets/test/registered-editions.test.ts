@@ -126,7 +126,7 @@ function configOf(ruleset: Ruleset, matchFormat: MatchFormatConfig): unknown {
 /** How `ruleset` ends `board`, and for whom, as the API reads it. */
 function answer(ruleset: Ruleset, board: Board): Answer {
   const matchFormat = format(board.direction);
-  const match = { ...board.bout, id: 'm1', redRegistrationId: 'r', blueRegistrationId: 'b' };
+  const match = { ...board.bout, id: 'm1', redSideId: 'r', blueSideId: 'b' };
   const score: MatchScore = {
     redScore: board.red,
     blueScore: board.blue,

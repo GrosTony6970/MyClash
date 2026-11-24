@@ -48,9 +48,9 @@ export function poolScoresByRegistration(
       // read one of the six fields that came back.
       completedMatches: completedMatches.map((m) => ({
         id: m.id,
-        redRegistrationId: m.red_registration_id,
-        blueRegistrationId: m.blue_registration_id,
-        winnerRegistrationId: m.winner_registration_id,
+        redSideId: m.red_registration_id,
+        blueSideId: m.blue_registration_id,
+        winnerSideId: m.winner_registration_id,
         // A double loss has no winner AND no points, so a ruleset reading
         // either would call it a draw. Only the reason can say otherwise.
         endReason: m.end_reason,

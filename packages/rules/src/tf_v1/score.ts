@@ -42,12 +42,12 @@ export interface FighterAggregates {
  */
 export function computeAggregates(
   registrationId: string,
-  match: Pick<Match, 'redRegistrationId'>,
+  match: Pick<Match, 'redSideId'>,
   exchanges: Exchange[],
   isWinner: boolean,
   afterblowMode: AfterblowMode = 'full',
 ): FighterAggregates {
-  const isRed = match.redRegistrationId === registrationId;
+  const isRed = match.redSideId === registrationId;
   const myColor = isRed ? 'red' : 'blue';
   const opponentColor = isRed ? 'blue' : 'red';
 
