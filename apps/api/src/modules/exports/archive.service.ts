@@ -26,7 +26,7 @@ import {
   type TournamentReportRows,
 } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
-import type { CollectContext, CollectRule, IdMapName } from './archive.table-spec';
+import type { CollectContext, CollectRule, CollectRules, IdMapName } from './archive.table-spec';
 import {
   ARCHIVE_TABLES,
   INSERT_ORDER,
@@ -692,13 +692,15 @@ export class ArchiveService {
       }
       resolving.add(table);
 
-      const rows = await this.rowsForRule(table, collectRuleFor(table, scope), {
-        include,
-        eventId,
-        roots,
-        resolve,
-        context,
-      });
+      const rows = await rowsForRules(
+        table,
+        collectRuleFor(table, scope),
+        { include, eventId, roots, resolve, context },
+        {
+          listRows: (name, column, value) => this.listRows(name, column, value),
+          listRowsByIds: (name, column, values) => this.listRowsByIds(name, column, values),
+        },
+      );
 
       resolving.delete(table);
       const kept = withoutPersonal(rows, ARCHIVE_TABLES[table]!.personal);
@@ -711,39 +713,6 @@ export class ArchiveService {
       tables[TABLE_TO_ARCHIVE_KEY[table]] = await resolve(table);
     }
     return tables;
-  }
-
-  private async rowsForRule(
-    table: ArchiveTableName,
-    rule: CollectRule | 'omit',
-    env: {
-      include: ArchiveInclude;
-      eventId: string;
-      roots: Partial<Record<ArchiveTableName, ArchiveRow[]>>;
-      resolve: (table: ArchiveTableName) => Promise<ArchiveRow[]>;
-      context: CollectContext;
-    },
-  ): Promise<ArchiveRow[]> {
-    if (rule === 'omit') return [];
-    if (rule.include === 'scoring' && env.include !== 'scoring') return [];
-
-    let rows: ArchiveRow[];
-    if (rule.from === 'root') {
-      rows = env.roots[table] ?? [];
-    } else if (rule.from === 'event') {
-      rows = await this.listRows(table, 'event_id', env.eventId);
-    } else {
-      const parents = await env.resolve(rule.from as ArchiveTableName);
-      rows = await this.listRowsByIds(
-        table,
-        rule.local!,
-        idsByColumn(parents, rule.parent ?? 'id'),
-      );
-    }
-
-    if (!rule.filter) return rows;
-    for (const need of rule.needs ?? []) await env.resolve(need as ArchiveTableName);
-    return rows.filter((row) => rule.filter!(row, env.context));
   }
 
   private buildArchive(
@@ -939,6 +908,68 @@ function normalizeArchiveTables(
     }
   }
   return tables;
+}
+
+export interface RuleEnv {
+  include: ArchiveInclude;
+  eventId: string;
+  roots: Partial<Record<ArchiveTableName, ArchiveRow[]>>;
+  resolve: (table: ArchiveTableName) => Promise<ArchiveRow[]>;
+  context: CollectContext;
+}
+
+/** The two reads a rule makes; the service passes its own, a test passes a made-up database. */
+export interface RuleFetchers {
+  listRows: (table: ArchiveTableName, column: string, value: unknown) => Promise<ArchiveRow[]>;
+  listRowsByIds: (
+    table: ArchiveTableName,
+    column: string,
+    values: unknown[],
+  ) => Promise<ArchiveRow[]>;
+}
+
+/**
+ * The rows a scope's rule(s) collect for `table`. A list is read rule by rule and merged, one row
+ * per `id` (the first rule to find a row keeps it); a single rule returns its rows as they came.
+ */
+export async function rowsForRules(
+  table: ArchiveTableName,
+  rules: CollectRules | 'omit',
+  env: RuleEnv,
+  fetch: RuleFetchers,
+): Promise<ArchiveRow[]> {
+  if (!Array.isArray(rules)) return rowsForRule(table, rules as CollectRule | 'omit', env, fetch);
+  const merged = new Map<unknown, ArchiveRow>();
+  for (const rule of rules as readonly CollectRule[]) {
+    for (const row of await rowsForRule(table, rule, env, fetch)) {
+      if (!merged.has(row['id'])) merged.set(row['id'], row);
+    }
+  }
+  return [...merged.values()];
+}
+
+async function rowsForRule(
+  table: ArchiveTableName,
+  rule: CollectRule | 'omit',
+  env: RuleEnv,
+  fetch: RuleFetchers,
+): Promise<ArchiveRow[]> {
+  if (rule === 'omit') return [];
+  if (rule.include === 'scoring' && env.include !== 'scoring') return [];
+
+  let rows: ArchiveRow[];
+  if (rule.from === 'root') {
+    rows = env.roots[table] ?? [];
+  } else if (rule.from === 'event') {
+    rows = await fetch.listRows(table, 'event_id', env.eventId);
+  } else {
+    const parents = await env.resolve(rule.from as ArchiveTableName);
+    rows = await fetch.listRowsByIds(table, rule.local!, idsByColumn(parents, rule.parent ?? 'id'));
+  }
+
+  if (!rule.filter) return rows;
+  for (const need of rule.needs ?? []) await env.resolve(need as ArchiveTableName);
+  return rows.filter((row) => rule.filter!(row, env.context));
 }
 
 function ids(rows: ArchiveRow[]): string[] {

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ID_MAP_NAMES } from './archive.table-spec';
+import { collectRulesOf, ID_MAP_NAMES } from './archive.table-spec';
 import type { CollectRule } from './archive.table-spec';
 import {
   ARCHIVE_COLLECTED_TABLES,
@@ -77,10 +77,25 @@ describe('the registry is internally consistent', () => {
 describe('the collection graph', () => {
   const SCOPES = ['event', 'tournament'] as const;
 
+  // A scope holding a list of rules reads as several edges, one per rule.
   const rulesOf = (table: string) =>
-    SCOPES.map((scope) => [scope, collectRuleFor(table as never, scope)] as const).filter(
-      ([, rule]) => rule !== 'omit',
-    ) as ReadonlyArray<readonly ['event' | 'tournament', Exclude<CollectRule, 'omit'>]>;
+    SCOPES.flatMap((scope) =>
+      collectRulesOf(collectRuleFor(table as never, scope)).map((rule) => [scope, rule] as const),
+    ) as ReadonlyArray<readonly ['event' | 'tournament', CollectRule]>;
+
+  it('gives the rules of one list one include value', () => {
+    const mixed: string[] = [];
+    for (const table of names()) {
+      for (const scope of SCOPES) {
+        const includes = new Set(
+          collectRulesOf(collectRuleFor(table as never, scope)).map((rule) => rule.include),
+        );
+        if (includes.size > 1) mixed.push(`${table}.collect.${scope}`);
+      }
+    }
+
+    expect(mixed, '`carriedIds` reads the first rule of a list for them all').toEqual([]);
+  });
 
   it('points every rule at a table the registry declares', () => {
     const dangling: string[] = [];
@@ -147,10 +162,11 @@ describe('the collection graph', () => {
         }
         if (seen.has(table)) return;
         seen.add(table);
-        const rule = collectRuleFor(table as never, scope);
-        if (rule === 'omit') return;
-        const next = [...(rule.from === 'root' || rule.from === 'event' ? [] : [rule.from])];
-        for (const need of rule.needs ?? []) next.push(need);
+        const next: string[] = [];
+        for (const rule of collectRulesOf(collectRuleFor(table as never, scope))) {
+          if (rule.from !== 'root' && rule.from !== 'event') next.push(rule.from);
+          for (const need of rule.needs ?? []) next.push(need);
+        }
         for (const edge of next) walk(edge, [...trail, table]);
       };
       for (const table of names()) walk(table, []);

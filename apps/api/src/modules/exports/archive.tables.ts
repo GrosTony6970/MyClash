@@ -28,6 +28,7 @@ import type {
   ArchiveRow,
   ArchiveTableSpec,
   CollectRule,
+  CollectRules,
   IdMapName,
   JsonIdPath,
   SharedFkColumn,
@@ -528,7 +529,7 @@ export const JSON_ID_PATHS = Object.fromEntries(
 export function collectRuleFor(
   table: ArchiveTableName,
   scope: 'event' | 'tournament',
-): CollectRule | 'omit' {
+): CollectRules | 'omit' {
   return ARCHIVE_TABLES[table]!.collect[scope];
 }
 

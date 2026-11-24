@@ -101,6 +101,19 @@ export type CollectRule = {
   readonly needs?: readonly string[];
 };
 
+/**
+ * A scope's rule, or a list of rules when a table is found through several parents. The rows of
+ * each rule are fetched and merged, one row per `id`. The rules of one list share one `include`
+ * value (`archive.tables.test.ts` refuses a list that mixes them), so `carriedIds` reads one answer.
+ */
+export type CollectRules = CollectRule | readonly CollectRule[];
+
+/** The rules of a scope, one or several; none when the table is omitted. */
+export function collectRulesOf(rules: CollectRules | 'omit'): readonly CollectRule[] {
+  if (rules === 'omit') return [];
+  return Array.isArray(rules) ? rules : [rules as CollectRule];
+}
+
 export interface CollectContext {
   readonly eventId: string;
   readonly tournamentIds: readonly string[];
@@ -141,8 +154,8 @@ export interface ArchiveTableSpec {
    * on the table rather than in the shape of a method.
    */
   readonly collect: {
-    readonly event: CollectRule | CollectOmitted;
-    readonly tournament: CollectRule | CollectOmitted;
+    readonly event: CollectRules | CollectOmitted;
+    readonly tournament: CollectRules | CollectOmitted;
   };
 
   /**
