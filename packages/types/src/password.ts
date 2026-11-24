@@ -26,6 +26,10 @@ export const PASSWORD_MIN_LENGTH = 12;
  * and was then refused by GoTrue, which is the disagreement this set exists to
  * prevent.
  *
+ * The same goes for length: GoTrue 2.198 counts the minimum length in runes
+ * (Unicode code points; 2.195 counted bytes), so the length rule counts code
+ * points too, not UTF-16 units. An emoji is one character here, as there.
+ *
  * `:` is absent because it is GoTrue's own group delimiter — a group
  * containing it cannot be expressed. 31 characters, not 32.
  */
@@ -39,7 +43,7 @@ export type PasswordValidationResult = {
 };
 
 const RULE_CHECKS: ReadonlyArray<{ rule: PasswordRule; check: (p: string) => boolean }> = [
-  { rule: 'length', check: (p) => p.length >= PASSWORD_MIN_LENGTH },
+  { rule: 'length', check: (p) => [...p].length >= PASSWORD_MIN_LENGTH },
   { rule: 'uppercase', check: (p) => /[A-Z]/.test(p) },
   { rule: 'lowercase', check: (p) => /[a-z]/.test(p) },
   { rule: 'digit', check: (p) => /[0-9]/.test(p) },

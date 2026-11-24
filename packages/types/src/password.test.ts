@@ -60,6 +60,13 @@ describe('validatePassword', () => {
     expect(PASSWORD_SPECIAL_CHARS).toHaveLength(31);
   });
 
+  it('counts code points as GoTrue 2.198 counts runes, not UTF-16 units', () => {
+    // 8 code points, 12 UTF-16 units: GoTrue refuses it, so the rule must too.
+    expect(validatePassword('Aa1!' + '😀'.repeat(4)).failing).toEqual(['length']);
+    // 12 code points with non-ASCII letters: accepted.
+    expect(validatePassword('Aa1!éééééééé')).toEqual({ ok: true, failing: [] });
+  });
+
   it('rejects exactly 11 characters with every class', () => {
     const result = validatePassword('Pass123word');
     expect(result.failing).toEqual(expect.arrayContaining(['length', 'special']));
