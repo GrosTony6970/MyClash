@@ -2359,7 +2359,7 @@ export class AuthService {
    * The login an account keeps after its password was written (operator ruling 352).
    *
    * The auth server ends EVERY session of an account whose password an admin call
-   * writes, the caller's own too (read on GoTrue v2.195.0). So the door signs the
+   * writes, the caller's own too (read on GoTrue v2.198.0). So the door signs the
    * account in again with the password it just wrote. The password stands whatever
    * this sign-in answers. With no login of THIS account from it the door still answers,
    * and it clears the browser's login: that one is ended, or it is another account's

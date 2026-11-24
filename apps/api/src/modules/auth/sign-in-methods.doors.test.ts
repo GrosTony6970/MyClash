@@ -8,8 +8,9 @@
  * the typed word alone. "Not known" is a server error now, and nothing is erased.
  *
  * Each case enters at the controller with a REAL `SupabaseService` over a stubbed `fetch`.
- * A real auth server (GoTrue v2.195.0) answers a list for every account, an empty one for an
- * account with no identity: the "no list" answer below is a shape it does not send today.
+ * A real auth server (GoTrue v2.198.0) answers a list for every account; an empty one for an
+ * account with no identity was read on v2.195.0 and not probed on v2.198.0. The "no list"
+ * answer below is a shape it does not send today.
  */
 import { BadRequestException, HttpException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';

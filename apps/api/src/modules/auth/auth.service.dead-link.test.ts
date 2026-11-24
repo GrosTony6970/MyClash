@@ -20,7 +20,7 @@ import {
  * is another reason: the same link works again.
  */
 const LEA = { id: 'user-lea', email: 'lea@example.com' };
-// What the auth server answers for a code that is made up, used or past its life (v2.195.0).
+// What the auth server answers for a code that is made up, used or past its life (v2.198.0).
 const REFUSED = { message: 'Email link is invalid or has expired', status: 403 };
 const THROTTLED = { message: 'too many requests', status: 429 };
 

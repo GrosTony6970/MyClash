@@ -31,7 +31,7 @@ export type SignupAccount =
 
 /**
  * The password `generateLink('signup')` requires (supabase-js types it so). The account exists
- * before the call, and GoTrue v2.195.0 does not store it then: the hash it gave the account at
+ * before the call, and GoTrue v2.198.0 does not store it then: the hash it gave the account at
  * `createUser` stays (proven 2026-10-17). Random, and it meets the password policy whatever the
  * draw: twelve characters or more, one of each group (`prod.yml` `GOTRUE_PASSWORD_*`).
  */
@@ -44,7 +44,7 @@ export function throwawayPassword(): string {
  *
  * Two calls, because GoTrue's `generateLink('signup')` answers the same for a new address and
  * for one that waits for its confirmation: it hands back that account with a fresh code
- * (`adminGenerateLink`, GoTrue v2.195.0). Read as "made", a stranger who typed Léa's address
+ * (`adminGenerateLink`, GoTrue v2.198.0). Read as "made", a stranger who typed Léa's address
  * wrote a legal acceptance on her account. `createUser` alone tells the two apart: it refuses
  * any address that has an account, with `email_exists`. Neither call is given a password
  * anyone knows.

@@ -16,7 +16,7 @@ const PAGE = 50;
  *
  * The auth server has no read by address. Its `filter` is a case-sensitive `LIKE` over a part
  * of the address, where `_` stands for any character, and it keeps an address in lower case
- * (probed on GoTrue v2.195.0). So the address is lowered, and the answer is compared whole.
+ * (probed on GoTrue v2.198.0). So the address is lowered, and the answer is compared whole.
  */
 export async function accountHolding(
   supabase: SupabaseService,

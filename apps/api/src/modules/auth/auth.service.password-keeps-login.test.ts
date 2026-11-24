@@ -11,7 +11,7 @@ import { MeController } from './me.controller';
  *
  * Paul changes his password on the security page. The page says "Password updated". The auth
  * server ends EVERY session of an account whose password an admin call writes, the one Paul
- * is using too (read on GoTrue v2.195.0: `/user` answers 403 `session_not_found`, the refresh
+ * is using too (read on GoTrue v2.198.0: `/user` answers 403 `session_not_found`, the refresh
  * 400). His next page that checks the account sent him to the sign-in screen, and the reset
  * door handed him the cookies of a session that was already gone. Both doors sign the account
  * in again with the password they just wrote. With no login of that account from the

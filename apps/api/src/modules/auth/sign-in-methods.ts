@@ -17,7 +17,7 @@ function providersOf(user: SupabaseAuthUser): (string | undefined)[] | null {
  *
  * "A password" is an `email` identity. The auth server gives one to an account made by a
  * mailed sign-in link too, and answers an empty list, never none, for an account with no
- * identity (read on GoTrue v2.195.0).
+ * identity (read on GoTrue v2.195.0, not probed on v2.198.0).
  */
 export function signsInWithPassword(user: SupabaseAuthUser): boolean {
   const known = passwordIfKnown(user);

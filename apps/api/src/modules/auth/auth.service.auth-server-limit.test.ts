@@ -109,7 +109,7 @@ const NO_JUDGMENT: [string, { message: string; status?: number }][] = [
   ['is not reached', { message: 'fetch failed', status: 0 }],
   ['answers what cannot be read', { message: 'Unexpected token <' }],
 ];
-// A code that is made up, used or past its life: read on GoTrue v2.195.0.
+// A code that is made up, used or past its life: read on GoTrue v2.198.0.
 const REFUSED = { message: 'Email link is invalid or has expired', status: 403 };
 const answers = (error: object) => async () => ({ data: { user: null, session: null }, error });
 

@@ -14,7 +14,7 @@ vi.mock('../../common/observability/sentry', () => ({ captureApiException: vi.fn
  * drop that answer, and his roster rows kept the old address unless he clicked again.
  *
  * And Marc asks for an address ANOTHER account holds. The auth server answers a 500 for it,
- * as for a fault of its own (read on GoTrue v2.195.0, through supabase-js: status 500, no
+ * as for a fault of its own (read on GoTrue v2.198.0, through supabase-js: status 500, no
  * code, "Error updating user"). He read "open it again" at every click, for the link's hour.
  */
 const DOOR = { door: 'persons/me/email-change/confirm' };
@@ -246,7 +246,7 @@ describe('the work after the address changed', () => {
   });
 
   // The account has the new address by then. A second click asks for the same address,
-  // which the auth server takes (read on GoTrue v2.195.0), and does the work again.
+  // which the auth server takes (read on GoTrue v2.198.0), and does the work again.
   it.each([
     ['the roster rows did not move', 'no rows', { persons: rowsKept('no rows') }],
     [

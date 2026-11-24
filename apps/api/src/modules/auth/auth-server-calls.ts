@@ -54,7 +54,7 @@ function unjudged(why: string, cause: unknown): MailedCodeUnjudged {
 /**
  * Spend the code of a mailed link. Null: the auth server REFUSED the code. It
  * answers a 403 for a code that is made up, used or past its life (read on
- * GoTrue v2.195.0), and every 4xx it wrote but a throttle is read as a refusal
+ * GoTrue v2.198.0), and every 4xx it wrote but a throttle is read as a refusal
  * (`classifyGoTrueFailure`). A throttle, a server fault or no answer is no
  * judgment of the code: no page says "expired" over a link nobody judged.
  */
@@ -122,7 +122,7 @@ export function removeAccount(service: SupabaseClient, userId: string) {
  * The auth server gave no judgment of an address change (operator ruling 371):
  * a throttle, a fault, no answer. The same link works again: asked for the
  * address the account already has, the auth server says yes (read on GoTrue
- * v2.195.0).
+ * v2.198.0).
  *
  * `late` is set when only the limit ran out (ruling 372): the auth server may
  * still change the address, and this is its judgment when it comes.
@@ -142,7 +142,7 @@ type AuthServerFault = { status?: number; message: string } | null;
 /**
  * What the auth server said of an address change. A 500 is its answer for an
  * address ANOTHER account holds, and for a fault of its own: supabase-js hands
- * no code and "Error updating user" for both (read on GoTrue v2.195.0). So
+ * no code and "Error updating user" for both (read on GoTrue v2.198.0). So
  * after a 500 it is asked who holds the address (operator ruling 373). The
  * account's own id there is no refusal: an earlier late answer changed it.
  */
