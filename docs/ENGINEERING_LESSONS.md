@@ -271,6 +271,18 @@ here.
   found by its address: `events`, `matches`, `lices`, `swiss-rounds`, `referee-assignments`
   (ruling 222).
 
+- **The API has two login checks, and a wall must hold at both.** AuthGuard verifies a token's
+  signature locally and sets the caller's identity. Many routes then ignore that identity and
+  re-read the raw Bearer or cookie, and ask GoTrue through `SupabaseService.getAuthUser`. A rule
+  that only changes the guard's identity (make the caller anonymous) stops the first path and
+  leaves the second open. The Claude connector token (a login plus a `client_id` claim) is
+  refused in both places: the guard throws 403 off the MCP door, in `shadow` mode too, and
+  `getAuthUser` returns `null` for it (§28.3).
+- **A wall reads every place a login can ride.** `presentedLogin` returns the Bearer when there is
+  one, so a junk Bearer hid a connector token in the cookie. The wall reads Bearer and cookie both,
+  unverified, and fails closed: a claim can only refuse a request, never identify one. What the
+  door then trusts is the separate, verified claim.
+
 ## Auth & cookies
 
 - **`@fastify/cookie` must be registered via `require()`** under the Fastify adapter — the ESM

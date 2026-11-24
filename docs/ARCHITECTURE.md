@@ -58,6 +58,7 @@ ugly, but cheaper than renumbering. Append new sections at the end instead.
 - [25. Live Schedule View (T-1211)](#25-live-schedule-view-t-1211)
 - [26. AI Infrastructure (T-1212)](#26-ai-infrastructure-t-1212)
 - [27. Event Photos](#27-event-photos)
+- [28. MCP connector](#28-mcp-connector)
 
 ---
 
@@ -5231,6 +5232,175 @@ Races, named in the code: two runs at once are safe, because deleting a missing 
 does nothing; an upload in flight is kept by the sweep's hour of grace; the sweep leaves alone any
 key of an Event this database does not hold, so a second stack given the same bucket keys cannot
 delete photos it knows nothing of.
+
+---
+
+## 28. MCP connector
+
+A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
+Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
+This section describes what slice 1 built: sign-in, and a door with one tool (`whoami`). Slices 2–4
+(read tools, then the rest) are in the spec.
+
+### 28.1 Addresses
+
+| What                              | Address                                                                                                         | Owner                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| The connector (the "MCP URL")     | `https://api.${DOMAIN}/api/v1/mcp`                                                                              | `modules/mcp/mcp.controller.ts`                            |
+| Resource metadata (RFC 9728)      | `https://api.${DOMAIN}/.well-known/oauth-protected-resource/api/v1/mcp`, and the same at the bare `.well-known` | `protected-resource.controller.ts`                         |
+| Authorization server (the issuer) | `${SUPABASE_URL}/auth/v1`, that is `https://app.${DOMAIN}/auth/v1`: GoTrue itself                               | GoTrue                                                     |
+| Its discovery document (RFC 8414) | `https://app.${DOMAIN}/.well-known/oauth-authorization-server/auth/v1`                                          | a Traefik rewrite (§28.7)                                  |
+| The consent page                  | `https://app.${DOMAIN}/oauth/consent?authorization_id=…`                                                        | `apps/web-public/app/oauth/consent/`                       |
+| The consent API                   | `GET` and `POST /api/v1/me/oauth-consent/:authorizationId`                                                      | `oauth-consent.controller.ts`                              |
+| The connected apps (list, remove) | `GET /api/v1/me/connected-apps`, `DELETE /api/v1/me/connected-apps/:clientId`; the page is `/me/security`       | `connected-apps.controller.ts`, `ConnectedAppsSection.tsx` |
+
+`mcp-urls.ts` builds the three addresses Claude needs from `DOMAIN` and `SUPABASE_URL`, and holds
+the scopes (`email profile offline_access`; `openid` stays out, because GoTrue signs HS256 and an ID
+token would fail). The two `.well-known` paths are served at the root of `api.${DOMAIN}`, outside
+the `/api/v1` prefix (`common/global-prefix.ts`). The wire types of the consent page and the
+connected-apps list are `packages/types/src/oauth-consent.ts` and `connected-apps.ts`.
+
+### 28.2 The sign-in, end to end
+
+1. Claude sends `POST /api/v1/mcp` with no token. The door answers 401 with a
+   `WWW-Authenticate: Bearer resource_metadata="…", scope="…"` challenge.
+2. Claude reads the protected-resource metadata. It names one authorization server, GoTrue.
+3. Claude reads GoTrue's discovery document. GoTrue serves it only at its own root, but Claude asks
+   at RFC 8414's path-insertion address (`/.well-known/oauth-authorization-server/auth/v1`), so a
+   Traefik router rewrites that one path to the root (§28.7).
+4. Claude registers itself (dynamic client registration; GoTrue has no Client ID Metadata
+   Documents, so it must be on). Anyone can do this, with any redirect URI and any name. This is why
+   §28.4 exists.
+5. Claude sends the person's browser to GoTrue's `/authorize` (PKCE). GoTrue sends it on to
+   `GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH`, the consent page, with an `authorization_id`. A person
+   who is signed out signs in first and comes back; a login that lapsed at Approve goes to sign-in
+   too.
+6. The page cannot read the httpOnly login cookie, so it calls the consent API on the same site. The
+   API calls GoTrue's consent endpoints (`/oauth/authorizations/:id`, then `/consent`) from the
+   server, with the person's own login as the Bearer and no `Origin` header
+   (`gotrue-as-person.ts`, the one owner of "call GoTrue as this person"; it uses the internal
+   GoTrue address). GoTrue binds the request to that login and answers 404 to anyone else.
+7. The answer is a redirect back to Claude with a code. Claude swaps the code for a token at
+   GoTrue and calls the door with `Authorization: Bearer`.
+
+Any GoTrue answer the consent service cannot read is a 503 (`consent_unavailable`), never an
+approval or a refusal on a guess. A request GoTrue says is gone (404, or 400 for one no longer
+pending) reads as `expired`.
+
+### 28.3 The wall (call A)
+
+A connector token is a normal Supabase login JWT plus a `client_id` claim. Left alone it would be a
+full login on every route, and GoTrue accepts it at `/user`. So it opens one door only.
+
+- **`AuthGuard.holdConnectorWall`** (`common/auth/auth.guard.ts`) throws 403
+  `connector_token_outside_mcp` on every route that lacks `@ConnectorDoor()` (`connector-door.ts`).
+  It runs in `enforce` and in `shadow` mode: a wall that only logs is no wall. It runs before
+  every interceptor and handler, so one throw covers the API.
+- **Its input is every login the request carries**, read unverified (`presentedConnectorClient` in
+  `identity.ts`, using `connectorClaimOf` of `modules/supabase/access-token.ts`): the Bearer and
+  the `sb-access-token` cookie. A junk Bearer, or a token that fails the local check, cannot hide a
+  connector token in the cookie. Unverified is safe here because the claim can only refuse a
+  request, never identify one: it fails closed.
+- **`SupabaseService.getAuthUser` refuses a connector token** (returns `null`). Many routes re-read
+  the raw Bearer or cookie and ask GoTrue through it, whatever the guard saw. This is the sink
+  (`docs/ENGINEERING_LESSONS.md`, "Identity & auth").
+- **The door trusts only the verified claim.** AuthGuard verifies the signature locally and keeps
+  the `client_id` as `connectorClientId` (`getConnectorClientId`); the door never reads the
+  unverified one.
+- **Revocation lags (call B).** The door checks the token locally, never at GoTrue. A person who
+  disconnects Claude, or is banned, keeps the door open until the access token expires (an hour at
+  most). The connected-apps page says so. The refresh is ended at once.
+
+### 28.4 Only Claude's callbacks (call C)
+
+`claude-callbacks.ts` is the one list of places a MyClash login may be sent from the consent page:
+
+- `https://claude.ai/api/mcp/auth_callback` and `https://claude.com/api/mcp/auth_callback`;
+- Claude Code's local callback, `http://localhost:<port>/callback` or `http://127.0.0.1:<port>/callback`,
+  any port from 1 to 65535.
+
+A callback passes only in its one canonical spelling. The check parses it as a browser does (WHATWG
+`URL`), rebuilds it from scheme, host, port and path, and demands the input equal that. A user name
+(`https://claude.ai@evil.example/…`), a query, a fragment, an upper-case host, a dot segment, a
+trailing slash or a look-alike host each fail.
+
+The consent service (`oauth-consent.service.ts`) applies it four times:
+
+- **View:** a client outside the list gets a `refused` view, which names the host and has no Approve
+  button. The page never shows a client's own name as proof of who it is.
+- **Approve** reads the request again first: the earlier read proves nothing about this request. A
+  client outside the list is **denied at GoTrue**, so it cannot be approved later from another tab,
+  and the API answers 403 `not_claude`.
+- **Auto-approve:** if the person already agreed to this client, GoTrue answers with the finished
+  redirect. The service checks that redirect too (`redirectsToClaude`) before sending the person to it.
+- **Deny** goes straight to GoTrue, then back to Claude. A request no longer pending reads as 410
+  `expired`.
+
+Every refusal logs the host it would have sent the person to.
+
+### 28.5 The door
+
+`McpController` (`@McpDoor()`) is Streamable HTTP, **stateless**: each `POST` builds its own
+`McpServer` and transport (JSON responses, no session id) and closes both when the answer is sent.
+
+- **`GET` answers 405** (`Allow: POST`): a GET would open a stream for server-initiated messages, and a
+  stateless server sends none.
+- **No `DELETE` route.** A client sends it only to end a session, and none exists.
+- **`McpDoorGuard`** runs after AuthGuard. It lets through one caller: a Bearer that AuthGuard verified as
+  a connector token (`claimed`, with a `client_id`). A cookie never opens the door, so another
+  site cannot drive a browser into it. Everyone else gets 401 with the challenge of §28.2; a Bearer that is not a
+  live connector token adds `error="invalid_token"` (RFC 6750), so Claude renews or asks again.
+- **`@McpDoor()`** is `Public()` (the door writes its own 401 and challenge), `ConnectorDoor()` (past
+  the wall), the guard, the global per-IP throttle off, and `ThrottleMcp()`. They never appear
+  apart. The route scanner gives these routes the verdict `mcp-door`.
+- **Two throttles** (`common/throttling/throttle-mcp.ts`). `mcp`: 120 a minute **per account**.
+  Every person's Claude calls from Anthropic's few addresses, so a per-IP limit would let one busy
+  person stop everybody. `mcp-anon`: 60 a minute **per IP**, for calls with no login only. They have
+  no account, and each earns just a 401, so this stops the 401s being asked without end; a call with
+  a login never counts against the shared address.
+- **Errors after the hijack.** The controller hijacks the reply, so Nest's exception filter can no
+  longer answer. A failure writes a JSON-RPC `-32603` itself (500, or just closes a stream that has
+  started), logs the cause only (never the body or the token) and always closes server and
+  transport. A tool that throws returns `isError` with fixed words, and the cause goes to the log.
+- **Read-only (maintenance) mode refuses every MCP `POST`**, `whoami` included
+  (`read-only.interceptor.ts`: the door is not on its allow-list, and a connector token is not a
+  super admin). It fails closed. Revisit when the read tools matter (slice 2).
+- **`whoami`** (`modules/mcp/tools/whoami.ts`) is the one tool: the account's email, and the Events
+  where the person fights, referees, teaches or attends a Workshop (the personal space's
+  `me/events`). It gives names, slugs and start dates, **never an id**: a model has no use for one,
+  and later tools take a slug. No tool takes a person from the model: the caller is fixed by the guard.
+
+### 28.6 Connected apps
+
+`GET /api/v1/me/connected-apps` and `DELETE /api/v1/me/connected-apps/:clientId` read and remove
+the person's grants at GoTrue (`/user/oauth/grants`), with their own login. The Security page
+(`/me/security`, `ConnectedAppsSection.tsx`) lists them. Disconnect ends the refresh tokens; an
+access token already issued lives until it expires (§28.3). A client with no grant reads as already
+disconnected.
+
+### 28.7 Edge and operations
+
+- **GoTrue env** (`infra/docker-compose.prod.yml`): `GOTRUE_OAUTH_SERVER_ENABLED`,
+  `…_ALLOW_DYNAMIC_REGISTRATION`, `…_AUTHORIZATION_PATH=/oauth/consent`, `…_DEFAULT_SCOPE=email`, and
+  `GOTRUE_JWT_ISSUER=https://app.${DOMAIN}/auth/v1`.
+- **The issuer change touches every login token's `iss`**, not Claude's alone. Nothing in MyClash
+  checks `iss` today; if something starts to, it must expect this value.
+- **Routers.** `myclash-auth-oauth` (priority 30) sends `/auth/v1/oauth/*` to GoTrue behind its own
+  jail. `myclash-auth-discovery` rewrites `/.well-known/oauth-authorization-server/auth/v1` to GoTrue's
+  root document. It is one public document with no 401 or 403 to count, so it has no jail.
+- **The jail `myclash-fail2ban-oauth`** has the numbers of the auth jail (20 failures in 10 minutes, a
+  30-minute ban) and a longer allow-list: `TRAEFIK_OAUTH_BAN_ALLOWLIST` adds Anthropic's egress range
+  `160.79.104.0/21` (`infra/scripts/lib/traefik-env.sh`; `MW_F2B_OAUTH` attaches it). Claude
+  registers, swaps codes and refreshes tokens for every person from those few addresses, so one
+  person's failures must not ban everyone's Claude. It is a jail of its own, so the exemption never
+  reaches the password door.
+- **The e2e** `tests/e2e/48-mcp-connector.spec.ts` plays Claude Code as fighter A: the whole flow
+  above, the wall, a refused callback, and Disconnect. It leaves **two OAuth clients per run**
+  behind: only GoTrue's admin can delete a client, and an unapproved one grants nothing. It disconnects the
+  grant it approved.
+- **Open (Review Focus 1).** GoTrue older than 2.198 lets a connector token call `/auth/v1/user`
+  itself. The wall cannot reach that: it lives in our API. The e2e records the answer. Moving to
+  GoTrue 2.198 or later closes it, and is the operator's call.
 
 ---
 
