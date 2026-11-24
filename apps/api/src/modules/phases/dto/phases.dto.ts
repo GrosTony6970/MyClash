@@ -19,8 +19,17 @@ const generatePoolsSchema = z
     enforceSchoolSeparation: z.boolean().optional(),
     /** Enforce skill balance across pools (default: true) */
     enforceSkillBalance: z.boolean().optional(),
-    /** PRNG seed for deterministic generation (default: 42) */
+    /**
+     * PRNG seed. Individual Tournament: the local search's (default: 42). Team Tournament with a
+     * random draw: the draw's seed; absent, the server draws one, and the phase stores it.
+     */
     seed: z.number().int().optional(),
+    /**
+     * How a team Tournament's teams are spread over the Pools (ruling 971): by seed (snake) or by
+     * random draw. Required for a team Tournament, refused for an individual one (the service
+     * judges it against the Tournament's kind).
+     */
+    teamSpread: z.enum(['seed', 'random']).optional(),
     /** Lice ID to assign matches to (optional — assigns all to one Lice if provided) */
     liceId: z.uuid().optional(),
     // No referee setting here: the referee rules are set in one place, the Event's referee
@@ -38,6 +47,21 @@ const generatePoolsSchema = z
   })
   .strict();
 export class GeneratePoolsDto extends createZodDto(generatePoolsSchema) {}
+
+/**
+ * A seat for one entrant: a Registration in an individual Tournament's Pool, a team in a team
+ * Tournament's. Exactly one; the service matches it to the Tournament's kind.
+ */
+const addPoolMemberSchema = z
+  .object({
+    registrationId: z.uuid().optional(),
+    teamId: z.uuid().optional(),
+  })
+  .strict()
+  .refine((d) => (d.registrationId === undefined) !== (d.teamId === undefined), {
+    message: 'Provide exactly one of registrationId or teamId',
+  });
+export class AddPoolMemberDto extends createZodDto(addPoolMemberSchema) {}
 
 const generateBracketSchema = z
   .object({

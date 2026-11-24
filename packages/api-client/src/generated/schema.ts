@@ -3698,7 +3698,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Add or move a registration into a pool (org admin+) */
+    /** Add or move a registration or a team into a pool (org admin+) */
     post: operations['PhasesController_addPoolMember'];
     delete?: never;
     options?: never;
@@ -3706,7 +3706,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/pools/{poolId}/members/{registrationId}': {
+  '/api/v1/pools/{poolId}/members/{entrantId}': {
     parameters: {
       query?: never;
       header?: never;
@@ -3884,7 +3884,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List tournament registrations not yet assigned to any pool (org member) */
+    /** List tournament registrations, or teams, not yet assigned to any pool (org member) */
     get: operations['PhaseReadsController_listUnassignedFighters'];
     put?: never;
     post?: never;
@@ -11969,6 +11969,8 @@ export interface components {
       enforceSchoolSeparation?: boolean;
       enforceSkillBalance?: boolean;
       seed?: number;
+      /** @enum {string} */
+      teamSpread?: 'seed' | 'random';
       /** Format: uuid */
       liceId?: string;
       discardScoredResults?: number;
@@ -11978,6 +11980,12 @@ export interface components {
       /** Format: uuid */
       refereeId: string | null;
       confirm?: boolean;
+    };
+    AddPoolMemberDto: {
+      /** Format: uuid */
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
     };
     GenerateBracketDto: {
       /** @enum {string} */
@@ -19127,7 +19135,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddPoolMemberDto'];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -19143,7 +19155,7 @@ export interface operations {
       header?: never;
       path: {
         poolId: string;
-        registrationId: string;
+        entrantId: string;
       };
       cookie?: never;
     };

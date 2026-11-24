@@ -25,7 +25,12 @@ const pool = (id: string) => ({
   phases: {
     id: 'phase-1',
     tournament_id: 't-1',
-    tournaments: { event_id: 'event-1', weapon: 'longsword', events: { organization_id: 'org-1' } },
+    tournaments: {
+      event_id: 'event-1',
+      weapon: 'longsword',
+      entrant_kind: 'individual',
+      events: { organization_id: 'org-1' },
+    },
   },
 });
 const member = (registrationId: string, seed: number, poolId = 'pool-1') => ({

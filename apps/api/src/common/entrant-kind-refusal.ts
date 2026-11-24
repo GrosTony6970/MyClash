@@ -30,6 +30,12 @@ const REFUSALS = [
 
 const CHECK_VIOLATION = '23514';
 
+/** The 409 for an entrant of the other kind, said by the API before the database would refuse it. */
+export function entrantKindMismatch(): ConflictException {
+  const [mismatch] = REFUSALS;
+  return new ConflictException({ reason: mismatch.reason, message: mismatch.message });
+}
+
 /** The 409 for a write the kind trigger refused; null for any other error. */
 export function entrantKindRefusal(
   error: { code?: string | null; message?: string | null } | null | undefined,

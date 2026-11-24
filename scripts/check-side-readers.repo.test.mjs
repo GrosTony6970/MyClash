@@ -45,7 +45,6 @@ const NOT_YET = [
   'apps/api/src/modules/phases/bracket-slots.controller.ts',
   'apps/api/src/modules/phases/dto/phases.dto.ts',
   'apps/api/src/modules/phases/match-completion.service.ts',
-  'apps/api/src/modules/phases/phases.controller.ts',
   'apps/api/src/modules/phases/phases.service.ts',
   'apps/api/src/modules/pool-standings/compute-rows.ts',
   'apps/api/src/modules/pool-standings/pool-rows.ts',

@@ -55,6 +55,7 @@ describe('generatePools — the ruleset is read before the force delete', () => 
           rows: [
             {
               id: 'tournament-1',
+              entrant_kind: 'individual',
               weapon: null,
               event_id: 'event-1',
               events: { organization_id: 'org-1' },
@@ -81,7 +82,11 @@ describe('generatePools — the ruleset is read before the force delete', () => 
     const { service, supabase } = makeService(
       {
         phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
-        tournaments: { rows: [{ id: 'tournament-1', weapon: null, event_id: 'event-1' }] },
+        tournaments: {
+          rows: [
+            { id: 'tournament-1', weapon: null, event_id: 'event-1', entrant_kind: 'individual' },
+          ],
+        },
         matches: { rows: [{ id: 'm-1', phase_id: 'old-phase', status: 'completed' }] },
         registrations: { rows: registrations(4) },
       },
@@ -100,7 +105,11 @@ describe('generatePools — the ruleset is read before the force delete', () => 
     const { service, supabase } = makeService(
       {
         phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
-        tournaments: { rows: [{ id: 'tournament-1', weapon: null, event_id: 'event-1' }] },
+        tournaments: {
+          rows: [
+            { id: 'tournament-1', weapon: null, event_id: 'event-1', entrant_kind: 'individual' },
+          ],
+        },
         matches: { rows: [{ id: 'm-1', phase_id: 'old-phase', status: 'scheduled' }] },
         registrations: { rows: registrations(3) },
       },
@@ -126,6 +135,7 @@ describe('generatePools — the ruleset is read before the force delete', () => 
           rows: [
             {
               id: 'tournament-1',
+              entrant_kind: 'individual',
               weapon: null,
               event_id: null,
               ruleset_code: 'Generic_PointsCap',
@@ -244,6 +254,7 @@ describe('generateBracket — the ruleset of its bouts', () => {
           rows: [
             {
               id: 'tournament-1',
+              entrant_kind: 'individual',
               event_id: null,
               ruleset_code: 'Generic_PointsCap',
               ruleset_version: '1',

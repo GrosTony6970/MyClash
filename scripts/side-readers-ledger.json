@@ -239,7 +239,7 @@
     "apps/api/src/modules/phases/dto/phases.dto.ts": {
       "verdict": "not-yet",
       "hits": 2,
-      "why": "1c: slot override body names Registrations (`:84`-`:85`)"
+      "why": "1c: slot override body names Registrations (`:108`-`:109`)"
     },
     "apps/api/src/modules/phases/match-completion.service.ts": {
       "verdict": "not-yet",
@@ -248,14 +248,19 @@
       "byHand": true
     },
     "apps/api/src/modules/phases/phases.controller.ts": {
-      "verdict": "not-yet",
-      "hits": 8,
-      "why": "1b: add or remove a Pool member by Registration (`:163`-`:178`)"
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "the add body names a Registration or a team (`AddPoolMemberDto`) and hands each to its own service door; remove hands the seat key on; it keys and compares no side"
     },
     "apps/api/src/modules/phases/phases.service.ts": {
       "verdict": "not-yet",
-      "hits": 122,
-      "why": "1b: Pool generation (`:411`-`:435`); 1c: bracket generation (`:588`)"
+      "hits": 98,
+      "why": "1c: bracket generation and seeding name slots by Registration (`:612`-`:684`, `:910`-`:945`); the Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
+    },
+    "apps/api/src/modules/phases/pool-entrant.ts": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "a key-name list: the seat and bout columns of each kind for the Pool writers; it keys and compares no side"
     },
     "apps/api/src/modules/pool-standings/compute-rows.ts": {
       "verdict": "not-yet",

@@ -71,7 +71,7 @@ beforeEach(() => {
     listTournamentPools: vi.fn(async (id: string) => ({ read: 'pools', id })),
     listPoolsWithMatches: vi.fn(async (id: string) => ({ read: 'pools-with-matches', id })),
     listMatchScores: vi.fn(async (id: string) => ({ read: 'match-scores', id })),
-    listUnassignedFighters: vi.fn(async (id: string) => ({ read: 'unassigned', id })),
+    listUnassignedEntrants: vi.fn(async (id: string) => ({ read: 'unassigned', id })),
     getTournamentBracket: vi.fn(async (id: string) => ({ read: 'bracket', id })),
   };
   controller = new PhaseReadsController(
@@ -94,7 +94,7 @@ const ROUTES = [
   ['listPools', 'listTournamentPools', 'pools'],
   ['listPoolsWithMatches', 'listPoolsWithMatches', 'pools-with-matches'],
   ['listMatchScores', 'listMatchScores', 'match-scores'],
-  ['listUnassignedFighters', 'listUnassignedFighters', 'unassigned'],
+  ['listUnassignedFighters', 'listUnassignedEntrants', 'unassigned'],
   ['getBracket', 'getTournamentBracket', 'bracket'],
 ] as const;
 

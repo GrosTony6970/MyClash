@@ -69,6 +69,7 @@ function makeService(seed: Record<string, TableSeed>) {
 
 const LONGSWORD: SupabaseRow = {
   id: 'tournament-1',
+  entrant_kind: 'individual',
   weapon: 'longsword',
   event_id: 'event-1',
   events: { organization_id: 'org-1' },

@@ -23,8 +23,17 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
+import { randomInt } from 'node:crypto';
 import type { TeamEmbed } from '../matches/side-label';
+import { storedKind } from '../events/tournament-kind';
 import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
+import {
+  assertSeatFitsKind,
+  poolBoutSides,
+  poolEntrantColumns,
+  type PoolSeatColumns,
+} from './pool-entrant';
+import { teamDrawOf, teamPoolMap, type DrawTeam } from './team-pool-draw';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService, type JudgedWrite } from '../referees/assignment-board.service';
@@ -229,10 +238,13 @@ export class PhasesService {
     // anyway, so this is a move rather than an extra round-trip.
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('weapon, event_id, events(organization_id)')
+      .select('weapon, event_id, entrant_kind, events(organization_id)')
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
+    const kind = storedKind((tournament as { entrant_kind?: unknown } | null)?.entrant_kind);
+    // A team Tournament's Pools are drawn by seed or at random (ruling 971); refused fields first.
+    const teamDraw = teamDrawOf(kind, dto, () => randomInt(2 ** 31));
     const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
     const eventId = (tournament as { event_id?: string | null } | null)?.event_id ?? null;
     const organizationId =
@@ -248,21 +260,26 @@ export class PhasesService {
     // below has passed.
     const replaced = existing && force ? (existing as { id: string }).id : null;
 
-    // Fetch registrations
-    const { data: regs, error: regsError } = await this.supabase.service
-      .from('registrations')
-      .select(
-        // Walk persons.global_person_id to reach global_persons —
-        // registrations.fighter_id was retired in 0083. The rating is the
-        // roster row's, else the profile's (eventHemaRatingsId).
-        'id, seed, bib_number, persons(club_id, hema_ratings_id, global_persons(hema_ratings_id))',
-      )
-      .eq('tournament_id', tournamentId)
-      .in('status', ['registered', 'checked_in']);
+    // Fetch the entrants: the teams of a team Tournament (a team has no status: every one), else
+    // the active registrations.
+    const teams = teamDraw ? await this.readTeamsForDraw(tournamentId) : [];
+    let allRegs: unknown[] = [];
+    if (!teamDraw) {
+      const { data: regs, error: regsError } = await this.supabase.service
+        .from('registrations')
+        .select(
+          // Walk persons.global_person_id to reach global_persons —
+          // registrations.fighter_id was retired in 0083. The rating is the
+          // roster row's, else the profile's (eventHemaRatingsId).
+          'id, seed, bib_number, persons(club_id, hema_ratings_id, global_persons(hema_ratings_id))',
+        )
+        .eq('tournament_id', tournamentId)
+        .in('status', ['registered', 'checked_in']);
 
-    if (regsError) throw new BadRequestException(regsError.message);
-    const allRegs = regs ?? [];
-    const fighterCount = allRegs.length;
+      if (regsError) throw new BadRequestException(regsError.message);
+      allRegs = regs ?? [];
+    }
+    const fighterCount = teamDraw ? teams.length : allRegs.length;
 
     // Resolve pool count. When there are zero fighters we still need a sensible
     // default so the operator can stand up the layout before any registrations
@@ -301,7 +318,11 @@ export class PhasesService {
     const poolMap = new Map<number, string[]>();
     let costReport: unknown = null;
 
-    if (fighterCount > 0) {
+    if (fighterCount > 0 && teamDraw) {
+      for (const [poolIndex, ids] of teamPoolMap(teams, poolCount, teamDraw)) {
+        poolMap.set(poolIndex, ids);
+      }
+    } else if (fighterCount > 0) {
       const hemaIds = Array.from(
         new Set(
           allRegs
@@ -377,7 +398,7 @@ export class PhasesService {
         type: 'pool',
         sort_order: 1,
         status: 'pending',
-        config_json: { poolCount, costReport },
+        config_json: { poolCount, costReport, ...teamDraw },
       })
       .select('id')
       .single();
@@ -387,11 +408,13 @@ export class PhasesService {
     const phaseId = (phase as { id: string }).id;
 
     const createdPools: Array<{ id: string; name: string; matchCount: number }> = [];
+    // A team Tournament seats teams and pits team against team (0282).
+    const seatColumn = poolEntrantColumns(kind).member;
 
     // Create pools + pool_members + matches
     for (let i = 0; i < poolCount; i++) {
       const poolName = `Pool ${i + 1}`;
-      const registrationIds = poolMap.get(i) ?? [];
+      const entrantIds = poolMap.get(i) ?? [];
 
       const { data: pool, error: poolError } = await this.supabase.service
         .from('pools')
@@ -406,11 +429,11 @@ export class PhasesService {
       // Insert pool_members — only when this pool has fighters. PostgREST
       // doesn't accept empty array inserts (used to surface as an opaque 500).
       let bergerMatches: ReturnType<typeof bergerSchedule> = [];
-      if (registrationIds.length > 0) {
+      if (entrantIds.length > 0) {
         const memberRes = await this.supabase.service.from('pool_members').insert(
-          registrationIds.map((regId, seed) => ({
+          entrantIds.map((entrantId, seed) => ({
             pool_id: poolId,
-            registration_id: regId,
+            [seatColumn]: entrantId,
             seed: seed + 1,
           })),
         );
@@ -422,8 +445,8 @@ export class PhasesService {
         // auto-distribution path, but an explicit dto.poolCount can still
         // land us here when fighterCount === 1. Skip match generation; the
         // pool + lone pool_member row stand on their own.
-        if (registrationIds.length >= 2) {
-          bergerMatches = bergerSchedule(registrationIds.length, {
+        if (entrantIds.length >= 2) {
+          bergerMatches = bergerSchedule(entrantIds.length, {
             liceLabel: '1',
             poolLabel: String.fromCharCode(65 + i),
           });
@@ -433,8 +456,7 @@ export class PhasesService {
               phase_id: phaseId,
               pool_id: poolId,
               lice_id: dto.liceId ?? null,
-              red_registration_id: registrationIds[bm.homeIndex]!,
-              blue_registration_id: registrationIds[bm.awayIndex]!,
+              ...poolBoutSides(kind, entrantIds, bm),
               ...rulesetStamp,
               match_number_label: bm.label,
               status: 'scheduled',
@@ -2270,7 +2292,7 @@ export class PhasesService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, phase_id, sort_order, phases!inner(id, tournament_id, tournaments!inner(event_id, weapon, events!inner(organization_id)))',
+        'id, name, phase_id, sort_order, phases!inner(id, tournament_id, tournaments!inner(event_id, weapon, entrant_kind, events!inner(organization_id)))',
       )
       .eq('id', poolId)
       .maybeSingle();
@@ -2288,6 +2310,8 @@ export class PhasesService {
       eventId: tournament['event_id'] as string,
       weapon: (tournament['weapon'] as string | null) ?? null,
       organizationId: event['organization_id'] as string,
+      /** Its seats hold teams or Registrations (0282). */
+      entrantKind: storedKind(tournament['entrant_kind']),
     };
   }
 
@@ -2591,6 +2615,7 @@ export class PhasesService {
 
   async addPoolMember(poolId: string, registrationId: string, userId: string) {
     const dst = await this.assertPoolEditAuth(poolId, userId);
+    assertSeatFitsKind(dst.entrantKind, 'individual');
     await this.assertPoolEditable(poolId);
 
     // Defence in depth: only ACTIVE registrations can be pooled. The
@@ -2615,11 +2640,45 @@ export class PhasesService {
       );
     }
 
-    // Find any existing membership for this registration in pools of the same tournament.
+    const moved = await this.seatEntrant(dst, poolId, 'registration_id', registrationId);
+    return { poolId, registrationId, moved };
+  }
+
+  /** A team into a team Tournament's Pool, or moved there from another of its Pools. */
+  async addPoolTeam(poolId: string, teamId: string, userId: string) {
+    const dst = await this.assertPoolEditAuth(poolId, userId);
+    assertSeatFitsKind(dst.entrantKind, 'team');
+    await this.assertPoolEditable(poolId);
+
+    // The team must be of the Pool's own Tournament; another's is refused as a missing id.
+    const { data: team, error } = await this.supabase.service
+      .from('teams')
+      .select('id')
+      .eq('id', teamId)
+      .eq('tournament_id', dst.tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!team) throw new BadRequestException(`Team ${teamId} not found`);
+
+    const moved = await this.seatEntrant(dst, poolId, 'team_id', teamId);
+    return { poolId, teamId, moved };
+  }
+
+  /**
+   * Seats one entrant in `poolId`, out of any other Pool of its Tournament, and makes the bouts
+   * of every Pool it touched again. False when it already sits there.
+   */
+  private async seatEntrant(
+    dst: { tournamentId: string; phaseId: string },
+    poolId: string,
+    column: 'registration_id' | 'team_id',
+    entrantId: string,
+  ): Promise<boolean> {
+    // Find any existing membership for this entrant in pools of the same tournament.
     const { data: existing } = await this.supabase.service
       .from('pool_members')
       .select('id, pool_id, pools!inner(phase_id, phases!inner(tournament_id))')
-      .eq('registration_id', registrationId);
+      .eq(column, entrantId);
     const stale = ((existing ?? []) as Array<Record<string, unknown>>).filter((row) => {
       const pool = row['pools'] as Record<string, unknown>;
       const phase = pool['phases'] as Record<string, unknown>;
@@ -2631,7 +2690,7 @@ export class PhasesService {
       const fromPoolId = row['pool_id'] as string;
       if (fromPoolId === poolId) {
         // Already in destination; no-op
-        return { poolId, registrationId, moved: false };
+        return false;
       }
       sourcePoolIds.add(fromPoolId);
       await this.assertPoolEditable(fromPoolId);
@@ -2639,12 +2698,12 @@ export class PhasesService {
 
     const rulesetStamp = await this.poolRulesetStamp(dst.phaseId);
 
-    // Remove any stale membership rows for this registration
+    // Remove any stale membership rows for this entrant
     if (stale.length > 0) {
       const { error: delErr } = await this.supabase.service
         .from('pool_members')
         .delete()
-        .eq('registration_id', registrationId)
+        .eq(column, entrantId)
         .in(
           'pool_id',
           stale.map((row) => row['pool_id'] as string),
@@ -2665,7 +2724,7 @@ export class PhasesService {
 
     const { error: insErr } = await this.supabase.service.from('pool_members').insert({
       pool_id: poolId,
-      registration_id: registrationId,
+      [column]: entrantId,
       seed: nextSeed,
     });
     if (insErr) throw new BadRequestException(insErr.message);
@@ -2679,10 +2738,11 @@ export class PhasesService {
       { tournamentId: dst.tournamentId },
       this.logger,
     );
-    return { poolId, registrationId, moved: true };
+    return true;
   }
 
-  async removePoolMember(poolId: string, registrationId: string, userId: string) {
+  /** `entrantId` is the seat's side key: a team id in a team Tournament, else a Registration id. */
+  async removePoolMember(poolId: string, entrantId: string, userId: string) {
     const pool = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
     const rulesetStamp = await this.poolRulesetStamp(pool.phaseId);
@@ -2691,12 +2751,12 @@ export class PhasesService {
       .from('pool_members')
       .delete()
       .eq('pool_id', poolId)
-      .eq('registration_id', registrationId);
+      .eq(poolEntrantColumns(pool.entrantKind).member, entrantId);
     if (error) throw new BadRequestException(error.message);
 
     await this.regeneratePoolMatches(poolId, rulesetStamp);
     await restampAfterInsert(this.supabase.service, { phaseId: pool.phaseId }, this.logger);
-    return { poolId, registrationId };
+    return { poolId, entrantId };
   }
 
   /**
@@ -2736,10 +2796,10 @@ export class PhasesService {
     // Resequence seeds 1..N in current order
     const { data: members } = await this.supabase.service
       .from('pool_members')
-      .select('id, registration_id, seed')
+      .select('id, registration_id, team_id, seed')
       .eq('pool_id', poolId)
       .order('seed', { ascending: true });
-    const ordered = (members ?? []) as Array<{ id: string; registration_id: string; seed: number }>;
+    const ordered = (members ?? []) as Array<{ id: string; seed: number } & PoolSeatColumns>;
     for (let i = 0; i < ordered.length; i++) {
       if (ordered[i]!.seed !== i + 1) {
         await this.supabase.service
@@ -2748,20 +2808,19 @@ export class PhasesService {
           .eq('id', ordered[i]!.id);
       }
     }
-    const registrationIds = ordered.map((m) => m.registration_id);
-    if (registrationIds.length < 2) return; // no matches possible
+    const entrantIds = ordered.map((m) => m[poolEntrantColumns(ctx.entrantKind).member]);
+    if (entrantIds.length < 2) return; // no matches possible
 
     const poolNumberLabel =
       typeof ctx.poolName === 'string' ? ctx.poolName.replace(/\D+/gu, '') || '1' : '1';
-    const bergerMatches = bergerSchedule(registrationIds.length, {
+    const bergerMatches = bergerSchedule(entrantIds.length, {
       liceLabel: '1',
       poolLabel: poolNumberLabel,
     });
     const matchInserts = bergerMatches.map((bm) => ({
       phase_id: ctx.phaseId,
       pool_id: poolId,
-      red_registration_id: registrationIds[bm.homeIndex]!,
-      blue_registration_id: registrationIds[bm.awayIndex]!,
+      ...poolBoutSides(ctx.entrantKind, entrantIds, bm),
       ...rulesetStamp,
       match_number_label: bm.label,
       status: 'scheduled',
@@ -2804,22 +2863,60 @@ export class PhasesService {
 
     const weightedRatings = await this.weightedRatingsForTournament(tournamentId);
 
-    return ((regs ?? []) as Array<Record<string, unknown>>)
-      .filter((reg) => !assignedIds.has(reg['id'] as string))
-      .map((reg) => {
-        const person = reg['persons'] as Record<string, unknown> | null;
-        const club = person?.['clubs'] as Record<string, unknown> | null;
-        const hemaRatingsId = eventHemaRatingsId(person as RatedPerson | null);
-        return {
-          registrationId: reg['id'] as string,
-          personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
-          clubLabel: (club?.['name'] as string | null) ?? null,
-          hemaWeightedRating:
-            hemaRatingsId && weightedRatings.has(hemaRatingsId)
-              ? (weightedRatings.get(hemaRatingsId) ?? null)
-              : null,
-        };
-      });
+    return ((regs ?? []) as unknown as PoolSeatRegistration[])
+      .filter((reg) => !assignedIds.has(reg.id))
+      .map((reg) => poolSeatOf(reg, null, weightedRatings));
+  }
+
+  /**
+   * The entrants of a Tournament not yet in a Pool: its teams when it is a team Tournament, else
+   * its active Registrations (`listUnassignedFighters`).
+   */
+  async listUnassignedEntrants(tournamentId: string) {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('entrant_kind')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const kind = storedKind((data as { entrant_kind?: unknown } | null)?.entrant_kind);
+    return kind === 'team'
+      ? this.listUnassignedTeams(tournamentId)
+      : this.listUnassignedFighters(tournamentId);
+  }
+
+  /** A team Tournament's teams not yet in a Pool. A team has no status: every team is offered. */
+  private async listUnassignedTeams(tournamentId: string) {
+    const { data: teams, error: teamErr } = await this.supabase.service
+      .from('teams')
+      .select('id, name, color, logo_url')
+      .eq('tournament_id', tournamentId)
+      .order('name', { ascending: true });
+    if (teamErr) throw new BadRequestException(teamErr.message);
+
+    const { data: pooled, error: poolErr } = await this.supabase.service
+      .from('pool_members')
+      .select('team_id, pools!inner(phase_id, phases!inner(tournament_id))')
+      .eq('pools.phases.tournament_id', tournamentId);
+    if (poolErr) throw new BadRequestException(poolErr.message);
+    const seated = new Set(
+      ((pooled ?? []) as Array<{ team_id: string | null }>).map((row) => row.team_id),
+    );
+
+    return ((teams ?? []) as TeamEmbed[])
+      .filter((team) => !seated.has(team.id))
+      .map((team) => poolSeatOf(null, team, new Map()));
+  }
+
+  /** A team Tournament's teams as the draw reads them, in id order (`orderTeams`). */
+  private async readTeamsForDraw(tournamentId: string): Promise<DrawTeam[]> {
+    const { data, error } = await this.supabase.service
+      .from('teams')
+      .select('id, seed, created_at')
+      .eq('tournament_id', tournamentId)
+      .order('id', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as DrawTeam[];
   }
 
   // ── Pool lifecycle (delete one / delete all / add empty) ─────────────────

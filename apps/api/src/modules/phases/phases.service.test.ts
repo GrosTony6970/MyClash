@@ -25,7 +25,7 @@ vi.mock('./match-ruleset', async (importOriginal) => ({
 }));
 
 /** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
-const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0', entrant_kind: 'individual' };
 
 /** How many bouts the door has inserted so far. */
 const boutsInserted = (supabase: ReturnType<typeof mockSupabase>): number =>
@@ -394,6 +394,7 @@ describe('PhasesService', () => {
           tournaments: {
             event_id: 'event-1',
             weapon: null,
+            entrant_kind: 'individual',
             events: { organization_id: 'org-1' },
           },
         },
@@ -2750,6 +2751,7 @@ describe('PhasesService', () => {
         tournaments: {
           event_id: 'event-1',
           weapon: 'longsword',
+          entrant_kind: 'individual',
           tournament_id: 'tournament-1',
           events: { organization_id: organizationId },
         },

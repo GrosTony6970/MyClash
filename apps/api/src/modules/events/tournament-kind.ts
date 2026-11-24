@@ -54,6 +54,17 @@ export function assertFitsKind(kind: EntrantKind, body: KindFields): void {
   }
 }
 
+/**
+ * The kind a read Tournament row holds (`tournaments.entrant_kind`, NOT NULL since 0281). Throws on
+ * anything else: a read whose select left the column out, or found no row, must not pass for an
+ * individual Tournament. In a team Pool that would write seats and bouts into the Registration
+ * columns, all null. The save path keeps `kindInForce`, whose body may send no kind.
+ */
+export function storedKind(value: unknown): EntrantKind {
+  if (value === 'team' || value === 'individual') return value;
+  throw new Error(`The Tournament's kind was not read (entrant_kind is ${String(value)})`);
+}
+
 /** The kind in force for a save: the body's, else the stored one. */
 export const kindInForce = (stored: unknown, body: KindFields): EntrantKind =>
   body.entrantKind ?? (stored === 'team' ? 'team' : 'individual');

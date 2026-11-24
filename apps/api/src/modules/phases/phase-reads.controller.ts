@@ -84,7 +84,7 @@ export class PhaseReadsController {
   /** GET /api/v1/tournaments/:tournamentId/unassigned-fighters */
   @Get('tournaments/:tournamentId/unassigned-fighters')
   @ApiOperation({
-    summary: 'List tournament registrations not yet assigned to any pool (org member)',
+    summary: 'List tournament registrations, or teams, not yet assigned to any pool (org member)',
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async listUnassignedFighters(
@@ -92,7 +92,7 @@ export class PhaseReadsController {
     @Req() req: FastifyRequest,
   ) {
     await this.assertMember(req, tournamentId);
-    return this.phases.listUnassignedFighters(tournamentId);
+    return this.phases.listUnassignedEntrants(tournamentId);
   }
 
   @Get('tournaments/:tournamentId/bracket')

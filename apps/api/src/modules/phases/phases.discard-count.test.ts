@@ -15,7 +15,7 @@ import { withStampedRules } from './match-rules.fixtures';
  */
 const OWNER = 'a0000000-0000-4000-8000-000000000001';
 /** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
-const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0', entrant_kind: 'individual' };
 const orgs = { assertOrgRole: vi.fn(() => Promise.resolve()) };
 const frozen = {
   rejectPendingEditsForMatch: vi.fn(() => Promise.resolve([])),
