@@ -5497,6 +5497,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/oauth-consent/{authorizationId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What a Claude connection request asks of the signed-in person */
+    get: operations['OAuthConsentController_view'];
+    put?: never;
+    /** Approve or deny a Claude connection request; Claude's redirect */
+    post: operations['OAuthConsentController_answer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/events': {
     parameters: {
       query?: never;
@@ -12155,6 +12173,10 @@ export interface components {
     StaffCallDto: {
       /** @enum {string} */
       reason: 'medic' | 'head_ref' | 'dispute';
+    };
+    AnswerConsentDto: {
+      /** @enum {string} */
+      action: 'approve' | 'deny';
     };
     CreatePersonDto: {
       givenName: string;
@@ -21521,6 +21543,92 @@ export interface operations {
     requestBody?: never;
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OAuthConsentController_view: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        authorizationId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description ask, refused (not Claude), go, or expired */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Signed out, or the login ended */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The sign-in server gave no usable answer */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OAuthConsentController_answer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        authorizationId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AnswerConsentDto'];
+      };
+    };
+    responses: {
+      /** @description The redirect back to Claude */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Signed out, or the login ended */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description not_claude: the redirect is not one of Claude's */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description expired: the request is gone; start again */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The sign-in server gave no usable answer */
+      503: {
         headers: {
           [name: string]: unknown;
         };

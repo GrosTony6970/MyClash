@@ -50,6 +50,12 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
     'public leagues, plus each draft the caller manages or whose club is in it; 401 signed out',
   'modules/organizations/organizations.controller.ts#OrganizationsController.create':
     "a new organisation the caller owns; anonymous fails only on the uuid cast of 'anonymous'",
+  // GoTrue decides, called with the caller's own login: it binds a pending Claude connection
+  // request to the first login that reads it and answers 404 (read as expired) to every other.
+  'modules/mcp/oauth-consent.controller.ts#OAuthConsentController.view':
+    "the caller's own Claude connection request; 401 signed out; GoTrue 404s anyone else",
+  'modules/mcp/oauth-consent.controller.ts#OAuthConsentController.answer':
+    "the caller's own Claude connection request; 401 signed out; GoTrue 404s anyone else",
   // Signing in IS the bar (ruling 99), so no refuser has a name to count.
   'modules/fighters/fighters.controller.ts#FightersController.list':
     'any signed-in personal account; 401 signed out, 403 a staff login or a guest token',

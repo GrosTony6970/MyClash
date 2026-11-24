@@ -256,6 +256,10 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
   // tool, whoami, reads; a tool that writes an Event row must refuse an archived one itself, and
   // this line moves when one does.
   'The MCP door: its one tool reads, and writes no row of an Event.': ['POST mcp'],
+  // The answer is written in GoTrue's own tables, on the person's account.
+  "The consent page: a person's answer to a Claude connection request, not the Event record.": [
+    'POST oauth-consent/:authorizationId',
+  ],
 };
 
 /** The lock reads the Event the body names (`body.eventId`), when it names one. */

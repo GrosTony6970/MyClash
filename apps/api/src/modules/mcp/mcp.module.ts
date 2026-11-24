@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { MeModule } from '../me/me.module';
 import { McpController } from './mcp.controller';
 import { McpDoorGuard } from './mcp-door.guard';
+import { OAuthConsentController } from './oauth-consent.controller';
+import { OAuthConsentService } from './oauth-consent.service';
 import { ProtectedResourceController } from './protected-resource.controller';
 
-/** The MCP door: Claude's connector into MyClash. */
+/** The MCP door: Claude's connector into MyClash, and the consent page's API that opens it. */
 @Module({
   imports: [MeModule],
-  controllers: [ProtectedResourceController, McpController],
-  providers: [McpDoorGuard],
+  controllers: [ProtectedResourceController, McpController, OAuthConsentController],
+  providers: [McpDoorGuard, OAuthConsentService],
 })
 export class McpModule {}
