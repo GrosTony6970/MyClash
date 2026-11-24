@@ -1,4 +1,4 @@
-import { winnerColorFrom } from '@myclash/rules';
+import { winnerColorFrom } from '@myclash/rules/pad';
 
 /**
  * Which side won a match — the one owner of that question.
@@ -25,7 +25,9 @@ import { winnerColorFrom } from '@myclash/rules';
  * THE RULE ITSELF NOW LIVES IN `@myclash/rules` as `winnerColorFrom`, because
  * the standings tables and a fighter's own record were deriving the same ladder
  * for themselves and disagreeing with this. What stays here is the status guard
- * and this signature — the eight display call sites are unaffected.
+ * and this signature — the eight display call sites are unaffected. It comes
+ * through the `/pad` door: the root barrel would ship the whole competition core
+ * to every page of every app.
  *
  * Pure: no React, no I/O.
  */

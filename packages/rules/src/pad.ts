@@ -54,6 +54,12 @@ export {
 export { pendingLevelStep } from './match-format';
 
 /**
+ * Which side won, as a colour: the ladder behind `resolveMatchWinner` in `@myclash/types`, which
+ * every app calls to crown a winner.
+ */
+export { winnerColorFrom } from './match-format';
+
+/**
  * Whether the bout's time has run out — so the pad withholds the remedy button
  * until the server would accept it, instead of offering one that 400s.
  */
