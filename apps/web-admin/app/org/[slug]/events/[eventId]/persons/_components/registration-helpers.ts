@@ -19,6 +19,7 @@
  */
 
 import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import { conflictReason } from '@/lib/named-refusal';
 
 export type RegisterOutcome =
   | { status: 'ok'; data: unknown }
@@ -48,11 +49,11 @@ export async function tryRegisterInTournament(
   // Read as a FIELD of the extension bag, not by matching English. `code` is
   // the filter's own 'CONFLICT' here, so branching on it would compile, pass,
   // and silently stop telling a full tournament from any other conflict.
-  if (r.kind === 'http' && r.status === 409 && r.details?.['reason'] === 'tournament_full') {
+  if (r.kind === 'http' && conflictReason(r) === 'tournament_full') {
     return {
       status: 'full',
-      registeredCount: numberFrom(r.details['registeredCount']),
-      maxParticipants: numberFrom(r.details['maxParticipants']),
+      registeredCount: numberFrom(r.details?.['registeredCount']),
+      maxParticipants: numberFrom(r.details?.['maxParticipants']),
     };
   }
   return { status: 'error', failure: r };

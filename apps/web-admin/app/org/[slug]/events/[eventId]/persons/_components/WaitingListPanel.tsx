@@ -13,6 +13,7 @@ import {
 import { formatRosterName } from '../roster-name';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { conflictReason } from '@/lib/named-refusal';
 
 /**
  * Slice 5 of the tournament capacity + waitlist overhaul.
@@ -82,11 +83,7 @@ export function WaitingListPanel({
 
   /** A refused promote that means "the tournament is now full", or null. */
   function fullTournamentRefusal(failure: ApiFailure): boolean {
-    return (
-      failure.kind === 'http' &&
-      failure.status === 409 &&
-      failure.details?.['reason'] === 'tournament_full'
-    );
+    return conflictReason(failure) === 'tournament_full';
   }
 
   async function promote(reg: WaitlistRegistration, force = false) {

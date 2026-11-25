@@ -761,6 +761,12 @@ export const organizer = {
       forfeitNotForTeams: "Les règles de forfait automatiques ne s'appliquent pas aux équipes.",
       maxTeams: 'Équipes max.',
       badge: 'Équipe',
+      teamNotSupported:
+        "Un tournoi par équipes se joue en poules seulement pour l'instant : il ne prend ni tableau ni phase suisse.",
+      mismatch:
+        "Ce tournoi accueille l'autre type de participant : un tournoi par équipes accueille des équipes, un tournoi individuel des combattants.",
+      fieldRefused:
+        'Ces réglages ne conviennent pas au type de participant de ce tournoi. Rechargez la page et réessayez.',
     },
     wizard: {
       eyebrow: 'Nouveau tournoi',

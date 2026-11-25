@@ -1,4 +1,5 @@
 import type { ApiFailure } from '@myclash/api-client';
+import { conflictReason } from '@/lib/named-refusal';
 
 /**
  * A Tournament's kind of entrant (`tournaments.entrant_kind`, migration 0281): individual Fighters
@@ -55,7 +56,7 @@ export const textOf = (value: number | null): string => (value == null ? '' : St
  * its kind is fixed now (409, `details.reason: entrant_kind_settled`). Null for any other refusal.
  */
 export function kindSettledRefusal(r: ApiFailure, t: (key: string) => string): string | null {
-  return r.kind === 'http' && r.status === 409 && r.details?.['reason'] === 'entrant_kind_settled'
+  return conflictReason(r) === 'entrant_kind_settled'
     ? t('organizer.tournaments.kind.settled')
     : null;
 }

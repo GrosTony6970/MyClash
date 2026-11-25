@@ -764,6 +764,12 @@ export const organizer = {
       forfeitNotForTeams: 'The automatic forfeit rules do not act on teams.',
       maxTeams: 'Max teams',
       badge: 'Team',
+      teamNotSupported:
+        'A team tournament runs pools only for now: it takes no bracket and no Swiss phase.',
+      mismatch:
+        'This tournament takes the other kind of entrant: a team tournament takes teams, an individual one takes fighters.',
+      fieldRefused:
+        "These settings do not fit this tournament's kind of entrant. Reload the page and try again.",
     },
     wizard: {
       eyebrow: 'New tournament',

@@ -47,6 +47,7 @@ import { withTournament } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
+import { kindRefusal } from '@/lib/named-refusal';
 import { FoughtBoutsConfirm, RegenerateConfirm, type FoughtAsk } from './DiscardConfirms';
 import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
 import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
@@ -670,10 +671,10 @@ export default function BracketPage() {
         { method: 'POST', body },
       );
 
-      // NOT a message: a 409 means a bracket already exists, and the screen
-      // offers to overwrite it rather than saying anything. Only for a call
-      // that did not force: a forced one is past that question.
-      if (!force && !r.ok && r.kind === 'http' && r.status === 409) {
+      // NOT a message: a 409 means a bracket exists, and the screen offers to overwrite it. Only
+      // for a call that did not force: a forced one is past that question. A refusal of the
+      // Tournament's kind (a team Tournament takes no bracket) is no such 409: it is said below.
+      if (!force && !r.ok && r.kind === 'http' && r.status === 409 && !kindRefusal(r, t)) {
         setShowForceConfirm(true);
         return;
       }

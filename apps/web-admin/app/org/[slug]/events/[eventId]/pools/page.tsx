@@ -37,6 +37,7 @@ import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
+import { kindRefusal } from '@/lib/named-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { withTournament } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
@@ -276,12 +277,15 @@ export default function PoolsPage() {
    * Fought bouts would go: the second confirm names how many, and its yes sends
    * that count (rulings 280, 288). Else a 409 of an UNFORCED call means Pools already
    * exist, and the page offers to overwrite them. A forced call's other 409 is
-   * said: asked again, it would be refused again, for ever.
+   * said: asked again, it would be refused again, for ever. So is a refusal of the
+   * Tournament's kind, forced or not.
    */
   function asksToConfirm(refusal: ApiFailure, force: boolean): boolean {
     const fought = foughtBoutsAtStake(refusal);
+    const poolsExist =
+      refusal.kind === 'http' && refusal.status === 409 && !kindRefusal(refusal, t);
     if (fought !== null) setFoughtAtStake(fought);
-    else if (!force && refusal.kind === 'http' && refusal.status === 409) setShowForceConfirm(true);
+    else if (!force && poolsExist) setShowForceConfirm(true);
     else return false;
     return true;
   }
@@ -448,6 +452,12 @@ export default function PoolsPage() {
     if (r.ok) {
       setLockBanner(null);
       return true;
+    }
+    // A seat of the other kind of entrant is a mistake, not a locked Pool.
+    const refusedKind = kindRefusal(r, t);
+    if (refusedKind) {
+      setError(refusedKind);
+      return false;
     }
     if (r.kind === 'http' && r.status === 409) {
       setLockBanner(failureMessage(r, t, t('admin.common.poolLockedScoringStarted')));

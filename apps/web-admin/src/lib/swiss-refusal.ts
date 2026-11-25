@@ -1,4 +1,5 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { kindRefusal } from './named-refusal';
 
 /**
  * Why the API refused a Swiss write, in the reader's language (slice B-Swiss).
@@ -24,11 +25,16 @@ export function swissRefusal(failure: ApiFailure, t: (key: string) => string): s
   }
 }
 
-/** What a Swiss tab shows for a failed call: the refusal above, else the usual. */
+/**
+ * What a Swiss tab shows for a failed call: the refusal above, else a refusal of the Tournament's
+ * kind (a team Tournament takes no Swiss phase), else the usual.
+ */
 export function swissFailureMessage(
   failure: ApiFailure,
   t: (key: string) => string,
   fallback: string,
 ): string | null {
-  return swissRefusal(failure, t) ?? failureMessage(failure, t, fallback);
+  return (
+    swissRefusal(failure, t) ?? kindRefusal(failure, t) ?? failureMessage(failure, t, fallback)
+  );
 }
