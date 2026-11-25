@@ -11,7 +11,11 @@ import { stubPublicApi } from './helpers';
 export const PUBLIC = 'http://localhost:3001';
 export const PISTE_TV = `${PUBLIC}/e/test-event/lice/Piste%201/display`;
 
-/** A Pool bout in play, its clock halted after one minute. */
+/**
+ * A Pool bout in play, its clock halted after one minute. Two Fighters, in the display payload's
+ * real shape: each side's key is its Registration, and a Fighter's side has no team colour and no
+ * team logo.
+ */
 export const BOUT = {
   id: 'm-1',
   status: 'paused',
@@ -19,8 +23,18 @@ export const BOUT = {
   matchNumberLabel: 'L1-P1-M01',
   redScore: 5,
   blueScore: 3,
+  redSideId: 'reg-ada',
+  blueSideId: 'reg-mary',
+  winnerSideId: null,
+  redRegistrationId: 'reg-ada',
+  blueRegistrationId: 'reg-mary',
+  winnerRegistrationId: null,
   redFighterName: 'Ada Lovelace',
   blueFighterName: 'Mary Somerville',
+  redColour: null,
+  blueColour: null,
+  redLogoUrl: null,
+  blueLogoUrl: null,
   startedAt: '2027-03-13T09:00:00.000Z',
   endedAt: null,
   event: { name: 'Open de Lyon' },
@@ -34,14 +48,22 @@ export const BOUT = {
     roundCode: null,
     redFighterName: 'Grace Hopper',
     blueFighterName: 'Emmy Noether',
+    redColour: null,
+    blueColour: null,
   },
 };
 
 export const HALTED = { status: 'halted', activeMs: 60_000, runningFrom: null, events: [] };
 export const ENDED = { status: 'ended', activeMs: 180_000, runningFrom: null, events: [] };
 
-/** The bout above, over: its clock ended and its row completed. */
-export const ENDED_BOUT = { ...BOUT, status: 'completed', endedAt: '2027-03-13T09:03:00.000Z' };
+/** The bout above, over: its clock ended and its row completed, Ada its recorded winner. */
+export const ENDED_BOUT = {
+  ...BOUT,
+  status: 'completed',
+  endedAt: '2027-03-13T09:03:00.000Z',
+  winnerSideId: 'reg-ada',
+  winnerRegistrationId: 'reg-ada',
+};
 
 export interface PisteTv {
   /** The bout on the piste. Default: `BOUT`. */
@@ -67,6 +89,10 @@ export const NEXT_BOUT = {
   matchNumberLabel: 'L1-P1-M02',
   redScore: 0,
   blueScore: 0,
+  redSideId: 'reg-grace',
+  blueSideId: 'reg-emmy',
+  redRegistrationId: 'reg-grace',
+  blueRegistrationId: 'reg-emmy',
   redFighterName: 'Grace Hopper',
   blueFighterName: 'Emmy Noether',
   startedAt: null,
