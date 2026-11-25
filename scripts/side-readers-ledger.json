@@ -761,9 +761,9 @@
       "why": "its `fighter_exchange_stats` was replaced by 0189"
     },
     "packages/db/migrations/0135_tournament_target_value_stats.sql": {
-      "verdict": "not-yet",
+      "verdict": "individual-only",
       "hits": 2,
-      "why": "1b: `tournament_target_value_stats` takes the attacker by Registration (`:45`-`:46`), null on a team bout"
+      "why": "`tournament_target_value_stats` takes the attacker by Registration and drops a bout with none (`:61`), so a team bout gives no row"
     },
     "packages/db/migrations/0136_fighter_exchange_stats_value3.sql": {
       "verdict": "individual-only",
@@ -791,9 +791,9 @@
       "why": "names `winner_registration_id` in a column comment (`:34`); reads no side"
     },
     "packages/db/migrations/0189_blow_value_stats_any_value.sql": {
-      "verdict": "not-yet",
+      "verdict": "individual-only",
       "hits": 18,
-      "why": "1b: `fighter_blow_value_stats` (`:41`) returns rows with an empty id for a team bout"
+      "why": "blow values replaced by 0285; exchange stats join registrations, `:188`, so a team bout gives no row"
     },
     "packages/db/migrations/0192_compact_fighter_stats_double_loss.sql": {
       "verdict": "individual-only",
@@ -869,6 +869,11 @@
       "verdict": "no-side-read",
       "hits": 5,
       "why": "a view: projects each side's Registration and team columns and names whichever is set (COALESCE, `:51`-`:52`); it keys and compares no side, its readers key a side with `sideKey`"
+    },
+    "packages/db/migrations/0285_blow_value_stats_leave_team_bouts_out.sql": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "`fighter_blow_value_stats` counts blows by Registration and now reads only bouts with no team on either side (`:58`-`:59`)"
     },
     "packages/rules/src/domain.ts": {
       "verdict": "no-side-read",
@@ -1009,6 +1014,11 @@
       "verdict": "individual-only",
       "hits": 12,
       "why": "a Swiss probe; Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "scripts/lib/team-blow-stats-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "probes the function of 0285: writes a Registration on red of one individual bout (`:64`) and counts the rows the function gives back; keys no side"
     },
     "scripts/lib/team-tables-probe.mjs": {
       "verdict": "no-side-read",
