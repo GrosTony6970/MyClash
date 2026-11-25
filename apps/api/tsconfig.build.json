@@ -153,6 +153,9 @@
     // The team forfeit world (team Tournaments 1b-2), shared by the team forfeit tests and the
     // team card tests. It imports vitest.
     "src/modules/matches/match-forfeits.team.fixtures.ts",
+    // The team card world (team Tournaments 1b-2), shared by the team card tests. It imports
+    // vitest.
+    "src/modules/penalties/penalties.team-card.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

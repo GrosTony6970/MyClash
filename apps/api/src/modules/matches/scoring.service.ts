@@ -482,7 +482,7 @@ export class ScoringService {
 
     const { data: penaltyRows, error: penaltiesError } = await this.supabase.service
       .from('match_penalties')
-      .select('id, score_delta, registration_id, round_number')
+      .select('id, score_delta, registration_id, team_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
     // An unread sheet is not an empty one: scored as 0-0 it would write a wrong
@@ -635,8 +635,10 @@ export class ScoringService {
     let { redScore, blueScore } = score;
     for (const row of penaltyRows) {
       const delta = (row['score_delta'] as number | null) ?? 0;
-      if (row['registration_id'] === match.redSideId) redScore += delta;
-      if (row['registration_id'] === match.blueSideId) blueScore += delta;
+      // A card names a Fighter or a team (ADR-022): placed by its side key, never by Registration.
+      const side = sideKey(row['registration_id'] as Id, row['team_id'] as Id);
+      if (side === match.redSideId) redScore += delta;
+      if (side === match.blueSideId) blueScore += delta;
     }
     return { ...score, redScore, blueScore };
   }
@@ -1311,7 +1313,7 @@ export class ScoringService {
       .order('sequence', { ascending: true });
     const { data: penaltyRows } = await this.supabase.service
       .from('match_penalties')
-      .select('score_delta, registration_id, round_number')
+      .select('score_delta, registration_id, team_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
 

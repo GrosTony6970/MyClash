@@ -13129,7 +13129,9 @@ export interface components {
       clientUuid: string;
       sequence: number;
       /** Format: uuid */
-      registrationId: string;
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
       /** Format: uuid */
       rulesetEntryId?: string;
       /** @enum {string} */

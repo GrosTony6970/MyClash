@@ -102,6 +102,13 @@ async function completeFromRecord(deps: BoutDeps, bout: Row, record: Row): Promi
 }
 
 /**
+ * What the team repair reads of a record (`repairTeamForfeit`, `completeFromRecord`): a caller that
+ * reads a record to hand it over selects these, and a column the repair starts reading goes here.
+ */
+export const TEAM_REPAIR_RECORD_COLUMNS =
+  'id, match_id, reason, forfeiting_registration_id, forfeiting_team_id, winner_registration_id, winner_team_id, forfeiting_score, opponent_score, resulting_match_state';
+
+/**
  * The one team repair: whatever a send cut short left of a live team record, done now, then the
  * bout handed on. A bout still in play is completed from the record (the insert stood, the
  * completion failed); a completed bout whose record kept no result is stamped (only a completed

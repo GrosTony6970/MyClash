@@ -3,6 +3,7 @@ import { BLACK_CARD_REASONS } from '@myclash/rulesets';
 import type { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import type { MatchForfeitsService } from '../matches/match-forfeits.service';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { cardSideColumn, savedCardSide } from './card-side';
 import {
   dropReviewAsRead,
   liveBlackCardIds,
@@ -52,13 +53,14 @@ function rowsOf(what: string, result: { data: unknown; error: { message: string 
   return (result.data ?? []) as Row[];
 }
 
-/** That Fighter's other live black cards on this bout. */
+/** That side's other live black cards on this bout: a Fighter's, or a team's (ADR-022). */
 async function otherLiveBlackCardsOnBout(db: Client, card: Row) {
+  const side = savedCardSide(card);
   const cards = await db
     .from('match_penalties')
     .select('id')
     .eq('match_id', card['match_id'] as string)
-    .eq('registration_id', card['registration_id'] as string)
+    .eq(cardSideColumn(side), side.id)
     .eq('card', 'black')
     .eq('voided', false)
     .neq('id', card['id'] as string);
@@ -68,18 +70,20 @@ async function otherLiveBlackCardsOnBout(db: Client, card: Row) {
 /**
  * The live forfeit this black card made on its bout, or null.
  *
- * Null too while ANOTHER live black card of that Fighter is on the bout: a
+ * Null too while ANOTHER live black card of that side is on the bout: a
  * black card given on an ended bout is saved and its own forfeit refused, so
- * the record there is still earned by the first.
+ * the record there is still earned by the first. A team's card made a record
+ * that names the team (ruling 972).
  */
 async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
   if (card['card'] !== 'black') return null;
   if ((await otherLiveBlackCardsOnBout(db, card)) > 0) return null;
+  const side = savedCardSide(card);
   const forfeits = await db
     .from('match_forfeits')
     .select('id, replacement_registration_id, created_at')
     .eq('match_id', card['match_id'] as string)
-    .eq('forfeiting_registration_id', card['registration_id'] as string)
+    .eq(side.kind === 'team' ? 'forfeiting_team_id' : 'forfeiting_registration_id', side.id)
     .in('reason', BLACK_CARD_REASONS)
     .is('voided_at', null);
   return rowsOf('The forfeit of the black card', forfeits)[0] ?? null;
@@ -136,9 +140,10 @@ export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Act
  * the answer covered; a confirmed one asks again, or is dismissed, once fewer than two of the cards
  * it answered are live; a review nobody answered goes once fewer than two live cards remain;
  * otherwise the count follows. Written over the review as it was read, once more if it moved.
+ * A team's card opened no review: a team has no status (ruling 972).
  */
 export async function dropSpentBlackCardReview(db: Client, card: Row): Promise<void> {
-  if (card['card'] !== 'black') return;
+  if (card['card'] !== 'black' || savedCardSide(card).kind === 'team') return;
   const tournamentId = card['tournament_id'] as string;
   const registrationId = card['registration_id'] as string;
   // Never throws: the card is voided by now, and the answer must say so.

@@ -283,7 +283,7 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
       'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, status, winner_registration_id, winner_team_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     ]);
     expect(selectsFor(db.from, 'match_penalties')).toEqual([
-      'id, score_delta, registration_id, round_number',
+      'id, score_delta, registration_id, team_id, round_number',
     ]);
   });
 });
