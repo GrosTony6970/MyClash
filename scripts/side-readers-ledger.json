@@ -131,9 +131,9 @@
       "why": "the forfeit door judges its side with `forfeit-side.ts` (`sidesOf`) and writes both sides through `forfeitSideColumns` (`:225`); a re-advance reads the restored winner by `sideKey` (`:732`). The Registration reads left are a Fighter's alone, never reached by a team (call 1): inheritance, escalation, the reserve swap (guarded `:253`) and the status settle"
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
-      "verdict": "not-yet",
+      "verdict": "no-side-read",
       "hits": 0,
-      "why": "1b: the piste queue names sides through the view's `red_name`, `blue_name`, `red_club`, `blue_club` (`:33`, `:289`). View 0284 replaced 0193: it names a team side by its team, with no club. The pad and the piste queue that show these names are visited in 1b-2",
+      "why": "reads no side id: the names, clubs and team colours come from the view (`:33`-`:34`), which names a team side by its team, with no club (0284); a team side's logo from the bout's team embeds (`:43`, `:278`-`:289`)",
       "byHand": true
     },
     "apps/api/src/modules/matches/matches.service.ts": {
@@ -1060,7 +1060,7 @@
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
       "count": 2,
-      "why": "`bestOfFor` asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:148`-`:149`)"
+      "why": "`bestOfFor` asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:156`-`:157`)"
     },
     "apps/api/src/modules/penalties/penalties.service.ts": {
       "count": 2,
