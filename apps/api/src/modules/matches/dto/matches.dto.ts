@@ -35,7 +35,11 @@ const updateMatchStatusSchema = z
      * at every call. A bout is put in play by the clock (Start, Reopen).
      */
     status: z.enum(['completed']),
-    winnerRegistrationId: z.uuid().optional(),
+    /**
+     * The winner's side key (`sideKey`): a Fighter's Registration id, or a team's id (call 8). A
+     * key that is neither side of the bout is refused 400. None sent: the stored winner stays.
+     */
+    winnerSideId: z.uuid().optional(),
   })
   .strict();
 export class UpdateMatchStatusDto extends createZodDto(updateMatchStatusSchema) {}

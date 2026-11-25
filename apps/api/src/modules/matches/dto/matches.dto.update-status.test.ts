@@ -31,6 +31,16 @@ describe('UpdateMatchStatusDto', () => {
     expect(schema.safeParse({ status: 'voided' }).success).toBe(false);
   });
 
+  // Call 8: the winner is a side key, a Registration id or a team id; the old name is refused.
+  it('takes the winner as a side key, under winnerSideId only', () => {
+    const winner = 'a0000000-0000-4000-8000-000000000001';
+
+    expect(schema.safeParse({ status: 'completed', winnerSideId: winner }).success).toBe(true);
+    expect(schema.safeParse({ status: 'completed', winnerRegistrationId: winner }).success).toBe(
+      false,
+    );
+  });
+
   // Ruling 338: the route takes no bout out of completed, so it has nothing to discard.
   it('takes no discard acknowledgement', () => {
     const result = schema.safeParse({ status: 'completed', discardDependentResults: true });

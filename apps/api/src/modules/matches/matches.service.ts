@@ -24,6 +24,7 @@ import { scoredAtServer } from './late-press';
 import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
+import { statusWinnerColumns } from './status-winner';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
 import { nextSequence } from './timeline-sequence';
@@ -234,7 +235,7 @@ export class MatchesService {
   }
 
   async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
-    return this.setStatus(matchId, dto.status, dto.winnerRegistrationId);
+    return this.setStatus(matchId, dto.status, dto.winnerSideId);
   }
 
   /**
@@ -270,7 +271,7 @@ export class MatchesService {
   private async setStatus(
     matchId: string,
     status: UpdateMatchStatusDto['status'] | 'voided',
-    winnerRegistrationId?: string,
+    winnerSideId?: string,
   ) {
     const updates: Record<string, unknown> = {
       status,
@@ -278,7 +279,13 @@ export class MatchesService {
     };
     if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
+      // No winner sent: the stored winner stays. `winnerColumns` with none would clear both.
+      if (winnerSideId !== undefined) {
+        Object.assign(
+          updates,
+          await statusWinnerColumns(this.supabase.service, matchId, winnerSideId),
+        );
+      }
     }
 
     const { data, error } = await this.supabase.service

@@ -82,8 +82,8 @@
     },
     "apps/api/src/modules/matches/dto/matches.dto.ts": {
       "verdict": "not-yet",
-      "hits": 7,
-      "why": "1b: the create body and the manual completion name sides by Registration (`:10`-`:11`, `:38`); the forfeit body names exactly one of a Registration or a team (`:141`-`:142`, `:162`-`:178`)"
+      "hits": 6,
+      "why": "1b: the create body names sides by Registration (`:10`-`:11`); the manual completion takes a side key (`winnerSideId`, `:42`); the forfeit body names exactly one of a Registration or a team (`:145`-`:146`, `:166`-`:182`)"
     },
     "apps/api/src/modules/matches/fighter-bouts.ts": {
       "verdict": "side-key",
@@ -138,13 +138,18 @@
     },
     "apps/api/src/modules/matches/matches.service.ts": {
       "verdict": "not-yet",
-      "hits": 19,
-      "why": "1b: create (`:192`), manual completion writes `winner_registration_id` only (`:281`), `swapFighterColor` swaps only the Registration ids (`:968`)"
+      "hits": 14,
+      "why": "1b: create (`:193`), `swapFighterColor` swaps only the Registration ids (`:975`); the manual completion writes its winner by side through `status-winner.ts` (`:282`-`:288`)"
     },
     "apps/api/src/modules/matches/reopen-match-columns.ts": {
       "verdict": "no-side-read",
       "hits": 2,
       "why": "clears both winner columns, `winner_registration_id` with `winner_team_id` (`:28`, `:96`); reads no side"
+    },
+    "apps/api/src/modules/matches/status-winner.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the manual completion's winner: reads the four side columns (`:6`-`:7`) and writes the side key through `winnerColumns`, a key that is neither side refused 400 (`:31`-`:35`)"
     },
     "apps/api/src/modules/matches/scoring.service.ts": {
       "verdict": "side-key",
@@ -1048,6 +1053,10 @@
     "apps/api/src/modules/matches/fighter-reconcile.ts": {
       "count": 2,
       "why": "individual-only: the reconcile selects by Registration (`:101`); the Fighter's Registration id is the winner side key it hands `completeMatch` (`:192`, `:221`)"
+    },
+    "apps/api/src/modules/matches/dto/matches.dto.ts": {
+      "count": 1,
+      "why": "the manual completion's wire field: the client sends the winner's side key (`winnerSideId`, `:42`, call 8); `status-winner.ts` judges it against the bout's sides through `winnerColumns`"
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
       "count": 2,
