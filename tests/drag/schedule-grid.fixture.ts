@@ -108,8 +108,8 @@ function match(over: Record<string, unknown>) {
     endedAt: null,
     redFighterName: 'Red Fighter',
     blueFighterName: 'Blue Fighter',
-    redRegistrationId: 'reg-red',
-    blueRegistrationId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     tournamentName: 'Longsword Open',
     tournamentColor: null,
     tournamentSlug: 'longsword-open',
@@ -145,8 +145,8 @@ export const scheduleFixture = [
     // bouts carried the same two ids while showing four different names — and
     // any drag that overlapped them raised a fighter double-booking that the
     // fixture never meant to describe.
-    redRegistrationId: 'reg-red-2',
-    blueRegistrationId: 'reg-blue-2',
+    redSideId: 'reg-red-2',
+    blueSideId: 'reg-blue-2',
   }),
 ];
 
@@ -166,8 +166,8 @@ export const unscheduledFixture = [
     scheduledAt: null,
     redFighterName: 'Fifth Fighter',
     blueFighterName: 'Sixth Fighter',
-    redRegistrationId: 'reg-red-3',
-    blueRegistrationId: 'reg-blue-3',
+    redSideId: 'reg-red-3',
+    blueSideId: 'reg-blue-3',
   }),
 ];
 
@@ -194,8 +194,8 @@ export function runScheduleFixture(typedLengthMinutes: number | null = null) {
       poolId: 'pool-a',
       poolName: 'Pool A',
       // Six bouts, twelve fighters: shared defaults would raise a double booking.
-      redRegistrationId: `reg-red-run-${index}`,
-      blueRegistrationId: `reg-blue-run-${index}`,
+      redSideId: `reg-red-run-${index}`,
+      blueSideId: `reg-blue-run-${index}`,
     }),
   );
 }
@@ -230,8 +230,8 @@ export const lateScheduleFixture = [
     scheduledAt: at('12:00'),
     redFighterName: 'Third Fighter',
     blueFighterName: 'Fourth Fighter',
-    redRegistrationId: 'reg-red-2',
-    blueRegistrationId: 'reg-blue-2',
+    redSideId: 'reg-red-2',
+    blueSideId: 'reg-blue-2',
   }),
 ];
 
