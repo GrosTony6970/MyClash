@@ -22,8 +22,8 @@
     },
     "apps/api/src/modules/exports/archive-fighter-status.ts": {
       "verdict": "individual-only",
-      "hits": 4,
-      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive"
+      "hits": 3,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive, and leaves a team's forfeit and a team's card out, never keyed as \"null\" (`fighterOf` answers null, `:50`-`:53`; `fighterBlackCards` keeps only a card that names a Registration, `:68`-`:73`)"
     },
     "apps/api/src/modules/exports/archive-reports.ts": {
       "verdict": "not-yet",
@@ -31,9 +31,9 @@
       "why": "1c: the archive report names bout sides by Registration (`:204`-`:303`); a people path of 1c"
     },
     "apps/api/src/modules/exports/archive.tables.ts": {
-      "verdict": "not-yet",
+      "verdict": "no-side-read",
       "hits": 9,
-      "why": "1b: the forfeit snapshots map only `previous_match_state.winner_registration_id` and `resulting_match_state.winner_registration_id` (`:439`-`:440`); the `winner_team_id` paths come with team forfeits"
+      "why": "a key-name list: each Registration column maps to `registrations` beside its team twin mapped to `teams` (`:110`-`:125`), and the forfeit snapshots map both winners (`:439`-`:442`)"
     },
     "apps/api/src/modules/exports/exports.service.ts": {
       "verdict": "not-yet",

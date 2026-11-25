@@ -17,7 +17,6 @@ const NOT_YET = [
   'apps/api/src/modules/checkin/gear.service.ts',
   'apps/api/src/modules/events/events.service.ts',
   'apps/api/src/modules/exports/archive-reports.ts',
-  'apps/api/src/modules/exports/archive.tables.ts',
   'apps/api/src/modules/exports/exports.service.ts',
   'apps/api/src/modules/leagues/leagues.service.ts',
   'apps/api/src/modules/matches/clock.service.ts',

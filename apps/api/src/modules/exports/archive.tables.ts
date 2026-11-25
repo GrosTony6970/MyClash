@@ -433,11 +433,13 @@ const TABLES = {
     // Read off fighter-bouts.ts `matchSnapshot`. The two `*_match_state` blobs
     // are the same snapshot shape, so both carry the winner; 0186 added the
     // post-state so a void can tell whether the match still holds the result
-    // the record produced.
+    // the record produced. The winner is a Registration or a team (0282).
     json: [
       { path: 'downstream_match_ids[]', map: 'matches' },
       { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
       { path: 'resulting_match_state.winner_registration_id', map: 'registrations' },
+      { path: 'previous_match_state.winner_team_id', map: 'teams' },
+      { path: 'resulting_match_state.winner_team_id', map: 'teams' },
     ],
     // The status a forfeit found was kept on its row until 0241: an archive made before it
     // carries the column, and an insert naming a column the table no longer has is refused

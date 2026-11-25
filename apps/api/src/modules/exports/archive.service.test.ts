@@ -524,9 +524,27 @@ describe('ArchiveService', () => {
   });
 
   /**
+   * An organiser corrected the team Match, won by the second team, for the first: both snapshots
+   * name a winner by team.
+   */
+  const TEAM_FORFEIT = {
+    id: 'mf-team',
+    match_id: 'm-team',
+    tournament_id: 't-1',
+    forfeiting_team_id: 'tm-2',
+    winner_team_id: 'tm-1',
+    reason: 'admin_correction',
+    score_policy: 'explicit',
+    can_continue: true,
+    fighter_outcome: null,
+    previous_match_state: { status: 'completed', winner_team_id: 'tm-2' },
+    resulting_match_state: { status: 'completed', winner_team_id: 'tm-1' },
+  };
+
+  /**
    * `scopedRows()` with a team bout (0282): a second team, a team in a Pool, a team Match won by
-   * the first team, and a protest the second team filed. Kept apart so the tests that expect the
-   * one bout of `scopedRows()` still find exactly one.
+   * the first team, its correction, and a protest the second team filed. Kept apart so the tests
+   * that expect the one bout of `scopedRows()` still find exactly one.
    */
   const teamSideRows = () => {
     const rows = scopedRows();
@@ -550,6 +568,7 @@ describe('ArchiveService', () => {
           match_rules_id: 'mr-now',
         },
       ],
+      match_forfeits: [...rows.match_forfeits, TEAM_FORFEIT],
       match_protests: [
         {
           id: 'mpr-team',
@@ -942,6 +961,30 @@ describe('ArchiveService', () => {
     expect(inserted.event_venues?.[0]?.venue_id, 'an org-level venue passes through').toBe(
       'venue-1',
     );
+  });
+
+  it('remaps a team winner in both snapshots of a team forfeit', async () => {
+    const { service, inserted } = makeService(teamSideRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'scoring',
+    });
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const teamId = (source: string) =>
+      inserted.teams?.find((team) => team['slug'] === source)?.['id'] as string;
+    const forfeit = inserted.match_forfeits?.find((row) => row['reason'] === 'admin_correction');
+    expect(teamId('team')).not.toBe('tm-1');
+    expect(forfeit?.['previous_match_state']).toEqual({
+      status: 'completed',
+      winner_team_id: teamId('rivals'),
+    });
+    expect(forfeit?.['resulting_match_state']).toEqual({
+      status: 'completed',
+      winner_team_id: teamId('team'),
+    });
   });
 
   /**
