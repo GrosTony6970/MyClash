@@ -348,9 +348,9 @@
       "why": "1c: deleting a Person checks bouts and slots by Registration (`:222`-`:261`)"
     },
     "apps/api/src/modules/schedule/live-state.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 2,
-      "why": "1b: the live board reads both sides through the foreign-key names (`:243`-`:244`)"
+      "why": "the hall board reads both kinds of each side, the Registration embeds and `TEAM_SIDE_EMBEDS` (`:245`-`:247`), and names each through `sideLabel` (`bout-side-labels.ts`), which keys it with `sideKey`; a side not known yet keeps a null name"
     },
     "apps/api/src/modules/schedule/match-scheduler.ts": {
       "verdict": "side-key",
@@ -368,14 +368,14 @@
       "why": "the grid reads the team twins and keys each side with `sideKey`; names come from the view (0284)"
     },
     "apps/api/src/modules/staff/lice-matches.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 4,
-      "why": "1b: the scorekeeper screen names sides through the foreign-key names (`:29`-`:33`)"
+      "why": "`LICE_MATCH_SELECT` reads both kinds of each side, the Registration embeds and `TEAM_SIDE_EMBEDS` (`:38`-`:40`), and the piste list names each through `sideLabel` (`bout-side-labels.ts`), which keys it with `sideKey`; the Registration columns (`:35`) feed only the current bout's `redRegistrationId` / `blueRegistrationId` in staff.service"
     },
     "apps/api/src/modules/staff/staff.service.ts": {
-      "verdict": "not-yet",
-      "hits": 18,
-      "why": "1b: the scorekeeper screen reads sides by Registration (`:863`-`:1855`)"
+      "verdict": "side-key",
+      "hits": 21,
+      "why": "every bout read (the live board `:875`, the neighbour tiles `:1243`, the display `:1527`, the next bout `:1601`, the piste through `LICE_MATCH_SELECT`) reads both kinds of each side and names each through `sideLabel` (`bout-side-labels.ts`); the display keys its sides and its winner with `sideKey` (`displaySides`, `:2043`-`:2045`). The current bout and the display still pass the Registration columns on under their own names (`:1850`-`:1851`, `:1999`-`:2007`): null on a team side, never a side key"
     },
     "apps/api/src/modules/swiss/dto/swiss.dto.ts": {
       "verdict": "individual-only",
@@ -1076,7 +1076,7 @@
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
-      "why": "the round-count call asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:1984`-`:1985`)"
+      "why": "the round-count call asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:1979`-`:1980`)"
     }
   }
 }

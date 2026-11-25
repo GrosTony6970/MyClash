@@ -13,8 +13,8 @@ describe('assembleBoardRows', () => {
         blue_score: 2,
         match_number_label: '#3',
         bracket_slots: { round: 2 },
-        red: { persons: { given_name: 'Marie', family_name: 'D' } },
-        blue: { persons: { given_name: 'Jean', family_name: 'P' } },
+        red: { id: 'reg-marie', persons: { given_name: 'Marie', family_name: 'D' } },
+        blue: { id: 'reg-jean', persons: { given_name: 'Jean', family_name: 'P' } },
       }),
     ];
     const [row] = assembleBoardRows(input);
@@ -22,11 +22,34 @@ describe('assembleBoardRows', () => {
       id: 'm1',
       redFighterName: 'Marie D',
       blueFighterName: 'Jean P',
+      redColour: null,
+      blueColour: null,
       redScore: 3,
       blueScore: 2,
       status: 'running',
       round: 2,
       referees: [],
+    });
+  });
+
+  // Call 6: the board row names a team side by its team, with its colour chip. A bracket side not
+  // filled yet has no name: null, never '', so the board's own fallback shows.
+  it('names a team side by its team with its colour, and a side not known yet by null', () => {
+    const team = (id: string, name: string, color: string | null) => ({
+      id,
+      name,
+      color,
+      logo_url: null,
+    });
+    const input = base();
+    input.matches = [
+      match({ red_team: team('team-lyon', 'Lyon Blades', 'teal'), blue: null, blue_team: null }),
+    ];
+    expect(assembleBoardRows(input)[0]!.currentMatch).toMatchObject({
+      redFighterName: 'Lyon Blades',
+      redColour: 'teal',
+      blueFighterName: null,
+      blueColour: null,
     });
   });
 

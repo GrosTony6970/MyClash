@@ -20,8 +20,12 @@ export interface BoardReferee {
 
 export interface BoardMatch {
   id: string;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name, for its chip (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   redScore: number;
   blueScore: number;
   /** Raw `matches.status`; the FE words it with `statusLabel('match', …)` of @myclash/ui. */

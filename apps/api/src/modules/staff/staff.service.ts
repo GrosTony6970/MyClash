@@ -19,6 +19,13 @@ import {
 import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import {
+  boutSideLabels,
+  sideNamesAndColours,
+  TEAM_SIDE_EMBEDS,
+  type BoutSideEmbeds,
+} from '../matches/bout-side-labels';
+import { sideKey } from '@myclash/types/side-key';
+import {
   LICE_MATCH_SELECT,
   LICE_MATCH_STATUSES,
   compareLiceMatchOrder,
@@ -224,8 +231,13 @@ export interface NeighborTile {
   id: string;
   matchNumberLabel: string | null;
   roundCode: string | null;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
+  /** A Fighter's club; a team has none. */
   redClub: string | null;
   blueClub: string | null;
 }
@@ -860,7 +872,8 @@ export class StaffService {
         // `phases(type,tournaments(name))` mirrors live-state.service.ts;
         // `config_json`, `weapon` and `sort_order` are the bout code's inputs.
         .select(
-          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name,sort_order),phases(type,config_json,tournaments(name,weapon)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name,sort_order),phases(type,config_json,tournaments(name,weapon)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
+            TEAM_SIDE_EMBEDS,
         )
         .in('lice_id', liceIds)
         .in('status', ['running', 'paused', 'scheduled'])
@@ -1227,7 +1240,8 @@ export class StaffService {
       .from('matches')
       .select(
         // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,clubs(name))),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
+          TEAM_SIDE_EMBEDS,
       )
       .eq('lice_id', liceId)
       .in('status', ['scheduled', 'running', 'paused', 'completed']);
@@ -1239,7 +1253,9 @@ export class StaffService {
 
     // The order of the piste list, so the tiles and the list walk one piste the
     // same way. SQL sorts the bout number as text: M10 before M2.
-    const rows = ((data ?? []) as Array<Record<string, unknown>>).sort(compareLiceMatchOrder);
+    const rows = ((data ?? []) as unknown as Array<Record<string, unknown>>).sort(
+      compareLiceMatchOrder,
+    );
     const idx = rows.findIndex((r) => (r['id'] as string) === matchId);
     if (idx === -1) return { previous: null, next: null };
     return {
@@ -1249,20 +1265,14 @@ export class StaffService {
   }
 
   private mapNeighborRow(row: Record<string, unknown>): NeighborTile {
-    const red = row['red'] as {
-      persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
-    } | null;
-    const blue = row['blue'] as {
-      persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
-    } | null;
+    const sides = boutSideLabels(row as BoutSideEmbeds<{ name?: string | null }>);
     return {
       id: row['id'] as string,
       matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
       roundCode: roundCodeFromMatchRow(row),
-      redFighterName: this.formatPersonName(red?.persons),
-      blueFighterName: this.formatPersonName(blue?.persons),
-      redClub: red?.persons?.clubs?.name ?? null,
-      blueClub: blue?.persons?.clubs?.name ?? null,
+      ...sideNamesAndColours(sides),
+      redClub: sides.red.club?.name ?? null,
+      blueClub: sides.blue.club?.name ?? null,
     };
   }
 
@@ -1513,7 +1523,9 @@ export class StaffService {
         //     populated eagerly at insert/link time.
         //   - match_rules: the bout's own copy of its rules, the only source of its match format
         //     (the Tournament's may be partial, and moves on after the bout starts).
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number),match_rules(ruleset_config)',
+        //   - the team sides: a team's name, colour and logo (call 6).
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number),match_rules(ruleset_config),' +
+          TEAM_SIDE_EMBEDS,
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1549,7 +1561,11 @@ export class StaffService {
       reader,
     );
 
-    const base = this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
+    // The select is built with a constant: supabase-js cannot type its row.
+    const base = this.mapDisplayMatch(data as unknown as Record<string, unknown>, {
+      fightIndex,
+      totalFightsInPool,
+    });
     return {
       ...base,
       nextMatchId: nextMatch?.id ?? null,
@@ -1572,6 +1588,8 @@ export class StaffService {
     roundCode: string | null;
     redFighterName: string | null;
     blueFighterName: string | null;
+    redColour: string | null;
+    blueColour: string | null;
   } | null> {
     if (!liceId) return null;
     const deps = { supabase: this.supabase, orgs: this.orgs };
@@ -1580,7 +1598,8 @@ export class StaffService {
       .from('matches')
       .select(
         // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
+          TEAM_SIDE_EMBEDS,
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled']);
@@ -1591,15 +1610,12 @@ export class StaffService {
     if (error) throw new BadRequestException(error.message);
     const next = (data ?? []).find((row) => (row as { id?: string }).id !== currentMatchId);
     if (!next) return null;
-    const row = next as Record<string, unknown>;
-    const red = row['red'] as { persons?: { given_name?: string; family_name?: string } } | null;
-    const blue = row['blue'] as { persons?: { given_name?: string; family_name?: string } } | null;
+    const row = next as unknown as Record<string, unknown>;
     return {
       id: row['id'] as string,
       matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
       roundCode: roundCodeFromMatchRow(row),
-      redFighterName: this.formatPersonName(red?.persons),
-      blueFighterName: this.formatPersonName(blue?.persons),
+      ...sideNamesAndColours(boutSideLabels(row as BoutSideEmbeds<never>)),
     };
   }
 
@@ -1810,27 +1826,7 @@ export class StaffService {
     return key.length === storedKey.length && timingSafeEqual(key, storedKey);
   }
 
-  /**
-   * `persons` table has `given_name` + `family_name` but no
-   * `display_name` (that lives on `global_persons`). Mappers below
-   * compose names locally — embed strings above must request
-   * given+family, not display_name.
-   */
-  private formatPersonName(
-    p: { given_name?: string | null; family_name?: string | null } | null | undefined,
-  ): string | null {
-    if (!p) return null;
-    const composed = `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim();
-    return composed || null;
-  }
-
   private mapCurrentMatch(match: Record<string, unknown>) {
-    const red = match['red'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
-    const blue = match['blue'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
     const phase = match['phases'] as {
       type?: string;
       config_json?: Record<string, unknown> | null;
@@ -1857,8 +1853,7 @@ export class StaffService {
       blueScore: match['blue_score'],
       sideOrder: match['side_order'] ?? 'red_left',
       lockedAt: match['locked_at'] ?? null,
-      redFighterName: this.formatPersonName(red?.persons),
-      blueFighterName: this.formatPersonName(blue?.persons),
+      ...sideNamesAndColours(boutSideLabels(match as BoutSideEmbeds<never>)),
       tournamentId: tournament?.id ?? null,
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
@@ -2012,8 +2007,7 @@ export class StaffService {
       winnerRegistrationId: match['winner_registration_id'] ?? null,
       sideOrder: match['side_order'] ?? 'red_left',
       lockedAt: match['locked_at'] ?? null,
-      redFighterName: this.formatPersonName(red?.persons),
-      blueFighterName: this.formatPersonName(blue?.persons),
+      ...displaySides(match),
       redFighterPhotoUrl: red?.persons?.global_persons?.photo_url ?? null,
       blueFighterPhotoUrl: blue?.persons?.global_persons?.photo_url ?? null,
       lice: lices,
@@ -2035,6 +2029,24 @@ export class StaffService {
       blueClub,
     };
   }
+}
+
+/**
+ * The sides of the display payload: each side's key, the winner's, and each name, colour chip and
+ * logo (call 6: a team's logo where a Fighter's photo is). Keys come from the bout's columns, which
+ * its `*` select reads.
+ */
+function displaySides(match: Record<string, unknown>) {
+  const column = (name: string) => (match[name] as string | null | undefined) ?? null;
+  const sides = boutSideLabels(match as BoutSideEmbeds<never>);
+  return {
+    redSideId: sideKey(column('red_registration_id'), column('red_team_id')),
+    blueSideId: sideKey(column('blue_registration_id'), column('blue_team_id')),
+    winnerSideId: sideKey(column('winner_registration_id'), column('winner_team_id')),
+    ...sideNamesAndColours(sides),
+    redLogoUrl: sides.red.logoUrl,
+    blueLogoUrl: sides.blue.logoUrl,
+  };
 }
 
 /**

@@ -9,6 +9,12 @@
  */
 
 import type { TournamentScoringConfig } from '@myclash/types';
+import {
+  boutSideLabels,
+  sideNamesAndColours,
+  TEAM_SIDE_EMBEDS,
+  type BoutSideEmbeds,
+} from '../matches/bout-side-labels';
 import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import type { ResolvedReferee } from '../matches/resolve-match-referees';
 import { poolMatchSortKey } from '../phases/pool-match-sort';
@@ -30,7 +36,8 @@ export const LICE_MATCH_SELECT =
   'phases!inner(type,config_json,tournaments!inner(id,name,weapon,status,scoring_config_json)),' +
   'pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
   'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
-  'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))';
+  'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
+  TEAM_SIDE_EMBEDS;
 
 /**
  * Everything a piste operator can act on or review. `voided` is excluded — it
@@ -50,8 +57,12 @@ export interface LiceMatchRow {
   matchNumberLabel: string | null;
   /** Server-derived, e.g. `SDW-B-SF-M2`. */
   roundCode: string | null;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   redScore: number;
   blueScore: number;
   tournamentId: string | null;
@@ -77,18 +88,6 @@ export interface LiceMatchesPayload {
   event: { id: string; slug: string; name: string; status: string } | null;
   /** Full schedule order, unlimited, completed bouts included. */
   matches: LiceMatchRow[];
-}
-
-interface PersonEmbed {
-  given_name?: string | null;
-  family_name?: string | null;
-}
-
-/** `"Given Family"`, or null when neither half is present. */
-export function formatPersonName(person: PersonEmbed | null | undefined): string | null {
-  if (!person) return null;
-  const composed = `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
-  return composed || null;
 }
 
 /**
@@ -138,8 +137,6 @@ export function mapLiceMatchRow(
       scoring_config_json?: unknown;
     };
   } | null;
-  const red = row['red'] as { persons?: PersonEmbed } | null;
-  const blue = row['blue'] as { persons?: PersonEmbed } | null;
   return {
     id: row['id'] as string,
     status: row['status'] as string,
@@ -147,8 +144,7 @@ export function mapLiceMatchRow(
     scheduledAt: (row['scheduled_at'] as string | null) ?? null,
     matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
     roundCode: roundCodeFromMatchRow(row),
-    redFighterName: formatPersonName(red?.persons),
-    blueFighterName: formatPersonName(blue?.persons),
+    ...sideNamesAndColours(boutSideLabels(row as BoutSideEmbeds<never>)),
     redScore: (row['red_score'] as number | null) ?? 0,
     blueScore: (row['blue_score'] as number | null) ?? 0,
     // Already joined by LICE_MATCH_SELECT — the screen needs the id to reach

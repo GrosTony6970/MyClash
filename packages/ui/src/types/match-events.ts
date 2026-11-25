@@ -228,8 +228,20 @@ export interface DisplayMatch {
   roundCode?: string | null;
   redScore: number;
   blueScore: number;
+  /** Each side's key (`sideKey`): its Registration id or its team id; null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** The winner's side key; null for no winner (a double loss, a tie, not decided yet). */
+  winnerSideId: string | null;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name (`TOURNAMENT_COLORS`) for its chip; null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
+  /** A team side's logo, shown where a Fighter's photo is; null on a Fighter's side. */
+  redLogoUrl: string | null;
+  blueLogoUrl: string | null;
   /** Fighter photos for the scoreboard avatar — resolved server-side from
    *  the global identity (global_persons.photo_url). Null when the fighter
    *  has no photo or isn't linked to a global person. */
@@ -280,6 +292,8 @@ export interface DisplayMatch {
     roundCode: string | null;
     redFighterName: string | null;
     blueFighterName: string | null;
+    redColour: string | null;
+    blueColour: string | null;
   } | null;
 }
 
