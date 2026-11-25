@@ -47,9 +47,9 @@ import {
   seatKindOf,
   seatWords,
   type PoolMemberSeat,
-  type PoolSeat,
   type TeamSpread,
 } from './pool-seats';
+import type { PoolSeat } from '@myclash/types/pool-standings';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

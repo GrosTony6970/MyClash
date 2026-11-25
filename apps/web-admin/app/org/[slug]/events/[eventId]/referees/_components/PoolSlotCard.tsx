@@ -16,6 +16,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { slotRoleName } from '@/lib/referee-role-name';
 import { nameOrUnknown } from '@myclash/ui';
 import type { RefereeReason, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
 import { assignmentChipClasses } from './assignment-chip-classes';
@@ -43,15 +44,10 @@ export interface PoolCardPool<S extends PoolCardRoleSlot> {
   scheduledEnd: string | null;
   /** True on a team Pool, whose Fighters rule 8 cannot check (the board's `uncheckedFighters`). */
   uncheckedFighters?: true;
-  members: Array<{
-    /** The seat's side key: the Registration id, or the team id. */
-    sideId: string;
-    /** Null for a team's seat. */
-    registrationId: string | null;
-    /** The seat's label: the Fighter's name, or the team's. */
-    personName: string;
-    clubLabel?: string | null;
-  }>;
+  /** The board's seats (`AssignmentBoardMember`), as much of them as the card shows. */
+  members: Array<
+    Pick<AssignmentBoardMember, 'sideId' | 'registrationId' | 'personName' | 'clubLabel'>
+  >;
   roleSlots: S[];
 }
 

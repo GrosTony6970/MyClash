@@ -30,6 +30,7 @@ import {
   type StoredRefereeReason,
 } from '@myclash/rulesets/scheduling/referee-checker';
 import { DEFAULT_EVENT_TIMEZONE, zonedDay } from '@myclash/time';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { priorAssignmentsFromRows } from './prior-assignments';
 import {
   availabilityOf,
@@ -159,21 +160,12 @@ export interface AssignmentBoardPool {
    * Absent on every other unit; bracket and Swiss refuse a team Tournament in 1b-1.
    */
   uncheckedFighters?: true;
-  members: Array<{
-    /** The seat's side key (`sideKey`): the Registration id, or a team Pool's team id. */
-    sideId: string;
-    /** The Registration of a Fighter's seat; null for a team's, never a team id. */
-    registrationId: string | null;
-    /**
-     * Resolved to `persons.global_person_id` (the same id-space the
-     * referee candidate side uses, sourced from `event_referees`).
-     * Projecting the event-scoped `persons.id` here would cross two
-     * unrelated UUID spaces and silently never match the candidates.
-     */
-    personId: string;
-    personName: string;
-    clubLabel: string | null;
-  }>;
+  /**
+   * Each `personId` is resolved to `persons.global_person_id` (the same id-space the referee
+   * candidate side uses, sourced from `event_referees`). Projecting the event-scoped `persons.id`
+   * here would cross two unrelated UUID spaces and silently never match the candidates.
+   */
+  members: AssignmentBoardMember[];
   matches: Array<{
     id: string;
     scheduledAt: string | null;
@@ -1564,12 +1556,16 @@ export class AssignmentBoardService {
     for (const row of (data ?? []) as unknown as RegistrationPersonRow[]) {
       const person = this.firstRelation(row.persons);
       const club = this.firstRelation(person?.clubs);
+      // Swiss has no team path: a Swiss member is a Fighter.
       out.set(row.id, {
         sideId: row.id,
+        kind: 'individual',
         registrationId: row.id,
         personId: person?.global_person_id ?? '',
         personName: this.formatName(person),
         clubLabel: club?.name ?? null,
+        colour: null,
+        logoUrl: null,
       });
     }
     return out;
@@ -1674,6 +1670,7 @@ export class AssignmentBoardService {
     if (label.id === null) throw new Error(`A seat of Pool ${poolId} names no entrant`);
     return {
       sideId: label.id,
+      kind: label.kind,
       registrationId: member.registration_id,
       // The fighter-as-own-referee guards (engine filter,
       // applyManual, and the persistAssignments chokepoint) all
@@ -1687,6 +1684,8 @@ export class AssignmentBoardService {
       personId: person?.global_person_id ?? '',
       personName: label.name,
       clubLabel: label.club?.name ?? null,
+      colour: label.colour,
+      logoUrl: label.logoUrl,
     };
   }
 

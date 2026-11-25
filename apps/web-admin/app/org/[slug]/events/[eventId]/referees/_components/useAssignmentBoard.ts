@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { PickerReason } from '@/lib/referee-reasons';
 import { postAssignment, type AssignAnswer } from './assign-referee';
@@ -80,17 +81,7 @@ export interface AssignmentBoardPool {
   swissRoundId?: string;
   /** True on a team Pool: rule 8 cannot check its unnamed Fighters (the screens say so). */
   uncheckedFighters?: true;
-  members: Array<{
-    /** The seat's side key: the Registration id, or a team Pool's team id. */
-    sideId: string;
-    /** Null for a team's seat, never a team id. */
-    registrationId: string | null;
-    /** `global_persons.id`; blank for a team's seat, which has no Person. */
-    personId: string;
-    /** The Fighter's name, or the team's. */
-    personName: string;
-    clubLabel?: string | null;
-  }>;
+  members: AssignmentBoardMember[];
   roleSlots: AssignmentBoardRoleSlot[];
 }
 

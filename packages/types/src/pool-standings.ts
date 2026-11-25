@@ -1,5 +1,5 @@
 /**
- * The standings rows the API sends, as every app reads them.
+ * The standings rows and the Pool seats the API sends, as every app reads them.
  *
  * The API declares these as the `rows` of its pool-standings and Swiss-standings answers, so a
  * field renamed on the producer is a compile error in web-admin, web-public and web-staff. Types
@@ -24,6 +24,45 @@ export interface PoolStandingsRow extends StandingsWireRow {
   /** One of the colour names of `TOURNAMENT_COLORS`, or none. */
   colour: string | null;
   logoUrl: string | null;
+}
+
+/**
+ * One entrant of a Pool, a Fighter or a team (0282, ADR-022), as every seat the API sends names
+ * it. The API declares these as its producers' return types, so a field renamed there is a compile
+ * error in the screens that read it.
+ */
+export interface SideSeat {
+  /** The side key (`sideKey`): the Registration id or the team id. Never null: a seat names one. */
+  sideId: string;
+  kind: 'individual' | 'team';
+  /** The Registration of a Fighter's seat; null for a team's, never a team id. */
+  registrationId: string | null;
+  /** The Fighter's club. A team has no club. */
+  clubLabel: string | null;
+  /** A team's colour name (`TOURNAMENT_COLORS`), or none. A Fighter has no colour. */
+  colour: string | null;
+  logoUrl: string | null;
+}
+
+/** One entrant as the Pools page lists it, in a Pool or waiting for one (`poolSeatOf`). */
+export interface PoolSeat extends SideSeat {
+  /** The side's label: the Fighter's name, or the team's. */
+  name: string;
+  /** The Fighter's name; null for a team, which is not a person: read `name`. */
+  personName: string | null;
+  /** A Fighter's weighted HEMA rating; null for a team, which has no rating (decision 13). */
+  hemaWeightedRating: number | null;
+}
+
+/** One seat of a Pool as the referee assignment board lists it. */
+export interface AssignmentBoardMember extends SideSeat {
+  /**
+   * The Fighter's `global_persons.id`, the id the referee candidates carry, so rule 8 can tell a
+   * Fighter from a referee; blank for a team's seat, which has no Person.
+   */
+  personId: string;
+  /** The Fighter's name, or the team's. */
+  personName: string;
 }
 
 /** One row of the Swiss-standings answer: a withdrawal keeps its row (decision 11). */

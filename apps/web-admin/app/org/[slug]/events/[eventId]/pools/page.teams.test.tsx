@@ -6,7 +6,8 @@ import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import PoolsPage from './page';
-import type { PoolMemberSeat, PoolSeat } from './pool-seats';
+import type { PoolSeat } from '@myclash/types/pool-standings';
+import type { PoolMemberSeat } from './pool-seats';
 
 /**
  * Pools of teams (ruling 971). A team has no club and no rating: the generation spreads teams by

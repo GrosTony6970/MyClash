@@ -3,29 +3,10 @@
  * Registrations, a team Tournament seats teams (ADR-022). Pure, so the page stays a shell.
  */
 
+import type { PoolSeat } from '@myclash/types/pool-standings';
+
 /** A Tournament's kind of entrant (`tournaments.entrant_kind`). */
 export type SeatKind = 'individual' | 'team';
-
-/**
- * One entrant as the API lists it, in a Pool or waiting for one (`poolSeatOf`,
- * `apps/api/src/modules/phases/pool-seat.ts`).
- */
-export interface PoolSeat {
-  /** The side key: the Registration id, or the team id. The API refuses a seat with neither. */
-  sideId: string;
-  kind: SeatKind;
-  /** Null for a team, never a team id. */
-  registrationId: string | null;
-  /** The side's label: the Fighter's name, or the team's. */
-  name: string;
-  /** Null for a team, which is not a person: read `name`. */
-  personName: string | null;
-  clubLabel: string | null;
-  /** A team's colour name (`TOURNAMENT_COLORS`); null for a Fighter. */
-  colour: string | null;
-  logoUrl: string | null;
-  hemaWeightedRating: number | null;
-}
 
 /** A seat in a Pool, with its seed there. */
 export interface PoolMemberSeat extends PoolSeat {

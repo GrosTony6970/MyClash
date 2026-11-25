@@ -7,7 +7,8 @@ import type * as ApiClient from '@myclash/api-client';
 import { en } from '@myclash/i18n';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import PoolsPage from './page';
-import type { PoolMemberSeat, PoolSeat } from './pool-seats';
+import type { PoolSeat } from '@myclash/types/pool-standings';
+import type { PoolMemberSeat } from './pool-seats';
 
 /**
  * The refusals of a Tournament's kind of entrant, on the Pools page. A generation that sends a field

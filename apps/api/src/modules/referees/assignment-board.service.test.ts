@@ -819,6 +819,24 @@ describe('AssignmentBoardService', () => {
       expect(units[0]!.scheduledStart).toBe('2026-05-21T10:00:00.000Z');
     });
 
+    it('lists a Swiss member as a Fighter seat (Swiss has no team path)', async () => {
+      queueSwissBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      const unit = [...board.pools, ...board.unscheduledPools].find((p) => p.kind === 'swiss');
+      expect(unit!.members).toContainEqual({
+        sideId: 'reg-fighter-ref',
+        kind: 'individual',
+        registrationId: 'reg-fighter-ref',
+        personId: FIGHTER_REF_GLOBAL_ID,
+        personName: 'Fighter Referee',
+        clubLabel: 'Salle A',
+        colour: null,
+        logoUrl: null,
+      });
+    });
+
     /**
      * The mock ignores the projection. The read used to ask the roster for a `display_name` it
      * does not have, PostgREST refused it, and the board of an Event with a paired round was a 400.

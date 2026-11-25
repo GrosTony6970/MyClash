@@ -1,3 +1,4 @@
+import type { PoolSeat } from '@myclash/types/pool-standings';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { sideLabel, type RegistrationEmbed, type TeamEmbed } from '../matches/side-label';
 
@@ -8,23 +9,6 @@ import { sideLabel, type RegistrationEmbed, type TeamEmbed } from '../matches/si
 export type PoolSeatRegistration = RegistrationEmbed<{ name: string | null }> & {
   persons: (RegistrationEmbed<{ name: string | null }>['persons'] & RatedPerson) | null;
 };
-
-/** One entrant as the Pools page lists it, in a Pool or waiting for one. */
-export interface PoolSeat {
-  /** The side key (`sideKey`): the Registration id or the team id. Never null: a seat names one. */
-  sideId: string;
-  kind: 'individual' | 'team';
-  /** The Registration of an individual entrant; null for a team, never a team id. */
-  registrationId: string | null;
-  name: string;
-  /** The Fighter's name; null for a team, which is not a person. */
-  personName: string | null;
-  clubLabel: string | null;
-  colour: string | null;
-  logoUrl: string | null;
-  /** A Fighter's weighted HEMA rating; null for a team, which has no rating (decision 13). */
-  hemaWeightedRating: number | null;
-}
 
 /**
  * The entrant of a Pool seat, or of a Registration or team waiting for a seat. Throws for a seat

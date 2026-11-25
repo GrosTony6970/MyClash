@@ -17,11 +17,11 @@ vi.mock('../schedule/match-lengths', () => ({
  * key, never a team id under `registrationId`.
  */
 
-const TEAM_SEAT = (id: string, name: string) => ({
+const TEAM_SEAT = (id: string, name: string, logo: string | null = null) => ({
   registration_id: null,
   team_id: id,
   registrations: null,
-  teams: { id, name, color: 'green', logo_url: null },
+  teams: { id, name, color: 'green', logo_url: logo },
 });
 
 function makeService(seed: Record<string, TableSeed>) {
@@ -75,7 +75,7 @@ const SEED: Record<string, TableSeed> = {
         name: 'Pool 1',
         sort_order: 0,
         pool_members: [
-          TEAM_SEAT('team-lyon', 'Lyon Blades'),
+          TEAM_SEAT('team-lyon', 'Lyon Blades', 'https://cdn/lyon.png'),
           TEAM_SEAT('team-paris', 'Paris Fers'),
         ],
         matches: [],
@@ -148,6 +148,37 @@ describe('the referee board — a team Pool', () => {
     expect([...rows.fighterRegistrationIdsByPerson]).toEqual([['g-anna', ['reg-anna']]]);
     expect(selectsFor(supabase.from, 'pools')).toEqual([
       'id, phase_id, name, sort_order, pool_members(registration_id, team_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name))), teams(id, name, color, logo_url)), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+    ]);
+  });
+
+  it("gives each seat its kind, and a team's seat its colour and logo (the shared seat type)", async () => {
+    const { service } = makeService(SEED);
+
+    const rows = (await (
+      service as unknown as { loadBoardRows: (id: string) => Promise<BoardRows> }
+    ).loadBoardRows('event-1')) as BoardRows;
+
+    expect(rows.pools.find((p) => p.id === 'pool-team')?.members[0]).toEqual({
+      sideId: 'team-lyon',
+      kind: 'team',
+      registrationId: null,
+      personId: '',
+      personName: 'Lyon Blades',
+      clubLabel: null,
+      colour: 'green',
+      logoUrl: 'https://cdn/lyon.png',
+    });
+    expect(rows.pools.find((p) => p.id === 'pool-open')?.members).toEqual([
+      {
+        sideId: 'reg-anna',
+        kind: 'individual',
+        registrationId: 'reg-anna',
+        personId: 'g-anna',
+        personName: 'Anna Martin',
+        clubLabel: null,
+        colour: null,
+        logoUrl: null,
+      },
     ]);
   });
 });
