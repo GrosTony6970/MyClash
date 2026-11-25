@@ -5,18 +5,18 @@
  */
 
 import type { MatchProtest } from '../types/match-events';
+import { isRowOfSide } from './exchange-timeline';
 
 /**
- * The protests a chip counts: the Fighter's, not voided. The one rule for the
- * TV chip and the pad's chip (`protestsOf` in web-staff).
+ * The protests a chip counts: the side's (its Fighter's or its team's), not voided. The one rule
+ * for the TV chip and the pad's chip (`protestsOf` in web-staff). `sideId` is the side key; a side
+ * with no key is nobody and counts none (`isRowOfSide`).
  */
 export function liveProtestsOf(
   rows: readonly MatchProtest[],
-  registrationId: string | null,
+  sideId: string | null,
 ): MatchProtest[] {
-  // A side with no Registration is nobody (`isSideRegistration`, not imported: see `rowSide`).
-  if (registrationId === null) return [];
-  return rows.filter((p) => !p.voided && p.registration_id === registrationId);
+  return rows.filter((p) => !p.voided && isRowOfSide(p, sideId));
 }
 
 /** `"2"` with no limit, `"2/2"` with a limit of 2. */

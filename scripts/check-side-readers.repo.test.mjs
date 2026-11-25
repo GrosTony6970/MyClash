@@ -80,15 +80,10 @@ const NOT_YET = [
   'packages/rules/src/results/bracket-r1-seeding.ts',
   'packages/types/src/final-ranking-core.ts',
   'packages/types/src/final-ranking.ts',
-  'packages/ui/src/components/MatchScoreboard.tsx',
   'packages/ui/src/components/TVScoreboard.tsx',
   'packages/ui/src/components/TvProtestChip.tsx',
   'packages/ui/src/components/bracket/MatchCard.tsx',
   'packages/ui/src/components/bracket/types.ts',
-  'packages/ui/src/types/match-events.ts',
-  'packages/ui/src/utils/bout-flow.ts',
-  'packages/ui/src/utils/exchange-timeline.ts',
-  'packages/ui/src/utils/protest-chip.ts',
 ];
 
 const realLedger = () => JSON.parse(readFileSync('scripts/side-readers-ledger.json', 'utf8'));

@@ -11,6 +11,7 @@ import {
 import type { Translator } from '../types/translator';
 import { formatFightOfTotal } from './format-fight-of-total';
 import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
+import { isRowOfSide } from '../utils/exchange-timeline';
 import { sideColorsFor } from '../utils/side-color';
 import { statusLabel } from '../utils/status-label';
 
@@ -171,13 +172,10 @@ export function MatchScoreboard({
   );
   const warnClock = shouldWarnClock(elapsedMs, matchFormat, phaseType, match.matchNumberLabel);
   // External-display redesign: split the realtime penalty list per
-  // side so each FighterPanel can render its own card row.
-  const redPenalties = activePenalties.filter(
-    (p) => match.redRegistrationId && p.registration_id === match.redRegistrationId,
-  );
-  const bluePenalties = activePenalties.filter(
-    (p) => match.blueRegistrationId && p.registration_id === match.blueRegistrationId,
-  );
+  // side so each FighterPanel can render its own card row. A card is placed by its side key (its
+  // Fighter's or its team's), so a team card lands under its team only.
+  const redPenalties = activePenalties.filter((p) => isRowOfSide(p, match.redSideId));
+  const bluePenalties = activePenalties.filter((p) => isRowOfSide(p, match.blueSideId));
 
   const redPanel = {
     color: sideColors.red,

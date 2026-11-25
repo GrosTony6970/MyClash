@@ -53,6 +53,7 @@ export function cardAgainstRed(points: number, round?: number): Penalty {
   return {
     id: `c${next++}`,
     registration_id: 'red',
+    team_id: null,
     card: 'red',
     source: 'direct',
     score_delta: -points,

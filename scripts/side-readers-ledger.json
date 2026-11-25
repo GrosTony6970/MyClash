@@ -941,9 +941,10 @@
       "why": "the winner of a bout by side id: `winnerSideId`, `redSideId`, `blueSideId` are required keys, so each of its nine callers names them; the one hit is the doc comment naming `winner_registration_id`"
     },
     "packages/ui/src/components/MatchScoreboard.tsx": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: places cards by Registration (`:176`-`:179`)"
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "places each card under its side by the payload's side keys through `isRowOfSide` (`:177`-`:178`); no side token left, listed by hand",
+      "byHand": true
     },
     "packages/ui/src/components/TVScoreboard.tsx": {
       "verdict": "not-yet",
@@ -966,24 +967,25 @@
       "why": "1c: bracket slot shape by Registration (`:41`-`:48`)"
     },
     "packages/ui/src/types/match-events.ts": {
-      "verdict": "not-yet",
-      "hits": 5,
-      "why": "1b: card and protest rows keyed `registration_id` (`:137`, `:185`)"
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "a card and a protest row name their side by `registration_id` or `team_id` (`:141`-`:142`, `:193`-`:194`), read through `isRowOfSide`; the bout payload carries the side keys (`:241`-`:244`). The other hits are the scorer's Registration on a hit (`:79`) and the Registration ids kept beside the side keys (`:267`, `:291`-`:292`)"
     },
     "packages/ui/src/utils/bout-flow.ts": {
-      "verdict": "not-yet",
-      "hits": 12,
-      "why": "1b: places cards and protests on a side by Registration (`:173`-`:175`)"
+      "verdict": "side-key",
+      "hits": 10,
+      "why": "a card's points go to the side `rowSide` reads by side key; the bout's side keys come in under the kept names `redRegId` / `blueRegId` (`:88`-`:89`, `:166`-`:167`)"
     },
     "packages/ui/src/utils/exchange-timeline.ts": {
-      "verdict": "not-yet",
-      "hits": 14,
-      "why": "1b: places cards and protests on a side by Registration (`:251`-`:294`)"
+      "verdict": "side-key",
+      "hits": 12,
+      "why": "`isRowOfSide` reads a row's side key `registration_id ?? team_id` inline (bundle rule) and a side with no key is nobody (`:301`-`:303`); `rowSide` places a card or a protest by it. The bout's side keys come in under the kept names `redRegId` / `blueRegId` (`:178`-`:179`): each caller passes side keys (an individual bout's side key is its Registration id; the app callers switch in T10-T12)"
     },
     "packages/ui/src/utils/protest-chip.ts": {
-      "verdict": "not-yet",
-      "hits": 3,
-      "why": "1b: counts protests by Registration (`:18`)"
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "`liveProtestsOf` counts a side's protests by side key through `isRowOfSide` (`:19`): a Fighter's or a team's, a side with no key counts none; no side token left, listed by hand",
+      "byHand": true
     },
     "scripts/db-cascade-probe.mjs": {
       "verdict": "no-side-read",

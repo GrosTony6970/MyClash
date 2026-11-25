@@ -88,6 +88,7 @@ function pendingPenaltyRow(entry: OutboxEntry, priced: PricedCard | null): Penal
     client_uuid: entry.clientUuid,
     sequence: entry.sequence,
     registration_id: entry.registrationId ?? '',
+    team_id: null,
     // The card this fighter will ACTUALLY get, counting the offences they
     // already have in the same rule group.
     card: priced?.card ?? entry.directCard ?? 'yellow',
@@ -232,6 +233,7 @@ function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProte
     client_uuid: entry.clientUuid,
     match_id: entry.matchId,
     registration_id: entry.registrationId ?? '',
+    team_id: null,
     sequence: entry.sequence,
     round_number: round,
     clock_time_ms: entry.clockTimeMs ?? null,

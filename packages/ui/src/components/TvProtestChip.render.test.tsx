@@ -19,6 +19,7 @@ function protest(id: string, registrationId: string, voided = false): MatchProte
     client_uuid: id,
     match_id: 'm1',
     registration_id: registrationId,
+    team_id: null,
     sequence: 1,
     round_number: 1,
     clock_time_ms: 1000,

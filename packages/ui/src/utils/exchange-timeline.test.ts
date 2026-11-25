@@ -117,6 +117,7 @@ describe('buildUnifiedTimeline', () => {
   function pen(over: Partial<Penalty> & Pick<Penalty, 'id' | 'sequence'>): Penalty {
     return {
       registration_id: 'reg-red',
+      team_id: null,
       card: 'yellow',
       source: 'ruleset',
       short_name: 'Sortie de lice',
@@ -136,6 +137,7 @@ describe('buildUnifiedTimeline', () => {
       client_uuid: `uuid-${over.id}`,
       match_id: 'match-1',
       registration_id: 'reg-blue',
+      team_id: null,
       round_number: 1,
       clock_time_ms: 12_000,
       voided: false,
@@ -368,17 +370,19 @@ describe('exchangeOptionLabel', () => {
 });
 
 describe('rowSide', () => {
+  const fighter = (id: string | null | undefined) => ({ registration_id: id, team_id: null });
+
   it('names the side whose Registration the row carries', () => {
-    expect(rowSide('reg-red', 'reg-red', 'reg-blue')).toBe('red');
-    expect(rowSide('reg-blue', 'reg-red', 'reg-blue')).toBe('blue');
-    expect(rowSide('reg-other', 'reg-red', 'reg-blue')).toBeNull();
+    expect(rowSide(fighter('reg-red'), 'reg-red', 'reg-blue')).toBe('red');
+    expect(rowSide(fighter('reg-blue'), 'reg-red', 'reg-blue')).toBe('blue');
+    expect(rowSide(fighter('reg-other'), 'reg-red', 'reg-blue')).toBeNull();
   });
 
-  // A side waiting for a Fighter has no Registration: null is nobody, a row with none included.
-  it('gives a row with no Registration to no side, a side with none included', () => {
-    expect(rowSide(null, null, 'reg-blue')).toBeNull();
-    expect(rowSide(undefined, 'reg-red', null)).toBeNull();
-    expect(rowSide(null, null, null)).toBeNull();
-    expect(rowSide('reg-blue', null, 'reg-blue')).toBe('blue');
+  // A side waiting for a Fighter has no key: null is nobody, a row with none included.
+  it('gives a row with no side to no side, a side with none included', () => {
+    expect(rowSide(fighter(null), null, 'reg-blue')).toBeNull();
+    expect(rowSide(fighter(undefined), 'reg-red', null)).toBeNull();
+    expect(rowSide(fighter(null), null, null)).toBeNull();
+    expect(rowSide(fighter('reg-blue'), null, 'reg-blue')).toBe('blue');
   });
 });

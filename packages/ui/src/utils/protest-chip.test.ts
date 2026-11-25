@@ -12,10 +12,20 @@ describe('liveProtestsOf', () => {
     expect(liveProtestsOf(rows, 'blue').map((p) => p.id)).toEqual(['c']);
   });
 
-  // A side waiting for a Fighter has no Registration: null is nobody (`isSideRegistration`).
-  it('keeps a protest with no Registration off the chip of a side with none', () => {
-    const row = { id: 'pr-1', registration_id: null as unknown as string, voided: false };
-    expect(liveProtestsOf([row as never], null)).toEqual([]);
+  // A side waiting for a Fighter has no key: null is nobody (`isRowOfSide`).
+  it('keeps a protest with no side off the chip of a side with none', () => {
+    const row = { id: 'pr-1', registration_id: null, team_id: null, voided: false };
+    expect(liveProtestsOf([row as MatchProtest], null)).toEqual([]);
+  });
+
+  // A team protest names its team, with no Registration: each team's chip counts its own.
+  it('counts the protests of each team on its own chip', () => {
+    const team = (id: string, teamId: string, voided = false) =>
+      ({ id, registration_id: null, team_id: teamId, voided }) as MatchProtest;
+    const rows = [team('a', 'team-red'), team('b', 'team-blue'), team('c', 'team-red')];
+    expect(liveProtestsOf(rows, 'team-red').map((p) => p.id)).toEqual(['a', 'c']);
+    expect(liveProtestsOf(rows, 'team-blue').map((p) => p.id)).toEqual(['b']);
+    expect(liveProtestsOf([...rows, team('d', 'team-blue', true)], 'team-blue')).toHaveLength(1);
   });
 });
 

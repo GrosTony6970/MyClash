@@ -84,6 +84,7 @@ export type BoutFlowClockEvent = ClockEvent;
 export interface BuildBoutFlowArgs {
   exchanges: ExchangeRow[];
   penalties: Penalty[];
+  /** Each side's key: its Registration id or its team id (`redSideId`), null while not known. */
   redRegId: string | null;
   blueRegId: string | null;
   matchFormat: MatchFormatConfig;
@@ -169,7 +170,7 @@ function penaltyDrafts(
   return penalties
     .filter((p) => !p.voided && inRound(p.round_number))
     .map((p): FlowDraft => {
-      const side = rowSide(p.registration_id, redRegId, blueRegId);
+      const side = rowSide(p, redRegId, blueRegId);
       const delta = p.score_delta ?? 0;
       return {
         occurredAt: p.occurred_at ?? '',

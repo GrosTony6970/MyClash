@@ -40,6 +40,7 @@ function card(over: Partial<Penalty> = {}): Penalty {
     id: `pen-${seq}`,
     sequence: seq,
     registration_id: RED_REG,
+    team_id: null,
     card: 'yellow',
     source: 'ruleset',
     short_name: 'Card',
@@ -145,6 +146,18 @@ describe('buildBoutFlow — penalties', () => {
       [3, -1],
     ]);
     expect(s.points[2]).toMatchObject({ kind: 'penalty', side: 'blue', card: 'yellow' });
+  });
+
+  // A team bout: the side keys are the teams, and a team card names its team with no Registration.
+  it('applies a team card to its own team only', () => {
+    const s = build(
+      [ex({ scoringSide: 'red', scoreDelta: 3 })],
+      [card({ registration_id: null, team_id: 'team-blue', score_delta: -1 })],
+      DEFAULT_MATCH_FORMAT_CONFIG,
+      { redRegId: 'team-red', blueRegId: 'team-blue' },
+    );
+    expect(final(s)).toEqual({ red: 3, blue: -1 });
+    expect(s.points[2]).toMatchObject({ kind: 'penalty', side: 'blue' });
   });
 
   it('ignores voided cards', () => {

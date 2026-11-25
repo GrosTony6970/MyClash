@@ -45,6 +45,7 @@ const events = buildUnifiedTimeline({
       client_uuid: 'uuid-protest-1',
       match_id: 'match-1',
       registration_id: 'reg-blue',
+      team_id: null,
       sequence: 1,
       round_number: 1,
       clock_time_ms: 9_000,

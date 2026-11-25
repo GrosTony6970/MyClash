@@ -134,7 +134,12 @@ export interface Penalty {
    */
   client_uuid?: string | null;
   sequence: number;
-  registration_id: string;
+  /**
+   * The card's side: its Fighter's Registration, or its team (`team_id`). Exactly one of the two is
+   * set (`match_penalties_one_side`, 0282). The row's side key is `registration_id ?? team_id`.
+   */
+  registration_id: string | null;
+  team_id: string | null;
   card: PenaltyCard;
   source: 'ruleset' | 'direct';
   short_name: string | null;
@@ -181,8 +186,12 @@ export interface MatchProtest {
   /** The idempotency key the pad sends; the dedupe key against its outbox. */
   client_uuid: string;
   match_id: string;
-  /** The fighter who protested. */
-  registration_id: string;
+  /**
+   * Who protested: the Fighter's Registration, or the team (`team_id`). Exactly one of the two is
+   * set (`match_protests_one_side`, 0282). The row's side key is `registration_id ?? team_id`.
+   */
+  registration_id: string | null;
+  team_id: string | null;
   /**
    * The pad's one counter of the Match, shared with its hits and its cards
    * (`UNIQUE(match_id, sequence)` on each table) — a tie-break only, never a number shown.

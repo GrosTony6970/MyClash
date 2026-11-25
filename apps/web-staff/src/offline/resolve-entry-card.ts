@@ -30,7 +30,7 @@ export interface WireEntry {
 
 /** A card the tablet still holds, as its row of the timeline says it. */
 interface QueuedCardRow {
-  registration_id: string;
+  registration_id: string | null;
   group_number?: number | null;
   card: PenaltyCard;
   source: 'ruleset' | 'direct';

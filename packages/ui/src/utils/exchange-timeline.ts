@@ -174,6 +174,7 @@ export interface BuildTimelineArgs {
   protests: MatchProtest[];
   redName: string;
   blueName: string;
+  /** Each side's key: its Registration id or its team id (`redSideId`), null while not known. */
   redRegId: string | null;
   blueRegId: string | null;
   t: (k: string, p?: Record<string, string>) => string;
@@ -247,7 +248,7 @@ export function buildUnifiedTimeline({
   const penaltyRows: UnifiedEventDraft[] = penalties
     .filter((p) => !p.voided)
     .map((p) => {
-      const side = rowSide(p.registration_id, redRegId, blueRegId);
+      const side = rowSide(p, redRegId, blueRegId);
       const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
       // A direct card carries no ruleset entry, so it has neither short_name
       // nor reason — name it rather than rendering a blank cell.
@@ -281,21 +282,37 @@ export function buildUnifiedTimeline({
   return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
 }
 
+/** A card or a protest row: it names its side by its Fighter's Registration or by its team. */
+export interface SideRow {
+  registration_id?: string | null;
+  team_id?: string | null;
+}
+
 /**
- * Whose row this is (a card, a protest): red's, blue's, or neither. A side's Registration is null
- * while the side waits for a Fighter, or while it is a team's: null is nobody, so a row with no
- * Registration is nobody's, and a bare `===` would read `null === null` as "this side". The
- * rule of `isSideRegistration` (`@myclash/types/side-registration`), which the pad imports.
- * This file does not import it: it ships on every page of the public site, and the import cost
- * that page load more than its budget had left.
+ * Is this row (a card, a protest) of this side? A row's side key is its Fighter's Registration,
+ * or its team: it names exactly one (0282). A side key is null while the side waits for a
+ * Fighter: null is nobody, so it matches no row, and a row that names no side is nobody's. A
+ * bare `===` read `null === null` as "this side", and put every team card under both Fighters.
+ *
+ * The rule of `sideKey` (`@myclash/types/side-key`), written here and not imported: this file
+ * ships on every page of the public site, and the import cost that page load more than its budget
+ * had left.
+ */
+export function isRowOfSide(row: SideRow, sideId: string | null): boolean {
+  return sideId !== null && (row.registration_id ?? row.team_id ?? null) === sideId;
+}
+
+/**
+ * Whose row this is (a card, a protest): red's, blue's, or neither. `redSideId` and `blueSideId`
+ * are the bout's side keys (a Registration id or a team id), as `isRowOfSide` reads them.
  */
 export function rowSide(
-  rowRegistrationId: string | null | undefined,
-  redRegId: string | null,
-  blueRegId: string | null,
+  row: SideRow,
+  redSideId: string | null,
+  blueSideId: string | null,
 ): 'red' | 'blue' | null {
-  if (rowRegistrationId === null || rowRegistrationId === undefined) return null;
-  return rowRegistrationId === redRegId ? 'red' : rowRegistrationId === blueRegId ? 'blue' : null;
+  if (isRowOfSide(row, redSideId)) return 'red';
+  return isRowOfSide(row, blueSideId) ? 'blue' : null;
 }
 
 /** A protest as a row: the fighter, the word, an icon. No points and no number. */
@@ -303,7 +320,7 @@ function protestRow(
   p: MatchProtest,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
-  const side = rowSide(p.registration_id, a.redRegId, a.blueRegId);
+  const side = rowSide(p, a.redRegId, a.blueRegId);
   return {
     id: `pro-${p.id}`,
     kind: 'protest',

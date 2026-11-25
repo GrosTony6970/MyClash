@@ -7,6 +7,7 @@ function penalty(p: Partial<MatchPenalty>): MatchPenalty {
     id: 'p1',
     sequence: 1,
     registration_id: 'reg-x',
+    team_id: null,
     card: 'yellow',
     source: 'ruleset',
     short_name: null,
