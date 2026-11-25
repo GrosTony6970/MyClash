@@ -29,6 +29,7 @@ import type { UnifiedEvent } from '../utils/exchange-timeline';
 import type { PenaltyCard } from '../types/match-events';
 import { legibleOn } from '../utils/side-color';
 import { HandMark } from './hand-mark';
+import { TeamChip } from './team-chip';
 
 export type MatchTimelineScale = 'compact' | 'tv' | 'page';
 
@@ -58,6 +59,12 @@ export interface MatchTimelineProps {
   onHighlightChange?: (n: number | null) => void;
   /** Accessible name for the list. */
   ariaLabel?: string;
+  /**
+   * Each side's team colour, for the chip before its name on a row (call 6); null on a
+   * Fighter's side. Required, so every surface says which it shows.
+   */
+  redColour: string | null;
+  blueColour: string | null;
   /** App-local translator — packages/ui has no i18n context of its own. */
   t: (key: string, params?: Record<string, string>) => string;
   className?: string;
@@ -150,10 +157,19 @@ export function MatchTimeline({
   highlightNumber = null,
   onHighlightChange,
   ariaLabel,
+  redColour,
+  blueColour,
   t,
   className,
 }: MatchTimelineProps): React.ReactElement {
   const s = STYLES[scale];
+  /** The team chip of a row's side; none for a Fighter's side or a row of no side. */
+  const chip = (side: 'red' | 'blue' | null | undefined) => (
+    <TeamChip
+      colour={side === 'red' ? redColour : side === 'blue' ? blueColour : null}
+      dark={scale === 'tv'}
+    />
+  );
   const scrolls = scale !== 'page';
   const listRef = useRef<HTMLOListElement | null>(null);
 
@@ -227,7 +243,12 @@ export function MatchTimeline({
             <span className={s.num}>{numbered ? `#${ev.number}` : ''}</span>
             <span className={s.time}>{ev.timeLabel}</span>
             {dot && <span {...dot} />}
-            {ev.fighterLabel && <span className={s.name}>{ev.fighterLabel}</span>}
+            {ev.fighterLabel && (
+              <span className={s.name}>
+                {chip(ev.side)}
+                {ev.fighterLabel}
+              </span>
+            )}
             {ev.card && cardLabel && (
               <>
                 <span
@@ -268,6 +289,7 @@ export function MatchTimeline({
                 {oppDot && <span {...oppDot} />}
                 {ev.opponentLabel && (
                   <span className={`${s.muted} truncate min-w-0 max-w-[6rem]`}>
+                    {chip(ev.opponentSide)}
                     {ev.opponentLabel}
                   </span>
                 )}

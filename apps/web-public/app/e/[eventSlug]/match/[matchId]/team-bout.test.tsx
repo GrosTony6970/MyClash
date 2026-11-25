@@ -164,6 +164,13 @@ describe('the public bout page of a team bout', () => {
     expect(rows[0]).toContain('Paris Rapiers');
     expect(rows[0]).not.toContain('Lyon Blades');
   });
+
+  it("puts the team's chip before its name on the history row", () => {
+    const html = render(TEAM_BOUT, SUMMARY, [TEAM_CARD]);
+    const row = html.split('<li').find((li) => li.includes('data-event-number="1"'));
+
+    expect(row).toMatch(new RegExp(`${accentClassFor('amber')}[^>]*></span></span> Paris Rapiers`));
+  });
 });
 
 describe('the public bout page of a Fighter bout', () => {

@@ -54,6 +54,38 @@ describe('the corrections drawer', () => {
 });
 
 /**
+ * A team's colour chip on the pad's history and flow legend (call 6): the wiring only. The chip
+ * itself is held in `@myclash/ui` (`team-chip.render.test.tsx`).
+ */
+describe("a team bout's chip on the pad", () => {
+  const view = read('MatchView.tsx');
+  /** The JSX element that opens with `open`, up to its closing `/>`. */
+  const element = (source: string, open: string) => {
+    const start = source.indexOf(open);
+    expect(start).toBeGreaterThan(0);
+    return source.slice(start, source.indexOf('/>', start));
+  };
+  const coloursOfSides = ['redColour={redColour}', 'blueColour={blueColour}'];
+
+  it('hands the bout’s team colours to the centre and to the end-of-Match screen', () => {
+    for (const open of ['<ScoringCenterControls', '<MatchResultOverlay']) {
+      expect(element(view, open)).toContain('redColour={match.redColour ?? null}');
+      expect(element(view, open)).toContain('blueColour={match.blueColour ?? null}');
+    }
+  });
+
+  it('hands them on to the history and the flow chart', () => {
+    for (const [source, open] of [
+      [centre, '<MatchTimeline'],
+      [result, '<MatchTimeline'],
+      [result, '<BoutFlowChart'],
+    ] as const) {
+      for (const prop of coloursOfSides) expect(element(source, open)).toContain(prop);
+    }
+  });
+});
+
+/**
  * A bout waiting for a Fighter (operator, 2026-11-24): the wiring only. The decision is
  * `sideMissing` (`lib/bout-sides.test.ts`); the behaviour is the browser story
  * `tests/a11y/pad-bout-waits-for-fighter.spec.ts`.

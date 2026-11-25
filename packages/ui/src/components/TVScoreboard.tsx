@@ -861,6 +861,8 @@ function CenterColumn({
           config={match.scoringConfig}
           redName={redName}
           blueName={blueName}
+          redColour={match.redColour}
+          blueColour={match.blueColour}
           surface="dark"
           scale="tv"
           t={t}
@@ -877,6 +879,8 @@ function CenterColumn({
           events={events}
           scale="tv"
           ariaLabel={t('scoring.lice.eventsHeader')}
+          redColour={match.redColour}
+          blueColour={match.blueColour}
           t={t}
         />
       </div>

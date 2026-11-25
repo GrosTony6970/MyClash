@@ -36,6 +36,7 @@ import { BOUT_FLOW_STYLES, CHART_W, boutFlowGeometry } from './bout-flow-geometr
 import type { BoutFlowScale } from './bout-flow-geometry';
 import { Axes, Crosshair, EventMarkers, LeadBands, StepLine } from './bout-flow-marks';
 import { describeBoutFlow, describeBoutFlowPoint } from './bout-flow-caption';
+import { TeamChip } from './team-chip';
 
 /** A fighter's colour beside their number, never as its ink (D38). The ring is its edge. */
 function SideDot({ hex }: { hex: string }) {
@@ -57,6 +58,12 @@ export interface BoutFlowChartProps {
   config: TournamentScoringConfig | null | undefined;
   redName: string;
   blueName: string;
+  /**
+   * Each side's team colour, for the chip beside its score in the legend (call 6); null on a
+   * Fighter's side. Required, so every surface says which it shows.
+   */
+  redColour: string | null;
+  blueColour: string | null;
   /** Which surface this paints on, so side colours stay legible against it. */
   surface?: 'dark' | 'light';
   scale?: BoutFlowScale;
@@ -74,6 +81,8 @@ export function BoutFlowChart({
   config,
   redName,
   blueName,
+  redColour,
+  blueColour,
   surface = 'dark',
   scale = 'compact',
   highlightNumber = null,
@@ -93,6 +102,7 @@ export function BoutFlowChart({
 
   // Only the origin: nothing has happened yet, so there is no story to tell.
   if (points.length < 2 || !last) return null;
+  const chipName = (name: string) => (scale === 'tv' ? undefined : name);
   const shown = active ?? last;
 
   return (
@@ -100,12 +110,17 @@ export function BoutFlowChart({
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <p className={styles.title}>{t('scoring.boutFlow.title')}</p>
         {/* The score at the scrubbed point, each beside its fighter's colour. The colour was the
-            numbers' ink: 3.45:1 for blue on the dark pad (known-deviations D41, ruling of D38). */}
+            numbers' ink: 3.45:1 for blue on the dark pad (known-deviations D41, ruling of D38).
+            A team side adds its own chip, named by the team: this line names no one. Not on the
+            projector, where a hover tooltip has no pointer to show it (D20); the chip is
+            decorative there, as the side dot is, and the chart's label names both sides. */}
         <p className={`inline-flex items-center gap-1 ${styles.score}`}>
           <SideDot hex={colors.red} />
+          <TeamChip colour={redColour} name={chipName(redName)} dark={surface === 'dark'} />
           {shown.red}
           <span className={styles.label}>:</span>
           {shown.blue}
+          <TeamChip colour={blueColour} name={chipName(blueName)} dark={surface === 'dark'} />
           <SideDot hex={colors.blue} />
         </p>
       </div>

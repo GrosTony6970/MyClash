@@ -67,6 +67,9 @@ interface ScoringCenterControlsProps {
   /** Each side's key, a Fighter's Registration or a team: the history and the banner place by it. */
   redSideId: string | null;
   blueSideId: string | null;
+  /** A team side's colour, for its chip on the history rows (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   canScore: boolean;
   /** The bout waits for a Fighter: Start is greyed. `onClockAction` refuses it too, for the keys. */
   startBlocked: boolean;
@@ -151,6 +154,8 @@ export function ScoringCenterControls({
   blueName,
   redSideId,
   blueSideId,
+  redColour,
+  blueColour,
   canScore,
   startBlocked,
   clockState,
@@ -618,7 +623,13 @@ export function ScoringCenterControls({
         <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1.5 text-center">
           {t('scoring.lice.eventsHeader')}
         </p>
-        <MatchTimeline events={events} ariaLabel={t('scoring.lice.eventsHeader')} t={t} />
+        <MatchTimeline
+          events={events}
+          ariaLabel={t('scoring.lice.eventsHeader')}
+          redColour={redColour}
+          blueColour={blueColour}
+          t={t}
+        />
       </div>
 
       {/* The keys of the bout screen: Space, D, U (when idle) */}

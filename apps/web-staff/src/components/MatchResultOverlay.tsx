@@ -40,6 +40,9 @@ export interface MatchResultOverlayProps {
   /** Each side's key, a Fighter's Registration or a team (`resultSides`). */
   redSideId: string | null;
   blueSideId: string | null;
+  /** A team side's colour, for its chip in the bout review (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   redScore: number;
   blueScore: number;
   /** The recorded winner's side key. The overlay ANNOUNCES the result to the hall, so it
@@ -198,6 +201,8 @@ function BoutReview({
   blueName,
   redSideId,
   blueSideId,
+  redColour,
+  blueColour,
   endReason,
   bestOf,
   currentRound,
@@ -255,6 +260,8 @@ function BoutReview({
         config={scoringConfig}
         redName={redName}
         blueName={blueName}
+        redColour={redColour}
+        blueColour={blueColour}
         surface={padScope}
         scale="compact"
         highlightNumber={highlight}
@@ -267,6 +274,8 @@ function BoutReview({
         ariaLabel={t('scoring.lice.eventsHeader')}
         highlightNumber={highlight}
         onHighlightChange={setHighlight}
+        redColour={redColour}
+        blueColour={blueColour}
         t={t}
       />
     </div>

@@ -14,6 +14,7 @@ const live = vi.hoisted(() => ({
   match: null as unknown,
   penalties: [] as unknown[],
   protests: [] as unknown[],
+  exchanges: [] as unknown[],
   clock: null as unknown,
 }));
 vi.mock('../hooks/useLiveMatch', () => ({
@@ -21,7 +22,7 @@ vi.mock('../hooks/useLiveMatch', () => ({
     match: live.match,
     penalties: live.penalties,
     protests: live.protests,
-    exchanges: [],
+    exchanges: live.exchanges,
     clock: live.clock,
     elapsedMs: 0,
     loadError: null,
@@ -114,6 +115,7 @@ beforeEach(() => {
   live.match = teamBout;
   live.penalties = [];
   live.protests = [];
+  live.exchanges = [];
   live.clock = { status: 'running', activeMs: 0, runningFrom: null };
 });
 
@@ -189,6 +191,34 @@ describe('TVScoreboard on a team bout', () => {
     const html = render();
     expect(html).toMatch(/🏆 <span><span[^>]*bg-violet-700[^>]*><\/span> Paris Rapiers<\/span>/);
     expect(html.match(/🏆/g)).toHaveLength(1);
+  });
+
+  // The history and the flow legend are the shared components: the TV hands them the colours.
+  it("shows each team's chip on its history row and in the flow legend", () => {
+    live.exchanges = [
+      {
+        id: 'hit-1',
+        sequence: 1,
+        type: 'clean',
+        voided: false,
+        occurredAt: '2027-06-21T10:01:00.000Z',
+        scoringSide: 'red',
+        scoreDelta: 1,
+      },
+    ];
+    live.penalties = [{ ...teamCard('p1', 'team-blue'), occurred_at: '2027-06-21T10:02:00.000Z' }];
+    const html = render();
+    const row = (n: number) =>
+      html.split('<li').find((li) => li.includes(`data-event-number="${n}"`));
+    expect(row(1)).toMatch(
+      /data-theme="dark"[^>]*><span[^>]*bg-green-700[^>]*><\/span><\/span> Lyon Blades/,
+    );
+    expect(row(2)).toMatch(/bg-violet-700[^>]*><\/span><\/span> Paris Rapiers/);
+    // The legend: each chip beside its score, with no tooltip on a screen with no pointer (D20).
+    const start = html.indexOf('<p class="inline-flex items-center gap-1');
+    const legend = html.slice(start, html.indexOf('</p>', start));
+    expect(legend).toMatch(/bg-green-700[\s\S]*bg-violet-700/);
+    expect(legend).not.toContain('title=');
   });
 
   // The stage is near-black and sets no scope: the dot's edge is the scope's ink, so each stage

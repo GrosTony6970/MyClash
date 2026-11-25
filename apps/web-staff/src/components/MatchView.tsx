@@ -918,6 +918,8 @@ export function MatchView({
           blueName={blueName}
           redSideId={sideIds.redSideId}
           blueSideId={sideIds.blueSideId}
+          redColour={match.redColour ?? null}
+          blueColour={match.blueColour ?? null}
           canScore={canScore}
           startBlocked={waitingForFighter}
           clockState={boutClock}
@@ -1064,6 +1066,8 @@ export function MatchView({
           blueName={blueName}
           redSideId={sideIds.redSideId}
           blueSideId={sideIds.blueSideId}
+          redColour={match.redColour ?? null}
+          blueColour={match.blueColour ?? null}
           unconfirmed={unconfirmed}
           redScore={shownResult.red}
           blueScore={shownResult.blue}

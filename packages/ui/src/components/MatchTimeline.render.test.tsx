@@ -64,7 +64,13 @@ const events = buildUnifiedTimeline({
 /** The `<li>` of each row, newest first. */
 function rows(highlightNumber: number | null): string[] {
   const html = renderToStaticMarkup(
-    <MatchTimeline events={events} highlightNumber={highlightNumber} t={say} />,
+    <MatchTimeline
+      events={events}
+      highlightNumber={highlightNumber}
+      redColour={null}
+      blueColour={null}
+      t={say}
+    />,
   );
   return html.split('<li').slice(1);
 }

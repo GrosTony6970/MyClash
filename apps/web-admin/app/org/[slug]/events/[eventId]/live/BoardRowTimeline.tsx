@@ -49,6 +49,8 @@ export function BoardRowTimeline({ matchId, t }: { matchId: string; t: T }) {
         scale="page"
         emptyLabel={t('organizer.live.detail.timelineEmpty')}
         ariaLabel={t('organizer.live.detail.timeline')}
+        redColour={match?.redColour ?? null}
+        blueColour={match?.blueColour ?? null}
         t={t}
       />
     </div>

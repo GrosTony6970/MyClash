@@ -98,6 +98,8 @@ export function MatchEventFeed({
         config={config}
         redName={redName}
         blueName={blueName}
+        redColour={summary.redColour}
+        blueColour={summary.blueColour}
         surface="light"
         scale="page"
         highlightNumber={highlight}
@@ -115,6 +117,8 @@ export function MatchEventFeed({
         ariaLabel={header}
         highlightNumber={highlight}
         onHighlightChange={setHighlight}
+        redColour={summary.redColour}
+        blueColour={summary.blueColour}
         t={t}
       />
 
