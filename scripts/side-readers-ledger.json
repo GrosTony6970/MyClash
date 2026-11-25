@@ -13,7 +13,7 @@
     "apps/api/src/modules/events/events.service.ts": {
       "verdict": "not-yet",
       "hits": 35,
-      "why": "1c: the public bracket reads its slots and bouts by Registration (`:2981`-`:3100`; single elimination is 1c), and the re-pin snapshot keys a standings row `registrationId` (`:4118`); the public Pool bouts and seats read both kinds through `public-pool-sides.ts` (`:1793`-`:1795`, `:2767`)"
+      "why": "1c: the public bracket reads its slots and bouts by Registration (`getPublishedBracket`, `:2979`-`:3098`); single elimination is 1c"
     },
     "apps/api/src/modules/events/public-pool-sides.ts": {
       "verdict": "side-key",

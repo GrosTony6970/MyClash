@@ -4110,6 +4110,8 @@ export class EventsService {
    * Materialise the overall standings (placings + scores) so the audit's
    * before/after survives later match edits. A tournament that cannot yet
    * produce standings records an empty snapshot rather than failing the re-pin.
+   * Each row is named by its entrant (`entrantId`): a Registration, or a team in a team
+   * Tournament's Pools.
    */
   private async snapshotPlacings(tournamentId: string): Promise<Array<Record<string, unknown>>> {
     if (!this.poolStandings) {
@@ -4120,7 +4122,7 @@ export class EventsService {
       const rows = 'rows' in standings ? standings.rows : [];
       return rows.map((r) => ({
         rank: r.rank,
-        registrationId: r.entrantId,
+        entrantId: r.entrantId,
         displayName: r.displayName,
         stats: r.stats,
       }));
