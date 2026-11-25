@@ -18,9 +18,13 @@ const ROW = {
   // Null: the side waits for a Fighter (a bracket slot still to fill).
   red_registration_id: 'red-1' as string | null,
   blue_registration_id: 'blue-1' as string | null,
+  // A team bout names its sides here instead (`TEAM_ROW`).
+  red_team_id: null as string | null,
+  blue_team_id: null as string | null,
   red_score: 0,
   blue_score: 0,
   winner_registration_id: null as string | null,
+  winner_team_id: null as string | null,
   locked_at: null,
   lice_id: null,
   end_reason: null as string | null,
@@ -37,6 +41,22 @@ const SUMMARY = {
   weapon: 'longsword',
   phaseType: 'pool',
   bestOf: 1,
+};
+
+/** A team bout: Lyon Blades (red, green chip) against Paris Rapiers (blue, purple chip). */
+export const TEAM_BOUT = {
+  row: {
+    red_registration_id: null,
+    blue_registration_id: null,
+    red_team_id: 'team-lyon',
+    blue_team_id: 'team-paris',
+  },
+  summary: {
+    redName: 'Lyon Blades',
+    blueName: 'Paris Rapiers',
+    redColour: 'green',
+    blueColour: 'purple',
+  },
 };
 const OFFLINE = { status: 503, json: { error: 'offline', status: 503 } };
 
@@ -75,6 +95,8 @@ interface Stub {
   presses: Array<{ action: string; clientUuid: string; pressedAt: string; sentAt: string }>;
   /** The two times of each hit that arrived. */
   hits: Array<{ occurredAt: string; sentAt: string }>;
+  /** The body of each card that arrived (`POST /penalties`). */
+  cards: Array<Record<string, unknown>>;
   row: typeof ROW;
   clock: ServerClock;
 }
@@ -178,6 +200,13 @@ function answerHit(stub: Stub, route: Route) {
   return route.fulfill({ status: 201, json: { id: `saved-${stub.sent.length}` } });
 }
 
+/** The server's answer to a card: taken, and its body written down. */
+function answerCard(stub: Stub, route: Route) {
+  stub.cards.push(route.request().postDataJSON() as Record<string, unknown>);
+  stub.sent.push('POST /penalties');
+  return route.fulfill({ status: 201, json: { id: `card-${stub.cards.length}` } });
+}
+
 /** What a story sets of the bout before it opens it. */
 interface Start {
   row?: Partial<typeof ROW>;
@@ -191,6 +220,12 @@ interface Start {
   bestOf?: number;
   /** The time on the clock after the step of extra time. None: 30 s (90 s less a minute). */
   afterExtraTimeMs?: number;
+  /** What the bout summary says beside the defaults: the names, a team's colour chip. */
+  summary?: Record<string, unknown>;
+  /** The bout's penalty list (`GET matches/:id/penalty-ruleset`). None: no list. */
+  penaltyRuleset?: unknown;
+  /** The header's tiles (`GET matches/:id/neighbors`). None: no tile. */
+  neighbors?: unknown;
 }
 
 const newStub = (start: Start): Stub => ({
@@ -208,9 +243,22 @@ const newStub = (start: Start): Stub => ({
   sent: [],
   presses: [],
   hits: [],
+  cards: [],
   row: { ...ROW, ...start.row },
   clock: { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null, ...start.clock },
 });
+
+/**
+ * A read a story gives on its own: the header's tiles, the bout's penalty list and its prior
+ * offences (none, so the pad prices a card of the list). Null when the story gives none of it.
+ */
+function storyRead(start: Start, path: string): unknown {
+  if (start.neighbors && path.endsWith('/neighbors')) return start.neighbors;
+  if (!start.penaltyRuleset) return null;
+  if (path.endsWith('/penalty-ruleset')) return start.penaltyRuleset;
+  if (path.endsWith('/penalty-scope')) return { accumulationScope: 'match', priors: {} };
+  return null;
+}
 
 /** Opens the bout with the network up. Returns the stub's switches and its record. */
 export async function openBout(page: Page, start: Start = {}) {
@@ -222,6 +270,7 @@ export async function openBout(page: Page, start: Start = {}) {
     if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
     if (method === 'POST' && path.endsWith('/clock')) return answerPress(stub, route);
     if (method === 'POST' && path.endsWith('/exchanges')) return answerHit(stub, route);
+    if (method === 'POST' && path.endsWith('/penalties')) return answerCard(stub, route);
     if (method === 'POST' && path.endsWith('/level-resolution/advance')) {
       return answerLevel(stub, route);
     }
@@ -233,6 +282,7 @@ export async function openBout(page: Page, start: Start = {}) {
       return route.fulfill({
         json: {
           ...SUMMARY,
+          ...start.summary,
           ...rules,
           phaseType: start.phaseType ?? 'pool',
           bestOf: start.bestOf ?? 1,
@@ -240,6 +290,8 @@ export async function openBout(page: Page, start: Start = {}) {
       });
     }
     if (start.rules && path.endsWith('/match-config')) return route.fulfill({ json: start.rules });
+    const given = storyRead(start, path);
+    if (given) return route.fulfill({ json: given });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: start.sheet ?? [] });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
     if (path.endsWith('/protests')) return route.fulfill({ json: [] });
@@ -247,8 +299,12 @@ export async function openBout(page: Page, start: Start = {}) {
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto(`${PAD}/matches/${BOUT}`);
-  // A bout waiting for a Fighter opens with its Start greyed: the page is up all the same.
-  const waits = stub.row.red_registration_id === null || stub.row.blue_registration_id === null;
+  // A bout waiting for a Fighter opens with its Start greyed: the page is up all the same. A
+  // side is a Registration or a team.
+  const { row } = stub;
+  const waits =
+    (row.red_registration_id ?? row.red_team_id) === null ||
+    (row.blue_registration_id ?? row.blue_team_id) === null;
   await expect(primary(page)).toBeEnabled({ enabled: !waits });
   return stub;
 }
