@@ -5,10 +5,10 @@ shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59
 `08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
 `bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slice 1b-1 (the organiser builds
 it) is built on the same branch, from `9f9ee1b89` to the commit that wrote this line, which
-closes it. Slice 1b-2 (the Match runs) is next. Slices 1c to 8 are not built; what 1a and 1b-1
-left them is listed under "Slices". The decisions in "What the operator decided" are rulings.
-The items in "My calls" are proposals the operator has read and not overturned. Reviewed with
-`myclash-plan-review`; the record is at the end.
+closes it. Slice 1b-2 (the Match runs) is being built on the same branch, from `56d8ddb6d`. Slices
+1c to 8 are not built; what 1a and 1b-1 left them is listed under "Slices". The decisions in "What
+the operator decided" are rulings. The items in "My calls" are proposals the operator has read and
+not overturned. Reviewed with `myclash-plan-review`; the record is at the end.
 
 ## Context
 
@@ -78,6 +78,7 @@ as a general option, used rarely.
 | 15  | **Naming members, the captain and the reserves move to slice 1c** (ruling 973), with the member-level referee rule and the privacy paths. Naming a Fighter makes three safety rules owe them (rule 8, hiding drafts, deleting a Person). In slice 1b a team has a name, a size, a colour, a logo and a seed. Its slots are numbered and empty.                                                                                  |
 | 16  | **Slice 1b is built as two plans on one branch and one pull request** (ruling 974): 1b-1, the organiser builds it, then 1b-2, the Match runs.                                                                                                                                                                                                                                                                                   |
 | 17  | **Team logos travel as links in a Tournament archive** (ruling 975); ruling 407 stands. An archive of a whole Event carries them as image files.                                                                                                                                                                                                                                                                                |
+| 18  | **A team's card count starts fresh every Match** (ruling 976). A yellow or red card on a team never counts toward a card in another Match. The scope of the penalty list does not change that: Match, Phase or Tournament. Nothing follows a team from Match to Match. It is built in slice 1b-2.                                                                                                                               |
 
 ```text
 Decision 4, drawn:
@@ -118,7 +119,9 @@ Each is a proposal with its reason. Correct any of them.
     notice of decision 11.
 12. **A card in a team Match goes to the team**, and records which slot was on the piste. Its effect
     stops at that Match (decision 7), so the Tournament-level penalty review gets no team form.
-    Ruling 972 settles the black card (decision 14): the team loses this Match only.
+    Ruling 972 settles the black card (decision 14): the team loses this Match only. The slot part
+    waits for slot stamps in slice 2. Every slot is unnamed until slice 1c, and no column holds a
+    slot yet.
 13. **A team forfeits as a whole**, one Match at a time (decision 7). The "replacement" link on a
     forfeit stays individual-only.
 14. **The organiser cannot add a Registration to a team Tournament, nor a Team to an individual
@@ -449,10 +452,11 @@ Each slice is usable alone and lands as several single-concern commits.
        protect yet). The pad, TV and public pages do not change behaviour. Bracket, Swiss and
        double elimination refuse a team Tournament. **Built** on branch `feat/team-tournaments`,
        from `9f9ee1b89` to the commit that closed it.
-     - **1b-2, the Match runs.** The pad, online and offline, the offline queue, cards (ruling
-       972), forfeits, protests, the time-limit result, colour swap of team ids, TV, public pages,
-       the staff, lice and live-state names, the stats functions, the admin bout page and live
-       board, and the offline specs 06, 08 and 40.
+     - **1b-2, the Match runs.** It is being built on the same branch, from `56d8ddb6d`. The pad,
+       online and offline, the offline queue, cards (ruling 972), forfeits, protests, the
+       time-limit result, colour swap of team ids, TV, public pages, the staff, lice and live-state
+       names, the stats functions, the admin bout page and live board, and the offline specs 06, 08
+       and 40.
      - **Moved from 1b to 1c** (ruling 973): names, the captain mark, the reserves' data, the
        spread of teams by rating, and the `deletePerson` check of team slots.
 
