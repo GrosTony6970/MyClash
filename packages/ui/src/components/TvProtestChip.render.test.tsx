@@ -37,15 +37,9 @@ const protests = [
   protest('f', 'blue'),
 ];
 
-function render(limit: number | null, registrationId = 'red'): string {
+function render(limit: number | null, sideId = 'red'): string {
   return renderToStaticMarkup(
-    <TvProtestChip
-      protests={protests}
-      registrationId={registrationId}
-      limit={limit}
-      fighterName="Ada"
-      t={say}
-    />,
+    <TvProtestChip protests={protests} sideId={sideId} limit={limit} fighterName="Ada" t={say} />,
   );
 }
 
@@ -87,14 +81,32 @@ describe('TvProtestChip', () => {
     expect(html).not.toMatch(/(?:bg|text|border)-(?:red|blue|amber|yellow|gray|white|black)\b/);
   });
 
+  // A team protest names its team and no Registration; the chip counts by the side key.
+  it('counts a team side protests by its team, and not the other team', () => {
+    const team = (id: string, teamId: string): MatchProtest => ({
+      ...protest(id, ''),
+      registration_id: null,
+      team_id: teamId,
+    });
+    const rows = [team('a', 'team-red'), team('b', 'team-blue'), team('c', 'team-red')];
+    const chip = (sideId: string) =>
+      text(
+        renderToStaticMarkup(
+          <TvProtestChip protests={rows} sideId={sideId} limit={null} fighterName="Lyon" t={say} />,
+        ),
+      );
+    expect(chip('team-red')).toBe('2');
+    expect(chip('team-blue')).toBe('1');
+  });
+
   it('fades at zero like the card chips, and the warning wins at a limit of 0', () => {
     const none = renderToStaticMarkup(
-      <TvProtestChip protests={[]} registrationId="red" limit={null} fighterName="Ada" t={say} />,
+      <TvProtestChip protests={[]} sideId="red" limit={null} fighterName="Ada" t={say} />,
     );
     expect(none).toContain('opacity-30');
     expect(text(none)).toBe('0');
     const zeroLimit = renderToStaticMarkup(
-      <TvProtestChip protests={[]} registrationId="red" limit={0} fighterName="Ada" t={say} />,
+      <TvProtestChip protests={[]} sideId="red" limit={0} fighterName="Ada" t={say} />,
     );
     expect(text(zeroLimit)).toBe('0/0');
     expect(zeroLimit).toContain('text-warning');

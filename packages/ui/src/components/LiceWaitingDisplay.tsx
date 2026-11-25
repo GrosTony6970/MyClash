@@ -4,6 +4,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { sideStyle } from '../utils/side-color';
 import { statusLabelKey } from '../utils/status-label';
+import { TournamentColorDot } from './TournamentColorDot';
 
 /**
  * Public TV-display "waiting" surface used by the per-lice route
@@ -21,8 +22,12 @@ import { statusLabelKey } from '../utils/status-label';
  */
 
 export interface LiceWaitingDisplayNextMatch {
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name, for its chip beside the name (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   roundCode: string | null;
   matchNumberLabel: string | null;
   scoringConfig: TournamentScoringConfig | null;
@@ -53,10 +58,12 @@ export function LiceWaitingDisplay({
   const matchCode = nextMatch?.roundCode ?? nextMatch?.matchNumberLabel ?? null;
   const red = {
     name: nextMatch?.redFighterName ?? null,
+    colour: nextMatch?.redColour ?? null,
     color: sideStyle(nextMatch?.scoringConfig ?? null, 'red').border,
   };
   const blue = {
     name: nextMatch?.blueFighterName ?? null,
+    colour: nextMatch?.blueColour ?? null,
     color: sideStyle(nextMatch?.scoringConfig ?? null, 'blue').border,
   };
   const [left, right] = mirror ? [blue, red] : [red, blue];
@@ -92,12 +99,21 @@ export function LiceWaitingDisplay({
                 {matchCode}
               </span>
             )}
-            <p className="text-stage-name flex flex-wrap items-center justify-center gap-4 font-bold leading-tight">
-              <span style={{ color: left.color }}>{left.name ?? '—'}</span>
+            {/* A team's colour chip beside its name. The stage scope is dark, so the
+                chip's edge is the light ink and a black team's chip stays visible. */}
+            <p
+              data-theme="dark"
+              className="text-stage-name flex flex-wrap items-center justify-center gap-4 font-bold leading-tight"
+            >
+              <span style={{ color: left.color }}>
+                <TournamentColorDot color={left.colour} size="em" /> {left.name ?? '—'}
+              </span>
               <span className="text-stage-club uppercase tracking-widest text-slate-500">
                 {t('scoring.liveMatch.versus')}
               </span>
-              <span style={{ color: right.color }}>{right.name ?? '—'}</span>
+              <span style={{ color: right.color }}>
+                <TournamentColorDot color={right.colour} size="em" /> {right.name ?? '—'}
+              </span>
             </p>
             {nextMatch.tournamentName && (
               <p className="text-stage-row text-slate-400">{nextMatch.tournamentName}</p>

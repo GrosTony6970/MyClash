@@ -947,14 +947,15 @@
       "byHand": true
     },
     "packages/ui/src/components/TVScoreboard.tsx": {
-      "verdict": "not-yet",
-      "hits": 32,
-      "why": "1b: compares a nullable id with `===` (`:470`); places cards by Registration"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the TV reads the payload's side keys: each column's cards by `isRowOfSide` and its protest chip by `redSideId` / `blueSideId` (`:273`, `:523`), the winner by `winnerSideId` with no fallback to the Registration (`:691`-`:693`), the timeline and the flow fed the side keys under their kept names `redRegId` / `blueRegId` (the 4 hits, `:725`-`:726`, `:750`-`:751`)"
     },
     "packages/ui/src/components/TvProtestChip.tsx": {
-      "verdict": "not-yet",
-      "hits": 3,
-      "why": "1b: counts protests by Registration (`:31`)"
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "counts a side's protests by its side key (`sideId`) through `liveProtestsOf` (`:32`); no side token left, listed by hand",
+      "byHand": true
     },
     "packages/ui/src/components/bracket/MatchCard.tsx": {
       "verdict": "not-yet",

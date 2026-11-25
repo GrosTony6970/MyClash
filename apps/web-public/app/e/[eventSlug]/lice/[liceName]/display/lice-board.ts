@@ -40,6 +40,8 @@ interface CurrentBody {
     id: string;
     redFighterName: string | null;
     blueFighterName: string | null;
+    redColour: string | null;
+    blueColour: string | null;
     roundCode: string | null;
     matchNumberLabel: string | null;
     scoringConfig: LiceWaitingDisplayNextMatch['scoringConfig'];
@@ -77,6 +79,8 @@ export async function readLiceBoard(
       ? {
           redFighterName: next.redFighterName,
           blueFighterName: next.blueFighterName,
+          redColour: next.redColour,
+          blueColour: next.blueColour,
           roundCode: next.roundCode,
           matchNumberLabel: next.matchNumberLabel,
           scoringConfig: next.scoringConfig,

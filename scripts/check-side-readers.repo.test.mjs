@@ -80,8 +80,6 @@ const NOT_YET = [
   'packages/rules/src/results/bracket-r1-seeding.ts',
   'packages/types/src/final-ranking-core.ts',
   'packages/types/src/final-ranking.ts',
-  'packages/ui/src/components/TVScoreboard.tsx',
-  'packages/ui/src/components/TvProtestChip.tsx',
   'packages/ui/src/components/bracket/MatchCard.tsx',
   'packages/ui/src/components/bracket/types.ts',
 ];

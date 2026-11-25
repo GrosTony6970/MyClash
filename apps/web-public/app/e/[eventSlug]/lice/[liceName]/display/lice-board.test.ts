@@ -24,6 +24,8 @@ const BODY = {
       id: 'match-2',
       redFighterName: 'Red',
       blueFighterName: 'Blue',
+      redColour: 'green',
+      blueColour: null,
       roundCode: 'P1',
       matchNumberLabel: 'L1-P1-M02',
       scoringConfig: null,
@@ -53,6 +55,8 @@ describe('readLiceBoard', () => {
       nextMatch: {
         redFighterName: 'Red',
         blueFighterName: 'Blue',
+        redColour: 'green',
+        blueColour: null,
         roundCode: 'P1',
         matchNumberLabel: 'L1-P1-M02',
         scoringConfig: null,
