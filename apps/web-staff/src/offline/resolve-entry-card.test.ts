@@ -12,7 +12,7 @@ const ENTRY: WireEntry = {
 };
 
 const prior = (over: Partial<ExistingPenaltyForSanction>): ExistingPenaltyForSanction => ({
-  registrationId: 'reg-red',
+  sideId: 'reg-red',
   groupNumber: 3,
   card: 'yellow',
   source: 'ruleset',
@@ -43,9 +43,7 @@ describe('resolveEntryCard', () => {
   });
 
   it('does not escalate on the other fighter’s offences', () => {
-    expect(resolveEntryCard(ENTRY, 'reg-red', [prior({ registrationId: 'reg-blue' })])).toBe(
-      'yellow',
-    );
+    expect(resolveEntryCard(ENTRY, 'reg-red', [prior({ sideId: 'reg-blue' })])).toBe('yellow');
   });
 
   it('does not escalate on a voided card, which did not happen', () => {

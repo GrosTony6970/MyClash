@@ -1362,7 +1362,7 @@ export class PenaltiesService {
     return (data ?? []).map((row) => {
       const penalty = row as Row;
       return {
-        registrationId: penalty['registration_id'] as string,
+        sideId: penalty['registration_id'] as string,
         groupNumber: penalty['group_number'] as number | undefined,
         card: penalty['card'] as PenaltyCard,
         source: penalty['source'] as 'ruleset' | 'direct',

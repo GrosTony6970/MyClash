@@ -124,7 +124,13 @@ function priceRulesetCard(
 
   working.set(registrationId, [
     ...seen,
-    { registrationId, groupNumber: entry.group_number, card, source: 'ruleset', voided: false },
+    {
+      sideId: registrationId,
+      groupNumber: entry.group_number,
+      card,
+      source: 'ruleset',
+      voided: false,
+    },
   ]);
 
   return {

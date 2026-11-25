@@ -320,9 +320,7 @@ describe('pricing a queued card', () => {
     const { penalties } = priced(
       [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
       {
-        'reg-red': [
-          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-        ],
+        'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
         'reg-blue': [],
       },
     );
@@ -431,9 +429,7 @@ describe('pricing a queued card', () => {
       pricing: {
         ruleset: RULESET,
         priors: {
-          'reg-red': [
-            { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-          ],
+          'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
           'reg-blue': [],
         },
       },
@@ -500,9 +496,7 @@ describe('card counts', () => {
     const { penalties } = priced(
       [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
       {
-        'reg-red': [
-          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-        ],
+        'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
         'reg-blue': [],
       },
     );

@@ -70,7 +70,7 @@ const PRIORS = {
   accumulationScope: 'match',
   priors: {
     'red-1': [],
-    'blue-1': [{ registrationId: 'blue-1', groupNumber: 4, card: 'yellow', source: 'ruleset' }],
+    'blue-1': [{ sideId: 'blue-1', groupNumber: 4, card: 'yellow', source: 'ruleset' }],
   },
 };
 

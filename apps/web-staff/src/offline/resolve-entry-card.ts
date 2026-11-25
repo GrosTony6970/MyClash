@@ -55,7 +55,7 @@ export function priorsWithQueued(
   const held = queued
     .filter((row) => row.registration_id === registrationId)
     .map((row) => ({
-      registrationId,
+      sideId: registrationId,
       card: row.card,
       source: row.source,
       ...(row.group_number == null ? {} : { groupNumber: row.group_number }),

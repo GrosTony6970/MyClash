@@ -925,11 +925,6 @@
       "hits": 8,
       "why": "1b: the winner of a bout by Registration (`:38`-`:40`), and its nine display callers"
     },
-    "packages/types/src/penalties.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: a card names its side by `registrationId` (`:51`, `:110`)"
-    },
     "packages/ui/src/components/MatchScoreboard.tsx": {
       "verdict": "not-yet",
       "hits": 6,

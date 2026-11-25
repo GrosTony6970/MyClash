@@ -39,8 +39,9 @@ export interface PenaltyRulesetEntry {
 }
 
 /**
- * A penalty already recorded against a fighter, as the accumulation counter
- * needs to see it.
+ * A penalty already recorded against a side, as the accumulation counter
+ * needs to see it. `sideId` is the side's key (a Registration id or a Team id),
+ * as the caller gives it: this file imports no side rule.
  *
  * `groupNumber` and `source` are both load-bearing filters, not decoration: a
  * card from another rule group does not escalate this one, and a DIRECT card —
@@ -48,7 +49,7 @@ export interface PenaltyRulesetEntry {
  * occurrence at all.
  */
 export interface ExistingPenaltyForSanction {
-  registrationId: string;
+  sideId: string;
   groupNumber?: number;
   card: PenaltyCard;
   source: PenaltySource;
@@ -94,20 +95,21 @@ export function penaltyCausesMatchForfeit(card: PenaltyCard): boolean {
  * one repeats once the list runs out. So a group whose sanctions are
  * `[yellow, yellow, red]` gives a red on the third offence and every one after.
  *
- * Counting only NON-VOIDED, RULESET-SOURCED cards for the SAME registration in
- * the SAME group. A voided card did not happen; a direct card was the referee
- * overriding the catalogue and is not part of that group's ladder.
+ * Counting only NON-VOIDED, RULESET-SOURCED cards for the SAME side in the
+ * SAME group. A null side (one not known yet) matches no prior. A voided card
+ * did not happen; a direct card was the referee overriding the catalogue and
+ * is not part of that group's ladder.
  */
 export function computePenaltySanction(
   entry: PenaltyRulesetEntry,
   existingPenalties: ExistingPenaltyForSanction[],
-  registrationId = 'fighter-1',
+  sideId: string | null = 'fighter-1',
 ): PenaltySanctionResult {
   const previousSameGroup = existingPenalties.filter(
     (penalty) =>
       !penalty.voided &&
       penalty.source === 'ruleset' &&
-      penalty.registrationId === registrationId &&
+      penalty.sideId === sideId &&
       penalty.groupNumber === entry.groupNumber,
   ).length;
   const groupOccurrence = previousSameGroup + 1;
