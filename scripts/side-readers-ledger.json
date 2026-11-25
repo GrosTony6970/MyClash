@@ -483,19 +483,24 @@
       "why": "decision 12: the Tournament-level penalty review gets no team form"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx": {
-      "verdict": "not-yet",
-      "hits": 9,
-      "why": "1b: Pool bouts by Registration (`:51`-`:61`, `:586`-`:587`)"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "a Pool bout's sides are a Registration or a team (`MatchRow`); the winner goes through `poolBoutWinner` (side keys), the header count through `countPoolFighters`"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/count-pool-fighters.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: counts Pool Fighters by Registration (`:16`-`:17`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "counts a Pool's entrants by `sideKey` over both sides of its bouts: Fighters or teams"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/match-scores-merge.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 7,
-      "why": "1b: merges `winner_registration_id` without `winner_team_id` (`:68`-`:76`)"
+      "why": "merges both winner columns of the score poll (`winner_registration_id`, `winner_team_id`); the winner is read by side key in `poolBoutWinner`"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/pool-bout-winner.ts": {
+      "verdict": "side-key",
+      "hits": 9,
+      "why": "the Pool table's winner: `resolveMatchWinner` fed `sideKey` of each side and of the winner"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/print/build-print-data.ts": {
       "verdict": "not-yet",

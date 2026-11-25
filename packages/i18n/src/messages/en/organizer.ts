@@ -2881,10 +2881,13 @@ export const organizer = {
       renameTitle: 'Rename pool',
       fightersCountSingular: '{count} fighter',
       fightersCountPlural: '{count} fighters',
+      teamsCountSingular: '{count} team',
+      teamsCountPlural: '{count} teams',
       deletePoolTitle: 'Delete this pool',
       hemaRatingTitle: 'HEMA weighted rating',
       moveToUnassignedTitle: 'Move to unassigned',
       dropFightersHere: 'Drop fighters here.',
+      dropTeamsHere: 'Drop teams here.',
       emptyPools: 'No pools generated yet. Configure and click Generate.',
       configTitle: 'Pool configuration',
       sizingLabel: 'Sizing',
@@ -2893,11 +2896,16 @@ export const organizer = {
       modePoolCount: 'Manual · choose pool count',
       modePoolCountTitle: 'Choose the exact number of pools. Fighters are distributed evenly.',
       fightersPerPool: 'Fighters per pool',
+      teamsPerPool: 'Teams per pool',
       numberOfPools: 'Number of pools',
       previewEmptySingular: 'Will generate {count} empty pool — add fighters later.',
       previewEmptyPlural: 'Will generate {count} empty pools — add fighters later.',
+      previewEmptyTeamsSingular: 'Will generate {count} empty pool — add teams later.',
+      previewEmptyTeamsPlural: 'Will generate {count} empty pools — add teams later.',
       previewPoolsSingular: 'Will generate {count} pool of ~{avg} fighters ({total} total).',
       previewPoolsPlural: 'Will generate {count} pools of ~{avg} fighters ({total} total).',
+      previewTeamPoolsSingular: 'Will generate {count} pool of ~{avg} teams ({total} total).',
+      previewTeamPoolsPlural: 'Will generate {count} pools of ~{avg} teams ({total} total).',
       generating: 'Generating…',
       regenerate: 'Regenerate',
       generateEmpty: 'Generate empty pools',
@@ -2908,6 +2916,7 @@ export const organizer = {
       unassignedTitle: 'Unassigned',
       unassignedEmpty:
         'All registered fighters are in a pool. Drag a fighter here to remove them from their pool.',
+      unassignedTeamsEmpty: 'All teams are in a pool. Drag a team here to remove it from its pool.',
       deletePoolConfirmTitle: 'Delete pool',
       deletePoolFallbackDesc: 'Delete this pool? Its matches will be removed.',
       deletePoolDesc:
@@ -2920,11 +2929,16 @@ export const organizer = {
       constraints: 'Constraints',
       schoolSeparation: 'School separation',
       skillBalance: 'Skill balance',
+      teamSpread: 'Spread teams',
+      teamSpreadSeed: 'By seed',
+      teamSpreadRandom: 'Random draw',
       help: {
         schoolSeparation:
           'Fighters from the same school or club are placed in different pools where possible.',
         skillBalance:
           'Pools are seeded so that rating levels are distributed evenly across all pools.',
+        teamSpread:
+          'By seed: the teams are dealt over the pools in seed order, back and forth. Random draw: the teams are drawn at random.',
       },
     },
     matches: {
@@ -2952,6 +2966,7 @@ export const organizer = {
       byPool: 'By pool',
       rank: 'Rank',
       fighter: 'Fighter',
+      team: 'Team',
       status: 'Status',
       exportCsv: 'Export CSV',
       exportPool: 'Export pool',
@@ -2960,9 +2975,11 @@ export const organizer = {
         'No matches completed yet. Standings will appear as scorekeepers finish matches.',
       emptyPool: 'No matches completed in this pool yet.',
       searchFighter: 'Filter by fighter name',
+      searchTeam: 'Filter by team name',
       help: {
         rank: 'Final standing, set by the ranking metric and its tie-breakers.',
         fighter: 'The fighter and their club.',
+        team: 'The team.',
         score:
           'The ranking metric this table is sorted by; higher is better. Set by the tournament ruleset.',
         W: 'Matches won.',
@@ -3653,6 +3670,7 @@ export const organizer = {
   csvColumns: {
     rank: 'Rank',
     fighter: 'Fighter',
+    team: 'Team',
     club: 'Club',
     pool: 'Pool',
     status: 'Status',

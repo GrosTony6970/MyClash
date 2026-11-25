@@ -397,6 +397,7 @@ export const admin = {
   },
   orgPools: {
     fighterCount: '{count} fighters',
+    teamCount: '{count} teams',
   },
   orgRefBracket: {
     availabilityAll: 'all',

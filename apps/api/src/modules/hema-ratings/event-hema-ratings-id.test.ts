@@ -82,7 +82,7 @@ describe("the Pool readers rate a fighter by the roster row's id first", () => {
     const member = (registrationId: string, person: SupabaseRow) => ({
       registration_id: registrationId,
       seed: 1,
-      registrations: { persons: { ...NAMED, ...person } },
+      registrations: { id: registrationId, persons: { ...NAMED, ...person } },
     });
     const { service, supabase } = makeService({
       phases: {

@@ -18,6 +18,10 @@
       "types": "./dist/forfeit-rules.d.ts",
       "default": "./dist/forfeit-rules.js"
     },
+    "./match-winner": {
+      "types": "./dist/match-winner.d.ts",
+      "default": "./dist/match-winner.js"
+    },
     "./pool-standings": {
       "types": "./dist/pool-standings.d.ts",
       "default": "./dist/pool-standings.js"

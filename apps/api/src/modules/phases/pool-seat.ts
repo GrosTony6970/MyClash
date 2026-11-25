@@ -11,8 +11,8 @@ export type PoolSeatRegistration = RegistrationEmbed<{ name: string | null }> & 
 
 /** One entrant as the Pools page lists it, in a Pool or waiting for one. */
 export interface PoolSeat {
-  /** The side key (`sideKey`): the Registration id or the team id. */
-  sideId: string | null;
+  /** The side key (`sideKey`): the Registration id or the team id. Never null: a seat names one. */
+  sideId: string;
   kind: 'individual' | 'team';
   /** The Registration of an individual entrant; null for a team, never a team id. */
   registrationId: string | null;
@@ -26,13 +26,18 @@ export interface PoolSeat {
   hemaWeightedRating: number | null;
 }
 
-/** The entrant of a Pool seat, or of a Registration or team waiting for a seat. */
+/**
+ * The entrant of a Pool seat, or of a Registration or team waiting for a seat. Throws for a seat
+ * that names neither: the seat's one-entrant check (0282) forbids one, and the Pools page seats and
+ * unseats by this key, so a seat without one would be an entrant nobody could move.
+ */
 export function poolSeatOf(
   registration: PoolSeatRegistration | null,
   team: TeamEmbed | null,
   weightedRatings: ReadonlyMap<string, number>,
 ): PoolSeat {
   const label = sideLabel(registration, team);
+  if (label.id === null) throw new Error('A Pool seat names no entrant');
   const hemaRatingsId = eventHemaRatingsId(registration?.persons);
   return {
     sideId: label.id,

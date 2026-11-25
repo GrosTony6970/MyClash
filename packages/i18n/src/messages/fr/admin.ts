@@ -403,6 +403,7 @@ export const admin = {
   },
   orgPools: {
     fighterCount: '{count} combattants',
+    teamCount: '{count} équipes',
   },
   orgRefBracket: {
     availabilityAll: 'tout',

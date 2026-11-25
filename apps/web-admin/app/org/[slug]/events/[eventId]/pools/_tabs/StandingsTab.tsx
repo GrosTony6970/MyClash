@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { CsvExportMenu, standingsColumnLabel, statusLabel } from '@myclash/ui';
+import { CsvExportMenu, standingsColumnLabel, statusLabel, TournamentColorDot } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
@@ -32,6 +32,26 @@ function formatStat(c: StandingsColumn, value: unknown, empty: string): string {
     if (Number.isFinite(n)) return n.toFixed(c.decimals);
   }
   return String(value);
+}
+
+/**
+ * The words that name a table's entrants: a team Pool's rows are teams (`kind`, from the API's
+ * `sideLabel`), every other row a Fighter.
+ */
+function entrantWords(rows: readonly PoolStandingsRow[]) {
+  return rows.some((row) => row.kind === 'team')
+    ? {
+        column: 'organizer.pools.standings.team',
+        csv: 'organizer.csvColumns.team',
+        search: 'organizer.pools.standings.searchTeam',
+        help: 'team',
+      }
+    : {
+        column: 'organizer.pools.standings.fighter',
+        csv: 'organizer.csvColumns.fighter',
+        search: 'organizer.pools.standings.searchFighter',
+        help: 'fighter',
+      };
 }
 
 interface OverallResponse {
@@ -157,7 +177,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   ) {
     const header = [
       t('organizer.csvColumns.rank'),
-      t('organizer.csvColumns.fighter'),
+      t(entrantWords(rows).csv),
       t('organizer.csvColumns.club'),
       ...(includePool ? [t('organizer.csvColumns.pool')] : []),
       ...columns.map((c) => standingsColumnLabel(c, t)),
@@ -331,6 +351,7 @@ function StandingsTable({
   ];
   const { query, setQuery, view, sortKey, direction, toggle, isDefaultOrder } =
     useStandingsView(rows);
+  const words = entrantWords(rows);
   const sortAscLabel = t('admin.common.sortAscLabel');
   const sortDescLabel = t('admin.common.sortDescLabel');
   // The bracket cut line is index-based, so it only makes sense while the rows
@@ -342,10 +363,10 @@ function StandingsTable({
       {showFilter && (
         <div className="flex items-center gap-2">
           <input
-            aria-label={t('organizer.pools.standings.searchFighter')}
+            aria-label={t(words.search)}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('organizer.pools.standings.searchFighter')}
+            placeholder={t(words.search)}
             className="w-72 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           {query && (
@@ -378,12 +399,12 @@ function StandingsTable({
             </th>
             <th className="px-4 py-2">
               <StandingsHeaderCell
-                label={t('organizer.pools.standings.fighter')}
+                label={t(words.column)}
                 columnKey="fighter"
                 currentKey={sortKey}
                 direction={direction}
                 onToggle={toggle}
-                help={getColumnHelp('fighter', t)}
+                help={getColumnHelp(words.help, t)}
                 align="left"
                 tooltipAnchor="start"
                 ariaSortAsc={sortAscLabel}
@@ -445,6 +466,13 @@ function StandingsTable({
                   {row.rank}
                 </td>
                 <td className="px-4 py-2">
+                  {/* A team's row is named by the team (`sideLabel`) and carries its colour;
+                      a Fighter has none. */}
+                  {row.colour && (
+                    <span className="mr-1.5 inline-flex align-middle">
+                      <TournamentColorDot color={row.colour} />
+                    </span>
+                  )}
                   <span className="font-medium text-foreground">{row.displayName}</span>
                   {row.club && (
                     <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">

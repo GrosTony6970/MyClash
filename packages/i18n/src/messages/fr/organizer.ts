@@ -2842,10 +2842,13 @@ export const organizer = {
       renameTitle: 'Renommer la poule',
       fightersCountSingular: '{count} combattant',
       fightersCountPlural: '{count} combattants',
+      teamsCountSingular: '{count} équipe',
+      teamsCountPlural: '{count} équipes',
       deletePoolTitle: 'Supprimer cette poule',
       hemaRatingTitle: 'Note pondérée HEMA',
       moveToUnassignedTitle: 'Déplacer vers les non-assignés',
       dropFightersHere: 'Déposez des combattants ici.',
+      dropTeamsHere: 'Déposez des équipes ici.',
       emptyPools: 'Aucune poule générée pour le moment. Configurez puis cliquez sur Générer.',
       configTitle: 'Configuration des poules',
       sizingLabel: 'Répartition',
@@ -2856,11 +2859,16 @@ export const organizer = {
       modePoolCountTitle:
         'Choisissez le nombre exact de poules. Les combattants sont répartis équitablement.',
       fightersPerPool: 'Combattants par poule',
+      teamsPerPool: 'Équipes par poule',
       numberOfPools: 'Nombre de poules',
       previewEmptySingular: 'Générera {count} poule vide — ajoutez des combattants plus tard.',
       previewEmptyPlural: 'Générera {count} poules vides — ajoutez des combattants plus tard.',
+      previewEmptyTeamsSingular: 'Générera {count} poule vide — ajoutez des équipes plus tard.',
+      previewEmptyTeamsPlural: 'Générera {count} poules vides — ajoutez des équipes plus tard.',
       previewPoolsSingular: 'Générera {count} poule de ~{avg} combattants ({total} au total).',
       previewPoolsPlural: 'Générera {count} poules de ~{avg} combattants ({total} au total).',
+      previewTeamPoolsSingular: 'Générera {count} poule de ~{avg} équipes ({total} au total).',
+      previewTeamPoolsPlural: 'Générera {count} poules de ~{avg} équipes ({total} au total).',
       generating: 'Génération…',
       regenerate: 'Régénérer',
       generateEmpty: 'Générer des poules vides',
@@ -2871,6 +2879,8 @@ export const organizer = {
       unassignedTitle: 'Non assignés',
       unassignedEmpty:
         'Tous les combattants inscrits sont dans une poule. Glissez un combattant ici pour le retirer de sa poule.',
+      unassignedTeamsEmpty:
+        'Toutes les équipes sont dans une poule. Glissez une équipe ici pour la retirer de sa poule.',
       deletePoolConfirmTitle: 'Supprimer la poule',
       deletePoolFallbackDesc: 'Supprimer cette poule ? Ses matchs seront supprimés.',
       deletePoolDesc:
@@ -2883,7 +2893,12 @@ export const organizer = {
       constraints: 'Contraintes',
       schoolSeparation: 'Séparation par club',
       skillBalance: 'Équilibrage du niveau',
+      teamSpread: 'Répartir les équipes',
+      teamSpreadSeed: 'Par tête de série',
+      teamSpreadRandom: 'Tirage au sort',
       help: {
+        teamSpread:
+          'Par tête de série : les équipes sont distribuées dans les poules dans l’ordre des têtes de série, en aller-retour. Tirage au sort : les équipes sont tirées au hasard.',
         schoolSeparation:
           'Les combattants du même club sont placés dans des poules différentes autant que possible.',
         skillBalance:
@@ -2915,6 +2930,7 @@ export const organizer = {
       byPool: 'Par poule',
       rank: 'Rang',
       fighter: 'Combattant',
+      team: 'Équipe',
       status: 'Statut',
       exportCsv: 'Exporter CSV',
       exportPool: 'Exporter cette poule',
@@ -2923,9 +2939,11 @@ export const organizer = {
         'Aucun combat terminé. Le classement apparaîtra à mesure que les arbitres valident les combats.',
       emptyPool: "Aucun combat terminé dans cette poule pour l'instant.",
       searchFighter: 'Filtrer par nom de combattant',
+      searchTeam: "Filtrer par nom d'équipe",
       help: {
         rank: 'Classement final, déterminé par le score et ses départages.',
         fighter: 'Le combattant et son club.',
+        team: "L'équipe.",
         score:
           "Le score de classement qui ordonne ce tableau ; plus il est élevé, mieux c'est. Défini par le règlement.",
         W: 'Matchs gagnés.',
@@ -3629,6 +3647,7 @@ export const organizer = {
   csvColumns: {
     rank: 'Rang',
     fighter: 'Combattant',
+    team: 'Équipe',
     club: 'Club',
     pool: 'Poule',
     status: 'Statut',
