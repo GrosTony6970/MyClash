@@ -45,7 +45,6 @@ const NOT_YET = [
   'apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowTimeline.tsx',
   'apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx',
   'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts',
-  'apps/web-admin/src/components/statistics/types.ts',
   'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-event-feed.tsx',
   'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx',
   'apps/web-public/app/e/[eventSlug]/match/[matchId]/match-row.ts',

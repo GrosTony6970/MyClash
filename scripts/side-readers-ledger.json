@@ -561,9 +561,9 @@
       "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
     },
     "apps/web-admin/src/components/statistics/types.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: the blow statistics row `FighterStats` is keyed `registrationId` (`:85`); the standings row is keyed `entrantId`"
+      "verdict": "individual-only",
+      "hits": 1,
+      "why": "the blow statistics row `FighterStats` is keyed `registrationId` (`:86`): it is the per-Fighter blow table, and personal statistics from team Matches are a non-goal (call 7); the database leaves team bouts out of it (0285, and the Registration join of 0189:188); the standings row is the shared `PoolStandingsRow`, keyed `entrantId`"
     },
     "apps/web-admin/src/lib/rules-change-refusal.ts": {
       "verdict": "individual-only",

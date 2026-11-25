@@ -5,6 +5,7 @@
  */
 
 import type { AfterblowRule, BlowValueCounts } from '@myclash/ui';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 export interface PodiumEntry {
   place: number;
@@ -107,17 +108,9 @@ export interface StandingsColumn {
   sortDesc?: boolean;
 }
 
-export interface StandingsRow {
-  rank: number;
-  entrantId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  stats: Record<string, number | string>;
-}
-
 export interface TournamentDetail {
   tournamentId: string;
-  standings: { columns: StandingsColumn[]; rows: StandingsRow[] };
+  standings: { columns: StandingsColumn[]; rows: PoolStandingsRow[] };
   fighters: FighterStats[];
   /** The ruleset's afterblow valuation, for the blow table column headings. */
   afterblow: AfterblowRule;

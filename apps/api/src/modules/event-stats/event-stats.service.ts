@@ -25,7 +25,8 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { EventsService } from '../events/events.service';
 import { StatsService } from '../stats/stats.service';
 import { aggregateTargetValues, type TargetValueRow } from '../stats/target-value-stats';
-import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import {
   buildRefereeStats,
   declarantMatchIdsOf,
@@ -214,12 +215,17 @@ export class EventStatsService {
       tournamentId,
       standings: {
         columns: standings.columns,
-        rows: rows.map((r: StandingsRow) => ({
+        // A team row's chip (kind, colour, logo) and the row's status pass through.
+        rows: rows.map((r: PoolStandingsRow) => ({
           rank: r.rank,
           entrantId: r.entrantId,
           displayName: r.displayName,
           club: r.club,
+          status: r.status,
           stats: r.stats,
+          kind: r.kind,
+          colour: r.colour,
+          logoUrl: r.logoUrl,
         })),
       },
       fighters: fighterStats.fighters,
