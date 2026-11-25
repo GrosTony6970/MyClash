@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { entrantKindMismatch } from '../../common/entrant-kind-refusal';
 import type { Upload } from '../../common/read-upload';
+import { storedKind } from '../events/tournament-kind';
 import { storeEventImage } from '../events/event-assets';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -37,6 +39,13 @@ export interface TeamView {
   seed: number | null;
   color: string | null;
   logoUrl: string | null;
+}
+
+/** The Tournament columns a team create reads. */
+interface TournamentRow {
+  max_participants: number | null;
+  team_default_size: number | null;
+  entrant_kind: unknown;
 }
 
 const toView = (row: TeamRow): TeamView => ({
@@ -86,6 +95,9 @@ export class TeamsService {
    */
   async create(tournamentId: string, dto: CreateTeamDto): Promise<TeamView> {
     const tournament = await this.tournamentOf(tournamentId);
+    // An individual Tournament takes no team. Said first, as a Pool seat says it
+    // (`assertSeatFitsKind`): its missing team size is not the cause.
+    if (storedKind(tournament.entrant_kind) !== 'team') throw entrantKindMismatch();
     const slugs = await this.slugsOf(tournamentId);
     const cap = tournament.max_participants;
     if (cap != null && slugs.length >= cap) throw tournamentFull(slugs.length, cap);
@@ -109,7 +121,7 @@ export class TeamsService {
       const now = await this.slugsOf(tournamentId);
       written = await this.insertTeam({ ...row, slug: pickTeamSlug(dto.name, new Set(now)) });
     }
-    // An individual Tournament takes no team: the kind trigger (0281) refuses it.
+    // A Tournament made individual since the read above: the kind trigger (0281) refuses it.
     if (written.error) throw teamWriteRefusal(written.error);
     return toView(written.data as TeamRow);
   }
@@ -183,17 +195,15 @@ export class TeamsService {
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  private async tournamentOf(
-    tournamentId: string,
-  ): Promise<{ max_participants: number | null; team_default_size: number | null }> {
+  private async tournamentOf(tournamentId: string): Promise<TournamentRow> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('max_participants, team_default_size')
+      .select('max_participants, team_default_size, entrant_kind')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    return data as { max_participants: number | null; team_default_size: number | null };
+    return data as TournamentRow;
   }
 
   /** The slugs of the Tournament's teams: one per team, so also their count. */

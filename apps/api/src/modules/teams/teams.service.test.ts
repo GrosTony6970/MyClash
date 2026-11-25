@@ -39,8 +39,8 @@ const paris = { ...lyon, id: PARIS, tournament_id: T_B, name: 'Paris Sabres', sl
 
 const tournaments = {
   rows: [
-    { id: T_A, max_participants: null, team_default_size: 3 },
-    { id: T_B, max_participants: null, team_default_size: 5 },
+    { id: T_A, max_participants: null, team_default_size: 3, entrant_kind: 'team' },
+    { id: T_B, max_participants: null, team_default_size: 5, entrant_kind: 'team' },
   ],
 };
 
@@ -136,7 +136,9 @@ describe('create', () => {
       seed: null,
     });
     expect(team).toMatchObject({ id: 'new-team', slug: 'lyon-blades-2', size: 3 });
-    expect(selectsFor(db.from, 'tournaments')).toEqual(['max_participants, team_default_size']);
+    expect(selectsFor(db.from, 'tournaments')).toEqual([
+      'max_participants, team_default_size, entrant_kind',
+    ]);
     expect(selectsFor(db.from, 'teams')).toEqual(['slug', TEAM_COLUMNS]);
   });
 
@@ -148,7 +150,7 @@ describe('create', () => {
 
   it('counts only its own Tournament against the cap', async () => {
     const { db, teams } = setup({
-      tournaments: { rows: [{ id: T_A, max_participants: 2, team_default_size: 3 }] },
+      tournaments: { rows: [{ ...tournaments.rows[0], max_participants: 2 }] },
       teams: { rows: [lyon, paris, { ...paris, id: 'p2', slug: 'p2' }], returning: { id: 'n' } },
     });
     await teams.create(T_A, { name: 'Grenoble' });
@@ -157,7 +159,7 @@ describe('create', () => {
 
   it('refuses 409 tournament_full once the Tournament holds max_participants teams', async () => {
     const { db, teams } = setup({
-      tournaments: { rows: [{ id: T_A, max_participants: 1, team_default_size: 3 }] },
+      tournaments: { rows: [{ ...tournaments.rows[0], max_participants: 1 }] },
     });
     expect(await refusalOf(teams.create(T_A, { name: 'Grenoble' }), ConflictException)).toEqual({
       reason: 'tournament_full',
@@ -170,12 +172,35 @@ describe('create', () => {
 
   it('refuses 400 when no size is sent and the Tournament has no default', async () => {
     const { db, teams } = setup({
-      tournaments: { rows: [{ id: T_A, max_participants: null, team_default_size: null }] },
+      tournaments: { rows: [{ ...tournaments.rows[0], team_default_size: null }] },
     });
     expect(
       await refusalOf(teams.create(T_A, { name: 'Grenoble' }), BadRequestException),
     ).toMatchObject({ code: 'team_size_required' });
     expect(writesTo(db, 'teams')).toEqual([]);
+  });
+
+  // An individual Tournament has no team size either: the kind is the cause, said first.
+  it('refuses an individual Tournament as 409 entrant_kind_mismatch before its missing size', async () => {
+    const individual = { id: T_A, max_participants: null, team_default_size: null };
+    const { db, teams } = setup({
+      tournaments: { rows: [{ ...individual, entrant_kind: 'individual' }] },
+    });
+    expect(await refusalOf(teams.create(T_A, { name: 'Grenoble' }), ConflictException)).toEqual({
+      reason: 'entrant_kind_mismatch',
+      message:
+        'This Tournament takes the other kind of entrant: a team Tournament takes teams, an individual one takes Fighters.',
+    });
+    expect(writesTo(db, 'teams')).toEqual([]);
+  });
+
+  it('refuses a Tournament read without its kind, not as an individual one', async () => {
+    const { teams } = setup({
+      tournaments: { rows: [{ id: T_A, max_participants: null, team_default_size: 3 }] },
+    });
+    await expect(teams.create(T_A, { name: 'Grenoble' })).rejects.toThrow(
+      "The Tournament's kind was not read",
+    );
   });
 
   it('answers a name taken in the Tournament as 409 team_name_taken', async () => {

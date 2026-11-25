@@ -28,7 +28,9 @@ const slugRace: ChainResult = {
 /** `teams` answers in call order: the slugs, the insert, the slugs again, the insert again. */
 function setup(teamAnswers: ChainResult[]) {
   const db = mockSupabase({
-    tournaments: { rows: [{ id: T_A, max_participants: null, team_default_size: 3 }] },
+    tournaments: {
+      rows: [{ id: T_A, max_participants: null, team_default_size: 3, entrant_kind: 'team' }],
+    },
     teams: teamAnswers,
   });
   return { db, teams: new TeamsService({ service: db.service } as never) };
