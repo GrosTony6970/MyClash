@@ -971,9 +971,13 @@ export class MatchesService {
     // A bout waiting for a Fighter swaps nobody (operator, 2026-11-24).
     assertBothSides(sidesOf(match));
     await this.scoring.assertNoRecordHolds(matchId);
+    // Each side moves whole, a Registration or a team (0282). Cards and protests name their side,
+    // not its colour, so they follow it.
     const updates = {
       red_registration_id: match.blue_registration_id,
       blue_registration_id: match.red_registration_id,
+      red_team_id: match.blue_team_id,
+      blue_team_id: match.red_team_id,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await this.supabase.service

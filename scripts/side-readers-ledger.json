@@ -139,7 +139,7 @@
     "apps/api/src/modules/matches/matches.service.ts": {
       "verdict": "not-yet",
       "hits": 14,
-      "why": "1b: create (`:193`), `swapFighterColor` swaps only the Registration ids (`:975`); the manual completion writes its winner by side through `status-winner.ts` (`:282`-`:288`)"
+      "why": "1b: create names its sides by Registration (`:193`); the manual completion writes its winner by side through `status-winner.ts` (`:282`-`:288`); `swapFighterColor` moves each side whole, Registration and team (`:976`-`:982`)"
     },
     "apps/api/src/modules/matches/reopen-match-columns.ts": {
       "verdict": "no-side-read",
