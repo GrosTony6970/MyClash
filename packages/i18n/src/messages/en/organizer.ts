@@ -3616,6 +3616,8 @@ export const organizer = {
     tournamentFilterAll: 'All',
     refereesSection: 'Referees',
     fightersSection: 'Fighters',
+    teamsSection: 'Teams',
+    uncheckedFighters: 'MyClash cannot check these Fighters: this team has Fighters with no name',
     previewAutoAssign: 'Preview auto assign',
     previewingState: 'Computing…',
     previewFailed: 'Could not compute auto-assign preview.',

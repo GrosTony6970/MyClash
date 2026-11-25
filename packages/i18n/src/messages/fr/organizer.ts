@@ -3592,6 +3592,9 @@ export const organizer = {
     tournamentFilterAll: 'Tous',
     refereesSection: 'Arbitres',
     fightersSection: 'Combattants',
+    teamsSection: 'Équipes',
+    uncheckedFighters:
+      'MyClash ne peut pas vérifier ces combattants : cette équipe a des combattants sans nom',
     previewAutoAssign: 'Lancer le calcul',
     previewingState: 'Calcul…',
     previewFailed: "Impossible de calculer la proposition d'affectation.",

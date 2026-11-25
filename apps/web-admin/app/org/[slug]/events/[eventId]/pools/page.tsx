@@ -32,6 +32,7 @@ import { RegenerateConfirms } from './RegenerateConfirms';
 import { TeamSpreadChoice } from './TeamSpreadChoice';
 import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
 import { RefereeVerdictBanner } from '@/components/RefereeVerdictBanner';
+import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
@@ -252,7 +253,10 @@ export default function PoolsPage() {
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadPools sets state only after the awaited request resolves
+    // The last Tournament's Pools are not this one's: kept, its teams or Fighters would stand
+    // in for this one's until (or, on a failed read, after) the load lands.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the per-Tournament view on a switch, before the fetch below
+    setPools(null);
     void loadPools(selectedTournament, controller.signal);
     // Checked whenever a Tournament's pools load, not only after an edit here:
     // a referee set on a Match or a bout moved on the grid makes a clash without
@@ -633,6 +637,18 @@ export default function PoolsPage() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Rule 8 cannot check a team's unnamed Fighters (ADR-016, 2026-11-13). Said once for the
+          page, so the tabs that assign referees (Referees, per Pool; Matches, per bout) and the
+          one that shows the referee verdicts all carry it. A note: it blocks nothing.
+          It follows the Tournament's kind, not the loaded Pools: the tabs below read their own
+          data and can staff a team Pool while the Pools load, or after their read failed. A
+          team Tournament seats only teams; with no Tournament list there is no Tournament. */}
+      {activeTab !== 'standings' && seatKind === 'team' && (
+        <div className="mb-4">
+          <UncheckedFightersNotice />
         </div>
       )}
 

@@ -78,9 +78,16 @@ export interface AssignmentBoardPool {
   /** Swiss units only: which round, and its id (for the per-round bulk clear). */
   swissRound?: number;
   swissRoundId?: string;
+  /** True on a team Pool: rule 8 cannot check its unnamed Fighters (the screens say so). */
+  uncheckedFighters?: true;
   members: Array<{
-    registrationId: string;
+    /** The seat's side key: the Registration id, or a team Pool's team id. */
+    sideId: string;
+    /** Null for a team's seat, never a team id. */
+    registrationId: string | null;
+    /** `global_persons.id`; blank for a team's seat, which has no Person. */
     personId: string;
+    /** The Fighter's name, or the team's. */
     personName: string;
     clubLabel?: string | null;
   }>;

@@ -157,6 +157,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
               pool={pool}
               liceName={pool.liceId ? (liceNameById.get(pool.liceId) ?? null) : null}
               isReadOnly={isReadOnly || board.locked}
+              // The Pools page says the rule-8 notice once, above every tab.
+              showUncheckedNotice={false}
               busy={busy}
               skillNameById={skillNameById}
               skillColorById={skillColorById}
