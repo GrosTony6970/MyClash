@@ -814,7 +814,7 @@
     "apps/web-staff/src/hooks/useMatchScoringData.ts:115",
     "apps/web-staff/src/hooks/usePenalties.ts:93",
     "apps/web-staff/src/hooks/useScoringSubmit.ts:56",
-    "apps/web-staff/src/offline/pending-events.ts:131",
+    "apps/web-staff/src/offline/pending-events.ts:138",
     "eslint-rules/no-literal-string.mjs:120",
     "eslint-rules/no-server-api-url-leak.mjs:105",
     "infra/ops-runner/backup-core.mjs:154",

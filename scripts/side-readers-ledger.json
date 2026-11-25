@@ -710,25 +710,10 @@
       "hits": 1,
       "why": "`queueCard` takes a card's `QueuedSide` in place of the two side fields (`:71`) and writes it through `sideFields`; reads no side"
     },
-    "apps/web-staff/src/offline/pad-series.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: the pad's provisional score places cards by Registration (`:205`-`:207`)"
-    },
-    "apps/web-staff/src/offline/pad-server-score.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: passes sides by Registration (`:54`-`:55`)"
-    },
     "apps/web-staff/src/offline/pending-events.ts": {
-      "verdict": "not-yet",
-      "hits": 27,
-      "why": "1b: the pad's card and protest queue by Registration (`:95`-`:289`)"
-    },
-    "apps/web-staff/src/offline/price-queued-cards.ts": {
-      "verdict": "not-yet",
-      "hits": 9,
-      "why": "1b: prices queued cards by Registration (`:118`-`:125`)"
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "a queued card's and protest's row names its one side, the other null, never '' (`:97`-`:98`, `:242`-`:243`, call 10); a card is priced by its `sideKey` (`:202`); the chips, the caption and the provisional score place each row by side key with `isRowOfSide` (`:300`, `:324`, `:379`-`:380`)"
     },
     "apps/web-staff/src/offline/queued-side.ts": {
       "verdict": "side-key",
@@ -736,9 +721,9 @@
       "why": "a queued card or protest names exactly one of a Registration or a team, from its `QueuedSide` (`sideFields`, `:19`-`:20`, call 9); the send copies that one field (`sideOnWire`, `:27`-`:30`, call 8)"
     },
     "apps/web-staff/src/offline/resolve-entry-card.ts": {
-      "verdict": "not-yet",
-      "hits": 7,
-      "why": "1b: matches a queued card to its side by Registration (`:56`)"
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "a held card's row names its side by Registration or team (`:33`-`:34`); the held priors are matched to a side key with `isRowOfSide` (`:59`), a team's of this Match only (ruling 976)"
     },
     "packages/db/migrations/0001_init.sql": {
       "verdict": "no-side-read",

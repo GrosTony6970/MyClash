@@ -198,6 +198,6 @@ describe('a protest tapped on the pad', () => {
       serverPenalties: [],
       serverProtests: [],
     });
-    expect(protestCountFor({ server: [], pending, registrationId: REG })).toBe(1);
+    expect(protestCountFor({ server: [], pending, sideId: REG })).toBe(1);
   });
 });

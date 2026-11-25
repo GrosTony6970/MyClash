@@ -50,9 +50,10 @@ describe('the bout’s list and its score', () => {
 
     expect(rows.exchanges.map((row) => row.client_uuid)).toEqual(['hit-1']);
     expect(rows.penalties).toEqual([]);
-    expect(
-      provisionalDeltas({ ...rows, redRegistrationId: 'red', blueRegistrationId: 'blue' }),
-    ).toEqual({ red: 2, blue: 0 });
+    expect(provisionalDeltas({ ...rows, redSideId: 'red', blueSideId: 'blue' })).toEqual({
+      red: 2,
+      blue: 0,
+    });
   });
 });
 

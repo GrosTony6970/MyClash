@@ -257,6 +257,7 @@ export {
   ascendingWithNumbers,
   orderedWithNumbers,
   exchangeOptionLabel,
+  isRowOfSide,
   NO_EXCHANGE_REASONS,
   NO_EXCHANGE_REASON_KEYS,
 } from './utils/exchange-timeline';

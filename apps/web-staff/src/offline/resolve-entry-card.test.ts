@@ -75,7 +75,8 @@ describe('resolveEntryCard', () => {
 
 describe('priorsWithQueued', () => {
   const queued = (over: Partial<Parameters<typeof priorsWithQueued>[1][number]> = {}) => ({
-    registration_id: 'reg-red',
+    registration_id: 'reg-red' as string | null,
+    team_id: null as string | null,
     group_number: 3,
     card: 'yellow' as const,
     source: 'ruleset' as const,
@@ -111,6 +112,14 @@ describe('priorsWithQueued', () => {
     expect(priorsWithQueued(undefined, [queued({ registration_id: 'reg-blue' })], 'reg-red')).toBe(
       undefined,
     );
+  });
+
+  it("counts a team's held card for the team, and for no Fighter", () => {
+    const teamCard = queued({ registration_id: null, team_id: 'team-red' });
+    const priors = priorsWithQueued([], [teamCard], 'team-red');
+
+    expect(resolveEntryCard(ENTRY, 'team-red', priors)).toBe('red');
+    expect(priorsWithQueued(undefined, [teamCard], 'reg-red')).toBeUndefined();
   });
 
   it('counts no card the pad could not place in a group', () => {

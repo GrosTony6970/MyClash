@@ -104,8 +104,9 @@ export interface PadSeriesArgs {
   matchNumberLabel: string | null | undefined;
   matchFormat: MatchFormatConfig;
   server: ServerRounds;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** The bout's side keys (`sideKey`): a card counts on its own side, a team's included. */
+  redSideId: string | null;
+  blueSideId: string | null;
   /** The server's hits, not voided. Each carries its round (`round_number`). */
   exchanges: readonly ExchangeRow[];
   /** The server's cards, not voided, each with its round. Its row's score holds their points. */
@@ -202,9 +203,9 @@ function scoreOnPad(
     queuedCards: readonly Penalty[];
   },
 ) {
-  const { redRegistrationId, blueRegistrationId, matchFormat } = args;
+  const { redSideId, blueSideId, matchFormat } = args;
   const sum = (exchanges: readonly ExchangeRow[], penalties: readonly Penalty[]) =>
-    provisionalDeltas({ exchanges, penalties, redRegistrationId, blueRegistrationId });
+    provisionalDeltas({ exchanges, penalties, redSideId, blueSideId });
   const carded = sum([], rows.serverCards);
   const hits = sum(rows.queued, []);
   const cards = sum([], rows.queuedCards);

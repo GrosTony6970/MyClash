@@ -17,7 +17,7 @@
  * Pure: no React, no I/O.
  */
 import { computePenaltySanction, type ExistingPenaltyForSanction } from '@myclash/types';
-import type { PenaltyCard } from '@myclash/ui';
+import { isRowOfSide, type PenaltyCard } from '@myclash/ui';
 
 /** The catalogue entry as the pad receives it — snake_case, straight off the wire. */
 export interface WireEntry {
@@ -28,17 +28,20 @@ export interface WireEntry {
   sanctions: PenaltyCard[];
 }
 
-/** A card the tablet still holds, as its row of the timeline says it. */
+/** A card the tablet still holds, as its row of the timeline says it: its side is one of two. */
 interface QueuedCardRow {
   registration_id: string | null;
+  team_id: string | null;
   group_number?: number | null;
   card: PenaltyCard;
   source: 'ruleset' | 'direct';
 }
 
 /**
- * The offences the server will count when this fighter's next card arrives:
+ * The offences the server will count when this side's next card arrives:
  * the ones it told the pad, plus the cards this tablet still holds for them.
+ * `sideId` is the side key, a Fighter's Registration or a team; a team's
+ * priors are of this Match only (ruling 976), as the server sends them.
  *
  * Without the held ones, a second offence given with no network read as a
  * first: the button said yellow, the pad gave it in one tap, and the server
@@ -50,12 +53,12 @@ interface QueuedCardRow {
 export function priorsWithQueued(
   priors: ExistingPenaltyForSanction[] | undefined,
   queued: readonly QueuedCardRow[],
-  registrationId: string,
+  sideId: string,
 ): ExistingPenaltyForSanction[] | undefined {
   const held = queued
-    .filter((row) => row.registration_id === registrationId)
+    .filter((row) => isRowOfSide(row, sideId))
     .map((row) => ({
-      sideId: registrationId,
+      sideId,
       card: row.card,
       source: row.source,
       ...(row.group_number == null ? {} : { groupNumber: row.group_number }),
@@ -66,7 +69,7 @@ export function priorsWithQueued(
 
 export function resolveEntryCard(
   entry: WireEntry,
-  registrationId: string,
+  sideId: string,
   priors: ExistingPenaltyForSanction[] | undefined,
 ): PenaltyCard | undefined {
   // No priors read yet. The first-occurrence card is the right answer for a
@@ -84,6 +87,6 @@ export function resolveEntryCard(
       sanctions: entry.sanctions,
     },
     priors,
-    registrationId,
+    sideId,
   ).card;
 }

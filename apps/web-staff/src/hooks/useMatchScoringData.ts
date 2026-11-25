@@ -189,12 +189,12 @@ export function useMatchScoringData(args: {
     cardCountFor({
       server: activePenalties,
       pending: pending.penalties,
-      registrationId,
+      sideId: registrationId,
       card,
     });
 
   const protestCountFor = (registrationId: string | null) =>
-    protestCount({ server: activeProtests, pending: pending.protests, registrationId });
+    protestCount({ server: activeProtests, pending: pending.protests, sideId: registrationId });
 
   // Same function the server calls (`resolveEntryCard`), on the offences the
   // server will count: the ones it told the pad and the cards the tablet holds.
@@ -212,7 +212,7 @@ export function useMatchScoringData(args: {
     queuedCardsForRegistration({
       pending: pending.penalties,
       unpricedCardUuids: pending.unpricedCardUuids,
-      registrationId,
+      sideId: registrationId,
     });
 
   return {

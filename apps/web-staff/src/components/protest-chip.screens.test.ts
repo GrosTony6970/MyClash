@@ -125,7 +125,7 @@ describe('the pad', () => {
   // control tells it is the chip's own rows (`protestsOf`, the owner of the chip's count).
   it('tells the offer which protests the screen drew, from the chip’s own rows', () => {
     expect(control).toMatch(
-      /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+registrationId,\s+\}\)/,
+      /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+sideId: registrationId,\s+\}\)/,
     );
     expect(control).toContain('const seenProtests = useRef(protestsSeen(matchId));');
     expect(control).toContain(

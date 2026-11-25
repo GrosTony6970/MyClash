@@ -68,7 +68,7 @@ export function ProtestControl({
   const shownKey = protestsOf({
     server: scoring.activeProtests,
     pending: scoring.pendingProtests,
-    registrationId,
+    sideId: registrationId,
   })
     .map((row) => row.client_uuid)
     .join(' ');

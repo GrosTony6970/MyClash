@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MatchFormatConfig } from '@myclash/types';
+import { sideKey } from '@myclash/types/side-key';
 import { editionOf } from '../lib/bout-edition';
 import { endRefusedOnPad, pressedOn } from '../components/end-guard';
 import type { MatchInfo } from '../components/MatchView';
@@ -90,7 +91,9 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
   const phaseType = match.phaseType ?? undefined;
   const edition = editionOf(match);
   const server = useServerRounds(match);
-  const { matchNumberLabel, redRegistrationId, blueRegistrationId } = match;
+  const { matchNumberLabel } = match;
+  const redSideId = sideKey(match.redRegistrationId, match.redTeamId);
+  const blueSideId = sideKey(match.blueRegistrationId, match.blueTeamId);
   const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
   const { queuedRoundPresses } = scoring;
   return useMemo(
@@ -101,8 +104,8 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
         matchNumberLabel,
         matchFormat,
         server,
-        redRegistrationId,
-        blueRegistrationId,
+        redSideId,
+        blueSideId,
         exchanges: activeExchanges,
         penalties: activePenalties,
         queued: pendingExchanges,
@@ -117,8 +120,8 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
       matchNumberLabel,
       matchFormat,
       server,
-      redRegistrationId,
-      blueRegistrationId,
+      redSideId,
+      blueSideId,
       activeExchanges,
       activePenalties,
       pendingExchanges,

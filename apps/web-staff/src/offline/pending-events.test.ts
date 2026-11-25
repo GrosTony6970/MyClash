@@ -480,7 +480,7 @@ describe('card counts', () => {
       cardCountFor({
         server: [serverCard({ card: 'yellow' })],
         pending: penalties,
-        registrationId: 'reg-red',
+        sideId: 'reg-red',
         card: 'yellow',
       }),
     ).toBe(2);
@@ -491,7 +491,7 @@ describe('card counts', () => {
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
     ]);
     expect(
-      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-blue', card: 'yellow' }),
+      cardCountFor({ server: [], pending: penalties, sideId: 'reg-blue', card: 'yellow' }),
     ).toBe(0);
   });
 
@@ -505,7 +505,7 @@ describe('card counts', () => {
       },
     );
     const chip = (card: PenaltyCard) =>
-      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-red', card });
+      cardCountFor({ server: [], pending: penalties, sideId: 'reg-red', card });
     expect({ yellow: chip('yellow'), red: chip('red') }).toEqual({ yellow: 0, red: 1 });
   });
 
@@ -514,7 +514,7 @@ describe('card counts', () => {
       cardCountFor({
         server: [serverCard({ voided: true })],
         pending: [],
-        registrationId: 'reg-red',
+        sideId: 'reg-red',
         card: 'yellow',
       }),
     ).toBe(0);
@@ -529,9 +529,10 @@ describe('card counts', () => {
     const { penalties, unpricedCardUuids } = priced([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
     ]);
-    expect(
-      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId: 'reg-red' }),
-    ).toEqual({ priced: 1, unpriced: 0 });
+    expect(queuedCardsFor({ pending: penalties, unpricedCardUuids, sideId: 'reg-red' })).toEqual({
+      priced: 1,
+      unpriced: 0,
+    });
   });
 
   it('splits priced from unpriced for the fighter they are against', () => {
@@ -540,8 +541,8 @@ describe('card counts', () => {
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-gone' }),
       queued({ kind: 'penalty', registrationId: 'reg-blue', rulesetEntryId: 'entry-red' }),
     ]);
-    const forSide = (registrationId: string) =>
-      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId });
+    const forSide = (sideId: string) =>
+      queuedCardsFor({ pending: penalties, unpricedCardUuids, sideId });
     expect(forSide('reg-red')).toEqual({ priced: 1, unpriced: 1 });
     // The count this replaced was the whole match's, so blue used to be told
     // about red's unpriced card.
@@ -554,8 +555,8 @@ describe('provisionalDeltas', () => {
     provisionalDeltas({
       exchanges: [],
       penalties: [],
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
       ...over,
     });
 
@@ -655,9 +656,9 @@ describe('provisionalDeltas', () => {
       causes_match_forfeit: false,
       voided: false,
     } satisfies Penalty;
-    const card = { pending: [nobodys], registrationId: null };
+    const card = { pending: [nobodys], sideId: null };
 
-    expect(deltas({ penalties: [nobodys], blueRegistrationId: null })).toEqual({ red: 0, blue: 0 });
+    expect(deltas({ penalties: [nobodys], blueSideId: null })).toEqual({ red: 0, blue: 0 });
     expect(cardCountFor({ ...card, server: [], card: 'yellow' })).toBe(0);
     expect(queuedCardsFor({ ...card, unpricedCardUuids: [] })).toEqual({ priced: 0, unpriced: 0 });
   });
@@ -714,8 +715,8 @@ describe('protests', () => {
     const deltas = provisionalDeltas({
       exchanges: out.exchanges,
       penalties: out.penalties,
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
     });
     expect(deltas).toEqual({ red: 0, blue: 0 });
   });
@@ -730,13 +731,13 @@ describe('protests', () => {
       serverProtests: server,
     });
 
-    expect(protestCountFor({ server, pending, registrationId: 'reg-red' })).toBe(1);
-    expect(protestCountFor({ server, pending, registrationId: 'reg-blue' })).toBe(1);
+    expect(protestCountFor({ server, pending, sideId: 'reg-red' })).toBe(1);
+    expect(protestCountFor({ server, pending, sideId: 'reg-blue' })).toBe(1);
   });
 
   it('a voided server protest is not counted', () => {
     const server = [serverProtest({ voided: true }), serverProtest({ client_uuid: 'kept' })];
 
-    expect(protestCountFor({ server, pending: [], registrationId: 'reg-red' })).toBe(1);
+    expect(protestCountFor({ server, pending: [], sideId: 'reg-red' })).toBe(1);
   });
 });

@@ -52,7 +52,9 @@ export interface QueuedCardPricing {
   /** The match's effective penalty ruleset; null when the pad has never had it. */
   ruleset: PricingRuleset | null;
   /**
-   * Prior offences per registration, from `GET /matches/:id/penalty-scope`.
+   * Prior offences per side key, from `GET /matches/:id/penalty-scope`. A
+   * team's are of this Match only: its count starts fresh every Match (ruling
+   * 976). The server gathers them so; the pad reads them by the side's key.
    *
    * NULL IS NOT AN EMPTY LIST. That endpoint is the only one of the pad's three
    * penalty reads that is not `@Public()` — it runs `authorizeMatchScoring` —
@@ -67,7 +69,8 @@ export interface QueuedCardPricing {
 
 /** One queued card, in the only terms pricing needs. */
 export interface QueuedCard {
-  registrationId: string;
+  /** The carded side's key (`sideKey`); null for a row that names no side, which is not priced. */
+  sideId: string | null;
   rulesetEntryId?: string | undefined;
   directCard?: PenaltyCard | undefined;
 }
@@ -115,17 +118,17 @@ function cardPoints(ruleset: PricingRuleset, card: PenaltyCard): number {
 function priceRulesetCard(
   ruleset: PricingRuleset,
   entry: CatalogueEntry,
-  registrationId: string,
+  sideId: string,
   working: Map<string, ExistingPenaltyForSanction[]>,
 ): PricedCard | null {
-  const seen = working.get(registrationId) ?? [];
-  const card = resolveEntryCard(entry, registrationId, seen);
+  const seen = working.get(sideId) ?? [];
+  const card = resolveEntryCard(entry, sideId, seen);
   if (!card) return null;
 
-  working.set(registrationId, [
+  working.set(sideId, [
     ...seen,
     {
-      sideId: registrationId,
+      sideId,
       groupNumber: entry.group_number,
       card,
       source: 'ruleset',
@@ -161,8 +164,8 @@ export function createCardPricer(pricing: QueuedCardPricing): CardPricer {
   // state and a fold that wrote through it would grow the array on every
   // render.
   const working = new Map<string, ExistingPenaltyForSanction[]>();
-  for (const [registrationId, rows] of Object.entries(priors ?? {})) {
-    working.set(registrationId, [...rows]);
+  for (const [sideId, rows] of Object.entries(priors ?? {})) {
+    working.set(sideId, [...rows]);
   }
 
   return {
@@ -183,7 +186,8 @@ export function createCardPricer(pricing: QueuedCardPricing): CardPricer {
         };
       }
 
-      if (!ruleset || !priors) return null;
+      // No side: no offences to count it against, so no honest card.
+      if (!ruleset || !priors || queued.sideId === null) return null;
 
       const entry = queued.rulesetEntryId ? byId.get(queued.rulesetEntryId) : undefined;
       // An entry the catalogue does not have. A stale queue against a ruleset
@@ -191,7 +195,7 @@ export function createCardPricer(pricing: QueuedCardPricing): CardPricer {
       // decide it — not this.
       if (!entry) return null;
 
-      return priceRulesetCard(ruleset, entry, queued.registrationId, working);
+      return priceRulesetCard(ruleset, entry, queued.sideId, working);
     },
   };
 }
