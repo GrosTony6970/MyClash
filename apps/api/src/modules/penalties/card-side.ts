@@ -19,11 +19,15 @@ export type CardSide = ForfeitingSide;
  * The side a card names, from exactly one of its two fields. The DTO refuses both and neither;
  * this refuses them again for a caller that builds no DTO.
  */
-export function cardSideOf(input: { registrationId?: string; teamId?: string }): CardSide {
+export function cardSideOf(
+  input: { registrationId?: string; teamId?: string },
+  noun = 'card',
+): CardSide {
   const { registrationId, teamId } = input;
   if (teamId && !registrationId) return { kind: 'team', id: teamId };
   if (registrationId && !teamId) return { kind: 'registration', id: registrationId };
-  throw new BadRequestException('A card names exactly one side: a Registration or a team');
+  // The noun of the entry that asks: a protest takes its side the way a card does.
+  throw new BadRequestException(`A ${noun} names exactly one side: a Registration or a team`);
 }
 
 /**

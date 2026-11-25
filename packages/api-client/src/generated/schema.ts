@@ -13156,7 +13156,9 @@ export interface components {
       clientUuid: string;
       sequence: number;
       /** Format: uuid */
-      registrationId: string;
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
       /** Format: date-time */
       occurredAt: string;
       /** Format: date-time */

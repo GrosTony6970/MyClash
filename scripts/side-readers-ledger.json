@@ -308,14 +308,14 @@
       "why": "every scheduler feed (Pool, Swiss, bracket, the re-fan) reads the team twins and hands the scheduler `schedulerSides` (`sideKey`, else `UNKNOWN_SIDE`)"
     },
     "apps/api/src/modules/protests/dto/protests.dto.ts": {
-      "verdict": "not-yet",
-      "hits": 1,
-      "why": "1b: a protest names its side by `registrationId` (`:12`)"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "a protest body names exactly one of a Registration or a team (`:12`, `:14`, the refine at `:22`)"
     },
     "apps/api/src/modules/protests/protests.service.ts": {
-      "verdict": "not-yet",
-      "hits": 13,
-      "why": "1b: checks the protest side against the Registration ids (`:85`-`:95`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the protest door judges its side with `card-side.ts` against the bout's `sidesOf` keys and kind, so a side still null on the bout is refused (`:150`-`:160`), and writes it in the column of its kind (`:99`); the two reads left are the bout row's team twins (`:180`-`:181`)"
     },
     "apps/api/src/modules/referees/assignment-board.service.ts": {
       "verdict": "not-yet",
@@ -1064,6 +1064,10 @@
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "count": 3,
       "why": "1c: a person's schedule judges their own bout by Registration (`:387`-`:389`); personal schedule of named members is 1c"
+    },
+    "apps/api/src/modules/protests/protests.service.ts": {
+      "count": 2,
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:178`-`:179`)"
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,

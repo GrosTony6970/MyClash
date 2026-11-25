@@ -7,6 +7,8 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
+import { sidesOf } from '../matches/bout-sides';
+import { cardSideColumns, cardSideOf, isCardSideOfBout } from '../penalties/card-side';
 import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type { ScoringActor } from '../staff/staff.service';
@@ -19,15 +21,19 @@ type Row = Record<string, unknown>;
  * a protest does not read the card rules, the round's state or the score.
  */
 const BOUT_SELECT =
-  'id, status, red_registration_id, blue_registration_id, locked_at, current_round, ' +
+  'id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, ' +
+  'locked_at, current_round, ' +
   'phases!inner(tournament_id, tournaments!inner(events!inner(organization_id)))';
 
 interface Bout {
   id: string;
   status: string | null;
   lockedAt: string | null;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** The side keys (`sideKey`): a Registration's or a team's, null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
+  redTeamId: string | null;
+  blueTeamId: string | null;
   currentRound: number;
   tournamentId: string;
   organizationId: string;
@@ -82,9 +88,7 @@ export class ProtestsService {
       { id: bout.id, status: bout.status, sides: 'not-judged' },
       { occurredAt: dto.occurredAt },
     );
-    if (![bout.redRegistrationId, bout.blueRegistrationId].includes(dto.registrationId)) {
-      throw new BadRequestException('A protest is made by one of the two Fighters of the Match');
-    }
+    const side = this.sideOf(bout, dto);
 
     const { data, error } = await this.supabase.service
       .from('match_protests')
@@ -92,7 +96,7 @@ export class ProtestsService {
         client_uuid: dto.clientUuid,
         match_id: bout.id,
         tournament_id: bout.tournamentId,
-        registration_id: dto.registrationId,
+        ...cardSideColumns(side),
         sequence: dto.sequence,
         // The round open on the server when the protest arrives, as for a card; between rounds,
         // the round that just ended.
@@ -143,6 +147,20 @@ export class ProtestsService {
     return data;
   }
 
+  /**
+   * The side a protest names, judged by key and kind, as a card is. The sides are not judged as a
+   * pair (above), so a side still null on the bout is refused here: no key equals null.
+   */
+  private sideOf(bout: Bout, dto: CreateProtestDto) {
+    const side = cardSideOf(dto, 'protest');
+    if (isCardSideOfBout(bout, side)) return side;
+    throw new BadRequestException(
+      side.kind === 'team'
+        ? 'A protest is made by one of the two teams of the Match'
+        : 'A protest is made by one of the two Fighters of the Match',
+    );
+  }
+
   private async boutOf(matchId: string): Promise<Bout> {
     const { data, error } = await this.supabase.service
       .from('matches')
@@ -152,12 +170,15 @@ export class ProtestsService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     const row = data as unknown as BoutEmbed;
+    const sides = sidesOf(row);
     return {
       id: row['id'] as string,
       status: (row['status'] as string | null) ?? null,
       lockedAt: (row['locked_at'] as string | null) ?? null,
-      redRegistrationId: (row['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (row['blue_registration_id'] as string | null) ?? null,
+      redSideId: sides.red,
+      blueSideId: sides.blue,
+      redTeamId: (row['red_team_id'] as string | null) ?? null,
+      blueTeamId: (row['blue_team_id'] as string | null) ?? null,
       currentRound: (row['current_round'] as number | null) ?? 1,
       tournamentId: row.phases.tournament_id,
       organizationId: row.phases.tournaments.events.organization_id,

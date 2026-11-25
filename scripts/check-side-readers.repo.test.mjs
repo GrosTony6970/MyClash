@@ -40,8 +40,6 @@ const NOT_YET = [
   'apps/api/src/modules/phases/phases.service.ts',
   'apps/api/src/modules/privacy/subject-export.service.ts',
   'apps/api/src/modules/privacy/subject-export.tables.ts',
-  'apps/api/src/modules/protests/dto/protests.dto.ts',
-  'apps/api/src/modules/protests/protests.service.ts',
   'apps/api/src/modules/referees/assignment-board.service.ts',
   'apps/api/src/modules/referees/board-unit-ends.ts',
   'apps/api/src/modules/referees/event-commitments.ts',

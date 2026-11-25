@@ -13,101 +13,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import {
-  filtersFor,
-  mockSupabase,
-  scopedTo,
-  selectsFor,
-  writesTo,
-  type TableSeed,
-} from '../../common/testing/supabase-chain';
-import type { ScoringActor } from '../staff/staff.service';
-import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { filtersFor, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { matchLocked } from '../matches/match-locked';
-import { OrganizationsService } from '../organizations/organizations.service';
-import { ProtestsService } from './protests.service';
+import {
+  BLUE,
+  PAD,
+  RED,
+  SCOREKEEPER,
+  STRANGER,
+  SUPER_ADMIN,
+  THIRD,
+  dto,
+  setup,
+} from './protests.fixtures';
 
-const SCOREKEEPER = 'a0000000-0000-4000-8000-000000000001';
-const SUPER_ADMIN = 'a0000000-0000-4000-8000-000000000002';
-const STRANGER = 'a0000000-0000-4000-8000-000000000003';
-const RED = 'c0000000-0000-4000-8000-00000000000a';
-const BLUE = 'c0000000-0000-4000-8000-00000000000b';
-const THIRD = 'c0000000-0000-4000-8000-00000000000c';
 const FROZEN = new ConflictException({
   message: 'Event results are frozen',
   code: 'event_results_frozen',
-});
-
-interface Setup {
-  status?: string;
-  lockedAt?: string | null;
-  eventStatus?: string;
-  awaitingRoundAdvance?: boolean;
-  protests?: TableSeed;
-  matchEvents?: Record<string, unknown>[];
-}
-
-function bout(id: string, over: Record<string, unknown> = {}) {
-  return {
-    id,
-    status: 'running',
-    red_registration_id: RED,
-    blue_registration_id: BLUE,
-    phase_id: 'phase-1',
-    locked_at: null,
-    current_round: 2,
-    awaiting_round_advance: false,
-    phases: {
-      tournament_id: 'tournament-1',
-      tournaments: { events: { organization_id: 'org-1' } },
-    },
-    ...over,
-  };
-}
-
-function setup(s: Setup = {}) {
-  const db = mockSupabase({
-    matches: {
-      rows: [
-        bout('m1', {
-          status: s.status ?? 'running',
-          locked_at: s.lockedAt ?? null,
-          awaiting_round_advance: s.awaitingRoundAdvance ?? false,
-        }),
-        bout('m2'),
-      ],
-    },
-    match_protests: s.protests ?? {
-      rows: [],
-      returning: { id: 'protest-new', recorded_at: '2026-11-17T10:00:01Z' },
-    },
-    match_events: { rows: s.matchEvents ?? [] },
-    phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
-    tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
-    events: {
-      rows: [{ id: 'event-1', organization_id: 'org-1', status: s.eventStatus ?? 'running' }],
-    },
-    platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
-    organization_members: {
-      rows: [{ organization_id: 'org-1', user_id: SCOREKEEPER, role: 'scorekeeper' }],
-    },
-  });
-  const service = new ProtestsService(
-    db as never,
-    new FrozenResultsGuard(db as never, {} as never),
-    new OrganizationsService(db as never),
-  );
-  return { db, service };
-}
-
-const PAD: ScoringActor = { staffAccountId: 'staff-1' };
-
-const dto = (over: Record<string, unknown> = {}) => ({
-  clientUuid: 'p-uuid-1',
-  sequence: 7,
-  registrationId: RED,
-  occurredAt: '2026-11-17T10:00:00Z',
-  ...over,
 });
 
 const saved = (over: Record<string, unknown> = {}) => ({
@@ -148,6 +70,7 @@ describe('ProtestsService.createProtest', () => {
       match_id: 'm1',
       tournament_id: 'tournament-1',
       registration_id: RED,
+      team_id: null,
       sequence: 7,
       round_number: 2,
       clock_time_ms: 61_000,
@@ -270,7 +193,8 @@ describe('ProtestsService.createProtest', () => {
 
     await service.createProtest('m1', dto(), PAD);
     expect(selectsFor(db.from, 'matches')[0]).toBe(
-      'id, status, red_registration_id, blue_registration_id, locked_at, current_round, ' +
+      'id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, ' +
+        'locked_at, current_round, ' +
         'phases!inner(tournament_id, tournaments!inner(events!inner(organization_id)))',
     );
     expect(filtersFor(db.from, 'matches', 'eq')[0]).toEqual(['id', 'm1']);
