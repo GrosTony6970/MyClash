@@ -257,8 +257,8 @@ describe('ClockService.advanceLevelResolution', () => {
 
     expect(selectsFor(db.from, 'matches')[0]).toBe(
       'id, status, locked_at, current_round, red_registration_id, blue_registration_id, ' +
-        'winner_registration_id, red_score, blue_score, match_number_label, ' +
-        'awaiting_round_advance, back_in_play_at, ' +
+        'red_team_id, blue_team_id, winner_registration_id, winner_team_id, red_score, ' +
+        'blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
         'phases(type, tournaments(events(status))), ' +
         'match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     );

@@ -71,9 +71,9 @@
       "why": "builds each side with `sideKey` from the Registration and team columns (`:21`-`:22`)"
     },
     "apps/api/src/modules/matches/clock.service.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: `BOUT_COLUMNS` (`:157`-`:159`) reads `winner_registration_id` and not `winner_team_id`; the read list gains it in 1b"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "`BOUT_COLUMNS` (`:157`-`:162`) reads both kinds of each side and both winner columns, for `timeLimitResult`, which judges them by `sidesOf` and `sideKey`; the clock itself reads no side"
     },
     "apps/api/src/modules/matches/correction-outcome.ts": {
       "verdict": "side-key",
@@ -121,9 +121,9 @@
       "why": "a forfeit record carries its side, a Registration or a team (`:51`-`:53`, `:83`-`:92`); only a record that names a Registration is asked whether its Fighter is out (`:143`, `:166`-`:169`): a team has no status"
     },
     "apps/api/src/modules/matches/level-step.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 3,
-      "why": "1b: `BOUT_COLUMNS` (`:77`-`:78`) reads sides without the team twins"
+      "why": "`BOUT_COLUMNS` (`:79`-`:84`) reads both kinds of each side and both winner columns, for `isLevelBout`, which judges them by `sidesOf` and `sideKey`"
     },
     "apps/api/src/modules/matches/match-forfeits.service.ts": {
       "verdict": "side-key",
@@ -152,9 +152,9 @@
       "why": "a card is placed by `sideKey` of its Registration or team column (`:639`); both card reads select `team_id` (`:485`, `:1316`); the mapper and the winner writes read sides by `sideKey` (`:156`)"
     },
     "apps/api/src/modules/matches/time-limit-result.ts": {
-      "verdict": "not-yet",
-      "hits": 9,
-      "why": "1b: feeds the engine raw Registration ids (`:49`-`:51`, `:139`-`:141`) and writes `winner_registration_id` only (`:147`)"
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "`boardOf` feeds the engine each side by `sidesOf` and the recorded winner by `sideKey` (`:52`-`:65`); the leader is written through `winnerColumns` (`:151`-`:160`)"
     },
     "apps/api/src/modules/matches/unplayed-match-columns.ts": {
       "verdict": "no-side-read",
@@ -1052,10 +1052,6 @@
     "apps/api/src/modules/matches/match-summaries.ts": {
       "count": 2,
       "why": "`bestOfFor` asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:148`-`:149`)"
-    },
-    "apps/api/src/modules/matches/time-limit-result.ts": {
-      "count": 6,
-      "why": "1b: the time-limit result feeds the engine raw Registration ids (`:49`-`:51`, `:139`-`:141`)"
     },
     "apps/api/src/modules/penalties/penalties.service.ts": {
       "count": 2,

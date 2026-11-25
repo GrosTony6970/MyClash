@@ -62,8 +62,8 @@ const LOCK_READ =
 const CLOCK_READ =
   'id, status, locked_at, started_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
   'red_registration_id, blue_registration_id, red_team_id, blue_team_id, winner_registration_id, ' +
-  'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
-  'phases(type, tournaments(events(status))), ' +
+  'winner_team_id, red_score, blue_score, match_number_label, awaiting_round_advance, ' +
+  'back_in_play_at, phases(type, tournaments(events(status))), ' +
   'match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)';
 
 /** The code and the status of a refusal, or null when the door answered. */

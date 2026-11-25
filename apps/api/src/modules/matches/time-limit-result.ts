@@ -14,7 +14,10 @@ import {
   winnerColorFrom,
 } from '@myclash/rulesets';
 import type { LevelStep, Match, MatchFormatConfig } from '@myclash/rulesets';
+import { sideKey } from '@myclash/types/side-key';
 import { asRow, boutRulesOf } from './bout-rules';
+import { sidesOf } from './bout-sides';
+import { winnerColumns, type SideColumns } from './winner-columns';
 
 /** The match format a bout is being fought under, plus what dispatches it. */
 export interface MatchFormatContext {
@@ -42,17 +45,28 @@ export function matchFormatContext(match: Record<string, unknown>): MatchFormatC
   };
 }
 
+/**
+ * The bout as the engine reads it: each side and the recorded winner by its key (`sideKey`), a
+ * Registration or a team (0282), and the board. A team bout has no Registration on either side.
+ */
+function boardOf(match: Record<string, unknown>) {
+  const { red: redSideId, blue: blueSideId } = sidesOf(match);
+  const winnerSideId = sideKey(
+    match['winner_registration_id'] as string | null,
+    match['winner_team_id'] as string | null,
+  );
+  return {
+    winnerSideId,
+    redSideId,
+    blueSideId,
+    redScore: Number(match['red_score'] ?? 0),
+    blueScore: Number(match['blue_score'] ?? 0),
+  };
+}
+
 /** Is the bout undecided — no recorded winner and nobody ahead on the board? */
 export function isLevelBout(match: Record<string, unknown>): boolean {
-  return (
-    winnerColorFrom({
-      winnerSideId: (match['winner_registration_id'] as string | null) ?? null,
-      redSideId: (match['red_registration_id'] as string | null) ?? null,
-      blueSideId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    }) === null
-  );
+  return winnerColorFrom(boardOf(match)) === null;
 }
 
 /**
@@ -135,17 +149,12 @@ export function timeLimitResult(
   if (match['status'] === 'completed') return { complete: {} };
 
   if (!isLevelBout(match)) {
-    const leader = winnerColorFrom({
-      winnerSideId: (match['winner_registration_id'] as string | null) ?? null,
-      redSideId: (match['red_registration_id'] as string | null) ?? null,
-      blueSideId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    });
+    // The leader by side: a team wins into `winner_team_id`, a Fighter into its Registration's.
+    const board = boardOf(match);
+    const leader = winnerColorFrom(board) === 'red' ? board.redSideId : board.blueSideId;
     return {
       complete: {
-        winner_registration_id:
-          leader === 'red' ? match['red_registration_id'] : match['blue_registration_id'],
+        ...winnerColumns(match as SideColumns, leader),
         end_reason: 'time_limit',
       },
     };

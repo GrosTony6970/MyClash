@@ -86,8 +86,9 @@ describe('ClockService.clockAction end — a bout already completed', () => {
   it('still names the leader of a bout that runs out of time', async () => {
     const fought = { status: 'paused', red_score: 3, blue_score: 1, winner_registration_id: null };
 
+    // Both winner columns: the leader is written through `winnerColumns`, which clears the other.
     expect(await writtenByEnd(fought)).toEqual(
-      [...CLOCK_ONLY, 'end_reason', 'winner_registration_id'].sort(),
+      [...CLOCK_ONLY, 'end_reason', 'winner_registration_id', 'winner_team_id'].sort(),
     );
   });
 });
