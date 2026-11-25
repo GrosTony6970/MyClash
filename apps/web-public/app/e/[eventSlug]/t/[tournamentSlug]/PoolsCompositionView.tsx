@@ -13,14 +13,21 @@
  * Server component — fed by the SSR fetch on the tournament page.
  */
 
-import { SkillBadge, tintTextClassFor, statusLabel } from '@myclash/ui';
+import { SkillBadge, TournamentColorDot, tintTextClassFor, statusLabel } from '@myclash/ui';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
+import type { SideSeat } from '@myclash/types/pool-standings';
 import { groupPoolsByStart } from './pool-sections';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 
-export interface PoolMember {
-  registrationId: string;
+/**
+ * One seat of a public Pool (`publicPoolMember`): a Fighter or a team. `sideId` keys it; a team's
+ * seat has no Registration, so `registrationId` is null there and only marks the reader's own row.
+ */
+export interface PoolMember extends Pick<
+  SideSeat,
+  'sideId' | 'kind' | 'registrationId' | 'colour' | 'logoUrl'
+> {
   fighterName: string;
   clubName: string | null;
   clubAbbreviation: string | null;
@@ -209,7 +216,7 @@ export function PoolsCompositionView({
                             m.registrationId === highlightRegistrationId;
                           return (
                             <li
-                              key={m.registrationId}
+                              key={m.sideId}
                               className={[
                                 'flex items-center justify-between gap-3 py-1.5 text-sm',
                                 isYou ? 'rounded bg-accent/5' : '',
@@ -226,6 +233,8 @@ export function PoolsCompositionView({
                                 >
                                   {m.seed ?? '—'}
                                 </span>
+                                {/* A team's colour chip by its name (call 6); a Fighter has none. */}
+                                <TournamentColorDot color={m.colour} size="em" />
                                 <span
                                   className={[
                                     'truncate font-medium',

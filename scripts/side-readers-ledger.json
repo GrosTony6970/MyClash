@@ -591,9 +591,9 @@
       "why": "1c: final ranking by Registration (`:142`-`:150`)"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
-      "verdict": "not-yet",
-      "hits": 5,
-      "why": "1b: public Pool bouts by Registration (`:340`-`:342`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them only mark the reader's own bouts, null on a team's side (`:43`, `:51`, `:357`-`:359`)"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView.tsx": {
       "verdict": "individual-only",
@@ -602,8 +602,8 @@
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
       "verdict": "not-yet",
-      "hits": 3,
-      "why": "1b: public Tournament bout shape by Registration (`:53`-`:57`)"
+      "hits": 6,
+      "why": "1c: the public bracket slot (`BracketSlot`, `:57`-`:61`) and its podium (`:155`-`:157`) by Registration; single elimination is 1c. The Pool standings row is keyed `entrantId` and carries a team's chip"
     },
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": {
       "verdict": "side-key",
@@ -1045,13 +1045,9 @@
       "count": 3,
       "why": "brackets refuse teams until 1c: the podium names the winner of a bracket slot by Registration (`:2049`-`:2051`)"
     },
-    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
-      "count": 3,
-      "why": "1b: moves to side keys in T11; the public Pool table bolds its winner by Registration (`:340`-`:342`)"
-    },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
       "count": 3,
-      "why": "brackets refuse teams until 1c: the public bracket podium names the winner of a slot by Registration, and `BracketSlot` has no team ids (`:152`-`:154`)"
+      "why": "brackets refuse teams until 1c: the public bracket podium names the winner of a slot by Registration, and `BracketSlot` has no team ids (`:155`-`:157`)"
     }
   }
 }

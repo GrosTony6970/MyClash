@@ -19,7 +19,12 @@
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { accentClassFor, accentInkClassFor, standingsColumnLabel } from '@myclash/ui';
+import {
+  TournamentColorDot,
+  accentClassFor,
+  accentInkClassFor,
+  standingsColumnLabel,
+} from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
@@ -351,6 +356,8 @@ function OverallTable({
                             isYou ? 'font-bold text-accent' : 'text-foreground',
                           ].join(' ')}
                         >
+                          {/* A team's colour chip by its name (call 6); a Fighter has none. */}
+                          <TournamentColorDot color={row.colour} size="em" />
                           <span className="truncate">{row.displayName}</span>
                           {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                         </span>

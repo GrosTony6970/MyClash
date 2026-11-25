@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
+import { TournamentColorDot } from '@myclash/ui';
 import { toStandingRow, type ApiPoolStandings } from './tournament-data';
 import type { StandingRow } from './page';
 
@@ -180,6 +181,8 @@ export function StandingsTable({
                         isYou ? 'font-bold text-accent' : 'text-foreground',
                       ].join(' ')}
                     >
+                      {/* A team's colour chip by its name (call 6); a Fighter has none. */}
+                      <TournamentColorDot color={row.colour} size="em" />
                       {row.fighterName}
                       {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                     </p>

@@ -47,7 +47,6 @@ const NOT_YET = [
   'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx',
-  'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts',
   'packages/rules/src/results/bracket-r1-seeding.ts',
   'packages/types/src/final-ranking-core.ts',

@@ -14,8 +14,11 @@ import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
-export interface StandingRow {
+/** One row of a Pool's standings: a Fighter or a team (its chip's data, as the API sends it). */
+export interface StandingRow extends Pick<PoolStandingsRow, 'kind' | 'colour' | 'logoUrl'> {
+  /** The entrant's side key: a Registration id, or a team id in a team Tournament's Pools. */
   entrantId: string;
+  /** The Fighter's name, or the team's. */
   fighterName: string;
   clubName: string | null;
   wins: number;
@@ -313,6 +316,9 @@ export function toStandingRow(row: PoolStandingsRow): StandingRow {
   return {
     entrantId: row.entrantId,
     fighterName: row.displayName,
+    kind: row.kind,
+    colour: row.colour,
+    logoUrl: row.logoUrl,
     clubName: row.club?.name ?? null,
     wins: statNum(row.stats, 'W'),
     losses: statNum(row.stats, 'L'),
