@@ -24,6 +24,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
+import { EntrantCountLink } from '../_components/EntrantCountLink';
 import { pillClassFor } from './_lib/pill-class-for';
 import { statusChangeQuestion } from './_lib/status-change-question';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
@@ -48,6 +49,8 @@ interface Tournament {
   registered: number;
   /** A team Tournament wears the "Team" badge. */
   isTeam: boolean;
+  /** A team Tournament's teams (`teamCount`, sent on its row only): its entrants, not `registered`. */
+  teamCount: number;
   /** Venue each phase runs at (pools / swiss / bracket can differ) — drives the
    *  Venue(s) column. Finals run with the bracket, so they share its venue. */
   phaseVenues: {
@@ -96,6 +99,7 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     maxWaitlist: typeof row['max_waitlist'] === 'number' ? row['max_waitlist'] : null,
     registered: typeof row['registered'] === 'number' ? row['registered'] : 0,
     isTeam: row['entrant_kind'] === 'team',
+    teamCount: typeof row['teamCount'] === 'number' ? row['teamCount'] : 0,
     phaseVenues: {
       pool: parsePhaseVenue((row['phaseVenues'] as Record<string, unknown> | undefined)?.['pool']),
       swiss: parsePhaseVenue(
@@ -409,7 +413,20 @@ export default function EventTournamentsPage() {
                     )}
                   </DataTableCell>
                   <DataTableCell className="text-center font-mono text-sm tabular-nums text-foreground-secondary">
-                    {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
+                    {tournament.isTeam ? (
+                      <EntrantCountLink
+                        tournament={{
+                          id: tournament.id,
+                          entrantKind: 'team',
+                          entrantCount: tournament.teamCount,
+                          maxParticipants: tournament.maxParticipants,
+                        }}
+                        base={`/org/${slug}/events/${eventId}`}
+                        className="hover:text-accent hover:underline"
+                      />
+                    ) : (
+                      formatCountOfMax(tournament.registered, tournament.maxParticipants)
+                    )}
                   </DataTableCell>
                   <DataTableCell>
                     <span className="inline-flex items-center">

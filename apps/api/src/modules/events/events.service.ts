@@ -1981,6 +1981,17 @@ export class EventsService {
       waitlistCounts.set(row.tournament_id, (waitlistCounts.get(row.tournament_id) ?? 0) + 1);
     }
 
+    // A team Tournament's entrants are its teams (`teamCount`, on its row only); no read when the
+    // Event has none, so an individual row is what it always was.
+    const teamCounts = new Map<string, number>();
+    const listed = tournaments.map((t) => ({
+      id: t['id'] as string,
+      entrant_kind: t['entrant_kind'] as EntrantKind,
+    }));
+    for (const row of await this.getTeamsOfTeamTournaments(listed)) {
+      teamCounts.set(row.tournament_id, (teamCounts.get(row.tournament_id) ?? 0) + 1);
+    }
+
     // Phases (drives poolCount + bracketSize via config_json.bracketSize).
     const { data: phaseRows } = await this.supabase.service
       .from('phases')
@@ -2183,6 +2194,7 @@ export class EventsService {
       return {
         ...t,
         registered: registered.get(id) ?? 0,
+        ...(t['entrant_kind'] === 'team' ? { teamCount: teamCounts.get(id) ?? 0 } : {}),
         waitlistCount: waitlistCounts.get(id) ?? 0,
         poolCount: poolCounts.get(id) ?? 0,
         bracketSize,

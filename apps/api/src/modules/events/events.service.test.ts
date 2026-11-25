@@ -13,6 +13,7 @@ import { photoToken } from '../photos/photo-token';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 import { readWorkshopTotals } from './workshop-totals';
+import { selectsFor } from '../../common/testing/supabase-chain';
 
 // The length helper has reads of its own and its own test. Mocked so the
 // routed `from()` doubles below serve only this service's reads; an empty
@@ -3071,6 +3072,61 @@ describe('EventsService', () => {
           bracket: { id: 'v-2', name: 'Hall B' },
         },
       });
+    });
+
+    // Team Tournaments, slice 1b-1: a team Tournament's entrants are its teams. The admin list
+    // showed "Registered 0 / 8" beside 6 teams, while the 9th was refused tournament_full.
+    it('counts a team Tournament its teams, on its row only; an individual row is unchanged', async () => {
+      const tournamentsChain = makeChain({ data: null, error: null });
+      tournamentsChain.order.mockResolvedValue({
+        data: [
+          { id: 't-1', name: 'Longsword', status: 'published', entrant_kind: 'individual' },
+          { id: 't-2', name: 'Team Longsword', status: 'published', entrant_kind: 'team' },
+          { id: 't-3', name: 'Team Sabre', status: 'published', entrant_kind: 'team' },
+        ],
+        error: null,
+      });
+      const empty = () => makeAwaitableChain({ data: [], error: null });
+      const teamsChain = makeAwaitableChain({
+        data: [{ tournament_id: 't-2' }, { tournament_id: 't-2' }, { tournament_id: 't-2' }],
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'events') return publishedEventChain(makeChain);
+        if (table === 'tournaments') return tournamentsChain;
+        if (table === 'teams') return teamsChain;
+        return empty();
+      });
+
+      const rows = (await service.listTournaments('event-1', MEMBER)) as Array<
+        Record<string, unknown>
+      >;
+
+      expect(rows.map((row) => [row['id'], row['teamCount']])).toEqual([
+        ['t-1', undefined],
+        ['t-2', 3],
+        ['t-3', 0],
+      ]);
+      expect(rows[0]).not.toHaveProperty('teamCount');
+      expect(selectsFor(fromMock as never, 'teams')).toEqual(['tournament_id']);
+      // One grouped read, over the team Tournaments only.
+      expect(teamsChain.in).toHaveBeenCalledWith('tournament_id', ['t-2', 't-3']);
+    });
+
+    it('reads no team when the Event has no team Tournament', async () => {
+      const tournamentsChain = makeChain({ data: null, error: null });
+      tournamentsChain.order.mockResolvedValue({
+        data: [{ id: 't-1', name: 'Longsword', status: 'published', entrant_kind: 'individual' }],
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'events') return publishedEventChain(makeChain);
+        if (table === 'tournaments') return tournamentsChain;
+        if (table === 'teams') throw new Error('no team read for an Event without team Tournament');
+        return makeAwaitableChain({ data: [], error: null });
+      });
+      const rows = await service.listTournaments('event-1', MEMBER);
+      expect(rows[0]).not.toHaveProperty('teamCount');
     });
 
     /**

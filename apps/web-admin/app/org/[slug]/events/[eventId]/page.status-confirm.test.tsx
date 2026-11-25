@@ -60,6 +60,7 @@ const READS = {
     tournaments: [
       {
         ...TOURNAMENT,
+        entrantKind: 'individual',
         entrantCount: 7,
         waitlistedCount: 0,
         maxParticipants: 16,
@@ -250,5 +251,26 @@ describe('the links of a Tournament row on the Event dashboard (O7)', () => {
       (a) => a.getAttribute('href') === '/org/club/events/ev1/persons?tournamentId=t-1',
     );
     expect(persons?.textContent).toBe('7 / 16');
+  });
+
+  // Team Tournaments, slice 1b-1: a team Tournament's entrants are its teams.
+  it("words a team Tournament's entrants as teams, linked to its Teams page, not to persons", async () => {
+    const stats = READS[`/api/v1/events/${EVENT_ID}/dashboard-stats`];
+    const team = {
+      ...stats.tournaments[0]!,
+      entrantKind: 'team',
+      entrantCount: 2,
+      maxParticipants: 8,
+    };
+    page = await openEventPage(<EventDetailPage />, {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}/dashboard-stats`]: { ...stats, tournaments: [team] },
+    });
+    const hrefs = [...document.body.querySelectorAll('tbody a')].map((a) => a.getAttribute('href'));
+    expect(hrefs.some((href) => href?.includes('/persons'))).toBe(false);
+    const teams = [...document.body.querySelectorAll('tbody a')].find(
+      (a) => a.getAttribute('href') === '/org/club/events/ev1/teams?tournamentId=t-1',
+    );
+    expect(teams?.textContent).toBe('2 / 8 team(s)');
   });
 });

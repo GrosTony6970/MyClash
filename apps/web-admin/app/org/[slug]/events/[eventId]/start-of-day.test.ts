@@ -21,6 +21,7 @@ describe('stageOf', () => {
   it.each([
     ['tournaments', 'event'],
     ['fighters', 'event'],
+    ['teams', 'event'],
     ['ruleset', 'event'],
     ['rosterIdentity', 'roster'],
     ['rosterClub', 'roster'],

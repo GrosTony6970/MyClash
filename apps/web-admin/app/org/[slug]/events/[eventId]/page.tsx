@@ -32,6 +32,8 @@ import { EventLogoCard } from './_components/EventLogoCard';
 import { MetricCard, WorkshopMetricCards, type WorkshopTotals } from './_components/MetricCards';
 import { ReadinessChip, ReadinessPanel } from './_components/ReadinessPanel';
 import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
+import { EntrantCountLink } from './_components/EntrantCountLink';
+import type { EntrantKind } from './tournaments/_shared/entrant-kind';
 import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
 import { isOutstanding, type ReadinessReport } from './readiness-copy';
@@ -83,6 +85,8 @@ interface DashboardStats {
   workshops: WorkshopTotals;
   tournaments: Array<
     Tournament & {
+      /** Individual Fighters or teams: a team Tournament's `entrantCount` counts its teams. */
+      entrantKind: EntrantKind;
       entrantCount: number;
       waitlistedCount: number;
       maxParticipants: number | null;
@@ -675,15 +679,11 @@ export default function EventDetailPage() {
                         </Link>
                       </DataTableCell>
                       <DataTableCell>
-                        <Link
-                          href={withTournament(
-                            `/org/${slug}/events/${eventId}/persons`,
-                            tournament.id,
-                          )}
+                        <EntrantCountLink
+                          tournament={tournament}
+                          base={`/org/${slug}/events/${eventId}`}
                           className={cellLinkClass}
-                        >
-                          {formatCountOfMax(tournament.entrantCount, tournament.maxParticipants)}
-                        </Link>
+                        />
                       </DataTableCell>
                       <DataTableCell>
                         <Link

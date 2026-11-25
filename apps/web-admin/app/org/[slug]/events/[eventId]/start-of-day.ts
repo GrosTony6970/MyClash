@@ -33,7 +33,8 @@ export type StageKey = 'event' | 'roster' | 'draw' | 'run';
  * morning list just because nobody updated this file.
  */
 const STAGE_KEYS: Record<StageKey, readonly string[]> = {
-  event: ['tournaments', 'fighters', 'ruleset'],
+  // `teams` is a team Tournament's `fighters`: its entrants.
+  event: ['tournaments', 'fighters', 'teams', 'ruleset'],
   roster: ['rosterIdentity', 'rosterClub', 'rosterRatings'],
   draw: ['format', 'pools', 'swissRounds', 'bracket'],
   run: ['pistes', 'schedule', 'poolReferees'],
