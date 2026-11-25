@@ -59,6 +59,17 @@ interface PoolMatch {
   liceColorHex: string | null;
 }
 
+/**
+ * A team Pool's bout: a side keyed with no Registration is a team (`publicPoolBoutSides` sends the
+ * side key beside the Registration id, null on a team's side). A Pool holds one kind of entrant.
+ */
+function isTeamBout(m: PoolMatch): boolean {
+  return (
+    (m.redSideId !== null && m.redRegistrationId === null) ||
+    (m.blueSideId !== null && m.blueRegistrationId === null)
+  );
+}
+
 /** Personal-space "YOU" chip marking the viewer's own row. */
 function YouChip({ label }: { label: string }) {
   return (
@@ -318,7 +329,9 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colRound')}
                     </th>
                     <th className="px-4 py-2">
-                      {t('publicApp.tournament.poolMatches.colFighter1')}
+                      {pool.matches.some(isTeamBout)
+                        ? t('publicApp.tournament.poolMatches.colTeam1')
+                        : t('publicApp.tournament.poolMatches.colFighter1')}
                     </th>
                     <th className="w-12 px-2 py-2 text-center">
                       {t('publicApp.tournament.poolMatches.colPts')}
@@ -327,7 +340,9 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colPts')}
                     </th>
                     <th className="px-4 py-2">
-                      {t('publicApp.tournament.poolMatches.colFighter2')}
+                      {pool.matches.some(isTeamBout)
+                        ? t('publicApp.tournament.poolMatches.colTeam2')
+                        : t('publicApp.tournament.poolMatches.colFighter2')}
                     </th>
                     <th className="w-24 px-4 py-2">
                       {t('publicApp.tournament.poolMatches.colStatus')}

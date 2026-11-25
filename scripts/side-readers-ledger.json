@@ -592,8 +592,8 @@
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
       "verdict": "side-key",
-      "hits": 4,
-      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them only mark the reader's own bouts, null on a team's side (`:43`, `:51`, `:357`-`:359`)"
+      "hits": 6,
+      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them mark the reader's own bouts (`:372`-`:374`) and, null beside a side key, name a team Pool's bout for its column heads (`isTeamBout`, `:68`-`:69`); declared `:43`, `:51`"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView.tsx": {
       "verdict": "individual-only",

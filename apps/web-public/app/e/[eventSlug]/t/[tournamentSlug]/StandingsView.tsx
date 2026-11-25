@@ -294,7 +294,9 @@ function OverallTable({
           <tr>
             <th className="w-12 px-3 py-2 text-center font-semibold">#</th>
             <th className="px-3 py-2 text-left font-semibold">
-              {t('publicApp.tournament.standings.colFighter')}
+              {data.rows.some((row) => row.kind === 'team')
+                ? t('publicApp.tournament.standings.colTeam')
+                : t('publicApp.tournament.standings.colFighter')}
             </th>
             {orderedColumns.map((c) => (
               <th

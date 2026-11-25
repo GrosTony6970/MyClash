@@ -36,6 +36,7 @@ import {
   bracketPhaseType,
   derivePodium,
   colorTokenToHex,
+  poolEntrants,
   type TournamentData,
 } from './tournament-data';
 import { SwissRoundsView } from './SwissRoundsView';
@@ -58,13 +59,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // No name to give (not found, or the read failed): the address, as the Event's layout does.
   if (outcome.kind !== 'ok') return { title: tournamentSlug };
   const { data } = outcome;
-  const fighterCount = data.pools.reduce(
-    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
-    0,
-  );
+  const entrants = poolEntrants(data.pools);
+  const counted = entrants.teams
+    ? t('publicApp.tournament.teamCount', { count: entrants.count })
+    : t('publicApp.tournament.fighterCount', { count: entrants.count });
   return {
     title: data.tournament.name,
-    description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
+    description: `${counted} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
   };
 }
 
@@ -179,10 +180,7 @@ export default async function TournamentPage({ params }: Props) {
     bronzeMatch,
   });
   const podiumDecided = !!(podium?.gold && podium.silver);
-  const fighterCount = pools.reduce(
-    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
-    0,
-  );
+  const entrants = poolEntrants(pools);
   const tournamentColor = (tournament as { color?: string | null }).color ?? null;
   const accentColor = colorTokenToHex(tournamentColor);
 
@@ -291,8 +289,12 @@ export default async function TournamentPage({ params }: Props) {
           <p className="mt-0.5 text-sm text-muted">
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetLabel ?? tournament.rulesetCode}
-            {fighterCount > 0 &&
-              ` · ${t('publicApp.tournament.fighterCount', { count: fighterCount })}`}
+            {entrants.count > 0 &&
+              ` · ${
+                entrants.teams
+                  ? t('publicApp.tournament.teamCount', { count: entrants.count })
+                  : t('publicApp.tournament.fighterCount', { count: entrants.count })
+              }`}
           </p>
         </div>
         {shareable && <ShareButton path={`/e/${eventSlug}/t/${tournamentSlug}`} />}

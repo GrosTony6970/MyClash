@@ -198,7 +198,10 @@ export function PoolsCompositionView({
                         </span>
                       )}
                       <span className="whitespace-nowrap text-xs uppercase tracking-wider text-muted">
-                        {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
+                        {/* A Pool holds one kind of seat: a team Pool counts teams. */}
+                        {pool.members.some((m) => m.kind === 'team')
+                          ? t('publicApp.tournament.teamCount', { count: pool.members.length })
+                          : t('publicApp.tournament.fighterCount', { count: pool.members.length })}
                       </span>
                     </span>
                   </header>

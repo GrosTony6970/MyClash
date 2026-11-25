@@ -259,6 +259,21 @@ export function derivePodium(
   };
 }
 
+/**
+ * How many entrants the Pools seat, and whether they are teams: a team Tournament's Pools seat teams
+ * only, so the page says "N teams", never "N fighters".
+ */
+export function poolEntrants(pools: Pool[]): { count: number; teams: boolean } {
+  return {
+    count: pools.reduce((n, pool) => n + (pool.members?.length ?? pool.standings.length), 0),
+    teams: pools.some(
+      (pool) =>
+        (pool.members ?? []).some((m) => m.kind === 'team') ||
+        pool.standings.some((row) => row.kind === 'team'),
+    ),
+  };
+}
+
 /** Tournament brand colour token → hex for the legacy stripe/title paint. */
 export function colorTokenToHex(token: string | null | undefined): string {
   switch (token) {

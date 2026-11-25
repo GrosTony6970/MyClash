@@ -143,7 +143,9 @@ export function StandingsTable({
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wider text-muted">
               <th className="py-2 pr-3 text-left font-semibold">
-                {t('publicApp.tournament.standings.colFighter')}
+                {standings.some((row) => row.kind === 'team')
+                  ? t('publicApp.tournament.standings.colTeam')
+                  : t('publicApp.tournament.standings.colFighter')}
               </th>
               <th className="w-8 px-2 py-2 text-center font-semibold">
                 {t('publicApp.tournament.standings.colWins')}

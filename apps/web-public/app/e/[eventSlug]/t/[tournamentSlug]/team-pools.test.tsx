@@ -11,7 +11,7 @@ import { PoolMatchesView } from './PoolMatchesView';
 import { PoolsCompositionView, type PoolMember } from './PoolsCompositionView';
 import { StandingsTable } from './StandingsTable';
 import { StandingsView } from './StandingsView';
-import { toStandingRow } from './tournament-data';
+import { poolEntrants, toStandingRow } from './tournament-data';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // The live refetch needs a websocket; these pages are drawn from one read.
@@ -231,5 +231,116 @@ describe("a team Pool's standings", () => {
       b.textContent?.includes('Paris Rapiers'),
     );
     expect(button?.innerHTML).toContain(accentClassFor('amber'));
+  });
+});
+
+/** A team Pool counts and heads its columns in teams; an individual Pool keeps its words. */
+describe("a team Pool's words", () => {
+  const fighterSeat = (sideId: string, name: string): PoolMember => ({
+    ...teamSeat(sideId, name, 'teal'),
+    kind: 'individual',
+    registrationId: sideId,
+    colour: null,
+  });
+  const fighterStanding = (entrantId: string, name: string): PoolStandingsRow => ({
+    ...teamStanding(entrantId, name, 'teal'),
+    kind: 'individual',
+    colour: null,
+  });
+  const headers = () => [...container.querySelectorAll('th')].map((th) => th.textContent);
+  const pools = (matches: unknown[]) => ({
+    tournamentId: 't-1',
+    sideColors: { red: 'red', blue: 'blue' },
+    timezone: 'Europe/Paris',
+    pools: [{ poolId: 'p-1', poolName: 'Pool A', matches }],
+  });
+  const card = (members: PoolMember[], locale: 'en' | 'fr' = 'en') => {
+    act(() =>
+      root.render(
+        <PoolsCompositionView
+          pools={[
+            {
+              id: 'p-1',
+              name: 'Pool A',
+              members,
+              referees: [],
+              liceName: null,
+              liceColorHex: null,
+              startAt: null,
+            },
+          ]}
+          accentColor="#64748b"
+          locale={locale}
+        />,
+      ),
+    );
+    // The card's own header, not the start-time section's.
+    return container.querySelector('a header')!.textContent;
+  };
+  const standingsHeader = (row: PoolStandingsRow) =>
+    /<th[^>]*>([^<]*)<\/th>/.exec(
+      renderToStaticMarkup(
+        <I18nProvider locale="en">
+          <StandingsTable
+            poolId="p-1"
+            poolName="Pool A"
+            tournamentId="t-1"
+            initialStandings={[toStandingRow(row)]}
+          />
+        </I18nProvider>,
+      ),
+    )?.[1];
+
+  it('heads the bout list Team 1 and Team 2', async () => {
+    await drawWithRead(<PoolMatchesView eventSlug="e" tournamentSlug="t" />, pools([TEAM_BOUT]));
+    expect(headers()).toEqual(expect.arrayContaining(['Team 1', 'Team 2']));
+  });
+
+  it('heads a Fighters bout list Fighter 1 and Fighter 2', async () => {
+    await drawWithRead(<PoolMatchesView eventSlug="e" tournamentSlug="t" />, pools([FIGHTER_BOUT]));
+    expect(headers()).toEqual(expect.arrayContaining(['Fighter 1', 'Fighter 2']));
+  });
+
+  it('counts the composition card in teams, in English and French, and in fighters for Fighters', () => {
+    const teams = [
+      teamSeat('team-lyon', 'Lyon Blades', 'teal'),
+      teamSeat('team-paris', 'Paris Rapiers', 'amber'),
+    ];
+    expect(card(teams)).toContain('2 teams');
+    expect(card(teams, 'fr')).toContain('2 équipes');
+    expect(card([fighterSeat('reg-ada', 'Ada'), fighterSeat('reg-mary', 'Mary')])).toContain(
+      '2 fighters',
+    );
+  });
+
+  it('heads the standings Team, and Fighter for Fighters', async () => {
+    expect(standingsHeader(teamStanding('team-paris', 'Paris Rapiers', 'amber'))).toBe('Team');
+    expect(standingsHeader(fighterStanding('reg-ada', 'Ada Lovelace'))).toBe('Fighter');
+
+    await drawWithRead(<StandingsView tournamentId="t-1" pools={[]} />, {
+      rulesetCode: 'tf_v1',
+      rulesetVersion: '1.0.0',
+      columns: [],
+      rows: [teamStanding('team-paris', 'Paris Rapiers', 'amber')],
+    });
+    expect(headers()).toContain('Team');
+  });
+
+  it('counts the Tournament header in teams when its Pools seat teams', () => {
+    const pool = (members: PoolMember[]) => ({
+      id: 'p-1',
+      name: 'Pool A',
+      members,
+      referees: [],
+      standings: [],
+    });
+    expect(poolEntrants([pool([teamSeat('team-lyon', 'Lyon Blades', 'teal')])])).toEqual({
+      count: 1,
+      teams: true,
+    });
+    expect(poolEntrants([pool([fighterSeat('reg-ada', 'Ada')])])).toEqual({
+      count: 1,
+      teams: false,
+    });
   });
 });
