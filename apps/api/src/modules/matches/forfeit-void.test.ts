@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HttpException } from '@nestjs/common';
-import { mockSupabase, type ChainResult } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, type ChainResult } from '../../common/testing/supabase-chain';
 import {
   assertForfeitsVoidableHere,
   readActiveForfeits,
@@ -20,6 +20,7 @@ const record: ActiveForfeitRecord = {
   id: 'f-1',
   matchId: 'm-1',
   forfeitingRegistrationId: 'reg-a',
+  forfeitingTeamId: null,
   replacementRegistrationId: null,
   fighterOutcome: null,
   autoCreated: false,
@@ -52,6 +53,47 @@ describe('the reads a Reset or a Reopen decides on', () => {
   it('a void the database refuses is a server error, never a void that "took"', async () => {
     const db = mockSupabase({ match_forfeits: FAILED });
     serverError(await voidForfeitRecords(db.service as never, [record], {}).catch((e) => e));
+  });
+
+  it('a team record asks no Fighter whether they are out: it names no Registration', async () => {
+    // No `registrations` table: a read of it, `.in('id', [null])`, would throw here.
+    const db = mockSupabase({ match_forfeits: { rows: [] } });
+    const team = { ...record, forfeitingRegistrationId: null, forfeitingTeamId: 'team-a' };
+    await expect(assertForfeitsVoidableHere(db.service as never, [team])).resolves.toBeUndefined();
+  });
+
+  it('reads each record with its side, a Registration or a team', async () => {
+    const db = mockSupabase({
+      match_forfeits: {
+        rows: [
+          {
+            id: 'f-team',
+            match_id: 'm-1',
+            forfeiting_registration_id: null,
+            forfeiting_team_id: 'team-a',
+            replacement_registration_id: null,
+            fighter_outcome: null,
+            auto_created: false,
+            voided_at: null,
+          },
+        ],
+      },
+    });
+    const records = await readActiveForfeits(db.service as never, ['m-1']);
+    expect(records).toEqual([
+      {
+        id: 'f-team',
+        matchId: 'm-1',
+        forfeitingRegistrationId: null,
+        forfeitingTeamId: 'team-a',
+        replacementRegistrationId: null,
+        fighterOutcome: null,
+        autoCreated: false,
+      },
+    ]);
+    expect(selectsFor(db.from, 'match_forfeits')).toEqual([
+      'id, match_id, forfeiting_registration_id, forfeiting_team_id, replacement_registration_id, fighter_outcome, auto_created',
+    ]);
   });
 
   it('reads that answer let a record of its bout alone through', async () => {

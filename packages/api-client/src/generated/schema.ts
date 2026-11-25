@@ -11786,7 +11786,9 @@ export interface components {
     };
     CreateMatchForfeitDto: {
       /** Format: uuid */
-      forfeitingRegistrationId: string;
+      forfeitingRegistrationId?: string;
+      /** Format: uuid */
+      forfeitingTeamId?: string;
       /** @enum {string} */
       reason:
         | 'injury'

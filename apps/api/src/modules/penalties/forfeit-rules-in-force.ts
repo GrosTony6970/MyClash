@@ -107,6 +107,20 @@ export function forfeitRulesAnswer(
 }
 
 /**
+ * The rules a team plays under: its penalty ruleset's own forfeit rules and black card settings,
+ * and nothing else (call 1 of the team plan). A team Tournament takes no forfeit rules of its own,
+ * and those a switch of kind left stored are never read there (`tournament-kind.ts`). The ONE owner
+ * of that rule: a team forfeit by hand and a team black card both read here.
+ */
+export async function teamForfeitRules(
+  db: Client,
+  tournamentId: string,
+): Promise<ForfeitRulesInForce> {
+  const { cardRules } = await tournamentCardRules(db, tournamentId);
+  return forfeitRulesOf(cardRules, null);
+}
+
+/**
  * The rules in force of a Tournament, its forfeit rules and black card settings, in one read of
  * its card rules of now and its changes. Every scorer reads them here.
  */

@@ -17,8 +17,13 @@ import {
   type ForfeitReason,
 } from '@myclash/rulesets';
 import { asksInPhase, isPoolOrSwissPhase, type ForfeitRules } from '@myclash/types/forfeit-rules';
+import { sideKey } from '@myclash/types/side-key';
 import { blackCardEffectOf } from '../penalties/card-rules-pin';
-import { cardAndForfeitRules, forfeitRulesRefusal } from '../penalties/forfeit-rules-in-force';
+import {
+  cardAndForfeitRules,
+  forfeitRulesRefusal,
+  teamForfeitRules,
+} from '../penalties/forfeit-rules-in-force';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
@@ -42,6 +47,15 @@ import {
   type BoutDeps,
 } from './fighter-bouts';
 import { isOut } from './fighter-cause';
+import {
+  forfeitingSideOf,
+  forfeitSideColumns,
+  isSideOfBout,
+  isTeamRecord,
+  repairTeamForfeit,
+  TEAM_FIGHTER_PART,
+  type ForfeitingSide,
+} from './forfeit-side';
 import { FighterStatusService, type SettleInput } from './fighter-status.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
@@ -49,6 +63,7 @@ import { hasBeenFought } from './fought-match';
 import { matchLocked } from './match-locked';
 import { stampForfeitVoided } from './forfeit-void';
 import { ScoringService } from './scoring.service';
+import type { SideColumns } from './winner-columns';
 
 /**
  * `canOverrideLocked` comes from `authorizeMatchScoring` and was being dropped
@@ -174,60 +189,32 @@ export class MatchForfeitsService {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
 
+    const side = forfeitingSideOf(dto);
     const wasCompleted = match.status === 'completed';
-    await this.assertWritable(matchId, match, dto, actor);
+    await this.assertWritable(matchId, match, dto, side, actor);
 
     const phase = this.phase(match);
     const active = await this.existingRecord(matchId, dto);
     if (active) {
       // A retry: its first send may have stopped after the record, before the settle.
-      await this.settleIfTheirs(active, dto.forfeitingRegistrationId, actor, phase);
+      await this.repairRetry(active, side, actor, phase);
       return active;
     }
 
     const rules = isOverrideReason(dto.reason)
       ? null
-      : (inForce ?? (await this.handForfeitRules(phase.tournament_id, dto.reason)));
+      : (inForce ?? (await this.handForfeitRules(phase.tournament_id, dto.reason, side)));
     const policy: ForfeitOutcome = rules
       ? forfeitOutcomeOf(rules.rules, dto.reason as ForfeitReason, phase.type)
       : OVERRIDE_OUTCOME;
-    const winnerRegistrationId = winnerOf(match, dto.forfeitingRegistrationId, policy);
-
-    // The forfeit rules can escalate the per-reason state to a disqualification.
-    // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
-    // continue (which in pools also auto-forfeits their remaining matches).
-    // A forfeit recorded under what holds the Fighter out belongs to it, and is no
-    // new forfeit of the Fighter: it escalates nothing (rulings 89, 118, 120). Nor
-    // does an override: nobody forfeited.
-    const inheritance = await this.resolveInheritance(matchId, dto, phase);
-    const inherited = inheritance.parentId !== null || inheritance.underOutStatus;
-    const reasonState = this.reasonState(
-      dto.reason,
-      policy.tournamentState,
-      rules?.cardEffect ?? null,
-    );
-    const escalated =
-      inherited || !rules
-        ? { state: reasonState, stored: reasonState }
-        : await this.escalateTournamentState(
-            dto.forfeitingRegistrationId,
-            matchId,
-            phase.tournament_id,
-            reasonState,
-            rules.rules,
-            dto.reason as ForfeitReason,
-          );
-    // Stored as `can_continue`: a later forfeit of this Fighter hangs off a record that took them
-    // out, "after N" included (`resolveInheritance`). Their bouts follow their status.
-    const canContinue = this.resolveCanContinue(escalated.state, dto.canContinue, phase.type);
-    const fighterOutcome = fighterOutcomeOf(
-      dto.reason,
-      escalated.stored,
-      this.resolveCanContinue(escalated.stored, dto.canContinue, phase.type),
-      // `inForce` is handed over by the card path alone, which writes its card first.
-      { inherited, sentByItsCard: inForce !== undefined },
-    );
-    const scores = resolveScores(match, dto.forfeitingRegistrationId, policy, dto.explicitScores);
+    const forfeitingSideId = side.id;
+    const winnerSideId = winnerOf(match, forfeitingSideId, policy);
+    // A team forfeits this Match only (call 1): no Fighter part.
+    const { inheritance, canContinue, fighterOutcome } =
+      side.kind === 'team'
+        ? TEAM_FIGHTER_PART
+        : await this.fighterPart(matchId, dto, side.id, phase, { policy, rules, inForce });
+    const scores = resolveScores(match, forfeitingSideId, policy, dto.explicitScores);
     const now = new Date().toISOString();
 
     const forfeit = await this.insertForfeit({
@@ -235,8 +222,7 @@ export class MatchForfeitsService {
       parent_forfeit_id: inheritance.parentId,
       under_out_status: inheritance.underOutStatus,
       tournament_id: phase.tournament_id,
-      forfeiting_registration_id: dto.forfeitingRegistrationId,
-      winner_registration_id: winnerRegistrationId,
+      ...forfeitSideColumns(match, side, winnerSideId),
       reason: dto.reason,
       score_policy: policy.scorePolicy,
       forfeiting_score: scores.forfeitingScore,
@@ -261,18 +247,17 @@ export class MatchForfeitsService {
     // `MatchCompletionService` entirely. Self-inverting within the request, so
     // never data loss, but it broke the invariant the un-completion owner now
     // assumes, and left a bout momentarily completed that never was.
+    //
+    // A team has no reserve to take its place (call 13): never asked for one.
     const replacementRegistrationId =
-      phase.type === 'pool'
+      phase.type === 'pool' || side.kind === 'team'
         ? null
-        : await this.tryReplaceMainRoundOneFighter(
-            match,
-            dto.forfeitingRegistrationId,
-            dto.reason as ForfeitReason,
-          );
+        : await this.tryReplaceMainRoundOneFighter(match, side.id, dto.reason as ForfeitReason);
 
     if (!replacementRegistrationId) {
       await completeMatch(this.boutDeps, matchId, {
-        winnerRegistrationId,
+        winnerSideId,
+        sides: match as SideColumns,
         scores,
         endReason: forfeitEndReason(dto.reason),
         endedAt: now,
@@ -310,9 +295,100 @@ export class MatchForfeitsService {
 
     // After every write of the door: a settle that fails leaves the forfeit whole, and the
     // retry ("Match is already closed") settles. Its Pool bouts follow the status, and the
-    // last Pool bout a forfeit ends fills the bracket (ruling 109).
-    await this.settleFighterOf(forfeit, actor, phase);
+    // last Pool bout a forfeit ends fills the bracket (ruling 109). A team has no status to
+    // settle: it hands its bout to the completion owner itself (call 13), or the last Pool bout
+    // a team forfeit ends never closes the Pool.
+    if (side.kind === 'team') await this.completionOrThrow().onMatchCompleted(matchId);
+    else await this.settleFighterOf(forfeit, actor, phase);
     return { ...forfeit, downstream_match_ids: downstreamIds };
+  }
+
+  /**
+   * A Fighter's part of a forfeit: what it hangs under, whether the Fighter continues, and what it
+   * does to them at its time. The forfeit rules can escalate the per-reason state to a
+   * disqualification, resolved BEFORE canContinue, because a DQ implies the fighter cannot
+   * continue (which in pools also auto-forfeits their remaining matches). A forfeit recorded
+   * under what holds the Fighter out belongs to it, and is no new forfeit of the Fighter: it
+   * escalates nothing (rulings 89, 118, 120). Nor does an override: nobody forfeited.
+   */
+  private async fighterPart(
+    matchId: string,
+    dto: CreateMatchForfeitDto,
+    registrationId: string,
+    phase: { tournament_id: string; type: string },
+    decided: { policy: ForfeitOutcome; rules: ForfeitInForce | null; inForce?: ForfeitInForce },
+  ) {
+    const { policy, rules, inForce } = decided;
+    const inheritance = await this.resolveInheritance(matchId, dto, registrationId, phase);
+    const inherited = inheritance.parentId !== null || inheritance.underOutStatus;
+    const reasonState = this.reasonState(
+      dto.reason,
+      policy.tournamentState,
+      rules?.cardEffect ?? null,
+    );
+    const escalated =
+      inherited || !rules
+        ? { state: reasonState, stored: reasonState }
+        : await this.escalateTournamentState(
+            registrationId,
+            matchId,
+            phase.tournament_id,
+            reasonState,
+            rules.rules,
+            dto.reason as ForfeitReason,
+          );
+    // Stored as `can_continue`: a later forfeit of this Fighter hangs off a record that took them
+    // out, "after N" included (`resolveInheritance`). Their bouts follow their status.
+    const canContinue = this.resolveCanContinue(escalated.state, dto.canContinue, phase.type);
+    const fighterOutcome = fighterOutcomeOf(
+      dto.reason,
+      escalated.stored,
+      this.resolveCanContinue(escalated.stored, dto.canContinue, phase.type),
+      // `inForce` is handed over by the card path alone, which writes its card first.
+      { inherited, sentByItsCard: inForce !== undefined },
+    );
+    return { inheritance, canContinue, fighterOutcome };
+  }
+
+  /**
+   * The completion owner, which a team forfeit and its take-back hand their bout to (call 13).
+   * Optional for the tests that build this service bare; absent, a team forfeit refuses before
+   * its first write rather than skip the hand-on in silence.
+   */
+  private completionOrThrow(): MatchCompletionService {
+    if (!this.matchCompletion) {
+      throw new Error('A team forfeit hands its bout on: MatchCompletionService is not provided');
+    }
+    return this.matchCompletion;
+  }
+
+  /**
+   * The one team repair (`repairTeamForfeit`): a bout still in play completed from its record, a
+   * completed one stamped when its record kept no result, then the bout handed on. The forfeit
+   * door's retries call it, and the card door's resend.
+   */
+  async repairTeamForfeit(record: Row): Promise<void> {
+    await repairTeamForfeit(this.boutDeps, this.completionOrThrow(), record);
+  }
+
+  /**
+   * What a retry repairs of its first send: the team repair when a live team record stands on the
+   * bout, else the settle of the Fighter whose record it is.
+   *
+   * The team repair runs for any live team record, whichever side sent again, and before the side
+   * check of a closed bout. Safe: it writes only what that record already decided (completes a bout
+   * still in play from it, stamps a missing result, hands the bout on), each step a no-op once
+   * done, and the completion owner is safe twice. A resend names no new result, so the side that
+   * sent it changes nothing the repair writes.
+   */
+  private async repairRetry(
+    active: Row | null,
+    side: ForfeitingSide,
+    actor: Actor,
+    phase: { id: string; type: string; swissRoundId: string | null },
+  ): Promise<void> {
+    if (isTeamRecord(active)) await this.repairTeamForfeit(active);
+    else if (side.kind === 'registration') await this.settleIfTheirs(active, side.id, actor, phase);
   }
 
   /**
@@ -420,6 +496,7 @@ export class MatchForfeitsService {
   private async resolveInheritance(
     matchId: string,
     dto: CreateMatchForfeitDto,
+    registrationId: string,
     phase: { tournament_id: string },
   ): Promise<Inheritance> {
     const none: Inheritance = { parentId: null, underOutStatus: false };
@@ -435,7 +512,7 @@ export class MatchForfeitsService {
       .from('match_forfeits')
       .select('id')
       .eq('match_id', matchId)
-      .eq('forfeiting_registration_id', dto.forfeitingRegistrationId)
+      .eq('forfeiting_registration_id', registrationId)
       .eq('auto_created', true)
       .limit(1);
     if (forfeitedHere.error) throw readFailed('The forfeits', forfeitedHere.error);
@@ -445,7 +522,7 @@ export class MatchForfeitsService {
       .from('match_forfeits')
       .select('id')
       .eq('tournament_id', phase.tournament_id)
-      .eq('forfeiting_registration_id', dto.forfeitingRegistrationId)
+      .eq('forfeiting_registration_id', registrationId)
       // Roots a person wrote, and only a record that actually withdrew the
       // fighter — a one-bout forfeit closed nothing else and adopts nothing.
       .is('parent_forfeit_id', null)
@@ -459,7 +536,7 @@ export class MatchForfeitsService {
     if (roots.error) throw readFailed('The withdrawals', roots.error);
     const root = (roots.data ?? [])[0] as Row | undefined;
     if (root) return { parentId: root['id'] as string, underOutStatus: false };
-    return { parentId: null, underOutStatus: await this.heldOut(dto.forfeitingRegistrationId) };
+    return { parentId: null, underOutStatus: await this.heldOut(registrationId) };
   }
 
   /**
@@ -515,6 +592,8 @@ export class MatchForfeitsService {
   async voidForfeit(forfeitId: string, actor: Actor = {}, opts: VoidOptions = {}) {
     const forfeit = await this.standingForfeit(forfeitId, actor, opts);
     const matchId = forfeit['match_id'] as string;
+    // A team's take-back hands its bout back itself: refused before any write when it cannot.
+    if (isTeamRecord(forfeit)) this.completionOrThrow();
     await this.assertVoidable(matchId, actor);
     await this.assertMatchStillHoldsRecordedResult(matchId, forfeit);
 
@@ -553,10 +632,21 @@ export class MatchForfeitsService {
     // the Fighter's Pool bouts follow it. When the Fighter comes back in, the bouts forfeited
     // because they were out come back with them; while another cause holds them out, those bouts
     // stay forfeited. Last, so a settle that fails leaves the take-back whole; its retry settles.
-    const settled = opts.settledByCaller
-      ? null
-      : await this.settleFighterOf(forfeit, actor, undefined, true);
+    const settled = await this.afterTakeBack(forfeit, actor, opts);
     return { ...(updated ?? {}), cascaded_forfeit_count: settled?.broughtBack ?? 0 };
+  }
+
+  /**
+   * What follows a take-back's writes. A Fighter's record: the status settle, unless the caller
+   * settles (`settledByCaller`). A team's: no settle (a team has no status), and its bout goes back
+   * to the completion owner whatever the caller says (call 13), as the settle would hand it.
+   */
+  private async afterTakeBack(forfeit: Row, actor: Actor, opts: VoidOptions) {
+    if (isTeamRecord(forfeit)) {
+      await this.completionOrThrow().onBoutPutBack(forfeit['match_id'] as string);
+      return null;
+    }
+    return opts.settledByCaller ? null : this.settleFighterOf(forfeit, actor, undefined, true);
   }
 
   /** The record a take-back names, when it still stands. */
@@ -570,7 +660,7 @@ export class MatchForfeitsService {
     const forfeit = data as Row;
     if (forfeit['voided_at']) {
       // A retry of a take-back whose first send stopped after the stamp, before the settle.
-      if (!opts.settledByCaller) await this.settleFighterOf(forfeit, actor, undefined, true);
+      await this.afterTakeBack(forfeit, actor, opts);
       throw new BadRequestException('Forfeit is already voided');
     }
     return forfeit;
@@ -639,7 +729,11 @@ export class MatchForfeitsService {
    * the clear just made it.
    */
   private async readvanceIfDecided(matchId: string, previous: Row): Promise<void> {
-    if (previous['status'] !== 'completed' || !previous['winner_registration_id']) return;
+    const winnerSideId = sideKey(
+      previous['winner_registration_id'] as string | null | undefined,
+      previous['winner_team_id'] as string | null | undefined,
+    );
+    if (previous['status'] !== 'completed' || winnerSideId === null) return;
     await this.matchCompletion?.onMatchCompleted(matchId);
   }
 
@@ -662,38 +756,33 @@ export class MatchForfeitsService {
    */
   private async assertWritable(
     matchId: string,
-    match: {
-      status?: unknown;
-      locked_at?: unknown;
-      red_registration_id?: unknown;
-      blue_registration_id?: unknown;
-    },
+    match: Row,
     dto: CreateMatchForfeitDto,
+    side: ForfeitingSide,
     actor: Actor,
   ): Promise<void> {
-    const wasCompleted = match.status === 'completed';
-    if (match.status === 'voided' || (wasCompleted && !isOverrideReason(dto.reason))) {
-      // A retry of a forfeit whose first send closed the bout and stopped there settles.
-      await this.settleIfTheirs(
-        await this.loadActiveForfeit(matchId),
-        dto.forfeitingRegistrationId,
-        actor,
-        this.phase(match as Row),
-      );
+    // A team forfeit hands its bout on itself (call 13): refused before any write when it cannot.
+    if (side.kind === 'team') this.completionOrThrow();
+    const wasCompleted = match['status'] === 'completed';
+    if (match['status'] === 'voided' || (wasCompleted && !isOverrideReason(dto.reason))) {
+      // A retry of a forfeit whose first send closed the bout and stopped there: a Fighter's
+      // settles; a team's is repaired (its stamp, its hand-on).
+      await this.repairRetry(await this.loadActiveForfeit(matchId), side, actor, this.phase(match));
       throw new BadRequestException('Match is already closed');
     }
     // `loadMatch` selects *, so locked_at is already on the row — no extra read.
-    if (match.locked_at && !actor.canOverrideLocked) {
+    if (match['locked_at'] && !actor.canOverrideLocked) {
       throw matchLocked();
     }
     await this.frozenResults?.assertResultMutationAllowed(matchId, actor.userId);
     if (wasCompleted) await this.assertNoStartedDependents(matchId);
-    if (
-      ![match.red_registration_id, match.blue_registration_id].includes(
-        dto.forfeitingRegistrationId,
-      )
-    ) {
-      throw new BadRequestException('Forfeiting registration must belong to the current match');
+    // Judged by side (`sidesOf`) and kind: a team bout's Registration columns are both null.
+    if (!isSideOfBout(match, side)) {
+      throw new BadRequestException(
+        side.kind === 'team'
+          ? 'The forfeiting team must be a side of the current match'
+          : 'Forfeiting registration must belong to the current match',
+      );
     }
   }
 
@@ -931,10 +1020,20 @@ export class MatchForfeitsService {
    * The rules a forfeit recorded by hand is recorded by, in one read of the
    * Tournament's card rules: its forfeit rules and, for a black card, what that
    * card does (rulings 58, 82). Stored rules that do not parse refuse it, worded.
+   *
+   * A team's are its penalty ruleset's own and nothing else (`teamForfeitRules`, call 1).
    */
-  private async handForfeitRules(tournamentId: string, reason: string): Promise<ForfeitInForce> {
+  private async handForfeitRules(
+    tournamentId: string,
+    reason: string,
+    side: ForfeitingSide,
+  ): Promise<ForfeitInForce> {
+    const db = this.supabase.service;
     try {
-      const { forfeitRules } = await cardAndForfeitRules(this.supabase.service, tournamentId);
+      const forfeitRules =
+        side.kind === 'team'
+          ? await teamForfeitRules(db, tournamentId)
+          : (await cardAndForfeitRules(db, tournamentId)).forfeitRules;
       const cardEffect = isBlackCardReason(reason) ? blackCardEffectOf(forfeitRules, reason) : null;
       return { rules: forfeitRules, cardEffect };
     } catch (error) {

@@ -6,8 +6,10 @@ import {
   tournamentOfBout,
   type MatchRulesetStamp,
 } from '../phases/match-ruleset';
+import { sidesOf } from './bout-sides';
 import type { ClockService } from './clock.service';
 import type { ScoringService } from './scoring.service';
+import { winnerColumns, type SideColumns } from './winner-columns';
 
 /**
  * The bout half of a forfeit: what a forfeit writes on its bout, and how a take-back puts the bout
@@ -44,18 +46,18 @@ export async function insertForfeit(
   return { data: (data as Row | null) ?? null, error };
 }
 
-/** Who wins a forfeit's bout: the other Fighter, or no one on a draw (ruling 64). */
+/**
+ * Who wins a forfeit's bout, as a side key (`sideKey`): the other side, or no one on a draw
+ * (ruling 64). Judged by side (`sidesOf`): a team bout's Registration columns are both null.
+ */
 export function winnerOf(
-  match: { red_registration_id?: unknown; blue_registration_id?: unknown },
-  forfeitingRegistrationId: string,
+  match: Row,
+  forfeitingSideId: string,
   policy: ForfeitOutcome,
 ): string | null {
   if (policy.scorePolicy === 'draw') return null;
-  const other =
-    forfeitingRegistrationId === match.red_registration_id
-      ? match.blue_registration_id
-      : match.red_registration_id;
-  return other as string;
+  const sides = sidesOf(match);
+  return forfeitingSideId === sides.red ? sides.blue : sides.red;
 }
 
 /**
@@ -78,14 +80,14 @@ function explicitScores(
   };
 }
 
-/** The scores a forfeit writes on its bout, by its score policy. */
+/** The scores a forfeit writes on its bout, by its score policy. The side is its key. */
 export function resolveScores(
   match: Row,
-  forfeitingRegistrationId: string,
+  forfeitingSideId: string,
   policy: { scorePolicy: string; lossScore: number; opponentScore: number },
   explicit?: { forfeitingScore: number; opponentScore: number },
 ) {
-  const redForfeits = forfeitingRegistrationId === match['red_registration_id'];
+  const redForfeits = forfeitingSideId === sidesOf(match).red;
   if (policy.scorePolicy === 'explicit') return explicitScores(redForfeits, explicit);
 
   // A draw is 0-0 with no winner, as a double-hit ceiling draw is (ruling 64).
@@ -121,12 +123,16 @@ export function resolveScores(
  * fires. The bout write is checked: a forfeit record standing on a bout still in play is the
  * half-done state a retry has to find. The clock is best-effort: the bout is completed by then,
  * and only a running or halted clock can end.
+ *
+ * The winner is a side key; `winnerColumns` writes it into the column of its kind, from the
+ * bout's side columns (`sides`), and clears the other.
  */
 export async function completeMatch(
   deps: BoutDeps,
   matchId: string,
   result: {
-    winnerRegistrationId: string | null;
+    winnerSideId: string | null;
+    sides: SideColumns;
     scores: { redScore: number; blueScore: number };
     endReason: string;
     endedAt?: string;
@@ -139,7 +145,7 @@ export async function completeMatch(
     .update({
       status: 'completed',
       ended_at: result.endedAt ?? now,
-      winner_registration_id: result.winnerRegistrationId,
+      ...winnerColumns(result.sides, result.winnerSideId),
       red_score: result.scores.redScore,
       blue_score: result.scores.blueScore,
       // 'black_card' | 'forfeit' — lets the pad + TV label the result.
@@ -170,9 +176,9 @@ export async function completeMatch(
 }
 
 /**
- * The six columns a forfeit changes on its bout, as they stand. Whatever the snapshot omits, the
- * void cannot restore: `end_reason` was once omitted, and every void left the bout claiming it
- * ended the way the voided record said it did.
+ * The seven columns a forfeit changes on its bout, as they stand: the winner is a Registration or
+ * a team (0282). Whatever the snapshot omits, the void cannot restore: `end_reason` was once
+ * omitted, and every void left the bout claiming it ended the way the voided record said it did.
  */
 export function matchSnapshot(match: Row) {
   return {
@@ -180,19 +186,22 @@ export function matchSnapshot(match: Row) {
     red_score: match['red_score'],
     blue_score: match['blue_score'],
     winner_registration_id: match['winner_registration_id'] ?? null,
+    winner_team_id: match['winner_team_id'] ?? null,
     ended_at: match['ended_at'] ?? null,
     end_reason: match['end_reason'] ?? null,
   };
 }
 
 /**
- * The six snapshot columns, read fresh. Null when the match is gone; a read that failed is a
+ * The seven snapshot columns, read fresh. Null when the match is gone; a read that failed is a
  * server error, never "nothing to compare" (a void would write over a bout fought since).
  */
 async function readMatchSnapshot(db: Client, matchId: string): Promise<Row | null> {
   const { data, error } = await db
     .from('matches')
-    .select('status, red_score, blue_score, winner_registration_id, ended_at, end_reason')
+    .select(
+      'status, red_score, blue_score, winner_registration_id, winner_team_id, ended_at, end_reason',
+    )
     .eq('id', matchId)
     .maybeSingle();
   if (error) throw new Error(`Match ${matchId} could not be read: ${error.message}`);
@@ -223,6 +232,7 @@ export async function stampResultingState(
 const RESULT_DECISION_KEYS = [
   'status',
   'winner_registration_id',
+  'winner_team_id',
   'red_score',
   'blue_score',
   'end_reason',
@@ -266,6 +276,7 @@ export async function restoreMatchState(
       red_score: previous['red_score'] ?? 0,
       blue_score: previous['blue_score'] ?? 0,
       winner_registration_id: previous['winner_registration_id'] ?? null,
+      winner_team_id: previous['winner_team_id'] ?? null,
       ended_at: previous['ended_at'] ?? null,
       end_reason: previous['end_reason'] ?? null,
       updated_at: new Date().toISOString(),

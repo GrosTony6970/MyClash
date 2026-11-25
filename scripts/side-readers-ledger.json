@@ -82,13 +82,13 @@
     },
     "apps/api/src/modules/matches/dto/matches.dto.ts": {
       "verdict": "not-yet",
-      "hits": 5,
-      "why": "1b: create and forfeit bodies name sides by Registration (`:10`-`:11`, `:38`, `:139`)"
+      "hits": 7,
+      "why": "1b: the create body and the manual completion name sides by Registration (`:10`-`:11`, `:38`); the forfeit body names exactly one of a Registration or a team (`:141`-`:142`, `:162`-`:178`)"
     },
     "apps/api/src/modules/matches/fighter-bouts.ts": {
-      "verdict": "not-yet",
-      "hits": 19,
-      "why": "1b: the bout half of a forfeit, shared with the forfeit door: `completeMatch` writes `winner_registration_id` only (`:142`), the snapshot and restore too (`:182`, `:268`)"
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the bout half of a forfeit: `winnerOf` and `resolveScores` judge sides by `sidesOf` (`:53`-`:90`), `completeMatch` writes the winner through `winnerColumns` (`:148`); the snapshot, its fresh read, the decision keys and the restore carry `winner_team_id` beside `winner_registration_id`"
     },
     "apps/api/src/modules/matches/fighter-cause.ts": {
       "verdict": "individual-only",
@@ -97,8 +97,8 @@
     },
     "apps/api/src/modules/matches/fighter-reconcile.ts": {
       "verdict": "individual-only",
-      "hits": 18,
-      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); forfeits and brings back one Fighter's own bouts (winner write `:162`)"
+      "hits": 17,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); forfeits and brings back one Fighter's own bouts, read by Registration (`:101`); the Registration id is the winner side key `completeMatch` writes through `winnerColumns` (`:192`, `:221`), with the bout's Registration sides (`registrationSides`, `:145`-`:152`)"
     },
     "apps/api/src/modules/matches/fighter-status.service.ts": {
       "verdict": "individual-only",
@@ -110,10 +110,15 @@
       "hits": 2,
       "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); holds back Fighters who share a bout (`:198`)"
     },
+    "apps/api/src/modules/matches/forfeit-side.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "the forfeiting side of a forfeit, a Registration or a team: judged against the bout by `sidesOf` (`:41`-`:46`), written in the column of its kind with the winner through `winnerColumns` (`:49`-`:55`); the team repair builds both side keys with `sideKey`"
+    },
     "apps/api/src/modules/matches/forfeit-void.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: a forfeit record names its side by Registration (`:51`, `:81`-`:89`); team forfeits land in 1b"
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "a forfeit record carries its side, a Registration or a team (`:51`-`:53`, `:83`-`:92`); only a record that names a Registration is asked whether its Fighter is out (`:143`, `:166`-`:169`): a team has no status"
     },
     "apps/api/src/modules/matches/level-step.ts": {
       "verdict": "not-yet",
@@ -121,9 +126,9 @@
       "why": "1b: `BOUT_COLUMNS` (`:77`-`:78`) reads sides without the team twins"
     },
     "apps/api/src/modules/matches/match-forfeits.service.ts": {
-      "verdict": "not-yet",
-      "hits": 53,
-      "why": "1b: team forfeits Match by Match; writes `winner_registration_id` only (`:239`)"
+      "verdict": "side-key",
+      "hits": 40,
+      "why": "the forfeit door judges its side with `forfeit-side.ts` (`sidesOf`) and writes both sides through `forfeitSideColumns` (`:225`); a re-advance reads the restored winner by `sideKey` (`:732`). The Registration reads left are a Fighter's alone, never reached by a team (call 1): inheritance, escalation, the reserve swap (guarded `:253`) and the status settle"
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
       "verdict": "not-yet",
@@ -1039,6 +1044,10 @@
     "apps/api/src/modules/fighters/recent-matches.ts": {
       "count": 3,
       "why": "one person's history: the engine judges that person's own bout, sides by Registration (`:94`-`:96`)"
+    },
+    "apps/api/src/modules/matches/fighter-reconcile.ts": {
+      "count": 2,
+      "why": "individual-only: the reconcile selects by Registration (`:101`); the Fighter's Registration id is the winner side key it hands `completeMatch` (`:192`, `:221`)"
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
       "count": 2,

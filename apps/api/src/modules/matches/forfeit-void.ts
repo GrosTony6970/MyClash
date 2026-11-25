@@ -48,7 +48,9 @@ export interface ForfeitVoidActor {
 export interface ActiveForfeitRecord {
   id: string;
   matchId: string;
-  forfeitingRegistrationId: string;
+  /** The side that forfeited: a Registration, or a team (0282). Exactly one is set. */
+  forfeitingRegistrationId: string | null;
+  forfeitingTeamId: string | null;
   /** A reserve was swapped into the bracket for a round-1 no-show. */
   replacementRegistrationId: string | null;
   /** What the record did to its Fighter at its time (`fighter_outcome`, 0240): null = nothing. */
@@ -78,7 +80,7 @@ export async function readActiveForfeits(
   const result = await supabase
     .from('match_forfeits')
     .select(
-      'id, match_id, forfeiting_registration_id, replacement_registration_id, fighter_outcome, auto_created',
+      'id, match_id, forfeiting_registration_id, forfeiting_team_id, replacement_registration_id, fighter_outcome, auto_created',
     )
     .in('match_id', [...matchIds])
     .is('voided_at', null);
@@ -86,7 +88,8 @@ export async function readActiveForfeits(
   return rowsOf('The forfeits of these bouts', result).map((row) => ({
     id: row['id'] as string,
     matchId: row['match_id'] as string,
-    forfeitingRegistrationId: row['forfeiting_registration_id'] as string,
+    forfeitingRegistrationId: (row['forfeiting_registration_id'] as string | null) ?? null,
+    forfeitingTeamId: (row['forfeiting_team_id'] as string | null) ?? null,
     replacementRegistrationId: (row['replacement_registration_id'] as string | null) ?? null,
     fighterOutcome: (row['fighter_outcome'] as string | null) ?? null,
     autoCreated: row['auto_created'] === true,
@@ -137,7 +140,7 @@ export async function assertForfeitsVoidableHere(
   const offender = records.find(
     (record) =>
       record.fighterOutcome !== null ||
-      out.has(record.forfeitingRegistrationId) ||
+      (record.forfeitingRegistrationId !== null && out.has(record.forfeitingRegistrationId)) ||
       withChildren.has(record.id),
   );
   if (!offender) return;
@@ -152,19 +155,19 @@ export async function assertForfeitsVoidableHere(
   });
 }
 
-/** Which of these records' Fighters are out of their Tournament now. */
+/**
+ * Which of these records' Fighters are out of their Tournament now. A team's record names no
+ * Registration and a team has no status (decision 7): it is left out of the read.
+ */
 async function outRegistrationIds(
   supabase: Client,
   records: readonly ActiveForfeitRecord[],
 ): Promise<Set<string>> {
-  if (records.length === 0) return new Set();
-  const result = await supabase
-    .from('registrations')
-    .select('id, status')
-    .in(
-      'id',
-      records.map((record) => record.forfeitingRegistrationId),
-    );
+  const fighters = records.flatMap((record) =>
+    record.forfeitingRegistrationId === null ? [] : [record.forfeitingRegistrationId],
+  );
+  if (fighters.length === 0) return new Set();
+  const result = await supabase.from('registrations').select('id, status').in('id', fighters);
   return new Set(
     rowsOf('The Fighters of these forfeits', result)
       .filter((row) => row['status'] === 'withdrawn' || row['status'] === 'disqualified')
