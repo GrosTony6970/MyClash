@@ -1,5 +1,7 @@
 'use client';
 
+import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
+
 export interface ChatProposal {
   id: string;
   draftType: string;
@@ -7,6 +9,8 @@ export interface ChatProposal {
   summary: string | null;
   proposedActions: Array<Record<string, unknown>>;
   validationState: { ok?: boolean; warnings?: string[]; errors?: string[] };
+  /** A referee draft of a team Pool or bout, whose Fighters rule 8 cannot check. */
+  uncheckedFighters?: true;
 }
 
 interface Props {
@@ -37,6 +41,12 @@ export function ProposalCard({ proposal, busy, onConfirm, onReject, t }: Props) 
       </div>
 
       {proposal.summary && <p className="mt-2 text-sm text-foreground">{proposal.summary}</p>}
+
+      {proposal.uncheckedFighters && (
+        <div className="mt-2">
+          <UncheckedFightersNotice compact />
+        </div>
+      )}
 
       {args.length > 0 && (
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-foreground-secondary">

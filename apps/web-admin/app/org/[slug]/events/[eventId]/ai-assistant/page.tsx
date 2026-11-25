@@ -10,6 +10,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { applyFailureMessage } from '@/lib/discard-refusal';
 import { BackLink } from '@/components/BackLink';
+import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
 
 type DraftType =
   'tournament_config' | 'pool_plan' | 'bracket_plan' | 'schedule_grid' | 'referee_assignments';
@@ -30,6 +31,8 @@ interface AssistantDraft {
   status: 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
   error: string | null;
   createdAt?: string;
+  /** A referee draft of a team Pool or bout, whose Fighters rule 8 cannot check. */
+  uncheckedFighters?: true;
 }
 
 const DRAFT_TYPES: DraftType[] = [
@@ -348,6 +351,8 @@ export default function EventAIAssistantPage() {
                   {statusLabel('aiDraft', selectedDraft.status, t)}
                 </span>
               </div>
+
+              {selectedDraft.uncheckedFighters && <UncheckedFightersNotice />}
 
               {selectedDraft.validationState.errors?.length ? (
                 <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">

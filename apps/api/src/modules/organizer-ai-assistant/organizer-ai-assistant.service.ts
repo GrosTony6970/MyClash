@@ -15,6 +15,7 @@ import type {
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
 import { assertMatchesBelongToEvent, assertTournamentsBelongToEvent } from '../events/in-event';
+import { draftsOfTeamFighters } from './unchecked-fighters';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -123,7 +124,7 @@ export class OrganizerAIAssistantService {
       tournamentId: dto.tournamentId ?? null,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.present(eventId, data as DraftRow);
   }
 
   /**
@@ -189,7 +190,7 @@ export class OrganizerAIAssistantService {
       conversationId: opts.conversationId ?? null,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.present(eventId, data as DraftRow);
   }
 
   async listDrafts(eventId: string, actorUserId: string) {
@@ -202,13 +203,15 @@ export class OrganizerAIAssistantService {
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) throw new BadRequestException(error.message);
-    return ((data ?? []) as DraftRow[]).map((row) => this.mapDraft(row));
+    const rows = (data ?? []) as DraftRow[];
+    const unchecked = await draftsOfTeamFighters(this.supabase.service, eventId, rows);
+    return rows.map((row) => this.mapDraft(row, unchecked));
   }
 
   async getDraft(eventId: string, draftId: string, actorUserId: string) {
     const draft = await this.getDraftRow(eventId, draftId);
     await this.assertDraftAccess(draft, actorUserId);
-    return this.mapDraft(draft);
+    return this.present(eventId, draft);
   }
 
   async updateDraft(
@@ -250,7 +253,7 @@ export class OrganizerAIAssistantService {
       draftType: draft.draft_type,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.present(eventId, data as DraftRow);
   }
 
   async applyDraft(eventId: string, draftId: string, actorUserId: string) {
@@ -661,8 +664,18 @@ export class OrganizerAIAssistantService {
     });
   }
 
-  private mapDraft(row: DraftRow | Record<string, unknown>) {
+  /** One draft of `eventId` as the screens read it. */
+  private async present(eventId: string, row: DraftRow) {
+    return this.mapDraft(row, await draftsOfTeamFighters(this.supabase.service, eventId, [row]));
+  }
+
+  /**
+   * `unchecked` holds the drafts that assign a referee to a team Pool or bout. Those carry
+   * `uncheckedFighters`, the flag the referee board uses: the screen shows the rule-8 notice.
+   */
+  private mapDraft(row: DraftRow | Record<string, unknown>, unchecked: ReadonlySet<string>) {
     return {
+      ...(unchecked.has(String(row['id'])) ? { uncheckedFighters: true as const } : {}),
       id: row['id'],
       eventId: row['event_id'],
       tournamentId: row['tournament_id'] ?? null,
