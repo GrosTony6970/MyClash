@@ -61,6 +61,8 @@ export interface BoutRow {
   red_score: number | null;
   blue_score: number | null;
   winner_registration_id: string | null;
+  /** The recorded winner when a team won: exactly one of the two winner columns is set. */
+  winner_team_id: string | null;
   locked_at: string | null;
   lice_id: string | null;
   end_reason: string | null;
@@ -144,6 +146,7 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     // the client simply dropped it, and the end-of-match overlay announced
     // whoever had more points.
     winnerRegistrationId: raw.winner_registration_id ?? null,
+    winnerTeamId: raw.winner_team_id ?? null,
     redFighterName: summary?.redName ?? '',
     blueFighterName: summary?.blueName ?? '',
     redClub: summary?.redClub ?? null,

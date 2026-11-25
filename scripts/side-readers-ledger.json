@@ -615,35 +615,35 @@
       "hits": 6,
       "why": "1b: the pad's Pool list by Registration (`:19`-`:21`)"
     },
-    "apps/web-staff/src/components/ForfeitPanel.tsx": {
-      "verdict": "not-yet",
-      "hits": 7,
-      "why": "1b: sends a null `forfeitingRegistrationId` for a team bout (`:67`)"
-    },
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": {
-      "verdict": "not-yet",
-      "hits": 18,
-      "why": "1b: corrections place cards by Registration (`:101`-`:140`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the history of the exchange picker places rows by each side's key, built with `sideKey` (`:130`-`:145`); the direct card and the forfeit take the bout's sides and pick a corner's with `sideOf`"
     },
     "apps/web-staff/src/components/MatchResultOverlay.tsx": {
-      "verdict": "not-yet",
-      "hits": 32,
-      "why": "1b: the result overlay names the winner by Registration (`:39`-`:111`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the headline, the protest counts, the history and the chart read the side keys and the winner's side key the bout screen builds with `resultSides` (`:230`-`:240`)"
     },
     "apps/web-staff/src/components/MatchView.tsx": {
-      "verdict": "not-yet",
-      "hits": 25,
-      "why": "1b: the scorekeeper screen reads sides by Registration (`:62`-`:625`)"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "declares the bout's Registration ids beside its team ids (`:63`-`:73`); each corner's side comes from `sideOf`, the side keys and the winner's from `resultSides`"
     },
     "apps/web-staff/src/components/ScoringCenterControls.tsx": {
-      "verdict": "not-yet",
-      "hits": 12,
-      "why": "1b: black card loser by Registration (`:252`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the history and the black-card banner take each side's key from the bout screen (`:276`-`:277`)"
     },
     "apps/web-staff/src/components/black-card-loss.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 1,
-      "why": "1b: the black card loser is a card's `registration_id` (`:15`)"
+      "why": "the black card's side is its `sideKey` (`:23`), matched to a side key; null is nobody (call 5)"
+    },
+    "apps/web-staff/src/components/result-winner.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "the result screen's side keys and winner's side key, each built with `sideKey` (`:21`-`:26`); the tablet's own winner is a side key too"
     },
     "apps/web-staff/src/components/tournament-context-types.ts": {
       "verdict": "not-yet",
@@ -656,14 +656,19 @@
       "why": "hands the round view each side's key, built with `sideKey` over the Registration and team ids (`:95`-`:96`): a team's queued card moves its team's score (`usePadRounds.test.ts`)"
     },
     "apps/web-staff/src/lib/bout-read.ts": {
-      "verdict": "not-yet",
+      "verdict": "no-side-read",
       "hits": 9,
-      "why": "1b: the pad bout read maps sides by Registration (`:137`-`:138`)"
+      "why": "maps the bout row's Registration ids beside its team ids, the winner's too (`:57`-`:63`, `:139`-`:149`), as they are; the screen builds its side keys from them"
     },
     "apps/web-staff/src/lib/bout-sides.ts": {
       "verdict": "side-key",
       "hits": 7,
       "why": "`sideOf` answers a corner's side, a Registration or a team, with `sideKey` over its two ids (`:23`-`:27`, call 9); `sideMissing` is written on it"
+    },
+    "apps/web-staff/src/lib/forfeit-body.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "a forfeit names exactly one of `forfeitingRegistrationId` or `forfeitingTeamId` from the side's kind (`:36`, call 8); a team is asked nothing of continuing (call 4)"
     },
     "apps/web-staff/src/lib/undone-line.ts": {
       "verdict": "side-key",
@@ -1060,10 +1065,6 @@
     "apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx": {
       "count": 3,
       "why": "1b: moves to side keys in T10; the piste's Pool list bolds its winner by Registration (`:19`-`:21`)"
-    },
-    "apps/web-staff/src/components/MatchResultOverlay.tsx": {
-      "count": 3,
-      "why": "1b: moves to side keys in T10; the pad's result overlay names its winner by Registration (`:135`-`:137`)"
     }
   }
 }

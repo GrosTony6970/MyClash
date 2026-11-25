@@ -19,7 +19,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { LevelStep, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import { isSideRegistration } from '@myclash/types/side-registration';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import {
@@ -48,7 +47,7 @@ import { useTimeUpCue } from '../hooks/useTimeUpCue';
 import type { UndoLast } from '../hooks/useUndoLast';
 import { PAD_KEYS } from '../lib/pad-keys';
 import { isDoubleLoss } from './is-double-loss';
-import { blackCardLossRegistrationId } from './black-card-loss';
+import { blackCardLoserName } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
 import { CornerDot } from './CornerDot';
 
@@ -65,8 +64,9 @@ interface ScoringCenterControlsProps {
   config: TournamentScoringConfig;
   redName: string;
   blueName: string;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** Each side's key, a Fighter's Registration or a team: the history and the banner place by it. */
+  redSideId: string | null;
+  blueSideId: string | null;
   canScore: boolean;
   /** The bout waits for a Fighter: Start is greyed. `onClockAction` refuses it too, for the keys. */
   startBlocked: boolean;
@@ -149,8 +149,8 @@ export function ScoringCenterControls({
   config,
   redName,
   blueName,
-  redRegistrationId,
-  blueRegistrationId,
+  redSideId,
+  blueSideId,
   canScore,
   startBlocked,
   clockState,
@@ -244,14 +244,15 @@ export function ScoringCenterControls({
   const doubleLoss = isDoubleLoss(matchStatus, endReason);
 
   // Black card closed the match (per the penalty ruleset). Name the carded
-  // fighter so the banner reads "Black card — {fighter}".
-  const blackCardLoserRegId = blackCardLossRegistrationId(endReason, activePenalties);
-  // A side with no Registration is null too: null is nobody, never that side.
-  const blackCardLoserName = isSideRegistration(blackCardLoserRegId, redRegistrationId)
-    ? redName
-    : isSideRegistration(blackCardLoserRegId, blueRegistrationId)
-      ? blueName
-      : null;
+  // side, a Fighter or a team, so the banner reads "Black card — {side}".
+  const blackCardLoser = blackCardLoserName({
+    endReason,
+    penalties: activePenalties,
+    redSideId,
+    blueSideId,
+    redName,
+    blueName,
+  });
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
     if (doubleCount >= maxDoubles) return 'bg-danger/15 text-danger border border-danger';
@@ -272,8 +273,8 @@ export function ScoringCenterControls({
         protests: [...activeProtests, ...pendingProtests],
         redName,
         blueName,
-        redRegId: redRegistrationId,
-        blueRegId: blueRegistrationId,
+        redRegId: redSideId,
+        blueRegId: blueSideId,
         t,
         config,
       }),
@@ -286,8 +287,8 @@ export function ScoringCenterControls({
       pendingProtests,
       redName,
       blueName,
-      redRegistrationId,
-      blueRegistrationId,
+      redSideId,
+      blueSideId,
       t,
       config,
     ],
@@ -318,14 +319,12 @@ export function ScoringCenterControls({
           ruleset; the carded fighter forfeits, the opponent wins. Page-black
           edged in ink, so it literally reads as a black card against the
           lighter surface it sits on. */}
-      {blackCardLoserName && (
+      {blackCardLoser && (
         <div className="w-full rounded-xl border-2 border-foreground bg-background px-4 py-3 text-center">
           <p className="text-lg font-black uppercase tracking-widest text-foreground">
             {t('scoring.liveMatch.blackCard')}
           </p>
-          <p className="mt-1 text-xs font-semibold text-foreground-secondary">
-            {blackCardLoserName}
-          </p>
+          <p className="mt-1 text-xs font-semibold text-foreground-secondary">{blackCardLoser}</p>
         </div>
       )}
 

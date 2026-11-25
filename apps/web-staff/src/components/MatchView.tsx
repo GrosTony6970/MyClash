@@ -6,6 +6,7 @@ import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
+import { resultSides } from './result-winner';
 import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useLevelStep } from '../hooks/useLevelStep';
@@ -70,6 +71,8 @@ export interface MatchInfo {
    *  `referee_decision` override can award the bout to the fighter behind on
    *  points, and the end-of-match overlay announces it to the hall. */
   winnerRegistrationId?: string | null;
+  /** The recorded winner when a team won (0282). None on a copy kept before the read carried it. */
+  winnerTeamId?: string | null;
   redFighterName?: string;
   blueFighterName?: string;
   redClub?: string | null;
@@ -621,12 +624,8 @@ export function MatchView({
   // server's. A decided series says its rounds, never its last round's reason.
   const ownReason = seriesDecided ? null : (ownResult.endReason ?? null);
   const resultReason = unconfirmed ? ownReason : (match.endReason ?? null);
-  const ownWinnerId =
-    ownWinner === 'red'
-      ? match.redRegistrationId
-      : ownWinner === 'blue'
-        ? match.blueRegistrationId
-        : null;
+  // The two side keys and the winner's, a Fighter or a team: the server's, or the tablet's own.
+  const sideIds = resultSides(match, { unconfirmed, winner: ownWinner });
   // A series decided on this tablet is said by its rounds won (operator,
   // 2026-10-10): the last round's score alone names no winner of the bout.
   // A decided series is said by its ROUNDS WON, not confirmed and confirmed
@@ -771,7 +770,8 @@ export function MatchView({
   const protestPair: ProtestPairProps = {
     redName,
     blueName,
-    count: (corner) => scoring.protestCountFor((corner === 'red' ? redSide : blueSide)?.id ?? null),
+    count: (corner) =>
+      scoring.protestCountFor(corner === 'red' ? sideIds.redSideId : sideIds.blueSideId),
     limit: protestRulesOf(scoringConfig.display).limit,
     live: protestLive,
     onTap: (corner) =>
@@ -911,8 +911,8 @@ export function MatchView({
           config={scoringConfig}
           redName={redName}
           blueName={blueName}
-          redRegistrationId={match.redRegistrationId}
-          blueRegistrationId={match.blueRegistrationId}
+          redSideId={sideIds.redSideId}
+          blueSideId={sideIds.blueSideId}
           canScore={canScore}
           startBlocked={waitingForFighter}
           clockState={boutClock}
@@ -1057,13 +1057,13 @@ export function MatchView({
         <MatchResultOverlay
           redName={redName}
           blueName={blueName}
-          redRegistrationId={match.redRegistrationId}
-          blueRegistrationId={match.blueRegistrationId}
+          redSideId={sideIds.redSideId}
+          blueSideId={sideIds.blueSideId}
           unconfirmed={unconfirmed}
           redScore={shownResult.red}
           blueScore={shownResult.blue}
           rounds={seriesDecided ? series.closed : undefined}
-          winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}
+          winnerSideId={sideIds.winnerSideId}
           endReason={match.endReason}
           resultReason={resultReason}
           bestOf={bestOf}

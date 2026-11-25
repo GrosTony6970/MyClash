@@ -3797,11 +3797,12 @@ too) and a Start sent late meet it after their replay probe. `assertBoutTakes` t
 or `'not-judged'`, never nothing: protests say `'not-judged'`, as they are outside the ruling. A
 card void and the side swap are not judged. The pad asks the same of the bout on its screen
 (`lib/bout-sides.ts`): Start, the scoring buttons, the colour swap and the direct card are
-greyed, a protest tap on the empty corner is refused, and the bout says why. A side with no
-Registration matches no card or protest row (`isSideRegistration`,
-`@myclash/types/side-registration`, on the pad). The shared timelines and protest chip of
-`@myclash/ui` hold the same rule without the import (`rowSide`, `liveProtestsOf`): they ship on
-every public page, whose page-load budget had no room for it.
+greyed, a protest tap on the empty corner is refused, and the bout says why. The pad derives
+each corner's side, a Registration or a team, with `sideOf` (`lib/bout-sides.ts`): a card, a
+protest and a forfeit go to that side, and a side still to come is null, which matches no card or
+protest row (`isRowOfSide`). The shared timelines and protest chip of `@myclash/ui` hold the
+same rule inline (`rowSide`, `liveProtestsOf`): they ship on every public page, whose page-load
+budget had no room for an import.
 
 A correction moves a finished bout's RESULT with its score (rulings 225 to 230;
 `matches/correction-outcome.ts` is the one owner, asked by the recompute). On an over Event

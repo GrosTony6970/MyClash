@@ -384,8 +384,7 @@ export function MatchCorrectionsDrawer({
             <ForfeitPanel
               matchId={matchId}
               apiUrl={apiUrl}
-              redRegistrationId={sides.redRegistrationId}
-              blueRegistrationId={sides.blueRegistrationId}
+              sides={sides}
               redName={redName}
               blueName={blueName}
               disabled={forfeitDisabled}

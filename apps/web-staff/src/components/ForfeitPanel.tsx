@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { padRequest } from '../offline/drill-request';
+import { sideOf, type BoutSides } from '../lib/bout-sides';
+import { forfeitBody, forfeitQuestionFor } from '../lib/forfeit-body';
 import { refusalMessage } from '../lib/refusal-copy';
 import { forfeitQuestion, type ForfeitAsks } from '@myclash/types/forfeit-rules';
 
@@ -12,8 +14,8 @@ type FighterColor = 'red' | 'blue';
 
 export interface ForfeitPanelProps {
   matchId: string;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** The bout's two sides: the forfeit names the side of the corner picked (`sideOf`). */
+  sides: BoutSides;
   redName: string;
   blueName: string;
   apiUrl?: string;
@@ -34,8 +36,7 @@ const REASONS: ForfeitReason[] = [
 
 export function ForfeitPanel({
   matchId,
-  redRegistrationId,
-  blueRegistrationId,
+  sides,
   redName,
   blueName,
   apiUrl = 'http://localhost:4000',
@@ -56,19 +57,22 @@ export function ForfeitPanel({
   const reasonId = `forfeit-reason-${matchId}`;
   const noteId = `forfeit-note-${matchId}`;
   const canContinueId = `forfeit-can-continue-${matchId}`;
-  const question = forfeitQuestion(reason, forfeitAsks, phaseType);
+  // The side that forfeits, a Fighter or a team: a team is asked nothing of continuing (call 4).
+  const side = sideOf(sides, fighter);
+  const rulesQuestion = forfeitQuestion(reason, forfeitAsks, phaseType);
+  const question = forfeitQuestionFor(rulesQuestion, side);
 
   async function submit() {
+    // A corner with no Fighter yet: nobody to forfeit. The server refuses it too.
+    if (side === null) {
+      setError(t('pad.corrections.boutSideMissing'));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const result = await padRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
       method: 'POST',
-      body: {
-        forfeitingRegistrationId: fighter === 'red' ? redRegistrationId : blueRegistrationId,
-        reason,
-        canContinue: question.ask ? canContinue : undefined,
-        note: note.trim() || undefined,
-      },
+      body: forfeitBody({ side, reason, canContinue, question: rulesQuestion, note }),
     });
     setSubmitting(false);
 
