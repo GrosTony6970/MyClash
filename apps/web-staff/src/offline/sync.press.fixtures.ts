@@ -94,7 +94,7 @@ export function addCard(matchId = 'm1', clientUuid = crypto.randomUUID()): Promi
     clientUuid,
     matchId,
     sequence: 1,
-    registrationId: 'reg-1',
+    side: { kind: 'registration', id: 'reg-1' },
     occurredAt: new Date(AT_TEN.wall).toISOString(),
     directCard: 'yellow',
     reason: 'Excessive force',

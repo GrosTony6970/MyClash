@@ -174,7 +174,7 @@ describe('a protest tapped on the pad', () => {
       clientUuid: crypto.randomUUID(),
       matchId: 'm1',
       sequence: 3,
-      registrationId: REG,
+      side: { kind: 'registration', id: REG },
       occurredAt: new Date().toISOString(),
       directCard: 'yellow',
       reason: 'Late',

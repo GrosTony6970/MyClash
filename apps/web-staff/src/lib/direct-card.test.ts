@@ -244,8 +244,10 @@ describe('the screens', () => {
     const panel = read('components', 'DirectCardPanel.tsx');
     for (const field of [
       'sequence: props.nextSequence,',
-      "const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;",
-      "side: { kind: 'registration' as const, id: registrationId },",
+      // The corner's side, a Fighter or a team (`sideOf`, `bout-sides.test.ts`).
+      'const side = sideOf(props.sides, draft.fighter);',
+      'await giveDirectCard(directCardRow(props, card, side), {',
+      '    side,\n',
       'clockTimeMs: props.clockTimeMs,',
       'bout: props.bout,',
       'cardedColor: fighter,',
@@ -254,6 +256,19 @@ describe('the screens', () => {
     ]) {
       expect(panel, field).toContain(field);
     }
+  });
+
+  // A card of the list goes to the column's side, a Fighter or a team (`sideOf`). The browser
+  // story is `tests/a11y/pad-offline-drill.spec.ts` (a team bout's card, offline).
+  it('the column queues a card of the list on its own side', () => {
+    const column = read('components', 'ScoringColumn.tsx');
+    expect(column).toContain('if (boutSide === null) {');
+    expect(column).toContain('        side: boutSide,\n');
+    const view = read('components', 'MatchView.tsx');
+    expect(view).toContain("const redSide = sideOf(match, 'red');");
+    expect(view).toContain("const blueSide = sideOf(match, 'blue');");
+    expect(view).toContain('boutSide={redSide}');
+    expect(view).toContain('boutSide={blueSide}');
   });
 
   it('the card buttons are live with no connection', () => {

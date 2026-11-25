@@ -24,7 +24,8 @@ import { ProtestButton } from './ProtestButton';
 interface ProtestControlProps {
   side: 'red' | 'blue';
   matchId: string;
-  registrationId: string | null;
+  /** The side's key, a Fighter's Registration or a team (`sideOf`); null while still to come. */
+  sideId: string | null;
   fighterName: string;
   disabled: boolean;
   /** The pad's one protest tap: the `clientUuid` written, or null for a tap it ignored. */
@@ -44,7 +45,7 @@ interface ProtestControlProps {
 export function ProtestControl({
   side,
   matchId,
-  registrationId,
+  sideId,
   fighterName,
   disabled,
   onProtestTap,
@@ -68,7 +69,7 @@ export function ProtestControl({
   const shownKey = protestsOf({
     server: scoring.activeProtests,
     pending: scoring.pendingProtests,
-    sideId: registrationId,
+    sideId,
   })
     .map((row) => row.client_uuid)
     .join(' ');
@@ -92,13 +93,13 @@ export function ProtestControl({
       entries,
       cardEntryLive,
     });
-    if (entry) setOffered({ entry, card: scoring.resolveCard(entry, registrationId) });
+    if (entry) setOffered({ entry, card: scoring.resolveCard(entry, sideId) });
   }
 
   return (
     <>
       <ProtestButton
-        count={scoring.protestCountFor(registrationId)}
+        count={scoring.protestCountFor(sideId)}
         limit={protestRules.limit}
         fighterName={fighterName}
         disabled={disabled}

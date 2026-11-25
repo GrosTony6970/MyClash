@@ -44,7 +44,7 @@ describe('a card of the penalty list', () => {
 
   it('asks on the card the fighter will get, not on the entry', () => {
     expect(column).toMatch(
-      /const card = resolveCard\(entry, registrationId\);\s+if \(cardAsksFirst\(card\)\) setAskedCard\(\{ entry, card \}\);\s+else void submitPenalty\(listedCard\(entry\)\);/,
+      /const card = resolveCard\(entry, sideId\);\s+if \(cardAsksFirst\(card\)\) setAskedCard\(\{ entry, card \}\);\s+else void submitPenalty\(listedCard\(entry\)\);/,
     );
   });
 

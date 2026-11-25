@@ -1,6 +1,6 @@
 import type { BoutNames } from './db';
 import { enqueue } from './outbox';
-import { sideFields, type QueuedSide } from './queued-side';
+import type { QueuedSide } from './queued-side';
 
 /**
  * A protest's row in the queue: one side's protest, a Fighter's or a team's,
@@ -9,10 +9,7 @@ import { sideFields, type QueuedSide } from './queued-side';
  * side. Answers the protest's `clientUuid`: the pad counts it before the
  * screen shows it.
  */
-export async function queueProtest({
-  side,
-  ...p
-}: {
+export async function queueProtest(p: {
   matchId: string;
   sequence: number;
   side: QueuedSide;
@@ -27,7 +24,6 @@ export async function queueProtest({
     clientUuid,
     occurredAt: new Date().toISOString(),
     ...p,
-    ...sideFields(side),
   });
   return clientUuid;
 }

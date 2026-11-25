@@ -22,6 +22,7 @@ import {
   type MatchProtest,
   type Penalty,
 } from '@myclash/ui';
+import { sideOf, type BoutSides } from './bout-sides';
 import type { UndoneEntry } from './clear-last';
 
 /** The bout as its screen holds it, at the tap of the undo. */
@@ -34,12 +35,7 @@ interface BoutOnScreen {
     activeProtests: MatchProtest[];
     pendingProtests: MatchProtest[];
   };
-  match: {
-    redRegistrationId: string | null;
-    blueRegistrationId: string | null;
-    redFighterName?: string;
-    blueFighterName?: string;
-  };
+  match: BoutSides & { redFighterName?: string; blueFighterName?: string };
   config: BuildTimelineArgs['config'];
   t: BuildTimelineArgs['t'];
 }
@@ -58,8 +54,9 @@ export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null
     protests: [...scoring.activeProtests, ...scoring.pendingProtests],
     redName: match.redFighterName ?? t('scoring.lice.red'),
     blueName: match.blueFighterName ?? t('scoring.lice.blue'),
-    redRegId: match.redRegistrationId,
-    blueRegId: match.blueRegistrationId,
+    // Each line is placed by side key: a team's card names no Registration.
+    redRegId: sideOf(match, 'red')?.id ?? null,
+    blueRegId: sideOf(match, 'blue')?.id ?? null,
     t,
     config,
   });

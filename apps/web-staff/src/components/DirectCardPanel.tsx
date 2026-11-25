@@ -12,10 +12,12 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { PenaltyCard } from '../hooks/usePenalties';
+import { sideOf, type BoutSides } from '../lib/bout-sides';
 import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
 import { giveDirectCard } from '../lib/direct-card';
 import type { BoutNames } from '../offline/db';
+import type { QueuedSide } from '../offline/queued-side';
 import type { SyncEngine } from '../offline/sync';
 
 const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
@@ -45,8 +47,8 @@ export interface DirectCardPanelProps {
   draft: DirectCardDraft;
   onDraft: (draft: DirectCardDraft) => void;
   matchId: string;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** The bout's two sides: the card goes to the side of the corner picked (`sideOf`). */
+  sides: BoutSides;
   redName: string;
   blueName: string;
   ruleSetCards: readonly PenaltyCard[];
@@ -148,17 +150,17 @@ function useDirectCard(props: DirectCardPanelProps, t: Translate) {
   const [error, setError] = useState<string | null>(null);
 
   async function give(card: PenaltyCard) {
-    const { redRegistrationId, blueRegistrationId } = props;
-    const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;
+    // The corner's side, a Fighter or a team (call 5: a team's card names the team).
+    const side = sideOf(props.sides, draft.fighter);
     // A corner with no Fighter yet: the card has nobody to go to. The server refuses it too.
-    if (registrationId === null) {
+    if (side === null) {
       setError(t('pad.corrections.boutSideMissing'));
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await giveDirectCard(directCardRow(props, card, registrationId), {
+      await giveDirectCard(directCardRow(props, card, side), {
         notKept: () => setError(t('scoring.corrections.actionFailed')),
         close: () => {
           onDraft({ ...draft, reason: '' });
@@ -218,12 +220,12 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
 }
 
 /** The card as the queue keeps it: the model is a card of the list (`ScoringColumn`). */
-function directCardRow(props: DirectCardPanelProps, card: PenaltyCard, registrationId: string) {
+function directCardRow(props: DirectCardPanelProps, card: PenaltyCard, side: QueuedSide) {
   const { fighter, reason } = props.draft;
   return {
     matchId: props.matchId,
     sequence: props.nextSequence,
-    side: { kind: 'registration' as const, id: registrationId },
+    side,
     clockTimeMs: props.clockTimeMs,
     bout: props.bout,
     round: props.round,

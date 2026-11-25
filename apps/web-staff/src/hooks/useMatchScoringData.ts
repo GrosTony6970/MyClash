@@ -46,7 +46,7 @@ import {
   cardCountFor,
   pendingRowsForMatch,
   protestCountFor as protestCount,
-  queuedCardsFor as queuedCardsForRegistration,
+  queuedCardsFor as queuedCardsOfSide,
 } from '../offline/pending-events';
 import { priorsWithQueued, resolveEntryCard } from '../offline/resolve-entry-card';
 
@@ -75,12 +75,15 @@ export interface MatchScoringData {
    */
   unpricedCards: number;
   /**
-   * Queued cards against ONE fighter, split by whether the pad could price
-   * them. Per-registration because the caption sits under a single fighter's
+   * Queued cards against ONE side, split by whether the pad could price
+   * them. Per side because the caption sits under a single side's
    * numeral — the count it replaced was the whole match's, so a card against
    * blue was announced under red's score too.
+   *
+   * Every helper here takes a side key (`sideOf`): a Fighter's Registration or
+   * a team. Null is a side still to come, and nobody's.
    */
-  queuedCardsFor: (registrationId: string | null) => { priced: number; unpriced: number };
+  queuedCardsFor: (sideId: string | null) => { priced: number; unpriced: number };
   /**
    * The "Start round" and "End round" rows the tablet still holds of this bout,
    * in the order they were made. `padSeries` reads the rounds from them.
@@ -93,22 +96,20 @@ export interface MatchScoringData {
   boutHeld: boolean;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  countFor: (registrationId: string | null, card: PenaltyCard) => number;
-  /** A Fighter's protests: the server's and the tablet's, each counted once (`protestCountFor`). */
-  protestCountFor: (registrationId: string | null) => number;
+  countFor: (sideId: string | null, card: PenaltyCard) => number;
+  /** A side's protests: the server's and the tablet's, each counted once (`protestCountFor`). */
+  protestCountFor: (sideId: string | null) => number;
   /**
-   * Which card this entry will ACTUALLY produce for this fighter, counting the
-   * offences they already have in the same rule group: the server's, and the
-   * cards this tablet still holds.
+   * Which card this entry will ACTUALLY produce for this side, counting the
+   * offences it already has in the same rule group: the server's, and the
+   * cards this tablet still holds. A team's offences are of this Match only
+   * (ruling 976): the server sends them so.
    *
    * The picker used to show `entry.sanctions[0]`, always the FIRST-occurrence
    * card. On a fighter's second offence in a group the button said yellow and
    * the server issued red.
    */
-  resolveCard: (
-    entry: PenaltyRulesetEntry,
-    registrationId: string | null,
-  ) => PenaltyCard | undefined;
+  resolveCard: (entry: PenaltyRulesetEntry, sideId: string | null) => PenaltyCard | undefined;
   refreshExchanges: () => void;
 }
 
@@ -185,34 +186,30 @@ export function useMatchScoringData(args: {
     [pendingEntries],
   );
 
-  const countFor = (registrationId: string | null, card: PenaltyCard) =>
-    cardCountFor({
-      server: activePenalties,
-      pending: pending.penalties,
-      sideId: registrationId,
-      card,
-    });
+  const countFor = (sideId: string | null, card: PenaltyCard) =>
+    cardCountFor({ server: activePenalties, pending: pending.penalties, sideId, card });
 
-  const protestCountFor = (registrationId: string | null) =>
-    protestCount({ server: activeProtests, pending: pending.protests, sideId: registrationId });
+  const protestCountFor = (sideId: string | null) =>
+    protestCount({ server: activeProtests, pending: pending.protests, sideId });
 
   // Same function the server calls (`resolveEntryCard`), on the offences the
   // server will count: the ones it told the pad and the cards the tablet holds.
-  // A side with no Fighter yet has no offence: the first card of the entry.
-  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string | null) =>
-    registrationId === null
+  // The server's priors are keyed by side key (ruling 976). A side with no
+  // Fighter yet has no offence: the first card of the entry.
+  const resolveCard = (entry: PenaltyRulesetEntry, sideId: string | null) =>
+    sideId === null
       ? entry.sanctions[0]
       : resolveEntryCard(
           entry,
-          registrationId,
-          priorsWithQueued(priors?.[registrationId], pending.penalties, registrationId),
+          sideId,
+          priorsWithQueued(priors?.[sideId], pending.penalties, sideId),
         );
 
-  const queuedCardsFor = (registrationId: string | null) =>
-    queuedCardsForRegistration({
+  const queuedCardsFor = (sideId: string | null) =>
+    queuedCardsOfSide({
       pending: pending.penalties,
       unpricedCardUuids: pending.unpricedCardUuids,
-      sideId: registrationId,
+      sideId,
     });
 
   return {

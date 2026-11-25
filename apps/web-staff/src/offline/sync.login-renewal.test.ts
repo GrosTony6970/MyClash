@@ -111,7 +111,7 @@ describe('drain — a 401 on a queued hit', () => {
       clientUuid: 'uuid-card',
       matchId: 'm1',
       sequence: 1,
-      registrationId: 'reg-red',
+      side: { kind: 'registration', id: 'reg-red' },
       occurredAt: new Date().toISOString(),
       directCard: 'yellow',
       reason: 'late',

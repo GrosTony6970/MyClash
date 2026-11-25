@@ -117,6 +117,25 @@ describe('a tap of the protest button', () => {
     expect(args.onNoFighter).toHaveBeenCalledOnce();
   });
 
+  // Lyon Blades fight Paris Rapiers: the protest is the team's, one per team (call 3).
+  it('a tap of a team’s corner queues the protest on the team, with no Registration', async () => {
+    const teams = {
+      id: 'm1',
+      redRegistrationId: null,
+      blueRegistrationId: null,
+      redTeamId: 'team-lyon',
+      blueTeamId: 'team-paris',
+    };
+    const { tap, args } = tapWith({ match: teams });
+
+    await tap('blue');
+
+    const [row] = await getAllPending();
+    expect(row).toMatchObject({ kind: 'protest', teamId: 'team-paris', cardedColor: 'blue' });
+    expect(row).not.toHaveProperty('registrationId');
+    expect(args.onNoFighter).not.toHaveBeenCalled();
+  });
+
   it('a tap of a corner with its Fighter says nothing of a missing one', async () => {
     const { tap, args } = tapWith({ match: { ...MATCH, blueRegistrationId: null } });
 

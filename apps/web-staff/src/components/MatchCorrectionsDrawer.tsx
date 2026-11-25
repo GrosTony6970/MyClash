@@ -25,6 +25,8 @@ import { noExchangeRewrite } from '../lib/no-exchange-rewrite';
 import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, exchangeOptionLabel, useDialogLayer } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
+import { sideKey } from '@myclash/types/side-key';
+import type { BoutSides } from '../lib/bout-sides';
 import type { BoutNames } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
@@ -56,8 +58,8 @@ interface MatchCorrectionsDrawerProps {
   // numbered timeline the centre history shows, so the `#`s match.
   redName: string;
   blueName: string;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
+  /** The bout's two sides, a Fighter or a team each (`sideOf`). */
+  sides: BoutSides;
   config: TournamentScoringConfig;
   /**
    * The match's events, read once by `MatchView`.
@@ -98,8 +100,7 @@ export function MatchCorrectionsDrawer({
   limitMs,
   redName,
   blueName,
-  redRegistrationId,
-  blueRegistrationId,
+  sides,
   config,
   scoring,
   forfeitDisabled,
@@ -125,6 +126,9 @@ export function MatchCorrectionsDrawer({
   // to void or edit.
   const { activeExchanges, activePenalties, activeProtests, ruleSetCards } = scoring;
   const [cardDraft, setCardDraft] = useState(NO_DIRECT_CARD_DRAFT);
+  // The side keys the history places each row by: a team's card names no Registration.
+  const redSideId = sideKey(sides.redRegistrationId, sides.redTeamId);
+  const blueSideId = sideKey(sides.blueRegistrationId, sides.blueTeamId);
 
   // The same numbered timeline as the centre history; the picker only offers
   // the exchange rows (its void/edit action is exchange-only), but their `#`
@@ -137,8 +141,8 @@ export function MatchCorrectionsDrawer({
         protests: activeProtests,
         redName,
         blueName,
-        redRegId: redRegistrationId,
-        blueRegId: blueRegistrationId,
+        redRegId: redSideId,
+        blueRegId: blueSideId,
         t,
         config,
       }).filter((ev) => ev.kind === 'exchange'),
@@ -148,8 +152,8 @@ export function MatchCorrectionsDrawer({
       activeProtests,
       redName,
       blueName,
-      redRegistrationId,
-      blueRegistrationId,
+      redSideId,
+      blueSideId,
       t,
       config,
     ],
@@ -380,8 +384,8 @@ export function MatchCorrectionsDrawer({
             <ForfeitPanel
               matchId={matchId}
               apiUrl={apiUrl}
-              redRegistrationId={redRegistrationId}
-              blueRegistrationId={blueRegistrationId}
+              redRegistrationId={sides.redRegistrationId}
+              blueRegistrationId={sides.blueRegistrationId}
               redName={redName}
               blueName={blueName}
               disabled={forfeitDisabled}
@@ -396,8 +400,7 @@ export function MatchCorrectionsDrawer({
             draft={cardDraft}
             onDraft={setCardDraft}
             matchId={matchId}
-            redRegistrationId={redRegistrationId}
-            blueRegistrationId={blueRegistrationId}
+            sides={sides}
             redName={redName}
             blueName={blueName}
             ruleSetCards={ruleSetCards}

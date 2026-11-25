@@ -1,5 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { sideMissing } from './bout-sides';
+import { sideMissing, sideOf } from './bout-sides';
+
+/**
+ * Lyon Blades fight Paris Rapiers in a team Pool. The scorekeeper cards Lyon on red: the card
+ * goes to the team, never to a Registration the team does not have.
+ */
+const TEAMS = {
+  redRegistrationId: null,
+  blueRegistrationId: null,
+  redTeamId: 'team-lyon',
+  blueTeamId: 'team-paris',
+};
+
+describe('sideOf', () => {
+  it('a team bout gives each corner its team', () => {
+    expect(sideOf(TEAMS, 'red')).toEqual({ kind: 'team', id: 'team-lyon' });
+    expect(sideOf(TEAMS, 'blue')).toEqual({ kind: 'team', id: 'team-paris' });
+  });
+
+  it('a Fighters’ bout gives each corner its Registration', () => {
+    const bout = { ...TEAMS, redTeamId: null, blueTeamId: null };
+    expect(sideOf({ ...bout, redRegistrationId: 'reg-anna' }, 'red')).toEqual({
+      kind: 'registration',
+      id: 'reg-anna',
+    });
+    expect(sideOf({ ...bout, blueRegistrationId: 'reg-ben' }, 'blue')).toEqual({
+      kind: 'registration',
+      id: 'reg-ben',
+    });
+  });
+
+  it('a corner still to come has no side', () => {
+    expect(sideOf({ ...TEAMS, redTeamId: null }, 'red')).toBeNull();
+    expect(sideOf({ ...TEAMS, blueTeamId: null }, 'blue')).toBeNull();
+  });
+
+  it('a kept copy without team ids reads its Registrations', () => {
+    expect(sideOf({ redRegistrationId: 'reg-anna', blueRegistrationId: null }, 'red')).toEqual({
+      kind: 'registration',
+      id: 'reg-anna',
+    });
+    expect(sideOf({ redRegistrationId: 'reg-anna', blueRegistrationId: null }, 'blue')).toBeNull();
+  });
+});
 
 /**
  * Léa opens the final on her pad. The semi-final that feeds its blue side is still running, so
@@ -32,14 +75,7 @@ describe('sideMissing', () => {
 
   // A team bout: its sides are teams, with no Registration. Both are known.
   it('a team side is a known side', () => {
-    expect(
-      sideMissing({
-        redRegistrationId: null,
-        blueRegistrationId: null,
-        redTeamId: 'team-red',
-        blueTeamId: 'team-blue',
-      }),
-    ).toBe(false);
+    expect(sideMissing(TEAMS)).toBe(false);
   });
 
   // A copy the tablet kept before the bout read carried the team ids.

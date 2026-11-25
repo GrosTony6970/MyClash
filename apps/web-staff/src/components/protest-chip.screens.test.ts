@@ -91,7 +91,7 @@ describe('the pad', () => {
     expect(column.indexOf('<ProtestControl')).toBeGreaterThan(chips);
     expect(element(column, '<ProtestControl')).toContain('disabled={!protestLive || readOnly}');
     const chip = element(control, '<ProtestButton');
-    expect(chip).toContain('count={scoring.protestCountFor(registrationId)}');
+    expect(chip).toContain('count={scoring.protestCountFor(sideId)}');
     expect(chip).toContain('limit={protestRules.limit}');
     expect(control).toContain('const protestRules = protestRulesOf(config.display);');
     expect(chip).toContain('disabled={disabled}');
@@ -125,7 +125,7 @@ describe('the pad', () => {
   // control tells it is the chip's own rows (`protestsOf`, the owner of the chip's count).
   it('tells the offer which protests the screen drew, from the chip’s own rows', () => {
     expect(control).toMatch(
-      /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+sideId: registrationId,\s+\}\)/,
+      /const shownKey = protestsOf\(\{\s+server: scoring\.activeProtests,\s+pending: scoring\.pendingProtests,\s+sideId,\s+\}\)/,
     );
     expect(control).toContain('const seenProtests = useRef(protestsSeen(matchId));');
     expect(control).toContain(

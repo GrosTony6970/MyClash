@@ -27,7 +27,7 @@ function addCard(): Promise<number> {
     clientUuid: crypto.randomUUID(),
     matchId: 'm1',
     sequence: 1,
-    registrationId: 'reg-red',
+    side: { kind: 'registration', id: 'reg-red' },
     occurredAt: AT_TEN_ISO,
     directCard: 'black',
     reason: 'struck after the halt',

@@ -21,7 +21,7 @@ import { entryLine, roundStaysClosed } from '../lib/undone-line';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
-import { sideMissing } from '../lib/bout-sides';
+import { sideMissing, sideOf } from '../lib/bout-sides';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
 import type { PressedOn } from '../offline/db';
@@ -433,6 +433,9 @@ export function MatchView({
   // 2026-11-24). Asked of the bout on screen, the server's or the tablet's copy: a copy kept
   // while a side was empty refuses Start until a read online brings the Fighter.
   const waitingForFighter = sideMissing(match);
+  // Each corner's side, a Fighter or a team (`sideOf`): its cards, protests and counts go to it.
+  const redSide = sideOf(match, 'red');
+  const blueSide = sideOf(match, 'blue');
 
   // Clock state machine. Start/Resume at zero remaining / inside the
   // soft-clock zone is challenged first (per the ruleset the clock should not
@@ -768,10 +771,7 @@ export function MatchView({
   const protestPair: ProtestPairProps = {
     redName,
     blueName,
-    count: (corner) =>
-      scoring.protestCountFor(
-        corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
-      ),
+    count: (corner) => scoring.protestCountFor((corner === 'red' ? redSide : blueSide)?.id ?? null),
     limit: protestRulesOf(scoringConfig.display).limit,
     live: protestLive,
     onTap: (corner) =>
@@ -881,7 +881,7 @@ export function MatchView({
           onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
-          registrationId={match.redRegistrationId}
+          boutSide={redSide}
           fighterName={redName}
           club={match.redClub ?? null}
           score={redScore}
@@ -943,7 +943,7 @@ export function MatchView({
           onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
-          registrationId={match.blueRegistrationId}
+          boutSide={blueSide}
           fighterName={blueName}
           club={match.blueClub ?? null}
           score={blueScore}
@@ -977,8 +977,7 @@ export function MatchView({
         limitMs={limitMs}
         redName={redName}
         blueName={blueName}
-        redRegistrationId={match.redRegistrationId}
-        blueRegistrationId={match.blueRegistrationId}
+        sides={match}
         nextSequence={nextSequence}
         clockTimeMs={clockTimeMs}
         syncEngine={syncEngine}

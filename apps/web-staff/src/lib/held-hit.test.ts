@@ -164,7 +164,7 @@ describe('the names stay on the tablet', () => {
       clientUuid: 'uuid-card',
       matchId: 'm1',
       sequence: 2,
-      registrationId: 'reg-blue',
+      side: { kind: 'registration', id: 'reg-blue' },
       occurredAt: new Date().toISOString(),
       rulesetEntryId: 'entry-7',
       cardedColor: 'blue',

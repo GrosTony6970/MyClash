@@ -615,11 +615,6 @@
       "hits": 6,
       "why": "1b: the pad's Pool list by Registration (`:19`-`:21`)"
     },
-    "apps/web-staff/src/components/DirectCardPanel.tsx": {
-      "verdict": "not-yet",
-      "hits": 11,
-      "why": "1b: the null-Registration branch says \"waiting for a Fighter\" on a team bout (`:154`)"
-    },
     "apps/web-staff/src/components/ForfeitPanel.tsx": {
       "verdict": "not-yet",
       "hits": 7,
@@ -640,20 +635,10 @@
       "hits": 25,
       "why": "1b: the scorekeeper screen reads sides by Registration (`:62`-`:625`)"
     },
-    "apps/web-staff/src/components/ProtestControl.tsx": {
-      "verdict": "not-yet",
-      "hits": 5,
-      "why": "1b: protests by Registration (`:27`-`:101`)"
-    },
     "apps/web-staff/src/components/ScoringCenterControls.tsx": {
       "verdict": "not-yet",
       "hits": 12,
       "why": "1b: black card loser by Registration (`:252`)"
-    },
-    "apps/web-staff/src/components/ScoringColumn.tsx": {
-      "verdict": "not-yet",
-      "hits": 11,
-      "why": "1b: the null-Registration branch says \"waiting for a Fighter\" on a team bout (`:194`)"
     },
     "apps/web-staff/src/components/black-card-loss.ts": {
       "verdict": "not-yet",
@@ -665,20 +650,10 @@
       "hits": 6,
       "why": "1b: pad bout shape by Registration (`:48`-`:111`)"
     },
-    "apps/web-staff/src/hooks/useMatchScoringData.ts": {
-      "verdict": "not-yet",
-      "hits": 15,
-      "why": "1b: card and protest counts by Registration (`:83`-`:188`)"
-    },
     "apps/web-staff/src/hooks/usePadRounds.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: pad rounds pass sides by Registration (`:93`-`:121`)"
-    },
-    "apps/web-staff/src/hooks/usePenalties.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: card counts by Registration (`:177`-`:178`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "hands the round view each side's key, built with `sideKey` over the Registration and team ids (`:95`-`:96`): a team's queued card moves its team's score (`usePadRounds.test.ts`)"
     },
     "apps/web-staff/src/lib/bout-read.ts": {
       "verdict": "not-yet",
@@ -687,18 +662,13 @@
     },
     "apps/web-staff/src/lib/bout-sides.ts": {
       "verdict": "side-key",
-      "hits": 4,
-      "why": "judges a missing side with `sideKey` over the Registration and team ids (`:19`-`:20`)"
-    },
-    "apps/web-staff/src/lib/protest-tap.ts": {
-      "verdict": "not-yet",
       "hits": 7,
-      "why": "1b: says \"waiting for a Fighter\" on a team bout (`:70`)"
+      "why": "`sideOf` answers a corner's side, a Registration or a team, with `sideKey` over its two ids (`:23`-`:27`, call 9); `sideMissing` is written on it"
     },
     "apps/web-staff/src/lib/undone-line.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: undone lines place cards by Registration (`:61`-`:62`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "places the undone line's rows by each side's key from `sideOf` (`:58`-`:59`)"
     },
     "apps/web-staff/src/offline/db.ts": {
       "verdict": "no-side-read",
@@ -708,7 +678,7 @@
     "apps/web-staff/src/offline/outbox.ts": {
       "verdict": "no-side-read",
       "hits": 1,
-      "why": "`queueCard` takes a card's `QueuedSide` in place of the two side fields (`:71`) and writes it through `sideFields`; reads no side"
+      "why": "`enqueue` takes a card's or a protest's `QueuedSide` in place of the two side fields and writes exactly one through `sideFields`; reads no side"
     },
     "apps/web-staff/src/offline/pending-events.ts": {
       "verdict": "side-key",

@@ -82,6 +82,26 @@ describe('entryLine', () => {
     );
   });
 
+  // Lyon Blades fight Paris Rapiers: the card names the team, and no Registration.
+  it('words a team’s card under its team', () => {
+    const teamCard = { ...card, registration_id: null, team_id: 'team-paris' };
+    const teams = {
+      ...screen,
+      scoring: { ...screen.scoring, activePenalties: [teamCard] },
+      match: {
+        redRegistrationId: null,
+        blueRegistrationId: null,
+        redTeamId: 'team-lyon',
+        blueTeamId: 'team-paris',
+        redFighterName: 'Lyon Blades',
+        blueFighterName: 'Paris Rapiers',
+      },
+    };
+    expect(entryLine({ id: 'card-1', clientUuid: 'uuid-card-1' }, teams)).toBe(
+      '#4 · 00:09 · Paris Rapiers · Late start -1',
+    );
+  });
+
   it('a side with no name reads as the pad’s word for that side', () => {
     const match = { redRegistrationId: 'reg-red', blueRegistrationId: 'reg-blue' };
     const unnamed = { ...screen, match };
