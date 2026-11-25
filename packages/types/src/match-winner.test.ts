@@ -2,26 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { resolveMatchWinner } from './match-winner';
 
 const base = {
-  redRegistrationId: 'red-reg',
-  blueRegistrationId: 'blue-reg',
+  redSideId: 'red-reg',
+  blueSideId: 'blue-reg',
   redScore: 5,
   blueScore: 3,
 };
 
 describe('resolveMatchWinner', () => {
   it('returns null until the match is completed', () => {
-    expect(
-      resolveMatchWinner({ ...base, status: 'running', winnerRegistrationId: 'red-reg' }),
-    ).toBeNull();
+    expect(resolveMatchWinner({ ...base, status: 'running', winnerSideId: 'red-reg' })).toBeNull();
   });
 
-  it('uses the stored winner registration id', () => {
-    expect(
-      resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: 'red-reg' }),
-    ).toBe('red');
-    expect(
-      resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: 'blue-reg' }),
-    ).toBe('blue');
+  it('uses the stored winner side id', () => {
+    expect(resolveMatchWinner({ ...base, status: 'completed', winnerSideId: 'red-reg' })).toBe(
+      'red',
+    );
+    expect(resolveMatchWinner({ ...base, status: 'completed', winnerSideId: 'blue-reg' })).toBe(
+      'blue',
+    );
   });
 
   it('trusts the stored winner even when it contradicts the score (reverse rulesets)', () => {
@@ -32,7 +30,7 @@ describe('resolveMatchWinner', () => {
         redScore: 0,
         blueScore: 7,
         status: 'completed',
-        winnerRegistrationId: 'red-reg',
+        winnerSideId: 'red-reg',
       }),
     ).toBe('red');
   });
@@ -40,7 +38,7 @@ describe('resolveMatchWinner', () => {
   it('crowns the fighter BEHIND on points when the record says so', () => {
     // The whole reason this function exists. A referee_decision override, a
     // walkover, or a keep-current injury forfeit all award the bout to someone
-    // who is losing on points — the eight surfaces that compared the two
+    // who is losing on points — the nine surfaces that compared the two
     // numbers each announced the wrong name.
     expect(
       resolveMatchWinner({
@@ -48,22 +46,20 @@ describe('resolveMatchWinner', () => {
         redScore: 1,
         blueScore: 5,
         status: 'completed',
-        winnerRegistrationId: 'red-reg',
+        winnerSideId: 'red-reg',
       }),
     ).toBe('red');
   });
 
   it('falls back to the higher score when no winner is stored (time-limit finish)', () => {
-    expect(resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: null })).toBe(
-      'red',
-    );
+    expect(resolveMatchWinner({ ...base, status: 'completed', winnerSideId: null })).toBe('red');
     expect(
       resolveMatchWinner({
         ...base,
         redScore: 2,
         blueScore: 4,
         status: 'completed',
-        winnerRegistrationId: null,
+        winnerSideId: null,
       }),
     ).toBe('blue');
   });
@@ -75,7 +71,7 @@ describe('resolveMatchWinner', () => {
         redScore: 3,
         blueScore: 3,
         status: 'completed',
-        winnerRegistrationId: null,
+        winnerSideId: null,
       }),
     ).toBeNull();
   });
@@ -84,7 +80,7 @@ describe('resolveMatchWinner', () => {
     // A mismatched pairing. Falling through to the score would invent a winner
     // the record does not name.
     expect(
-      resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: 'someone-else' }),
+      resolveMatchWinner({ ...base, status: 'completed', winnerSideId: 'someone-else' }),
     ).toBeNull();
   });
 
@@ -94,9 +90,9 @@ describe('resolveMatchWinner', () => {
     expect(
       resolveMatchWinner({
         status: 'completed',
-        winnerRegistrationId: undefined,
-        redRegistrationId: null,
-        blueRegistrationId: null,
+        winnerSideId: undefined,
+        redSideId: null,
+        blueSideId: null,
         redScore: null,
         blueScore: null,
       }),

@@ -16,9 +16,9 @@ import { MatchStatusPill } from './MatchStatusPill';
 function winnerSide(match: PoolMatchRow): 'red' | 'blue' | null {
   return resolveMatchWinner({
     status: match.status,
-    winnerRegistrationId: match.winner_registration_id,
-    redRegistrationId: match.red_registration_id,
-    blueRegistrationId: match.blue_registration_id,
+    winnerSideId: match.winner_registration_id,
+    redSideId: match.red_registration_id,
+    blueSideId: match.blue_registration_id,
     redScore: match.red_score,
     blueScore: match.blue_score,
   });

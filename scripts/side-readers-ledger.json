@@ -519,7 +519,7 @@
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/pool-bout-winner.ts": {
       "verdict": "side-key",
-      "hits": 9,
+      "hits": 6,
       "why": "the Pool table's winner: `resolveMatchWinner` fed `sideKey` of each side and of the winner"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/print/build-print-data.ts": {
@@ -936,9 +936,9 @@
       "why": "1c: final ranking by Registration (`:145`-`:146`)"
     },
     "packages/types/src/match-winner.ts": {
-      "verdict": "not-yet",
-      "hits": 8,
-      "why": "1b: the winner of a bout by Registration (`:38`-`:40`), and its nine display callers"
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "the winner of a bout by side id: `winnerSideId`, `redSideId`, `blueSideId` are required keys, so each of its nine callers names them; the one hit is the doc comment naming `winner_registration_id`"
     },
     "packages/ui/src/components/MatchScoreboard.tsx": {
       "verdict": "not-yet",
@@ -1082,6 +1082,30 @@
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
       "why": "the round-count call asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:1979`-`:1980`)"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
+      "count": 3,
+      "why": "brackets refuse teams until 1c: the podium names the winner of a bracket slot by Registration (`:2049`-`:2051`)"
+    },
+    "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx": {
+      "count": 3,
+      "why": "1b: moves to side keys in T11; the public bout page names its winner by Registration (`:36`-`:38`)"
+    },
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
+      "count": 3,
+      "why": "1b: moves to side keys in T11; the public Pool table bolds its winner by Registration (`:340`-`:342`)"
+    },
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
+      "count": 3,
+      "why": "brackets refuse teams until 1c: the public bracket podium names the winner of a slot by Registration, and `BracketSlot` has no team ids (`:152`-`:154`)"
+    },
+    "apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx": {
+      "count": 3,
+      "why": "1b: moves to side keys in T10; the piste's Pool list bolds its winner by Registration (`:19`-`:21`)"
+    },
+    "apps/web-staff/src/components/MatchResultOverlay.tsx": {
+      "count": 3,
+      "why": "1b: moves to side keys in T10; the pad's result overlay names its winner by Registration (`:135`-`:137`)"
     }
   }
 }

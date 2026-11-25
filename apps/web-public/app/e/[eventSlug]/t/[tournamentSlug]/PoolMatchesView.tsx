@@ -335,7 +335,14 @@ export function PoolMatchesView({
                     const returnTo = `/e/${eventSlug}/t/${tournamentSlug}#poolmatches`;
                     const openMatch = () =>
                       router.push(boutPageHref(eventSlug, m.matchId, returnTo));
-                    const winner = resolveMatchWinner(m);
+                    const winner = resolveMatchWinner({
+                      status: m.status,
+                      winnerSideId: m.winnerRegistrationId,
+                      redSideId: m.redRegistrationId,
+                      blueSideId: m.blueRegistrationId,
+                      redScore: m.redScore,
+                      blueScore: m.blueScore,
+                    });
                     const redIsYou =
                       !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;
                     const blueIsYou =

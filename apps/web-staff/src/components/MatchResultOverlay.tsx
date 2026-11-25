@@ -132,9 +132,9 @@ function ResultHeadline({
   const lossForBoth = isDoubleLoss('completed', resultReason);
   const resolved = resolveMatchWinner({
     status: 'completed', // the overlay only renders once the clock has ended
-    winnerRegistrationId,
-    redRegistrationId,
-    blueRegistrationId,
+    winnerSideId: winnerRegistrationId,
+    redSideId: redRegistrationId,
+    blueSideId: blueRegistrationId,
     redScore,
     blueScore,
   });

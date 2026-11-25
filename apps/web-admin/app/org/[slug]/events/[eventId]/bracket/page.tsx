@@ -2046,9 +2046,9 @@ export default function BracketPage() {
 function podiumSide(slot: BracketSlotData): 'red' | 'blue' | null {
   return resolveMatchWinner({
     status: 'completed', // both callers gate on slot.status === 'completed'
-    winnerRegistrationId: slot.winnerRegistrationId,
-    redRegistrationId: slot.redRegistrationId,
-    blueRegistrationId: slot.blueRegistrationId,
+    winnerSideId: slot.winnerRegistrationId,
+    redSideId: slot.redRegistrationId,
+    blueSideId: slot.blueRegistrationId,
     redScore: slot.redScore,
     blueScore: slot.blueScore,
   });

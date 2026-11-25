@@ -409,9 +409,9 @@ function winsThisRow(side: 'red' | 'blue', slot: BracketSlotData): boolean {
   return (
     resolveMatchWinner({
       status: 'completed', // the caller has already established this
-      winnerRegistrationId: slot.winnerRegistrationId,
-      redRegistrationId: slot.redRegistrationId,
-      blueRegistrationId: slot.blueRegistrationId,
+      winnerSideId: slot.winnerRegistrationId,
+      redSideId: slot.redRegistrationId,
+      blueSideId: slot.blueRegistrationId,
       redScore: slot.redScore,
       blueScore: slot.blueScore,
     }) === side

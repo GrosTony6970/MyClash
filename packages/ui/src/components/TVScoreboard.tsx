@@ -613,9 +613,9 @@ function CenterColumn({
     if (!isEnded) return null;
     const side = resolveMatchWinner({
       status: 'completed',
-      winnerRegistrationId: match.winnerRegistrationId,
-      redRegistrationId: match.redRegistrationId,
-      blueRegistrationId: match.blueRegistrationId,
+      winnerSideId: match.winnerRegistrationId,
+      redSideId: match.redRegistrationId,
+      blueSideId: match.blueRegistrationId,
       redScore: match.redScore,
       blueScore: match.blueScore,
     });

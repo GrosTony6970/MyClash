@@ -147,7 +147,14 @@ export interface PodiumShape {
 // now the shared one in @myclash/types, which says the same thing.
 function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
   if (!s) return null;
-  return resolveMatchWinner(s);
+  return resolveMatchWinner({
+    status: s.status,
+    winnerSideId: s.winnerRegistrationId,
+    redSideId: s.redRegistrationId,
+    blueSideId: s.blueRegistrationId,
+    redScore: s.redScore,
+    blueScore: s.blueScore,
+  });
 }
 
 function winnerName(s: BracketSlot | null) {

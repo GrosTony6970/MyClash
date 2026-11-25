@@ -33,9 +33,9 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
   const winner = resolveMatchWinner({
     status: match.status,
-    winnerRegistrationId: match.winnerRegistrationId,
-    redRegistrationId: match.redRegistrationId,
-    blueRegistrationId: match.blueRegistrationId,
+    winnerSideId: match.winnerRegistrationId,
+    redSideId: match.redRegistrationId,
+    blueSideId: match.blueRegistrationId,
     redScore: match.redScore,
     blueScore: match.blueScore,
   });

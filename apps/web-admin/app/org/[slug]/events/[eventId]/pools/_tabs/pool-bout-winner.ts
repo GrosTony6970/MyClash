@@ -22,9 +22,9 @@ export interface PoolBoutResult {
 export function poolBoutWinner(m: PoolBoutResult): 'red' | 'blue' | null {
   return resolveMatchWinner({
     status: m.status,
-    winnerRegistrationId: sideKey(m.winner_registration_id, m.winner_team_id),
-    redRegistrationId: sideKey(m.red_registration_id, m.red_team_id),
-    blueRegistrationId: sideKey(m.blue_registration_id, m.blue_team_id),
+    winnerSideId: sideKey(m.winner_registration_id, m.winner_team_id),
+    redSideId: sideKey(m.red_registration_id, m.red_team_id),
+    blueSideId: sideKey(m.blue_registration_id, m.blue_team_id),
     redScore: m.red_score,
     blueScore: m.blue_score,
   });
