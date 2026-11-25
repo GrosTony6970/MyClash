@@ -1094,6 +1094,27 @@ the scoring app too: its spec no longer opts out.
 
 ---
 
+## D42 — the segmented control spends the accent
+
+**Rule broken:** Colours — "a page has one accent, spent on the single live action"
+(`DESIGN.md:18`, `:285`, `:489`).
+
+`SegmentedTabs` paints its active segment with the accent
+(`packages/ui/src/components/SegmentedTabs.tsx:54`, `bg-accent text-accent-foreground`). A chosen
+tab is a state, not the live action, so a page that has tabs and an accent button spends the
+accent twice. The Teams page does: the active Tournament tab
+(`apps/web-admin/app/org/[slug]/events/[eventId]/teams/page.tsx:67`) and "Add a team"
+(`teams/_components/TeamsPanel.tsx:80`, a primary `Button`), since the Teams screen of team
+Tournaments (2026-11-25). Every other page that renders `SegmentedTabs` beside a primary button
+carries the same second red.
+
+**Why not a one-line fix:** `SegmentedTabs` is a shared control, and its active colour is a
+decision for the design system, not for one page. **Fix when a design-system slice owns it:** a
+neutral `tone` on `SegmentedTabs` (for example `bg-foreground text-background` for the active
+segment), then move each caller to it.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.
