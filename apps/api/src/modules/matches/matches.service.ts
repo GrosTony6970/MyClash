@@ -24,6 +24,7 @@ import { scoredAtServer } from './late-press';
 import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
+import { assertIndividualPhase } from './manual-bout-kind';
 import { statusWinnerColumns } from './status-winner';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
@@ -151,6 +152,7 @@ export class MatchesService {
   }
 
   async createMatch(dto: CreateMatchDto) {
+    await assertIndividualPhase(this.supabase.service, dto.phaseId);
     // A new bout goes through the same door as a moved one. It used to write
     // `lice_id` and `scheduled_at` with no occupancy check at all, so a bout
     // could be created straight onto a busy strip — `checkOnly` because there

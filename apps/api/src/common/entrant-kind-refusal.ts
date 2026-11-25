@@ -31,14 +31,14 @@ const REFUSALS = [
 const CHECK_VIOLATION = '23514';
 
 /**
- * The 409 for a phase a team Tournament does not run yet: in slice 1b-1 a team Tournament runs
- * Pools only. A bracket of teams lands in 1c; Swiss has no team path (ADR-022).
+ * The 409 for what a team Tournament does not take yet: in slice 1b-1 a team Tournament runs
+ * Pools only. A bracket of teams lands in 1c; Swiss has no team path (ADR-022). A route that is
+ * not a phase says its own English sentence; the `reason` stays the same.
  */
-export function teamTournamentNotSupported(): ConflictException {
-  return new ConflictException({
-    reason: 'team_tournament_not_supported',
-    message: 'A team Tournament runs Pools only for now: it takes no bracket and no Swiss phase.',
-  });
+export function teamTournamentNotSupported(
+  message = 'A team Tournament runs Pools only for now: it takes no bracket and no Swiss phase.',
+): ConflictException {
+  return new ConflictException({ reason: 'team_tournament_not_supported', message });
 }
 
 /** The 409 for an entrant of the other kind, said by the API before the database would refuse it. */

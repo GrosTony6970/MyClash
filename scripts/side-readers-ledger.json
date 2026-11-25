@@ -81,9 +81,9 @@
       "why": "takes the side keys scoring builds with `sideKey`; names the Registration column in its header comment only (`:6`)"
     },
     "apps/api/src/modules/matches/dto/matches.dto.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 6,
-      "why": "1b: the create body names sides by Registration (`:10`-`:11`); the manual completion takes a side key (`winnerSideId`, `:42`); the forfeit body names exactly one of a Registration or a team (`:145`-`:146`, `:166`-`:182`)"
+      "why": "the manual completion takes a side key (`winnerSideId`, `:42`); the forfeit body names exactly one of a Registration or a team (`:145`-`:146`, `:166`-`:182`); the create body names sides by Registration (`:10`-`:11`): the manual create refuses a team Tournament (call 8)"
     },
     "apps/api/src/modules/matches/fighter-bouts.ts": {
       "verdict": "side-key",
@@ -137,9 +137,9 @@
       "byHand": true
     },
     "apps/api/src/modules/matches/matches.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 14,
-      "why": "1b: create names its sides by Registration (`:193`); the manual completion writes its winner by side through `status-winner.ts` (`:282`-`:288`); `swapFighterColor` moves each side whole, Registration and team (`:976`-`:982`)"
+      "why": "the manual completion writes its winner by side through `status-winner.ts` (`:284`-`:290`); `swapFighterColor` moves each side whole, Registration and team (`:978`-`:984`). The manual create names its sides by Registration (`:195`) and refuses a team Tournament first (`manual-bout-kind.ts`, `:155`, call 8). The hit door and the lock read take both kinds of each side and judge them by `sidesOf` (`:711`-`:729`, `:1285`)"
     },
     "apps/api/src/modules/matches/reopen-match-columns.ts": {
       "verdict": "no-side-read",

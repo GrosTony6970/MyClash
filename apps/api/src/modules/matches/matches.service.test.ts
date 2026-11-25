@@ -1295,6 +1295,7 @@ describe('MatchesService', () => {
             tournament_id: 't-1',
             tournaments: {
               event_id: 'event-1',
+              entrant_kind: 'individual',
               ruleset_code: 'Generic_PointsCap',
               ruleset_version: '1',
               ruleset_content_hash: 'hash-1',
@@ -1327,6 +1328,8 @@ describe('MatchesService', () => {
       );
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
       expect(selectsFor(supabase.from, 'phases')).toEqual([
+        // Its Tournament's kind: a team Tournament is refused first (call 8).
+        'id, tournaments!inner(entrant_kind)',
         'id, tournaments!inner(event_id)',
         // The Tournament whose rules are stamped on the bout.
         'tournament_id',
