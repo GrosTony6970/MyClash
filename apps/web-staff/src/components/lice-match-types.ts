@@ -28,6 +28,9 @@ export interface LiceMatch {
   roundCode: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour chip (a colour token, call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   redScore: number;
   blueScore: number;
   tournamentId: string | null;

@@ -84,6 +84,9 @@ export interface BoutSummary {
   blueName: string;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip (a colour token); null for a Fighter's side (call 6). */
+  redColour?: string | null;
+  blueColour?: string | null;
   weapon: string;
   tournamentId: string;
   tournamentName?: string | null;
@@ -151,6 +154,8 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     blueFighterName: summary?.blueName ?? '',
     redClub: summary?.redClub ?? null,
     blueClub: summary?.blueClub ?? null,
+    redColour: summary?.redColour ?? null,
+    blueColour: summary?.blueColour ?? null,
     weapon: summary?.weapon ?? '',
     tournamentId: summary?.tournamentId,
     tournamentName: summary?.tournamentName ?? null,

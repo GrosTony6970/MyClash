@@ -77,6 +77,9 @@ export interface MatchInfo {
   blueFighterName?: string;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip, beside its name (call 6). Null for a Fighter's side. */
+  redColour?: string | null;
+  blueColour?: string | null;
   weapon?: string;
   tournamentId?: string;
   /** Header context line (Tournament · Phase · Piste) — from GET /matches/:id/summary. */
@@ -789,6 +792,8 @@ export function MatchView({
         liceName={match.liceName ?? null}
         redName={redName}
         blueName={blueName}
+        redColour={match.redColour ?? null}
+        blueColour={match.blueColour ?? null}
         config={scoringConfig}
         liceId={match.liceId ?? null}
         backHref={backHref}

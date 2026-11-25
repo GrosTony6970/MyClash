@@ -94,6 +94,8 @@ export function neighboursFromPiste(
       blueName: copy?.blueFighterName ?? '',
       redClub: copy?.redClub ?? null,
       blueClub: copy?.blueClub ?? null,
+      redColour: copy?.redColour ?? null,
+      blueColour: copy?.blueColour ?? null,
     };
   };
   return { previous: tile(order[at - 1]), next: tile(order[at + 1]) };

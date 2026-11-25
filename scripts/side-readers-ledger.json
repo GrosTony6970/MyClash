@@ -610,11 +610,6 @@
       "hits": 3,
       "why": "1b: public Tournament bout shape by Registration (`:53`-`:57`)"
     },
-    "apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: the pad's Pool list by Registration (`:19`-`:21`)"
-    },
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": {
       "verdict": "side-key",
       "hits": 4,
@@ -646,9 +641,9 @@
       "why": "the result screen's side keys and winner's side key, each built with `sideKey` (`:21`-`:26`); the tablet's own winner is a side key too"
     },
     "apps/web-staff/src/components/tournament-context-types.ts": {
-      "verdict": "not-yet",
+      "verdict": "no-side-read",
       "hits": 6,
-      "why": "1b: pad bout shape by Registration (`:48`-`:111`)"
+      "why": "declares the piste's Pool row with its Registration ids beside its team ids and both winner columns (`:50`-`:56`), and the bracket slot's Registration ids (`:108`-`:110`), as the server sends them (single elimination is 1c: a slot carries no team id); reads no side"
     },
     "apps/web-staff/src/hooks/usePadRounds.ts": {
       "verdict": "side-key",
@@ -669,6 +664,11 @@
       "verdict": "side-key",
       "hits": 2,
       "why": "a forfeit names exactly one of `forfeitingRegistrationId` or `forfeitingTeamId` from the side's kind (`:36`, call 8); a team is asked nothing of continuing (call 4)"
+    },
+    "apps/web-staff/src/lib/pool-row-winner.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the piste's Pool list bolds the recorded winner, each side and the winner built with `sideKey` (`:18`-`:20`)"
     },
     "apps/web-staff/src/lib/undone-line.ts": {
       "verdict": "side-key",
@@ -1061,10 +1061,6 @@
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
       "count": 3,
       "why": "brackets refuse teams until 1c: the public bracket podium names the winner of a slot by Registration, and `BracketSlot` has no team ids (`:152`-`:154`)"
-    },
-    "apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx": {
-      "count": 3,
-      "why": "1b: moves to side keys in T10; the piste's Pool list bolds its winner by Registration (`:19`-`:21`)"
     }
   }
 }

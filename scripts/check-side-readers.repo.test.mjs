@@ -52,8 +52,6 @@ const NOT_YET = [
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts',
-  'apps/web-staff/app/lices/[liceId]/_components/PoolMatchList.tsx',
-  'apps/web-staff/src/components/tournament-context-types.ts',
   'packages/rules/src/results/bracket-r1-seeding.ts',
   'packages/types/src/final-ranking-core.ts',
   'packages/types/src/final-ranking.ts',

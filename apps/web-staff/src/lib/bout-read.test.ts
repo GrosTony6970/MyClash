@@ -90,6 +90,9 @@ describe('readBout', () => {
         blueFighterName: 'Bo Blue',
         redClub: 'Club A',
         blueClub: null,
+        // A Fighter's side has no colour chip.
+        redColour: null,
+        blueColour: null,
         weapon: 'longsword',
         tournamentId: 'tournament-1',
         tournamentName: 'Longsword Open',
@@ -125,7 +128,11 @@ describe('readBout', () => {
       blue_team_id: 'team-paris',
       winner_team_id: 'team-lyon',
     };
-    const { fetchFn } = answering(() => json(team));
+    const summary = { ...SUMMARY, redColour: 'green', blueColour: 'purple' };
+    const { fetchFn } = answering(
+      () => json(team),
+      () => json(summary),
+    );
 
     const read = await readBout('https://api.test', 'bout-1', fetchFn);
 
@@ -135,6 +142,9 @@ describe('readBout', () => {
       blueTeamId: 'team-paris',
       winnerRegistrationId: null,
       winnerTeamId: 'team-lyon',
+      // Each team's colour chip, from the summary (call 6).
+      redColour: 'green',
+      blueColour: 'purple',
     });
   });
 

@@ -79,6 +79,8 @@ describe('the neighbours of a bout, from the piste the tablet keeps', () => {
     blueName: `Blue ${id}`,
     redClub: 'Club A',
     blueClub: null,
+    redColour: null,
+    blueColour: null,
   });
 
   it('are the bouts before and after it in the order', () => {
@@ -114,6 +116,27 @@ describe('the neighbours of a bout, from the piste the tablet keeps', () => {
       blueName: '',
       redClub: null,
       blueClub: null,
+      redColour: null,
+      blueColour: null,
+    });
+  });
+
+  // Lyon Blades fight Paris Rapiers next, and the network is gone: the kept tile still shows
+  // each team's colour chip (call 6), from the tablet's copy of that bout.
+  it('keep a team bout’s colour chips', () => {
+    const team = (id: string): MatchInfo => ({
+      ...named(id),
+      redFighterName: 'Lyon Blades',
+      blueFighterName: 'Paris Rapiers',
+      redClub: null,
+      redColour: 'green',
+      blueColour: 'purple',
+    });
+    expect(neighboursFromPiste(['a', 'b'], 'a', team).next).toMatchObject({
+      redName: 'Lyon Blades',
+      blueName: 'Paris Rapiers',
+      redColour: 'green',
+      blueColour: 'purple',
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { neighboursOf } from './useAdjacentMatches';
+import { neighboursOf, toInfo } from './useAdjacentMatches';
 
 const tile = (id: string) => ({
   id,
@@ -51,5 +51,43 @@ describe('neighboursOf', () => {
     const held = { matchId: 'bout-1', previous: null, next: tile('bout-2') };
 
     expect(neighboursOf(held, null)).toEqual({ previous: null, next: null, answered: false });
+  });
+});
+
+/**
+ * The pad's "next" tile names Lyon Blades against Paris Rapiers with each team's colour chip
+ * (call 6): the server sends the colour of a team side, null for a Fighter's.
+ */
+describe('toInfo', () => {
+  it('keeps a team tile’s colours', () => {
+    expect(
+      toInfo({
+        id: 'bout-2',
+        matchNumberLabel: 'M2',
+        roundCode: 'L1-P1-M2',
+        redFighterName: 'Lyon Blades',
+        blueFighterName: 'Paris Rapiers',
+        redClub: null,
+        blueClub: null,
+        redColour: 'green',
+        blueColour: 'purple',
+      }),
+    ).toEqual({
+      id: 'bout-2',
+      matchNumberLabel: 'M2',
+      roundCode: 'L1-P1-M2',
+      redName: 'Lyon Blades',
+      blueName: 'Paris Rapiers',
+      redClub: null,
+      blueClub: null,
+      redColour: 'green',
+      blueColour: 'purple',
+    });
+  });
+
+  it('gives a Fighter’s tile no colour, and an answer with no bout no tile', () => {
+    const info = toInfo({ id: 'bout-3', redFighterName: 'Ana Red', blueFighterName: 'Bo Blue' });
+    expect(info).toMatchObject({ redName: 'Ana Red', redColour: null, blueColour: null });
+    expect(toInfo(null)).toBeNull();
   });
 });

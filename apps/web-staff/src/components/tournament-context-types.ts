@@ -45,10 +45,18 @@ export interface PoolMatchRow {
   red_score: number | null;
   blue_score: number | null;
   /** The recorded winner — what the list bolds. Authoritative over the two
-   *  scores, which a forfeit or an override can invert. */
+   *  scores, which a forfeit or an override can invert. A team bout's winner is
+   *  `winner_team_id`: exactly one of the two is set. */
   winner_registration_id: string | null;
+  winner_team_id: string | null;
+  /** Each side is a Registration or a team (0282): exactly one of the two per side. */
   red_registration_id: string | null;
   blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
+  /** A team side's colour chip (a colour token); null for a Fighter's side. */
+  red_team_color: string | null;
+  blue_team_color: string | null;
   status: string;
   match_number_label: string | null;
   roundCode: string;
