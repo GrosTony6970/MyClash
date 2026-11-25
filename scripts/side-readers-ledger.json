@@ -503,24 +503,27 @@
       "why": "the Pool table's winner: `resolveMatchWinner` fed `sideKey` of each side and of the winner"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/print/build-print-data.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: printed Pool sheets name sides by Registration (`:24`-`:25`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "a printed Pool's roster is deduped by `sideKey` over both sides of its bouts: Fighters or teams"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/conflict-detection.ts": {
-      "verdict": "not-yet",
-      "hits": 10,
-      "why": "1c: the double-booking check by Registration (`:90`-`:93`)"
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "the double-booking check compares side keys (`redSideId` / `blueSideId`): a Fighter or a team; a side not known yet is nobody; no side token left, listed by hand",
+      "byHand": true
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts": {
       "verdict": "not-yet",
-      "hits": 4,
-      "why": "1c: the referee rule's second copy (`:149`)"
+      "hits": 0,
+      "why": "1c: the referee rule's second copy maps a side key to a Person through the Registrations (`fightersOf`); a team side maps to nobody until its members are named; no side token left, listed by hand",
+      "byHand": true
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/schedule-types.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1b: the schedule bout names sides by Registration (`:118`-`:119`)"
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "the schedule bout names its sides `redSideId` / `blueSideId`, the grid answer's side keys (null when not known); no side token left, listed by hand",
+      "byHand": true
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/RoundCard.tsx": {
       "verdict": "individual-only",

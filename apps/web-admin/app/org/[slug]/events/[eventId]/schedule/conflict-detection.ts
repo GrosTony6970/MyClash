@@ -21,8 +21,9 @@ export interface ScheduleMatchForConflict {
   liceId: string | null;
   scheduledAt: string | null;
   durationMinutes: number;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Each side's key: a Registration, or a team in a team Tournament; null when not known yet. */
+  redSideId: string | null;
+  blueSideId: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
 }
@@ -85,14 +86,11 @@ export function detectConflicts(
   tz: string,
   unknownFighterLabel: string,
 ): Conflict[] {
-  const nameByRegistration = new Map<string, string>();
+  // By side key: a Fighter, or a team that cannot fight two bouts at once either.
+  const nameBySide = new Map<string, string>();
   for (const m of matches) {
-    if (m.redRegistrationId && m.redFighterName) {
-      nameByRegistration.set(m.redRegistrationId, m.redFighterName);
-    }
-    if (m.blueRegistrationId && m.blueFighterName) {
-      nameByRegistration.set(m.blueRegistrationId, m.blueFighterName);
-    }
+    if (m.redSideId && m.redFighterName) nameBySide.set(m.redSideId, m.redFighterName);
+    if (m.blueSideId && m.blueFighterName) nameBySide.set(m.blueSideId, m.blueFighterName);
   }
 
   const conflicts: Conflict[] = [];
@@ -107,8 +105,9 @@ export function detectConflicts(
     for (let j = i + 1; j < scheduled.length; j++) {
       const a = scheduled[i]!;
       const b = scheduled[j]!;
-      const aFighters = [a.redRegistrationId, a.blueRegistrationId].filter(Boolean);
-      const bFighters = [b.redRegistrationId, b.blueRegistrationId].filter(Boolean);
+      // A side not known yet (null) is nobody: two placeholders do not clash.
+      const aFighters = [a.redSideId, a.blueSideId].filter((s): s is string => !!s);
+      const bFighters = [b.redSideId, b.blueSideId].filter((s): s is string => !!s);
       const shared = aFighters.filter((f) => bFighters.includes(f));
       if (shared.length === 0) continue;
       const aStart = new Date(a.scheduledAt!).getTime();
@@ -121,7 +120,7 @@ export function detectConflicts(
           matchB: conflictLabel(b),
           matchAId: a.id,
           matchBId: b.id,
-          personName: nameByRegistration.get(shared[0]!) ?? unknownFighterLabel,
+          personName: nameBySide.get(shared[0]!) ?? unknownFighterLabel,
           time: hhmmInZone(a.scheduledAt!, tz),
         });
       }

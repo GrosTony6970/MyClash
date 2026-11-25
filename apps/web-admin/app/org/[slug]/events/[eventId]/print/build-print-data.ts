@@ -12,6 +12,7 @@
  *    once the bouts have times (`groupByPiste`); this order is what the pool
  *    and bracket sections keep, and the fallback when nothing is scheduled.
  */
+import { sideKey } from '@myclash/types/side-key';
 import type { PrintBracketRound, PrintMatch, PrintPool } from './print-types';
 
 export interface ApiPoolMatch {
@@ -21,8 +22,11 @@ export interface ApiPoolMatch {
   blue_name: string;
   red_club_abbrev: string | null;
   blue_club_abbrev: string | null;
-  red_registration_id: string;
-  blue_registration_id: string;
+  /** A side is a Registration or a team (0284): the other is null, and the name is the team's. */
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   lice_id: string | null;
   /** UTC ISO instant, or null when the bout has not been placed. */
   scheduled_at: string | null;
@@ -106,17 +110,31 @@ export function poolsToPrint(
  * The pool roster, derived from its bouts.
  *
  * `pools-with-matches` does not project the member list, and a round-robin
- * names every fighter at least once — so first-appearance order over the bouts
- * is the roster. Deduped by name because that is the only identity the payload
- * carries on both sides of a bout.
+ * names every entrant at least once — so first-appearance order over the bouts
+ * is the roster. Deduped by side key (`sideKey`): a Fighter's Registration or a
+ * team, so two Fighters who share a name are both listed. A side not known yet
+ * is nobody.
  */
 function rosterOf(pool: ApiPoolWithMatches): Array<{ name: string; club: string | null }> {
-  const seen = new Map<string, string | null>();
+  const seen = new Map<string, { name: string; club: string | null }>();
   for (const match of pool.matches) {
-    if (!seen.has(match.red_name)) seen.set(match.red_name, match.red_club_abbrev);
-    if (!seen.has(match.blue_name)) seen.set(match.blue_name, match.blue_club_abbrev);
+    const sides = [
+      [
+        sideKey(match.red_registration_id, match.red_team_id),
+        match.red_name,
+        match.red_club_abbrev,
+      ],
+      [
+        sideKey(match.blue_registration_id, match.blue_team_id),
+        match.blue_name,
+        match.blue_club_abbrev,
+      ],
+    ] as const;
+    for (const [key, name, club] of sides) {
+      if (key && !seen.has(key)) seen.set(key, { name, club });
+    }
   }
-  return [...seen.entries()].map(([name, club]) => ({ name, club }));
+  return [...seen.values()];
 }
 
 export function bracketToPrint(

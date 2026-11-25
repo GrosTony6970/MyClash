@@ -43,6 +43,8 @@ const pool = (poolName: string, red: string, blue: string) => ({
       blue_club_abbrev: null,
       red_registration_id: `r-${red}`,
       blue_registration_id: `r-${blue}`,
+      red_team_id: null,
+      blue_team_id: null,
       lice_id: null,
       scheduled_at: null,
       roundCode: `${poolName}-M1`,

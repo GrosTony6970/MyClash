@@ -115,8 +115,10 @@ export interface ScheduleMatch {
   endedAt: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Each side's key (`sideKey`): a Registration id, or a team id in a team Tournament;
+   *  null while a side is not known yet (a bracket placeholder). */
+  redSideId: string | null;
+  blueSideId: string | null;
   tournamentName: string | null;
   /** Parent tournament's identity color (ColorToken string). Drives
    *  the card tint so every card from the same tournament reads as

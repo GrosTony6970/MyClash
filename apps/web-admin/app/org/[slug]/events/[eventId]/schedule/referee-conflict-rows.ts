@@ -61,8 +61,9 @@ export interface RefereeConflictMatch {
   liceId: string | null;
   scheduledAt: string | null;
   durationMinutes: number;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Each side's key: a Registration, or a team; null while a side is not known yet. */
+  redSideId: string | null;
+  blueSideId: string | null;
   poolId: string | null;
   poolName: string | null;
   tournamentName: string | null;
@@ -146,8 +147,11 @@ function poolWindow(bouts: readonly RefereeConflictMatch[]): TimeWindowMs | null
 }
 
 function fightersOf(bout: RefereeConflictMatch, personOf: Map<string, string>): string[] {
-  return [bout.redRegistrationId, bout.blueRegistrationId]
-    .map((reg) => personOf.get(reg))
+  // A Fighter's side maps to their Person. A team's side maps to nobody: its slots have no
+  // names until slice 1c, so rule 8 cannot check them here either (the screens that assign
+  // referees say so). A side not known yet is nobody.
+  return [bout.redSideId, bout.blueSideId]
+    .map((side) => (side ? personOf.get(side) : undefined))
     .filter((p): p is string => p !== undefined);
 }
 
