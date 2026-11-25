@@ -117,7 +117,7 @@ describe('the round of a queued hit or card, as the bout’s list gives it', () 
     await queueCard({
       matchId: 'm1',
       sequence: 1,
-      registrationId: 'reg-1',
+      side: { kind: 'registration', id: 'reg-1' },
       directCard: 'yellow',
       reason: 'late',
     });

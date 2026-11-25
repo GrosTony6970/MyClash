@@ -33,7 +33,12 @@ function hit(sequence: number, matchId = 'm1') {
 }
 
 const card = (sequence: number) =>
-  queueCard({ matchId: 'm1', sequence, registrationId: 'reg-red', directCard: 'yellow' });
+  queueCard({
+    matchId: 'm1',
+    sequence,
+    side: { kind: 'registration', id: 'reg-red' },
+    directCard: 'yellow',
+  });
 
 const sequences = async () => (await getAllPending()).map((row) => row.sequence);
 

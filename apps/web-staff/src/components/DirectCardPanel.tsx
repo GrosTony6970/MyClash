@@ -223,7 +223,7 @@ function directCardRow(props: DirectCardPanelProps, card: PenaltyCard, registrat
   return {
     matchId: props.matchId,
     sequence: props.nextSequence,
-    registrationId,
+    side: { kind: 'registration' as const, id: registrationId },
     clockTimeMs: props.clockTimeMs,
     bout: props.bout,
     round: props.round,

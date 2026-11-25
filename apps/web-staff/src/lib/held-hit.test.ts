@@ -222,8 +222,9 @@ describe('the screens', () => {
 
   it('a card is queued with the bout and the corner it is against', () => {
     const column = read('components', 'ScoringColumn.tsx');
-    expect(column).toMatch(/await queueCard\(\{[^}]*bout: submit\.bout,[^}]*\}\);/);
-    expect(column).toMatch(/await queueCard\(\{[^}]*cardedColor: side,[^}]*\}\);/);
+    // The card's side is an object of its own (`side: { kind, id }`): the call ends at `});`.
+    expect(column).toMatch(/await queueCard\(\{[^;]*bout: submit\.bout,[^;]*\}\);/);
+    expect(column).toMatch(/await queueCard\(\{[^;]*cardedColor: side,[^;]*\}\);/);
   });
 
   it('a card is queued with the name of the list entry the referee tapped', () => {
@@ -235,7 +236,7 @@ describe('the screens', () => {
       column.match(/void submitPenalty\(listedCard\((asked\.|offer\.)?entry\)\)/g),
     ).toHaveLength(3);
     expect(column.match(/submitPenalty\(/g)).toHaveLength(4);
-    expect(column).toMatch(/await queueCard\(\{[^}]*\.\.\.payload,[^}]*\}\);/);
+    expect(column).toMatch(/await queueCard\(\{[^;]*\.\.\.payload,[^;]*\}\);/);
   });
 
   it('the inbox row shows both lines', () => {

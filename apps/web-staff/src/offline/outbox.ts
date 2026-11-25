@@ -10,6 +10,7 @@
 import { canSendAgain } from './can-send-again';
 import { db, isTap, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
 import { tabletTime } from './press-age';
+import { sideFields, type QueuedSide } from './queued-side';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -61,15 +62,20 @@ async function openRoundFor(entry: { matchId: string; round?: number }): Promise
   return Math.max(entry.round ?? 0, ...opened);
 }
 
-/** A card's row in the queue: what every card carries, around what this one is. */
-export function queueCard(
-  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'>,
-): Promise<number> {
+/** A card's row in the queue: what every card carries, around its side (`QueuedSide`). */
+export function queueCard({
+  side,
+  ...card
+}: Omit<
+  Parameters<typeof enqueue>[0],
+  'kind' | 'clientUuid' | 'occurredAt' | 'registrationId' | 'teamId'
+> & { side: QueuedSide }): Promise<number> {
   return enqueue({
     kind: 'penalty',
     clientUuid: crypto.randomUUID(),
     occurredAt: new Date().toISOString(),
     ...card,
+    ...sideFields(side),
   });
 }
 

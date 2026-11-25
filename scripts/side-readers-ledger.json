@@ -701,9 +701,14 @@
       "why": "1b: undone lines place cards by Registration (`:61`-`:62`)"
     },
     "apps/web-staff/src/offline/db.ts": {
-      "verdict": "not-yet",
+      "verdict": "no-side-read",
       "hits": 1,
-      "why": "1b: a queued card names its side by `registrationId` (`:164`)"
+      "why": "declares a queued card's or protest's two side fields, `registrationId` or `teamId`, neither indexed (`:165`-`:166`, call 10); reads no side"
+    },
+    "apps/web-staff/src/offline/outbox.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "`queueCard` takes a card's `QueuedSide` in place of the two side fields (`:71`) and writes it through `sideFields`; reads no side"
     },
     "apps/web-staff/src/offline/pad-series.ts": {
       "verdict": "not-yet",
@@ -725,20 +730,15 @@
       "hits": 9,
       "why": "1b: prices queued cards by Registration (`:118`-`:125`)"
     },
-    "apps/web-staff/src/offline/protest-queue.ts": {
-      "verdict": "not-yet",
-      "hits": 1,
-      "why": "1b: a queued protest names its side by `registrationId` (`:13`)"
+    "apps/web-staff/src/offline/queued-side.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "a queued card or protest names exactly one of a Registration or a team, from its `QueuedSide` (`sideFields`, `:19`-`:20`, call 9); the send copies that one field (`sideOnWire`, `:27`-`:30`, call 8)"
     },
     "apps/web-staff/src/offline/resolve-entry-card.ts": {
       "verdict": "not-yet",
       "hits": 7,
       "why": "1b: matches a queued card to its side by Registration (`:56`)"
-    },
-    "apps/web-staff/src/offline/sync.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: sends queued cards and protests by Registration (`:307`, `:329`)"
     },
     "packages/db/migrations/0001_init.sql": {
       "verdict": "no-side-read",

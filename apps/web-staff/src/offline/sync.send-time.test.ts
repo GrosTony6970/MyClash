@@ -46,7 +46,11 @@ async function sendAt(wall: number) {
 describe('a hit or a card written on the tablet', () => {
   it.each([
     ['a hit', () => addHit()],
-    ['a card', () => queueCard({ matchId: 'm1', sequence: 1, registrationId: 'reg-red' })],
+    [
+      'a card',
+      () =>
+        queueCard({ matchId: 'm1', sequence: 1, side: { kind: 'registration', id: 'reg-red' } }),
+    ],
   ])('%s keeps the page’s own clock of the tap, as a clock press does', async (_, write) => {
     const before = performance.now();
 

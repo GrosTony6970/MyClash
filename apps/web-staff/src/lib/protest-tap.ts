@@ -78,7 +78,7 @@ export function protestTap(
       written = await queueProtest({
         matchId: match.id,
         sequence: nextSequence,
-        registrationId,
+        side: { kind: 'registration', id: registrationId },
         clockTimeMs: clockTimeMs(),
         round: submit.round,
         bout: submit.bout,

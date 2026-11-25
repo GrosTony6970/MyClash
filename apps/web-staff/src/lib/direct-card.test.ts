@@ -27,13 +27,15 @@ const t = (key: string, values?: Record<string, string | number>) =>
 const CARD = {
   matchId: 'm1',
   sequence: 4,
-  registrationId: 'reg-blue',
+  side: { kind: 'registration', id: 'reg-blue' },
   clockTimeMs: 61_000,
   bout: BOUT,
   cardedColor: 'blue',
   directCard: 'red',
   reason: 'Late on the piste',
 } as const;
+/** The card as its row keeps it: the side as its one field. */
+const { side: _side, ...CARD_ROW } = { ...CARD, registrationId: 'reg-blue' };
 
 beforeEach(async () => {
   await db.outbox.clear();
@@ -83,7 +85,9 @@ describe('a direct card given from the drawer', () => {
 
     const rows = await getAllPending();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: 'penalty', attempts: 0, ...CARD });
+    expect(rows[0]).toMatchObject({ kind: 'penalty', attempts: 0, ...CARD_ROW });
+    expect(rows[0]).not.toHaveProperty('teamId');
+    expect(rows[0]).not.toHaveProperty('side');
     expect(rows[0]?.clientUuid).toMatch(/^[0-9a-f-]{36}$/);
     expect(rows[0]).not.toHaveProperty('rulesetEntryId');
     expect(rows[0]).not.toHaveProperty('cardName');
@@ -241,7 +245,7 @@ describe('the screens', () => {
     for (const field of [
       'sequence: props.nextSequence,',
       "const registrationId = draft.fighter === 'red' ? redRegistrationId : blueRegistrationId;",
-      'registrationId,',
+      "side: { kind: 'registration' as const, id: registrationId },",
       'clockTimeMs: props.clockTimeMs,',
       'bout: props.bout,',
       'cardedColor: fighter,',

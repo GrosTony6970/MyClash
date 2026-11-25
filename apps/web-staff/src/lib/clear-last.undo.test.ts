@@ -184,7 +184,12 @@ describe('the newest entry waits on the tablet only', () => {
   });
 
   it('a card goes the same way', async () => {
-    await queueCard({ matchId: 'm1', sequence: 7, registrationId: 'reg-red', directCard: 'red' });
+    await queueCard({
+      matchId: 'm1',
+      sequence: 7,
+      side: { kind: 'registration', id: 'reg-red' },
+      directCard: 'red',
+    });
     server({ hits: [[held('ex-5', 5)]] });
 
     await expect(undo()).resolves.toMatchObject({ kind: 'voided' });

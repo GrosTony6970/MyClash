@@ -201,7 +201,7 @@ export function ScoringColumn({
       await queueCard({
         matchId,
         sequence: nextSequence,
-        registrationId,
+        side: { kind: 'registration', id: registrationId },
         clockTimeMs,
         bout: submit.bout,
         round: submit.round,

@@ -24,6 +24,7 @@ import {
   requeueRejectedEntry,
   totalPendingCount,
 } from './outbox';
+import { sideOnWire } from './queued-side';
 import { fetchRenewingLogin } from '@myclash/api-client';
 import {
   callerRefusalOf,
@@ -304,7 +305,7 @@ export class SyncEngine {
       body: JSON.stringify({
         clientUuid: entry.clientUuid,
         sequence,
-        registrationId: entry.registrationId,
+        ...sideOnWire(entry),
         occurredAt: entry.occurredAt,
         sentAt: sentAtOf(entry),
         clockTimeMs: entry.clockTimeMs ?? null,
@@ -326,7 +327,7 @@ export class SyncEngine {
       body: JSON.stringify({
         clientUuid: entry.clientUuid,
         sequence,
-        registrationId: entry.registrationId,
+        ...sideOnWire(entry),
         occurredAt: entry.occurredAt,
         sentAt: sentAtOf(entry),
         clockTimeMs: entry.clockTimeMs ?? null,

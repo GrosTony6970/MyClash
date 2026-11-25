@@ -22,10 +22,11 @@ const BOUT = { label: 'LSW-P1-M3', red: 'Dupont', blue: 'Martin' };
 const t = (key: string, values?: Record<string, string | number>) =>
   values ? `${key} ${JSON.stringify(values)}` : key;
 
+const REG = '0f6c2a9e-1b8d-4c3e-9a51-6d2f7e8b9c01';
 const PROTEST = {
   matchId: 'm1',
   sequence: 4,
-  registrationId: '0f6c2a9e-1b8d-4c3e-9a51-6d2f7e8b9c01',
+  side: { kind: 'registration', id: REG },
   clockTimeMs: 61_000,
   round: 1,
   bout: BOUT,
@@ -82,7 +83,9 @@ describe('a protest tapped on the pad', () => {
     expect(calls).toEqual([]);
     const rows = await getAllPending();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: 'protest', attempts: 0, ...PROTEST });
+    const { side: _side, ...fields } = PROTEST;
+    expect(rows[0]).toMatchObject({ kind: 'protest', attempts: 0, ...fields, registrationId: REG });
+    expect(rows[0]).not.toHaveProperty('teamId');
     expect(rows[0]?.clientUuid).toMatch(/^[0-9a-f-]{36}$/);
   });
 
@@ -102,7 +105,7 @@ describe('a protest tapped on the pad', () => {
     expect(sent?.body).toMatchObject({
       clientUuid: row?.clientUuid,
       sequence: 4,
-      registrationId: PROTEST.registrationId,
+      registrationId: REG,
       occurredAt: row?.occurredAt,
       clockTimeMs: 61_000,
     });
@@ -171,7 +174,7 @@ describe('a protest tapped on the pad', () => {
       clientUuid: crypto.randomUUID(),
       matchId: 'm1',
       sequence: 3,
-      registrationId: PROTEST.registrationId,
+      registrationId: REG,
       occurredAt: new Date().toISOString(),
       directCard: 'yellow',
       reason: 'Late',
@@ -195,8 +198,6 @@ describe('a protest tapped on the pad', () => {
       serverPenalties: [],
       serverProtests: [],
     });
-    expect(protestCountFor({ server: [], pending, registrationId: PROTEST.registrationId })).toBe(
-      1,
-    );
+    expect(protestCountFor({ server: [], pending, registrationId: REG })).toBe(1);
   });
 });

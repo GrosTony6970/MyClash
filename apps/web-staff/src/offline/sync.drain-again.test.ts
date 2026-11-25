@@ -80,7 +80,12 @@ describe('a card given while a hit is on its way', () => {
   it('goes in the same send, after the hit, and the bar never says "could not be synced"', async () => {
     const { engine, states, first, posted, answer } = await sending();
 
-    await queueCard({ matchId: 'm1', sequence: 2, registrationId: 'reg-red', directCard: 'red' });
+    await queueCard({
+      matchId: 'm1',
+      sequence: 2,
+      side: { kind: 'registration', id: 'reg-red' },
+      directCard: 'red',
+    });
     const second = engine.drain();
     await answer(SAVED);
     await vi.waitFor(() => expect(posted).toHaveLength(2));

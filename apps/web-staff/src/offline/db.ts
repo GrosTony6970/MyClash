@@ -160,8 +160,10 @@ export interface OutboxEntry {
   afterblowValue?: number;
   noExchangeReason?: string;
   // ── Penalty only ───────────────────────────────────────────────────────────
-  /** Which fighter the card is against, or who protests. Required for a penalty and a protest. */
+  /** The side the card is against, or that protests: exactly one of the two (`queued-side.ts`).
+   *  Neither is indexed: `teamId` took no new version of the store (call 10). */
   registrationId?: string;
+  teamId?: string;
   /** Ruleset-driven penalty: the catalogue entry the referee picked. */
   rulesetEntryId?: string;
   /** Direct card, bypassing the catalogue. Needs a reason server-side. */

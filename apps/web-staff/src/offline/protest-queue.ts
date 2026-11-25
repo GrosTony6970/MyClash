@@ -1,16 +1,21 @@
 import type { BoutNames } from './db';
 import { enqueue } from './outbox';
+import { sideFields, type QueuedSide } from './queued-side';
 
 /**
- * A protest's row in the queue: one Fighter's protest, tapped on the pad,
- * written before any network call, as a card is (`queueCard`). Its Fighter's
- * corner rides in `cardedColor`, for the inbox to name them. Answers the
- * protest's `clientUuid`: the pad counts it before the screen shows it.
+ * A protest's row in the queue: one side's protest, a Fighter's or a team's,
+ * tapped on the pad, written before any network call, as a card is
+ * (`queueCard`). Its corner rides in `cardedColor`, for the inbox to name the
+ * side. Answers the protest's `clientUuid`: the pad counts it before the
+ * screen shows it.
  */
-export async function queueProtest(p: {
+export async function queueProtest({
+  side,
+  ...p
+}: {
   matchId: string;
   sequence: number;
-  registrationId: string;
+  side: QueuedSide;
   clockTimeMs: number | null;
   round: number;
   bout: BoutNames;
@@ -22,6 +27,7 @@ export async function queueProtest(p: {
     clientUuid,
     occurredAt: new Date().toISOString(),
     ...p,
+    ...sideFields(side),
   });
   return clientUuid;
 }
