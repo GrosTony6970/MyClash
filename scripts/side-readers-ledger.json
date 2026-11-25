@@ -13,7 +13,12 @@
     "apps/api/src/modules/events/events.service.ts": {
       "verdict": "not-yet",
       "hits": 35,
-      "why": "1b: public Event page: bout sides and names by Registration (`:1786`-`:1875`), Pool members (`:2788`)"
+      "why": "1c: the public bracket reads its slots and bouts by Registration (`:2981`-`:3100`; single elimination is 1c), and the re-pin snapshot keys a standings row `registrationId` (`:4118`); the public Pool bouts and seats read both kinds through `public-pool-sides.ts` (`:1793`-`:1795`, `:2767`)"
+    },
+    "apps/api/src/modules/events/public-pool-sides.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "names a public Pool bout's sides through `sideLabel` and a public Pool seat through `poolSeatOf`; each side key and the winner's are built with `sideKey`; the Registration ids stay beside them for the public page's own-bout mark (null on a team side)"
     },
     "apps/api/src/modules/events/settings-save-lock.ts": {
       "verdict": "individual-only",

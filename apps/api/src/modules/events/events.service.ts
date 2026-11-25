@@ -61,6 +61,13 @@ import type {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import type { RepinTournamentRulesetDto } from './dto/repin-ruleset.dto';
+import {
+  publicPoolBoutSides,
+  publicPoolMember,
+  type PublicPoolBoutRow,
+  type PublicPoolMemberRow,
+} from './public-pool-sides';
+import { TEAM_SIDE_EMBEDS } from '../matches/bout-side-labels';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { RulesetHashService, type TournamentHashRow } from '../ruleset-hash/ruleset-hash.service';
@@ -1783,16 +1790,17 @@ export class EventsService {
 
     const poolIds = pools.map((p) => p.id);
 
-    // 3. Matches for these pools. Nested joins resolve fighter names
-    //    via registrations → persons → clubs and the lice row for
-    //    color + name. Status / scores come straight off the matches
-    //    table.
+    // 3. Matches for these pools. Nested joins read both kinds of side:
+    //    a Fighter via registrations → persons → clubs, a team via teams
+    //    (name, colour, logo); and the lice row for color + name.
+    //    Status / scores come straight off the matches table.
     const { data: matchesData, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, scheduled_at, match_number_label, red_score, blue_score, winner_registration_id, pool_id, lice_id, ' +
+        'id, status, scheduled_at, match_number_label, red_score, blue_score, winner_registration_id, winner_team_id, pool_id, lice_id, ' +
           'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
           'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
+          `${TEAM_SIDE_EMBEDS}, ` +
           'lices(id, name, color_hex)',
       )
       .in('pool_id', poolIds)
@@ -1800,43 +1808,20 @@ export class EventsService {
       .order('match_number_label', { ascending: true });
     if (matchesError) throw new BadRequestException(matchesError.message);
 
-    type PersonClubEmbed = {
-      given_name: string | null;
-      family_name: string | null;
-      clubs: { name: string | null; abbreviation: string | null } | null;
-    } | null;
-    type SideRel = { id: string; persons: PersonClubEmbed } | null;
     type LiceRel = { id: string; name: string | null; color_hex: string | null } | null;
-    const matchRows = (matchesData ?? []) as unknown as Array<{
-      id: string;
-      status: string | null;
-      scheduled_at: string | null;
-      match_number_label: string | null;
-      red_score: number | null;
-      blue_score: number | null;
-      /** Authoritative over the scores — the public pool table bolds the
-       *  recorded winner, which a forfeit or an override can put on the lower
-       *  score. */
-      winner_registration_id: string | null;
-      pool_id: string | null;
-      lice_id: string | null;
-      red: SideRel;
-      blue: SideRel;
-      lices: LiceRel;
-    }>;
-
-    function nameFrom(side: SideRel): string | null {
-      if (!side?.persons) return null;
-      const given = side.persons.given_name?.trim() ?? '';
-      const family = side.persons.family_name?.trim() ?? '';
-      const composed = `${given} ${family}`.trim();
-      return composed || null;
-    }
-    function clubAbbrevFrom(side: SideRel): string | null {
-      // Prefer the abbreviation; fall back to the full club name so the
-      // public club pill renders even for clubs without an abbreviation.
-      return side?.persons?.clubs?.abbreviation ?? side?.persons?.clubs?.name ?? null;
-    }
+    const matchRows = (matchesData ?? []) as unknown as Array<
+      PublicPoolBoutRow & {
+        id: string;
+        status: string | null;
+        scheduled_at: string | null;
+        match_number_label: string | null;
+        red_score: number | null;
+        blue_score: number | null;
+        pool_id: string | null;
+        lice_id: string | null;
+        lices: LiceRel;
+      }
+    >;
 
     // 4. Group matches by pool + project. Round code uses the same
     //    helper the admin matches list uses, so the public + admin
@@ -1871,15 +1856,9 @@ export class EventsService {
             }),
             status: m.status ?? 'scheduled',
             scheduledAt: m.scheduled_at,
-            redFighterName: nameFrom(m.red),
-            redClubAbbrev: clubAbbrevFrom(m.red),
-            redRegistrationId: m.red?.id ?? null,
+            ...publicPoolBoutSides(m),
             redScore: m.red_score,
-            blueFighterName: nameFrom(m.blue),
-            blueClubAbbrev: clubAbbrevFrom(m.blue),
-            blueRegistrationId: m.blue?.id ?? null,
             blueScore: m.blue_score,
-            winnerRegistrationId: m.winner_registration_id,
             liceName: m.lices?.name ?? null,
             liceColorHex: m.lices?.color_hex ?? null,
           })),
@@ -2788,11 +2767,11 @@ export class EventsService {
   }
 
   private async getPublishedPools(phaseId: string, eventId: string) {
-    // 1. Pools + members (joined via pool_members → registrations → persons → clubs).
+    // 1. Pools + members: a seat holds a Registration (→ persons → clubs) or a team (0282).
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, pool_members(registration_id, seed, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))))',
+        'id, name, pool_members(registration_id, team_id, seed, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))), teams(id, name, color, logo_url))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -2803,19 +2782,7 @@ export class EventsService {
     const poolRows = (data ?? []) as unknown as Array<{
       id: string;
       name: string;
-      pool_members: Array<{
-        registration_id: string;
-        seed: number | null;
-        registrations: {
-          id: string;
-          persons: {
-            id: string;
-            given_name: string | null;
-            family_name: string | null;
-            clubs: { id: string; name: string; abbreviation: string | null } | null;
-          } | null;
-        } | null;
-      }> | null;
+      pool_members: PublicPoolMemberRow[] | null;
     }>;
 
     const poolIds = poolRows.map((p) => p.id);
@@ -2857,26 +2824,12 @@ export class EventsService {
       liceName: scheduleByPool.get(pool.id)?.liceName ?? null,
       liceColorHex: scheduleByPool.get(pool.id)?.liceColorHex ?? null,
       startAt: scheduleByPool.get(pool.id)?.startAt ?? null,
-      members: (pool.pool_members ?? [])
-        .map((m) => {
-          const person = m.registrations?.persons;
-          const given = person?.given_name?.trim() ?? '';
-          const family = person?.family_name?.trim() ?? '';
-          const fighterName = `${given} ${family}`.trim() || '—';
-          return {
-            registrationId: m.registration_id,
-            fighterName,
-            clubName: person?.clubs?.name ?? null,
-            clubAbbreviation: person?.clubs?.abbreviation ?? null,
-            seed: m.seed ?? null,
-          };
-        })
-        .sort((a, b) => {
-          // Members sorted by seed (lowest first), with unseeded last.
-          const aSeed = a.seed ?? Number.POSITIVE_INFINITY;
-          const bSeed = b.seed ?? Number.POSITIVE_INFINITY;
-          return aSeed - bSeed;
-        }),
+      members: (pool.pool_members ?? []).map(publicPoolMember).sort((a, b) => {
+        // Members sorted by seed (lowest first), with unseeded last.
+        const aSeed = a.seed ?? Number.POSITIVE_INFINITY;
+        const bSeed = b.seed ?? Number.POSITIVE_INFINITY;
+        return aSeed - bSeed;
+      }),
       referees: refereesByPool.get(pool.id) ?? [],
       standings: [],
     }));
