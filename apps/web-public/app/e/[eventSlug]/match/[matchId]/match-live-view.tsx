@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { FreshnessChip, sideColorsFor, statusLabelKey } from '@myclash/ui';
+import { FreshnessChip, TournamentColorDot, sideColorsFor, statusLabelKey } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -23,6 +23,57 @@ import {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
+/** A team side's colour chip before its name (call 6). A Fighter's side has none, and no space. */
+function SideName({ name, colour }: { name: string; colour: string | null }) {
+  return (
+    <>
+      {colour && (
+        <>
+          <TournamentColorDot color={colour} size="em" />{' '}
+        </>
+      )}
+      {name}
+    </>
+  );
+}
+
+/**
+ * One side under its score: a team's logo, then the name with its chip, then a Fighter's club.
+ * The logo sits where the TV puts a Fighter's photo (call 6). It is decorative (`alt=""`): the
+ * team's name is the text right under it, and a screen reader would read it twice (WAI H2). This
+ * page shows no Fighter photo, so a side with no logo shows the name alone.
+ */
+function SideLabel({
+  name,
+  club,
+  colour,
+  logoUrl,
+}: {
+  name: string;
+  club: string | null;
+  colour: string | null;
+  logoUrl: string | null;
+}) {
+  return (
+    <>
+      {logoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- a storage link, not a next/image source
+        <img
+          src={logoUrl}
+          alt=""
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-full border border-border bg-background object-contain"
+        />
+      )}
+      <span className="text-sm font-semibold text-foreground">
+        <SideName name={name} colour={colour} />
+      </span>
+      {club && <span className="text-xs text-muted">{club}</span>}
+    </>
+  );
+}
+
 function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary }) {
   const { t, locale } = useI18n();
   // The organiser's configured side colours, not a generic red/blue: a
@@ -31,15 +82,18 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   // and black tokens from vanishing into this light page.
   const colors = sideColorsFor(summary.scoringConfig, 'light');
 
+  // By side key: a team bout's winner is its team, and a forfeit can win on the lower score.
   const winner = resolveMatchWinner({
     status: match.status,
-    winnerSideId: match.winnerRegistrationId,
-    redSideId: match.redRegistrationId,
-    blueSideId: match.blueRegistrationId,
+    winnerSideId: match.winnerSideId,
+    redSideId: match.redSideId,
+    blueSideId: match.blueSideId,
     redScore: match.redScore,
     blueScore: match.blueScore,
   });
   const winnerName = winner === 'red' ? summary.redName : winner === 'blue' ? summary.blueName : '';
+  const winnerColour =
+    winner === 'red' ? summary.redColour : winner === 'blue' ? summary.blueColour : null;
   // The bout's code (`LSW-P4-M1`), never its stored label (`L1-PD-M01`): the
   // stored one is an internal sort key a visitor cannot read. Empty when the
   // summary could not be read, and then no line is drawn.
@@ -97,10 +151,12 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
           >
             {match.redScore}
           </span>
-          <span className="text-sm font-semibold text-foreground">
-            {summary.redName || t('scoring.liveMatch.red')}
-          </span>
-          {summary.redClub && <span className="text-xs text-muted">{summary.redClub}</span>}
+          <SideLabel
+            name={summary.redName || t('scoring.liveMatch.red')}
+            club={summary.redClub}
+            colour={summary.redColour}
+            logoUrl={summary.redLogoUrl}
+          />
         </div>
 
         {/* Divider */}
@@ -114,10 +170,12 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
           >
             {match.blueScore}
           </span>
-          <span className="text-sm font-semibold text-foreground">
-            {summary.blueName || t('scoring.liveMatch.blue')}
-          </span>
-          {summary.blueClub && <span className="text-xs text-muted">{summary.blueClub}</span>}
+          <SideLabel
+            name={summary.blueName || t('scoring.liveMatch.blue')}
+            club={summary.blueClub}
+            colour={summary.blueColour}
+            logoUrl={summary.blueLogoUrl}
+          />
         </div>
       </div>
 
@@ -128,7 +186,11 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
             {t('scoring.rounds.roundComplete', { round: String(match.currentRound) })}
           </p>
         )}
-        {winnerName && <p className="text-lg font-black text-foreground">🏆 {winnerName}</p>}
+        {winnerName && (
+          <p className="text-lg font-black text-foreground">
+            🏆 <SideName name={winnerName} colour={winnerColour} />
+          </p>
+        )}
         {(match.startedAt || match.endedAt) && (
           <p className="text-xs text-muted">
             {match.startedAt && `${t('scoring.liveMatch.started')} ${fmtTime(match.startedAt)}`}

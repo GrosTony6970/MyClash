@@ -571,19 +571,14 @@
       "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); names the Fighters a refused forfeit rules change moves (`:61`)"
     },
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-event-feed.tsx": {
-      "verdict": "not-yet",
-      "hits": 10,
-      "why": "1b: the public bout feed places cards by Registration (`:52`-`:77`)"
-    },
-    "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1b: the public bout result by Registration (`:36`-`:38`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the public bout feed hands the timeline and the flow the bout's side keys (`match.redSideId` / `blueSideId`, from `mapMatchRow`) in their `redRegId` / `blueRegId` arguments, so a team card sits on its team (`:53`-`:54`, `:78`-`:79`)"
     },
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-row.ts": {
-      "verdict": "not-yet",
-      "hits": 9,
-      "why": "1b: the public bout row reads sides by Registration (`:88`-`:90`)"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "`mapMatchRow` builds each side's key and the winner's with `sideKey` from the Registration and team columns of the raw bout row (`:103`-`:105`); null for a side not known, never `''`"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx": {
       "verdict": "not-yet",
@@ -1049,10 +1044,6 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
       "count": 3,
       "why": "brackets refuse teams until 1c: the podium names the winner of a bracket slot by Registration (`:2049`-`:2051`)"
-    },
-    "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx": {
-      "count": 3,
-      "why": "1b: moves to side keys in T11; the public bout page names its winner by Registration (`:36`-`:38`)"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
       "count": 3,

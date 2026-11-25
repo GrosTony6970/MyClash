@@ -8,6 +8,8 @@
  */
 
 import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
+// The subpath, in this route's own chunk: the root barrel and `@myclash/ui` ship on every page.
+import { sideKey } from '@myclash/types/side-key';
 import type { ExchangeRow, ExchangeType, MatchProtest, Penalty } from '@myclash/ui';
 
 // The exchange + penalty wire shapes are declared once in @myclash/ui
@@ -36,9 +38,14 @@ export interface MatchRow {
   status: MatchStatus;
   startedAt: string | null;
   endedAt: string | null;
-  winnerRegistrationId: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /**
+   * Each side's key (`sideKey`): its Fighter's Registration id or its team's id (ADR-022); null
+   * while the side is not known, never `''`, so two unknown sides never compare equal.
+   */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** The winner's side key. It outranks the scores: a forfeit can win on the lower one. */
+  winnerSideId: string | null;
   // Best-of-N round state (defaults reproduce a single round). bestOf itself is
   // NOT a matches column — it comes from MatchSummary.bestOf below.
   currentRound: number;
@@ -74,10 +81,17 @@ export interface MatchSummary {
    */
   matchFormat: MatchFormatConfig | null;
   scoringConfig: TournamentScoringConfig | null;
+  /** A team side's colour name (`TOURNAMENT_COLORS`), for its chip; null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
+  /** A team side's logo, shown by its name (call 6); null on a Fighter's side. */
+  redLogoUrl: string | null;
+  blueLogoUrl: string | null;
 }
 
 /** Map a raw `matches` row (snake_case, from REST or realtime) to MatchRow. */
 export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
+  const id = (column: string) => (raw[column] as string | null | undefined) ?? null;
   return {
     id: raw['id'] as string,
     redScore: (raw['red_score'] as number | null) ?? 0,
@@ -85,9 +99,10 @@ export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
     status: (raw['status'] as MatchStatus) ?? 'scheduled',
     startedAt: (raw['started_at'] as string | null) ?? null,
     endedAt: (raw['ended_at'] as string | null) ?? null,
-    winnerRegistrationId: (raw['winner_registration_id'] as string | null) ?? null,
-    redRegistrationId: (raw['red_registration_id'] as string | null) ?? '',
-    blueRegistrationId: (raw['blue_registration_id'] as string | null) ?? '',
+    // A side is a Registration or a team (0282): a team bout leaves the Registration columns null.
+    redSideId: sideKey(id('red_registration_id'), id('red_team_id')),
+    blueSideId: sideKey(id('blue_registration_id'), id('blue_team_id')),
+    winnerSideId: sideKey(id('winner_registration_id'), id('winner_team_id')),
     currentRound: (raw['current_round'] as number | null) ?? 1,
     redRoundWins: (raw['red_round_wins'] as number | null) ?? 0,
     blueRoundWins: (raw['blue_round_wins'] as number | null) ?? 0,
