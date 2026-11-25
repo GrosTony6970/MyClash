@@ -2395,6 +2395,22 @@ balances skill by HEMA Ratings; the request can turn either off. The search make
 The cost report is stored on the phase and returned with the Pools; no screen shows it. There is
 no `/pool-populator` page and no live cost recomputation on drag.
 
+**Pools of teams** (team Tournaments, ruling 971; `apps/api/src/modules/phases/team-pool-draw.ts`).
+A team has no club and no rating, so there is no local search. The request names a
+`teamSpread`. By `seed`, the teams are dealt in a snake in seed order. By `random`, they are
+shuffled with `mulberry32(drawSeed)` and then dealt in a snake. The request may send the draw seed
+as `seed`. When it sends none, the server draws one (`crypto.randomInt`). The phase's
+`config_json` stores the spread and the draw seed, so the same seed gives the same draw again.
+A field the Tournament's kind refuses is a 400 with `code` `entrant_kind_field` and the `field`:
+`teamSpread` on an individual Tournament; on a team Tournament no `teamSpread`, a club or skill
+switch (`enforceSchoolSeparation`, `enforceSkillBalance`), or a `seed` with a spread by seed.
+
+**Seating by hand.** `POST pools/:poolId/members` takes exactly one of `{ registrationId }` (an
+individual Tournament's Pool) or `{ teamId }` (a team Tournament's Pool). The other kind is a 409
+with `details.reason` `entrant_kind_mismatch`. `DELETE pools/:poolId/members/:entrantId` takes the
+seat back by its side key: the Registration id, or the team id. The screens say each refusal in
+the reader's language (`apps/web-admin/src/lib/named-refusal.ts`).
+
 See `berger.ts` for the round construction and the pool match labels.
 
 ### 11quater.2 Referee Assignment
@@ -2464,6 +2480,19 @@ anything; a proposal the checker refuses is an engine bug and a 5xx. Assignments
 every reader works the duty's window out from the Matches it covers (migration 0198).
 
 - Manual override is always available — the admin can drag any qualified user into any cell; the system recomputes warnings live.
+
+**A team Pool's Fighters are not checked** (CLAUDE.md rule 8; ADR-016, 2026-11-13; design
+decision 11). In slice 1b-1 a team's slots have no names, so the checker cannot see who fights
+for the team. The board marks such a unit with `uncheckedFighters: true`: a Pool with a seat
+that has no Registration (`assignment-board.service.ts`). The screens that assign referees then
+show the notice "MyClash cannot check these Fighters" (`UncheckedFightersNotice`, one owner of its
+words): the referee board's card of that Pool, the Pools page of a team Tournament (once, above
+its tabs, not on Standings), and the AI assistant's referee draft that names a team Pool or a
+bout of a team Tournament, on the assistant page and on the chat's proposal card, whose Confirm
+applies it. The draft carries the same flag (`organizer-ai-assistant/unchecked-fighters.ts`). The
+model writes the draft's ids, so that read is scoped to the drafts' Event: another Event's Pool or
+bout finds no row and gives no flag. The notice blocks nothing and is not a fourth level beside
+Impossible, Discouraged and Fine.
 
 ### 11quater.3 Iteration loop
 
@@ -4937,6 +4966,8 @@ and the batch's own rows — go out 200 ids at a time, and the alert refresh tak
 **Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
 
 **Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. It does **not** touch `workshop_sessions` — workshops moved to their own board, and `generate` returns a hard-coded `workshopSessionsCreated: 0`. The route's own OpenAPI summary still promises workshop sessions.
+
+**Nobody fights twice at once.** `scheduleMatches()` holds a bout back while one of its sides is still in an earlier bout. It keys each side by its side key (`schedulerSides`, `apps/api/src/modules/schedule/match-scheduler.ts`): the Registration id, or the team id of a team side. A side not known yet (a bracket placeholder that waits for a winner) takes the one shared key `UNKNOWN_SIDE`. So two such bouts never run at once, which is what the old shared `"null"` key did.
 
 ### 24.4 Frontend
 

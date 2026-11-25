@@ -3,8 +3,10 @@
 Status: agreed with the operator on 2026-11-13, in a brainstorm. Slice 1a (foundations, no screen)
 shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59bdaebe`
 `08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
-`bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slices 1b to 8 are not built; what
-1a left them is listed under "Slices". The decisions in "What the operator decided" are rulings.
+`bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slice 1b-1 (the organiser builds
+it) is built on the same branch, from `9f9ee1b89` to the commit that wrote this line, which
+closes it. Slice 1b-2 (the Match runs) is next. Slices 1c to 8 are not built; what 1a and 1b-1
+left them is listed under "Slices". The decisions in "What the operator decided" are rulings.
 The items in "My calls" are proposals the operator has read and not overturned. Reviewed with
 `myclash-plan-review`; the record is at the end.
 
@@ -445,7 +447,8 @@ Each slice is usable alone and lands as several single-concern commits.
        screens, the scheduler, and the referee notice (decision 11, ruling 732: the notice moves
        here from 1c; every slot is unnamed in 1b-1, so the member-level check has nobody to
        protect yet). The pad, TV and public pages do not change behaviour. Bracket, Swiss and
-       double elimination refuse a team Tournament.
+       double elimination refuse a team Tournament. **Built** on branch `feat/team-tournaments`,
+       from `9f9ee1b89` to the commit that closed it.
      - **1b-2, the Match runs.** The pad, online and offline, the offline queue, cards (ruling
        972), forfeits, protests, the time-limit result, colour swap of team ids, TV, public pages,
        the staff, lice and live-state names, the stats functions, the admin bout page and live
@@ -453,19 +456,29 @@ Each slice is usable alone and lands as several single-concern commits.
      - **Moved from 1b to 1c** (ruling 973): names, the captain mark, the reserves' data, the
        spread of teams by rating, and the `deletePerson` check of team slots.
 
-     Also owed by 1b, carried over from slice 1a. Each item names the plan that does it:
-     - (1b-1) The side resolver: no reader called it in 1a. Its first callers land in 1b-1.
-     - (1b-1) The team logo column, with its upload route; the archive's guard refuses a `_url` column
-       nothing carries (`packages/db/migrations/0281_team_tables.sql:13-14`).
-     - (1b-1) Standings take the side key.
+     Also owed by 1b, carried over from slice 1a (and, where marked, from 1b-1). Each item names
+     the plan that does it:
+     - (1b-1, done) The side resolver: no reader called it in 1a. Its first callers land in 1b-1.
+       Done in `900e71963`: `apps/api/src/modules/matches/side-label.ts`.
+     - (1b-1, done) The team logo column, with its upload route; the archive's guard refuses a
+       `_url` column nothing carries (`packages/db/migrations/0281_team_tables.sql:13-14`). Done:
+       the column in `0283_team_logo_and_twin_indexes.sql` (`0759f0d48`), the route
+       `POST tournaments/:tournamentId/teams/:teamId/logo` in `teams.controller.ts` (`7063ee8f3`).
+     - (1b-1, done) Standings take the side key. Done in `248077564` and `e58cc1f13`:
+       `apps/api/src/modules/pool-standings/` (`compute-rows.ts`, `pool-rows.ts`,
+       `pool-standings.team.test.ts`).
      - (1b-2) The time-limit result takes the side key, and the clock's read list gains the team
        columns (`clock.service.ts:157` `BOUT_COLUMNS`, `time-limit-result.ts:139-147`).
-     - (1b-1) The kind race probed under forced overlap, with the teams routes (`0281_team_tables.sql:147`
-       `entrant_kind_holds`, `scripts/lib/team-tables-probe.mjs`).
-     - (1b-1) Indexes on the ten twin columns, with their first readers; `db:review` does not warn about
-       them, it reads only `create table` lines (`0282_team_twins.sql:54`).
-     - (1b-1) An index for the team → team_slots delete cascade (`0281_team_tables.sql:100`,
-       `team_slots_team_fkey`).
+     - (1b-1, done) The kind race probed under forced overlap, with the teams routes
+       (`0281_team_tables.sql:147` `entrant_kind_holds`, `scripts/lib/team-tables-probe.mjs`). Done
+       in `0759f0d48` and `7f56dda66`: `scripts/lib/team-kind-race.mjs`, run by
+       `scripts/db-cascade-probe.mjs`.
+     - (1b-1, done) Indexes on the ten twin columns, with their first readers; `db:review` does not
+       warn about them, it reads only `create table` lines (`0282_team_twins.sql:54`). Done in
+       `0759f0d48`: `0283_team_logo_and_twin_indexes.sql`.
+     - (1b-1, done) An index for the team → team_slots delete cascade (`0281_team_tables.sql:100`,
+       `team_slots_team_fkey`). Done in `0759f0d48`: `team_slots_team_id_tournament_id_idx` in
+       `0283_team_logo_and_twin_indexes.sql`.
      - (1b-2) The forfeit snapshot's JSON paths map `winner_registration_id` only; the `winner_team_id`
        paths come with the forfeit code (`apps/api/src/modules/exports/archive.tables.ts:439-440`).
      - (1b-2) The colour swap swaps the Registration ids only (`matches.service.ts:968-969`,
@@ -480,27 +493,46 @@ Each slice is usable alone and lands as several single-concern commits.
        `double-elim-simulation.harness.ts:133`.
      - (1b-2) `MatchContext.redTeamId` / `blueTeamId` are filled and read by nobody
        (`penalties.service.ts:1437-1438`, `:1964-1965`).
-     - (1b-1) A cascade probe case: deleting a Team that a bout or a forfeit names is refused (23503)
-       (`scripts/db-cascade-probe.mjs`).
-     - (1b-1) "Neither" probe cases for `match_penalties_one_side` and
-       `match_forfeits_forfeiting_one_kind` (`scripts/lib/team-tables-probe.mjs`).
+     - (1b-1, done) A cascade probe case: deleting a Team that a bout or a forfeit names is refused
+       (23503) (`scripts/db-cascade-probe.mjs`). Done in `0759f0d48`.
+     - (1b-1, done) "Neither" probe cases for `match_penalties_one_side` and
+       `match_forfeits_forfeiting_one_kind` (`scripts/lib/team-tables-probe.mjs`). Done in
+       `0759f0d48`: "a card for neither" and "a forfeit by neither".
      - (1b-2) The offline specs `tests/e2e/06-offline-sync.spec.ts`, `08-offline-custom-ruleset.spec.ts`
        and `40-offline-bout.spec.ts`, skipped for 1a (operator, 2026-11-24, ruling 961). They run
        once, at the end of 1b-2, on a test stack.
      - (1b-1 and 1b-2) The `not-yet 1b` lines of `scripts/side-readers-ledger.json` (gate
-       `quality:side-readers`). Each plan clears the lines of the files it visits.
+       `quality:side-readers`). Each plan clears the lines of the files it visits. 1b-1 cleared 21
+       lines: the ledger held 121 `not-yet` lines when 1b-1 began (85 marked 1b, 36 marked 1c) and
+       holds 100 now (64 marked 1b, 36 marked 1c).
+     - (1b-2, from 1b-1) The web-admin Pool seat and board seat shapes move to `@myclash/types`,
+       beside `PoolStandingsRow`. Three hand copies today:
+       `apps/web-admin/app/org/[slug]/events/[eventId]/pools/pool-seats.ts:13-28`,
+       `referees/page.tsx:166-181` and `referees/_components/useAssignmentBoard.ts:78-93`.
+     - (1b-2, from 1b-1) `apps/web-admin/src/components/statistics/types.ts:110` copies the
+       event-stats answer by hand.
 
    - **1c, the rest of a Tournament.** Single elimination, final ranking, League link refused, the
      member-level referee rule with its mark on the Teams screen (the notice ships in 1b-1), personal schedule and double-booking check for named members, the four people
      and privacy paths, HEMA Ratings export skips team Tournaments and says so. Also, moved from
      1b (ruling 973): names on slots, the captain mark, the reserves' data, the spread of teams by
      rating (ruling 971), and the `deletePerson` check of team slots.
-     Also owed by 1c, carried over from slice 1a:
+     Also owed by 1c, carried over from slices 1a and 1b-1:
      - `deletePerson` checks Registrations only: a Person who holds a team slot fails at commit with
        a raw foreign-key error (`apps/api/src/modules/persons/persons.service.ts:267-282`).
      - `clearDependentPairing` nulls the Registration ids only, so an emptied team bout keeps its
        team ids and the waiting-for-a-Fighter guard does not fire (`bracket-dependents.ts:234`).
      - The `not-yet 1c` lines of `scripts/side-readers-ledger.json`.
+     - (From 1b-1) `generateBracket` checks the Tournament's kind only when the call names its
+       actor (`apps/api/src/modules/phases/phases.service.ts:514-533`). The
+       `actorUserId === 'system'` default skips the check. No caller passes it today, but nothing
+       stops one.
+     - (From 1b-1) The AI assistant's Tournament queries read sides by Registration
+       (`apps/api/src/modules/tournament-query/tournament-query.tools.service.ts`).
+     - (From 1b-1) The AI assistant's `generate_pools` sends no `teamSpread`, so the API answers 400
+       `entrant_kind_field` for a team Tournament
+       (`apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts`,
+       `applyAction`).
 2. **Who is on, for teams with names.** "Who starts?", "Change fighter", slot stamps on Exchanges,
    `match_lineups`, the new offline queue kind, the kept line-up, Fighter on piste on TV and public
    pages. A team with no names is untouched by this slice.
@@ -683,8 +715,10 @@ It answers "has every place that reads a Match side been visited?".
 
 1. Slice 1a shipped on branch `feat/team-tournaments` (draft PR #109); its commits are named in
    the status line at the top, and its carry-over is listed under 1b and 1c in "Slices".
-2. Each later slice gets its own plan and its own review before it is built.
-3. No code before the operator says so.
+2. Slice 1b-1 is built on the same branch; what it left is listed under 1b-2 and 1c in "Slices".
+3. Next: slice 1b-2, the Match runs. It gets its own plan and its own review before it is built.
+   This design stays in `specs/` until 1b-2 is built: slice 1b is not finished before then.
+4. No code before the operator says so.
 
 ## Review record
 
