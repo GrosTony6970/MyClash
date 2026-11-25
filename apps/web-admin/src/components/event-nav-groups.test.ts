@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyMemberRole,
   applyMenuProfile,
+  applyTeamTournaments,
   EVENT_NAV_GROUPS,
   EVENT_NAV_OVERVIEW,
   shownIn,
@@ -56,11 +57,12 @@ describe('event nav taxonomy', () => {
     ...EVENT_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
   ];
 
-  it('covers exactly the 26 expected routes', () => {
+  it('covers exactly the 27 expected routes', () => {
     const expected = [
       '',
       'persons',
       'clubs',
+      'teams',
       'referees',
       'staff',
       'day',
@@ -167,6 +169,36 @@ describe('the Workshops-only sidebar', () => {
     const everything = applyMenuProfile(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, 'everything');
     expect(everything.groups).toBe(EVENT_NAV_GROUPS);
     expect(everything.orgItems).toBe(ORG_NAV_ITEMS);
+  });
+});
+
+/**
+ * Team Tournaments, slice 1b-1: "Teams" sits in People beside Persons and Clubs, and shows only for
+ * an Event with a team Tournament (`hasTeamTournament` on the club's Event list).
+ */
+describe('applyTeamTournaments', () => {
+  const people = (groups: readonly { key: string; items: readonly { href: string }[] }[]) =>
+    groups.find((g) => g.key === 'people')?.items.map((i) => i.href);
+
+  it('shows Teams beside Persons and Clubs for an Event with a team Tournament', () => {
+    const shown = applyTeamTournaments(EVENT_NAV_GROUPS, true);
+    expect(shown).toBe(EVENT_NAV_GROUPS);
+    expect(people(shown)).toEqual(['persons', 'clubs', 'teams', 'referees', 'staff']);
+  });
+
+  it('hides Teams, and only Teams, for an Event without one', () => {
+    const shown = applyTeamTournaments(EVENT_NAV_GROUPS, false);
+    expect(people(shown)).toEqual(['persons', 'clubs', 'referees', 'staff']);
+    const all = EVENT_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href));
+    const kept = shown.flatMap((g) => g.items.map((i) => i.href));
+    expect(all.filter((href) => !kept.includes(href))).toEqual(['teams']);
+  });
+
+  it('asks for Teams the role Persons asks for, and keeps it out of Workshops only', () => {
+    const items = EVENT_NAV_GROUPS.flatMap((g) => g.items);
+    const teams = items.find((i) => i.href === 'teams')!;
+    expect(teams.minRole).toBe(items.find((i) => i.href === 'persons')!.minRole);
+    expect(teams.inWorkshops).toBe(false);
   });
 });
 

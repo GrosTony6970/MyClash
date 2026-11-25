@@ -12,6 +12,7 @@ import { pickActiveHref } from './pick-active-href';
 import {
   applyMemberRole,
   applyMenuProfile,
+  applyTeamTournaments,
   EVENT_NAV_GROUPS,
   EVENT_NAV_OVERVIEW,
   shownIn,
@@ -186,11 +187,14 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // to org-scoped routes that have no eventId in the URL.
   const eventBase = selectedEventId ? `/org/${slug}/events/${selectedEventId}` : '';
   const eventGroups = useEventNavGroups();
+  // Teams shows for an Event with a team Tournament, once the club's Event list says so.
+  const hasTeams = currentEvent?.hasTeamTournament ?? false;
   const navSections = useMemo(() => {
     // The organisation's profile decides which entries the menu shows (Workshops only hides the
     // tournament pages). The pages themselves stay reachable by link.
     const profiled = applyMenuProfile(EVENT_NAV_GROUPS, ORG_NAV_ITEMS, menuProfile);
-    const shown = applyMemberRole(profiled.groups, profiled.orgItems, memberRole);
+    const teamed = applyTeamTournaments(profiled.groups, hasTeams);
+    const shown = applyMemberRole(teamed, profiled.orgItems, memberRole);
     const overviewOpens =
       memberRole === null || roleAtLeast(memberRole, EVENT_NAV_OVERVIEW.minRole);
     return [
@@ -229,7 +233,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           ]
         : []),
     ];
-  }, [eventBase, selectedEventId, orgBase, menuProfile, memberRole, t]);
+  }, [eventBase, selectedEventId, orgBase, menuProfile, memberRole, hasTeams, t]);
 
   const workspaces = resolveWorkspaceOptions(me, { kind: 'org', slug });
 

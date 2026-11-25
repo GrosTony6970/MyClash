@@ -49,6 +49,11 @@ export interface OrgEventSummary {
   updated_at?: string | null;
   /** The Event's IANA zone (`events.timezone`, never null): its clock for a page's dates. */
   timezone: string;
+  /**
+   * The Event holds a team Tournament: the menu offers Teams. camelCase on the wire beside its
+   * snake_case siblings (`events.service.ts`, the org Event list).
+   */
+  hasTeamTournament: boolean;
 }
 
 interface OrganizerEventContextValue {
