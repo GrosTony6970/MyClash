@@ -71,6 +71,15 @@ export function entrantKindMismatch(): ConflictException {
   return new ConflictException({ reason: mismatch.reason, message: mismatch.message });
 }
 
+/**
+ * The 409 for a League link to a team Tournament, said by a League door before the database would
+ * refuse it (rulings 729, 981): the same reason as the trigger's, so one screen sentence names both.
+ */
+export function teamTournamentLeague(): ConflictException {
+  const league = REFUSALS[2];
+  return new ConflictException({ reason: league.reason, message: league.message });
+}
+
 /** The 409 for a write a kind trigger refused; null for any other error. */
 export function entrantKindRefusal(
   error: { code?: string | null; message?: string | null } | null | undefined,

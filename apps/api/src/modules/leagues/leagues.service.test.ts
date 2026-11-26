@@ -1123,10 +1123,12 @@ describe('LeaguesService.addTournamentLink', () => {
             }),
           };
         }
+        // The door reads the Tournament's kind (a League takes individual ones only).
+        const tournament = table === 'tournaments' ? { entrant_kind: 'individual' } : null;
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: tournament, error: null }),
         };
       }),
     };
@@ -1196,12 +1198,23 @@ describe('LeaguesService.addTournamentLink — group resolution', () => {
             }),
           };
         }
+        // Serves the bulk link's list of the Event's Tournaments, and the door's read of one
+        // Tournament's kind.
         if (table === 'tournaments') {
           const chain = {
             select: vi.fn(() => chain),
             eq: vi.fn(() => chain),
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: { entrant_kind: 'individual' }, error: null }),
             then: (resolve: (value: unknown) => unknown) =>
-              resolve({ data: [{ id: 't-1' }, { id: 't-2' }], error: null }),
+              resolve({
+                data: [
+                  { id: 't-1', entrant_kind: 'individual' },
+                  { id: 't-2', entrant_kind: 'individual' },
+                ],
+                error: null,
+              }),
           };
           return chain;
         }
@@ -1466,6 +1479,7 @@ describe('LeaguesService.listOrganizationTournaments', () => {
         id: 't1',
         name: 'Longsword Open',
         weapon: 'longsword',
+        entrant_kind: 'individual',
         event_id: 'e1',
         events: { id: 'e1', name: 'Spring Cup', organization_id: 'org-1' },
       },
@@ -1473,6 +1487,7 @@ describe('LeaguesService.listOrganizationTournaments', () => {
         id: 't2',
         name: 'Rapier',
         weapon: null,
+        entrant_kind: 'team',
         event_id: 'e2',
         events: { id: 'e2', name: 'Autumn Clash', organization_id: 'org-1' },
       },
@@ -1486,15 +1501,27 @@ describe('LeaguesService.listOrganizationTournaments', () => {
 
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
     expect(chainObj.eq).toHaveBeenCalledWith('events.organization_id', 'org-1');
+    // The kind is read: the picker marks a team Tournament and does not offer it to a League.
+    expect(chainObj.select).toHaveBeenCalledWith(
+      'id, name, weapon, entrant_kind, event_id, events!inner(id, name, organization_id)',
+    );
     expect(result).toEqual([
       {
         id: 't1',
         name: 'Longsword Open',
         weapon: 'longsword',
+        entrant_kind: 'individual',
         event_id: 'e1',
         event_name: 'Spring Cup',
       },
-      { id: 't2', name: 'Rapier', weapon: null, event_id: 'e2', event_name: 'Autumn Clash' },
+      {
+        id: 't2',
+        name: 'Rapier',
+        weapon: null,
+        entrant_kind: 'team',
+        event_id: 'e2',
+        event_name: 'Autumn Clash',
+      },
     ]);
   });
 

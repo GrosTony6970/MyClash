@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { entrantKindRefusal, teamTournamentLeague } from '../../common/entrant-kind-refusal';
 import type { UploadLimit } from '../../common/read-upload';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
@@ -882,6 +883,7 @@ export class LeaguesService {
   ) {
     const tournament = await this.getTournamentWithEvent(tournamentId);
     await this.orgs.assertOrgRole(String(tournament['organization_id']), userId, 'admin');
+    if (tournament['entrant_kind'] === 'team') throw teamTournamentLeague();
     if (groupId) await this.assertGroupBelongsToLeague(groupId, leagueId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
@@ -898,7 +900,7 @@ export class LeaguesService {
       )
       .select('*')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     return data;
   }
 
@@ -1067,6 +1069,11 @@ export class LeaguesService {
     if (!link) throw new NotFoundException(`League tournament link ${linkId} not found`);
     const leagueId = String((link as Row)['league_id']);
     await this.assertCanManageLeague(leagueId, userId);
+    // A link rejected or removed, its Tournament switched to team since (the link was not live, so
+    // 0287 let it), then approved again: refused here, before the write.
+    if (update.status === 'approved') {
+      await this.assertIndividualTournament(String((link as Row)['tournament_id']));
+    }
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -1089,7 +1096,7 @@ export class LeaguesService {
       .eq('id', linkId)
       .select('*')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
 
     // Auto-grant the requesting org a `member` role on the league when
     // the tournament link is approved. The org gains read access to
@@ -1269,7 +1276,7 @@ export class LeaguesService {
     await this.orgs.assertOrgRole(organizationId, userId, 'editor');
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, event_id, events!inner(id, name, organization_id)')
+      .select('id, name, weapon, entrant_kind, event_id, events!inner(id, name, organization_id)')
       .eq('events.organization_id', organizationId)
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -1279,6 +1286,8 @@ export class LeaguesService {
         id: row['id'],
         name: row['name'],
         weapon: row['weapon'] ?? null,
+        // The picker marks a team Tournament and does not offer it: a League takes individual ones.
+        entrant_kind: row['entrant_kind'],
         event_id: row['event_id'],
         event_name: event ? event['name'] : null,
       };
@@ -1381,6 +1390,7 @@ export class LeaguesService {
     groupId?: string | null,
   ) {
     await this.assertCanManageLeague(leagueId, userId);
+    await this.assertIndividualTournament(tournamentId);
     const resolvedGroupId = groupId ?? (await this.defaultGroupIdFor(leagueId));
     if (resolvedGroupId) await this.assertGroupBelongsToLeague(resolvedGroupId, leagueId);
     const { data, error } = await this.supabase.service
@@ -1405,8 +1415,23 @@ export class LeaguesService {
       )
       .select('*')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     return data;
+  }
+
+  /**
+   * A League takes individual Tournaments only: League points belong to persons (rulings 729,
+   * 981). The door's 409, before the write; the database refuses it too (0287).
+   */
+  private async assertIndividualTournament(tournamentId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('entrant_kind')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    if ((data as Row)['entrant_kind'] === 'team') throw teamTournamentLeague();
   }
 
   /**
@@ -1433,23 +1458,33 @@ export class LeaguesService {
     );
   }
 
+  /**
+   * Links every individual Tournament of the Event, and answers the team ones it skipped: they are
+   * left out before the door, which would refuse one and stop the loop halfway.
+   */
   async addEventTournamentLinks(
     leagueId: string,
     eventId: string,
     userId: string,
     groupId?: string | null,
-  ) {
+  ): Promise<{ skipped: Array<{ id: string; name: string }> }> {
     await this.assertCanManageLeague(leagueId, userId);
     const { data: tournaments, error } = await this.supabase.service
       .from('tournaments')
-      .select('id')
+      .select('id, name, entrant_kind')
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
+    const skipped: Array<{ id: string; name: string }> = [];
     for (const t of (tournaments ?? []) as Row[]) {
+      if (t['entrant_kind'] === 'team') {
+        skipped.push({ id: String(t['id']), name: String(t['name']) });
+        continue;
+      }
       // Passes the group through — omitting it is what made every bulk-linked
       // tournament land in the `unknown` bucket beside the grouped ones.
       await this.addTournamentLink(leagueId, String(t['id']), userId, groupId);
     }
+    return { skipped };
   }
 
   async recomputeForEvent(eventId: string, userId?: string) {

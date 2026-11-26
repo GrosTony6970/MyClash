@@ -66,9 +66,9 @@
       "why": "names `winner_registration_id` in a comment (`:68`); the winner arrives resolved"
     },
     "apps/api/src/modules/leagues/leagues.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "individual-only",
       "hits": 2,
-      "why": "1c: League points read both sides by Registration (`:2268`); 1c refuses the League link"
+      "why": "League points belong to persons (ruling 729): the double hits count both sides by Registration (`doubleHitsByRegistration`); a team Tournament is refused at every League door (`team_tournament_league`) and by 0287, so no approved link to one exists"
     },
     "apps/api/src/modules/matches/bout-sides.ts": {
       "verdict": "side-key",

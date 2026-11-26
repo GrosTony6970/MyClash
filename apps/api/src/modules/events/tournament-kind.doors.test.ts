@@ -175,6 +175,34 @@ describe('the save', () => {
     expect(error).toBeInstanceOf(ConflictException);
     expect(error.getResponse()).toMatchObject({ reason: 'entrant_kind_settled' });
   });
+
+  // Ruling 981: an empty individual Tournament linked to a League by mistake, then switched to team.
+  it('answers 409 league_link_blocks_team when the Tournament has a live League link', async () => {
+    const h = harness(
+      INDIVIDUAL,
+      {},
+      {
+        tournaments: [
+          { data: { ...INDIVIDUAL }, error: null },
+          {
+            data: null,
+            error: {
+              code: '23514',
+              message:
+                'league_link_blocks_team: Tournament t1 has a live League link, so it stays individual',
+            } as never,
+          },
+        ],
+      },
+    );
+
+    const error = await refusalOf(
+      h.svc.updateTournament('t1', { entrantKind: 'team' } as never, 'u1'),
+    );
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(error.getResponse()).toMatchObject({ reason: 'league_link_blocks_team' });
+  });
 });
 
 describe('the read', () => {

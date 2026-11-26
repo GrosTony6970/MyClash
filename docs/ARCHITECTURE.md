@@ -1259,7 +1259,13 @@ separate from `status` and means the season is **frozen**.
 ### 8bis.2 How a result becomes a standing
 
 1. A Tournament is **linked** to a League. The link starts `requested`, and only
-   an `approved` link counts.
+   an `approved` link counts. A League takes individual Tournaments only: League
+   points belong to persons (rulings 729, 981). The request, the direct link and
+   the approval refuse a team Tournament with 409 `team_tournament_league` before
+   they write; the bulk link of an Event skips its team Tournaments and answers
+   them as `skipped`. The database refuses a live link to a team Tournament, and a
+   switch to team under a live link (409 `league_link_blocks_team`), in migration
+   0287 (`common/entrant-kind-refusal.ts` names both).
 2. When the Tournament is decided, its final ranking produces one
    **contribution** per Fighter: a place, a `resultKind`, and the double-hit
    count. `resultKind` is what separates a real bronze from a semi-final loss
