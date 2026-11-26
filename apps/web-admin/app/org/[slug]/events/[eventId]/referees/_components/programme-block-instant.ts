@@ -1,19 +1,26 @@
+import { addDays, zonedToUtcIso } from '@myclash/time';
+
 /**
- * Absolute start instant (ISO) of a programme block, from its `dayIndex`
- * + `startTime` ("HH:MM") relative to the event's start date. Block times
- * are treated as UTC so they line up, on one epoch, with the pool match
- * times the referee board already plots — letting breaks be ordered
- * against pool rows. The block's own "HH:MM" strings are shown verbatim
- * for the label, so display never depends on this conversion.
+ * Where a programme block sits in time: its Event day (`YYYY-MM-DD`) and the
+ * UTC instant of its start.
+ *
+ * A block stores a `dayIndex` off the Event's first day and a wall-clock
+ * "HH:MM". That time is read on the EVENT's clock (`tz`), so the instant lands
+ * on the same epoch as a Pool's `scheduledStart` and the two sort together.
+ * This used to read "08:00" as 08:00 UTC: in Paris in May that is 10:00, so a
+ * registration bar sorted after the 09:00 Pools.
+ *
+ * Null when the start date, the time or the zone cannot be read.
  *
  * Pure: no React, no I/O.
  */
-export function programmeBlockStartIso(
+export function programmeBlockStart(
   block: { dayIndex: number; startTime: string },
   eventStartDateIso: string,
-): string {
-  const base = new Date(`${eventStartDateIso}T00:00:00.000Z`);
-  base.setUTCDate(base.getUTCDate() + block.dayIndex);
-  const date = base.toISOString().slice(0, 10);
-  return `${date}T${block.startTime}:00.000Z`;
+  tz: string,
+): { day: string; startIso: string } | null {
+  const day = addDays(eventStartDateIso, block.dayIndex);
+  const startIso = zonedToUtcIso(day, block.startTime, tz);
+  if (!day || !startIso) return null;
+  return { day, startIso };
 }

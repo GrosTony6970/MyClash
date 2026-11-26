@@ -60,7 +60,7 @@ import { AvailabilityChips } from './_components/AvailabilityChips';
 import { DayAvailability } from './_components/DayAvailability';
 import { daysBody, type DayTick } from './_components/day-window';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
-import { programmeBlockStartIso } from './_components/programme-block-instant';
+import { programmeBlockStart } from './_components/programme-block-instant';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -653,20 +653,24 @@ function AssignmentsTab({
   const breakItems = useMemo(() => {
     if (!eventStartDateIso) return [];
     return programmeBlocks
-      .map((b) => {
-        const startIso = programmeBlockStartIso(b, eventStartDateIso);
-        return {
-          id: b.id,
-          startIso,
-          startMs: new Date(startIso).getTime(),
-          dayIso: startIso.slice(0, 10),
-          label: `${b.label} (${b.startTime}–${b.endTime})`,
-          kind: b.blockType,
-        };
+      .flatMap((b) => {
+        // The block's HH:MM is on the Event's clock; the day is its own Event day.
+        const start = programmeBlockStart(b, eventStartDateIso, eventTz);
+        if (!start) return [];
+        return [
+          {
+            id: b.id,
+            startIso: start.startIso,
+            startMs: new Date(start.startIso).getTime(),
+            dayIso: start.day,
+            label: `${b.label} (${b.startTime}–${b.endTime})`,
+            kind: b.blockType,
+          },
+        ];
       })
       .filter((it) => (selectedDayIso ? it.dayIso === selectedDayIso : true))
       .sort((a, b) => a.startMs - b.startMs);
-  }, [programmeBlocks, eventStartDateIso, selectedDayIso]);
+  }, [programmeBlocks, eventStartDateIso, eventTz, selectedDayIso]);
   const timelineBreaks = useMemo<TimelineBreak[]>(
     () => breakItems.map((b) => ({ startIso: b.startIso, label: b.label, kind: b.kind })),
     [breakItems],
