@@ -565,7 +565,7 @@ Each slice is usable alone and lands as several single-concern commits.
        League link is live (rulings 729 and 981). Migration 0287 in `1d2cdaf6d`; the doors in
        `096bcf5ab` and `631a23366`.
      - Done: a Tournament's kind locks once it has a phase (ruling 989, decision 23). Migration
-       0288 in `2e2659951`; the named 409 and the settings sentence in `84f492408`.
+       0288 in `b1bbab719`; the named 409 and the settings sentence in `cf21544ab`.
      - Done: HEMA Ratings export skips team Tournaments and says so (`76661b984`). The archive
        reports name a team side (`b60af582d`).
      - Done: `clearDependentPairing` clears both columns of a side, so an emptied team bout keeps
