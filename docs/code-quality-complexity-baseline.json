@@ -852,7 +852,7 @@
     "packages/ui/src/components/TVScoreboard.tsx:640",
     "packages/ui/src/components/bout-flow-marks.tsx:172",
     "packages/ui/src/components/bracket/BracketConnectors.tsx:35",
-    "packages/ui/src/components/bracket/MatchCard.tsx:325",
+    "packages/ui/src/components/bracket/MatchCard.tsx:321",
     "packages/ui/src/components/bracket/MatchCard.tsx:75",
     "packages/ui/src/components/bracket/compute-slot-positions.ts:40",
     "packages/ui/src/components/use-bout-flow-scrub.ts:26",

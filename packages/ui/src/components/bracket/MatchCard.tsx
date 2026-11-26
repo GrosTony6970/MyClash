@@ -97,15 +97,11 @@ export function MatchCard({
     React.useContext(BracketHighlightContext);
   const isOnHighlightedLice = !!highlightLiceId && slot.liceId === highlightLiceId;
   const referees = slot.referees ?? [];
-  // The "you" mark is a Registration: a team row (no Registration id) is nobody's "you".
-  const redIsYou = isRowOfSide(
-    { registration_id: slot.redRegistrationId },
-    highlightRegistrationId ?? null,
-  );
-  const blueIsYou = isRowOfSide(
-    { registration_id: slot.blueRegistrationId },
-    highlightRegistrationId ?? null,
-  );
+  // The "you" mark is a Registration: a team row (no Registration id) is nobody's "you". An empty
+  // highlight is nobody too: two empty ids are not one Fighter.
+  const you = highlightRegistrationId || null;
+  const redIsYou = isRowOfSide({ registration_id: slot.redRegistrationId }, you);
+  const blueIsYou = isRowOfSide({ registration_id: slot.blueRegistrationId }, you);
 
   /**
    * A per-piste bracket is SCOPED to one Lice, not merely annotated with it.

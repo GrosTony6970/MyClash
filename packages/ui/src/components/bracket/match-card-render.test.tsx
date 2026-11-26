@@ -163,6 +163,14 @@ describe('MatchCard on a team bout', () => {
     expect(render(teamSlot(), 'team-lions')).not.toContain('YOU');
   });
 
+  // A reader with no Registration sends an empty highlight; a row whose id was read as '' must
+  // not match it: two empty ids are not one Fighter.
+  it('marks nobody "you" under an empty highlight, even a row with an empty id', () => {
+    expect(render(slot({ redRegistrationId: '', blueRegistrationId: '' }), '')).not.toContain(
+      'YOU',
+    );
+  });
+
   it('leaves an individual row unchanged: no chip, its club, its "you"', () => {
     const html = render(
       slot({
