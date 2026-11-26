@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { accentClassFor, type Penalty } from '@myclash/ui';
@@ -170,6 +172,14 @@ describe('the public bout page of a team bout', () => {
     const row = html.split('<li').find((li) => li.includes('data-event-number="1"'));
 
     expect(row).toMatch(new RegExp(`${accentClassFor('amber')}[^>]*></span></span> Paris Rapiers`));
+  });
+});
+
+describe("the public bout page's chip", () => {
+  it('is the shared TeamChip, not a copy of its own', () => {
+    const source = readFileSync(join(__dirname, 'match-live-view.tsx'), 'utf8');
+    expect(source.match(/<TeamChip colour=/g)).toHaveLength(2);
+    expect(source).not.toContain('TournamentColorDot');
   });
 });
 

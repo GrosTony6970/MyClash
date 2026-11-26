@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { FreshnessChip, TournamentColorDot, sideColorsFor, statusLabelKey } from '@myclash/ui';
+import { FreshnessChip, TeamChip, sideColorsFor, statusLabelKey } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -22,20 +22,6 @@ import {
 } from './match-row';
 
 // ── Sub-components ───────────────────────────────────────────────────────────
-
-/** A team side's colour chip before its name (call 6). A Fighter's side has none, and no space. */
-function SideName({ name, colour }: { name: string; colour: string | null }) {
-  return (
-    <>
-      {colour && (
-        <>
-          <TournamentColorDot color={colour} size="em" />{' '}
-        </>
-      )}
-      {name}
-    </>
-  );
-}
 
 /**
  * One side under its score: a team's logo, then the name with its chip, then a Fighter's club.
@@ -67,7 +53,8 @@ function SideLabel({
         />
       )}
       <span className="text-sm font-semibold text-foreground">
-        <SideName name={name} colour={colour} />
+        <TeamChip colour={colour} />
+        {name}
       </span>
       {club && <span className="text-xs text-muted">{club}</span>}
     </>
@@ -188,7 +175,8 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
         )}
         {winnerName && (
           <p className="text-lg font-black text-foreground">
-            🏆 <SideName name={winnerName} colour={winnerColour} />
+            🏆 <TeamChip colour={winnerColour} />
+            {winnerName}
           </p>
         )}
         {(match.startedAt || match.endedAt) && (

@@ -221,7 +221,14 @@ describe('"End match" on the tablet', () => {
     // so it keeps the server's reason: with the tablet's it would put the
     // wiped board on the last hit the server holds.
     expect(view).toContain('endReason={match.endReason}\n          resultReason={resultReason}');
-    expect(overlay).toContain('resultReason={props.resultReason}');
+    // The headline takes the screen's props whole and reads `resultReason`, never `endReason`.
+    expect(overlay).toContain('<ResultHeadline {...props} />');
+    const headline = overlay.slice(
+      overlay.indexOf('function ResultHeadline('),
+      overlay.indexOf('function BoutReview('),
+    );
+    expect(headline).toContain("| 'resultReason'");
+    expect(headline).not.toContain('endReason');
     expect(overlay).not.toContain('endReason={props.endReason}');
     // A bout nobody won is a loss for both or a draw: the reason says which.
     expect(overlay).toContain('<NoWinner resultReason={resultReason} />');

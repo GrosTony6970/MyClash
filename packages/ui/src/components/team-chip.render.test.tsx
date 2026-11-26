@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
@@ -186,4 +188,16 @@ describe('the bout-flow legend', () => {
   it("shows no chip on a Fighter's bout", () => {
     expect(legend(FIGHTERS)).not.toContain('role="img"');
   });
+});
+
+/** One owner for "dot and space before a team's name": a second copy drifts (CLAUDE.md). */
+describe('TeamChip, the one chip beside a team name', () => {
+  it.each(['TVScoreboard.tsx', 'MatchTimeline.tsx', 'BoutFlowChart.tsx'])(
+    '%s draws no dot of its own',
+    (file) => {
+      const source = readFileSync(join(__dirname, file), 'utf8');
+      expect(source).toContain('<TeamChip');
+      expect(source).not.toContain('TournamentColorDot');
+    },
+  );
 });

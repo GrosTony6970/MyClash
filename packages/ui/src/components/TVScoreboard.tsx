@@ -46,7 +46,7 @@ import { statusLabelKey } from '../utils/status-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
-import { TournamentColorDot } from './TournamentColorDot';
+import { TeamChip } from './team-chip';
 import { TvProtestChip } from './TvProtestChip';
 
 export interface TVScoreboardProps {
@@ -453,7 +453,7 @@ function TVHeader({
  * A side's name, with its team's colour chip before it (call 6). A Fighter's side has no colour
  * and shows the name alone. `color` tints the name where the line takes the side colour.
  *
- * The chip's edge is the scope's ink (`TournamentColorDot`): on the stage the line sets
+ * The chip (`TeamChip`) takes the scope's ink for its edge: on the stage the line sets
  * `data-theme="dark"`, or a black team's chip would vanish into the near-black.
  */
 function SideName({
@@ -467,11 +467,7 @@ function SideName({
 }) {
   return (
     <span style={color ? { color } : undefined}>
-      {colour && (
-        <>
-          <TournamentColorDot color={colour} size="em" />{' '}
-        </>
-      )}
+      <TeamChip colour={colour} />
       {name}
     </span>
   );

@@ -77,6 +77,7 @@ export type {
 
 export { TournamentColorDot } from './components/TournamentColorDot';
 export type { TournamentColorDotProps } from './components/TournamentColorDot';
+export { TeamChip } from './components/team-chip';
 
 export { SkillBadge } from './components/SkillBadge';
 export type { SkillBadgeProps } from './components/SkillBadge';

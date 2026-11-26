@@ -21,7 +21,13 @@
  */
 
 import { useState } from 'react';
-import { BoutFlowChart, MatchTimeline, buildBoutFlow, buildUnifiedTimeline } from '@myclash/ui';
+import {
+  BoutFlowChart,
+  MatchTimeline,
+  TeamChip,
+  buildBoutFlow,
+  buildUnifiedTimeline,
+} from '@myclash/ui';
 import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 import { sideStyle } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -115,6 +121,8 @@ function ResultHeadline({
   redSideId,
   blueSideId,
   winnerSideId,
+  redColour,
+  blueColour,
   rounds,
   resultReason,
   scoringConfig,
@@ -128,6 +136,8 @@ function ResultHeadline({
   | 'redSideId'
   | 'blueSideId'
   | 'winnerSideId'
+  | 'redColour'
+  | 'blueColour'
   | 'rounds'
   | 'scoringConfig'
 >) {
@@ -141,6 +151,7 @@ function ResultHeadline({
     blueScore,
   });
   const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
+  const winnerColour = winner === 'red' ? redColour : winner === 'blue' ? blueColour : null;
 
   return (
     <>
@@ -165,6 +176,8 @@ function ResultHeadline({
               className="h-4 w-4 motion-safe:animate-pulse"
             />
           )}
+          {/* A winning team's colour chip before its name (call 6); none for a Fighter. */}
+          <TeamChip colour={winnerColour} />
           {winnerName}
         </p>
       ) : (
@@ -337,7 +350,7 @@ function ResultProtests(
  */
 export function MatchResultOverlay(props: MatchResultOverlayProps) {
   const { t } = useI18n();
-  const { redName, blueName, redScore, blueScore, scoringConfig, nextMatchHref, onClose } = props;
+  const { nextMatchHref, onClose } = props;
 
   return (
     <div
@@ -348,18 +361,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
       className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4"
     >
       <div className="w-full max-w-3xl rounded-xl border border-gold/60 bg-surface p-6 text-center shadow-2xl">
-        <ResultHeadline
-          redName={redName}
-          blueName={blueName}
-          redScore={redScore}
-          blueScore={blueScore}
-          redSideId={props.redSideId}
-          blueSideId={props.blueSideId}
-          winnerSideId={props.winnerSideId}
-          rounds={props.rounds}
-          resultReason={props.resultReason}
-          scoringConfig={scoringConfig}
-        />
+        <ResultHeadline {...props} />
         {props.unconfirmed && <NotConfirmed />}
         <ResultProtests {...props} />
         <BoutReview {...props} />

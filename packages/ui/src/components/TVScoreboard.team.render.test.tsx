@@ -145,8 +145,8 @@ describe('TVScoreboard on a team bout', () => {
   it('shows each team name with its colour chip, and its logo where a photo is', () => {
     const html = render();
     const { red, blue } = columns(html);
-    expect(red).toMatch(/bg-green-700[^>]*><\/span> Lyon Blades/);
-    expect(blue).toMatch(/bg-violet-700[^>]*><\/span> Paris Rapiers/);
+    expect(red).toMatch(/bg-green-700[^>]*><\/span><\/span>\sLyon Blades/);
+    expect(blue).toMatch(/bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers/);
     // The logo is decorative, as the photo is: the team's name is the line under it (WAI H2). A
     // team with no logo shows the initials, as a Fighter with no photo does.
     expect(blue).toContain('src="https://cdn.test/paris.png" alt=""');
@@ -154,8 +154,8 @@ describe('TVScoreboard on a team bout', () => {
     expect(red).toContain('>LB</div>');
     // The header's "X vs Y" line carries the chips too.
     const header = html.slice(0, html.indexOf('</header>'));
-    expect(header).toMatch(/bg-green-700[^>]*><\/span> Lyon Blades/);
-    expect(header).toMatch(/bg-violet-700[^>]*><\/span> Paris Rapiers/);
+    expect(header).toMatch(/bg-green-700[^>]*><\/span><\/span>\sLyon Blades/);
+    expect(header).toMatch(/bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers/);
   });
 
   it('shows a chip beside each team of the next bout', () => {
@@ -173,8 +173,8 @@ describe('TVScoreboard on a team bout', () => {
       },
     };
     const header = render().split('</header>')[0]!;
-    expect(header).toMatch(/bg-amber-400[^>]*><\/span> Nice Sabres/);
-    expect(header).toMatch(/bg-teal-700[^>]*><\/span> Lille Foils/);
+    expect(header).toMatch(/bg-amber-400[^>]*><\/span><\/span>\sNice Sabres/);
+    expect(header).toMatch(/bg-teal-700[^>]*><\/span><\/span>\sLille Foils/);
   });
 
   // The recorded winner is a side key. A team can win by forfeit on the lower score: the score
@@ -189,7 +189,9 @@ describe('TVScoreboard on a team bout', () => {
     };
     live.clock = { status: 'ended', activeMs: 0, runningFrom: null };
     const html = render();
-    expect(html).toMatch(/🏆 <span><span[^>]*bg-violet-700[^>]*><\/span> Paris Rapiers<\/span>/);
+    expect(html).toMatch(
+      /🏆 <span><span class="inline-flex"><span[^>]*bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers<\/span>/,
+    );
     expect(html.match(/🏆/g)).toHaveLength(1);
   });
 

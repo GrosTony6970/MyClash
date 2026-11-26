@@ -74,6 +74,20 @@ describe("a team bout's chip on the pad", () => {
     }
   });
 
+  it('puts the winning team’s chip before its name in the result headline', () => {
+    const headline = result.slice(
+      result.indexOf('function ResultHeadline('),
+      result.indexOf('function BoutReview('),
+    );
+    expect(headline).toContain(
+      "const winnerColour = winner === 'red' ? redColour : winner === 'blue' ? blueColour : null;",
+    );
+    expect(headline).toMatch(/<TeamChip colour=\{winnerColour\} \/>\s*\{winnerName\}/);
+    // The headline takes the screen's props whole, the colours among them.
+    expect(result).toContain('<ResultHeadline {...props} />');
+    expect(headline).toMatch(/\| 'redColour'\s*\| 'blueColour'/);
+  });
+
   it('hands them on to the history and the flow chart', () => {
     for (const [source, open] of [
       [centre, '<MatchTimeline'],
