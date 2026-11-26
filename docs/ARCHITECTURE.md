@@ -5239,8 +5239,8 @@ delete photos it knows nothing of.
 
 A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
 Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
-This section describes what slice 1 built: sign-in, and a door with one tool (`whoami`). Slices 2–4
-(read tools, then the rest) are in the spec.
+This section describes what slices 1 and 2 built: sign-in, and a door with ten read tools (`whoami`
+and the nine of §28.5a). Slices 3–4 (the rest) are in the spec.
 
 ### 28.1 Addresses
 
@@ -5369,11 +5369,62 @@ Every refusal logs the host it would have sent the person to.
   transport. A tool that throws returns `isError` with fixed words, and the cause goes to the log.
 - **Read-only (maintenance) mode refuses every MCP `POST`**, `whoami` included
   (`read-only.interceptor.ts`: the door is not on its allow-list, and a connector token is not a
-  super admin). It fails closed. Revisit when the read tools matter (slice 2).
-- **`whoami`** (`modules/mcp/tools/whoami.ts`) is the one tool: the account's email, and the Events
+  super admin). It fails closed. Revisit when the read tools matter.
+- **`whoami`** (`modules/mcp/tools/whoami.ts`) is the first tool: the account's email, and the Events
   where the person fights, referees, teaches or attends a Workshop (the personal space's
   `me/events`). It gives names, slugs and start dates, **never an id**: a model has no use for one,
   and later tools take a slug. No tool takes a person from the model: the caller is fixed by the guard.
+
+### 28.5a The read tools (slice 2)
+
+Nine tools sit beside `whoami` in `modules/mcp/tools/`, registered in `mcp-server.ts`. All are
+read-only. Each calls a service that an existing route already calls, so it applies that route's gate.
+
+| Tool                   | Reads                                                                     | Service (gate)                                                     | Cap                   |
+| ---------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
+| `my_events`            | the person's Events: roles, Tournaments, referee duties, taught Workshops | `MeEventsService`                                                  | none                  |
+| `my_upcoming`          | the next bouts and referee duties, soonest first                          | `MeEventsService`                                                  | `limit` 1–50, def. 20 |
+| `my_schedule`          | the person's own bouts, duties and Workshops at one Event (`event` slug)  | `PublicScheduleService`, as `my-schedule.controller.ts`            | none                  |
+| `my_stats`             | career, per-weapon, referee and HEMA Ratings numbers                      | `FightersService.getMyDashboard`                                   | none                  |
+| `my_fight_history`     | the newest completed bouts                                                | `FightersService.getMyDashboard`                                   | `limit` 1–10, def. 10 |
+| `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                  | none                  |
+| `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug`                                              | none                  |
+| `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `PoolStandingsService`; the Event gate, then the Tournament's gate | none                  |
+| `event_schedule`       | an Event's public Matches, soonest first                                  | `ScheduleGridService`; the Event gate, draft Tournaments left out  | `limit` 1–50, def. 20 |
+
+The rules:
+
+- **The caller is the door's, never a token.** `buildMcpServer(caller, deps)` fixes the person from
+  `McpDoorGuard`. No tool takes a person, and no input names one. The two fighter tools read
+  the caller's own dashboard.
+- **No raw id leaves a tool.** Output carries names and slugs only. A model has no use for an id,
+  and the next tool takes a slug. Every tool test calls `expectNoRawIds`
+  (`tools/no-raw-ids.test-helper.ts`), which fails on a UUID at any depth, in a key or a value.
+- **An Event you cannot see answers like an unknown one.** `readableEventBySlug` reads one row by slug
+  and applies `canReadEvent`, the gate of the public Event page. A hidden Event and a missing
+  one both give `null`, so a model cannot tell them apart. A read error throws.
+- **`answer()` owns every result.** A tool returns its data, or `{ refusal: '<one sentence>' }`. A
+  refusal becomes an `isError` result with that sentence (no fighter profile, an Event the person is
+  not on). A throw becomes the fixed `isError` words, and the cause goes to the log. A tool never
+  writes either form itself.
+- **Bounds live in the input schema.** The SDK refuses an out-of-range `limit` before the tool
+  runs. The tool only applies the default.
+- **Lice are named.** `event_schedule` reads the Event's lices once (`id, name`) and maps each
+  Match's Lice to its name. The UI calls a Lice a "piste" (`docs/HIERARCHY.md`).
+- **`event_info` gives a place as `city` and `country`** (ISO alpha-2), the two columns of the
+  public Events list. The `events` table has no venue column.
+
+The calls made:
+
+- **FightBook spars stay out of v1.** They are the person's own practice record, not a result an
+  organiser published.
+- **`event_schedule` is filtered and capped.** A busy Event has hundreds of Matches. Claude filters by
+  `tournament` and `day` (the Event's own time zone). A Match with no start time comes last and
+  matches no `day`. `total` counts the Matches before the cap.
+- **`my_fight_history` is the dashboard's 10 newest bouts, with no opponent name.** The owner view of a
+  hidden fighter profile reads only the dashboard, so a person always sees their own fights. A
+  paginated match read would not. The career holds ten bouts, so there is no `offset`, and the
+  dashboard shows no opponent name. A later slice can add an owner-path paginated read.
 
 ### 28.6 Connected apps
 

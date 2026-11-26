@@ -263,7 +263,26 @@ test.describe.serial('mcp connector', () => {
     expect(hello.serverInfo.name).toBe('myclash');
 
     const listed = await rpc<{ tools: { name: string }[] }>('tools/list', {});
-    expect(listed.tools.map((tool) => tool.name)).toEqual(['whoami']);
+    expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+      'event_info',
+      'event_schedule',
+      'my_events',
+      'my_fight_history',
+      'my_schedule',
+      'my_stats',
+      'my_upcoming',
+      'my_workshops',
+      'tournament_standings',
+      'whoami',
+    ]);
+
+    const events = await rpc<{ content: { text: string }[]; isError?: boolean }>('tools/call', {
+      name: 'my_events',
+      arguments: {},
+    });
+    expect(events.isError ?? false).toBe(false);
+    const mine = JSON.parse(events.content[0]?.text ?? '{}') as { events?: unknown };
+    expect(Array.isArray(mine.events), 'my_events returns a list').toBe(true);
 
     const called = await rpc<{ content: { type: string; text: string }[]; isError?: boolean }>(
       'tools/call',
