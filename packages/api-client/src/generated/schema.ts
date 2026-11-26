@@ -7221,6 +7221,75 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/tournaments/{tournamentId}/query/estimate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Estimate natural-language query cost */
+    post: operations['TournamentQueryController_estimate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/query': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ask a natural-language question about a tournament */
+    post: operations['TournamentQueryController_query'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/query/history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the current user query history for a tournament */
+    get: operations['TournamentQueryController_history'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/query/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get tournament natural-language query settings */
+    get: operations['TournamentQueryController_settings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update tournament natural-language query settings */
+    patch: operations['TournamentQueryController_saveSettings'];
+    trace?: never;
+  };
   '/api/v1/compensation-plans': {
     parameters: {
       query?: never;
@@ -8773,75 +8842,6 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/query/estimate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Estimate natural-language query cost */
-    post: operations['TournamentQueryController_estimate'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/query': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Ask a natural-language question about a tournament */
-    post: operations['TournamentQueryController_query'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/query/history': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List the current user query history for a tournament */
-    get: operations['TournamentQueryController_history'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/query/settings': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get tournament natural-language query settings */
-    get: operations['TournamentQueryController_settings'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update tournament natural-language query settings */
-    patch: operations['TournamentQueryController_saveSettings'];
     trace?: never;
   };
   '/api/v1/events/{eventId}/follows': {
@@ -12828,6 +12828,14 @@ export interface components {
       startAt: string;
       plannedDurationOverrideMinutes?: number | null;
     };
+    TournamentQueryDto: {
+      question: string;
+    };
+    TournamentQuerySettingsDto: {
+      /** @enum {string} */
+      accessPolicy?: 'organizers_only' | 'organizers_head_judges' | 'anyone_with_tournament_access';
+      rateLimitPerHour?: number;
+    };
     CreatePlanDto: {
       name: string;
       description?: string;
@@ -13260,14 +13268,6 @@ export interface components {
     };
     SendMessageDto: {
       content: string;
-    };
-    TournamentQueryDto: {
-      question: string;
-    };
-    TournamentQuerySettingsDto: {
-      /** @enum {string} */
-      accessPolicy?: 'organizers_only' | 'organizers_head_judges' | 'anyone_with_tournament_access';
-      rateLimitPerHour?: number;
     };
     FollowByGlobalPersonDto: {
       /** Format: uuid */
@@ -24272,6 +24272,113 @@ export interface operations {
       };
     };
   };
+  TournamentQueryController_estimate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TournamentQueryDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TournamentQueryController_query: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TournamentQueryDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TournamentQueryController_history: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TournamentQueryController_settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TournamentQueryController_saveSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TournamentQuerySettingsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   CompensationController_listPlans: {
     parameters: {
       query?: never;
@@ -26616,113 +26723,6 @@ export interface operations {
     requestBody?: never;
     responses: {
       201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  TournamentQueryController_estimate: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TournamentQueryDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  TournamentQueryController_query: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TournamentQueryDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  TournamentQueryController_history: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  TournamentQueryController_settings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  TournamentQueryController_saveSettings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TournamentQuerySettingsDto'];
-      };
-    };
-    responses: {
-      200: {
         headers: {
           [name: string]: unknown;
         };
