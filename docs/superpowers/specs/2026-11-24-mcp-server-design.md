@@ -225,9 +225,10 @@ stays in `specs/`.
   a bracket, schedule Matches: one tool creates an `organizer_ai_assistant_drafts` row through the
   existing `createDraftFromAction` path and returns a link to the assistant page, where the
   organiser reviews and presses Apply.
-- Every write is audit-logged with the person as actor and the source "MCP (client name)". In 4a
-  the payload carries `via: 'mcp'`, `clientId` and `clientName`, the name the app gave itself at
-  registration, read from GoTrue's admin client read (ruling 990). A failed read leaves it null.
+- Every write is audit-logged with the person as actor. `audit_log` has no source column, so the
+  payload names the source. In 4a the payload carries `via: 'mcp'`, `clientId` and `clientName`.
+  `clientName` is the name the app gave itself at registration, read from GoTrue's admin client
+  read (ruling 990). A failed read leaves it null.
 - No apply on a completed Event. `EventReadOnlyGuard` locks the route, not the service, so the tool
   must reach the same lock. In 4a the tool reads the Event's status itself: a completed or archived
   Event refuses.

@@ -5381,10 +5381,10 @@ Every refusal logs the host it would have sent the person to.
   `POST`, a question included, so `read-only.interceptor.ts` passes the door's exact path
   (`/api/v1/mcp`, nothing beside it) without reading the switch. So the door itself never refuses
   in maintenance, and each tool that writes asks the switch itself. One tool writes:
-  `apply_referee_assignment` (§28.5c). It calls `assertNotReadOnly` first, before it opens its
-  confirmation or reads anything, as the sign-up doors under `auth/` do, and answers the
-  maintenance refusal ("MyClash is in maintenance: nothing can change right now.",
-  `tools/referee-write-gate.ts:29-45`). `mcp.http.test.ts` fails when any other listed tool is not
+  `apply_referee_assignment` (§28.5c). It calls `assertNotReadOnly` first, as the sign-up doors
+  under `auth/` do. It does so before it opens its confirmation or reads anything. In maintenance
+  it answers the maintenance refusal: "MyClash is in maintenance: nothing can change right now."
+  (`tools/referee-write-gate.ts:29-45`). `mcp.http.test.ts` fails when any other listed tool is not
   marked `readOnlyHint`, and proves that apply refuses in maintenance without writing.
 - **`whoami`** (`modules/mcp/tools/whoami.ts`) is the first tool: the account's email, and the Events
   where the person fights, referees, teaches or attends a Workshop (the personal space's
@@ -5673,12 +5673,16 @@ The races, named:
 - **The recheck vs the write.** The write does not compare the holder again. A change made in the
   app between the crew re-read and the write is overwritten, and the audit row's
   `previousPersonId` names the holder the re-read saw. The window is a few database reads: the
-  roster, the checker, and the write's own lock and checker reads. The app's name, the one call to
-  another server, is read before the re-read. So no call to another server sits between the recheck
-  and the write but the write's own (`apply-referee-assignment.ts:10-16,203-205`). Accepted.
-- **Two applies of one token at once.** Both pass the `prev` check and both write the same
-  assignment. The RPC replaces atomically, so the end state is the same, with two audit rows.
+  roster, the checker, and the write's own lock and checker reads. The app's name is the one call
+  to GoTrue (the sign-in server). It is read before the re-read. So no call to GoTrue sits between
+  the re-read and the write, only database reads (`apply-referee-assignment.ts:10-16,203-205`).
   Accepted.
+- **Two applies of one token at once.** Both pass the `prev` check, and both write the same
+  person in the same role. The two RPC calls are not serialised, and `referee_assignments` has no
+  unique index on Match and role. So both inserts can survive, and the Match then has two
+  identical rows. The same person holds the role either way. The crew resolver shows them once
+  (`uniqueReferees`, by name and role). The next write of that role deletes both rows. Two audit
+  rows are written. Accepted.
 
 ### 28.6 Connected apps
 

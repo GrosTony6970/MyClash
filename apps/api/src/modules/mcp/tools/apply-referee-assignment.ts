@@ -11,7 +11,7 @@
  * between the crew re-read and the write is overwritten, and the audit row's `previousPersonId`
  * names the holder the re-read saw. The window is the roster read, the checker and the write's
  * own lock and checker reads, all database reads of milliseconds: the app name, the one call to
- * another server, is read before the re-read so it cannot stretch the window. The write still
+ * the auth server, is read before the re-read so it cannot stretch the window. The write still
  * refuses an Impossible reason born in it; a Discouraged one only when the preview showed none
  * (`confirm` false), as the plan's "race, named" accepts.
  */
@@ -201,7 +201,7 @@ export async function applyRefereeAssignment(
   const gate = await refereeWriteRefusal(event, caller, deps);
   if (gate) return gate;
   // Before the recheck: this call goes to the auth server, with no timeout of ours. Between
-  // the crew re-read and the write there is no network call but the write's own.
+  // the crew re-read and the write there is no call to the auth server, only database reads.
   const clientName = await appName(deps, caller.clientId);
   const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
   if (!skill) return STALE;

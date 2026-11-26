@@ -120,13 +120,14 @@ slate, with its own switch, and it never blocks.
   - An Impossible assignment is refused.
   - A Discouraged assignment returns 409 with the reasons, unless the request confirms. This follows
     `apps/api/src/modules/swiss/swiss-override.service.ts`.
-  - The overridden reasons are stored on the assignment, in `conflicts_jsonb`. At the app's
-    doors, no audit row records them. The MCP door writes one audit row per write, and its
-    payload carries the codes of the reasons the person confirmed (`confirmedReasons`). The
-    reasons are stored as a code and the data name it was against (a Pool name, a round
-    code, a Workshop title), never an id and never a sentence. A reason stored there shows
-    grey, "confirmed", and is no longer a warning; a new reason shows amber again (ruling 135).
-    The column is not public (migration 0205): "attends a Workshop" names a private enrolment.
+  - The overridden reasons are stored on the assignment, in `conflicts_jsonb`. They are stored
+    as a code and the data name it was against (a Pool name, a round code, a Workshop title),
+    never an id and never a sentence. A reason stored there shows grey, "confirmed", and is no
+    longer a warning; a new reason shows amber again (ruling 135). The column is not public
+    (migration 0205): "attends a Workshop" names a private enrolment.
+  - At the app's doors, no audit row records the overridden reasons. The MCP door writes one
+    audit row per write. Its payload carries the codes of the reasons the person confirmed
+    (`confirmedReasons`).
   - An Impossible refusal and a Discouraged one both answer 409, with `level` and the reasons
     in the body (ruling 22). A missing skill is not a scheduling rule and stays a 400.
 - **Locked** = any confirmed Pool or bout assignment in the Event; every door that writes an assignment
