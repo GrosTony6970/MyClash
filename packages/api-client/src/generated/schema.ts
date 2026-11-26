@@ -13266,11 +13266,7 @@ export interface components {
     };
     TournamentQuerySettingsDto: {
       /** @enum {string} */
-      accessPolicy?:
-        | 'organizers_only'
-        | 'organizers_head_judges'
-        | 'organizers_head_judges_coaches'
-        | 'anyone_with_tournament_access';
+      accessPolicy?: 'organizers_only' | 'organizers_head_judges' | 'anyone_with_tournament_access';
       rateLimitPerHour?: number;
     };
     FollowByGlobalPersonDto: {
