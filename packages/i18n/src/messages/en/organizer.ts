@@ -911,7 +911,7 @@ export const organizer = {
       quickPenaltiesHelp: 'Pinned penalties show as one-tap chips on the scoreboard.',
       quickPenaltiesEmpty: 'No penalty ruleset entries found for this tournament.',
       protestLimit: 'Protest limit',
-      protestLimitHelp: 'Per fighter, per Match. Empty: no limit.',
+      protestLimitHelp: 'Per fighter or team, per Match. Empty: no limit.',
       protestOfferPenalty: 'Penalty offered past the limit',
       protestLimitInvalid: 'A whole number, 0 or more.',
       protestOfferNone: 'None',

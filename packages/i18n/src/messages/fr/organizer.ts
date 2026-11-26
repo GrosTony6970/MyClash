@@ -909,7 +909,7 @@ export const organizer = {
         'Les pénalités épinglées apparaissent en accès rapide sur le tableau de score.',
       quickPenaltiesEmpty: 'Aucune entrée de barème de pénalités pour ce tournoi.',
       protestLimit: 'Limite de réclamations',
-      protestLimitHelp: 'Par combattant, par match. Vide : pas de limite.',
+      protestLimitHelp: 'Par combattant ou équipe, par match. Vide : pas de limite.',
       protestOfferPenalty: 'Pénalité proposée au-delà de la limite',
       protestLimitInvalid: 'Un nombre entier, 0 ou plus.',
       protestOfferNone: 'Aucune',
