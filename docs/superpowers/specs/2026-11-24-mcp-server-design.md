@@ -24,7 +24,8 @@ this case as the one where MCP is worth it: reaching production from the claude.
 - Sign-in with the person's existing MyClash account: in Claude, "Connect" → MyClash login →
   "Approve". Works on claude.ai web, Claude mobile, Claude desktop and Claude Code.
 - Every tool runs as the signed-in person and sees exactly what that person sees in the app today.
-- Read tools for all four personas (slices 2–3); organiser write tools (slice 4).
+- Read tools for all four personas (slices 2–3); organiser write tools (slice 4, split in two by
+  ruling 989: 4a the referee swap and removal, built; 4b the drafts, not built).
 - Organiser writes are decided **per tool**: a small change applies after the person confirms in the
   chat; a big change becomes a draft the organiser approves in MyClash.
 
@@ -196,23 +197,44 @@ identity (call B), never a raw id from the model.
 
 ### Slice 4 — organiser writes
 
-- **Small, confirm-in-chat** — v1: assign or swap a referee on a Match. Path: the route's
-  `MatchesService.setRefereeRoleAssignment` (`matches.service.ts:411-455`, replaces atomically), not
+Operator rulings (2026-11-26), made on the slice 4a plan:
+
+- **989 — Slice 4 is split.** Story: the organiser asks Claude for 4 Pools; Claude saves a draft;
+  the link opens the assistant page's list, and the draft shows as a box of raw JSON full of ids.
+  Ruling: slice 4a builds the referee swap only. Slice 4b, a separate slice, first makes the
+  assistant page open one draft from a link and show it in plain words (names, never ids). Then it
+  adds Claude's four draft tools: create a Tournament, generate Pools, generate a bracket, schedule
+  Matches.
+- **990 — 4a also removes a referee, and the audit row names the app.** "Take Jean off LSW-P2-M04"
+  previews "Déclarant: Jean → nobody" and applies on yes. The audit row carries the connected app's
+  name, read from the sign-in server.
+
+Slice 4a is built: `preview_referee_assignment` and `apply_referee_assignment`. ARCHITECTURE §28.5c
+describes what the code does, with the calls G–Q the plan made. Slice 4b is not built, so this spec
+stays in `specs/`.
+
+- **Small, confirm-in-chat** (slice 4a, built) — v1: assign or swap a referee on a Match, or take
+  the holder off (ruling 990). Path: the route's `MatchesService.setRefereeRoleAssignment` (`matches.service.ts:411-455`, replaces atomically), not
   the assistant's insert-only `assignReferee`. Rule 8 is enforced by the existing checker. Two tools
   (call E): `preview_<x>` returns a plain-words summary, **every soft-rule reason when Discouraged**,
   and a short-lived confirmation token bound to the person and the exact payload, `confirm` included;
   `apply_<x>(token)` applies it (963). Tool annotations mark apply as destructive so Claude asks. The
   route writes no audit row, so the MCP tool writes one.
-- **Big, draft-in-app** — create a Tournament, generate Pools, generate a bracket, schedule Matches:
-  one tool creates an `organizer_ai_assistant_drafts` row through the existing
-  `createDraftFromAction` path and returns a link to the assistant page, where the organiser reviews
-  and presses Apply.
-- Every write is audit-logged with the person as actor and the source "MCP (client name)".
+- **Big, draft-in-app** (slice 4b, not built) — first, the assistant page opens one draft from a
+  link and shows it in plain words (ruling 989). Then create a Tournament, generate Pools, generate
+  a bracket, schedule Matches: one tool creates an `organizer_ai_assistant_drafts` row through the
+  existing `createDraftFromAction` path and returns a link to the assistant page, where the
+  organiser reviews and presses Apply.
+- Every write is audit-logged with the person as actor and the source "MCP (client name)". In 4a
+  the payload carries `via: 'mcp'`, `clientId` and `clientName`, the name the app gave itself at
+  registration, read from GoTrue's admin client read (ruling 990). A failed read leaves it null.
 - No apply on a completed Event. `EventReadOnlyGuard` locks the route, not the service, so the tool
-  must reach the same lock — the builder verifies where it holds.
+  must reach the same lock. In 4a the tool reads the Event's status itself: a completed or archived
+  Event refuses.
 - No write in read-only (maintenance) mode. The door passes that mode whole so the reads answer
-  (ruling 985), so each write tool calls `assertNotReadOnly` itself; the tool-list test in
-  `mcp.http.test.ts` turns red until it is changed for the first write tool.
+  (ruling 985), so each write tool calls `assertNotReadOnly` itself. 4a changed the tool-list test
+  in `mcp.http.test.ts`: only `apply_referee_assignment` may lack `readOnlyHint`, and it refuses in
+  maintenance without writing.
 
 ## Left to the builder
 
@@ -234,7 +256,9 @@ identity (call B), never a raw id from the model.
 - **Slice 2:** per tool, a fighter sees their own schedule and gets nothing for another person's.
 - **Slice 3:** the in-app panel's tests stay green after the move; a non-organiser gets the policy
   refusal through MCP; head judges and coaches get in under their policies (966).
-- **Slice 4:** preview → apply happy path; a forged, expired or other-person token refused; a rule-8
-  conflict refused through MCP exactly as through the route; a completed Event refused; the audit
-  row written.
+- **Slice 4a (built):** preview → apply happy path, for a swap and a removal; a forged, expired or
+  other-person token refused; a replay refused; a rule-8 conflict refused through MCP by the
+  same checker as the route, at preview and at apply; a completed Event refused; the audit row
+  written, with the app's name.
+- **Slice 4b:** its own plan names its tests.
 - **Every slice:** the `myclash-gates` chain green; `pnpm db:migrations:replay` if a migration lands.

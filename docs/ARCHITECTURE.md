@@ -5248,8 +5248,9 @@ delete photos it knows nothing of.
 
 A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
 Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
-This section describes what slices 1 to 3 built: sign-in, and a door with twenty-two read tools
-(`whoami`, the nine of §28.5a and the twelve of §28.5b). Slice 4 (the rest) is in the spec.
+This section describes what slices 1 to 3 and 4a built: sign-in, and a door with twenty-four tools.
+Twenty-three read (`whoami`, the nine of §28.5a, the twelve of §28.5b and the preview of §28.5c),
+and one writes (the apply of §28.5c). Slice 4b (the drafts, ruling 989) is in the spec.
 
 ### 28.1 Addresses
 
@@ -5378,9 +5379,13 @@ Every refusal logs the host it would have sent the person to.
   transport. A tool that throws returns `isError` with fixed words, and the cause goes to the log.
 - **Read-only (maintenance) mode lets the door through** (operator ruling 985). Every MCP call is a
   `POST`, a question included, so `read-only.interceptor.ts` passes the door's exact path
-  (`/api/v1/mcp`, nothing beside it) without reading the switch. The door may pass only because no
-  tool writes: `mcp.http.test.ts` fails when a listed tool is not marked `readOnlyHint`. A tool that
-  writes (slice 4) calls `assertNotReadOnly` itself, as the sign-up doors under `auth/` do.
+  (`/api/v1/mcp`, nothing beside it) without reading the switch. So the door itself never refuses
+  in maintenance, and each tool that writes asks the switch itself. One tool writes:
+  `apply_referee_assignment` (§28.5c). It calls `assertNotReadOnly` first, before it opens its
+  confirmation or reads anything, as the sign-up doors under `auth/` do, and answers the
+  maintenance refusal ("MyClash is in maintenance: nothing can change right now.",
+  `tools/referee-write-gate.ts:29-45`). `mcp.http.test.ts` fails when any other listed tool is not
+  marked `readOnlyHint`, and proves that apply refuses in maintenance without writing.
 - **`whoami`** (`modules/mcp/tools/whoami.ts`) is the first tool: the account's email, and the Events
   where the person fights, referees, teaches or attends a Workshop (the personal space's
   `me/events`). It gives names, slugs and start dates, **never an id**: a model has no use for one,
@@ -5485,7 +5490,8 @@ The flow for one call:
 The rules:
 
 - **Claude skips three panel steps.** It writes no query history row, checks no AI key and applies
-  no per-hour limit. The door passes read-only mode, so no tool may write (ruling 985; spec call D).
+  no per-hour limit. The door passes read-only mode, so a read tool may not write (ruling 985; spec
+  call D).
   Claude does the language work, so the panel's model call has no use here.
 - **A refusal is one sentence:** "The organiser of (Tournament) lets (who) ask about it, and you
   are not one of them." The "who" follows the setting: organisers; organisers and the Event's
@@ -5505,6 +5511,174 @@ The calls made:
   hidden fighter profile reads only the dashboard, so a person always sees their own fights. A
   paginated match read would not. The career holds ten bouts, so there is no `offset`.
   The dashboard shows no opponent name. A later slice can add an owner-path paginated read.
+
+### 28.5c The referee swap (slice 4a)
+
+An organiser asks Claude to put a referee on one Match in one role, in place of the holder, or to
+take the holder off. Two tools do it, as preview → yes → apply (spec call E, ruling 963). Ruling 989
+split slice 4: 4a is this swap and removal, and 4b (the drafts) is in the spec. Ruling 990 added the
+removal and the app's name in the audit row. Code: `modules/mcp/tools/preview-referee-assignment.ts`,
+`apply-referee-assignment.ts`, and `referee-write-gate.ts`, which holds the questions both ask, so
+each rule has one owner. The calls G–Q below are the slice 4a plan's, corrected to the code.
+Adding the two tools raised `MCP_SERVER_VERSION` to `1.2.0` (`mcp-server.ts:54`).
+
+| Tool                         | Input                                                                                                                                  | Annotations                                                                                     | Answer                                                                                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preview_referee_assignment` | `event` (slug), `tournament` (slug), `match` (round code, `LSW-P2-M04`), `role` (name or id), `referee` (full name, or `null`: remove) | `readOnlyHint: true`                                                                            | `match` (code, Tournament, `start`, `timezone`, `piste`, `red`, `blue`), `role`, `from`, `to`, `crewBefore`, `crewAfter`, `level`, `warnings`, `confirmation`, `expiresAt`, `next` |
+| `apply_referee_assignment`   | `confirmation` only (1 to 4096 characters, `mcp-server.ts:86`)                                                                         | `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false` | `result: 'Done'`, `match` (code), `role`, `from`, `to`                                                                                                                             |
+
+`level` is `fine` or `discouraged`. `warnings` are sentences. `next` tells Claude to show the
+person the change, the crew after it and every warning, and to call apply only after they say yes.
+`destructiveHint` makes Claude ask before it calls apply. Neither tool answers an id: the
+confirmation is sealed, and everything else is a name or a code.
+
+**The preview, in order** (`preview-referee-assignment.ts:229-261`):
+
+1. No confirmation key → the tool throws (the generic failure). It never answers a preview that
+   apply could not check.
+2. The Event gate and the Tournament gate (`readableTournamentId`, §28.5b).
+3. The write gate (`refereeWriteRefusal`, `referee-write-gate.ts:58-76`): maintenance; the
+   organiser bar; an Event that is over; the referee board's lock. Each refuses with one sentence.
+4. The Match by its round code (call O).
+5. The role among the Event's skills (call P).
+6. A swap only: the referee by full name (call Q).
+7. The Match's crew (`readCrewRows`, `referee-write-gate.ts:144-169`): every active
+   `referee_assignments` row of the Match, its Pool and its Lice, all roles, with `person_id`. This
+   read throws on an error. `fetchRefereeAssignmentIndex` answers `[]` on an error, which here would
+   read as "nobody holds the role" and pass the holder check.
+8. The holder (`holderOf`, `referee-write-gate.ts:176-185`): the winning tier's row for the role
+   (`winningAssignmentRows`, `matches/resolve-match-referees.ts:96-113`), or none. Two rows of one
+   role in one tier take the lowest person id, so preview and apply name the same holder.
+9. A swap: the same person as the holder refuses. Else the checker judges it (`judgeSwap`,
+   `referee-write-gate.ts:242-267`, through `AssignmentBoardService.judgeVerdict`). Impossible
+   refuses, with every Impossible reason in words. Discouraged and Fine answer. A removal is not
+   judged (call M).
+10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
+    the sealed confirmation (call G).
+
+**The apply, in order** (`apply-referee-assignment.ts:187-220`):
+
+1. Maintenance first, before the token is opened or anything is read.
+2. No confirmation key → the tool throws.
+3. The token opens, or the tool refuses: "This confirmation is not valid any more. Preview the
+   change again."
+4. The Match and its Event, read from the Match row, never from the token (`readMatch`). A Match
+   that is gone gives the same refusal as a bad token.
+5. The write gate again: maintenance, the organiser bar, an Event that is over, the board lock.
+6. The app's name (call L).
+7. The role by the token's skill id. A role that is gone gives the bad-token refusal.
+8. The recheck (`recheck`, `apply-referee-assignment.ts:107-135`), on a new crew read. The holder
+   must still be the token's `prev` (call H). A removal: the holder must still be a Match-level row
+   (call M). A swap: the new referee must still be on the Event's referee roster, and the checker
+   judges again. A new holder, a holder no longer at Match level, or a referee off the roster
+   refuses with "The referees of (code) changed since the preview. Preview the change again."
+   Impossible refuses with its reasons in words. A warning the person did not see refuses and
+   names it (call I).
+9. The write: `MatchesService.setRefereeRoleAssignment(matchId, role, personId | null, confirm)`,
+   the route's own write (`matches.service.ts:411-455`). `confirm` is true only when the preview
+   showed a Discouraged reason. The write asks the board lock and judges again inside
+   (`judgeWrite`), and writes through `replace_match_referee_role` in one call. Its 409s become
+   refusals: a lock, a new Discouraged reason ("changed since the preview"), or an Impossible one
+   in words. Any other throw is the generic failure.
+10. The audit row, after the write only.
+
+A referee who lost the role's skill between the preview and the apply gets no refusal sentence.
+The checker's roster and skill check throws a 400 (`qualifiedCandidate`, `referees/write-verdict.ts`),
+and the tool answers the generic failure.
+
+The calls made (the operator may overrule):
+
+- **G. The confirmation is a sealed token, not a stored row.** It is AES-256-GCM over
+  `{v, sub, cid, matchId, role, personId, prev, codes, exp}`, sent as base64url of the IV, the tag
+  and the ciphertext (`tools/write-confirmation.ts`). The key is HKDF-SHA256 of
+  `SUPABASE_JWT_SECRET`, info `myclash/mcp/confirm/v1`. `McpController` derives it once
+  (`mcp.controller.ts:71-74`), and the tools never read the environment. A token lives 10 minutes
+  (`CONFIRMATION_TTL_MS`). It opens only for the same person (`sub`) and the same connector app
+  (`cid`). Sealed, not only signed: the ids inside stay hidden from the model. No table, no
+  migration and no new `.env` key: a stored row would need RLS and the archive guard for a
+  ten-minute life. `openConfirmation` answers `null` for anything wrong and never throws on input.
+- **H. The apply is single-use by state, not by a ledger.** The token carries `prev`, who held the
+  role at preview time (or nobody). Apply refuses unless the holder is still `prev`. After an
+  apply the holder has changed, so a replay of the same token refuses. A swap back needs a new
+  preview.
+- **I. A warning the person did not see refuses.** Apply judges again. A Discouraged reason whose
+  code is not in the token's `codes` refuses, and names the new reason. "A warning seen" compares
+  reason **codes** only. The same code against another Match or another Pool counts as seen. That
+  is the token's design, and it is accepted: the token carries no data names.
+- **J. Who may change a referee: the app's own bar.** Editor or above in the Event's organisation
+  (`assertCanManageEvent`), the bar of `PUT matches/:id/referee-role-assignments`. Only its
+  `ForbiddenException` is a refusal. The tool does not call the route's helper: that helper needs
+  the request and asks GoTrue `/user`, which the MCP path must avoid (§28.3).
+- **K. A completed or archived Event refuses.** The tool reads the Event's status itself.
+  `EventReadOnlyGuard` finds no Event in `/api/v1/mcp` and passes the door.
+- **L. The audit row names the app (ruling 990).** See "The audit row" below. The name is read
+  once per apply, before the recheck.
+- **M. A removal takes off only a holder of this Match (ruling 990).** `replace_match_referee_role`
+  with no person deletes the Match's own rows of the role and inserts none. A holder from the
+  Pool's crew or the Lice's crew stays, so the preview refuses by name: "(name) holds (role) for
+  all of Pool (n), not this Match alone. Change it on the Pools page, or name someone for this
+  Match." A Lice-crew holder refuses the same way: "(name) holds (role) for every Match on
+  (piste), not this Match alone. Change it in MyClash, or name someone for this Match." No holder
+  refuses: "Nobody holds (role) on this Match." A removal is not judged: taking someone off a slot
+  breaks no referee rule, and `setRefereeRoleAssignment` skips the checker for it too.
+- **M2. The preview shows the Match's whole crew before and after.** The crew screens resolve one
+  tier for all roles together (Match, then Pool, then Lice). So the first Match-level row of any
+  role hides the Pool crew's other roles on that Match. The app's own per-Match write does the
+  same. The preview computes both crews with the same resolver (`rowsAfterWrite`, then
+  `winningAssignmentRows`), so the person sees that side effect before saying yes. `to` names who
+  holds the role once written. After a removal the Pool's or the Lice's holder of the role can take
+  the Match back, and `to` names them. It is `null` only when nobody holds the role after the write.
+- **N. The reason words have one owner.** `refereeReasonText` and `refereeReasonsText` live in
+  `@myclash/rulesets/scheduling/referee-reason-text`, beside the checker that owns the codes. The
+  translator is a parameter, so the package takes no i18n dependency. Web-admin and the API call
+  the same switch and the same `organizer.refereeBoard.reasons.*` keys. The API words them in
+  English (`createTranslator(messages.en)`, `referee-write-gate.ts:219`): Claude reads English and
+  answers the person in their language (spec call F). The words are fragments said after a name,
+  so a warning reads "(name) (reason)." and an Impossible refusal reads "(name) cannot take (role)
+  on (code): (reasons)."
+- **O. The Match is named by Tournament slug and round code** (`LSW-P2-M04`, what the app shows).
+  No column is unique, so the tool reads the Tournament's Matches, derives their codes
+  (`roundCodeFromMatchRow`) and compares case-blind. No match or several matches refuse.
+- **P. The role is named by the skill's name or id** (`Déclarant` or `arbitre_declarant`), case-
+  and accent-blind, among the Event's skills (`referee_skills` with `event_id` null or this Event).
+  A refusal lists the Event's roles.
+- **Q. The referee is named by full name** from the Event's referee roster
+  (`QualificationsService.listEventReferees`). An exact name wins over a "contains" match, both
+  case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
+  club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
+
+**The audit row** (`apply-referee-assignment.ts:223-247`). `setRefereeRoleAssignment` writes no
+audit row, so the tool writes one per write, after the write only:
+
+- action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
+- entity `match` and the Match's id; actor the caller;
+- payload `{ via: 'mcp', clientId, clientName, role, previousPersonId, personId, confirmedReasons }`.
+  `confirmedReasons` holds the Discouraged codes the person confirmed.
+
+`clientName` is the name the app gave itself when it registered with GoTrue. Anyone can choose that
+name, so it proves nothing (§28.4). The tool reads it from GoTrue's admin
+`GET /admin/oauth/clients/{id}` (`auth.admin.oauth.getClient`). A failed read, a throw or an
+answer with no `client_name` gives `null` and a logged warning. The write still goes ahead: the
+person is the actor either way. A failed audit insert is logged and never answered as a failure of
+the write, which has already landed.
+
+The races, named:
+
+- **Preview vs apply.** Someone changes the Match's referee in the app between the two. Call H (the
+  holder must still be `prev`) and call I (a new warning refuses) handle it.
+- **Apply's judge vs the write's own judge.** Apply judges, then the write judges again inside. An
+  Impossible reason born between them still refuses inside the write. A Discouraged one passes only
+  when the preview showed a reason (`confirm` true). When it showed none, the write refuses and the
+  tool says the referees changed. Accepted.
+- **The recheck vs the write.** The write does not compare the holder again. A change made in the
+  app between the crew re-read and the write is overwritten, and the audit row's
+  `previousPersonId` names the holder the re-read saw. The window is a few database reads: the
+  roster, the checker, and the write's own lock and checker reads. The app's name, the one call to
+  another server, is read before the re-read. So no call to another server sits between the recheck
+  and the write but the write's own (`apply-referee-assignment.ts:10-16,203-205`). Accepted.
+- **Two applies of one token at once.** Both pass the `prev` check and both write the same
+  assignment. The RPC replaces atomically, so the end state is the same, with two audit rows.
+  Accepted.
 
 ### 28.6 Connected apps
 

@@ -114,12 +114,16 @@ slate, with its own switch, and it never blocks.
 
 - **The picker and the Assign button give the same answer**, because they make the same call.
 - **Every door that creates an assignment asks the checker.** That covers manual assign,
-  auto-assign, the per-Match crew, the per-Pool crew and AI assistant apply.
+  auto-assign, the per-Match crew, the per-Pool crew, AI assistant apply and the MCP connector's
+  apply (`apply_referee_assignment`, Claude; ARCHITECTURE §28.5c). The MCP door writes through the
+  per-Match crew's own write, so the checker judges it there too.
   - An Impossible assignment is refused.
   - A Discouraged assignment returns 409 with the reasons, unless the request confirms. This follows
     `apps/api/src/modules/swiss/swiss-override.service.ts`.
-  - The overridden reasons are stored on the assignment, in `conflicts_jsonb`. No audit row is
-    written. They are stored as a code and the data name it was against (a Pool name, a round
+  - The overridden reasons are stored on the assignment, in `conflicts_jsonb`. At the app's
+    doors, no audit row records them. The MCP door writes one audit row per write, and its
+    payload carries the codes of the reasons the person confirmed (`confirmedReasons`). The
+    reasons are stored as a code and the data name it was against (a Pool name, a round
     code, a Workshop title), never an id and never a sentence. A reason stored there shows
     grey, "confirmed", and is no longer a warning; a new reason shows amber again (ruling 135).
     The column is not public (migration 0205): "attends a Workshop" names a private enrolment.

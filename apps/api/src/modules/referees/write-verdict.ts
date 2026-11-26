@@ -2,7 +2,10 @@
  * write-verdict.ts — how a door that WRITES a referee refuses (ADR-016).
  *
  * Every assign door — the board's Assign, the per-bout and per-Pool crew of the Pools page,
- * the AI assistant's apply — refuses the same way:
+ * the AI assistant's apply, the MCP connector's apply (Claude) — refuses the same way. The MCP
+ * door first judges without refusing (`AssignmentBoardService.judgeVerdict`), to word the
+ * reasons for the person, then writes through the per-bout crew's write, which refuses here
+ * (`judgeWrite`):
  *   - a person off the Event's referee roster, or without the role's skill: 400. A skill is
  *     not a scheduling rule, so it comes before the checker (operator ruling 136);
  *   - Impossible: 409 `referee_impossible`, whatever the request says;
