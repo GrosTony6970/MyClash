@@ -39,7 +39,7 @@ function matchRead(eventId: string) {
 }
 
 /** The in-Event id read (of Lices or Tournaments), awaited after `.in()`, answering with `rows`. */
-function idRead(rows: Array<{ id: string }>) {
+function idRead(rows: Array<{ id: string; entrant_kind?: string }>) {
   const read = Object.assign(Promise.resolve({ data: rows, error: null }), {
     select: vi.fn(() => read),
     eq: vi.fn(() => read),
@@ -130,7 +130,8 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
           error: null,
         });
       }
-      if (table === 'tournaments') return idRead([{ id: '11111111-1111-4111-8111-111111111111' }]);
+      if (table === 'tournaments')
+        return idRead([{ id: '11111111-1111-4111-8111-111111111111', entrant_kind: 'individual' }]);
       return chain();
     });
 

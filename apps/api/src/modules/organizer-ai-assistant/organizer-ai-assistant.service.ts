@@ -15,7 +15,9 @@ import type {
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
 import { assertMatchesBelongToEvent, assertTournamentsBelongToEvent } from '../events/in-event';
+import { storedKind, type EntrantKind } from '../events/tournament-kind';
 import { draftsOfTeamFighters } from './unchecked-fighters';
+import { teamSpreadFields } from './team-spread-fields';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -316,6 +318,17 @@ export class OrganizerAIAssistantService {
     return { id: draftId, status: 'applied', appliedResults };
   }
 
+  /** The stored kind of one of this Event's Tournaments. It throws when the read finds none. */
+  private async tournamentKind(eventId: string, tournamentId: string): Promise<EntrantKind> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, entrant_kind')
+      .eq('event_id', eventId)
+      .in('id', [tournamentId]);
+    if (error) throw new BadRequestException(error.message);
+    return storedKind((data as Array<{ entrant_kind?: unknown }> | null)?.[0]?.entrant_kind);
+  }
+
   private async applyAction(eventId: string, actorUserId: string, action: Record<string, unknown>) {
     const kind = action['kind'];
     if (kind === 'create_tournament') {
@@ -335,14 +348,21 @@ export class OrganizerAIAssistantService {
       await assertTournamentsBelongToEvent(this.supabase.service, eventId, [
         String(action['tournamentId']),
       ]);
+      const kind = await this.tournamentKind(eventId, String(action['tournamentId']));
       const result = await this.phases.generatePools(
         String(action['tournamentId']),
         {
           poolCount: this.optionalNumber(action['poolCount']),
           targetSize: this.optionalNumber(action['targetSize']),
-          enforceSchoolSeparation: this.optionalBoolean(action['enforceSchoolSeparation']),
-          enforceSkillBalance: this.optionalBoolean(action['enforceSkillBalance']),
-          seed: this.optionalNumber(action['seed']),
+          // A team Tournament takes a spread, and the draw seed only with `random`; it takes no
+          // club or rating rule (`teamDrawOf` refuses each). Absent keys, not `undefined` ones.
+          ...(kind === 'team'
+            ? teamSpreadFields(action['teamSpread'], this.optionalNumber(action['seed']))
+            : {
+                enforceSchoolSeparation: this.optionalBoolean(action['enforceSchoolSeparation']),
+                enforceSkillBalance: this.optionalBoolean(action['enforceSkillBalance']),
+                seed: this.optionalNumber(action['seed']),
+              }),
           // NEVER read `discardScoredResults` from `action`.
           //
           // Every other field here is plumbed straight from the model's output,
@@ -515,7 +535,9 @@ export class OrganizerAIAssistantService {
     pool_plan:
       '{"kind":"generate_pools","tournamentId":<string>, plus at least one of ' +
       '"poolCount":<number> or "targetSize":<number>; optional ' +
-      '"enforceSchoolSeparation":<boolean>,"enforceSkillBalance":<boolean>,"seed":<number>}',
+      '"enforceSchoolSeparation":<boolean>,"enforceSkillBalance":<boolean>,"seed":<number>. ' +
+      'A team tournament instead takes "teamSpread":"seed"|"random" (required), and "seed":<number> ' +
+      'only with "random"; it takes no enforceSchoolSeparation or enforceSkillBalance}',
     bracket_plan:
       '{"kind":"generate_bracket","tournamentId":<string>; optional ' +
       '"phaseType":"single_elim"|"double_elim","qualifyCount":<number>,' +

@@ -94,7 +94,9 @@ export const ORGANIZER_CHAT_TOOLS: ToolDefinition[] = [
   {
     name: 'generate_pools',
     description:
-      'Propose generating pools for a tournament. Provide poolCount OR targetSize. Requires confirmation.',
+      'Propose generating pools for a tournament. Provide poolCount OR targetSize. A team tournament ' +
+      'needs teamSpread (seed or random), takes seed only with random, and takes no ' +
+      'enforceSchoolSeparation or enforceSkillBalance. Requires confirmation.',
     parameters: obj(
       {
         tournamentId: S,
@@ -103,6 +105,7 @@ export const ORGANIZER_CHAT_TOOLS: ToolDefinition[] = [
         enforceSchoolSeparation: BOOL,
         enforceSkillBalance: BOOL,
         seed: INT,
+        teamSpread: { type: 'string', enum: ['seed', 'random'] },
       },
       ['tournamentId'],
     ),
