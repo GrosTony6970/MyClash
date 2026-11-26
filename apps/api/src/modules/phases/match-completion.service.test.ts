@@ -333,7 +333,12 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     const cleared = writesTo(supabase, 'matches').find(
       (write) => (write.row as Row)['red_registration_id'] === null,
     );
-    expect(cleared?.row).toEqual({ red_registration_id: null, blue_registration_id: null });
+    expect(cleared?.row).toEqual({
+      red_registration_id: null,
+      red_team_id: null,
+      blue_registration_id: null,
+      blue_team_id: null,
+    });
     expect(scopedTo(cleared, 'id')).toBe('match-final');
   });
 

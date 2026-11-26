@@ -119,7 +119,9 @@ describe('settleAfterBout: rule 1, a bracket with a champion completes', () => {
       ['eq', 'phases.tournament_id', 't-1'],
       ['in', 'phases.type', ['single_elim', 'double_elim']],
       ['eq', 'status', 'completed'],
+      // A team bracket's winner is in `winner_team_id` (0282): a bout with either is decided.
       ['is', 'winner_registration_id', null],
+      ['is', 'winner_team_id', null],
     ]);
   });
 

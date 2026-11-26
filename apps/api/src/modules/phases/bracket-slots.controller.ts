@@ -43,7 +43,15 @@ export class BracketSlotsController {
       [dto.registrationAId, dto.registrationBId],
       await requireRequestUserId(req, this.supabase),
     );
-    await this.bracketAdvance.overrideSlot(slotId, dto.registrationAId, dto.registrationBId);
+    await this.bracketAdvance.overrideSlot(
+      slotId,
+      fighterSide(dto.registrationAId),
+      fighterSide(dto.registrationBId),
+    );
     return { slotId };
   }
 }
+
+/** The body names a side by Registration: a Fighter, a clear (`null`), or no change. */
+const fighterSide = (id: string | null | undefined) =>
+  id == null ? id : { kind: 'individual' as const, id };

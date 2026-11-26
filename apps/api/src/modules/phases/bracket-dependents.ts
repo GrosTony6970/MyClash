@@ -3,6 +3,7 @@ import type { SupabaseService } from '../supabase/supabase.service';
 import { hasBeenFought } from '../matches/fought-match';
 import { buildSelfRef, type PhaseConfig } from './bracket-refs';
 import { loadMatch, loadPhase, loadSlot } from './bracket-downstream';
+import { clearedSeat } from './seat-columns';
 
 /**
  * "Everything downstream of this match, transitively", answered once.
@@ -226,12 +227,13 @@ function toBout(slot: SlotRow, match: MatchRow | null): DependentBout {
  * board, the public schedule and the pad all show them, and `clockAction`
  * validates nothing against the slot — a referee can start a bout between two
  * fighters who have not earned it. Nulling the row is what makes the interim
- * state honest: an empty bout that is waiting on its feeder.
+ * state honest: an empty bout that is waiting on its feeder. Both columns of each side, so a
+ * team bout empties too, and a Start on it is refused until its sides are known (ruling 960).
  */
 export async function clearDependentPairing(supabase: Client, matchId: string): Promise<void> {
   const { error } = await supabase
     .from('matches')
-    .update({ red_registration_id: null, blue_registration_id: null })
+    .update({ ...clearedSeat('red'), ...clearedSeat('blue') })
     .eq('id', matchId);
   if (error) throw new BadRequestException(error.message);
 }

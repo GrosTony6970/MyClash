@@ -166,7 +166,11 @@ describe('BracketSlotsController authorization', () => {
 
   it('lets an admin of the Event through, with the ids it was sent', async () => {
     await controller.overrideSlot(SLOT_A, SWAP, req('u-admin-a'));
-    expect(overrideSlot).toHaveBeenCalledWith(SLOT_A, ANNA, CLARA);
+    expect(overrideSlot).toHaveBeenCalledWith(
+      SLOT_A,
+      { kind: 'individual', id: ANNA },
+      { kind: 'individual', id: CLARA },
+    );
   });
 
   it('lets an admin empty a side, and leave the other as it is', async () => {

@@ -1,4 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { sideKey } from '@myclash/types/side-key';
+import type { EntrantKind } from '../events/tournament-kind';
+import { sidesOf } from '../matches/bout-sides';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   buildSelfRef,
@@ -10,12 +13,24 @@ import {
 import {
   clearDownstreamOf,
   findDownstreamMatchIds,
+  kindOfPhase,
   loadMatch,
   loadPhase,
   loadSlot,
   retractGrandFinalReset,
 } from './bracket-downstream';
-import { assertSlotMatchRewritable, syncMatchToSlot } from './bracket-match-sync';
+import {
+  assertSlotMatchRewritable,
+  syncMatchToSlot,
+  type SyncableSlot,
+} from './bracket-match-sync';
+import {
+  clearedSeat,
+  seatColumns,
+  sidesOfSlot,
+  type SeatColumns,
+  type SlotSides,
+} from './seat-columns';
 
 @Injectable()
 export class BracketAdvanceService {
@@ -28,7 +43,9 @@ export class BracketAdvanceService {
   async onMatchCompleted(matchId: string): Promise<void> {
     try {
       const match = await this.loadMatch(matchId);
-      if (!match?.bracket_slot_id || !match.winner_registration_id) return;
+      // The winner by side: a Registration or a team. A bout with no winner does not advance.
+      const winner = match ? sideKey(match.winner_registration_id, match.winner_team_id) : null;
+      if (!match?.bracket_slot_id || !winner) return;
 
       const slot = await this.loadSlot(match.bracket_slot_id);
       if (!slot) return;
@@ -56,14 +73,16 @@ export class BracketAdvanceService {
       // advancement both write it before the matches row, so the row can lag.
       // Reading the pairing from the match alone is what froze play-in double
       // elims: the seeded side was null there, so the loser resolved to null
-      // and nothing was ever fed into the losers bracket.
-      const loserRegId = resolveLoser({
-        winner_registration_id: match.winner_registration_id,
-        red_registration_id: slot.registration_a_id ?? match.red_registration_id,
-        blue_registration_id: slot.registration_b_id ?? match.blue_registration_id,
-      });
+      // and nothing was ever fed into the losers bracket. Each side by its key.
+      const slotSides = sidesOfSlot(slot);
+      const boutSides = sidesOf(match);
+      const loser = resolveLoser(
+        winner,
+        slotSides.a ?? boutSides.red,
+        slotSides.b ?? boutSides.blue,
+      );
 
-      await this.advanceFromSlot(slot.phase_id, selfRef, match.winner_registration_id, loserRegId);
+      await this.advanceFromSlot(slot.phase_id, kindOfPhase(phase), selfRef, winner, loser);
     } catch (err) {
       this.logger.error(`Bracket advance failed for match ${matchId}: ${String(err)}`);
     }
@@ -99,15 +118,17 @@ export class BracketAdvanceService {
     return clearDownstreamOf(this.supabase.service, matchId);
   }
 
-  /** Called after seeds are populated at bracket generation time — advances bye slots immediately. */
+  /**
+   * Called after seeds are populated at bracket generation time — advances bye slots immediately.
+   * The seeded side of a bye is side A, a Registration or a team; a bye with no seed placed waits.
+   */
   async advanceByeSlots(phaseId: string): Promise<void> {
     try {
       const { data: byeSlots } = await this.supabase.service
         .from('bracket_slots')
-        .select('id, round, position, source_b_type, registration_a_id')
+        .select('id, round, position, source_b_type, registration_a_id, team_a_id')
         .eq('phase_id', phaseId)
-        .eq('source_b_type', 'bye')
-        .not('registration_a_id', 'is', null);
+        .eq('source_b_type', 'bye');
 
       if (!byeSlots?.length) return;
 
@@ -115,11 +136,19 @@ export class BracketAdvanceService {
       if (!phase) return;
 
       const config = (phase.config_json ?? {}) as PhaseConfig;
+      const kind = kindOfPhase(phase);
 
       for (const slot of byeSlots) {
-        const s = slot as { round: number; position: number; registration_a_id: string };
+        const s = slot as {
+          round: number;
+          position: number;
+          registration_a_id: string | null;
+          team_a_id: string | null;
+        };
+        const seeded = sideKey(s.registration_a_id, s.team_a_id);
+        if (seeded === null) continue;
         const selfRef = buildSelfRef(s.round, s.position, phase.type as string, config);
-        await this.advanceFromSlot(phaseId, selfRef, s.registration_a_id, null);
+        await this.advanceFromSlot(phaseId, kind, selfRef, seeded, null);
       }
     } catch (err) {
       this.logger.error(`Bye advancement failed for phase ${phaseId}: ${String(err)}`);
@@ -128,19 +157,20 @@ export class BracketAdvanceService {
 
   // ── Override slot (called from bracket-slots.controller) ─────────────────
 
+  /**
+   * Per side: an entrant to place, `null` to clear the side (both its columns), `undefined` to
+   * leave it unchanged.
+   */
   async overrideSlot(
     slotId: string,
-    registrationAId: string | null | undefined,
-    registrationBId: string | null | undefined,
+    sideA: SlotEntrant | null | undefined,
+    sideB: SlotEntrant | null | undefined,
   ): Promise<void> {
     this.logger.log(
-      `overrideSlot slot=${slotId} a=${registrationAId ?? 'unchanged'} b=${registrationBId ?? 'unchanged'}`,
+      `overrideSlot slot=${slotId} a=${describeSide(sideA)} b=${describeSide(sideB)}`,
     );
 
-    const updates: Record<string, unknown> = {};
-    if (registrationAId !== undefined) updates['registration_a_id'] = registrationAId;
-    if (registrationBId !== undefined) updates['registration_b_id'] = registrationBId;
-
+    const updates = { ...seatUpdate('a', sideA), ...seatUpdate('b', sideB) };
     if (Object.keys(updates).length === 0) return;
 
     // Refuse BEFORE writing the slot, not after. The sync below throws on a
@@ -160,12 +190,13 @@ export class BracketAdvanceService {
       .from('bracket_slots')
       .update(updates)
       .eq('id', slotId)
-      .select('id, registration_a_id, registration_b_id')
+      .select('id, registration_a_id, registration_b_id, team_a_id, team_b_id')
       .maybeSingle();
     if (updateError) throw new BadRequestException(updateError.message);
     if (!persisted) throw new NotFoundException(`Bracket slot ${slotId} not found`);
+    const stored = sidesOfSlot(persisted as SlotSides);
     this.logger.log(
-      `overrideSlot persisted slot=${slotId} a=${(persisted as { registration_a_id: string | null }).registration_a_id ?? 'null'} b=${(persisted as { registration_b_id: string | null }).registration_b_id ?? 'null'}`,
+      `overrideSlot persisted slot=${slotId} a=${stored.a ?? 'null'} b=${stored.b ?? 'null'}`,
     );
 
     const slot = await this.loadSlot(slotId);
@@ -183,14 +214,24 @@ export class BracketAdvanceService {
 
   // ── Core advance logic ────────────────────────────────────────────────────
 
+  /**
+   * Fill the sides this result feeds. `winner` and `loser` are side keys (`sideKey`); each is
+   * written into the columns of the Tournament's kind (`seatColumns`), the other kind cleared.
+   */
   private async advanceFromSlot(
     phaseId: string,
+    kind: EntrantKind,
     selfRef: string,
-    winnerRegId: string,
-    loserRegId: string | null,
+    winner: string,
+    loser: string | null,
   ): Promise<void> {
-    const winnerRef = `winner of ${selfRef}`;
-    const loserRef = `loser of ${selfRef}`;
+    const fed: FedRefs = {
+      winnerRef: `winner of ${selfRef}`,
+      loserRef: `loser of ${selfRef}`,
+      winner,
+      loser,
+    };
+    const { winnerRef, loserRef } = fed;
 
     const { data: downstream } = await this.supabase.service
       .from('bracket_slots')
@@ -205,23 +246,8 @@ export class BracketAdvanceService {
     if (!downstream?.length) return;
 
     for (const rawSlot of downstream) {
-      const ds = rawSlot as {
-        id: string;
-        round: number;
-        position: number;
-        phase_id: string;
-        source_a_type: string;
-        source_a_ref: string;
-        source_b_type: string;
-        source_b_ref: string;
-        registration_a_id: string | null;
-        registration_b_id: string | null;
-        team_a_id: string | null;
-        team_b_id: string | null;
-      };
-
-      let updatedA = ds.registration_a_id;
-      let updatedB = ds.registration_b_id;
+      const ds = rawSlot as DownstreamSlotRow;
+      let updated: DownstreamSlotRow = ds;
 
       // Sides A and B are resolved INDEPENDENTLY. They used to share one
       // if/else-if chain, which wrote at most one side per call — fine for
@@ -235,21 +261,13 @@ export class BracketAdvanceService {
       // Within a side the two branches stay mutually exclusive — a ref cannot
       // be both the winner and the loser of the same match. Each write goes
       // through writeSlotSide so a failed write throws rather than silently
-      // corrupting the in-memory `updatedSlot` handed to createMatchIfReady.
-      if (ds.source_a_ref === winnerRef && ds.registration_a_id === null) {
-        updatedA = winnerRegId;
-        await this.writeSlotSide(ds.id, 'a', winnerRegId);
-      } else if (ds.source_a_ref === loserRef && loserRegId && ds.registration_a_id === null) {
-        updatedA = loserRegId;
-        await this.writeSlotSide(ds.id, 'a', loserRegId);
-      }
-
-      if (ds.source_b_ref === winnerRef && ds.registration_b_id === null) {
-        updatedB = winnerRegId;
-        await this.writeSlotSide(ds.id, 'b', winnerRegId);
-      } else if (ds.source_b_ref === loserRef && loserRegId && ds.registration_b_id === null) {
-        updatedB = loserRegId;
-        await this.writeSlotSide(ds.id, 'b', loserRegId);
+      // corrupting the in-memory slot handed to `syncMatchToSlot`.
+      for (const seat of ['a', 'b'] as const) {
+        const entrant = fedEntrant(ds, seat, fed);
+        if (entrant === null) continue;
+        const columns = seatColumns(kind, seat, entrant);
+        await this.writeSlotSide(ds.id, columns);
+        updated = { ...updated, ...columns };
       }
 
       // The slot as it now stands, handed to the ONE owner of its matches row.
@@ -257,11 +275,7 @@ export class BracketAdvanceService {
       // serves several downstream slots — throwing on one bout already under
       // way would abandon the others. `overrideSlot` passes 'throw': an
       // operator clicked Save and deserves the 409.
-      await syncMatchToSlot(
-        this.supabase.service,
-        { ...ds, registration_a_id: updatedA, registration_b_id: updatedB },
-        { onStarted: 'skip' },
-      );
+      await syncMatchToSlot(this.supabase.service, updated, { onStarted: 'skip' });
     }
   }
 
@@ -279,16 +293,16 @@ export class BracketAdvanceService {
    * so re-advancing into a bout already in play (an override on the feeder
    * clears and re-advances) rewrote a running match's fighters underneath the
    * referee. `syncMatchToSlot` owns the row, and refuses that.
+   *
+   * Both columns of the side (`seatColumns`), so a rewrite never leaves the other kind behind.
    */
   private async writeSlotSide(
     slotId: string,
-    side: 'a' | 'b',
-    registrationId: string,
+    columns: SeatColumns<'a'> | SeatColumns<'b'>,
   ): Promise<void> {
-    const column = side === 'a' ? 'registration_a_id' : 'registration_b_id';
     const { data, error } = await this.supabase.service
       .from('bracket_slots')
-      .update({ [column]: registrationId })
+      .update(columns)
       .eq('id', slotId)
       .select('id')
       .maybeSingle();
@@ -309,4 +323,49 @@ export class BracketAdvanceService {
   private loadPhase(phaseId: string) {
     return loadPhase(this.supabase.service, phaseId);
   }
+}
+
+/** An entrant an operator puts on one side of a slot: a Registration or a team. */
+export interface SlotEntrant {
+  kind: EntrantKind;
+  id: string;
+}
+
+/** The columns an override writes for one side: none when the side is left unchanged. */
+function seatUpdate(seat: 'a' | 'b', side: SlotEntrant | null | undefined) {
+  if (side === undefined) return {};
+  return side === null ? clearedSeat(seat) : seatColumns(side.kind, seat, side.id);
+}
+
+const describeSide = (side: SlotEntrant | null | undefined): string =>
+  side === undefined ? 'unchanged' : (side?.id ?? 'cleared');
+
+/** A downstream slot as `advanceFromSlot` reads it. */
+interface DownstreamSlotRow extends SyncableSlot {
+  round: number;
+  position: number;
+  source_a_type: string;
+  source_a_ref: string;
+  source_b_ref: string;
+}
+
+/** The two refs a completed slot feeds, and the side key each one carries. */
+interface FedRefs {
+  winnerRef: string;
+  loserRef: string;
+  winner: string;
+  loser: string | null;
+}
+
+/**
+ * The entrant this result puts on one side of a downstream slot, or null: the side is fed by
+ * another bout, its loser is not known, or the side is filled already, of either kind
+ * (advancement fills a side only while it is empty, which is what makes it idempotent).
+ */
+function fedEntrant(slot: DownstreamSlotRow, seat: 'a' | 'b', fed: FedRefs): string | null {
+  if (sidesOfSlot(slot)[seat] !== null) return null;
+  const ref = seat === 'a' ? slot.source_a_ref : slot.source_b_ref;
+  if (ref === fed.winnerRef) return fed.winner;
+  if (ref === fed.loserRef) return fed.loser;
+  return null;
 }

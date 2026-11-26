@@ -113,7 +113,15 @@ describe('retractGrandFinalReset', () => {
     // Both sides in one patch: the reset is the only slot taking A and B from
     // the same upstream match.
     expect(supabase.updates).toEqual([
-      { table: 'bracket_slots', patch: { registration_a_id: null, registration_b_id: null } },
+      {
+        table: 'bracket_slots',
+        patch: {
+          registration_a_id: null,
+          team_a_id: null,
+          registration_b_id: null,
+          team_b_id: null,
+        },
+      },
     ]);
     // One delete. The row's referee_assignments go with it through the FK —
     // CASCADE since migration 0179, which is the only delete action that

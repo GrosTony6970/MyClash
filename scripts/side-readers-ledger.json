@@ -222,19 +222,14 @@
       "why": "1c: a person's schedule reads bout sides by Registration (`:335`-`:389`); personal schedule of named members is 1c"
     },
     "apps/api/src/modules/phases/bracket-advance.service.ts": {
-      "verdict": "not-yet",
-      "hits": 44,
-      "why": "1c: bracket advance by Registration (`:31`-`:66`)"
-    },
-    "apps/api/src/modules/phases/bracket-dependents.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1c: `clearDependentPairing` nulls only the Registration ids (`:234`)"
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "a bracket bout advances by side: the winner by `sideKey` (`onMatchCompleted`), the loser by `resolveLoser` over the slot's side keys (`sidesOfSlot`) and the bout's (`sidesOf`); a filled side of either kind is judged by `sidesOfSlot`; every slot write names both columns of a side (`seatColumns` of the phase's kind, `kindOfPhase`; `clearedSeat` for an override's clear); a bye's seeded side is a Registration or a team"
     },
     "apps/api/src/modules/phases/bracket-downstream.ts": {
-      "verdict": "not-yet",
-      "hits": 13,
-      "why": "1c: bracket refs by Registration (`:124`-`:224`)"
+      "verdict": "side-key",
+      "hits": 11,
+      "why": "the loaders read both columns of each side and of the winner (`loadMatch`, `loadSlot`) and the Tournament's kind (`loadPhase`, `kindOfPhase`); `clearFedSides` clears both columns of a fed side (`clearedSeat`)"
     },
     "apps/api/src/modules/phases/bracket-placeholder-match.ts": {
       "verdict": "side-key",
@@ -242,9 +237,9 @@
       "why": "copies both columns of each side from the generated slot (`boutSidesOfSlot`): a Registration or a team, null at generation"
     },
     "apps/api/src/modules/phases/bracket-refs.ts": {
-      "verdict": "not-yet",
-      "hits": 14,
-      "why": "1c: winner and loser of a bracket bout by Registration (`:56`-`:61`)"
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "`resolveLoser` compares side keys (`sideKey`); `grandFinalEndsBracket` reads side A and the winner by Registration: a grand final is double elimination, which refuses a team Tournament (call 2)"
     },
     "apps/api/src/modules/phases/bracket-slots.controller.ts": {
       "verdict": "not-yet",
@@ -257,10 +252,10 @@
       "why": "1c: slot override body names Registrations (`:108`-`:109`)"
     },
     "apps/api/src/modules/phases/match-completion.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 0,
-      "why": "1c: the reopen preview names dependent bracket bouts through the view's `red_name`, `blue_name` (`:433`-`:457`). View 0284 replaced 0193: it names a team side by its team. A bracket of teams is 1c",
-      "byHand": true
+      "byHand": true,
+      "why": "the reopen preview names dependent bracket bouts through the view's `red_name`, `blue_name` (`nameBouts`); view 0284 names a team side by its team. `onResultChanged` clears by side through its callees (`clearDownstreamOf`, `clearDependentPairing`, both through `clearedSeat`)"
     },
     "apps/api/src/modules/phases/phases.controller.ts": {
       "verdict": "no-side-read",
@@ -279,8 +274,8 @@
     },
     "apps/api/src/modules/phases/seat-columns.ts": {
       "verdict": "side-key",
-      "hits": 12,
-      "why": "the columns of a bracket side: `seatColumns` puts the entrant in the column of the Tournament's kind and clears the other; `boutSidesOfSlot` copies a slot's two columns per side onto its bout; `EMPTY_SLOT_SIDES` is a generated slot's"
+      "hits": 14,
+      "why": "the columns of a bracket side: `seatColumns` puts the entrant in the column of the Tournament's kind and clears the other; `clearedSeat` clears both; `sidesOfSlot` keys a slot's two sides with `sideKey`; `boutSidesOfSlot` copies a slot's two columns per side onto its bout; `EMPTY_SLOT_SIDES` is a generated slot's"
     },
     "apps/api/src/modules/pool-standings/compute-rows.ts": {
       "verdict": "side-key",
@@ -448,9 +443,9 @@
       "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
     },
     "apps/api/src/modules/tournament-completion/tournament-completion.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 7,
-      "why": "1c: bracket completion reads the winner by Registration (`:143`, `:240`)"
+      "why": "a completed bracket bout is decided with either winner column (`bracketHasChampion`); `resetOwed` reads the grand final by Registration: double elimination refuses a team Tournament (call 2)"
     },
     "apps/api/src/modules/tournament-placement/tournament-placement.service.ts": {
       "verdict": "not-yet",

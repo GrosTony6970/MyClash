@@ -1,3 +1,4 @@
+import { sideKey } from '@myclash/types/side-key';
 import type { EntrantKind } from '../events/tournament-kind';
 import type { SideColumns } from '../matches/winner-columns';
 
@@ -37,12 +38,26 @@ export function seatColumns<S extends Seat>(
   } as SeatColumns<S>;
 }
 
+/** One side cleared: both its columns null, whatever the kind. */
+export function clearedSeat<S extends Seat>(seat: S): SeatColumns<S> {
+  const { registration, team } = SEATS[seat];
+  return { [registration]: null, [team]: null } as SeatColumns<S>;
+}
+
 /** A slot's sides as the slot row holds them. */
 export interface SlotSides {
   registration_a_id: string | null;
   registration_b_id: string | null;
   team_a_id: string | null;
   team_b_id: string | null;
+}
+
+/** A slot's two sides, each its one key (`sideKey`), or null while it is not known. */
+export function sidesOfSlot(slot: SlotSides): { a: string | null; b: string | null } {
+  return {
+    a: sideKey(slot.registration_a_id, slot.team_a_id),
+    b: sideKey(slot.registration_b_id, slot.team_b_id),
+  };
 }
 
 /** The sides of a slot as generation writes it: no entrant of either kind yet. */
