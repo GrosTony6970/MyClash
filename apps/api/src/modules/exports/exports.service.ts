@@ -88,7 +88,8 @@ export class ExportsService {
     // The file takes one person against one person: a team Tournament is left out before its
     // bouts are read, and named in the warnings.
     const isTeam = (t: Row) => storedKind(t['entrant_kind']) === 'team';
-    const teamTournaments = tournaments.filter(isTeam).map((t) => (t['name'] as string) ?? '');
+    // `name` is selected and NOT NULL.
+    const teamTournaments = tournaments.filter(isTeam).map((t) => t['name'] as string);
     const individual = tournaments.filter((t) => !isTeam(t));
     const tournamentIds = individual.map((t) => t['id'] as string);
     if (tournamentIds.length === 0) {
