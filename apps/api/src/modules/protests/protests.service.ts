@@ -8,8 +8,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
 import { sidesOf } from '../matches/bout-sides';
-import { cardSideColumns, cardSideOf, isCardSideOfBout } from '../penalties/card-side';
+import { cardSideColumns } from '../penalties/card-side';
 import { matchLocked } from '../matches/match-locked';
+import { isSideOfBout, namedSideOf } from '../matches/named-side';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type { ScoringActor } from '../staff/staff.service';
 import type { CreateProtestDto, VoidProtestDto } from './dto/protests.dto';
@@ -152,8 +153,8 @@ export class ProtestsService {
    * pair (above), so a side still null on the bout is refused here: no key equals null.
    */
   private sideOf(bout: Bout, dto: CreateProtestDto) {
-    const side = cardSideOf(dto, 'protest');
-    if (isCardSideOfBout(bout, side)) return side;
+    const side = namedSideOf(dto, 'protest');
+    if (isSideOfBout(bout, side)) return side;
     throw new BadRequestException(
       side.kind === 'team'
         ? 'A protest is made by one of the two teams of the Match'

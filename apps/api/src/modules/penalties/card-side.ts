@@ -1,6 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
 import type { BlackCardEffect } from '@myclash/rulesets';
-import type { ForfeitingSide } from '../matches/forfeit-side';
+import type { BoutSideKinds, NamedSide } from '../matches/named-side';
 
 /**
  * The side a card names: a Registration (a Fighter) or a team (ADR-022, call 5). A team takes a
@@ -13,22 +12,7 @@ import type { ForfeitingSide } from '../matches/forfeit-side';
 type Row = Record<string, unknown>;
 
 /** A card's side: the kind and the key (`sideKey`), as a forfeit's. */
-export type CardSide = ForfeitingSide;
-
-/**
- * The side a card names, from exactly one of its two fields. The DTO refuses both and neither;
- * this refuses them again for a caller that builds no DTO.
- */
-export function cardSideOf(
-  input: { registrationId?: string; teamId?: string },
-  noun = 'card',
-): CardSide {
-  const { registrationId, teamId } = input;
-  if (teamId && !registrationId) return { kind: 'team', id: teamId };
-  if (registrationId && !teamId) return { kind: 'registration', id: registrationId };
-  // The noun of the entry that asks: a protest takes its side the way a card does.
-  throw new BadRequestException(`A ${noun} names exactly one side: a Registration or a team`);
-}
+export type CardSide = NamedSide;
 
 /**
  * The side a saved card names, by the column of its kind. The database holds one of the two on
@@ -42,26 +26,8 @@ export function savedCardSide(card: Row): CardSide {
   throw new Error(`Card ${String(card['id'])} names no side`);
 }
 
-/** The bout's two side keys, and which of them are teams. */
-export interface CardBout {
-  redSideId: string | null;
-  blueSideId: string | null;
-  redTeamId: string | null;
-  blueTeamId: string | null;
-}
-
-/**
- * Whether `side` is a side of the bout: by its key, and of its kind, so a team id sent as a
- * Registration is refused here rather than by the database.
- */
-export function isCardSideOfBout(bout: CardBout, side: CardSide): boolean {
-  if (side.id !== bout.redSideId && side.id !== bout.blueSideId) return false;
-  const isTeam = side.id === bout.redTeamId || side.id === bout.blueTeamId;
-  return isTeam === (side.kind === 'team');
-}
-
 /** The bout's known sides, each of its kind; a side not known yet is left out. */
-export function boutCardSides(bout: CardBout): CardSide[] {
+export function boutCardSides(bout: BoutSideKinds): CardSide[] {
   const teams = [bout.redTeamId, bout.blueTeamId];
   return [bout.redSideId, bout.blueSideId].flatMap((id): CardSide[] =>
     id === null ? [] : [{ kind: teams.includes(id) ? 'team' : 'registration', id }],

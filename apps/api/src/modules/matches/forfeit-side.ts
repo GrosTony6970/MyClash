@@ -1,9 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
 import { sideKey } from '@myclash/types/side-key';
 import type { MatchCompletionService } from '../phases/match-completion.service';
 import { sidesOf } from './bout-sides';
 import { completeMatch, stampResultingState, type BoutDeps } from './fighter-bouts';
 import { forfeitEndReason } from './forfeit-end-reason';
+import { namedSideOf, type NamedSide } from './named-side';
 import { winnerColumns, type SideColumns } from './winner-columns';
 
 /**
@@ -14,36 +14,17 @@ import { winnerColumns, type SideColumns } from './winner-columns';
 
 type Row = Record<string, unknown>;
 
-export interface ForfeitingSide {
-  kind: 'registration' | 'team';
-  /** The side's key (`sideKey`): the Registration id or the team id. */
-  id: string;
-}
+export type ForfeitingSide = NamedSide;
 
-/**
- * The side a forfeit names, from exactly one of its two fields. The DTO refuses both and neither;
- * this refuses them again for a caller inside the API (the card path), which builds no DTO.
- */
-export function forfeitingSideOf(input: {
+/** The side a forfeit names, from its two fields (`namedSideOf`). */
+export const forfeitingSideOf = (input: {
   forfeitingRegistrationId?: string;
   forfeitingTeamId?: string;
-}): ForfeitingSide {
-  const { forfeitingRegistrationId: registrationId, forfeitingTeamId: teamId } = input;
-  if (teamId && !registrationId) return { kind: 'team', id: teamId };
-  if (registrationId && !teamId) return { kind: 'registration', id: registrationId };
-  throw new BadRequestException('A forfeit names exactly one side: a Registration or a team');
-}
-
-/**
- * Whether `side` is a side of the bout: by its key (`sidesOf`), and of its kind, so a team id sent
- * as a Registration is refused here rather than by the database.
- */
-export function isSideOfBout(match: Row, side: ForfeitingSide): boolean {
-  const sides = sidesOf(match);
-  const corner = side.id === sides.red ? 'red' : side.id === sides.blue ? 'blue' : null;
-  if (corner === null) return false;
-  return (match[`${corner}_team_id`] === side.id) === (side.kind === 'team');
-}
+}): ForfeitingSide =>
+  namedSideOf(
+    { registrationId: input.forfeitingRegistrationId, teamId: input.forfeitingTeamId },
+    'forfeit',
+  );
 
 /** The forfeiting and winning side of a record, each in the column of its kind (0282). */
 export function forfeitSideColumns(match: Row, side: ForfeitingSide, winnerSideId: string | null) {

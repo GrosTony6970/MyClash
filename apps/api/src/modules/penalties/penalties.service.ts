@@ -42,6 +42,7 @@ import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { FighterStatusService } from '../matches/fighter-status.service';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
+import { isSideOfBout, namedSideOf } from '../matches/named-side';
 import { cardChangeLocked, tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
@@ -56,8 +57,6 @@ import {
   boutCardSides,
   cardSideColumn,
   cardSideColumns,
-  cardSideOf,
-  isCardSideOfBout,
   ladderScopeOf,
   savedCardSide,
   type CardSide,
@@ -958,8 +957,8 @@ export class PenaltiesService {
     if (match.awaitingRoundAdvance) throw scoringAwaitsRoundAdvance();
 
     // Judged by side key and kind (ADR-022): a team bout's Registration columns are both null.
-    const side = cardSideOf(dto);
-    if (!isCardSideOfBout(match, side)) {
+    const side = namedSideOf(dto, 'card');
+    if (!isSideOfBout(match, side)) {
       throw new BadRequestException(
         side.kind === 'team'
           ? 'The penalised team must be a side of the current match'

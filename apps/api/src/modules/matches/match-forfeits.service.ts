@@ -50,7 +50,6 @@ import { isOut } from './fighter-cause';
 import {
   forfeitingSideOf,
   forfeitSideColumns,
-  isSideOfBout,
   isTeamRecord,
   repairTeamForfeit,
   TEAM_FIGHTER_PART,
@@ -61,6 +60,7 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { hasBeenFought } from './fought-match';
 import { matchLocked } from './match-locked';
+import { isSideOfBout, sideKindsOf } from './named-side';
 import { stampForfeitVoided } from './forfeit-void';
 import { ScoringService } from './scoring.service';
 import type { SideColumns } from './winner-columns';
@@ -777,7 +777,7 @@ export class MatchForfeitsService {
     await this.frozenResults?.assertResultMutationAllowed(matchId, actor.userId);
     if (wasCompleted) await this.assertNoStartedDependents(matchId);
     // Judged by side (`sidesOf`) and kind: a team bout's Registration columns are both null.
-    if (!isSideOfBout(match, side)) {
+    if (!isSideOfBout(sideKindsOf(match), side)) {
       throw new BadRequestException(
         side.kind === 'team'
           ? 'The forfeiting team must be a side of the current match'

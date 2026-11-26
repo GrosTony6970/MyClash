@@ -428,7 +428,9 @@ What is **not** derivable from the DDL, and so belongs here:
   and a forfeit one of `forfeitingRegistrationId` / `forfeitingTeamId`. The DTOs refuse both and
   neither (`apps/api/src/modules/penalties/dto/penalties.dto.ts`,
   `apps/api/src/modules/protests/dto/protests.dto.ts`,
-  `apps/api/src/modules/matches/dto/matches.dto.ts`). The row keeps the side in the column of
+  `apps/api/src/modules/matches/dto/matches.dto.ts`). Each door reads the side its body names,
+  and judges it a side of this bout by key and kind, through one owner
+  (`apps/api/src/modules/matches/named-side.ts`). The row keeps the side in the column of
   its kind (`apps/api/src/modules/penalties/card-side.ts`,
   `apps/api/src/modules/matches/forfeit-side.ts`). A team black card ends this Match only
   (ruling 972). It runs the team forfeit (`apps/api/src/modules/penalties/team-black-card.ts`)

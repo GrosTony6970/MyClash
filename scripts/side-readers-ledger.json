@@ -128,7 +128,7 @@
     "apps/api/src/modules/matches/forfeit-side.ts": {
       "verdict": "side-key",
       "hits": 9,
-      "why": "the forfeiting side of a forfeit, a Registration or a team: judged against the bout by `sidesOf` (`:41`-`:46`), written in the column of its kind with the winner through `winnerColumns` (`:49`-`:55`); the team repair builds both side keys with `sideKey`, and `TEAM_REPAIR_RECORD_COLUMNS` (`:108`) names both kinds of each side column it reads"
+      "why": "the forfeiting side of a forfeit, a Registration or a team: read from its two fields by `named-side.ts` (`:20`-`:27`), written in the column of its kind with the winner through `winnerColumns` (`:30`-`:36`); the team repair builds both side keys with `sideKey`, and `TEAM_REPAIR_RECORD_COLUMNS` (`:89`) names both kinds of each side column it reads"
     },
     "apps/api/src/modules/matches/forfeit-void.ts": {
       "verdict": "side-key",
@@ -143,7 +143,7 @@
     "apps/api/src/modules/matches/match-forfeits.service.ts": {
       "verdict": "side-key",
       "hits": 40,
-      "why": "the forfeit door judges its side with `forfeit-side.ts` (`sidesOf`) and writes both sides through `forfeitSideColumns` (`:225`); a re-advance reads the restored winner by `sideKey` (`:732`). The Registration reads left are a Fighter's alone, never reached by a team (call 1): inheritance, escalation, the reserve swap (guarded `:253`) and the status settle"
+      "why": "the forfeit door judges its side with `named-side.ts` (`sidesOf`, `:780`) and writes both sides through `forfeitSideColumns` (`:225`); a re-advance reads the restored winner by `sideKey` (`:732`). The Registration reads left are a Fighter's alone, never reached by a team (call 1): inheritance, escalation, the reserve swap (guarded `:253`) and the status settle"
     },
     "apps/api/src/modules/matches/match-summaries.ts": {
       "verdict": "no-side-read",
@@ -155,6 +155,11 @@
       "verdict": "side-key",
       "hits": 14,
       "why": "the manual completion writes its winner by side through `status-winner.ts` (`:284`-`:290`); `swapFighterColor` moves each side whole, Registration and team (`:978`-`:984`). The manual create names its sides by Registration (`:195`) and refuses a team Tournament first (`manual-bout-kind.ts`, `:155`, call 8). The hit door and the lock read take both kinds of each side and judge them by `sidesOf` (`:711`-`:729`, `:1285`)"
+    },
+    "apps/api/src/modules/matches/named-side.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "the one owner of the side a forfeit, a card or a protest names: from exactly one of its two fields, a Registration or a team (`:21`-`:29`), judged a side of the bout by its key (`sidesOf`) and its kind (`:42`-`:61`)"
     },
     "apps/api/src/modules/matches/reopen-match-columns.ts": {
       "verdict": "no-side-read",
@@ -203,8 +208,8 @@
     },
     "apps/api/src/modules/penalties/card-side.ts": {
       "verdict": "side-key",
-      "hits": 12,
-      "why": "a card's side, a Registration or a team (call 5): from exactly one of the two fields, judged against the bout's side keys and kind, written and read back in the column of its kind; a team's ladder counts this Match only (ruling 976); a team black card forfeits the Match (ruling 972)"
+      "hits": 7,
+      "why": "a card's side, a Registration or a team (call 5): named and judged against the bout by `named-side.ts`, written and read back in the column of its kind; a team's ladder counts this Match only (ruling 976); a team black card forfeits the Match (ruling 972)"
     },
     "apps/api/src/modules/penalties/dto/penalties.dto.ts": {
       "verdict": "side-key",
@@ -214,7 +219,7 @@
     "apps/api/src/modules/penalties/penalties.service.ts": {
       "verdict": "side-key",
       "hits": 23,
-      "why": "the card door judges its side with `card-side.ts` against the bout's `sidesOf` keys (`:961`-`:962`), writes it in the column of its kind (`:1003`), and keys the pad's priors by side (`:1381`, `:1399`); a team black card forfeits through `team-black-card.ts`. The Registration reads left are a Fighter's alone, never reached by a team (ruling 972): the Tournament count of black cards, the second black card review and the status settle"
+      "why": "the card door judges its side with `named-side.ts` against the bout's `sidesOf` keys (`:960`-`:961`), writes it in the column of its kind (`:1002`), and keys the pad's priors by side (`:1380`, `:1398`); a team black card forfeits through `team-black-card.ts`. The Registration reads left are a Fighter's alone, never reached by a team (ruling 972): the Tournament count of black cards, the second black card review and the status settle"
     },
     "apps/api/src/modules/penalties/second-black-card-review.ts": {
       "verdict": "individual-only",
@@ -330,7 +335,7 @@
     "apps/api/src/modules/protests/protests.service.ts": {
       "verdict": "side-key",
       "hits": 2,
-      "why": "the protest door judges its side with `card-side.ts` against the bout's `sidesOf` keys and kind, so a side still null on the bout is refused (`:150`-`:160`), and writes it in the column of its kind (`:99`); the two reads left are the bout row's team twins (`:180`-`:181`)"
+      "why": "the protest door judges its side with `named-side.ts` against the bout's `sidesOf` keys and kind, so a side still null on the bout is refused (`:151`-`:161`), and writes it in the column of its kind (`:100`); the two reads left are the bout row's team twins (`:181`-`:182`)"
     },
     "apps/api/src/modules/referees/assignment-board.service.ts": {
       "verdict": "not-yet",
@@ -976,9 +981,13 @@
       "count": 2,
       "why": "`bestOfFor` asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:156`-`:157`)"
     },
+    "apps/api/src/modules/matches/named-side.ts": {
+      "count": 2,
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:45`-`:46`)"
+    },
     "apps/api/src/modules/penalties/penalties.service.ts": {
       "count": 2,
-      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:1487`-`:1488`)"
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:1486`-`:1487`)"
     },
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "count": 3,
@@ -986,7 +995,7 @@
     },
     "apps/api/src/modules/protests/protests.service.ts": {
       "count": 2,
-      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:178`-`:179`)"
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:179`-`:180`)"
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
