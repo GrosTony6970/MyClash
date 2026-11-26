@@ -5549,1212 +5549,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/me/events': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List the events the current user is involved in (competitor / referee / workshops) */
-    get: operations['MeController_events'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/upcoming': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Next N fights + referee slots across all the user's events */
-    get: operations['MeController_upcoming'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/leagues': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Published leagues the current user is ranked in (with their standings) */
-    get: operations['MeController_leagues'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/workshop-history': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Workshops the current user has attended (confirmed/intent), grouped by event */
-    get: operations['MeController_workshopHistory'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/instructor-workshops': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Workshops the current user teaches, grouped by event, with roster counts */
-    get: operations['MeController_instructorWorkshops'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/persons': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List persons for an event */
-    get: operations['PersonsController_list'];
-    put?: never;
-    /** Create a person manually */
-    post: operations['PersonsController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/persons/import/preview': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Preview CSV import (dry run) */
-    post: operations['PersonsController_previewImport'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/persons/import': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Import persons from CSV */
-    post: operations['PersonsController_importCsv'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/persons/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get a person by ID */
-    get: operations['PersonsController_getOne'];
-    put?: never;
-    post?: never;
-    /** Delete a person. `?force=true&eventId=…` force-purges them from that event (409 on blocking matches). */
-    delete: operations['PersonsController_delete'];
-    options?: never;
-    head?: never;
-    /** Update a person */
-    patch: operations['PersonsController_update'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/persons/lookup': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Fuzzy person name lookup (public) */
-    get: operations['LookupController_lookup'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/people/{personId}/schedule': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get person's schedule (public, privacy-filtered) */
-    get: operations['PublicScheduleController_getSchedule'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/persons/me/privacy': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get own privacy preferences */
-    get: operations['PrivacyController_getPrivacy'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update own privacy preferences */
-    patch: operations['PrivacyController_updatePrivacy'];
-    trace?: never;
-  };
-  '/api/v1/persons/me/email-change': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get pending email-change request for the claimed Person account */
-    get: operations['PersonEmailChangeController_getPending'];
-    put?: never;
-    /** Request an email change for the claimed Person account */
-    post: operations['PersonEmailChangeController_request'];
-    /** Cancel the pending email-change request */
-    delete: operations['PersonEmailChangeController_cancel'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/persons/me/email-change/confirm': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Confirm an email-change token sent to the new email address (public; token) */
-    get: operations['PersonEmailChangeController_confirm'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/events/{eventId}/join': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Put one's own account on an Event's list (the Event allows it) */
-    post: operations['EventJoinController_join'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/persons/{personId}/assignments': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Where is this person assigned in this event? Used by the participant-delete modal to surface pool/bracket/match conflicts before force-delete. */
-    get: operations['RegistrationsController_getAssignments'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/registrations': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List registrations for a tournament */
-    get: operations['RegistrationsController_list'];
-    put?: never;
-    /** Register a person to a tournament (bib auto-assigned if omitted) */
-    post: operations['RegistrationsController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/registrations': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List every registration across all tournaments under an event */
-    get: operations['RegistrationsController_listForEvent'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/waitlist': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Add a person to the tournament waitlist */
-    post: operations['RegistrationsController_addToWaitlist'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/registrations/{id}/status': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update registration status (enforces valid transitions) */
-    patch: operations['RegistrationsController_updateStatus'];
-    trace?: never;
-  };
-  '/api/v1/registrations/{id}/promote': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Promote a waitlist entry to registered (?force=true to override cap) */
-    post: operations['RegistrationsController_promote'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/waitlist/reorder': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Bulk reorder the tournament waitlist */
-    patch: operations['RegistrationsController_reorderWaitlist'];
-    trace?: never;
-  };
-  '/api/v1/registrations/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete a registration */
-    delete: operations['RegistrationsController_delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/registrations/{id}/force-delete': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Force-delete a registration and its unplayed matches; 409 if any blocking match exists */
-    post: operations['RegistrationsController_forceDelete'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List clubs (public) */
-    get: operations['ClubsController_list'];
-    put?: never;
-    /** Create a verified club (super admin) */
-    post: operations['ClubsController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/review-requests': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List organizer-submitted club review requests */
-    get: operations['ClubsController_listReviewRequests'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/review-requests/{id}/approve': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Approve a proposed club as verified */
-    post: operations['ClubsController_approveReviewRequest'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/review-requests/{id}/link': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Link a proposed club request to an existing club */
-    post: operations['ClubsController_linkReviewRequest'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/review-requests/{id}/reject': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Reject a proposed club review request */
-    post: operations['ClubsController_rejectReviewRequest'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-verify': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mark a batch of clubs as verified (super admin) */
-    post: operations['ClubsController_bulkVerify'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-unverify': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mark a batch of clubs as unverified (super admin) */
-    post: operations['ClubsController_bulkUnverify'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-archive': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Archive a batch of clubs (super admin) */
-    post: operations['ClubsController_bulkArchive'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-delete': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Safe-delete a batch of clubs; referenced rows surface as per-row errors */
-    post: operations['ClubsController_bulkDelete'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-cleanup-delete': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Cleanup-delete a batch of clubs (clears supported references first; super admin) */
-    post: operations['ClubsController_bulkCleanupDelete'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/bulk-update': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Apply city / countryCode across a batch of clubs (super admin) */
-    post: operations['ClubsController_bulkUpdate'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/{slug}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get club by slug (public) */
-    get: operations['ClubsController_getBySlug'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/clubs/{id}/verify': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Mark a club as verified (super admin) */
-    patch: operations['ClubsController_verify'];
-    trace?: never;
-  };
-  '/api/v1/clubs/{id}/unverify': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Mark a club as unverified (super admin) */
-    patch: operations['ClubsController_unverify'];
-    trace?: never;
-  };
-  '/api/v1/clubs/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete or archive a club (super admin) */
-    delete: operations['ClubsController_delete'];
-    options?: never;
-    head?: never;
-    /** Update a club (super admin) */
-    patch: operations['ClubsController_update'];
-    trace?: never;
-  };
-  '/api/v1/clubs/{id}/logo': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Upload a club logo (super admin) */
-    post: operations['ClubsController_uploadLogo'];
-    /** Remove a club logo (super admin) */
-    delete: operations['ClubsController_deleteLogo'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/compensation-plans': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List available compensation plans (built-in + org + public) */
-    get: operations['CompensationController_listPlans'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/compensation-plans': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a compensation plan for an org */
-    post: operations['CompensationController_createPlan'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/compensation-plans/{planId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete an org compensation plan */
-    delete: operations['CompensationController_deletePlan'];
-    options?: never;
-    head?: never;
-    /** Update a compensation plan */
-    patch: operations['CompensationController_updatePlan'];
-    trace?: never;
-  };
-  '/api/v1/compensation-plans/{planId}/role-rates': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Replace all role rates for a plan */
-    put: operations['CompensationController_upsertRoleRates'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/compensation-plans/{planId}/tiers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Replace all tiers for a plan */
-    put: operations['CompensationController_upsertTiers'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/compensation/settings': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get compensation settings for an event */
-    get: operations['CompensationController_getEventSettings'];
-    /** Set compensation plan + cap for an event */
-    put: operations['CompensationController_upsertEventSettings'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/compensation/report': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Compute live compensation report for an event */
-    get: operations['CompensationController_getReport'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/compensation/payments/{personId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Toggle paid status for a referee (personId = global_persons.id) */
-    patch: operations['CompensationController_togglePaid'];
-    trace?: never;
-  };
-  '/api/v1/fighters': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List fighters (signed-in people search) */
-    get: operations['FightersController_list'];
-    put?: never;
-    /** Create a fighter (super admin) */
-    post: operations['FightersController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/public': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Public fighter directory (anonymous, searchable) */
-    get: operations['FightersController_listPublicDirectory'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/me/profile': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the claimed user Fighter profile */
-    get: operations['FightersController_myProfile'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update the claimed user Fighter profile */
-    patch: operations['FightersController_updateMyProfile'];
-    trace?: never;
-  };
-  '/api/v1/fighters/me/photo': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Upload the claimed user Fighter profile photo */
-    post: operations['FightersController_uploadMyPhoto'];
-    /** Remove the claimed user Fighter profile photo */
-    delete: operations['FightersController_removeMyPhoto'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/me/dashboard': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the claimed user Fighter dashboard */
-    get: operations['FightersController_myDashboard'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/me/referee-stats': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the claimed user referee statistics */
-    get: operations['FightersController_myRefereeStats'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/merge/audit-log': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List recent fighter merge audit entries (super admin) */
-    get: operations['FightersController_mergeAuditLog'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{slug}/matches': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get paginated match history for a fighter (public) */
-    get: operations['FightersController_listMatches'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{slug}/career': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get public Fighter career history and statistics */
-    get: operations['FightersController_career'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{slug}/referee-stats': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get public Fighter referee statistics */
-    get: operations['FightersController_refereeStats'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{slug}/rating-history': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get public Fighter HEMA rating history (time-series) */
-    get: operations['FightersController_ratingHistory'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{slug}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get fighter by slug (public) */
-    get: operations['FightersController_getBySlug'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update a fighter (organizer+ or claimed owner) */
-    patch: operations['FightersController_update'];
-    trace?: never;
-  };
-  '/api/v1/fighters/{id}/promote': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Promote a Person to global Fighter (claimed user only) */
-    post: operations['FightersController_promote'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/merge': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Merge two fighter profiles (super admin) */
-    post: operations['FightersController_merge'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/fighters/merge/{auditLogId}/revert': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Revert a fighter merge within 30 days (super admin) */
-    post: operations['FightersController_revertMerge'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/weapons': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List controlled weapon catalog entries */
-    get: operations['WeaponsController_list'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/global-persons': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List global persons (organizer/admin picker) */
-    get: operations['GlobalPersonsController_list'];
-    put?: never;
-    /** Create an unclaimed global person (super admin) */
-    post: operations['GlobalPersonsController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/global-persons/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update a global person profile (super admin) */
-    patch: operations['GlobalPersonsController_update'];
-    trace?: never;
-  };
-  '/api/v1/global-persons/import/preview': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Dry-run a Global Profiles CSV import (super admin) */
-    post: operations['GlobalPersonsController_previewGlobalPersonsImport'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/global-persons/import': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Commit a Global Profiles CSV import (super admin) */
-    post: operations['GlobalPersonsController_commitGlobalPersonsImport'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/global-persons/{id}/link-workshop-enrollment': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Link a workshop enrollment to a global person (workshop lead+) */
-    patch: operations['GlobalPersonsController_linkWorkshopEnrollment'];
-    trace?: never;
-  };
   '/api/v1/events': {
     parameters: {
       query?: never;
@@ -7240,6 +6034,281 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/clubs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List clubs (public) */
+    get: operations['ClubsController_list'];
+    put?: never;
+    /** Create a verified club (super admin) */
+    post: operations['ClubsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/review-requests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List organizer-submitted club review requests */
+    get: operations['ClubsController_listReviewRequests'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/review-requests/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve a proposed club as verified */
+    post: operations['ClubsController_approveReviewRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/review-requests/{id}/link': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Link a proposed club request to an existing club */
+    post: operations['ClubsController_linkReviewRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/review-requests/{id}/reject': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject a proposed club review request */
+    post: operations['ClubsController_rejectReviewRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-verify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a batch of clubs as verified (super admin) */
+    post: operations['ClubsController_bulkVerify'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-unverify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a batch of clubs as unverified (super admin) */
+    post: operations['ClubsController_bulkUnverify'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-archive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive a batch of clubs (super admin) */
+    post: operations['ClubsController_bulkArchive'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-delete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Safe-delete a batch of clubs; referenced rows surface as per-row errors */
+    post: operations['ClubsController_bulkDelete'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-cleanup-delete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cleanup-delete a batch of clubs (clears supported references first; super admin) */
+    post: operations['ClubsController_bulkCleanupDelete'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/bulk-update': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply city / countryCode across a batch of clubs (super admin) */
+    post: operations['ClubsController_bulkUpdate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get club by slug (public) */
+    get: operations['ClubsController_getBySlug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/clubs/{id}/verify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Mark a club as verified (super admin) */
+    patch: operations['ClubsController_verify'];
+    trace?: never;
+  };
+  '/api/v1/clubs/{id}/unverify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Mark a club as unverified (super admin) */
+    patch: operations['ClubsController_unverify'];
+    trace?: never;
+  };
+  '/api/v1/clubs/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete or archive a club (super admin) */
+    delete: operations['ClubsController_delete'];
+    options?: never;
+    head?: never;
+    /** Update a club (super admin) */
+    patch: operations['ClubsController_update'];
+    trace?: never;
+  };
+  '/api/v1/clubs/{id}/logo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload a club logo (super admin) */
+    post: operations['ClubsController_uploadLogo'];
+    /** Remove a club logo (super admin) */
+    delete: operations['ClubsController_deleteLogo'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/rulesets': {
     parameters: {
       query?: never;
@@ -7272,6 +6341,1022 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List fighters (signed-in people search) */
+    get: operations['FightersController_list'];
+    put?: never;
+    /** Create a fighter (super admin) */
+    post: operations['FightersController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/public': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public fighter directory (anonymous, searchable) */
+    get: operations['FightersController_listPublicDirectory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/me/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the claimed user Fighter profile */
+    get: operations['FightersController_myProfile'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the claimed user Fighter profile */
+    patch: operations['FightersController_updateMyProfile'];
+    trace?: never;
+  };
+  '/api/v1/fighters/me/photo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload the claimed user Fighter profile photo */
+    post: operations['FightersController_uploadMyPhoto'];
+    /** Remove the claimed user Fighter profile photo */
+    delete: operations['FightersController_removeMyPhoto'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/me/dashboard': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the claimed user Fighter dashboard */
+    get: operations['FightersController_myDashboard'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/me/referee-stats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the claimed user referee statistics */
+    get: operations['FightersController_myRefereeStats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/merge/audit-log': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List recent fighter merge audit entries (super admin) */
+    get: operations['FightersController_mergeAuditLog'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{slug}/matches': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get paginated match history for a fighter (public) */
+    get: operations['FightersController_listMatches'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{slug}/career': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get public Fighter career history and statistics */
+    get: operations['FightersController_career'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{slug}/referee-stats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get public Fighter referee statistics */
+    get: operations['FightersController_refereeStats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{slug}/rating-history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get public Fighter HEMA rating history (time-series) */
+    get: operations['FightersController_ratingHistory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get fighter by slug (public) */
+    get: operations['FightersController_getBySlug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update a fighter (organizer+ or claimed owner) */
+    patch: operations['FightersController_update'];
+    trace?: never;
+  };
+  '/api/v1/fighters/{id}/promote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Promote a Person to global Fighter (claimed user only) */
+    post: operations['FightersController_promote'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/merge': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Merge two fighter profiles (super admin) */
+    post: operations['FightersController_merge'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/merge/{auditLogId}/revert': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Revert a fighter merge within 30 days (super admin) */
+    post: operations['FightersController_revertMerge'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/weapons': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List controlled weapon catalog entries */
+    get: operations['WeaponsController_list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/global-persons': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List global persons (organizer/admin picker) */
+    get: operations['GlobalPersonsController_list'];
+    put?: never;
+    /** Create an unclaimed global person (super admin) */
+    post: operations['GlobalPersonsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/global-persons/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update a global person profile (super admin) */
+    patch: operations['GlobalPersonsController_update'];
+    trace?: never;
+  };
+  '/api/v1/global-persons/import/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dry-run a Global Profiles CSV import (super admin) */
+    post: operations['GlobalPersonsController_previewGlobalPersonsImport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/global-persons/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Commit a Global Profiles CSV import (super admin) */
+    post: operations['GlobalPersonsController_commitGlobalPersonsImport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/global-persons/{id}/link-workshop-enrollment': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Link a workshop enrollment to a global person (workshop lead+) */
+    patch: operations['GlobalPersonsController_linkWorkshopEnrollment'];
+    trace?: never;
+  };
+  '/api/v1/me/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the events the current user is involved in (competitor / referee / workshops) */
+    get: operations['MeController_events'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/upcoming': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Next N fights + referee slots across all the user's events */
+    get: operations['MeController_upcoming'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/leagues': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Published leagues the current user is ranked in (with their standings) */
+    get: operations['MeController_leagues'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/workshop-history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Workshops the current user has attended (confirmed/intent), grouped by event */
+    get: operations['MeController_workshopHistory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/instructor-workshops': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Workshops the current user teaches, grouped by event, with roster counts */
+    get: operations['MeController_instructorWorkshops'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/persons': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List persons for an event */
+    get: operations['PersonsController_list'];
+    put?: never;
+    /** Create a person manually */
+    post: operations['PersonsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/persons/import/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview CSV import (dry run) */
+    post: operations['PersonsController_previewImport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/persons/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Import persons from CSV */
+    post: operations['PersonsController_importCsv'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/persons/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a person by ID */
+    get: operations['PersonsController_getOne'];
+    put?: never;
+    post?: never;
+    /** Delete a person. `?force=true&eventId=…` force-purges them from that event (409 on blocking matches). */
+    delete: operations['PersonsController_delete'];
+    options?: never;
+    head?: never;
+    /** Update a person */
+    patch: operations['PersonsController_update'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/persons/lookup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fuzzy person name lookup (public) */
+    get: operations['LookupController_lookup'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/people/{personId}/schedule': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get person's schedule (public, privacy-filtered) */
+    get: operations['PublicScheduleController_getSchedule'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/persons/me/privacy': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get own privacy preferences */
+    get: operations['PrivacyController_getPrivacy'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update own privacy preferences */
+    patch: operations['PrivacyController_updatePrivacy'];
+    trace?: never;
+  };
+  '/api/v1/persons/me/email-change': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get pending email-change request for the claimed Person account */
+    get: operations['PersonEmailChangeController_getPending'];
+    put?: never;
+    /** Request an email change for the claimed Person account */
+    post: operations['PersonEmailChangeController_request'];
+    /** Cancel the pending email-change request */
+    delete: operations['PersonEmailChangeController_cancel'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/persons/me/email-change/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Confirm an email-change token sent to the new email address (public; token) */
+    get: operations['PersonEmailChangeController_confirm'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/events/{eventId}/join': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Put one's own account on an Event's list (the Event allows it) */
+    post: operations['EventJoinController_join'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/persons/{personId}/assignments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Where is this person assigned in this event? Used by the participant-delete modal to surface pool/bracket/match conflicts before force-delete. */
+    get: operations['RegistrationsController_getAssignments'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/registrations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List registrations for a tournament */
+    get: operations['RegistrationsController_list'];
+    put?: never;
+    /** Register a person to a tournament (bib auto-assigned if omitted) */
+    post: operations['RegistrationsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/registrations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List every registration across all tournaments under an event */
+    get: operations['RegistrationsController_listForEvent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/waitlist': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add a person to the tournament waitlist */
+    post: operations['RegistrationsController_addToWaitlist'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/registrations/{id}/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update registration status (enforces valid transitions) */
+    patch: operations['RegistrationsController_updateStatus'];
+    trace?: never;
+  };
+  '/api/v1/registrations/{id}/promote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Promote a waitlist entry to registered (?force=true to override cap) */
+    post: operations['RegistrationsController_promote'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/waitlist/reorder': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Bulk reorder the tournament waitlist */
+    patch: operations['RegistrationsController_reorderWaitlist'];
+    trace?: never;
+  };
+  '/api/v1/registrations/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a registration */
+    delete: operations['RegistrationsController_delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/registrations/{id}/force-delete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force-delete a registration and its unplayed matches; 409 if any blocking match exists */
+    post: operations['RegistrationsController_forceDelete'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/my-schedule': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get authenticated person's unified schedule */
+    get: operations['MyScheduleController_getMySchedule'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/live-state': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Current programme block and per-lice match state (public) */
+    get: operations['LiveStateController_getLiveState'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/schedule': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List matches for the organizer schedule grid */
+    get: operations['ScheduleGridController_listEventSchedule'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/schedule/placements': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Place or unschedule several bouts as one save. The server checks every piste for the whole batch before it writes a row. */
+    post: operations['SchedulePlacementsController_savePlacements'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/schedule/run': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Move one run of bouts to a start and, optionally, set or clear its bout length. The server lays the run and checks every piste in one save. */
+    post: operations['ScheduleRunController_saveRun'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/compensation-plans': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List available compensation plans (built-in + org + public) */
+    get: operations['CompensationController_listPlans'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/compensation-plans': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a compensation plan for an org */
+    post: operations['CompensationController_createPlan'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/compensation-plans/{planId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete an org compensation plan */
+    delete: operations['CompensationController_deletePlan'];
+    options?: never;
+    head?: never;
+    /** Update a compensation plan */
+    patch: operations['CompensationController_updatePlan'];
+    trace?: never;
+  };
+  '/api/v1/compensation-plans/{planId}/role-rates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Replace all role rates for a plan */
+    put: operations['CompensationController_upsertRoleRates'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/compensation-plans/{planId}/tiers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Replace all tiers for a plan */
+    put: operations['CompensationController_upsertTiers'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/compensation/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get compensation settings for an event */
+    get: operations['CompensationController_getEventSettings'];
+    /** Set compensation plan + cap for an event */
+    put: operations['CompensationController_upsertEventSettings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/compensation/report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Compute live compensation report for an event */
+    get: operations['CompensationController_getReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/compensation/payments/{personId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Toggle paid status for a referee (personId = global_persons.id) */
+    patch: operations['CompensationController_togglePaid'];
     trace?: never;
   };
   '/api/v1/events/{eventId}/lices': {
@@ -10025,91 +10110,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/my-schedule': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get authenticated person's unified schedule */
-    get: operations['MyScheduleController_getMySchedule'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/live-state': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Current programme block and per-lice match state (public) */
-    get: operations['LiveStateController_getLiveState'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/schedule': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List matches for the organizer schedule grid */
-    get: operations['ScheduleGridController_listEventSchedule'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/schedule/placements': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Place or unschedule several bouts as one save. The server checks every piste for the whole batch before it writes a row. */
-    post: operations['SchedulePlacementsController_savePlacements'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/schedule/run': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Move one run of bouts to a start and, optionally, set or clear its bout length. The server lays the run and checks every piste in one save. */
-    post: operations['ScheduleRunController_saveRun'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/deletion-requests': {
     parameters: {
       query?: never;
@@ -12212,286 +12212,6 @@ export interface components {
       /** @enum {string} */
       action: 'approve' | 'deny';
     };
-    CreatePersonDto: {
-      givenName: string;
-      familyName: string;
-      /** Format: email */
-      email?: string | null;
-      /** Format: uuid */
-      clubId?: string | null;
-      newClubName?: string | null;
-      hemaRatingsId?: string | null;
-      dateOfBirth?: string | null;
-      genderCategory?: string | null;
-      notes?: string | null;
-      /** Format: uuid */
-      globalPersonId?: string | null;
-      allowDuplicateName?: boolean;
-    };
-    UpdatePersonDto: {
-      givenName?: string;
-      familyName?: string;
-      /** Format: email */
-      email?: string | null;
-      /** Format: uuid */
-      clubId?: string | null;
-      hemaRatingsId?: string | null;
-      dateOfBirth?: string | null;
-      genderCategory?: string | null;
-      notes?: string | null;
-    };
-    UpdatePrivacyDto: {
-      hideWorkshopsPublicly?: boolean;
-      allowBeingFollowed?: boolean;
-    };
-    RequestPersonEmailChangeDto: {
-      /** Format: email */
-      newEmail: string;
-    };
-    JoinEventDto: {
-      givenName?: string;
-      familyName?: string;
-    };
-    CreateRegistrationDto: {
-      /** Format: uuid */
-      personId: string;
-      seed?: number;
-      bibNumber?: number;
-      hemaRatingsId?: string | null;
-    };
-    UpdateRegistrationStatusDto: {
-      /** @enum {string} */
-      status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified';
-    };
-    LinkClubReviewRequestDto: {
-      /** Format: uuid */
-      existingClubId: string;
-      notes?: string;
-    };
-    RejectClubReviewRequestDto: {
-      notes?: string;
-    };
-    BulkClubIdsDto: {
-      ids: string[];
-    };
-    BulkClubUpdateDto: {
-      ids: string[];
-      city?: string;
-      countryCode?: string;
-      unverified?: boolean;
-    };
-    CreateClubDto: {
-      name: string;
-      abbreviation?: string;
-      city?: string;
-      countryCode?: string;
-      website?: string;
-      logoUrl?: string;
-    };
-    UpdateClubDto: {
-      name?: string;
-      abbreviation?: string;
-      city?: string;
-      countryCode?: string;
-      website?: string;
-      logoUrl?: string;
-    };
-    CreatePlanDto: {
-      name: string;
-      description?: string;
-      publicVisibility?: boolean;
-    };
-    UpdatePlanDto: {
-      name?: string;
-      description?: string;
-      publicVisibility?: boolean;
-    };
-    UpsertRoleRatesDto: {
-      rates: {
-        refereeRole: string;
-        /** @enum {string} */
-        compensationPhase: 'pool' | 'swiss' | 'bracket' | 'finals';
-        tokensPerMatch: number;
-      }[];
-    };
-    UpsertTiersDto: {
-      tiers: {
-        minTokens: number;
-        maxTokens?: number | null;
-        amount: number;
-      }[];
-    };
-    UpsertEventSettingsDto: {
-      /** Format: uuid */
-      planId: string;
-      maxCompensationAmount?: number | null;
-      minCompensationAmount?: number | null;
-    };
-    TogglePaidDto: {
-      paid: boolean;
-    };
-    UpdateMyFighterProfileDto: {
-      givenName?: string;
-      familyName?: string;
-      displayName?: string;
-      /** Format: uuid */
-      clubId?: string;
-      countryCode?: string;
-      hemaRatingsId?: string;
-      photoUrl?: string;
-      bio?: string;
-      dateOfBirth?: string;
-      alias?: string | null;
-      websiteUrl?: string | null;
-      instagramUrl?: string | null;
-      youtubeUrl?: string | null;
-      practicingSinceYear?: number | null;
-      publicVisibility?: {
-        [key: string]: boolean;
-      };
-      listedInDirectory?: boolean;
-      searchIndexable?: boolean;
-      /** Format: uuid */
-      fighterId: string;
-      mainClub?: {
-        /** Format: uuid */
-        clubId?: string;
-        clubName?: string;
-      };
-      secondaryClubs?: {
-        /** Format: uuid */
-        clubId?: string;
-        clubName?: string;
-      }[];
-      previousClubs?: {
-        /** Format: uuid */
-        clubId?: string;
-        clubName?: string;
-      }[];
-      weapons?: {
-        /** Format: uuid */
-        weaponId: string;
-        favorite?: boolean;
-        /** @enum {string|null} */
-        level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
-        style?: string | null;
-      }[];
-      medals?: {
-        competition: string;
-        year: number;
-        rank: number;
-        weapon: string;
-      }[];
-    };
-    CreateFighterDto: {
-      givenName: string;
-      familyName: string;
-      displayName: string;
-      /** Format: uuid */
-      clubId?: string;
-      countryCode?: string;
-      hemaRatingsId?: string;
-      photoUrl?: string;
-      bio?: string;
-      dateOfBirth?: string;
-      genderCategory?: string;
-    };
-    UpdateFighterDto: {
-      givenName?: string;
-      familyName?: string;
-      displayName?: string;
-      /** Format: uuid */
-      clubId?: string;
-      countryCode?: string;
-      hemaRatingsId?: string;
-      photoUrl?: string;
-      bio?: string;
-      dateOfBirth?: string;
-      alias?: string | null;
-      websiteUrl?: string | null;
-      instagramUrl?: string | null;
-      youtubeUrl?: string | null;
-      practicingSinceYear?: number | null;
-      publicVisibility?: {
-        [key: string]: boolean;
-      };
-      listedInDirectory?: boolean;
-      searchIndexable?: boolean;
-    };
-    PromoteFighterDto: {
-      /** Format: uuid */
-      personId: string;
-    };
-    MergeFightersDto: {
-      /** Format: uuid */
-      sourceId: string;
-      /** Format: uuid */
-      targetId: string;
-      reason?: string;
-    };
-    CreateGlobalPersonDto: {
-      givenName: string;
-      familyName: string;
-      displayName?: string;
-      /** Format: uuid */
-      clubId?: string | null;
-      clubName?: string;
-      clubAbbreviation?: string;
-      clubCity?: string;
-      hemaRatingsId?: string;
-      /** Format: email */
-      email?: string;
-      dateOfBirth?: string;
-      isFighter?: boolean;
-      isReferee?: boolean;
-      isWorkshopParticipant?: boolean;
-      isInstructor?: boolean;
-    };
-    UpdateGlobalPersonDto: {
-      givenName?: string;
-      familyName?: string;
-      displayName?: string;
-      /** Format: uuid */
-      clubId?: string | null;
-      clubName?: string;
-      clubAbbreviation?: string;
-      clubCity?: string;
-      hemaRatingsId?: string | null;
-      email?: (string | '') | null;
-      dateOfBirth?: (string | '') | null;
-      isFighter?: boolean;
-      isReferee?: boolean;
-      isWorkshopParticipant?: boolean;
-      isInstructor?: boolean;
-    };
-    ImportCommitDto: {
-      decisions: {
-        index: number;
-        /** @enum {string} */
-        action: 'skip' | 'create_new' | 'overwrite';
-        /** Format: uuid */
-        targetGlobalPersonId?: string;
-        givenName: string;
-        familyName: string;
-        displayName?: string;
-        hemaRatingsId?: string;
-        email?: string;
-        dateOfBirth?: string;
-        clubLabel?: string;
-        clubAbbreviation?: string;
-        clubCity?: string;
-        genderCategory?: string;
-        weapons?: string;
-        isFighter: boolean;
-        isReferee: boolean;
-        isWorkshopParticipant: boolean;
-        isInstructor?: boolean;
-      }[];
-    };
-    LinkEnrollmentDto: {
-      /** Format: uuid */
-      enrollmentId: string;
-    };
     SubmitEventClubRequestDto: {
       name: string;
       abbreviation?: string;
@@ -12845,6 +12565,302 @@ export interface components {
           [key: string]: unknown;
         } | null;
       };
+    };
+    LinkClubReviewRequestDto: {
+      /** Format: uuid */
+      existingClubId: string;
+      notes?: string;
+    };
+    RejectClubReviewRequestDto: {
+      notes?: string;
+    };
+    BulkClubIdsDto: {
+      ids: string[];
+    };
+    BulkClubUpdateDto: {
+      ids: string[];
+      city?: string;
+      countryCode?: string;
+      unverified?: boolean;
+    };
+    CreateClubDto: {
+      name: string;
+      abbreviation?: string;
+      city?: string;
+      countryCode?: string;
+      website?: string;
+      logoUrl?: string;
+    };
+    UpdateClubDto: {
+      name?: string;
+      abbreviation?: string;
+      city?: string;
+      countryCode?: string;
+      website?: string;
+      logoUrl?: string;
+    };
+    UpdateMyFighterProfileDto: {
+      givenName?: string;
+      familyName?: string;
+      displayName?: string;
+      /** Format: uuid */
+      clubId?: string;
+      countryCode?: string;
+      hemaRatingsId?: string;
+      photoUrl?: string;
+      bio?: string;
+      dateOfBirth?: string;
+      alias?: string | null;
+      websiteUrl?: string | null;
+      instagramUrl?: string | null;
+      youtubeUrl?: string | null;
+      practicingSinceYear?: number | null;
+      publicVisibility?: {
+        [key: string]: boolean;
+      };
+      listedInDirectory?: boolean;
+      searchIndexable?: boolean;
+      /** Format: uuid */
+      fighterId: string;
+      mainClub?: {
+        /** Format: uuid */
+        clubId?: string;
+        clubName?: string;
+      };
+      secondaryClubs?: {
+        /** Format: uuid */
+        clubId?: string;
+        clubName?: string;
+      }[];
+      previousClubs?: {
+        /** Format: uuid */
+        clubId?: string;
+        clubName?: string;
+      }[];
+      weapons?: {
+        /** Format: uuid */
+        weaponId: string;
+        favorite?: boolean;
+        /** @enum {string|null} */
+        level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
+        style?: string | null;
+      }[];
+      medals?: {
+        competition: string;
+        year: number;
+        rank: number;
+        weapon: string;
+      }[];
+    };
+    CreateFighterDto: {
+      givenName: string;
+      familyName: string;
+      displayName: string;
+      /** Format: uuid */
+      clubId?: string;
+      countryCode?: string;
+      hemaRatingsId?: string;
+      photoUrl?: string;
+      bio?: string;
+      dateOfBirth?: string;
+      genderCategory?: string;
+    };
+    UpdateFighterDto: {
+      givenName?: string;
+      familyName?: string;
+      displayName?: string;
+      /** Format: uuid */
+      clubId?: string;
+      countryCode?: string;
+      hemaRatingsId?: string;
+      photoUrl?: string;
+      bio?: string;
+      dateOfBirth?: string;
+      alias?: string | null;
+      websiteUrl?: string | null;
+      instagramUrl?: string | null;
+      youtubeUrl?: string | null;
+      practicingSinceYear?: number | null;
+      publicVisibility?: {
+        [key: string]: boolean;
+      };
+      listedInDirectory?: boolean;
+      searchIndexable?: boolean;
+    };
+    PromoteFighterDto: {
+      /** Format: uuid */
+      personId: string;
+    };
+    MergeFightersDto: {
+      /** Format: uuid */
+      sourceId: string;
+      /** Format: uuid */
+      targetId: string;
+      reason?: string;
+    };
+    CreateGlobalPersonDto: {
+      givenName: string;
+      familyName: string;
+      displayName?: string;
+      /** Format: uuid */
+      clubId?: string | null;
+      clubName?: string;
+      clubAbbreviation?: string;
+      clubCity?: string;
+      hemaRatingsId?: string;
+      /** Format: email */
+      email?: string;
+      dateOfBirth?: string;
+      isFighter?: boolean;
+      isReferee?: boolean;
+      isWorkshopParticipant?: boolean;
+      isInstructor?: boolean;
+    };
+    UpdateGlobalPersonDto: {
+      givenName?: string;
+      familyName?: string;
+      displayName?: string;
+      /** Format: uuid */
+      clubId?: string | null;
+      clubName?: string;
+      clubAbbreviation?: string;
+      clubCity?: string;
+      hemaRatingsId?: string | null;
+      email?: (string | '') | null;
+      dateOfBirth?: (string | '') | null;
+      isFighter?: boolean;
+      isReferee?: boolean;
+      isWorkshopParticipant?: boolean;
+      isInstructor?: boolean;
+    };
+    ImportCommitDto: {
+      decisions: {
+        index: number;
+        /** @enum {string} */
+        action: 'skip' | 'create_new' | 'overwrite';
+        /** Format: uuid */
+        targetGlobalPersonId?: string;
+        givenName: string;
+        familyName: string;
+        displayName?: string;
+        hemaRatingsId?: string;
+        email?: string;
+        dateOfBirth?: string;
+        clubLabel?: string;
+        clubAbbreviation?: string;
+        clubCity?: string;
+        genderCategory?: string;
+        weapons?: string;
+        isFighter: boolean;
+        isReferee: boolean;
+        isWorkshopParticipant: boolean;
+        isInstructor?: boolean;
+      }[];
+    };
+    LinkEnrollmentDto: {
+      /** Format: uuid */
+      enrollmentId: string;
+    };
+    CreatePersonDto: {
+      givenName: string;
+      familyName: string;
+      /** Format: email */
+      email?: string | null;
+      /** Format: uuid */
+      clubId?: string | null;
+      newClubName?: string | null;
+      hemaRatingsId?: string | null;
+      dateOfBirth?: string | null;
+      genderCategory?: string | null;
+      notes?: string | null;
+      /** Format: uuid */
+      globalPersonId?: string | null;
+      allowDuplicateName?: boolean;
+    };
+    UpdatePersonDto: {
+      givenName?: string;
+      familyName?: string;
+      /** Format: email */
+      email?: string | null;
+      /** Format: uuid */
+      clubId?: string | null;
+      hemaRatingsId?: string | null;
+      dateOfBirth?: string | null;
+      genderCategory?: string | null;
+      notes?: string | null;
+    };
+    UpdatePrivacyDto: {
+      hideWorkshopsPublicly?: boolean;
+      allowBeingFollowed?: boolean;
+    };
+    RequestPersonEmailChangeDto: {
+      /** Format: email */
+      newEmail: string;
+    };
+    JoinEventDto: {
+      givenName?: string;
+      familyName?: string;
+    };
+    CreateRegistrationDto: {
+      /** Format: uuid */
+      personId: string;
+      seed?: number;
+      bibNumber?: number;
+      hemaRatingsId?: string | null;
+    };
+    UpdateRegistrationStatusDto: {
+      /** @enum {string} */
+      status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified';
+    };
+    SchedulePlacementsDto: {
+      placements: {
+        /** Format: uuid */
+        matchId: string;
+        /** Format: uuid */
+        liceId: string | null;
+        /** Format: date-time */
+        scheduledAt: string | null;
+      }[];
+    };
+    ScheduleRunDto: {
+      matchIds: string[];
+      /** Format: date-time */
+      startAt: string;
+      plannedDurationOverrideMinutes?: number | null;
+    };
+    CreatePlanDto: {
+      name: string;
+      description?: string;
+      publicVisibility?: boolean;
+    };
+    UpdatePlanDto: {
+      name?: string;
+      description?: string;
+      publicVisibility?: boolean;
+    };
+    UpsertRoleRatesDto: {
+      rates: {
+        refereeRole: string;
+        /** @enum {string} */
+        compensationPhase: 'pool' | 'swiss' | 'bracket' | 'finals';
+        tokensPerMatch: number;
+      }[];
+    };
+    UpsertTiersDto: {
+      tiers: {
+        minTokens: number;
+        maxTokens?: number | null;
+        amount: number;
+      }[];
+    };
+    UpsertEventSettingsDto: {
+      /** Format: uuid */
+      planId: string;
+      maxCompensationAmount?: number | null;
+      minCompensationAmount?: number | null;
+    };
+    TogglePaidDto: {
+      paid: boolean;
     };
     CreateLiceDto: {
       name: string;
@@ -13454,22 +13470,6 @@ export interface components {
     InstructorDetailsBody: {
       bio?: string | null;
       club?: string | null;
-    };
-    SchedulePlacementsDto: {
-      placements: {
-        /** Format: uuid */
-        matchId: string;
-        /** Format: uuid */
-        liceId: string | null;
-        /** Format: date-time */
-        scheduledAt: string | null;
-      }[];
-    };
-    ScheduleRunDto: {
-      matchIds: string[];
-      /** Format: date-time */
-      startAt: string;
-      plannedDurationOverrideMinutes?: number | null;
     };
     CreateDeletionRequestDto: {
       /** @enum {string} */
@@ -21743,6 +21743,1688 @@ export interface operations {
       };
     };
   };
+  EventsController_listEvents: {
+    parameters: {
+      query?: {
+        status?: string;
+        organizationId?: string;
+        limit?: number;
+        cursor?: string;
+        q?: string;
+        country?: string;
+        weapon?: string;
+        from?: string;
+        to?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getEventDashboardStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getEventReadiness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getClockReconciliation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_listEventClubs: {
+    parameters: {
+      query?: {
+        scope?: 'all' | 'event';
+        q?: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_submitClubReviewRequest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SubmitEventClubRequestDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getPublicTournamentStandings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventSlug: string;
+        tournamentSlug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getPublicTournamentPoolsWithMatches: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventSlug: string;
+        tournamentSlug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_listOrgEvents: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_createEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateEventDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_deleteEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_updateEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateEventDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_publishEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_unpublishEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getTheme: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_postTheme: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpsertEventThemeDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_uploadEventLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_uploadEventHero: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_listTournaments: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_createTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTournamentDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_listParticipants: {
+    parameters: {
+      query: {
+        includeStaff: string;
+      };
+      header?: never;
+      path: {
+        eventSlug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_deleteTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_updateTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateTournamentDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_uploadTournamentLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_customiseTournamentFormat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_repinTournamentRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RepinTournamentRulesetDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_previewRepinRuleset: {
+    parameters: {
+      query: {
+        rulesetCode: string;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getTournamentRulesetDrift: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_acknowledgeTournamentRulesetDrift: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_publishTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_unpublishTournament: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getMatchConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_list: {
+    parameters: {
+      query?: {
+        q?: string;
+        country?: string;
+        searchAbv?: boolean | string;
+        includeArchived?: boolean | string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateClubDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_listReviewRequests: {
+    parameters: {
+      query?: {
+        status?: 'pending' | 'approved' | 'linked' | 'rejected' | 'all';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_approveReviewRequest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_linkReviewRequest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LinkClubReviewRequestDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_rejectReviewRequest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RejectClubReviewRequestDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkVerify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubIdsDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkUnverify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubIdsDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkArchive: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubIdsDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkDelete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubIdsDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkCleanupDelete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubIdsDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_bulkUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkClubUpdateDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_getBySlug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_verify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_unverify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_delete: {
+    parameters: {
+      query: {
+        mode: string;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateClubDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_uploadLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ClubsController_deleteLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RulesetsController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RulesetsController_listForEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_list: {
+    parameters: {
+      query?: {
+        q?: string;
+        club?: string;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateFighterDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_listPublicDirectory: {
+    parameters: {
+      query?: {
+        q?: string;
+        country?: string;
+        weapon?: string;
+        sort?: 'name' | 'club' | 'country';
+        dir?: 'asc' | 'desc';
+        limit?: number;
+        offset?: number;
+        indexable?: '0' | '1' | 'true' | 'false';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_myProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_updateMyProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateMyFighterProfileDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_uploadMyPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_removeMyPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_myDashboard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_myRefereeStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_mergeAuditLog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_listMatches: {
+    parameters: {
+      query: {
+        limit: string;
+        offset: string;
+        eventId: string;
+        year: string;
+      };
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_career: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_refereeStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_ratingHistory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_getBySlug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateFighterDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_promote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PromoteFighterDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_merge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MergeFightersDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_revertMerge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        auditLogId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WeaponsController_list: {
+    parameters: {
+      query?: {
+        /** @description When "true", only return active catalog entries (for pickers). */
+        active?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_list: {
+    parameters: {
+      query?: {
+        q?: string;
+        roles?: ('fighter' | 'referee' | 'workshop_participant' | 'instructor')[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateGlobalPersonDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateGlobalPersonDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_previewGlobalPersonsImport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_commitGlobalPersonsImport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ImportCommitDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GlobalPersonsController_linkWorkshopEnrollment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LinkEnrollmentDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   MeController_events: {
     parameters: {
       query?: never;
@@ -22489,74 +24171,13 @@ export interface operations {
       };
     };
   };
-  ClubsController_list: {
-    parameters: {
-      query?: {
-        q?: string;
-        country?: string;
-        searchAbv?: boolean | string;
-        includeArchived?: boolean | string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateClubDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_listReviewRequests: {
-    parameters: {
-      query?: {
-        status?: 'pending' | 'approved' | 'linked' | 'rejected' | 'all';
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_approveReviewRequest: {
+  MyScheduleController_getMySchedule: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        id: string;
+        /** @description Event UUID or slug */
+        eventId: string;
       };
       cookie?: never;
     };
@@ -22570,184 +24191,13 @@ export interface operations {
       };
     };
   };
-  ClubsController_linkReviewRequest: {
+  LiveStateController_getLiveState: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LinkClubReviewRequestDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_rejectReviewRequest: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RejectClubReviewRequestDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkVerify: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubIdsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkUnverify: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubIdsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkArchive: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubIdsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkDelete: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubIdsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkCleanupDelete: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubIdsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_bulkUpdate: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkClubUpdateDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_getBySlug: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
+        /** @description Event UUID or slug */
+        eventId: string;
       };
       cookie?: never;
     };
@@ -22761,12 +24211,12 @@ export interface operations {
       };
     };
   };
-  ClubsController_verify: {
+  ScheduleGridController_listEventSchedule: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        id: string;
+        eventId: string;
       };
       cookie?: never;
     };
@@ -22780,58 +24230,18 @@ export interface operations {
       };
     };
   };
-  ClubsController_unverify: {
+  SchedulePlacementsController_savePlacements: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_delete: {
-    parameters: {
-      query: {
-        mode: string;
-      };
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
+        eventId: string;
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['UpdateClubDto'];
+        'application/json': components['schemas']['SchedulePlacementsDto'];
       };
     };
     responses: {
@@ -22843,42 +24253,20 @@ export interface operations {
       };
     };
   };
-  ClubsController_uploadLogo: {
+  ScheduleRunController_saveRun: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        id: string;
+        eventId: string;
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
+        'application/json': components['schemas']['ScheduleRunDto'];
       };
     };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ClubsController_deleteLogo: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       200: {
         headers: {
@@ -23092,1289 +24480,6 @@ export interface operations {
         'application/json': components['schemas']['TogglePaidDto'];
       };
     };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_list: {
-    parameters: {
-      query?: {
-        q?: string;
-        club?: string;
-        limit?: number;
-        offset?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateFighterDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_listPublicDirectory: {
-    parameters: {
-      query?: {
-        q?: string;
-        country?: string;
-        weapon?: string;
-        sort?: 'name' | 'club' | 'country';
-        dir?: 'asc' | 'desc';
-        limit?: number;
-        offset?: number;
-        indexable?: '0' | '1' | 'true' | 'false';
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_myProfile: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_updateMyProfile: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateMyFighterProfileDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_uploadMyPhoto: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_removeMyPhoto: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_myDashboard: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_myRefereeStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_mergeAuditLog: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_listMatches: {
-    parameters: {
-      query: {
-        limit: string;
-        offset: string;
-        eventId: string;
-        year: string;
-      };
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_career: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_refereeStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_ratingHistory: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_getBySlug: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateFighterDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_promote: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PromoteFighterDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_merge: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MergeFightersDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FightersController_revertMerge: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        auditLogId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  WeaponsController_list: {
-    parameters: {
-      query?: {
-        /** @description When "true", only return active catalog entries (for pickers). */
-        active?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_list: {
-    parameters: {
-      query?: {
-        q?: string;
-        roles?: ('fighter' | 'referee' | 'workshop_participant' | 'instructor')[];
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateGlobalPersonDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateGlobalPersonDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_previewGlobalPersonsImport: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_commitGlobalPersonsImport: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ImportCommitDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_linkWorkshopEnrollment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LinkEnrollmentDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_listEvents: {
-    parameters: {
-      query?: {
-        status?: string;
-        organizationId?: string;
-        limit?: number;
-        cursor?: string;
-        q?: string;
-        country?: string;
-        weapon?: string;
-        from?: string;
-        to?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getEventDashboardStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getEventReadiness: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getClockReconciliation: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_listEventClubs: {
-    parameters: {
-      query?: {
-        scope?: 'all' | 'event';
-        q?: string;
-      };
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_submitClubReviewRequest: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SubmitEventClubRequestDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getPublicTournamentStandings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventSlug: string;
-        tournamentSlug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getPublicTournamentPoolsWithMatches: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventSlug: string;
-        tournamentSlug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_listOrgEvents: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_createEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateEventDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_deleteEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_updateEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateEventDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_publishEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_unpublishEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getTheme: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_postTheme: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpsertEventThemeDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_uploadEventLogo: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_uploadEventHero: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_listTournaments: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_createTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateTournamentDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_listParticipants: {
-    parameters: {
-      query: {
-        includeStaff: string;
-      };
-      header?: never;
-      path: {
-        eventSlug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_deleteTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_updateTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateTournamentDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_uploadTournamentLogo: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_customiseTournamentFormat: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_repinTournamentRuleset: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RepinTournamentRulesetDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_previewRepinRuleset: {
-    parameters: {
-      query: {
-        rulesetCode: string;
-      };
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getTournamentRulesetDrift: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_acknowledgeTournamentRulesetDrift: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_publishTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_unpublishTournament: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  EventsController_getMatchConfig: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsController_list: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsController_listForEvent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       200: {
         headers: {
@@ -28624,111 +28729,6 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  MyScheduleController_getMySchedule: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Event UUID or slug */
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  LiveStateController_getLiveState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Event UUID or slug */
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ScheduleGridController_listEventSchedule: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  SchedulePlacementsController_savePlacements: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SchedulePlacementsDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ScheduleRunController_saveRun: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ScheduleRunDto'];
-      };
-    };
     responses: {
       200: {
         headers: {
