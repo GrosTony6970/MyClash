@@ -117,11 +117,29 @@ describe('the query panel tools in Claude', () => {
     expect(assertOrgRole).not.toHaveBeenCalled();
   });
 
-  it('refuses a call with a missing required argument in the panel check words', async () => {
-    const result = await call('get_fighter_stats', {});
+  it('marks the required arguments as required in the input schema', () => {
+    const base = { event: 'fal-2026', tournament: 'longsword' };
+    const required = {
+      get_fighter_stats: 'fighter',
+      get_judge_stats: 'judge',
+      rank_fighters: 'metric',
+      get_bracket_status: 'weapon',
+    };
+    for (const [name, arg] of Object.entries(required)) {
+      const schema = z.object(tools().get(name)!.config.inputSchema);
+      const missing = schema.safeParse(base);
+      expect(missing.success, name).toBe(false);
+      expect(JSON.stringify(missing.error?.issues), name).toContain(arg);
+      expect(schema.safeParse({ ...base, ...ARGS[name] }).success, name).toBe(true);
+    }
+  });
+
+  it('refuses an unknown pool in the panel check words, naming the known pools', async () => {
+    const result = await call('find_matches', { pool: 'pool 9' });
 
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe('fighter is required');
+    expect(textOf(result)).toBe('Unknown pool: "pool 9". Known pools: Pool A.');
+    expect(chains.some((c) => c.table === 'vw_tournament_query_matches')).toBe(false);
     expect(chains.some((c) => c.table === 'vw_tournament_query_fighters')).toBe(false);
   });
 });

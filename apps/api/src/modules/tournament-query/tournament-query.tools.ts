@@ -48,7 +48,7 @@ export function normalizeQuestionAliases(question: string): string {
  * the tournament (the context); the rest are fixed here. The panel builds its JSON schema from this
  * table, and the MCP door builds its zod input from the same one.
  */
-export type QueryToolArgSpec =
+export type QueryToolArgSpec = (
   | { kind: 'string' }
   | { kind: 'number'; min: number; max: number }
   | { kind: 'enum'; values: string[] }
@@ -56,7 +56,8 @@ export type QueryToolArgSpec =
   | { kind: 'pool' }
   | { kind: 'lice' }
   | { kind: 'division' }
-  | { kind: 'club_list'; min: number; max: number };
+  | { kind: 'club_list'; min: number; max: number }
+) & { required?: true };
 
 export interface QueryToolSpec {
   name: string;
@@ -69,6 +70,9 @@ const WEAPON: QueryToolArgSpec = { kind: 'weapon' };
 const POOL: QueryToolArgSpec = { kind: 'pool' };
 const LICE: QueryToolArgSpec = { kind: 'lice' };
 const TEXT: QueryToolArgSpec = { kind: 'string' };
+// The arguments `validateToolCall` refuses a call without.
+const NEEDED_TEXT: QueryToolArgSpec = { kind: 'string', required: true };
+const NEEDED_WEAPON: QueryToolArgSpec = { kind: 'weapon', required: true };
 
 export const QUERY_TOOL_SPECS: QueryToolSpec[] = [
   {
@@ -86,7 +90,7 @@ export const QUERY_TOOL_SPECS: QueryToolSpec[] = [
   {
     name: 'get_fighter_stats',
     description: 'Aggregated stats for one fighter registration.',
-    args: { fighter: TEXT, weapon: WEAPON, phase: PHASES },
+    args: { fighter: NEEDED_TEXT, weapon: WEAPON, phase: PHASES },
   },
   {
     name: 'find_matches',
@@ -114,7 +118,7 @@ export const QUERY_TOOL_SPECS: QueryToolSpec[] = [
     name: 'rank_fighters',
     description: 'Rank fighters by a metric.',
     args: {
-      metric: { kind: 'enum', values: RANK_METRICS },
+      metric: { kind: 'enum', values: RANK_METRICS, required: true },
       weapon: WEAPON,
       phase: PHASES,
       min_matches: { kind: 'number', min: 0, max: 100 },
@@ -125,7 +129,7 @@ export const QUERY_TOOL_SPECS: QueryToolSpec[] = [
   {
     name: 'get_judge_stats',
     description: 'Per-judge aggregations. Accepts a judge name.',
-    args: { judge: TEXT, weapon: WEAPON, phase: PHASES },
+    args: { judge: NEEDED_TEXT, weapon: WEAPON, phase: PHASES },
   },
   {
     name: 'compare_clubs',
@@ -135,7 +139,7 @@ export const QUERY_TOOL_SPECS: QueryToolSpec[] = [
   {
     name: 'get_bracket_status',
     description: 'Current state of an elimination bracket.',
-    args: { weapon: WEAPON, division: { kind: 'division' } },
+    args: { weapon: NEEDED_WEAPON, division: { kind: 'division' } },
   },
   {
     name: 'get_tournament_summary',
@@ -174,6 +178,9 @@ export function buildTournamentToolDefinitions(
       Object.fromEntries(
         Object.entries(spec.args).map(([arg, argSpec]) => [arg, argSchema(argSpec, context)]),
       ),
+      Object.entries(spec.args)
+        .filter(([, argSpec]) => argSpec.required)
+        .map(([arg]) => arg),
     ),
   );
 }
@@ -207,38 +214,8 @@ export function validateToolCall(
     return { ok: false, message: `Unknown tool: ${call.name}` };
   }
   const args = call.arguments ?? {};
-  const weapon = args['weapon'];
-  if (
-    typeof weapon === 'string' &&
-    context.weapons.length > 0 &&
-    !context.weapons.includes(weapon)
-  ) {
-    return { ok: false, message: `Unknown weapon: ${weapon}` };
-  }
-  const pool = args['pool'];
-  if (
-    typeof pool === 'string' &&
-    context.poolNames.length > 0 &&
-    !context.poolNames.includes(pool)
-  ) {
-    return { ok: false, message: `Unknown pool: ${pool}` };
-  }
-  const ringNumber = args['ring_number'];
-  if (
-    typeof ringNumber === 'number' &&
-    context.liceNumbers.length > 0 &&
-    !context.liceNumbers.includes(ringNumber)
-  ) {
-    return { ok: false, message: `Unknown lice: ${ringNumber}` };
-  }
-  const division = args['division'];
-  if (
-    typeof division === 'string' &&
-    context.divisions.length > 0 &&
-    !context.divisions.includes(division)
-  ) {
-    return { ok: false, message: `Unknown division: ${division}` };
-  }
+  const unknown = unknownContextValue(args, context);
+  if (unknown) return { ok: false, message: unknown };
   if (call.name === 'rank_fighters' && !RANK_METRICS.includes(args['metric'] as RankMetric)) {
     return { ok: false, message: 'Ranking metric is required' };
   }
@@ -257,10 +234,43 @@ export function validateToolCall(
   return { ok: true };
 }
 
+const KNOWN_VALUES_SHOWN = 20;
+
+/** The refusal of the first argument naming a weapon, pool, lice or division the Tournament lacks. */
+function unknownContextValue(
+  args: Record<string, unknown>,
+  context: TournamentToolContext,
+): string | null {
+  const checks: Array<[label: string, arg: string, known: Array<string | number>]> = [
+    ['weapon', 'weapon', context.weapons],
+    ['pool', 'pool', context.poolNames],
+    ['lice', 'ring_number', context.liceNumbers],
+    ['division', 'division', context.divisions],
+  ];
+  for (const [label, arg, known] of checks) {
+    const value = args[arg];
+    // A value of the kind the list holds (names are text, lice are numbers).
+    const given = known.length > 0 && typeof value === typeof known[0];
+    if (given && !known.includes(value as string | number)) {
+      return unknownValue(label, value as string | number, known);
+    }
+  }
+  return null;
+}
+
+/** The refusal of a value the Tournament does not have, with the values it does have (capped). */
+function unknownValue(label: string, value: string | number, known: Array<string | number>) {
+  const shown = known.slice(0, KNOWN_VALUES_SHOWN).join(', ');
+  const more = known.length > KNOWN_VALUES_SHOWN ? ', ...' : '';
+  const plural = label === 'lice' ? 'lice' : `${label}s`;
+  return `Unknown ${label}: "${value}". Known ${plural}: ${shown}${more}.`;
+}
+
 function tool(
   name: string,
   description: string,
   properties: Record<string, Record<string, unknown>>,
+  required: string[],
 ): TournamentToolDefinition {
   return {
     name,
@@ -268,6 +278,7 @@ function tool(
     parameters: {
       type: 'object',
       properties,
+      ...(required.length > 0 ? { required } : {}),
       additionalProperties: false,
     },
   };

@@ -30,7 +30,8 @@ type QueryAccessPolicy = (typeof QUERY_ACCESS_POLICIES)[number];
 const WHO_MAY_ASK: Record<QueryAccessPolicy, string> = {
   organizers_only: 'organisers',
   organizers_head_judges: "organisers and the Event's referees",
-  anyone_with_tournament_access: "organisers, the Event's referees and the people on its roster",
+  anyone_with_tournament_access:
+    "organisers, the Event's referees and the people on the Event's roster",
 };
 
 /** A setting outside the one list is a broken row, not a refusal: it throws (a failure). */
@@ -45,20 +46,25 @@ const text = z.string().max(200);
 
 /** One argument of the panel's table as zod: the table is the one list (call C10). */
 function argInput(spec: QueryToolArgSpec): z.ZodType {
+  const field = argField(spec);
+  return spec.required ? field : field.optional();
+}
+
+function argField(spec: QueryToolArgSpec): z.ZodType {
   switch (spec.kind) {
     case 'string':
     case 'weapon':
     case 'pool':
     case 'division':
-      return text.optional();
+      return text;
     case 'number':
-      return z.number().min(spec.min).max(spec.max).optional();
+      return z.number().min(spec.min).max(spec.max);
     case 'enum':
-      return z.enum(spec.values as [string, ...string[]]).optional();
+      return z.enum(spec.values as [string, ...string[]]);
     case 'lice':
-      return z.number().int().optional();
+      return z.number().int();
     case 'club_list':
-      return z.array(text).min(spec.min).max(spec.max).optional();
+      return z.array(text).min(spec.min).max(spec.max);
   }
 }
 

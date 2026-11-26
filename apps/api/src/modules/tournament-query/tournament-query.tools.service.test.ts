@@ -5,13 +5,17 @@ import {
   awaitableChain,
   fighterRows,
   GP_JEAN,
+  GP_MARIE,
   M1,
   M2,
   M3,
+  POOL_A,
+  POOL_B,
   REG_ADA,
   REG_GRACE_H,
   refereeRows,
   tournament,
+  uuid,
 } from './tournament-query.tools.fixtures';
 
 const summariesMock = vi.hoisted(() => vi.fn());
@@ -74,6 +78,66 @@ describe('TournamentQueryToolsService · get_judge_stats', () => {
     const result = await service.execute(tournament, 'get_judge_stats', { judge: GP_JEAN });
 
     expect(result.render_hint).toBe('empty');
+  });
+
+  describe('two referees share the text', () => {
+    const row = (person: string, name: string, pool: string) => ({
+      ...refereeRows[0]!,
+      person_id: person,
+      judge_name: name,
+      pool_id: pool,
+      match_id: null,
+    });
+    const both = [
+      row(GP_JEAN, 'Marie Curie', POOL_A),
+      row(GP_JEAN, 'Marie Curie', POOL_B),
+      row(GP_MARIE, 'Marie Dupont', POOL_A),
+    ];
+
+    beforeEach(() => {
+      fromMock.mockImplementation((tableName: string) =>
+        awaitableChain({
+          data: tableName === 'vw_tournament_query_referees' ? both : [],
+          error: null,
+        }),
+      );
+    });
+
+    it('lists each referee by name when the text fits several people', async () => {
+      const result = await service.execute(tournament, 'get_judge_stats', { judge: 'Marie' });
+
+      expect(result.title).toBe('Several referees match "Marie"');
+      expect(result.items?.map((item) => item.label)).toEqual(['Marie Curie', 'Marie Dupont']);
+      expect(result.card).toBeUndefined();
+      expectNoRawIds(result);
+    });
+
+    it('gives only the numbers of the one person the whole name fits', async () => {
+      const result = await service.execute(tournament, 'get_judge_stats', {
+        judge: ' marie curie ',
+      });
+
+      expect(result.title).toBe('Judge stats for Marie Curie');
+      expect(result.card).toEqual({ Assignments: 2, Pools: 2, Matches: 0 });
+      expectNoRawIds(result);
+    });
+
+    it('lets an exact name win over a longer name that contains it', async () => {
+      fromMock.mockImplementation((tableName: string) =>
+        awaitableChain({
+          data:
+            tableName === 'vw_tournament_query_referees'
+              ? [...both, row(uuid(99), 'Marie Curie-Sklodowska', POOL_B)]
+              : [],
+          error: null,
+        }),
+      );
+
+      const result = await service.execute(tournament, 'get_judge_stats', { judge: 'Marie Curie' });
+
+      expect(result.title).toBe('Judge stats for Marie Curie');
+      expect(result.card).toEqual({ Assignments: 2, Pools: 2, Matches: 0 });
+    });
   });
 });
 

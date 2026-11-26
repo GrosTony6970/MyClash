@@ -189,13 +189,7 @@ export class TournamentQueryToolsService {
   private async fightersNamed(tournamentId: string, text: unknown): Promise<FighterRow[]> {
     const wanted = String(text ?? '').trim();
     if (!wanted) return [];
-    const found = (await this.fighters(tournamentId)).filter((fighter) =>
-      contains(fighter.display_name, wanted),
-    );
-    const exact = found.filter(
-      (fighter) => fighter.display_name.trim().toLocaleLowerCase() === wanted.toLocaleLowerCase(),
-    );
-    return exact.length > 0 ? exact : found;
+    return namedBest(await this.fighters(tournamentId), (fighter) => fighter.display_name, wanted);
   }
 
   private async matches(tournamentId: string): Promise<MatchRow[]> {
@@ -361,7 +355,7 @@ export class TournamentQueryToolsService {
       pool.rows.map((row) => ({
         Rank: row.rank,
         Pool: pool.name,
-        // The one place a blank name is worded: a person nobody named reads ''.
+        // A person nobody named reads '' in the standings: worded here.
         Fighter: row.name || unknownFighterInEnglish(),
         Club: row.club ?? '',
         ...row.stats,
@@ -458,15 +452,26 @@ export class TournamentQueryToolsService {
   private async getJudgeStats(tournament: TournamentContext, args: Record<string, unknown>) {
     const judge = String(args['judge'] ?? '').trim();
     // Matched on the name only: judge_name is the one judge identity any tool puts in front of
-    // the model (find_lagging_pools lists referees by name), and no output shows an id.
-    const refs = judge
-      ? (await this.referees(tournament)).filter((row) => contains(row.judge_name, judge))
-      : [];
-    if (refs.length === 0) return empty('No judge assignments found', 'get_judge_stats', args);
+    // the model (find_lagging_pools lists referees by name), and no output shows an id. The rows
+    // are grouped by person (person_id, never shown) and narrowed by the same rule as fighters:
+    // one person only, else a list.
+    const people = judge ? refereePeople(await this.referees(tournament)) : [];
+    const named = namedBest(people, (person) => person.name, judge);
+    if (named.length === 0) return empty('No judge assignments found', 'get_judge_stats', args);
+    if (named.length > 1) {
+      return severalPeople(
+        'referees',
+        named.map((person) => ({ label: person.name, value: 'referee' })),
+        judge,
+        'get_judge_stats',
+        args,
+      );
+    }
+    const refs = named[0]!.rows;
     return {
       render_hint: 'card',
       // A name matched the text, so it is never blank.
-      title: `Judge stats for ${refs[0]!.judge_name}`,
+      title: `Judge stats for ${named[0]!.name}`,
       card: {
         Assignments: refs.length,
         Pools: unique(refs.map((row) => row.pool_id).filter(nonEmpty)).length,
@@ -777,27 +782,69 @@ function empty(
   };
 }
 
-/** Several fighters answer to the text: name each one (never an id) so the model can ask again. */
-function severalFighters(
-  fighters: FighterRow[],
+/**
+ * The items whose name contains the text, case-insensitive. A name that is exactly the text wins
+ * over longer names that merely contain it ("Grace Hopper" vs "Grace Hopperton"); two with that
+ * same exact name stay a list. The one owner of this rule, for fighters and referees.
+ */
+function namedBest<T>(items: T[], nameOf: (item: T) => string | null | undefined, text: string) {
+  const wanted = text.trim();
+  if (!wanted) return [];
+  const found = items.filter((item) => contains(nameOf(item), wanted));
+  const exact = found.filter(
+    (item) => (nameOf(item) ?? '').trim().toLocaleLowerCase() === wanted.toLocaleLowerCase(),
+  );
+  return exact.length > 0 ? exact : found;
+}
+
+/** The referee rows of each person, in order of first appearance. The person id is never shown. */
+function refereePeople(rows: RefereeRow[]): Array<{ name: string; rows: RefereeRow[] }> {
+  const byPerson = new Map<string, { name: string; rows: RefereeRow[] }>();
+  for (const row of rows) {
+    const person = byPerson.get(row.person_id);
+    if (person) person.rows.push(row);
+    else byPerson.set(row.person_id, { name: row.judge_name ?? '', rows: [row] });
+  }
+  return [...byPerson.values()];
+}
+
+/** Several people answer to the text: name each one (never an id) so the model can ask again. */
+function severalPeople(
+  noun: 'fighters' | 'referees',
+  people: Array<{ label: string; value: string }>,
   text: unknown,
   toolName: string,
   args: Record<string, unknown>,
 ): ToolResult {
   return {
     render_hint: 'list',
-    title: `Several fighters match "${String(text).trim()}"`,
-    items: fighters.map((fighter) => ({
-      label: fighter.display_name,
-      value: fighter.club_name || fighter.status,
-    })),
+    title: `Several ${noun} match "${String(text).trim()}"`,
+    items: people,
     metadata: {
       tool_name: toolName,
       arguments: args,
-      row_count: fighters.length,
+      row_count: people.length,
       notes: ['Ask again with a more precise name'],
     },
   };
+}
+
+function severalFighters(
+  fighters: FighterRow[],
+  text: unknown,
+  toolName: string,
+  args: Record<string, unknown>,
+): ToolResult {
+  return severalPeople(
+    'fighters',
+    fighters.map((fighter) => ({
+      label: fighter.display_name,
+      value: fighter.club_name || fighter.status,
+    })),
+    text,
+    toolName,
+    args,
+  );
 }
 
 function zeroStats() {

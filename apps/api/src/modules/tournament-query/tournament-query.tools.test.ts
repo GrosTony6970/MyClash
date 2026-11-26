@@ -93,10 +93,53 @@ describe('tournament query language and tool schemas', () => {
     });
     expect(
       validateToolCall({ name: 'find_matches', arguments: { pool: 'Pool Z' } }, context),
-    ).toEqual({ ok: false, message: 'Unknown pool: Pool Z' });
+    ).toEqual({ ok: false, message: 'Unknown pool: "Pool Z". Known pools: Pool A.' });
     expect(
       validateToolCall({ name: 'find_matches', arguments: { pool: 'Pool A' } }, context).ok,
     ).toBe(true);
+  });
+
+  it('lists the known values in the refusal, capped at 20', () => {
+    const context = {
+      weapons: ['Longsword', 'Sabre'],
+      poolNames: Array.from({ length: 25 }, (_, i) => `Pool ${i + 1}`),
+      liceNumbers: [1, 2],
+      divisions: ['open'],
+    };
+    const refused = (args: Record<string, unknown>) =>
+      validateToolCall({ name: 'find_matches', arguments: args }, context).message;
+
+    expect(refused({ weapon: 'Rapier' })).toBe(
+      'Unknown weapon: "Rapier". Known weapons: Longsword, Sabre.',
+    );
+    expect(refused({ ring_number: 9 })).toBe('Unknown lice: "9". Known lice: 1, 2.');
+    expect(
+      validateToolCall(
+        { name: 'get_bracket_status', arguments: { weapon: 'Longsword', division: 'x' } },
+        context,
+      ).message,
+    ).toBe('Unknown division: "x". Known divisions: open.');
+    const pools = refused({ pool: 'pool 1' })!;
+    expect(pools).toContain('Pool 20, ...');
+    expect(pools).not.toContain('Pool 21');
+  });
+
+  it('lists the required arguments in the panel definition', () => {
+    const defs = buildTournamentToolDefinitions({
+      weapons: [],
+      poolNames: [],
+      liceNumbers: [],
+      divisions: [],
+    });
+    const required = Object.fromEntries(
+      defs.map((def) => [def.name, (def.parameters as { required?: string[] }).required]),
+    );
+
+    expect(required['get_fighter_stats']).toEqual(['fighter']);
+    expect(required['get_judge_stats']).toEqual(['judge']);
+    expect(required['rank_fighters']).toEqual(['metric']);
+    expect(required['get_bracket_status']).toEqual(['weapon']);
+    expect(required['find_fighters']).toBeUndefined();
   });
 
   it('rejects unknown tools and invalid enum arguments before dispatch', () => {

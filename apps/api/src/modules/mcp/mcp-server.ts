@@ -42,7 +42,7 @@ export interface McpToolDeps extends EventAuthzDeps {
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
-const MCP_SERVER_VERSION = '1.0.0';
+const MCP_SERVER_VERSION = '1.1.0';
 
 const logger = new Logger('McpServer');
 

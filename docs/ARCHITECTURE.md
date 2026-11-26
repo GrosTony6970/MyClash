@@ -5106,7 +5106,7 @@ The LLM call receives a narrowed tool schema for the current tournament's weapon
 
 V1 tools cover fighter search/stats, match search, pool standings, lice status, fighter rankings, judge stats, club comparison, bracket status, tournament summary, pool completion estimates, schedule status, and lagging pools with referees.
 
-The tools take a Pool, a fighter or a referee by name, never by id (`pool`, `fighter`, `judge`). An exact full name wins. When several fighters match a name, the answer is a list to choose from. `get_pool_standings` reads the public Pool tables (`PoolStandingsService`, in the ruleset's order) through `pool-standings/pool-table-rows.ts`, the same rows Claude's `tournament_standings` uses. The tool table is `QUERY_TOOL_SPECS` in `tournament-query/tournament-query.tools.ts`.
+The tools take a Pool, a fighter or a referee by name, never by id (`pool`, `fighter`, `judge`). An exact full name wins, for a fighter and for a referee alike. When several fighters (or several referees, counted by person) match a name, the answer is a list of names to choose from. A refusal for an unknown weapon, Pool, lice or division lists the known values (at most 20). `get_pool_standings` reads the public Pool tables (`PoolStandingsService`, in the ruleset's order) through `pool-standings/pool-table-rows.ts`, the same rows Claude's `tournament_standings` uses. The tool table is `QUERY_TOOL_SPECS` in `tournament-query/tournament-query.tools.ts`.
 
 ### 26.7 Frontend
 
@@ -5453,16 +5453,16 @@ thirteen minus `get_pool_standings`, which `tournament_standings` already answer
 Pool tables. Code: `modules/mcp/tools/tournament-query.ts`. The panel and Claude read one table,
 `QUERY_TOOL_SPECS`, so names, descriptions and arguments match.
 
-| Tool                       | Arguments (all optional)                                             |
+| Tool                       | Arguments (required in bold; the rest optional)                      |
 | -------------------------- | -------------------------------------------------------------------- |
 | `find_fighters`            | `club_name`, `country`, `weapon`, `name_contains`, `status`, `limit` |
-| `get_fighter_stats`        | `fighter`, `weapon`, `phase`                                         |
+| `get_fighter_stats`        | **`fighter`**, `weapon`, `phase`                                     |
 | `find_matches`             | `ring_number`, `pool`, `fighter`, `weapon`, `status`, `limit`        |
 | `get_ring_status`          | `ring_number`                                                        |
-| `rank_fighters`            | `metric`, `weapon`, `phase`, `min_matches`, `order`, `limit`         |
-| `get_judge_stats`          | `judge`, `weapon`, `phase`                                           |
+| `rank_fighters`            | **`metric`**, `weapon`, `phase`, `min_matches`, `order`, `limit`     |
+| `get_judge_stats`          | **`judge`**, `weapon`, `phase`                                       |
 | `compare_clubs`            | `club_names`, `weapon`                                               |
-| `get_bracket_status`       | `weapon`, `division`                                                 |
+| `get_bracket_status`       | **`weapon`**, `division`                                             |
 | `get_tournament_summary`   | `weapon`, `scope`                                                    |
 | `estimate_pool_completion` | `pool`, `weapon`                                                     |
 | `get_schedule_status`      | `scope`, `pool`, `weapon`, `bracket_round`                           |
@@ -5489,7 +5489,7 @@ The rules:
   Claude does the language work, so the panel's model call has no use here.
 - **A refusal is one sentence:** "The organiser of (Tournament) lets (who) ask about it, and you
   are not one of them." The "who" follows the setting: organisers; organisers and the Event's
-  referees; or organisers, the Event's referees and the people on its roster. Only a
+  referees; or organisers, the Event's referees and the people on the Event's roster. Only a
   `ForbiddenException` is a refusal. Any other throw is a failed read and becomes the generic
   failure.
 - **Output carries names only.** No Pool, fighter, Match or referee id leaves a tool.

@@ -52,7 +52,7 @@ describe("the query panel tools in Claude, under the Tournament's setting", () =
 
     expect(textOf(result)).toBe(
       "The organiser of Longsword Open lets organisers, the Event's referees and the people on " +
-        'its roster ask about it, and you are not one of them.',
+        "the Event's roster ask about it, and you are not one of them.",
     );
   });
 
