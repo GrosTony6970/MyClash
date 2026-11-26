@@ -6,6 +6,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { PersonsModule } from '../persons/persons.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 import { ScheduleModule } from '../schedule/schedule.module';
+import { TournamentQueryModule } from '../tournament-query/tournament-query.module';
 import { ConnectedAppsController } from './connected-apps.controller';
 import { ConnectedAppsService } from './connected-apps.service';
 import { McpController } from './mcp.controller';
@@ -24,6 +25,7 @@ import { ProtectedResourceController } from './protected-resource.controller';
     PersonsModule,
     PoolStandingsModule,
     ScheduleModule,
+    TournamentQueryModule,
   ],
   controllers: [
     ProtectedResourceController,

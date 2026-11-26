@@ -9,8 +9,10 @@ import type { MeEventsService } from '../me/me-events.service';
 import type { PublicScheduleService } from '../persons/public-schedule.service';
 import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import type { ScheduleGridService } from '../schedule/schedule-grid.service';
+import type { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { eventInfo } from './tools/event-info';
 import { eventSchedule } from './tools/event-schedule';
+import { registerOrganiserTools } from './tools/tournament-query';
 import { tournamentStandings } from './tools/tournament-standings';
 import { myEvents } from './tools/my-events';
 import { myFightHistory } from './tools/my-fight-history';
@@ -36,6 +38,7 @@ export interface McpToolDeps extends EventAuthzDeps {
   events: EventsService;
   scheduleGrid: ScheduleGridService;
   poolStandings: PoolStandingsService;
+  queryTools: TournamentQueryToolsService;
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
@@ -80,7 +83,7 @@ export function isRefusal(result: unknown): result is McpRefusal {
 }
 
 /** The one owner of a tool's answer: JSON text, a refusal as an error result, a throw scrubbed. */
-async function answer(tool: string, run: () => Promise<unknown>): Promise<CallToolResult> {
+export async function answer(tool: string, run: () => Promise<unknown>): Promise<CallToolResult> {
   try {
     const result = await run();
     if (isRefusal(result)) return toolRefusal(result.refusal);
@@ -109,6 +112,7 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
   registerMyTools(server, caller, deps);
   registerMyRecordTools(server, caller, deps);
   registerEventTools(server, caller, deps);
+  registerOrganiserTools(server, caller, deps);
   return server;
 }
 
@@ -197,7 +201,7 @@ function registerMyRecordTools(server: McpServer, caller: McpCaller, deps: McpTo
 const scheduleLimit = z.number().int().min(1).max(50).optional();
 
 /** An Event or Tournament named by its slug, the handle `my_events` gives. */
-const slug = z.string().min(1).max(200);
+export const slug = z.string().min(1).max(200);
 
 /** What the public Event pages show anyone allowed to see the Event, by slug. */
 function registerEventTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {

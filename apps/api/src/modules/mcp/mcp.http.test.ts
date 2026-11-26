@@ -28,6 +28,7 @@ import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
 import { verifyAccessTokenLocally } from '../supabase/access-token';
 import { SupabaseService } from '../supabase/supabase.service';
+import { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { MCP_INTERNAL_ERROR, McpController } from './mcp.controller';
 
@@ -85,6 +86,7 @@ beforeAll(async () => {
       { provide: EventsService, useValue: {} },
       { provide: ScheduleGridService, useValue: {} },
       { provide: PoolStandingsService, useValue: {} },
+      { provide: TournamentQueryToolsService, useValue: {} },
       { provide: FightersService, useValue: { getMyDashboard } },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
@@ -148,14 +150,26 @@ describe('the MCP door, over HTTP', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
+      'compare_clubs',
+      'estimate_pool_completion',
       'event_info',
       'event_schedule',
+      'find_fighters',
+      'find_lagging_pools',
+      'find_matches',
+      'get_bracket_status',
+      'get_fighter_stats',
+      'get_judge_stats',
+      'get_ring_status',
+      'get_schedule_status',
+      'get_tournament_summary',
       'my_events',
       'my_fight_history',
       'my_schedule',
       'my_stats',
       'my_upcoming',
       'my_workshops',
+      'rank_fighters',
       'tournament_standings',
       'whoami',
     ]);

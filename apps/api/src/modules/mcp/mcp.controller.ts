@@ -21,6 +21,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { McpDoor } from './mcp-door.decorator';
 import { mcpCallerOf } from './mcp-door.guard';
 import { buildMcpServer } from './mcp-server';
@@ -55,6 +56,7 @@ export class McpController {
     private readonly events: EventsService,
     private readonly scheduleGrid: ScheduleGridService,
     private readonly poolStandings: PoolStandingsService,
+    private readonly queryTools: TournamentQueryToolsService,
   ) {}
 
   @Post()
@@ -78,6 +80,7 @@ export class McpController {
         events: this.events,
         scheduleGrid: this.scheduleGrid,
         poolStandings: this.poolStandings,
+        queryTools: this.queryTools,
       });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

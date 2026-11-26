@@ -11,6 +11,6 @@ import { TournamentQueryToolsService } from './tournament-query.tools.service';
   imports: [SupabaseModule, OrganizationsModule, AIUsageModule, PoolStandingsModule],
   controllers: [TournamentQueryController],
   providers: [TournamentQueryService, TournamentQueryToolsService],
-  exports: [TournamentQueryService],
+  exports: [TournamentQueryService, TournamentQueryToolsService],
 })
 export class TournamentQueryModule {}
