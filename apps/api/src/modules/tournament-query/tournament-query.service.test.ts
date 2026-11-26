@@ -122,6 +122,52 @@ describe('TournamentQueryService', () => {
     expect(organizations.assertOrgRole).toHaveBeenCalledWith(orgId, userId, 'admin');
   });
 
+  describe('head judge policy', () => {
+    function refereeSupabase() {
+      const base = makeSupabase();
+      base.service.from.mockImplementation((table: string) => {
+        const chain = makeSupabase().service.from(table) as { maybeSingle: unknown };
+        if (table === 'tournament_query_settings') {
+          chain.maybeSingle = vi.fn(async () => ({
+            data: { access_policy: 'organizers_head_judges', rate_limit_per_hour: 60 },
+            error: null,
+          }));
+        }
+        if (table === 'global_persons') {
+          chain.maybeSingle = vi.fn(async () => ({ data: { id: 'g1' }, error: null }));
+        }
+        if (table === 'event_referees') {
+          chain.maybeSingle = vi.fn(async () => ({ data: { person_id: 'g1' }, error: null }));
+        }
+        return chain as never;
+      });
+      return base;
+    }
+
+    it('estimate lets an Event referee in when the Tournament allows head judges', async () => {
+      organizations.assertOrgRole.mockRejectedValue(new ForbiddenException('no'));
+      const service = new TournamentQueryService(
+        refereeSupabase() as never,
+        organizations as never,
+        aiUsage as never,
+        tools,
+      );
+      const result = await service.estimate(tournamentId, userId, { question: 'Top fighters' });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('history lets an Event referee in when the Tournament allows head judges', async () => {
+      organizations.assertOrgRole.mockRejectedValue(new ForbiddenException('no'));
+      const service = new TournamentQueryService(
+        refereeSupabase() as never,
+        organizations as never,
+        aiUsage as never,
+        tools,
+      );
+      await expect(service.history(tournamentId, userId)).resolves.toEqual({ queries: [] });
+    });
+  });
+
   it('uses org BYOK/event cap, validates one tool call, persists user history, and returns same-language results', async () => {
     const service = new TournamentQueryService(
       supabase as never,

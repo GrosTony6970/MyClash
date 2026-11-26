@@ -1,14 +1,17 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { countRows } from '../../common/pg-aggregate';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { TournamentQueryDto, TournamentQuerySettingsDto } from './dto/tournament-query.dto';
+import {
+  DEFAULT_RATE_LIMIT,
+  assertQueryAccess,
+  mapQuerySettings,
+  queryTournamentContext,
+  readQuerySettings,
+  type QuerySettingsRow,
+} from './tournament-query.access';
 import {
   buildTournamentToolDefinitions,
   detectQueryLanguage,
@@ -26,21 +29,7 @@ import type {
 } from './tournament-query.types';
 
 const FEATURE = 'natural_language_query';
-const DEFAULT_RATE_LIMIT = 60;
 const ESTIMATED_COST_EUR = 0.003;
-
-type TournamentRow = {
-  id: string;
-  event_id: string;
-  name: string;
-  weapon?: string | null;
-  events?: { organization_id?: string | null } | null;
-};
-
-type QuerySettingsRow = {
-  access_policy?: string | null;
-  rate_limit_per_hour?: number | null;
-};
 
 @Injectable()
 export class TournamentQueryService {
@@ -57,8 +46,13 @@ export class TournamentQueryService {
     dto: TournamentQueryDto,
   ): Promise<QueryEstimateResponse> {
     this.assertQuestion(dto.question);
-    const tournament = await this.getTournamentContext(tournamentId);
-    await this.assertAccess(tournament, actorUserId);
+    const tournament = await queryTournamentContext(this.supabase, tournamentId);
+    await assertQueryAccess(
+      this.accessDeps(),
+      tournament,
+      actorUserId,
+      await readQuerySettings(this.supabase, tournamentId),
+    );
     const usage = await this.aiUsage.getUsageSummary(tournament.eventId);
     return {
       estimatedCostEur: ESTIMATED_COST_EUR,
@@ -75,9 +69,9 @@ export class TournamentQueryService {
   ): Promise<QueryResponse> {
     const question = this.assertQuestion(dto.question);
     const language = detectQueryLanguage(question);
-    const tournament = await this.getTournamentContext(tournamentId);
-    const settings = await this.getSettings(tournamentId);
-    await this.assertAccess(tournament, actorUserId, settings);
+    const tournament = await queryTournamentContext(this.supabase, tournamentId);
+    const settings = await readQuerySettings(this.supabase, tournamentId);
+    await assertQueryAccess(this.accessDeps(), tournament, actorUserId, settings);
     await this.assertOrganizerAIKey(tournament.organizationId);
     await this.assertRateLimit(tournamentId, actorUserId, settings.rateLimitPerHour);
 
@@ -169,8 +163,13 @@ export class TournamentQueryService {
   }
 
   async history(tournamentId: string, actorUserId: string) {
-    const tournament = await this.getTournamentContext(tournamentId);
-    await this.assertAccess(tournament, actorUserId);
+    const tournament = await queryTournamentContext(this.supabase, tournamentId);
+    await assertQueryAccess(
+      this.accessDeps(),
+      tournament,
+      actorUserId,
+      await readQuerySettings(this.supabase, tournamentId),
+    );
     const { data, error } = await this.supabase.service
       .from('tournament_query_history')
       .select('question, language, tool_name, summary, cost_eur, created_at')
@@ -183,13 +182,13 @@ export class TournamentQueryService {
   }
 
   async getSettingsForTournament(tournamentId: string, actorUserId: string) {
-    const tournament = await this.getTournamentContext(tournamentId);
+    const tournament = await queryTournamentContext(this.supabase, tournamentId);
     await this.organizations.assertOrgRole(tournament.organizationId, actorUserId, 'admin');
-    return this.getSettings(tournamentId);
+    return readQuerySettings(this.supabase, tournamentId);
   }
 
   async saveSettings(tournamentId: string, actorUserId: string, dto: TournamentQuerySettingsDto) {
-    const tournament = await this.getTournamentContext(tournamentId);
+    const tournament = await queryTournamentContext(this.supabase, tournamentId);
     await this.organizations.assertOrgRole(tournament.organizationId, actorUserId, 'admin');
     const rateLimit = dto.rateLimitPerHour ?? DEFAULT_RATE_LIMIT;
     if (!Number.isInteger(rateLimit) || rateLimit < 1 || rateLimit > 500) {
@@ -218,78 +217,11 @@ export class TournamentQueryService {
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
-    return this.mapSettings(data as QuerySettingsRow);
+    return mapQuerySettings(data as QuerySettingsRow);
   }
 
-  private async getTournamentContext(tournamentId: string): Promise<TournamentContext> {
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .select('id, event_id, name, weapon, events(organization_id)')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    const row = data as TournamentRow;
-    const organizationId = row.events?.organization_id;
-    if (!organizationId)
-      throw new BadRequestException('Tournament organization could not be resolved');
-    return {
-      tournamentId: row.id,
-      eventId: row.event_id,
-      organizationId,
-      name: row.name,
-      weapon: row.weapon ?? null,
-      weapons: row.weapon ? [row.weapon] : [],
-      poolIds: [],
-      liceNumbers: [],
-      divisions: [],
-    };
-  }
-
-  private async getSettings(tournamentId: string) {
-    const { data, error } = await this.supabase.service
-      .from('tournament_query_settings')
-      .select('access_policy, rate_limit_per_hour')
-      .eq('tournament_id', tournamentId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    return this.mapSettings(data as QuerySettingsRow | null);
-  }
-
-  private mapSettings(row: QuerySettingsRow | null) {
-    return {
-      accessPolicy: row?.access_policy ?? 'organizers_only',
-      rateLimitPerHour: row?.rate_limit_per_hour ?? DEFAULT_RATE_LIMIT,
-    };
-  }
-
-  private async assertAccess(
-    tournament: TournamentContext,
-    actorUserId: string,
-    settings: { accessPolicy: string } = { accessPolicy: 'organizers_only' },
-  ) {
-    if (!actorUserId || actorUserId === 'anonymous') {
-      throw new UnauthorizedException('Authentication required');
-    }
-    if (settings.accessPolicy === 'organizers_only') {
-      await this.organizations.assertOrgRole(tournament.organizationId, actorUserId, 'admin');
-      return;
-    }
-    try {
-      await this.organizations.assertOrgRole(tournament.organizationId, actorUserId, 'admin');
-      return;
-    } catch (error) {
-      if (settings.accessPolicy === 'anyone_with_tournament_access') {
-        const { data } = await this.supabase.service
-          .from('persons')
-          .select('id')
-          .eq('event_id', tournament.eventId)
-          .eq('claimed_by_user_id', actorUserId)
-          .maybeSingle();
-        if (data) return;
-      }
-      throw error;
-    }
+  private accessDeps() {
+    return { supabase: this.supabase, organizations: this.organizations };
   }
 
   private async assertOrganizerAIKey(orgId: string) {
