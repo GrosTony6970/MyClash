@@ -4,11 +4,11 @@ Status: agreed with the operator on 2026-11-13, in a brainstorm. Slice 1a (found
 shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59bdaebe`
 `08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
 `bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slice 1b-1 (the organiser builds
-it) is built on the same branch, from `9f9ee1b89` to the commit that wrote this line, which
-closes it. Slice 1b-2 (the Match runs) is being built on the same branch, from `56d8ddb6d`. Slices
-1c to 8 are not built; what 1a and 1b-1 left them is listed under "Slices". The decisions in "What
-the operator decided" are rulings. The items in "My calls" are proposals the operator has read and
-not overturned. Reviewed with `myclash-plan-review`; the record is at the end.
+it) is built on the same branch, from `9f9ee1b89` to the commit that closed it. Slice 1b-2 (the
+Match runs) is built on the same branch, from `5231a5c71` to the commit that wrote this line,
+which closes it. Slices 1c to 8 are not built; what 1a, 1b-1 and 1b-2 left them is listed under
+"Slices". The decisions in "What the operator decided" are rulings. The items in "My calls" are
+proposals the operator has read and not overturned. Reviewed with `myclash-plan-review`; the record is at the end.
 
 ## Context
 
@@ -452,11 +452,11 @@ Each slice is usable alone and lands as several single-concern commits.
        protect yet). The pad, TV and public pages do not change behaviour. Bracket, Swiss and
        double elimination refuse a team Tournament. **Built** on branch `feat/team-tournaments`,
        from `9f9ee1b89` to the commit that closed it.
-     - **1b-2, the Match runs.** It is being built on the same branch, from `56d8ddb6d`. The pad,
-       online and offline, the offline queue, cards (ruling 972), forfeits, protests, the
-       time-limit result, colour swap of team ids, TV, public pages, the staff, lice and live-state
-       names, the stats functions, the admin bout page and live board, and the offline specs 06, 08
-       and 40.
+     - **1b-2, the Match runs.** The pad, online and offline, the offline queue, cards (ruling
+       972), forfeits, protests, the time-limit result, colour swap of team ids, TV, public pages,
+       the staff, lice and live-state names, the stats functions, the admin bout page and live
+       board, and the offline specs 06, 08 and 40. **Built** on branch `feat/team-tournaments`,
+       from `5231a5c71` to the commit that closed it.
      - **Moved from 1b to 1c** (ruling 973): names, the captain mark, the reserves' data, the
        spread of teams by rating, and the `deletePerson` check of team slots.
 
@@ -471,8 +471,10 @@ Each slice is usable alone and lands as several single-concern commits.
      - (1b-1, done) Standings take the side key. Done in `248077564` and `e58cc1f13`:
        `apps/api/src/modules/pool-standings/` (`compute-rows.ts`, `pool-rows.ts`,
        `pool-standings.team.test.ts`).
-     - (1b-2) The time-limit result takes the side key, and the clock's read list gains the team
-       columns (`clock.service.ts:157` `BOUT_COLUMNS`, `time-limit-result.ts:139-147`).
+     - (1b-2, done) The time-limit result takes the side key, and the clock's read list gains the
+       team columns (`clock.service.ts:157` `BOUT_COLUMNS`, `time-limit-result.ts:139-147`). Done
+       in `1bd1af957`: `time-limit-result.ts` writes the leader through `winnerColumns`, and
+       `BOUT_COLUMNS` in `clock.service.ts` and `level-step.ts` read the team columns.
      - (1b-1, done) The kind race probed under forced overlap, with the teams routes
        (`0281_team_tables.sql:147` `entrant_kind_holds`, `scripts/lib/team-tables-probe.mjs`). Done
        in `0759f0d48` and `7f56dda66`: `scripts/lib/team-kind-race.mjs`, run by
@@ -483,45 +485,69 @@ Each slice is usable alone and lands as several single-concern commits.
      - (1b-1, done) An index for the team → team_slots delete cascade (`0281_team_tables.sql:100`,
        `team_slots_team_fkey`). Done in `0759f0d48`: `team_slots_team_id_tournament_id_idx` in
        `0283_team_logo_and_twin_indexes.sql`.
-     - (1b-2) The forfeit snapshot's JSON paths map `winner_registration_id` only; the `winner_team_id`
-       paths come with the forfeit code (`apps/api/src/modules/exports/archive.tables.ts:439-440`).
-     - (1b-2) The colour swap swaps the Registration ids only (`matches.service.ts:968-969`,
-       `swapFighterColor`).
-     - (1b-2) The forfeit panel would send a null id for a team bout (`ForfeitPanel.tsx:67`).
-     - (1b-2) The protest tap, ScoringColumn and DirectCardPanel null branches say "waiting for a Fighter"
-       on a team bout (`protest-tap.ts:70`, `ScoringColumn.tsx:194`, `DirectCardPanel.tsx:154`).
-     - (1b-2) TVScoreboard compares a nullable Registration id with `===` (`TVScoreboard.tsx:470`).
-     - (1b-2) The winner writers that write `winner_registration_id` only: `matches.service.ts:281`
-       (`setStatus`), `fighter-reconcile.ts:162`, `fighter-bouts.ts:142`, `:182`, `:268`,
-       `time-limit-result.ts:147`, `match-forfeits.service.ts:239`, and the test harness
-       `double-elim-simulation.harness.ts:133`.
-     - (1b-2) `MatchContext.redTeamId` / `blueTeamId` are filled and read by nobody
-       (`penalties.service.ts:1437-1438`, `:1964-1965`).
+     - (1b-2, done) The forfeit snapshot's JSON paths map `winner_registration_id` only; the
+       `winner_team_id` paths come with the forfeit code
+       (`apps/api/src/modules/exports/archive.tables.ts:439-440`). Done in `eafb43e8f`: the two
+       `winner_team_id` paths map to `teams` (`archive.tables.ts:441-442`).
+     - (1b-2, done) The colour swap swaps the Registration ids only (`matches.service.ts:968-969`,
+       `swapFighterColor`). Done in `f6ec032cf`: the swap moves each side whole, Registration and
+       team (`matches.service.ts:978-984`).
+     - (1b-2, done) The forfeit panel would send a null id for a team bout
+       (`ForfeitPanel.tsx:67`). Done in `2fe27ea36`: a team bout sends `forfeitingTeamId`
+       (`apps/web-staff/src/lib/forfeit-body.ts`) and is asked nothing of continuing.
+     - (1b-2, done) The protest tap, ScoringColumn and DirectCardPanel null branches say "waiting
+       for a Fighter" on a team bout (`protest-tap.ts:70`, `ScoringColumn.tsx:194`,
+       `DirectCardPanel.tsx:154`). Done in `56a592cab`: each takes the corner's side from `sideOf`
+       (`apps/web-staff/src/lib/bout-sides.ts`), so a team's side is a known side.
+     - (1b-2, done) TVScoreboard compares a nullable Registration id with `===`
+       (`TVScoreboard.tsx:470`). Done in `c51e63f4a` (`isRowOfSide`, where null is nobody) and
+       `ab2feec74` (the TV places each column's cards with it).
+     - (1b-2, done) The winner writers that write `winner_registration_id` only:
+       `matches.service.ts:281` (`setStatus`), `fighter-reconcile.ts:162`, `fighter-bouts.ts:142`,
+       `:182`, `:268`, `time-limit-result.ts:147`, `match-forfeits.service.ts:239`, and the test
+       harness `double-elim-simulation.harness.ts:133`. Done: each writes through `winnerColumns`,
+       `setStatus` through `status-winner.ts` in `b2501e5a3`, the forfeit writers
+       (`fighter-reconcile.ts`, `fighter-bouts.ts`, `match-forfeits.service.ts`) in `653b62b02`,
+       the time-limit result in `1bd1af957`. The harness (`double-elim-simulation.harness.ts:133`)
+       stays individual-only: double elimination refuses a team Tournament (1b-1), and the
+       side-readers gate does not scan `*.harness.ts`.
+     - (1b-2, done) `MatchContext.redTeamId` / `blueTeamId` are filled and read by nobody
+       (`penalties.service.ts:1437-1438`, `:1964-1965`). Done in `469d8bb89`: the card door judges
+       a card's side against them (`isCardSideOfBout`,
+       `apps/api/src/modules/penalties/card-side.ts`).
      - (1b-1, done) A cascade probe case: deleting a Team that a bout or a forfeit names is refused
        (23503) (`scripts/db-cascade-probe.mjs`). Done in `0759f0d48`.
      - (1b-1, done) "Neither" probe cases for `match_penalties_one_side` and
        `match_forfeits_forfeiting_one_kind` (`scripts/lib/team-tables-probe.mjs`). Done in
        `0759f0d48`: "a card for neither" and "a forfeit by neither".
-     - (1b-2) The offline specs `tests/e2e/06-offline-sync.spec.ts`, `08-offline-custom-ruleset.spec.ts`
-       and `40-offline-bout.spec.ts`, skipped for 1a (operator, 2026-11-24, ruling 961). They run
-       once, at the end of 1b-2, on a test stack.
-     - (1b-1 and 1b-2) The `not-yet 1b` lines of `scripts/side-readers-ledger.json` (gate
+     - (1b-2, done) The offline specs `tests/e2e/06-offline-sync.spec.ts`,
+       `08-offline-custom-ruleset.spec.ts` and `40-offline-bout.spec.ts`, skipped for 1a (operator,
+       2026-11-24, ruling 961). They run once, at the end of 1b-2, on a test stack. Done: 40 gains
+       a team bout in `eb409bd9c`, 06 a queued team card in `eaf8ebe94`, and 08 is unchanged. The
+       pad's offline drill carries a team bout's cards in `77d6c9460`. The specs ran on a local
+       isolated stack (ruling 977), on 2026-11-26: 06 2/2, 08 1/1, 40 2/2, with the team cases.
+     - (1b-1 and 1b-2, done) The `not-yet 1b` lines of `scripts/side-readers-ledger.json` (gate
        `quality:side-readers`). Each plan clears the lines of the files it visits. 1b-1 cleared 21
        lines: the ledger held 121 `not-yet` lines when 1b-1 began (85 marked 1b, 36 marked 1c) and
-       holds 100 now (64 marked 1b, 36 marked 1c).
-     - (1b-2, from 1b-1) The web-admin Pool seat and board seat shapes move to `@myclash/types`,
-       beside `PoolStandingsRow`. Three hand copies today:
+       100 when it closed (64 marked 1b, 36 marked 1c). 1b-2 cleared the 64 lines marked 1b: it
+       visited 62, and moved 2 to 1c (the public bracket, listed under 1c). The ledger holds 38
+       `not-yet` lines now, all marked 1c.
+     - (1b-2, from 1b-1, done) The web-admin Pool seat and board seat shapes move to
+       `@myclash/types`, beside `PoolStandingsRow`. Three hand copies today:
        `apps/web-admin/app/org/[slug]/events/[eventId]/pools/pool-seats.ts:13-28`,
-       `referees/page.tsx:166-181` and `referees/_components/useAssignmentBoard.ts:78-93`.
-     - (1b-2, from 1b-1) `apps/web-admin/src/components/statistics/types.ts:110` copies the
-       event-stats answer by hand.
+       `referees/page.tsx:166-181` and `referees/_components/useAssignmentBoard.ts:78-93`. Done in
+       `391fc280f`: `PoolSeat` and `AssignmentBoardMember` in
+       `packages/types/src/pool-standings.ts`.
+     - (1b-2, from 1b-1, done) `apps/web-admin/src/components/statistics/types.ts:110` copies the
+       event-stats answer by hand. Done in `ddf658810`: the statistics standings row is the shared
+       `PoolStandingsRow`.
 
    - **1c, the rest of a Tournament.** Single elimination, final ranking, League link refused, the
      member-level referee rule with its mark on the Teams screen (the notice ships in 1b-1), personal schedule and double-booking check for named members, the four people
      and privacy paths, HEMA Ratings export skips team Tournaments and says so. Also, moved from
      1b (ruling 973): names on slots, the captain mark, the reserves' data, the spread of teams by
      rating (ruling 971), and the `deletePerson` check of team slots.
-     Also owed by 1c, carried over from slices 1a and 1b-1:
+     Also owed by 1c, carried over from slices 1a, 1b-1 and 1b-2:
      - `deletePerson` checks Registrations only: a Person who holds a team slot fails at commit with
        a raw foreign-key error (`apps/api/src/modules/persons/persons.service.ts:267-282`).
      - `clearDependentPairing` nulls the Registration ids only, so an emptied team bout keeps its
@@ -537,6 +563,27 @@ Each slice is usable alone and lands as several single-concern commits.
        `entrant_kind_field` for a team Tournament
        (`apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts`,
        `applyAction`).
+     - (From 1b-2) The public bracket reads its slots and bouts by Registration
+       (`apps/api/src/modules/events/events.service.ts`, `getPublishedBracket`).
+     - (From 1b-2) The public bracket podium names its winner by Registration (`winnerSide`,
+       `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts:151`).
+     - (From 1b-2) The bracket page's forfeit sends a Registration only
+       (`apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx:289`).
+     - (From 1b-2) The EN toast `admin.common.missingRegistrationId` says "Missing registration id
+       for this side". A copy pass drops the word "id"
+       (`packages/i18n/src/messages/en/admin.ts:621`).
+     - (From 1b-2) `MatchScoreboard` (`packages/ui/src/components/MatchScoreboard.tsx`) has no
+       caller in any app, but it ships in the `@myclash/ui` barrel (`packages/ui/src/index.ts:89`).
+       The operator decides if it goes.
+     - (From 1b-2) Three own-dot copies could use `TeamChip`: `LiceWaitingDisplay`
+       (`packages/ui/src/components/LiceWaitingDisplay.tsx`), `TileColour` in web-staff's
+       `MatchHeader` (`apps/web-staff/src/components/MatchHeader.tsx:276`) and `LiceMatchCard`
+       (`apps/web-staff/app/lices/[liceId]/_components/LiceMatchCard.tsx`).
+     - (From 1b-2) `teamCount` and `fighterCount` have no plural form, so one team reads "1 teams"
+       (`packages/i18n/src/messages/en/publicApp.ts:1201-1202`).
+     - (From 1b-2) A team Pool whose bouts have no side yet heads its public bout list "Fighter".
+       `isTeamBout` finds a team only by a side key with no Registration
+       (`apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx:66-71`, `:332`).
 2. **Who is on, for teams with names.** "Who starts?", "Change fighter", slot stamps on Exchanges,
    `match_lineups`, the new offline queue kind, the kept line-up, Fighter on piste on TV and public
    pages. A team with no names is untouched by this slice.
@@ -720,9 +767,11 @@ It answers "has every place that reads a Match side been visited?".
 1. Slice 1a shipped on branch `feat/team-tournaments` (draft PR #109); its commits are named in
    the status line at the top, and its carry-over is listed under 1b and 1c in "Slices".
 2. Slice 1b-1 is built on the same branch; what it left is listed under 1b-2 and 1c in "Slices".
-3. Next: slice 1b-2, the Match runs. It gets its own plan and its own review before it is built.
-   This design stays in `specs/` until 1b-2 is built: slice 1b is not finished before then.
-4. No code before the operator says so.
+3. Slice 1b-2, the Match runs, is built on the same branch; what it left is listed under 1c in
+   "Slices". Slice 1b is finished.
+4. Next: slice 1c, the rest of a Tournament. It gets its own plan and its own review before it is
+   built. This design stays in `specs/` while slice 1c is not built.
+5. No code before the operator says so.
 
 ## Review record
 
