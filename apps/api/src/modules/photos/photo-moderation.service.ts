@@ -107,9 +107,10 @@ export class PhotoModerationService {
   }
 
   async summary(event: PhotoEventRow): Promise<PhotoSummary> {
-    const [usage, { waiting, reported }] = await Promise.all([
+    const [usage, { waiting, reported }, total] = await Promise.all([
       this.usage(event.id),
       this.counts(event),
+      this.total(event),
     ]);
     const mode = asPhotoMode(event.photo_mode);
     if (!mode) throw new Error(`Event ${event.id}: unknown photo mode ${event.photo_mode}`);
@@ -124,6 +125,7 @@ export class PhotoModerationService {
       bytesCap: EVENT_PHOTO_BYTES,
       waiting,
       reported,
+      total,
       deletesAt: photoDeletionInstant(event)?.toISOString() ?? null,
       timezone: eventZone(event.timezone).zone,
     };
@@ -319,6 +321,20 @@ export class PhotoModerationService {
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
       .eq('status', 'waiting');
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  /**
+   * Every photo of the Event, waiting or approved: the All tab's count. From the deletion instant
+   * on it is 0, as the queue is empty. Not in `counts`: the platform's list does not show it.
+   */
+  private async total(event: PhotoEventRow): Promise<number> {
+    if (photosExpired(event, this.now())) return 0;
+    const { count, error } = await this.supabase.service
+      .from('event_photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', event.id);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }

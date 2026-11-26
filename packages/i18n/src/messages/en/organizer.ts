@@ -2968,7 +2968,7 @@ export const organizer = {
     queue: {
       tabsLabel: 'Photo queue',
       waiting: 'Waiting ({count})',
-      all: 'All',
+      all: 'All ({count})',
       emptyWaiting: 'No photo is waiting.',
       empty: 'No photo yet.',
       approve: 'Approve',

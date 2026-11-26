@@ -24,6 +24,7 @@ export const SUMMARY: OrganiserPhotoSummary = {
   bytesCap: 15_000_000_000,
   waiting: 2,
   reported: 1,
+  total: 3,
   deletesAt: '2026-12-08T23:00:00.000Z',
   timezone: 'Europe/Paris',
   downloadsBusy: false,

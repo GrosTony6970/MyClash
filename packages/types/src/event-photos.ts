@@ -215,6 +215,8 @@ export interface PhotoSummary {
   waiting: number;
   /** The photos with at least one report. */
   reported: number;
+  /** Every photo of the Event, waiting or approved: what the All tab lists. */
+  total: number;
   /** When every photo of the Event is deleted (ISO), or null when its dates cannot be read. */
   deletesAt: string | null;
   /** The Event's clock, to show `deletesAt` in it. */

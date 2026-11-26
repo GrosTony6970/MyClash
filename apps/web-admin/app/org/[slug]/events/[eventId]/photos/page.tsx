@@ -77,6 +77,7 @@ function PhotoSections({
         filter={photos.filter}
         waiting={summary.waiting}
         reported={summary.reported}
+        total={summary.total}
         timezone={summary.timezone}
         hasMore={photos.next !== null}
         loadingMore={photos.loadingMore}

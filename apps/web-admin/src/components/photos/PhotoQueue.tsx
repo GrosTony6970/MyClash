@@ -11,6 +11,7 @@ interface QueueProps {
   filter: PhotoQueueFilter;
   waiting: number;
   reported: number;
+  total: number;
   timezone: string;
   hasMore: boolean;
   loadingMore: boolean;
@@ -24,7 +25,7 @@ interface QueueProps {
 }
 
 /**
- * The queue: Waiting and Reported (each with its count) and All, newest first. A reported photo
+ * The queue: Waiting, Reported and All, each with its count, newest first. A reported photo
  * shows its reports wherever it appears (ruling 456). Approve and Keep are quiet buttons: one
  * accent per page, and a grid of red buttons has none. Delete asks first; Keep does not (454).
  * All three stay open on an archived Event: Delete for privacy, Approve for a photo still waiting
@@ -81,8 +82,9 @@ function QueueTabs({
   filter,
   waiting,
   reported,
+  total,
   onFilter,
-}: Pick<QueueProps, 'filter' | 'waiting' | 'reported' | 'onFilter'>) {
+}: Pick<QueueProps, 'filter' | 'waiting' | 'reported' | 'total' | 'onFilter'>) {
   const { t } = useI18n();
   const tabs = [
     {
@@ -93,7 +95,7 @@ function QueueTabs({
       value: 'reported' as const,
       label: t('organizer.photos.queue.reported', { count: String(reported) }),
     },
-    { value: 'all' as const, label: t('organizer.photos.queue.all') },
+    { value: 'all' as const, label: t('organizer.photos.queue.all', { count: String(total) }) },
   ];
   return (
     <SegmentedTabs

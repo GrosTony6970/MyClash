@@ -197,6 +197,7 @@ describe('summary', () => {
       // The double ignores `!inner` and counts every photo of the Event; the Reported tab's
       // own tests pin what PostgREST is asked (`photo-moderation.reported.test.ts`).
       reported: 3,
+      total: 3,
       deletesAt: '2026-12-08T23:00:00.000Z',
       timezone: 'Europe/Paris',
     });
@@ -207,6 +208,7 @@ describe('summary', () => {
     expect(selectsFor(supabase.from, 'event_photos')).toEqual([
       'id',
       'id, event_photo_reports!inner(photo_id)',
+      'id',
     ]);
   });
 
@@ -214,9 +216,9 @@ describe('summary', () => {
     const { service, organiser } = moderation({ photos: [photoRow(0), photoRow(1)] });
 
     service.now = () => new Date('2026-12-08T22:59:59.999Z');
-    expect((await organiser.summary(EVENT, USER)).waiting).toBe(2);
+    expect(await organiser.summary(EVENT, USER)).toMatchObject({ waiting: 2, total: 2 });
 
     service.now = () => new Date('2026-12-08T23:00:00.000Z');
-    expect((await organiser.summary(EVENT, USER)).waiting).toBe(0);
+    expect(await organiser.summary(EVENT, USER)).toMatchObject({ waiting: 0, total: 0 });
   });
 });

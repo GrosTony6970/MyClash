@@ -87,6 +87,7 @@ describe('the head of the page', () => {
     expect(text()).toContain('2.5 GB / 15 GB stored');
     expect(text()).toContain('Every photo is deleted on 9 December 2026');
     expect(text()).toContain('Waiting (2)');
+    expect(text()).toContain('All (3)');
   });
 
   it('says so when photo storage is not set up', async () => {
@@ -208,7 +209,7 @@ describe('the queue', () => {
       ...photoReads({ all: queuePage([photo('p1')], cursor) }),
       [more]: queuePage([photo('p9', { uploaderName: 'Zoé' })]),
     });
-    await click(button('All'));
+    await click(button('All (3)'));
 
     await click(button('Load more'));
 
@@ -239,7 +240,7 @@ describe('the queue', () => {
     await click(button('Load more'));
     expect(reads(more)).toBe(1);
 
-    await click(button('All'));
+    await click(button('All (3)'));
     await act(async () => answer(undefined));
     await opened.settle();
 
