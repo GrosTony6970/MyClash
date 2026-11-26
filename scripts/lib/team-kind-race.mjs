@@ -10,19 +10,29 @@
  * (`pg_blocking_pids`) and that B has not answered 500 ms after it started. Only then does A
  * commit, and B's answer is checked. Both write as the service role, the API's client.
  *
- * The races, each on a team Tournament with no entrant, made for it under the seed's Event:
+ * The races, each on a Tournament with no entrant, made for it under the seed's Event: a team one
+ * for the kind trigger (0281), an individual one for the League link (0287):
  *   - a team added while the kind changes: A changes the kind to 'individual'; B's insert waits in
  *     its trigger's FOR SHARE read of the Tournament, then reads the kind of after A and is
  *     refused (`entrant_kind_holds:`);
  *   - a change of kind while a team is added: A adds a team and holds its FOR SHARE; B's change
- *     waits on it, then its AFTER check sees A's team and is refused (`entrant_kind_is_settled:`).
- * The Tournaments stay committed and go with the seed's Event, by the probe's club delete.
+ *     waits on it, then its AFTER check sees A's team and is refused (`entrant_kind_is_settled:`);
+ *   - a League link requested while the kind changes: A switches the Tournament to 'team'; B's link
+ *     waits in its trigger's FOR SHARE read, then reads 'team' and is refused
+ *     (`league_link_individual_only:`);
+ *   - a switch to 'team' while a link is requested: A requests the link and holds its FOR SHARE;
+ *     B's switch waits on it, then its AFTER check sees A's link and is refused
+ *     (`league_link_blocks_team:`).
+ * The Tournaments stay committed and go with the seed's Event, by the probe's club delete; the
+ * League the link races make is deleted at the end, and its links with it.
  */
 import { setTimeout as delay } from 'node:timers/promises';
 
 import postgres from 'postgres';
 
 const WAIT_MS = 500;
+// Who requested the race's League links: any id, the column has no foreign key (0015).
+const REQUESTER = '11111111-1111-4111-8111-111111111111';
 
 /** A call's outcome: its value, or the message and SQLSTATE it raised. */
 const settle = (promise) =>
@@ -73,10 +83,20 @@ async function race({ watch, connA, connB }, first, second) {
   return { b: await b, waited };
 }
 
-/** A committed team Tournament of `event` with no entrant; its id. */
-async function emptyTeamTournament(watch, event, slug) {
+/** A committed Tournament of `event` of `kind`, with no entrant; its id. */
+async function emptyTournament(watch, event, slug, kind) {
   const [{ id }] = await watch`INSERT INTO tournaments (event_id, slug, name, status, entrant_kind)
-                               VALUES (${event}, ${slug}, ${slug}, 'draft', 'team') RETURNING id`;
+                               VALUES (${event}, ${slug}, ${slug}, 'draft', ${kind}) RETURNING id`;
+  return id;
+}
+
+/**
+ * A committed League for the link races; its id. A League belongs to no club or Event
+ * (`requested_by_user_id` on its links is NOT NULL with no foreign key, 0015), so the caller deletes it.
+ */
+async function raceLeague(watch) {
+  const [{ id }] = await watch`INSERT INTO leagues (slug, name, season_year)
+                               VALUES ('kind-race-league', 'Kind race league', 2026) RETURNING id`;
   return id;
 }
 
@@ -86,12 +106,21 @@ const addTeam = (q, tournament, slug) =>
 const makeIndividual = (q, tournament) =>
   q`UPDATE tournaments SET entrant_kind = 'individual' WHERE id = ${tournament}`;
 
-/** The Tournament's kind and its number of teams, as committed. */
+const makeTeam = (q, tournament) =>
+  q`UPDATE tournaments SET entrant_kind = 'team' WHERE id = ${tournament}`;
+
+const requestLink = (q, tournament, league) =>
+  q`INSERT INTO league_tournament_links (league_id, tournament_id, status, requested_by_user_id)
+    VALUES (${league}, ${tournament}, 'requested', ${REQUESTER})`;
+
+/** The Tournament's kind, its number of teams and its number of live League links, as committed. */
 async function stateOf(watch, tournament) {
   const [row] = await watch`SELECT t.entrant_kind AS kind,
-      (SELECT count(*)::int FROM teams tm WHERE tm.tournament_id = t.id) AS teams
+      (SELECT count(*)::int FROM teams tm WHERE tm.tournament_id = t.id) AS teams,
+      (SELECT count(*)::int FROM league_tournament_links l
+        WHERE l.tournament_id = t.id AND l.status IN ('requested', 'approved')) AS links
     FROM tournaments t WHERE t.id = ${tournament}`;
-  return [row.kind, row.teams];
+  return [row.kind, row.teams, row.links];
 }
 
 /**
@@ -102,35 +131,56 @@ const refusedWith = (outcome, prefix) =>
   outcome?.code === '23514' && outcome.refused?.startsWith(prefix) === true;
 
 /**
- * The two races: what A does and keeps open, what B does, the prefix B must be refused with, and
- * the Tournament's kind and number of teams once both ended.
+ * The four races: the kind the empty Tournament starts with, what A does and keeps open, what B
+ * does, the prefix B must be refused with, and the Tournament's kind, number of teams and number of
+ * live League links once both ended. `league` is the race League's id.
  */
 const RACES = [
   {
     what: 'a team during a change of kind',
     slug: 'kind-race-changed',
+    kind: 'team',
     first: (tx, id) => makeIndividual(tx, id),
     second: (sp, id) => addTeam(sp, id, 'late-team'),
     refusedWith: 'entrant_kind_holds:',
-    after: ['individual', 0],
+    after: ['individual', 0, 0],
   },
   {
     what: 'a change of kind during a team',
     slug: 'kind-race-added',
+    kind: 'team',
     first: (tx, id) => addTeam(tx, id, 'early-team'),
     second: (sp, id) => makeIndividual(sp, id),
     refusedWith: 'entrant_kind_is_settled:',
-    after: ['team', 1],
+    after: ['team', 1, 0],
+  },
+  {
+    what: 'a League link during a switch to team',
+    slug: 'kind-race-switched',
+    kind: 'individual',
+    first: (tx, id) => makeTeam(tx, id),
+    second: (sp, id, league) => requestLink(sp, id, league),
+    refusedWith: 'league_link_individual_only:',
+    after: ['team', 0, 0],
+  },
+  {
+    what: 'a switch to team during a League link',
+    slug: 'kind-race-linked',
+    kind: 'individual',
+    first: (tx, id, league) => requestLink(tx, id, league),
+    second: (sp, id) => makeTeam(sp, id),
+    refusedWith: 'league_link_blocks_team:',
+    after: ['individual', 0, 1],
   },
 ];
 
-/** One race of `RACES` on a new empty team Tournament of `event`: three checks. */
-async function oneRace(conns, { check, event }, spec) {
-  const id = await emptyTeamTournament(conns.watch, event, spec.slug);
+/** One race of `RACES` on a new empty Tournament of `event`: three checks. */
+async function oneRace(conns, { check, event, league }, spec) {
+  const id = await emptyTournament(conns.watch, event, spec.slug, spec.kind);
   const { b, waited } = await race(
     conns,
-    (tx) => spec.first(tx, id),
-    (sp) => spec.second(sp, id),
+    (tx) => spec.first(tx, id, league),
+    (sp) => spec.second(sp, id, league),
   );
   check(`${spec.what}: the second waits on the first`, waited, 'not blocked');
   check(
@@ -140,13 +190,13 @@ async function oneRace(conns, { check, event }, spec) {
   );
   const after = await stateOf(conns.watch, id);
   check(
-    `${spec.what}: the Tournament's kind and teams after`,
+    `${spec.what}: the Tournament's kind, teams and live League links after`,
     JSON.stringify(after) === JSON.stringify(spec.after),
     `${JSON.stringify(after)}, not ${JSON.stringify(spec.after)}`,
   );
 }
 
-/** Both races; each check counted by the caller's `check(label, ok, detail)`. */
+/** Every race; each check counted by the caller's `check(label, ok, detail)`. */
 export async function teamKindRaces({ databaseUrl, watch, check, event }) {
   const options = { max: 1, onnotice: () => {}, connection: { statement_timeout: 30_000 } };
   const conns = {
@@ -154,9 +204,11 @@ export async function teamKindRaces({ databaseUrl, watch, check, event }) {
     connA: postgres(databaseUrl, options),
     connB: postgres(databaseUrl, options),
   };
+  const league = await raceLeague(watch);
   try {
-    for (const spec of RACES) await oneRace(conns, { check, event }, spec);
+    for (const spec of RACES) await oneRace(conns, { check, event, league }, spec);
   } finally {
+    await watch`DELETE FROM leagues WHERE id = ${league}`;
     await Promise.all([conns.connA.end(), conns.connB.end()]);
   }
 }

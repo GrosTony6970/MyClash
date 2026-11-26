@@ -41,7 +41,10 @@
  *     or 200 (an account) characters at most (0254, `lib/photo-account-probe.mjs`);
  *   - a team added while its Tournament's kind changes, and a change of kind while a team is added,
  *     forced to overlap on two connections: the second waits and is refused by the kind trigger
- *     (0281, `lib/team-kind-race.mjs`); its Tournaments stay committed until the club delete;
+ *     (0281, `lib/team-kind-race.mjs`); a League link requested while a Tournament switches to
+ *     team, and the switch while a link is requested, the same way: the second waits and is
+ *     refused by the League link trigger (0287); its Tournaments stay committed until the club
+ *     delete, its League is deleted at the end of the races;
  *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
@@ -78,7 +81,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 95;
+const EXPECTED_CHECKS = 101;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -371,7 +374,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament.`,
     );
   }
 } catch (error) {

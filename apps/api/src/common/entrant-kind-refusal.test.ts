@@ -1,8 +1,8 @@
 /**
- * The kind trigger's refusals as a 409 a screen can name (`entrant-kind-refusal.ts`).
+ * The kind triggers' refusals as a 409 a screen can name (`entrant-kind-refusal.ts`).
  *
- * The messages below are the trigger's own text (0281, `raise exception`), as PostgREST passes it
- * on with the SQLSTATE; the cascade probe proves both on a real database
+ * The messages below are the triggers' own text (0281 and 0287, `raise exception`), as PostgREST
+ * passes it on with the SQLSTATE; the cascade probe proves each prefix on a real database
  * (`scripts/lib/team-kind-race.mjs`).
  */
 import { ConflictException } from '@nestjs/common';
@@ -16,6 +16,17 @@ const HOLDS = {
 const SETTLED = {
   code: '23514',
   message: 'entrant_kind_is_settled: Tournament 0b8f… has entrants, so its kind stays individual',
+};
+// 0287's two League refusals, as its `raise exception` writes them.
+const LEAGUE_LINK = {
+  code: '23514',
+  message:
+    'league_link_individual_only: a League takes individual Tournaments only, and Tournament 0b8f… is a team one',
+};
+const LINK_BLOCKS = {
+  code: '23514',
+  message:
+    'league_link_blocks_team: Tournament 0b8f… has a live League link, so it stays individual',
 };
 
 describe('entrantKindRefusal', () => {
@@ -34,6 +45,24 @@ describe('entrantKindRefusal', () => {
     expect(entrantKindRefusal(SETTLED)?.getResponse()).toEqual({
       reason: 'entrant_kind_settled',
       message: 'This Tournament already has entrants, so its kind cannot change.',
+    });
+  });
+
+  it('names a live League link to a team Tournament as the League door does', () => {
+    const refusal = entrantKindRefusal(LEAGUE_LINK);
+    expect(refusal?.getStatus()).toBe(409);
+    expect(refusal?.getResponse()).toEqual({
+      reason: 'team_tournament_league',
+      message: 'A League takes individual Tournaments only: League points belong to persons.',
+    });
+  });
+
+  it('names a switch to team under a live League link', () => {
+    const refusal = entrantKindRefusal(LINK_BLOCKS);
+    expect(refusal?.getStatus()).toBe(409);
+    expect(refusal?.getResponse()).toEqual({
+      reason: 'league_link_blocks_team',
+      message: 'Remove the League link first: League points belong to persons.',
     });
   });
 

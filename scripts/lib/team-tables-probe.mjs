@@ -23,14 +23,16 @@
  *
  * And the index on each key that names a team (migration 0283, `team-key-indexes-probe.mjs`), and
  * the view of bouts that names a team side (migration 0284, `team-view-probe.mjs`), and the blow
- * stats that leave a team bout out (migration 0285, `team-blow-stats-probe.mjs`). The kind
- * trigger's race needs two connections on committed rows: the cascade probe runs it
+ * stats that leave a team bout out (migration 0285, `team-blow-stats-probe.mjs`), and a League that
+ * takes individual Tournaments only (migration 0287, `team-league-probe.mjs`). The kind trigger's
+ * race and the League link's need two connections on committed rows: the cascade probe runs them
  * (`team-kind-race.mjs`).
  */
 
 import { errorOf, OPEN, TOURNAMENT } from './match-rules-probe-kit.mjs';
 import { teamBlowStatsFailures } from './team-blow-stats-probe.mjs';
 import { teamKeyIndexFailures } from './team-key-indexes-probe.mjs';
+import { teamLeagueFailures } from './team-league-probe.mjs';
 import { teamViewFailures } from './team-view-probe.mjs';
 
 // The seed's published team Tournament, its team and the two Fighters of the published Event
@@ -368,6 +370,7 @@ export async function teamTablesFailures(tx) {
     ...(await teamKeyIndexFailures(tx)),
     ...(await teamViewFailures(tx)),
     ...(await teamBlowStatsFailures(tx)),
+    ...(await teamLeagueFailures(tx)),
   ];
   for (const { what, refusedBy, write } of [...CASES, ...TWIN_CASES]) {
     const error = await errorOf(tx, async (sp) => {
