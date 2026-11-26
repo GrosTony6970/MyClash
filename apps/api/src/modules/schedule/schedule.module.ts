@@ -28,5 +28,7 @@ import { ScheduleRunService } from './schedule-run.service';
     ScheduleRunController,
   ],
   providers: [LiveStateService, ScheduleGridService, SchedulePlacementsService, ScheduleRunService],
+  // The MCP door reads the same public schedule the schedule page does.
+  exports: [ScheduleGridService],
 })
 export class ScheduleModule {}

@@ -15,10 +15,13 @@ import { AuthGuard } from '../../common/auth/auth.guard';
 import { API_GLOBAL_PREFIX } from '../../common/global-prefix';
 import { configureHttpApp } from '../../common/http-bootstrap';
 import { GuestJwtService } from '../auth/guest-jwt.service';
+import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
 import { verifyAccessTokenLocally } from '../supabase/access-token';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -69,6 +72,9 @@ beforeAll(async () => {
       { provide: StaffJwtService, useValue: refuse },
       { provide: OrganizationsService, useValue: {} },
       { provide: PublicScheduleService, useValue: {} },
+      { provide: EventsService, useValue: {} },
+      { provide: ScheduleGridService, useValue: {} },
+      { provide: PoolStandingsService, useValue: {} },
       { provide: FightersService, useValue: { getMyDashboard } },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
@@ -131,12 +137,15 @@ describe('the MCP door, over HTTP', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
+      'event_info',
+      'event_schedule',
       'my_events',
       'my_fight_history',
       'my_schedule',
       'my_stats',
       'my_upcoming',
       'my_workshops',
+      'tournament_standings',
       'whoami',
     ]);
   });

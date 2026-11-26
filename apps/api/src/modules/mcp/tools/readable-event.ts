@@ -14,6 +14,8 @@ export interface McpEvent {
   endDate: string | null;
   status: string;
   timezone: string | null;
+  city: string | null;
+  country: string | null;
 }
 
 interface EventRow extends CompetitionEvent {
@@ -22,6 +24,8 @@ interface EventRow extends CompetitionEvent {
   start_date: string | null;
   end_date: string | null;
   timezone: string | null;
+  city: string | null;
+  country: string | null;
 }
 
 /**
@@ -40,7 +44,9 @@ export async function readableEventBySlug(
 ): Promise<McpEvent | null> {
   const { data, error } = await deps.supabase.service
     .from('events')
-    .select('id, name, slug, start_date, end_date, status, timezone, organization_id, event_kind')
+    .select(
+      'id, name, slug, start_date, end_date, status, timezone, city, country, organization_id, event_kind',
+    )
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw new Error(`event read failed: ${error.message}`);
@@ -55,5 +61,7 @@ export async function readableEventBySlug(
     endDate: row.end_date,
     status: row.status,
     timezone: row.timezone,
+    city: row.city,
+    country: row.country,
   };
 }

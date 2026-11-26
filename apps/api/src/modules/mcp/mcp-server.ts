@@ -3,9 +3,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
+import type { EventsService } from '../events/events.service';
 import type { FightersService } from '../fighters/fighters.service';
 import type { MeEventsService } from '../me/me-events.service';
 import type { PublicScheduleService } from '../persons/public-schedule.service';
+import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import type { ScheduleGridService } from '../schedule/schedule-grid.service';
+import { eventInfo } from './tools/event-info';
+import { eventSchedule } from './tools/event-schedule';
+import { tournamentStandings } from './tools/tournament-standings';
 import { myEvents } from './tools/my-events';
 import { myFightHistory } from './tools/my-fight-history';
 import { mySchedule } from './tools/my-schedule';
@@ -27,6 +33,9 @@ export interface McpToolDeps extends EventAuthzDeps {
   meEvents: MeEventsService;
   fighters: FightersService;
   schedule: PublicScheduleService;
+  events: EventsService;
+  scheduleGrid: ScheduleGridService;
+  poolStandings: PoolStandingsService;
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
@@ -99,6 +108,7 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
   );
   registerMyTools(server, caller, deps);
   registerMyRecordTools(server, caller, deps);
+  registerEventTools(server, caller, deps);
   return server;
 }
 
@@ -179,5 +189,61 @@ function registerMyRecordTools(server: McpServer, caller: McpCaller, deps: McpTo
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     () => answer('my_workshops', () => myWorkshops(caller, deps)),
+  );
+}
+
+/** The cap of `event_schedule`; the schema owns it, as for `my_upcoming`. */
+const scheduleLimit = z.number().int().min(1).max(50).optional();
+
+/** An Event or Tournament named by its slug, the handle `my_events` gives. */
+const slug = z.string().min(1).max(200);
+
+/** What the public Event pages show anyone allowed to see the Event, by slug. */
+function registerEventTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
+  server.registerTool(
+    'event_info',
+    {
+      description:
+        "An Event's dates, place, status and the Tournaments the person can see, named by the " +
+        "Event's slug (`event`, from my_events).",
+      inputSchema: { event: slug },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ event }) => answer('event_info', () => eventInfo(event, caller, deps)),
+  );
+  server.registerTool(
+    'tournament_standings',
+    {
+      description:
+        "A Tournament's pool tables (rank, fighter, club, the ruleset's numbers) and bracket " +
+        'rounds, named by the Event slug (`event`) and the Tournament slug (`tournament`, from ' +
+        'event_info). Refuses a Tournament the person cannot see.',
+      inputSchema: { event: slug, tournament: slug },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ event, tournament }) =>
+      answer('tournament_standings', () => tournamentStandings(event, tournament, caller, deps)),
+  );
+  server.registerTool(
+    'event_schedule',
+    {
+      description:
+        "An Event's public bouts, soonest first, with lice, Tournament, round and fighters. " +
+        "Filter by `tournament` (slug) and/or `day` (YYYY-MM-DD, the Event's own day); bouts " +
+        'with no start time come last and match no `day`. `limit` is 1 to 50 (default 20); ' +
+        '`total` counts the bouts before the cap.',
+      inputSchema: {
+        event: slug,
+        tournament: slug.optional(),
+        day: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        limit: scheduleLimit,
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ event, ...filters }) =>
+      answer('event_schedule', () => eventSchedule(event, filters, caller, deps)),
   );
 }

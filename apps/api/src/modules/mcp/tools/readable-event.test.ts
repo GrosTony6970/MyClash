@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { readableEventBySlug } from './readable-event';
 
 const SELECT =
-  'id, name, slug, start_date, end_date, status, timezone, organization_id, event_kind';
+  'id, name, slug, start_date, end_date, status, timezone, city, country, organization_id, event_kind';
 const caller = { userId: 'user-1', email: 'a@b.c', clientId: 'claude-client' };
 
 const row = (over: Record<string, unknown> = {}) => ({
@@ -14,6 +14,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   end_date: '2026-03-15',
   status: 'published',
   timezone: 'Europe/Paris',
+  city: 'Lyon',
+  country: 'FR',
   organization_id: 'org-uuid',
   event_kind: 'standard',
   ...over,
@@ -47,6 +49,8 @@ describe('readableEventBySlug', () => {
       endDate: '2026-03-15',
       status: 'published',
       timezone: 'Europe/Paris',
+      city: 'Lyon',
+      country: 'FR',
     });
     expect(d.from).toHaveBeenCalledWith('events');
     expect(d.select).toHaveBeenCalledWith(SELECT);

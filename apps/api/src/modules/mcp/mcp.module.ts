@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { EventsModule } from '../events/events.module';
 import { FightersModule } from '../fighters/fighters.module';
 import { MeModule } from '../me/me.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PersonsModule } from '../persons/persons.module';
+import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { ConnectedAppsController } from './connected-apps.controller';
 import { ConnectedAppsService } from './connected-apps.service';
 import { McpController } from './mcp.controller';
@@ -13,7 +16,15 @@ import { ProtectedResourceController } from './protected-resource.controller';
 
 /** The MCP door: Claude's connector into MyClash, and the consent page's API that opens it. */
 @Module({
-  imports: [FightersModule, MeModule, OrganizationsModule, PersonsModule],
+  imports: [
+    EventsModule,
+    FightersModule,
+    MeModule,
+    OrganizationsModule,
+    PersonsModule,
+    PoolStandingsModule,
+    ScheduleModule,
+  ],
   controllers: [
     ProtectedResourceController,
     McpController,

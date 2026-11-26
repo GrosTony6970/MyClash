@@ -13,10 +13,13 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { McpDoor } from './mcp-door.decorator';
 import { mcpCallerOf } from './mcp-door.guard';
@@ -49,6 +52,9 @@ export class McpController {
     private readonly orgs: OrganizationsService,
     private readonly schedule: PublicScheduleService,
     private readonly fighters: FightersService,
+    private readonly events: EventsService,
+    private readonly scheduleGrid: ScheduleGridService,
+    private readonly poolStandings: PoolStandingsService,
   ) {}
 
   @Post()
@@ -69,6 +75,9 @@ export class McpController {
         orgs: this.orgs,
         schedule: this.schedule,
         fighters: this.fighters,
+        events: this.events,
+        scheduleGrid: this.scheduleGrid,
+        poolStandings: this.poolStandings,
       });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
