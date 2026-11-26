@@ -21,6 +21,7 @@ const slot = (
   id,
   round: 1,
   position: 1,
+  roundCode: 'LSW-B-F-M1',
   status: 'scheduled',
   matchId: 'm1',
   redFighterName: red.name,

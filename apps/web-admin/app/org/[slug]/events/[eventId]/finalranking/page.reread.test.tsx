@@ -60,6 +60,7 @@ const FINAL: TournamentBracketSlotWire = {
   id: 's1',
   round: 1,
   position: 1,
+  roundCode: 'LSW-B-F-M1',
   redFighterName: 'Ada',
   blueFighterName: 'Grace',
   redClubAbbrev: null,

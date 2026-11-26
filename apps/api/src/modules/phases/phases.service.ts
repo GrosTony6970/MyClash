@@ -76,7 +76,7 @@ import {
   deletePhaseWithItsRequests,
   SCORED_BOUTS_WOULD_BE_DISCARDED,
 } from './discard-fought-bouts';
-import { buildRoundCode } from '../matches/round-code.helper';
+import { bracketCodeConfig, buildRoundCode } from '../matches/round-code.helper';
 import {
   fetchRefereeAssignmentIndex,
   fetchRefereeSkillIndex,
@@ -2013,15 +2013,22 @@ export class PhasesService {
     const liceNameById = new Map<string, string>();
     let assignmentIndex: Awaited<ReturnType<typeof fetchRefereeAssignmentIndex>> = [];
     // The Tournament's kind rides on the same read, for the seeding drift: no slot, no drift.
+    // Its weapon too, for each slot's bout code.
     let entrantKind: unknown;
+    let weapon: string | null = null;
     if (rawSlots.length > 0) {
       const { data: tournamentRow } = await this.supabase.service
         .from('tournaments')
-        .select('event_id, entrant_kind')
+        .select('event_id, entrant_kind, weapon')
         .eq('id', tournamentId)
         .maybeSingle();
-      const row = tournamentRow as { event_id: string | null; entrant_kind?: unknown } | null;
+      const row = tournamentRow as {
+        event_id: string | null;
+        entrant_kind?: unknown;
+        weapon?: string | null;
+      } | null;
       entrantKind = row?.entrant_kind;
+      weapon = row?.weapon ?? null;
       const eventId = row?.event_id ?? null;
       if (eventId) {
         const { data: liceRows } = await this.supabase.service
@@ -2035,6 +2042,10 @@ export class PhasesService {
       }
     }
 
+    // The bracket shape of the bout code, as the bracket screen reads it (`BracketView`): the
+    // winners/losers split only for double elimination.
+    const codeShape = bracketCodeConfig((phase as { config_json?: unknown }).config_json);
+    const isDoubleElim = phaseType === 'double_elim';
     const enrichedSlots = rawSlots.map((s): TournamentBracketSlotWire => {
       const match = matchBySlot.get(s.id) ?? null;
       // poolId is null by construction: a bracket match sits in an elimination
@@ -2050,6 +2061,18 @@ export class PhasesService {
         id: s.id,
         round: s.round,
         position: s.position,
+        // The name people see for the bout. A slot with no bout yet has one too: it has a round
+        // and a position, and every bracket bout stamps its position as its number.
+        roundCode: buildRoundCode({
+          weapon,
+          poolNumber: null,
+          bracketRound: s.round,
+          bracketSize: codeShape.bracketSize,
+          matchNumberLabel: String(s.position),
+          roundNumber: null,
+          wbRounds: isDoubleElim ? codeShape.wbRounds : null,
+          lbRounds: isDoubleElim ? codeShape.lbRounds : null,
+        }),
         // Names, clubs, side keys and the typed sides (call 6 of 1c-1).
         ...bracketSlotSides(s, match, regById, (club) => club?.name ?? null),
         redScore: match?.red_score ?? null,

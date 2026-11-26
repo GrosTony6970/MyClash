@@ -75,6 +75,8 @@ export interface BracketSlotWire {
 
 /** One bracket slot as the organiser's and the pad's bracket read sends it (`getTournamentBracket`). */
 export interface TournamentBracketSlotWire extends BracketSlotWire {
+  /** The bout's code (`buildRoundCode`), the name people see: `LSW-B-SF-M2`. Sent for an empty slot too. */
+  roundCode: string;
   scheduledAt: string | null;
   liceId: string | null;
   source_a_type: string | null;

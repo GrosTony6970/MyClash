@@ -31,6 +31,7 @@ const FINAL: TournamentBracketPayload['slots'][number] = {
   id: 'slot-final',
   round: 1,
   position: 1,
+  roundCode: 'LSW-B-F-M1',
   status: 'completed',
   matchId: 'm-final',
   redFighterName: 'Anna',

@@ -184,11 +184,34 @@ describe('poolsToPrint', () => {
 const SINGLE_ELIM_2 = { bracketSize: 2, wbRounds: null, lbRounds: null };
 const SINGLE_ELIM_4 = { bracketSize: 4, wbRounds: null, lbRounds: null };
 
+/** A bracket slot as the bracket read sends it: no club, no piste, no clock, no referee. */
+function bracketSlot(over: Partial<ApiBracketSlot> = {}): ApiBracketSlot {
+  return {
+    round: 1,
+    position: 1,
+    roundCode: 'LSW-B-F-M1',
+    redFighterName: 'A',
+    blueFighterName: 'B',
+    redClubAbbrev: null,
+    blueClubAbbrev: null,
+    liceId: null,
+    scheduledAt: null,
+    referees: [],
+    ...over,
+  };
+}
+
 describe('bracketToPrint', () => {
   const slots: ApiBracketSlot[] = [
-    { round: 2, position: 1, redFighterName: 'A', blueFighterName: null, roundCode: 'F' },
-    { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D', roundCode: 'SF2' },
-    { round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'SF1' },
+    bracketSlot({ round: 2, position: 1, blueFighterName: null, roundCode: 'F' }),
+    bracketSlot({
+      round: 1,
+      position: 2,
+      redFighterName: 'C',
+      blueFighterName: 'D',
+      roundCode: 'SF2',
+    }),
+    bracketSlot({ round: 1, position: 1, roundCode: 'SF1' }),
   ];
 
   it('groups by round, ordered, with slots sorted by position', () => {
@@ -218,14 +241,8 @@ describe('bracketToPrint', () => {
   it('carries a slot’s planned start through, and null when it has none', () => {
     const rounds = bracketToPrint(
       [
-        {
-          round: 1,
-          position: 1,
-          redFighterName: 'A',
-          blueFighterName: 'B',
-          scheduledAt: '2026-06-06T16:00:00.000Z',
-        },
-        { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D' },
+        bracketSlot({ scheduledAt: '2026-06-06T16:00:00.000Z' }),
+        bracketSlot({ position: 2, redFighterName: 'C', blueFighterName: 'D' }),
       ],
       SINGLE_ELIM_2,
       LICES,
@@ -237,30 +254,24 @@ describe('bracketToPrint', () => {
     expect(rounds[0]?.matches[1]?.scheduledAt).toBeNull();
   });
 
-  it('falls back to a positional code when the slot carries none', () => {
+  // The pack printed `R1-3` for every bracket bout: the bracket read sent no code, so the
+  // positional fallback was the only path that ran. A bout prints the code the API built.
+  it('prints the bout code the bracket read sends', () => {
     const rounds = bracketToPrint(
-      [{ round: 1, position: 3, redFighterName: 'X', blueFighterName: 'Y' }],
-      SINGLE_ELIM_2,
+      [bracketSlot({ round: 1, position: 3, roundCode: 'LSW-B-QF-M3' })],
+      { bracketSize: 8, wbRounds: null, lbRounds: null },
       LICES,
-      () => 'Final',
+      () => 'Quarter-final',
       LABELS.unknownReferee,
     );
-    expect(rounds[0]?.matches[0]?.roundCode).toBe('R1-3');
+    expect(rounds[0]?.matches[0]?.roundCode).toBe('LSW-B-QF-M3');
   });
 
   // Ruling 891: the bracket read sends each bout's referees, and the pack printed none, so a
   // bracket scoresheet and its piste row always said "Not assigned".
   it('prints a bracket bout’s referees, and "Unknown referee" for a blank name', () => {
     const rounds = bracketToPrint(
-      [
-        {
-          round: 1,
-          position: 1,
-          redFighterName: 'A',
-          blueFighterName: 'B',
-          referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }],
-        },
-      ],
+      [bracketSlot({ referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }] })],
       SINGLE_ELIM_2,
       LICES,
       () => 'Final',
@@ -273,7 +284,7 @@ describe('bracketToPrint', () => {
 describe('printPackHtml', () => {
   const pools = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
   const bracketRounds = bracketToPrint(
-    [{ round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'F' }],
+    [bracketSlot({ roundCode: 'F' })],
     SINGLE_ELIM_2,
     LICES,
     () => 'Finale',

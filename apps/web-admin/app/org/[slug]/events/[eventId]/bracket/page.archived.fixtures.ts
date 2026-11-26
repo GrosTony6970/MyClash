@@ -26,6 +26,7 @@ const slot = (
   id,
   round: 1,
   position,
+  roundCode: `LSW-B-SF-M${position}`,
   redFighterName: red?.name ?? null,
   blueFighterName: blue?.name ?? null,
   redClubAbbrev: null,

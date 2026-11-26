@@ -88,7 +88,7 @@ function makeService(seed: Record<string, TableSeed>, kind: 'team' | 'individual
         },
       ],
     },
-    tournaments: { rows: [{ id: T, event_id: null, entrant_kind: kind }] },
+    tournaments: { rows: [{ id: T, event_id: null, entrant_kind: kind, weapon: 'longsword' }] },
     matches: { rows: [] },
     ...seed,
   });
@@ -128,8 +128,8 @@ describe('getTournamentBracket — a team bracket', () => {
 
     expect(selectsFor(supabase.from, 'bracket_slots')).toEqual([SLOT_SELECT]);
     expect(selectsFor(supabase.from, 'matches')).toEqual([BOUT_SELECT]);
-    // One read of the Tournament: the seeding drift takes the kind from it.
-    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['event_id, entrant_kind']);
+    // One read of the Tournament: the seeding drift takes the kind from it, the bout code the weapon.
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['event_id, entrant_kind, weapon']);
     // A team side has no Registration to read.
     expect(selectsFor(supabase.from, 'registrations')).toEqual([]);
   });
@@ -252,6 +252,8 @@ describe('getTournamentBracket — an individual bracket', () => {
         id: 's-1',
         round: 1,
         position: 1,
+        // A semi-final of a bracket of four (bug a: the print pack printed `R1-1`).
+        roundCode: 'LSW-B-SF-M1',
         redFighterName: 'Anna Roux',
         blueFighterName: 'Bruno Morel',
         redClubAbbrev: 'Lyon AMHE',
@@ -321,5 +323,47 @@ describe('getTournamentBracket — an individual bracket', () => {
       red: { sideId: 'reg-anna', kind: 'individual', name: null },
       blue: null,
     });
+  });
+});
+
+/**
+ * Bug a: the bracket read sent no bout code, so the printed bracket sheet fell back to `R1-2` for
+ * every bout. The read now sends the code the bracket screen shows (`BracketView`).
+ */
+describe('getTournamentBracket — the bout code of each slot', () => {
+  it('sends each slot its code, the final with no bout yet included', async () => {
+    const { service } = makeService({ bracket_slots: { rows: TEAM_SLOTS } }, 'team');
+
+    const result = await service.getTournamentBracket(T);
+
+    expect(result!.slots.map((s) => s.roundCode)).toEqual([
+      'LSW-B-SF-M1',
+      'LSW-B-SF-M2',
+      'LSW-B-F-M1',
+    ]);
+  });
+
+  it('names a double-elimination round by its section: the winners final is not the final', async () => {
+    // A bracket of four: winners rounds 1-2, losers rounds 3-4, the grand final is round 5.
+    const { service } = makeService(
+      {
+        phases: {
+          rows: [
+            {
+              id: 'phase-1',
+              tournament_id: T,
+              type: 'double_elim',
+              config_json: { bracketSize: 4, fighterCount: 4, wbRounds: 2, lbRounds: 2 },
+            },
+          ],
+        },
+        bracket_slots: { rows: [slot('s-wbf', { round: 2 }), slot('s-gf', { round: 5 })] },
+      },
+      'individual',
+    );
+
+    const result = await service.getTournamentBracket(T);
+
+    expect(result!.slots.map((s) => s.roundCode)).toEqual(['LSW-B-WBF-M1', 'LSW-B-GF-M1']);
   });
 });
