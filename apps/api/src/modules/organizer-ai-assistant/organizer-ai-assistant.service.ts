@@ -541,7 +541,8 @@ export class OrganizerAIAssistantService {
     bracket_plan:
       '{"kind":"generate_bracket","tournamentId":<string>; optional ' +
       '"phaseType":"single_elim"|"double_elim","qualifyCount":<number>,' +
-      '"bracketSize":<number>,"poolPhaseId":<string>}',
+      '"bracketSize":<number>,"poolPhaseId":<string>. ' +
+      'A team tournament takes "single_elim" only, never "double_elim"}',
     schedule_grid:
       '{"kind":"schedule_match","matchId":<string>,"liceId":<string>,' +
       '"scheduledAt":<ISO-8601 timestamp>}',

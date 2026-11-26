@@ -113,7 +113,8 @@ export const ORGANIZER_CHAT_TOOLS: ToolDefinition[] = [
   {
     name: 'generate_bracket',
     description:
-      'Propose generating an elimination bracket for a tournament. Requires confirmation.',
+      'Propose generating an elimination bracket for a tournament. A team tournament takes ' +
+      'single_elim only, never double_elim. Requires confirmation.',
     parameters: obj(
       {
         tournamentId: S,

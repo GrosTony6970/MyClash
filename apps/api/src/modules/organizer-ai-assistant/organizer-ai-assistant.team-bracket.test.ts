@@ -5,6 +5,7 @@ import {
   writesTo,
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
+import { ORGANIZER_CHAT_TOOLS } from '../organizer-chat/organizer-chat.tools';
 import { withStampedRules } from '../phases/match-rules.fixtures';
 import { PhasesService } from '../phases/phases.service';
 import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
@@ -113,5 +114,25 @@ describe('the assistant generates a team bracket', () => {
     expect(writesTo(supabase, 'organizer_ai_assistant_drafts')[0]?.row).toMatchObject({
       status: 'failed',
     });
+  });
+});
+
+/**
+ * The model is told before it proposes, as the pool plan tells it a team Tournament's spread: a
+ * team Tournament takes a single elimination only. The door above still refuses the other.
+ */
+describe('the assistant tells the model a team bracket is a single elimination', () => {
+  const caveat = /team tournament takes "?single_elim"? only, never "?double_elim"?/;
+
+  it('in the bracket plan it asks for', () => {
+    const contract = (
+      OrganizerAIAssistantService as unknown as { ACTION_CONTRACT: Record<string, string> }
+    ).ACTION_CONTRACT;
+    expect(contract['bracket_plan']).toMatch(caveat);
+  });
+
+  it('in the chat tool generate_bracket', () => {
+    const tool = ORGANIZER_CHAT_TOOLS.find((t) => t.name === 'generate_bracket');
+    expect(tool?.description).toMatch(caveat);
   });
 });

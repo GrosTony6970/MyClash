@@ -62,6 +62,11 @@ describe('the assistant generates Pools for a team Tournament', () => {
       ['id', [T]],
       ['id', [T]],
     ]);
+    // The id is the model's: the kind read, like the Event check before it, keeps to this Event.
+    expect(filtersFor(supabase.from, 'tournaments', 'eq')).toEqual([
+      ['event_id', 'event-1'],
+      ['event_id', 'event-1'],
+    ]);
   });
 
   it("sends the random spread with the model's draw seed", async () => {
