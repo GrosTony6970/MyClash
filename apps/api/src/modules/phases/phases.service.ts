@@ -24,7 +24,15 @@ import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { randomInt } from 'node:crypto';
-import type { TeamEmbed } from '../matches/side-label';
+import type { RegistrationEmbed, TeamEmbed } from '../matches/side-label';
+import {
+  bracketSlotSides,
+  SLOT_TEAM_EMBEDS,
+  slotSideKeys,
+  type SlotSides,
+  type WinnerOfBout,
+} from '../matches/bracket-slot-sides';
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import { storedKind, type EntrantKind } from '../events/tournament-kind';
 import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
 import {
@@ -1900,7 +1908,7 @@ export class PhasesService {
     const { data: slots, error } = await this.supabase.service
       .from('bracket_slots')
       .select(
-        'id, round, position, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id',
+        `id, round, position, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id, ${SLOT_TEAM_EMBEDS}`,
       )
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
@@ -1914,8 +1922,8 @@ export class PhasesService {
     // fetches: the matches keyed by bracket_slot_id (status +
     // scores + matchId), and the registrations referenced by either
     // side of any slot (with persons + clubs embeds for the name +
-    // club label).
-    type RawSlot = {
+    // club label). A team side comes with the slot (`SLOT_TEAM_EMBEDS`).
+    type RawSlot = SlotSides & {
       id: string;
       round: number;
       position: number;
@@ -1923,20 +1931,18 @@ export class PhasesService {
       source_a_ref: string | null;
       source_b_type: string | null;
       source_b_ref: string | null;
-      registration_a_id: string | null;
-      registration_b_id: string | null;
     };
-    const rawSlots = (slots ?? []) as RawSlot[];
+    // A many-to-one embed is one row, not the array the untyped client infers.
+    const rawSlots = (slots ?? []) as unknown as RawSlot[];
     const slotIds = rawSlots.map((s) => s.id);
 
     const matchBySlot = new Map<
       string,
-      {
+      WinnerOfBout & {
         id: string;
         status: string;
         red_score: number | null;
         blue_score: number | null;
-        winner_registration_id: string | null;
         lice_id: string | null;
         scheduled_at: string | null;
       }
@@ -1945,7 +1951,7 @@ export class PhasesService {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
         .select(
-          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, lice_id, scheduled_at',
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, winner_team_id, lice_id, scheduled_at',
         )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as Array<{
@@ -1955,6 +1961,7 @@ export class PhasesService {
         red_score: number | null;
         blue_score: number | null;
         winner_registration_id: string | null;
+        winner_team_id: string | null;
         lice_id: string | null;
         scheduled_at: string | null;
       }>) {
@@ -1964,16 +1971,18 @@ export class PhasesService {
           red_score: m.red_score,
           blue_score: m.blue_score,
           winner_registration_id: m.winner_registration_id ?? null,
+          winner_team_id: m.winner_team_id ?? null,
           lice_id: m.lice_id ?? null,
           scheduled_at: m.scheduled_at ?? null,
         });
       }
     }
 
+    type Club = { name: string | null };
     type EmbeddedPerson = {
       given_name: string | null;
       family_name: string | null;
-      clubs: { name: string | null } | Array<{ name: string | null }> | null;
+      clubs: Club | Club[] | null;
     };
     type RegRow = { id: string; persons: EmbeddedPerson | EmbeddedPerson[] | null };
     const regIds = Array.from(
@@ -1983,7 +1992,7 @@ export class PhasesService {
           .filter((v): v is string => Boolean(v)),
       ),
     );
-    const regById = new Map<string, { fighterName: string | null; clubAbbrev: string | null }>();
+    const regById = new Map<string, RegistrationEmbed<Club>>();
     if (regIds.length > 0) {
       const { data: regRows } = await this.supabase.service
         .from('registrations')
@@ -1993,11 +2002,7 @@ export class PhasesService {
         const person = Array.isArray(r.persons) ? (r.persons[0] ?? null) : r.persons;
         const clubsEmbed = person?.clubs ?? null;
         const club = Array.isArray(clubsEmbed) ? (clubsEmbed[0] ?? null) : clubsEmbed;
-        const name = `${person?.given_name ?? ''} ${person?.family_name ?? ''}`.trim();
-        regById.set(r.id, {
-          fighterName: name || null,
-          clubAbbrev: club?.name ?? null,
-        });
+        regById.set(r.id, { id: r.id, persons: person && { ...person, clubs: club } });
       }
     }
 
@@ -2007,13 +2012,17 @@ export class PhasesService {
     // ungenerated bracket costs exactly what it did before.
     const liceNameById = new Map<string, string>();
     let assignmentIndex: Awaited<ReturnType<typeof fetchRefereeAssignmentIndex>> = [];
+    // The Tournament's kind rides on the same read, for the seeding drift: no slot, no drift.
+    let entrantKind: unknown;
     if (rawSlots.length > 0) {
       const { data: tournamentRow } = await this.supabase.service
         .from('tournaments')
-        .select('event_id')
+        .select('event_id, entrant_kind')
         .eq('id', tournamentId)
         .maybeSingle();
-      const eventId = (tournamentRow as { event_id: string | null } | null)?.event_id ?? null;
+      const row = tournamentRow as { event_id: string | null; entrant_kind?: unknown } | null;
+      entrantKind = row?.entrant_kind;
+      const eventId = row?.event_id ?? null;
       if (eventId) {
         const { data: liceRows } = await this.supabase.service
           .from('lices')
@@ -2026,10 +2035,8 @@ export class PhasesService {
       }
     }
 
-    const enrichedSlots = rawSlots.map((s) => {
+    const enrichedSlots = rawSlots.map((s): TournamentBracketSlotWire => {
       const match = matchBySlot.get(s.id) ?? null;
-      const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
-      const blue = s.registration_b_id ? (regById.get(s.registration_b_id) ?? null) : null;
       // poolId is null by construction: a bracket match sits in an elimination
       // phase, so the scope ladder here is match → lice, never match → pool.
       const referees = match
@@ -2043,10 +2050,8 @@ export class PhasesService {
         id: s.id,
         round: s.round,
         position: s.position,
-        redFighterName: red?.fighterName ?? null,
-        blueFighterName: blue?.fighterName ?? null,
-        redClubAbbrev: red?.clubAbbrev ?? null,
-        blueClubAbbrev: blue?.clubAbbrev ?? null,
+        // Names, clubs, side keys and the typed sides (call 6 of 1c-1).
+        ...bracketSlotSides(s, match, regById, (club) => club?.name ?? null),
         redScore: match?.red_score ?? null,
         blueScore: match?.blue_score ?? null,
         // Recorded winner — forfeits can award the lower-scored fighter, so
@@ -2122,6 +2127,7 @@ export class PhasesService {
     // diff touches is a read, so failing closed to `not-applicable` loses only
     // the warning — the same tolerance `computePoolGate` already applies.
     const seedingDrift = await this.computeSeedingDrift(tournamentId, {
+      entrantKind,
       strategy: (config.seedingStrategy as SeedingStrategy | undefined) ?? 'snake',
       seedingMode: config.populateSeedingMode ?? 'overall',
       topNPerPool: config.populateTopNPerPool,
@@ -2186,18 +2192,20 @@ export class PhasesService {
   private async computeSeedingDrift(
     tournamentId: string,
     input: {
+      /** The Tournament's `entrant_kind`, as the bracket read read it (`storedKind` judges it). */
+      entrantKind: unknown;
       strategy: SeedingStrategy;
       seedingMode: 'overall' | 'top-n-per-pool';
       topNPerPool?: number;
       randomSeed?: number;
-      rawSlots: Array<{
-        id: string;
-        round: number;
-        source_a_ref: string | null;
-        source_b_ref: string | null;
-        registration_a_id: string | null;
-        registration_b_id: string | null;
-      }>;
+      rawSlots: Array<
+        SlotSides & {
+          id: string;
+          round: number;
+          source_a_ref: string | null;
+          source_b_ref: string | null;
+        }
+      >;
       matchBySlot: Map<string, { id: string; status: string }>;
       /** Already fetched by `computePoolGate` — never re-read here. */
       perPool: PerPoolStandings | null;
@@ -2214,14 +2222,17 @@ export class PhasesService {
     // slots carry "seed N" refs too.
     const seedSlots = input.rawSlots
       .filter((slot) => slot.round === 0 || slot.round === 1)
-      .map((slot) => ({
-        id: slot.id,
-        position: 0,
-        seedA: parseSeed(slot.source_a_ref),
-        seedB: parseSeed(slot.source_b_ref),
-        entrantAId: slot.registration_a_id,
-        entrantBId: slot.registration_b_id,
-      }));
+      .map((slot) => {
+        const sides = slotSideKeys(slot);
+        return {
+          id: slot.id,
+          position: 0,
+          seedA: parseSeed(slot.source_a_ref),
+          seedB: parseSeed(slot.source_b_ref),
+          entrantAId: sides.a,
+          entrantBId: sides.b,
+        };
+      });
     // Nothing seeded means nothing to diff — an ungenerated bracket, or one
     // whose first round is entirely fed by advancement.
     if (!seedSlots.some((slot) => slot.seedA != null || slot.seedB != null)) return notApplicable;
@@ -2254,7 +2265,7 @@ export class PhasesService {
       slotCount: seedSlots.length,
       randomSeed: input.randomSeed,
       perPool: input.perPool,
-      kind: await this.readEntrantKind(tournamentId),
+      kind: storedKind(input.entrantKind),
     });
     // The pool gates come back here, not as a throw — a bout back in play, or
     // no pools at all. Both mean "the source is not final", never a drift

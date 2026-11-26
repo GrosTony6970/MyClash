@@ -15,7 +15,6 @@ import { countSideHits, gate } from './check-side-readers.mjs';
 const NOT_YET = [
   'apps/api/src/modules/checkin/checkin.service.ts',
   'apps/api/src/modules/checkin/gear.service.ts',
-  'apps/api/src/modules/events/events.service.ts',
   'apps/api/src/modules/exports/archive-reports.ts',
   'apps/api/src/modules/exports/exports.service.ts',
   'apps/api/src/modules/leagues/leagues.service.ts',

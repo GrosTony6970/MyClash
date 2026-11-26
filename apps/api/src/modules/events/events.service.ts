@@ -68,6 +68,14 @@ import {
   type PublicPoolMemberRow,
 } from './public-pool-sides';
 import { TEAM_SIDE_EMBEDS } from '../matches/bout-side-labels';
+import {
+  bracketSlotSides,
+  SLOT_TEAM_EMBEDS,
+  type SlotSides,
+  type WinnerOfBout,
+} from '../matches/bracket-slot-sides';
+import type { RegistrationEmbed } from '../matches/side-label';
+import type { BracketSlotWire } from '@myclash/types/bracket-side';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { RulesetHashService, type TournamentHashRow } from '../ruleset-hash/ruleset-hash.service';
@@ -2983,22 +2991,21 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('bracket_slots')
       .select(
-        'id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id',
+        `id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id, ${SLOT_TEAM_EMBEDS}`,
       )
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
 
-    type RawSlot = {
+    type RawSlot = SlotSides & {
       id: string;
       round: number;
       position: number;
       source_a_ref: string | null;
       source_b_ref: string | null;
-      registration_a_id: string | null;
-      registration_b_id: string | null;
     };
-    const rawSlots = (data ?? []) as RawSlot[];
+    // A many-to-one embed is one row, not the array the untyped client infers.
+    const rawSlots = (data ?? []) as unknown as RawSlot[];
     const slotIds = rawSlots.map((s) => s.id);
 
     // Enrich slots with the same shape the admin's BracketView consumes —
@@ -3007,12 +3014,11 @@ export class EventsService {
     // embeds for the fighter name + club abbreviation).
     const matchBySlot = new Map<
       string,
-      {
+      WinnerOfBout & {
         id: string;
         status: string;
         red_score: number | null;
         blue_score: number | null;
-        winner_registration_id: string | null;
         match_number_label: string | null;
         liceName: string | null;
       }
@@ -3021,7 +3027,7 @@ export class EventsService {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
         .select(
-          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, match_number_label, lice_id, lices(name)',
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, winner_team_id, match_number_label, lice_id, lices(name)',
         )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as unknown as Array<{
@@ -3031,6 +3037,7 @@ export class EventsService {
         red_score: number | null;
         blue_score: number | null;
         winner_registration_id: string | null;
+        winner_team_id: string | null;
         match_number_label: string | null;
         lices: { name: string | null } | null;
       }>) {
@@ -3040,17 +3047,14 @@ export class EventsService {
           red_score: m.red_score,
           blue_score: m.blue_score,
           winner_registration_id: m.winner_registration_id,
+          winner_team_id: m.winner_team_id,
           match_number_label: m.match_number_label,
           liceName: m.lices?.name ?? null,
         });
       }
     }
 
-    type EmbeddedPerson = {
-      given_name: string | null;
-      family_name: string | null;
-      clubs: { name: string | null; abbreviation: string | null } | null;
-    };
+    type Club = { name: string | null; abbreviation: string | null };
     const regIds = Array.from(
       new Set(
         rawSlots
@@ -3058,23 +3062,14 @@ export class EventsService {
           .filter((v): v is string => Boolean(v)),
       ),
     );
-    const regById = new Map<string, { fighterName: string | null; clubAbbrev: string | null }>();
+    const regById = new Map<string, RegistrationEmbed<Club>>();
     if (regIds.length > 0) {
       const { data: regRows } = await this.supabase.service
         .from('registrations')
         .select('id, persons(given_name, family_name, clubs(name, abbreviation))')
         .in('id', regIds);
-      for (const r of (regRows ?? []) as unknown as Array<{
-        id: string;
-        persons: EmbeddedPerson | null;
-      }>) {
-        const person = r.persons;
-        const club = person?.clubs ?? null;
-        const name = `${person?.given_name ?? ''} ${person?.family_name ?? ''}`.trim();
-        regById.set(r.id, {
-          fighterName: name || null,
-          clubAbbrev: club?.abbreviation ?? club?.name ?? null,
-        });
+      for (const r of (regRows ?? []) as unknown as RegistrationEmbed<Club>[]) {
+        regById.set(r.id, r);
       }
     }
 
@@ -3082,18 +3077,14 @@ export class EventsService {
     const matchIds = Array.from(new Set(Array.from(matchBySlot.values()).map((m) => m.id)));
     const refereesByMatch = await this.getPublishedRefereesByMatch(eventId, matchIds);
 
-    const enrichedSlots = rawSlots.map((s) => {
+    const enrichedSlots = rawSlots.map((s): BracketSlotWire => {
       const match = matchBySlot.get(s.id) ?? null;
-      const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
-      const blue = s.registration_b_id ? (regById.get(s.registration_b_id) ?? null) : null;
       return {
         id: s.id,
         round: s.round,
         position: s.position,
-        redFighterName: red?.fighterName ?? null,
-        blueFighterName: blue?.fighterName ?? null,
-        redClubAbbrev: red?.clubAbbrev ?? null,
-        blueClubAbbrev: blue?.clubAbbrev ?? null,
+        // Names, clubs, side keys and the typed sides (call 6 of 1c-1).
+        ...bracketSlotSides(s, match, regById, (club) => club?.abbreviation ?? club?.name ?? null),
         redScore: match?.red_score ?? null,
         blueScore: match?.blue_score ?? null,
         // Forfeits can complete a match with the lower score winning — the

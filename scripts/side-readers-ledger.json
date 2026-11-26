@@ -11,9 +11,9 @@
       "why": "1c: the gear check names the Fighters of a bout by Registration (`:144`-`:152`); named members are people of 1c"
     },
     "apps/api/src/modules/events/events.service.ts": {
-      "verdict": "not-yet",
-      "hits": 35,
-      "why": "1c: the public bracket reads its slots and bouts by Registration (`getPublishedBracket`, `:2979`-`:3098`); single elimination is 1c"
+      "verdict": "side-key",
+      "hits": 18,
+      "why": "the public bracket (`getPublishedBracket`) reads both kinds of each slot side (`SLOT_TEAM_EMBEDS`) and the bout's two winner columns, and names each side through `bracketSlotSides` (`sideLabel`, keyed with `sideKey`); the Registration ids stay on the wire under their own names, null on a team side. The public Pool bouts read both kinds of each side (`TEAM_SIDE_EMBEDS`), the Pool composition both kinds of seat"
     },
     "apps/api/src/modules/events/public-pool-sides.ts": {
       "verdict": "side-key",
@@ -74,6 +74,11 @@
       "verdict": "side-key",
       "hits": 2,
       "why": "builds each side with `sideKey` from the Registration and team columns (`:21`-`:22`)"
+    },
+    "apps/api/src/modules/matches/bracket-slot-sides.ts": {
+      "verdict": "side-key",
+      "hits": 12,
+      "why": "the sides of a bracket slot for both bracket reads: `SLOT_TEAM_EMBEDS` reads the team of each side beside its Registration column; `slotSideKeys` and `bracketSlotSides` key each side and the recorded winner with `sideKey` and name each side through `sideLabel`"
     },
     "apps/api/src/modules/matches/clock.service.ts": {
       "verdict": "side-key",
@@ -264,8 +269,8 @@
     },
     "apps/api/src/modules/phases/phases.service.ts": {
       "verdict": "side-key",
-      "hits": 62,
-      "why": "the bracket writers name a side by kind (`seatColumns`); a team bracket is sized and seeded by its teams; a team Tournament takes single elimination only, checked for every caller at generation, fill and reseed (`assertTeamBracket`, call 2). The Pools take teams (`poolEntrantColumns`, `poolSeatOf`). The bracket read and its seeding drift (`getTournamentBracket`, `computeSeedingDrift`) still read slots by Registration: task T6 of 1c-1 moves them to side keys and recounts this line"
+      "hits": 51,
+      "why": "the bracket writers name a side by kind (`seatColumns`); a team bracket is sized and seeded by its teams; a team Tournament takes single elimination only, checked for every caller at generation, fill and reseed (`assertTeamBracket`, call 2). The Pools take teams (`poolEntrantColumns`, `poolSeatOf`). The bracket read (`getTournamentBracket`, also the pad's) reads both kinds of each slot side and the bout's two winner columns, and names each side through `bracketSlotSides` (`sideLabel`, keyed with `sideKey`); its seeding drift (`computeSeedingDrift`) compares the slots by side key (`slotSideKeys`). The Registration ids stay on the wire under their own names, null on a team side"
     },
     "apps/api/src/modules/phases/pool-entrant.ts": {
       "verdict": "no-side-read",
@@ -839,6 +844,11 @@
       "verdict": "no-side-read",
       "hits": 1,
       "why": "names `registration_id` in a comment about the embed shape (`:7`); its rows are keyed `entrantId`"
+    },
+    "packages/types/src/bracket-side.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "the bracket slot the two bracket reads send: `redSideId`, `blueSideId`, `winnerSideId` and the typed `red` / `blue` sides are side keys the API builds with `sideKey`; the Registration ids beside them keep their meaning, null on a team side"
     },
     "packages/types/src/final-ranking-core.ts": {
       "verdict": "not-yet",

@@ -1747,7 +1747,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['redFighterName']).toBe('Alice Smith');
       expect(found['redClubAbbrev']).toBe('Lyon AMHE');
     });
@@ -1788,7 +1788,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slots = result!.slots as Array<Record<string, unknown>>;
+      const slots = result!.slots;
 
       expect(slots.find((s) => s['id'] === 's-1')?.['scheduledAt']).toBe(
         '2026-06-06T09:05:00.000Z',
@@ -1824,7 +1824,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['matchId']).toBe('match-1');
       expect(found['status']).toBe('completed');
       expect(found['redScore']).toBe(5);
@@ -1852,7 +1852,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      expect((result!.slots[0] as Record<string, unknown>)['liceId']).toBe('lice-42');
+      expect(result!.slots[0]!.liceId).toBe('lice-42');
     });
 
     it("empty slot returns null-shaped fields (not undefined) so MatchCard renders '-'", async () => {
@@ -1876,7 +1876,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['redFighterName']).toBeNull();
       expect(found['blueFighterName']).toBeNull();
       expect(found['redScore']).toBeNull();
@@ -1971,7 +1971,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['liceName']).toBe('Lice 2');
       expect(found['referees']).toEqual([
         {
@@ -1991,7 +1991,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['liceName']).toBeNull();
       expect(found['referees']).toEqual([]);
     });

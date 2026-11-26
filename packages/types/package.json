@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./bracket-side": {
+      "types": "./dist/bracket-side.d.ts",
+      "default": "./dist/bracket-side.js"
+    },
     "./effective-rules": {
       "types": "./dist/effective-rules.d.ts",
       "default": "./dist/effective-rules.js"
