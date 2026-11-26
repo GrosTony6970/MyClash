@@ -256,6 +256,17 @@ describe('AssignmentBoardService.judgeWrite', () => {
     expect(error.getResponse()).toMatchObject({ code: 'referee_needs_confirmation' });
   });
 
+  it('judgeVerdict answers a Pool crew write without refusing it, her own bouts skipped', async () => {
+    const crew = write({ matchIds: ['m-1', 'm-2', 'm-3'], skipOwnBouts: true });
+    const judged = await service.judgeVerdict('event-1', crew);
+    expect(judged.verdict).toMatchObject({
+      level: 'discouraged',
+      reasons: [expect.objectContaining({ code: 'own_pool', level: 'discouraged' })],
+    });
+    expect(judged.matchIds).toEqual(['m-2']);
+    expect(judged.skippedMatchIds).toEqual(['m-1', 'm-3']);
+  });
+
   it('judges a whole Pool as the board does (the AI door)', async () => {
     const error = await refusal(write({ poolId: 'pool-a' }));
     expect(error.getResponse()).toMatchObject({ code: 'referee_needs_confirmation' });
