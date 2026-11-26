@@ -2600,6 +2600,7 @@ export const organizer = {
     emptyRanking: 'The final ranking appears once bracket matches are played.',
     colRank: 'Rank',
     colFighter: 'Fighter',
+    colTeam: 'Team',
     colResult: 'Result',
     colPoolScore: 'Pool score',
     resultChampion: 'Champion',

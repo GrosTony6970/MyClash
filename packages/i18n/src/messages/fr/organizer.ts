@@ -2569,6 +2569,7 @@ export const organizer = {
     emptyRanking: 'Le classement final apparaît une fois les matchs du tableau joués.',
     colRank: 'Rang',
     colFighter: 'Combattant',
+    colTeam: 'Équipe',
     colResult: 'Résultat',
     colPoolScore: 'Score de poule',
     resultChampion: 'Champion',

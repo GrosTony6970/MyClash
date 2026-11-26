@@ -502,7 +502,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/compensation/page.tsx:60",
     "apps/web-admin/app/org/[slug]/events/[eventId]/compensation/plan/page.tsx:651",
     "apps/web-admin/app/org/[slug]/events/[eventId]/compensation/plan/page.tsx:67",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/finalranking/page.tsx:52",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/finalranking/page.tsx:55",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardCard.tsx:19",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowView.tsx:20",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/LiveBoard.tsx:51",

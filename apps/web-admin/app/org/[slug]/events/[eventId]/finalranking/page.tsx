@@ -17,6 +17,7 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
+  TeamChip,
   TournamentColorDot,
   useToast,
   computeFinalRanking,
@@ -38,6 +39,7 @@ import { openPrintWindow } from '@/lib/print-window';
 import { downloadCsv } from '@/lib/csv-file';
 import type { CsvFormat } from '@myclash/types';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
+import { seatKindOf } from '../pools/pool-seats';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -45,6 +47,7 @@ interface Tournament {
   id: string;
   name: string;
   color?: string | null;
+  entrant_kind?: string | null;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -90,9 +93,10 @@ export default function FinalRankingPage() {
     [bracket, poolEntries],
   );
 
-  const tournamentName =
-    tournaments.find((tour) => tour.id === selectedTournament)?.name ??
-    t('organizer.finalRanking.tournamentFallback');
+  const selected = tournaments.find((tour) => tour.id === selectedTournament) ?? null;
+  const tournamentName = selected?.name ?? t('organizer.finalRanking.tournamentFallback');
+  // A team Tournament ranks teams: the column says so (call 7 of slice 1c-1).
+  const ranksTeams = seatKindOf(selected) === 'team';
   const exportRows = useMemo<ExportRow[]>(
     () =>
       ranking.map((entry) => ({
@@ -108,7 +112,7 @@ export default function FinalRankingPage() {
   // The columns of the file and the print, in the reader's language (O20).
   const headers: RankingHeaders = [
     t('organizer.csvColumns.rank'),
-    t('organizer.csvColumns.fighter'),
+    ranksTeams ? t('organizer.csvColumns.team') : t('organizer.csvColumns.fighter'),
     t('organizer.csvColumns.club'),
     t('organizer.csvColumns.result'),
     t('organizer.csvColumns.poolScore'),
@@ -221,7 +225,11 @@ export default function FinalRankingPage() {
             <DataTableCell as="th" className="w-16 text-center">
               {t('organizer.finalRanking.colRank')}
             </DataTableCell>
-            <DataTableCell as="th">{t('organizer.finalRanking.colFighter')}</DataTableCell>
+            <DataTableCell as="th">
+              {ranksTeams
+                ? t('organizer.finalRanking.colTeam')
+                : t('organizer.finalRanking.colFighter')}
+            </DataTableCell>
             <DataTableCell as="th">{t('organizer.finalRanking.colResult')}</DataTableCell>
             <DataTableCell as="th" className="text-right">
               {t('organizer.finalRanking.colPoolScore')}
@@ -237,7 +245,10 @@ export default function FinalRankingPage() {
                   </span>
                 </DataTableCell>
                 <DataTableCell>
-                  <span className="font-medium text-foreground">{entry.fighterName}</span>
+                  <span className="font-medium text-foreground">
+                    <TeamChip colour={entry.colour} />
+                    {entry.fighterName}
+                  </span>
                   {entry.clubAbbrev && (
                     <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                       {entry.clubAbbrev}
