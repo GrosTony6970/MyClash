@@ -1,7 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { canReadTournament } from '../../../common/auth/competition-visibility';
 import { QUERY_ACCESS_POLICIES } from '../../tournament-query/dto/tournament-query.dto';
 import {
   assertQueryAccess,
@@ -16,8 +15,8 @@ import {
 } from '../../tournament-query/tournament-query.tools';
 import type { ToolResult, TournamentContext } from '../../tournament-query/tournament-query.types';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
-import { answer, slug, type McpRefusal } from './mcp-answer';
-import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
+import { answer, isRefusal, slug, type McpRefusal } from './mcp-answer';
+import { readableTournamentId } from './readable-event';
 
 /**
  * `get_pool_standings` stays in the panel only: `tournament_standings` already answers it from the
@@ -75,37 +74,6 @@ function inputOf(spec: QueryToolSpec): Record<string, z.ZodType> {
 }
 
 /**
- * The id of the Tournament a call names, or the refusal for it. The Event goes through the public
- * Event gate (call C11), then the Tournament through the public Tournament gate, before any
- * setting is read: a hidden (draft) Tournament is unknown to a non-insider, whatever the setting
- * admits, and its name is not said.
- */
-async function readableTournamentId(
-  eventSlug: string,
-  tournamentSlug: string,
-  caller: McpCaller,
-  deps: McpToolDeps,
-): Promise<string | McpRefusal> {
-  const event = await readableEventBySlug(eventSlug, caller, deps);
-  if (!event) return noEventRefusal(eventSlug);
-
-  const { data, error } = await deps.supabase.service
-    .from('tournaments')
-    .select('id')
-    .eq('event_id', event.id)
-    .eq('slug', tournamentSlug)
-    .maybeSingle();
-  if (error) throw new Error(`tournament read failed: ${error.message}`);
-  if (!data) return noTournamentRefusal(tournamentSlug, event);
-  const tournamentId = (data as { id: string }).id;
-  const reader = { userId: caller.userId, staff: null };
-  if (!(await canReadTournament(deps, tournamentId, reader))) {
-    return noTournamentRefusal(tournamentSlug, event);
-  }
-  return tournamentId;
-}
-
-/**
  * The refusal of a caller the Tournament's setting does not admit, or null. Only a
  * ForbiddenException is a refusal (call C12); any other throw is a failed read, and `answer()`
  * turns it into the generic failure. An UnauthorizedException cannot come here (a door caller
@@ -152,8 +120,9 @@ async function queryTool(
     event: string;
     tournament: string;
   } & Record<string, unknown>;
-  const tournamentId = await readableTournamentId(event, tournamentSlug, caller, deps);
-  if (typeof tournamentId !== 'string') return tournamentId;
+  const readable = await readableTournamentId(event, tournamentSlug, caller, deps);
+  if (isRefusal(readable)) return readable;
+  const { tournamentId } = readable;
 
   const [tournament, settings] = await Promise.all([
     queryTournamentContext(deps.supabase, tournamentId),

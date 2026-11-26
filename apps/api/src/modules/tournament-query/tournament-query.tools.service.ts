@@ -787,7 +787,11 @@ function empty(
  * over longer names that merely contain it ("Grace Hopper" vs "Grace Hopperton"); two with that
  * same exact name stay a list. The one owner of this rule, for fighters and referees.
  */
-function namedBest<T>(items: T[], nameOf: (item: T) => string | null | undefined, text: string) {
+export function namedBest<T>(
+  items: T[],
+  nameOf: (item: T) => string | null | undefined,
+  text: string,
+) {
   const wanted = text.trim();
   if (!wanted) return [];
   const found = items.filter((item) => contains(nameOf(item), wanted));

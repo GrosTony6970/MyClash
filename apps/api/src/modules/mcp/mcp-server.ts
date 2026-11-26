@@ -3,14 +3,18 @@ import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { EventsService } from '../events/events.service';
 import type { FightersService } from '../fighters/fighters.service';
+import type { MatchesService } from '../matches/matches.service';
 import type { MeEventsService } from '../me/me-events.service';
 import type { PublicScheduleService } from '../persons/public-schedule.service';
 import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import type { AssignmentBoardService } from '../referees/assignment-board.service';
+import type { QualificationsService } from '../referees/qualifications.service';
 import type { ScheduleGridService } from '../schedule/schedule-grid.service';
 import type { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { eventInfo } from './tools/event-info';
 import { eventSchedule } from './tools/event-schedule';
 import { answer, slug } from './tools/mcp-answer';
+import { previewRefereeAssignment } from './tools/preview-referee-assignment';
 import { registerOrganiserTools } from './tools/tournament-query';
 import { tournamentStandings } from './tools/tournament-standings';
 import { myEvents } from './tools/my-events';
@@ -38,6 +42,11 @@ export interface McpToolDeps extends EventAuthzDeps {
   scheduleGrid: ScheduleGridService;
   poolStandings: PoolStandingsService;
   queryTools: TournamentQueryToolsService;
+  matches: MatchesService;
+  refereeBoard: AssignmentBoardService;
+  qualifications: QualificationsService;
+  /** Seals a write preview's confirmation; null when the server has no secret (writes fail). */
+  confirmKey: Buffer | null;
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
@@ -63,7 +72,34 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
   registerMyRecordTools(server, caller, deps);
   registerEventTools(server, caller, deps);
   registerOrganiserTools(server, caller, deps);
+  registerRefereeWriteTools(server, caller, deps);
   return server;
+}
+
+/** Preview → yes → apply for one referee on one Match (slice 4a). */
+function registerRefereeWriteTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
+  server.registerTool(
+    'preview_referee_assignment',
+    {
+      description:
+        'Preview putting a referee on one Match in a role, in place of whoever holds it, or ' +
+        'taking the holder off (`referee`: null). Names the Match by the Event slug (`event`), ' +
+        'the Tournament slug (`tournament`) and its round code (`match`, e.g. LSW-P2-M04, as ' +
+        'event_schedule shows it); the role by its name; the referee by full name. Changes ' +
+        'nothing: it answers the change, the crew before and after, every warning and a ' +
+        "`confirmation` for apply_referee_assignment. For the Event's organisers (editor or above).",
+      inputSchema: {
+        event: slug,
+        tournament: slug,
+        match: z.string().min(1).max(100),
+        role: z.string().min(1).max(200),
+        referee: z.string().min(1).max(200).nullable(),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    (input) =>
+      answer('preview_referee_assignment', () => previewRefereeAssignment(input, caller, deps)),
+  );
 }
 
 /**

@@ -52,6 +52,8 @@
     "src/modules/mcp/tools/no-raw-ids.test-helper.ts",
     // The query tools' shared test doubles (Claude's door and the panel's service). Both import vitest.
     "src/modules/mcp/tools/tournament-query.test-helper.ts",
+    // The referee preview's recording double, shared by its two test files. It imports vitest.
+    "src/modules/mcp/tools/preview-referee-assignment.test-helper.ts",
     "src/modules/tournament-query/tournament-query.tools.fixtures.ts",
     // Found by scripts/check-test-code-leak.mjs, not by inspection — a fifth
     // convention (*.harness.ts) that no glob written for the other four would

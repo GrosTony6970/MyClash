@@ -11,20 +11,25 @@ import {
 } from '@nestjs/common';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
+import { MatchesService } from '../matches/matches.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { AssignmentBoardService } from '../referees/assignment-board.service';
+import { QualificationsService } from '../referees/qualifications.service';
 import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { McpDoor } from './mcp-door.decorator';
 import { mcpCallerOf } from './mcp-door.guard';
 import { buildMcpServer } from './mcp-server';
+import { confirmationKey } from './tools/write-confirmation';
 
 /** JSON-RPC's own "internal error", for a request the door could not finish. */
 export const MCP_INTERNAL_ERROR = JSON.stringify({
@@ -46,6 +51,7 @@ export const MCP_INTERNAL_ERROR = JSON.stringify({
 @Controller('mcp')
 export class McpController {
   private readonly logger = new Logger(McpController.name);
+  private readonly confirmKey: Buffer | null;
 
   constructor(
     private readonly meEvents: MeEventsService,
@@ -57,7 +63,16 @@ export class McpController {
     private readonly scheduleGrid: ScheduleGridService,
     private readonly poolStandings: PoolStandingsService,
     private readonly queryTools: TournamentQueryToolsService,
-  ) {}
+    private readonly matches: MatchesService,
+    private readonly refereeBoard: AssignmentBoardService,
+    private readonly qualifications: QualificationsService,
+    config: ConfigService,
+  ) {
+    // Derived once: the tools never read the environment. No secret, no key: a write preview
+    // then fails rather than hand out a token apply could not check.
+    const secret = config.get<string>('SUPABASE_JWT_SECRET');
+    this.confirmKey = secret ? confirmationKey(secret) : null;
+  }
 
   @Post()
   @ApiOperation({
@@ -81,6 +96,10 @@ export class McpController {
         scheduleGrid: this.scheduleGrid,
         poolStandings: this.poolStandings,
         queryTools: this.queryTools,
+        matches: this.matches,
+        refereeBoard: this.refereeBoard,
+        qualifications: this.qualifications,
+        confirmKey: this.confirmKey,
       });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

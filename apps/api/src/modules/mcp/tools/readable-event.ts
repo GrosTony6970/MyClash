@@ -1,4 +1,8 @@
-import { canReadEvent, type CompetitionEvent } from '../../../common/auth/competition-visibility';
+import {
+  canReadEvent,
+  canReadTournament,
+  type CompetitionEvent,
+} from '../../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../../common/auth/event-authz';
 import type { McpCaller } from '../mcp-server';
 import type { McpRefusal } from './mcp-answer';
@@ -75,4 +79,35 @@ export async function readableEventBySlug(
     city: row.city,
     country: row.country,
   };
+}
+
+/**
+ * The id of the Tournament a call names, with its Event, or the refusal for it. The Event goes
+ * through the public Event gate (call C11), then the Tournament through the public Tournament
+ * gate, before any setting is read: a hidden (draft) Tournament is unknown to a non-insider,
+ * whatever the setting admits, and its name is not said.
+ */
+export async function readableTournamentId(
+  eventSlug: string,
+  tournamentSlug: string,
+  caller: McpCaller,
+  deps: EventAuthzDeps,
+): Promise<{ event: McpEvent; tournamentId: string } | McpRefusal> {
+  const event = await readableEventBySlug(eventSlug, caller, deps);
+  if (!event) return noEventRefusal(eventSlug);
+
+  const { data, error } = await deps.supabase.service
+    .from('tournaments')
+    .select('id')
+    .eq('event_id', event.id)
+    .eq('slug', tournamentSlug)
+    .maybeSingle();
+  if (error) throw new Error(`tournament read failed: ${error.message}`);
+  if (!data) return noTournamentRefusal(tournamentSlug, event);
+  const tournamentId = (data as { id: string }).id;
+  const reader = { userId: caller.userId, staff: null };
+  if (!(await canReadTournament(deps, tournamentId, reader))) {
+    return noTournamentRefusal(tournamentSlug, event);
+  }
+  return { event, tournamentId };
 }

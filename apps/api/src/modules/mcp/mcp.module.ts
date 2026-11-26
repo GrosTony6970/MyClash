@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../events/events.module';
 import { FightersModule } from '../fighters/fighters.module';
+import { MatchesModule } from '../matches/matches.module';
 import { MeModule } from '../me/me.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PersonsModule } from '../persons/persons.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
+import { RefereesModule } from '../referees/referees.module';
 import { ScheduleModule } from '../schedule/schedule.module';
 import { TournamentQueryModule } from '../tournament-query/tournament-query.module';
 import { ConnectedAppsController } from './connected-apps.controller';
@@ -20,10 +22,12 @@ import { ProtectedResourceController } from './protected-resource.controller';
   imports: [
     EventsModule,
     FightersModule,
+    MatchesModule,
     MeModule,
     OrganizationsModule,
     PersonsModule,
     PoolStandingsModule,
+    RefereesModule,
     ScheduleModule,
     TournamentQueryModule,
   ],

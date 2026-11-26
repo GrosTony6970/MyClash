@@ -17,7 +17,7 @@ import type { RefereeAssignmentRow } from './resolve-match-referees';
  * unconfirmed referee is still the one standing on the piste — the same filter
  * the match-summary endpoint has always used.
  */
-const ACTIVE_STATUSES = ['assigned', 'confirmed', 'pending'] as const;
+export const ACTIVE_STATUSES = ['assigned', 'confirmed', 'pending'] as const;
 
 interface PersonEmbed {
   given_name?: string | null;

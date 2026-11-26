@@ -20,10 +20,13 @@ import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
+import { MatchesService } from '../matches/matches.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { AssignmentBoardService } from '../referees/assignment-board.service';
+import { QualificationsService } from '../referees/qualifications.service';
 import { ScheduleGridService } from '../schedule/schedule-grid.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
 import { verifyAccessTokenLocally } from '../supabase/access-token';
@@ -87,6 +90,9 @@ beforeAll(async () => {
       { provide: ScheduleGridService, useValue: {} },
       { provide: PoolStandingsService, useValue: {} },
       { provide: TournamentQueryToolsService, useValue: {} },
+      { provide: MatchesService, useValue: {} },
+      { provide: AssignmentBoardService, useValue: {} },
+      { provide: QualificationsService, useValue: {} },
       { provide: FightersService, useValue: { getMyDashboard } },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
@@ -169,6 +175,7 @@ describe('the MCP door, over HTTP', () => {
       'my_stats',
       'my_upcoming',
       'my_workshops',
+      'preview_referee_assignment',
       'rank_fighters',
       'tournament_standings',
       'whoami',
