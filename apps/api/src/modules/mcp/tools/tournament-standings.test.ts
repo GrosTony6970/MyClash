@@ -34,10 +34,13 @@ const standings = {
       redScore: 5,
       blueScore: 3,
       winnerRegistrationId: id(6),
+      winnerSideId: id(6),
       status: 'completed',
       matchId: id(7),
       redRegistrationId: id(6),
       blueRegistrationId: id(8),
+      redSideId: id(6),
+      blueSideId: id(8),
       referees: [{ displayName: 'Ref One' }],
     },
     {
@@ -49,10 +52,13 @@ const standings = {
       redScore: null,
       blueScore: null,
       winnerRegistrationId: null,
+      winnerSideId: null,
       status: 'scheduled',
       matchId: null,
       redRegistrationId: id(2),
       blueRegistrationId: id(3),
+      redSideId: id(2),
+      blueSideId: id(3),
       referees: [],
     },
     {
@@ -64,10 +70,13 @@ const standings = {
       redScore: 1,
       blueScore: 4,
       winnerRegistrationId: id(4),
+      winnerSideId: id(4),
       status: 'completed',
       matchId: null,
       redRegistrationId: id(5),
       blueRegistrationId: id(4),
+      redSideId: id(5),
+      blueSideId: id(4),
       referees: [],
     },
   ],
@@ -196,6 +205,7 @@ describe('tournament_standings', () => {
     position,
     redFighterName: red,
     winnerRegistrationId: null,
+    winnerSideId: null,
     redScore: null,
     blueScore: null,
   });
@@ -257,6 +267,32 @@ describe('tournament_standings', () => {
       ['Winners Semi Final', ['w1']],
       ['Winners Final', ['w2', 'lb-final-side']],
     ]);
+  });
+
+  it('names the winning team of a team bout, which records no Registration', async () => {
+    // A team side has no Registration: the wire sends the team's id as the side key and null
+    // Registration ids, so a winner judged by Registration would be nobody.
+    const teamFinal = {
+      ...standings.bracketSlots[0]!,
+      redFighterName: 'Lyon Longswords',
+      blueFighterName: 'Dijon Blades',
+      redScore: 3,
+      blueScore: 5,
+      winnerRegistrationId: null,
+      redRegistrationId: null,
+      blueRegistrationId: null,
+      redSideId: id(1),
+      blueSideId: id(2),
+      winnerSideId: id(2),
+    };
+    const getStandings = vi
+      .fn()
+      .mockResolvedValue({ ...standings, pools: [], bracketSlots: [teamFinal] });
+    const d = depsFor({ event: eventRow, getStandings });
+    const result = (await tournamentStandings('fal-2026', 'longsword', caller, d.deps)) as {
+      bracket: { fights: { winner: string | null }[] }[];
+    };
+    expect(result.bracket[0]?.fights[0]?.winner).toBe('Dijon Blades');
   });
 
   it('says a Swiss Tournament runs Swiss and how far it is, from the payload', async () => {
