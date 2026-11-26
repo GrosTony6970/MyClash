@@ -1,4 +1,5 @@
-import { isRefusal, type McpCaller, type McpRefusal, type McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpToolDeps } from '../mcp-server';
+import { isRefusal, type McpRefusal } from './mcp-answer';
 import { ownDashboard } from './no-fighter-profile';
 
 interface BoutTally {

@@ -1,6 +1,7 @@
 import { zonedDay } from '@myclash/time';
 import type { ScheduleGridMatch } from '../../schedule/schedule-grid-match';
-import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpToolDeps } from '../mcp-server';
+import type { McpRefusal } from './mcp-answer';
 import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
 /** How many bouts a call answers when the model names no `limit`. The bounds live in the schema. */

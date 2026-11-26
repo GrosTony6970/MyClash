@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import type { McpRefusal, McpToolDeps } from '../mcp-server';
+import type { McpToolDeps } from '../mcp-server';
+import type { McpRefusal } from './mcp-answer';
 
 type Dashboard = Awaited<ReturnType<McpToolDeps['fighters']['getMyDashboard']>>;
 

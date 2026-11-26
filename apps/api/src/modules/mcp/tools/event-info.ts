@@ -1,4 +1,5 @@
-import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpToolDeps } from '../mcp-server';
+import type { McpRefusal } from './mcp-answer';
 import { noEventRefusal, readableEventBySlug } from './readable-event';
 
 export interface EventInfoAnswer {

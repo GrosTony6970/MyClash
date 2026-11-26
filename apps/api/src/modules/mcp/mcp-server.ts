@@ -1,6 +1,4 @@
-import { Logger } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { EventsService } from '../events/events.service';
@@ -12,6 +10,7 @@ import type { ScheduleGridService } from '../schedule/schedule-grid.service';
 import type { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { eventInfo } from './tools/event-info';
 import { eventSchedule } from './tools/event-schedule';
+import { answer, slug } from './tools/mcp-answer';
 import { registerOrganiserTools } from './tools/tournament-query';
 import { tournamentStandings } from './tools/tournament-standings';
 import { myEvents } from './tools/my-events';
@@ -43,55 +42,6 @@ export interface McpToolDeps extends EventAuthzDeps {
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
 const MCP_SERVER_VERSION = '1.1.0';
-
-const logger = new Logger('McpServer');
-
-/**
- * The answer of a tool that failed. The SDK would send the error's own message, which can be a
- * database's; this one says nothing about the cause, and the cause goes to the log.
- */
-function failed(tool: string, error: unknown): CallToolResult {
-  logger.error(
-    `mcp tool ${tool} failed: ${error instanceof Error ? error.message : String(error)}`,
-  );
-  return {
-    isError: true,
-    content: [{ type: 'text', text: 'MyClash could not answer this. Try again later.' }],
-  };
-}
-
-/** The answer of a tool that refuses with one plain sentence: a tool error result, never a throw. */
-function toolRefusal(text: string): CallToolResult {
-  return { isError: true, content: [{ type: 'text', text }] };
-}
-
-/**
- * What a tool returns to refuse: one plain sentence. A result is a refusal when it is an object
- * whose only key is a string `refusal`; every real answer has other keys, so none is mistaken
- * for one.
- */
-export interface McpRefusal {
-  refusal: string;
-}
-
-export function isRefusal(result: unknown): result is McpRefusal {
-  if (typeof result !== 'object' || result === null) return false;
-  const keys = Object.keys(result);
-  return (
-    keys.length === 1 && keys[0] === 'refusal' && typeof (result as McpRefusal).refusal === 'string'
-  );
-}
-
-/** The one owner of a tool's answer: JSON text, a refusal as an error result, a throw scrubbed. */
-export async function answer(tool: string, run: () => Promise<unknown>): Promise<CallToolResult> {
-  try {
-    const result = await run();
-    if (isRefusal(result)) return toolRefusal(result.refusal);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-  } catch (error) {
-    return failed(tool, error);
-  }
-}
 
 /**
  * One MCP server for one request (the door is stateless), with the caller already fixed: no tool
@@ -199,9 +149,6 @@ function registerMyRecordTools(server: McpServer, caller: McpCaller, deps: McpTo
 
 /** The cap of `event_schedule`; the schema owns it, as for `my_upcoming`. */
 const scheduleLimit = z.number().int().min(1).max(50).optional();
-
-/** An Event or Tournament named by its slug, the handle `my_events` gives. */
-export const slug = z.string().min(1).max(200);
 
 /** What the public Event pages show anyone allowed to see the Event, by slug. */
 function registerEventTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {

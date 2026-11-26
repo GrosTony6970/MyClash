@@ -1,6 +1,7 @@
 import { canReadEvent, type CompetitionEvent } from '../../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../../common/auth/event-authz';
-import type { McpCaller, McpRefusal } from '../mcp-server';
+import type { McpCaller } from '../mcp-server';
+import type { McpRefusal } from './mcp-answer';
 
 /**
  * An Event as a tool sees it. The `id` is for service calls inside the tool; it never reaches the

@@ -15,7 +15,8 @@ import {
   type QueryToolSpec,
 } from '../../tournament-query/tournament-query.tools';
 import type { ToolResult, TournamentContext } from '../../tournament-query/tournament-query.types';
-import { answer, slug, type McpCaller, type McpRefusal, type McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpToolDeps } from '../mcp-server';
+import { answer, slug, type McpRefusal } from './mcp-answer';
 import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
 /**

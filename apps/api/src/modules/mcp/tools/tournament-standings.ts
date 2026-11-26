@@ -1,7 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
 import { createTranslator, messages } from '@myclash/i18n';
 import { bracketToken, roundTokenLabel } from '@myclash/types';
-import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpToolDeps } from '../mcp-server';
+import type { McpRefusal } from './mcp-answer';
 import { poolTableRows, type PoolTables } from '../../pool-standings/pool-table-rows';
 import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
