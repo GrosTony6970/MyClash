@@ -2,7 +2,8 @@
  * The MCP door through the real HTTP stack (`configureHttpApp`: the global filter, the prefix)
  * with the real AuthGuard in front of it, as in production, and real signed logins. What it
  * proves: Claude's three first calls answer, the 401 challenge survives the exception filter, a
- * GET is a 405, and the real read-only interceptor lets the door's reads answer (ruling 985).
+ * GET is a 405, and the real read-only interceptor lets the door's reads answer (ruling 985)
+ * while its one write tool refuses on its own.
  */
 import 'reflect-metadata';
 import { NotFoundException } from '@nestjs/common';
@@ -49,8 +50,15 @@ const refuse = {
 const listMyEvents = vi.fn();
 const getUpcoming = vi.fn();
 const getMyDashboard = vi.fn();
+const setRefereeRoleAssignment = vi.fn();
 /** The read-only (maintenance) switch the real interceptor reads. */
 let readOnly = false;
+/** `feature_flags.select('enabled').eq('key', …).maybeSingle()`, answering `readOnly`. */
+const flagRead = {
+  select: () => flagRead,
+  eq: () => flagRead,
+  maybeSingle: async () => ({ data: { enabled: readOnly }, error: null }),
+};
 const connector = jwt.sign({ sub: 'user-1', email: 'a@b.c', client_id: 'claude-client' }, SECRET, {
   expiresIn: 3600,
 });
@@ -80,7 +88,11 @@ beforeAll(async () => {
       },
       {
         provide: SupabaseService,
-        useValue: { verifyAccessTokenLocal: (t: string) => verifyAccessTokenLocally(t, SECRET) },
+        useValue: {
+          verifyAccessTokenLocal: (t: string) => verifyAccessTokenLocally(t, SECRET),
+          // The read-only switch as a write tool reads it (`assertNotReadOnly`).
+          service: { from: () => flagRead },
+        },
       },
       { provide: GuestJwtService, useValue: refuse },
       { provide: StaffJwtService, useValue: refuse },
@@ -90,7 +102,7 @@ beforeAll(async () => {
       { provide: ScheduleGridService, useValue: {} },
       { provide: PoolStandingsService, useValue: {} },
       { provide: TournamentQueryToolsService, useValue: {} },
-      { provide: MatchesService, useValue: {} },
+      { provide: MatchesService, useValue: { setRefereeRoleAssignment } },
       { provide: AssignmentBoardService, useValue: {} },
       { provide: QualificationsService, useValue: {} },
       { provide: FightersService, useValue: { getMyDashboard } },
@@ -112,6 +124,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   readOnly = false;
+  setRefereeRoleAssignment.mockReset();
   getUpcoming.mockReset().mockResolvedValue([]);
   getMyDashboard.mockReset();
   listMyEvents.mockReset().mockResolvedValue([
@@ -156,6 +169,7 @@ describe('the MCP door, over HTTP', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
+      'apply_referee_assignment',
       'compare_clubs',
       'estimate_pool_completion',
       'event_info',
@@ -233,15 +247,32 @@ describe('the MCP door, over HTTP', () => {
     expect(listMyEvents).toHaveBeenCalledWith({ userId: 'user-1', staff: null });
   });
 
-  // The door passes read-only mode whole only because no tool writes. A write tool (slice 4)
-  // calls `assertNotReadOnly` itself, and is marked so here, before this list may change.
-  it('marks every tool read-only: the door passes maintenance on that alone', async () => {
+  // The door passes read-only mode whole, so a tool that writes asks `assertNotReadOnly` itself.
+  // A new write tool must be added here, and proved to refuse in maintenance, before it ships.
+  it('marks every tool read-only but apply_referee_assignment', async () => {
     const res = await rpc('tools/list');
     const body = (await res.json()) as {
       result: { tools: { name: string; annotations?: { readOnlyHint?: boolean } }[] };
     };
     const notReadOnly = body.result.tools.filter((t) => t.annotations?.readOnlyHint !== true);
-    expect(notReadOnly.map((t) => t.name)).toEqual([]);
+    expect(notReadOnly.map((t) => t.name)).toEqual(['apply_referee_assignment']);
+  });
+
+  it('refuses apply_referee_assignment while MyClash is read-only, and writes nothing', async () => {
+    readOnly = true;
+    const res = await rpc('tools/call', {
+      name: 'apply_referee_assignment',
+      arguments: { confirmation: 'any-confirmation' },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      result: { isError?: boolean; content: [{ text: string }] };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toBe(
+      'MyClash is in maintenance: nothing can change right now.',
+    );
+    expect(setRefereeRoleAssignment).not.toHaveBeenCalled();
   });
 
   it('answers a failed tool with a plain error, never its cause', async () => {

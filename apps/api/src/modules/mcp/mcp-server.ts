@@ -11,6 +11,7 @@ import type { AssignmentBoardService } from '../referees/assignment-board.servic
 import type { QualificationsService } from '../referees/qualifications.service';
 import type { ScheduleGridService } from '../schedule/schedule-grid.service';
 import type { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
+import { applyRefereeAssignment } from './tools/apply-referee-assignment';
 import { eventInfo } from './tools/event-info';
 import { eventSchedule } from './tools/event-schedule';
 import { answer, slug } from './tools/mcp-answer';
@@ -50,7 +51,7 @@ export interface McpToolDeps extends EventAuthzDeps {
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
-const MCP_SERVER_VERSION = '1.1.0';
+const MCP_SERVER_VERSION = '1.2.0';
 
 /**
  * One MCP server for one request (the door is stateless), with the caller already fixed: no tool
@@ -76,6 +77,14 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
   return server;
 }
 
+/**
+ * A sealed confirmation's cap. The token is base64url of a 12-byte IV, a 16-byte tag and the
+ * payload's JSON: five UUIDs, a skill id, at most eleven reason codes and an epoch — under 1 KB
+ * of JSON, so about 1.4 KB of text. 4096 leaves room for a long custom skill id and still
+ * refuses a bulk paste before the tool runs.
+ */
+const confirmation = z.string().min(1).max(4096);
+
 /** Preview → yes → apply for one referee on one Match (slice 4a). */
 function registerRefereeWriteTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
   server.registerTool(
@@ -99,6 +108,28 @@ function registerRefereeWriteTools(server: McpServer, caller: McpCaller, deps: M
     },
     (input) =>
       answer('preview_referee_assignment', () => previewRefereeAssignment(input, caller, deps)),
+  );
+  server.registerTool(
+    'apply_referee_assignment',
+    {
+      description:
+        'Apply exactly the change preview_referee_assignment showed, and nothing else. Call it ' +
+        'only after the person saw that preview and said yes. Takes nothing but its ' +
+        '`confirmation` (good for ten minutes, for the same person and app). It checks ' +
+        'everything again, and refuses when the referees of the Match changed since the ' +
+        'preview: then preview again.',
+      inputSchema: { confirmation },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    (input) =>
+      answer('apply_referee_assignment', () =>
+        applyRefereeAssignment(input.confirmation, caller, deps),
+      ),
   );
 }
 

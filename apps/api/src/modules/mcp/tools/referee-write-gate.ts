@@ -6,6 +6,12 @@
  * Each refusal is one sentence for `answer()`. Only the exception a rule throws to refuse is a
  * refusal; any other throw (a failed read) is the generic failure.
  */
+import { createTranslator, messages } from '@myclash/i18n';
+import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';
+import {
+  refereeReasonText,
+  refereeReasonsText,
+} from '@myclash/rulesets/scheduling/referee-reason-text';
 import { ForbiddenException } from '@nestjs/common';
 import { assertCanManageEvent } from '../../../common/auth/event-authz';
 import { OperationalUnavailableException } from '../../../common/operational-exception';
@@ -65,13 +71,14 @@ export async function refereeWriteRefusal(
   if (event.status === 'completed' || event.status === 'archived') {
     return { refusal: `${event.name} is over: its referees can no longer change.` };
   }
-  if (await isRefereeBoardLocked(deps.supabase.service, event.id)) {
-    return {
-      refusal: 'Referee assignments are locked at this Event. Unlock them in MyClash first.',
-    };
-  }
+  if (await isRefereeBoardLocked(deps.supabase.service, event.id)) return LOCKED_REFUSAL;
   return null;
 }
+
+/** The referee board's lock, asked here and again inside the write (`referee_board_locked`). */
+export const LOCKED_REFUSAL: McpRefusal = {
+  refusal: 'Referee assignments are locked at this Event. Unlock them in MyClash first.',
+};
 
 /** A referee role: a `referee_skills` row, global (`event_id` null) or the Event's own. */
 export interface RefereeSkill {
@@ -89,8 +96,11 @@ export async function eventSkills(deps: McpToolDeps, eventId: string): Promise<R
   return ((data ?? []) as { id: string; name: string }[]).map(({ id, name }) => ({ id, name }));
 }
 
+/** A bout's own columns and its piste's name; the round code's inputs come beside them. */
+export const MATCH_COLUMNS = 'id, match_number_label, scheduled_at, pool_id, lice_id, lices(name)';
+
 /** A `matches` select that names the bout (its round code), its piste, start, Pool and Lice. */
-export const MATCH_SELECT = `id, match_number_label, scheduled_at, pool_id, lice_id, lices(name), ${ROUND_CODE_INPUTS}`;
+export const MATCH_SELECT = `${MATCH_COLUMNS}, ${ROUND_CODE_INPUTS}`;
 
 /** One bout as the referee tools see it. Its ids stay inside the tool. */
 export interface WriteMatch {
@@ -175,4 +185,86 @@ export function holderOf(
     .filter((r) => r.role === role && r.personId !== null)
     .sort((a, b) => (a.personId! < b.personId! ? -1 : 1));
   return holders[0] ?? null;
+}
+
+/** A referee the tools name: the roster's person id and display name. */
+export interface WritePerson {
+  personId: string;
+  displayName: string;
+}
+
+/**
+ * The crew rows once the write lands (call M2): `replace_match_referee_role` replaces the
+ * Match's own rows of the role by the new person's, or by none for a removal.
+ */
+export function rowsAfterWrite(
+  rows: readonly CrewRow[],
+  seat: MatchRefereeTarget,
+  role: string,
+  person: WritePerson | null,
+): CrewRow[] {
+  const kept = rows.filter(
+    (r) => !(r.scopeType === 'match' && r.matchId === seat.matchId && r.role === role),
+  );
+  if (!person) return kept;
+  const written: CrewRow = {
+    ...seat,
+    poolId: null,
+    liceId: null,
+    scopeType: 'match',
+    role,
+    personId: person.personId,
+    name: person.displayName,
+  };
+  return [...kept, written];
+}
+
+const english = createTranslator(messages.en);
+
+/** An Impossible verdict as one refusal, every Impossible reason in words. */
+export function impossibleRefusal(
+  person: WritePerson,
+  skill: RefereeSkill,
+  match: WriteMatch,
+  reasons: readonly RefereeReason[],
+): McpRefusal {
+  const why = refereeReasonsText(
+    english,
+    reasons.filter((r) => r.level === 'impossible'),
+  );
+  return { refusal: `${person.displayName} cannot take ${skill.name} on ${match.code}: ${why}.` };
+}
+
+/** A swap the checker allows: its level and each Discouraged reason with its words. */
+export interface SwapVerdict {
+  level: 'fine' | 'discouraged';
+  warnings: { code: string; text: string }[];
+}
+
+/** The one referee checker, through the board (`judgeVerdict`): Impossible refuses. */
+export async function judgeSwap(
+  deps: McpToolDeps,
+  eventId: string,
+  match: WriteMatch,
+  skill: RefereeSkill,
+  person: WritePerson,
+): Promise<SwapVerdict | McpRefusal> {
+  const { verdict } = await deps.refereeBoard.judgeVerdict(eventId, {
+    matchIds: [match.seat.matchId],
+    role: skill.id,
+    personId: person.personId,
+    confirm: false,
+  });
+  if (verdict.level === 'impossible') {
+    return impossibleRefusal(person, skill, match, verdict.reasons);
+  }
+  return {
+    level: verdict.level,
+    warnings: verdict.reasons
+      .filter((r) => r.level === 'discouraged')
+      .map((r) => ({
+        code: r.code,
+        text: `${person.displayName} ${refereeReasonText(english, r.code, r.against?.label ?? '')}.`,
+      })),
+  };
 }

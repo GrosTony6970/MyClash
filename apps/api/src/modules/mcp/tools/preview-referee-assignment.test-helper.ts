@@ -1,11 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
 import { vi } from 'vitest';
 import type { McpCaller } from '../mcp-server';
-import { confirmationKey } from './write-confirmation';
+import { applyRefereeAssignment } from './apply-referee-assignment';
+import { confirmationKey, sealConfirmation, type ConfirmationPayload } from './write-confirmation';
 import { previewRefereeAssignment, type PreviewRefereeArgs } from './preview-referee-assignment';
 
-// The harness of `preview_referee_assignment`'s tests: a recording Supabase double over one
-// Event (FAL 2026), one Tournament (Longsword Open) and its bouts, UUID ids in every row.
+// The harness of `preview_referee_assignment`'s and `apply_referee_assignment`'s tests: a
+// recording Supabase double over one Event (FAL 2026), one Tournament (Longsword Open) and its
+// bouts, UUID ids in every row.
 
 export const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 export const EVENT = id(1);
@@ -77,6 +79,9 @@ export const world = {
   crew: [] as Record<string, unknown>[],
   crewError: false,
   extraSkills: [] as { id: string; name: string; event_id: string | null }[],
+  /** Apply's read of one bout by id finds no row. */
+  matchGone: false,
+  auditError: false,
 };
 
 export function resetWorld(): void {
@@ -88,11 +93,20 @@ export function resetWorld(): void {
     crew: [],
     crewError: false,
     extraSkills: [],
+    matchGone: false,
+    auditError: false,
   });
   calls.length = 0;
   assertOrgRole.mockReset().mockResolvedValue('editor');
   judgeVerdict.mockReset().mockResolvedValue(fine);
   listEventReferees.mockReset().mockResolvedValue(roster);
+  setRefereeRoleAssignment.mockReset().mockResolvedValue(undefined);
+  getClient.mockReset().mockResolvedValue({ data: { client_name: 'Claude' }, error: null });
+  insert
+    .mockReset()
+    .mockImplementation(() =>
+      Promise.resolve({ error: world.auditError ? { message: 'disk full' } : null }),
+    );
 }
 
 export const fine = {
@@ -159,6 +173,18 @@ function single(table: string, select: string): unknown {
       return { enabled: world.readOnly };
     case 'vw_tournament_query_matches':
       return { red_name: 'Anna Roux', blue_name: ' Bob Petit ' };
+    case 'matches':
+      // Apply's read of the bout by id, with its Event in the phase's embed.
+      if (world.matchGone) return null;
+      return bout({
+        phases: {
+          config_json: {},
+          tournaments: {
+            weapon: 'longsword',
+            events: { id: EVENT, name: 'FAL 2026', status: world.eventStatus },
+          },
+        },
+      });
     default:
       return null;
   }
@@ -199,11 +225,17 @@ export const calls: Call[] = [];
 export const assertOrgRole = vi.fn();
 export const judgeVerdict = vi.fn();
 export const listEventReferees = vi.fn();
+export const setRefereeRoleAssignment = vi.fn();
+export const getClient = vi.fn();
+/** Every insert, as `(table, row)`. */
+export const insert = vi.fn();
 
 function from(table: string) {
   const call: Call = { table, select: '', args: {} };
   calls.push(call);
-  const chain: Record<string, unknown> = {};
+  const chain: Record<string, unknown> = {
+    insert: (row: unknown) => insert(table, row),
+  };
   for (const name of ['select', 'eq', 'in', 'or', 'limit', 'order']) {
     chain[name] = (...args: unknown[]) => {
       if (name === 'select') call.select = args[0] as string;
@@ -226,10 +258,11 @@ export function readOf(table: string, select: string): Call {
 
 export function deps(confirmKey: Buffer | null = key) {
   return {
-    supabase: { service: { from } },
+    supabase: { service: { from, auth: { admin: { oauth: { getClient } } } } },
     orgs: { assertOrgRole },
     refereeBoard: { judgeVerdict },
     qualifications: { listEventReferees },
+    matches: { setRefereeRoleAssignment },
     confirmKey,
   } as never;
 }
@@ -250,3 +283,25 @@ export function preview(over: Partial<PreviewRefereeArgs> = {}, confirmKey?: Buf
 }
 
 export const forbidden = () => new ForbiddenException('Requires editor role or higher');
+
+/** A confirmation as a preview seals it: Paul for Jean as Déclarant on the bout, no warning. */
+export function seal(over: Partial<ConfirmationPayload> = {}, to: McpCaller = caller): string {
+  return sealConfirmation(
+    key,
+    {
+      sub: to.userId,
+      cid: to.clientId,
+      matchId: MATCH,
+      role: DECLARANT,
+      personId: PAUL,
+      prev: JEAN,
+      codes: [],
+      ...over,
+    },
+    Date.now(),
+  ).token;
+}
+
+export function apply(token: string, confirmKey?: Buffer | null) {
+  return applyRefereeAssignment(token, caller, deps(confirmKey));
+}

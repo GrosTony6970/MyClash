@@ -3,12 +3,6 @@
  * says what assigning, swapping or removing one referee on one Match would do, and hands back
  * a sealed confirmation that `apply_referee_assignment` needs. It writes nothing.
  */
-import { createTranslator, messages } from '@myclash/i18n';
-import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';
-import {
-  refereeReasonText,
-  refereeReasonsText,
-} from '@myclash/rulesets/scheduling/referee-reason-text';
 import { winningAssignmentRows } from '../../matches/resolve-match-referees';
 import { namedBest } from '../../tournament-query/tournament-query.tools.service';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
@@ -17,9 +11,11 @@ import { readableTournamentId, type McpEvent } from './readable-event';
 import {
   eventSkills,
   holderOf,
+  judgeSwap,
   MATCH_SELECT,
   readCrewRows,
   refereeWriteRefusal,
+  rowsAfterWrite,
   toWriteMatch,
   type CrewRow,
   type RefereeSkill,
@@ -59,8 +55,6 @@ export interface PreviewRefereeAnswer {
   expiresAt: string;
   next: string;
 }
-
-const english = createTranslator(messages.en);
 
 const NEXT =
   'Show the person this change, the crew after it and every warning; call ' +
@@ -181,7 +175,7 @@ function removalRefusal(holder: CrewRow | null, skill: RefereeSkill, match: Writ
 
 type Judged = { level: 'fine' | 'discouraged'; warnings: string[]; codes: string[] };
 
-/** The one referee checker, through the board (`judgeVerdict`): Impossible refuses. */
+/** The checker's verdict on the swap (Impossible refuses), with the codes the token seals. */
 async function judge(
   deps: McpToolDeps,
   eventId: string,
@@ -189,24 +183,12 @@ async function judge(
   skill: RefereeSkill,
   person: RosterPerson,
 ): Promise<Judged | McpRefusal> {
-  const { verdict } = await deps.refereeBoard.judgeVerdict(eventId, {
-    matchIds: [match.seat.matchId],
-    role: skill.id,
-    personId: person.personId,
-    confirm: false,
-  });
-  const of = (level: RefereeReason['level']) => verdict.reasons.filter((r) => r.level === level);
-  if (verdict.level === 'impossible') {
-    const why = refereeReasonsText(english, of('impossible'));
-    return { refusal: `${person.displayName} cannot take ${skill.name} on ${match.code}: ${why}.` };
-  }
-  const discouraged = of('discouraged');
+  const verdict = await judgeSwap(deps, eventId, match, skill, person);
+  if (isRefusal(verdict)) return verdict;
   return {
     level: verdict.level,
-    warnings: discouraged.map(
-      (r) => `${person.displayName} ${refereeReasonText(english, r.code, r.against?.label ?? '')}.`,
-    ),
-    codes: [...new Set(discouraged.map((r) => r.code))].sort(),
+    warnings: verdict.warnings.map((w) => w.text),
+    codes: [...new Set(verdict.warnings.map((w) => w.code))].sort(),
   };
 }
 
@@ -225,23 +207,7 @@ function crews(
   const roleName = (role: string | null) => skills.find((s) => s.id === role)?.name ?? role ?? '';
   const crewOf = (all: CrewRow[]) =>
     winningAssignmentRows(all, seat).map((r) => ({ role: roleName(r.role), name: r.name }));
-  const kept = rows.filter(
-    (r) => !(r.scopeType === 'match' && r.matchId === seat.matchId && r.role === skill.id),
-  );
-  const written: CrewRow[] = person
-    ? [
-        {
-          ...seat,
-          poolId: null,
-          liceId: null,
-          scopeType: 'match',
-          role: skill.id,
-          personId: person.personId,
-          name: person.displayName,
-        },
-      ]
-    : [];
-  const after = [...kept, ...written];
+  const after = rowsAfterWrite(rows, seat, skill.id, person);
   // `to` is who holds the role once written: after a removal, the Pool's or Lice's holder of the
   // same role takes the Match back, so "nobody" is said only when nobody holds it.
   const to = holderOf(after, seat, skill.id)?.name ?? null;
