@@ -476,6 +476,29 @@ source "$SCRIPT_DIR/lib/ops-agent-wake.sh"
 
 ok "Environment variables present"
 
+# Every account password this run sends GoTrue, against GoTrue's own rule, before the build:
+# GoTrue 2.198 refuses a weak one on an admin create too, and only minutes in. Values go to the
+# check by name (ruling 425); .env.e2e is read in a subshell, as its own steps read it later.
+# Its errors are silenced HERE: bash prints the line it cannot parse, password and all, and
+# `load_env_e2e` below already stops on that file.
+deploy_password_names=(SEED_ADMIN_PASSWORD)
+[[ "$CREATE_DEMO_ORG" -eq 1 ]] && deploy_password_names+=(E2E_ADMIN_PASSWORD)
+[[ "$CREATE_E2E_SUPER_ADMIN" -eq 1 ]] && deploy_password_names+=(E2E_SUPERADMIN_PASSWORD)
+if ! (
+  if [[ -f .env.e2e ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source ./.env.e2e 2>/dev/null || true
+    set +a
+  fi
+  node scripts/check-deploy-passwords.mjs infra/docker-compose.prod.yml "${deploy_password_names[@]}"
+); then
+  err "GoTrue would refuse the password(s) above (.env / .env.e2e): at least 12 characters,"
+  err "with a lowercase letter, an uppercase letter, a digit and a symbol. Fix them and run again."
+  exit 1
+fi
+ok "Account passwords meet GoTrue's rule"
+
 # Compose command and certificate mode (TLS_CERTS in .env; --dev-certs records staging there).
 source "$SCRIPT_DIR/lib/compose.sh"
 mc_compose_init
