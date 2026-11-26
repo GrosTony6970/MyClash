@@ -23,8 +23,7 @@ const eventRow = {
 const standings = {
   tournament: { id: id(2), name: 'Longsword', status: 'running' },
   pools: [{ id: id(4), name: 'Pool 1', members: [], standings: [] }],
-  phaseType: 'single_elim',
-  bracketRounds: 2,
+  bracketSize: 4,
   bracketSlots: [
     {
       id: id(5),
@@ -161,7 +160,7 @@ describe('tournament_standings', () => {
       ],
       bracket: [
         {
-          round: 'Semi-final',
+          round: 'Semi Final',
           fights: [
             {
               red: 'Eve Lin',
@@ -188,6 +187,61 @@ describe('tournament_standings', () => {
       ],
     });
     expectNoRawIds(result);
+  });
+
+  const slot = (round: number, position: number, red: string) => ({
+    ...standings.bracketSlots[0]!,
+    round,
+    position,
+    redFighterName: red,
+    winnerRegistrationId: null,
+    redScore: null,
+    blueScore: null,
+  });
+  const roundsOf = async (payload: object) => {
+    const getStandings = vi.fn().mockResolvedValue({ ...standings, pools: [], ...payload });
+    const d = depsFor({ event: eventRow, getStandings });
+    const result = (await tournamentStandings('fal-2026', 'longsword', caller, d.deps)) as {
+      bracket: { round: string; fights: { red: string }[] }[];
+    };
+    return result.bracket.map((r) => [r.round, r.fights.map((f) => f.red)]);
+  };
+
+  it('names rounds as the app does and shows the bronze bout as a round of its own', async () => {
+    expect(
+      await roundsOf({
+        bracketSize: 8,
+        bracketSlots: [slot(1, 0, 'a'), slot(2, 0, 'b'), slot(3, 0, 'gold'), slot(3, 2, 'bronze')],
+      }),
+    ).toEqual([
+      ['Quarter Final', ['a']],
+      ['Semi Final', ['b']],
+      ['Final', ['gold']],
+      ['Bronze Match', ['bronze']],
+    ]);
+  });
+
+  it('names double-elimination rounds as winners, losers and grand final', async () => {
+    expect(
+      await roundsOf({
+        bracketSize: 4,
+        wbRounds: 2,
+        lbRounds: 2,
+        bracketSlots: [
+          slot(1, 0, 'w1'),
+          slot(2, 0, 'w2'),
+          slot(3, 0, 'l1'),
+          slot(4, 0, 'l2'),
+          slot(5, 0, 'gf'),
+        ],
+      }),
+    ).toEqual([
+      ['Winners Semi Final', ['w1']],
+      ['Winners Final', ['w2']],
+      ['Losers Round 1', ['l1']],
+      ['Losers Round 2', ['l2']],
+      ['Grand Final', ['gf']],
+    ]);
   });
 
   it('answers no pool tables when the Tournament shows no pools yet', async () => {

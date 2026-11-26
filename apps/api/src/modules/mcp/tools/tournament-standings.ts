@@ -1,4 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
+import { createTranslator, messages } from '@myclash/i18n';
+import { bracketToken, roundTokenLabel } from '@myclash/types';
 import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
 import { readableEventBySlug } from './readable-event';
 
@@ -31,8 +33,9 @@ export interface TournamentStandingsAnswer {
 interface PublicStandings {
   tournament: { id: string; name: string; status: string };
   pools: unknown[];
-  phaseType?: string;
-  bracketRounds?: number;
+  bracketSize?: number;
+  wbRounds?: number | null;
+  lbRounds?: number | null;
   bracketSlots: {
     round: number;
     position: number;
@@ -52,14 +55,30 @@ type PoolTables = Extract<
   { pools: unknown }
 >;
 
-/** A single-elimination round is named by its distance from the end; any other is numbered. */
+const english = createTranslator(messages.en);
+
+/**
+ * A round named as the app names it: the match-code token (`SF`, `LB2`, `GF`, `PI`) from
+ * `bracketToken`, in English through `roundTokenLabel`. A round the token cannot name is numbered.
+ */
 function roundLabel(round: number, s: PublicStandings): string {
-  const last = s.bracketRounds ?? 0;
-  if (s.phaseType === 'single_elim' && last >= 2) {
-    if (round === last) return 'Final';
-    if (round === last - 1) return 'Semi-final';
-  }
-  return `Round ${round}`;
+  const token = bracketToken({
+    bracketRound: round,
+    bracketSize: s.bracketSize ?? null,
+    wbRounds: s.wbRounds ?? null,
+    lbRounds: s.lbRounds ?? null,
+  });
+  const descriptor = roundTokenLabel(token);
+  return descriptor ? english(descriptor.key, descriptor.params) : `Round ${round}`;
+}
+
+/**
+ * The bronze bout: position 2 of the last round (the gold final is position 0). The public page
+ * takes it out the same way with `extractBronzeMatch` (packages/ui bracket/extract-bronze-match.ts)
+ * and shows it apart; the API cannot import packages/ui, so this is the same predicate.
+ */
+function isBronze(slot: PublicStandings['bracketSlots'][number], maxRound: number): boolean {
+  return slot.round === maxRound && slot.position === 2;
 }
 
 function toPools(tables: PoolTables): TournamentStandingsAnswer['pools'] {
@@ -78,35 +97,42 @@ function toPools(tables: PoolTables): TournamentStandingsAnswer['pools'] {
 }
 
 function toBracket(s: PublicStandings): TournamentStandingsAnswer['bracket'] {
+  const maxRound = s.bracketSlots.reduce((max, slot) => Math.max(max, slot.round), 0);
   const rounds = new Map<number, PublicStandings['bracketSlots']>();
-  for (const slot of s.bracketSlots)
-    rounds.set(slot.round, [...(rounds.get(slot.round) ?? []), slot]);
-  return [...rounds.entries()]
+  const bronze: PublicStandings['bracketSlots'] = [];
+  for (const slot of s.bracketSlots) {
+    if (isBronze(slot, maxRound)) bronze.push(slot);
+    else rounds.set(slot.round, [...(rounds.get(slot.round) ?? []), slot]);
+  }
+  const named = [...rounds.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([round, slots]) => ({
-      round: roundLabel(round, s),
-      fights: slots
-        .sort((a, b) => a.position - b.position)
-        .map((slot) => {
-          const won = slot.winnerRegistrationId;
-          const winner =
-            won === null
-              ? null
-              : won === slot.redRegistrationId
-                ? slot.redFighterName
-                : won === slot.blueRegistrationId
-                  ? slot.blueFighterName
-                  : null;
-          const scored = slot.redScore !== null || slot.blueScore !== null;
-          return {
-            red: slot.redFighterName,
-            blue: slot.blueFighterName,
-            winner,
-            score: scored ? { red: slot.redScore, blue: slot.blueScore } : null,
-            status: slot.status,
-          };
-        }),
-    }));
+    .map(([round, slots]) => ({ round: roundLabel(round, s), slots }));
+  if (bronze.length > 0)
+    named.push({ round: english('common.bracket.bronzeMatch'), slots: bronze });
+  return named.map(({ round, slots }) => ({
+    round,
+    fights: slots
+      .sort((a, b) => a.position - b.position)
+      .map((slot) => {
+        const won = slot.winnerRegistrationId;
+        const winner =
+          won === null
+            ? null
+            : won === slot.redRegistrationId
+              ? slot.redFighterName
+              : won === slot.blueRegistrationId
+                ? slot.blueFighterName
+                : null;
+        const scored = slot.redScore !== null || slot.blueScore !== null;
+        return {
+          red: slot.redFighterName,
+          blue: slot.blueFighterName,
+          winner,
+          score: scored ? { red: slot.redScore, blue: slot.blueScore } : null,
+          status: slot.status,
+        };
+      }),
+  }));
 }
 
 /**
