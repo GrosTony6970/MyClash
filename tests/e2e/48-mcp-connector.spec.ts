@@ -174,14 +174,26 @@ test.describe.serial('mcp connector', () => {
 
     const listed = await rpc<{ tools: { name: string }[] }>('tools/list', {});
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+      'compare_clubs',
+      'estimate_pool_completion',
       'event_info',
       'event_schedule',
+      'find_fighters',
+      'find_lagging_pools',
+      'find_matches',
+      'get_bracket_status',
+      'get_fighter_stats',
+      'get_judge_stats',
+      'get_ring_status',
+      'get_schedule_status',
+      'get_tournament_summary',
       'my_events',
       'my_fight_history',
       'my_schedule',
       'my_stats',
       'my_upcoming',
       'my_workshops',
+      'rank_fighters',
       'tournament_standings',
       'whoami',
     ]);
@@ -191,8 +203,34 @@ test.describe.serial('mcp connector', () => {
       arguments: {},
     });
     expect(events.isError ?? false).toBe(false);
-    const mine = JSON.parse(events.content[0]?.text ?? '{}') as { events?: unknown };
+    const mine = JSON.parse(events.content[0]?.text ?? '{}') as {
+      events?: { slug: string; tournaments: { slug: string }[] }[];
+    };
     expect(Array.isArray(mine.events), 'my_events returns a list').toBe(true);
+
+    // An organiser tool, by names. The Tournament's own setting decides: an answer or the access
+    // refusal are both right. A fighter with no Event or Tournament has nothing to ask about.
+    const asked = (mine.events ?? []).find((event) => event.tournaments.length > 0);
+    if (asked) {
+      const summary = await rpc<{ content: { text: string }[]; isError?: boolean }>('tools/call', {
+        name: 'get_tournament_summary',
+        arguments: { event: asked.slug, tournament: asked.tournaments[0]!.slug },
+      });
+      const summaryText = summary.content[0]?.text ?? '';
+      if (summary.isError) {
+        expect(summaryText, 'the access refusal names the organiser').toMatch(/^The organiser of /);
+      } else {
+        expect(() => JSON.parse(summaryText), 'the summary is JSON').not.toThrow();
+      }
+      expect(summaryText, 'the answer holds no raw id').not.toMatch(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      );
+    } else {
+      test.info().annotations.push({
+        type: 'skipped-step',
+        description: 'fighter A has no Event with a Tournament: get_tournament_summary not called',
+      });
+    }
 
     const called = await rpc<{ content: { type: string; text: string }[]; isError?: boolean }>(
       'tools/call',

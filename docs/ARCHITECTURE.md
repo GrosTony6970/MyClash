@@ -5080,7 +5080,13 @@ All routes are guarded by `SuperAdminGuard`. Scan behavior is rules-first: deter
 
 Organizer tournament queries use organization BYOK (`organization_ai_settings`) and event spend caps (`ai_usage_log`). They never use `platform_ai_settings`.
 
-**`tournament_query_settings`** - per-tournament access policy and per-user hourly rate limit. Default access is `organizers_only`, with optional broader event-day policies for head judges, coaches, or anyone with tournament access.
+**`tournament_query_settings`** - per-tournament access policy and per-user hourly rate limit. Default access is `organizers_only`. Two broader settings exist, and each admits everyone the narrower one admits:
+
+- `organizers_only` - the organisation's admins.
+- `organizers_head_judges` ("Organizers + the Event's referees", ruling 987) - also anyone on the Event's referee list, whatever their qualification.
+- `anyone_with_tournament_access` - also anyone on the Event's roster.
+
+There is no coaches setting: MyClash has no coach role (ruling 988, migration `0286` turns old rows into `organizers_head_judges`). One check owns the rule: `assertQueryAccess` in `tournament-query/tournament-query.access.ts`. The panel's three routes and Claude (§28.5b) both call it. A refusal is a `ForbiddenException`. A failed read is a plain error, never a "no".
 
 **`tournament_query_history`** - per-user query history for the selected tournament. Stores the question for that user's own history plus language, tool, summary, cost, and timestamp. Technical logs must not store raw question/result content.
 
@@ -5099,6 +5105,8 @@ PATCH /api/v1/tournaments/:tournamentId/query/settings
 The LLM call receives a narrowed tool schema for the current tournament's weapons, pools, lices, and divisions. It must return exactly one tool call, a clarification, or a refusal. French aliases such as `piste`, `poule`, `tireur`, `combattant`, and `arbitre` normalize to canonical internal terms before tool selection. Both `tireur` and `combattant` are accepted on input even though the UI says `combattant`, because users type either.
 
 V1 tools cover fighter search/stats, match search, pool standings, lice status, fighter rankings, judge stats, club comparison, bracket status, tournament summary, pool completion estimates, schedule status, and lagging pools with referees.
+
+The tools take a Pool, a fighter or a referee by name, never by id (`pool`, `fighter`, `judge`). An exact full name wins. When several fighters match a name, the answer is a list to choose from. `get_pool_standings` reads the public Pool tables (`PoolStandingsService`, in the ruleset's order) through `pool-standings/pool-table-rows.ts`, the same rows Claude's `tournament_standings` uses. The tool table is `QUERY_TOOL_SPECS` in `tournament-query/tournament-query.tools.ts`.
 
 ### 26.7 Frontend
 
@@ -5240,8 +5248,8 @@ delete photos it knows nothing of.
 
 A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
 Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
-This section describes what slices 1 and 2 built: sign-in, and a door with ten read tools (`whoami`
-and the nine of §28.5a). Slices 3–4 (the rest) are in the spec.
+This section describes what slices 1 to 3 built: sign-in, and a door with twenty-two read tools
+(`whoami`, the nine of §28.5a and the twelve of §28.5b). Slice 4 (the rest) is in the spec.
 
 ### 28.1 Addresses
 
@@ -5437,6 +5445,54 @@ The rules:
   does the same: it throws, and `answer()` logs it.
 - **`event_info` gives a place as `city` and `country`** (ISO alpha-2), the two columns of the
   public Events list. The `events` table has no venue column.
+
+### 28.5b The organiser tools (slice 3)
+
+Twelve tools give Claude the query panel's tools (§26.6) for one Tournament. They are the panel's
+thirteen minus `get_pool_standings`, which `tournament_standings` already answers from the same
+Pool tables. Code: `modules/mcp/tools/tournament-query.ts`. The panel and Claude read one table,
+`QUERY_TOOL_SPECS`, so names, descriptions and arguments match.
+
+| Tool                       | Arguments (all optional)                                             |
+| -------------------------- | -------------------------------------------------------------------- |
+| `find_fighters`            | `club_name`, `country`, `weapon`, `name_contains`, `status`, `limit` |
+| `get_fighter_stats`        | `fighter`, `weapon`, `phase`                                         |
+| `find_matches`             | `ring_number`, `pool`, `fighter`, `weapon`, `status`, `limit`        |
+| `get_ring_status`          | `ring_number`                                                        |
+| `rank_fighters`            | `metric`, `weapon`, `phase`, `min_matches`, `order`, `limit`         |
+| `get_judge_stats`          | `judge`, `weapon`, `phase`                                           |
+| `compare_clubs`            | `club_names`, `weapon`                                               |
+| `get_bracket_status`       | `weapon`, `division`                                                 |
+| `get_tournament_summary`   | `weapon`, `scope`                                                    |
+| `estimate_pool_completion` | `pool`, `weapon`                                                     |
+| `get_schedule_status`      | `scope`, `pool`, `weapon`, `bracket_round`                           |
+| `find_lagging_pools`       | `weapon`, `threshold_minutes`                                        |
+
+Every tool also takes `event` (the Event's slug, from `my_events`) and `tournament` (the
+Tournament's slug, from `event_info`). A Pool, fighter or referee is named, never an id.
+
+The flow for one call:
+
+1. The Event goes through the public Event gate (`readableEventBySlug`).
+2. The Tournament is read by slug inside that Event.
+3. The public Tournament gate (`canReadTournament`) runs. A hidden (draft) Tournament answers like
+   an unknown one, whatever the setting admits.
+4. The Tournament's access setting is checked with `assertQueryAccess` (§26.6). The panel's route
+   checks this step only: it names the Tournament by id, so it has no Event or Tournament slug
+   to gate.
+5. The tool runs.
+
+The rules:
+
+- **Claude skips three panel steps.** It writes no query history row, checks no AI key and applies
+  no per-hour limit. The door passes read-only mode, so no tool may write (ruling 985; spec call D).
+  Claude does the language work, so the panel's model call has no use here.
+- **A refusal is one sentence:** "The organiser of (Tournament) lets (who) ask about it, and you
+  are not one of them." The "who" follows the setting: organisers; organisers and the Event's
+  referees; or organisers, the Event's referees and the people on its roster. Only a
+  `ForbiddenException` is a refusal. Any other throw is a failed read and becomes the generic
+  failure.
+- **Output carries names only.** No Pool, fighter, Match or referee id leaves a tool.
 
 The calls made:
 
