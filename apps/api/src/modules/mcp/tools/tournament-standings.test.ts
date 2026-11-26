@@ -212,7 +212,7 @@ describe('tournament_standings', () => {
     expect(
       await roundsOf({
         bracketSize: 8,
-        bracketSlots: [slot(1, 0, 'a'), slot(2, 0, 'b'), slot(3, 0, 'gold'), slot(3, 2, 'bronze')],
+        bracketSlots: [slot(1, 1, 'a'), slot(2, 1, 'b'), slot(3, 1, 'gold'), slot(3, 2, 'bronze')],
       }),
     ).toEqual([
       ['Quarter Final', ['a']],
@@ -229,11 +229,11 @@ describe('tournament_standings', () => {
         wbRounds: 2,
         lbRounds: 2,
         bracketSlots: [
-          slot(1, 0, 'w1'),
-          slot(2, 0, 'w2'),
-          slot(3, 0, 'l1'),
-          slot(4, 0, 'l2'),
-          slot(5, 0, 'gf'),
+          slot(1, 1, 'w1'),
+          slot(2, 1, 'w2'),
+          slot(3, 1, 'l1'),
+          slot(4, 1, 'l2'),
+          slot(5, 1, 'gf'),
         ],
       }),
     ).toEqual([
@@ -251,7 +251,7 @@ describe('tournament_standings', () => {
       wbRounds: 2,
       lbRounds: 2,
       phaseType: 'double_elim',
-      bracketSlots: [slot(1, 0, 'w1'), slot(2, 0, 'w2'), slot(2, 2, 'lb-final-side')],
+      bracketSlots: [slot(1, 1, 'w1'), slot(2, 1, 'w2'), slot(2, 2, 'lb-final-side')],
     });
     expect(rounds).toEqual([
       ['Winners Semi Final', ['w1']],

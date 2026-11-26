@@ -37,6 +37,14 @@ describe('computeFinalRanking', () => {
     expect(ranking[4]?.eliminationRound).toBe(1);
   });
 
+  it('finds the bronze match by its place in the bracket when no bronze slot id is given', () => {
+    const { slots } = buildSlots();
+    const ranking = computeFinalRanking(slots, POOL, null);
+    expect(ranking.map((r) => r.registrationId)).toEqual(['a', 'e', 'c', 'g', 'f', 'h', 'b', 'd']);
+    expect(ranking[2]?.resultKind).toBe('third');
+    expect(ranking[3]?.resultKind).toBe('fourth');
+  });
+
   it('without a bronze match, separates the semi-final losers by pool score', () => {
     const { slots, bronzeId } = buildSlots();
     const noBronze = slots.filter((s) => s.id !== bronzeId);

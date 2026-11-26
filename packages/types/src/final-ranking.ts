@@ -39,6 +39,7 @@ import {
   type RankingBracketShape,
   type RankingSlot,
 } from './final-ranking-core';
+import { extractBronzeMatch } from './bracket-bronze';
 import { orderDoubleElim } from './final-ranking-double-elim';
 
 export type {
@@ -55,7 +56,7 @@ function orderSingleElim(slots: RankingSlot[], bronzeSlotId: string | null, r: R
   const maxRound = slots.reduce((m, s) => Math.max(m, s.round), 0);
   const bronzeSlot = bronzeSlotId
     ? (slots.find((s) => s.id === bronzeSlotId) ?? null)
-    : (slots.find((s) => s.round === maxRound && s.position === 2) ?? null);
+    : extractBronzeMatch(slots, 'single_elim').bronze;
 
   // Main bracket = everything but the bronze/consolation slot, so each fighter
   // loses at most once and the Final is the only match at maxRound.

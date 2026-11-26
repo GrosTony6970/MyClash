@@ -1,10 +1,11 @@
 /**
  * Split a flat bracket-slot list into the bronze bout and the main bracket — the one owner of the
- * rule, for the public bracket, the staff piste screen and the API's Claude tool alike.
+ * rule, for the public bracket, the staff piste screen, the final ranking and the API's Claude tool.
  *
- * The bronze bout is position 2 of the last round (the gold final is position 0). `BracketView`
- * renders it apart through its own `bronzeMatch` prop: left inside `slots`, the layout collapses
- * both finals into one card at the semi-final midpoint.
+ * The bronze bout is position 2 of the last round. Positions start at 1, and the Final is
+ * position 1 of that same round (`single-elim.ts` in `@myclash/rules` generates both).
+ * `BracketView` renders it apart through its own `bronzeMatch` prop: left inside `slots`, the
+ * layout collapses both finals into one card at the semi-final midpoint.
  *
  * A double-elimination bracket is drawn as WB / LB / Grand Final lanes and keeps its last round
  * whole: the split is for single elimination only. So `phaseType === 'double_elim'` answers no
