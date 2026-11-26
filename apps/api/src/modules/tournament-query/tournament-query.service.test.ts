@@ -125,8 +125,17 @@ describe('TournamentQueryService', () => {
   describe('head judge policy', () => {
     function refereeSupabase() {
       const base = makeSupabase();
+      const settingsChains: Array<{
+        select: ReturnType<typeof vi.fn>;
+        eq: ReturnType<typeof vi.fn>;
+      }> = [];
       base.service.from.mockImplementation((table: string) => {
-        const chain = makeSupabase().service.from(table) as { maybeSingle: unknown };
+        const chain = makeSupabase().service.from(table) as unknown as {
+          maybeSingle: unknown;
+          select: ReturnType<typeof vi.fn>;
+          eq: ReturnType<typeof vi.fn>;
+        };
+        if (table === 'tournament_query_settings') settingsChains.push(chain);
         if (table === 'tournament_query_settings') {
           chain.maybeSingle = vi.fn(async () => ({
             data: { access_policy: 'organizers_head_judges', rate_limit_per_hour: 60 },
@@ -141,30 +150,40 @@ describe('TournamentQueryService', () => {
         }
         return chain as never;
       });
-      return base;
+      return Object.assign(base, { settingsChains });
+    }
+
+    function expectSettingsReadOf(chains: ReturnType<typeof refereeSupabase>['settingsChains']) {
+      expect(chains).toHaveLength(1);
+      expect(chains[0]!.select).toHaveBeenCalledWith('access_policy, rate_limit_per_hour');
+      expect(chains[0]!.eq).toHaveBeenCalledWith('tournament_id', tournamentId);
     }
 
     it('estimate lets an Event referee in when the Tournament allows head judges', async () => {
       organizations.assertOrgRole.mockRejectedValue(new ForbiddenException('no'));
+      const db = refereeSupabase();
       const service = new TournamentQueryService(
-        refereeSupabase() as never,
+        db as never,
         organizations as never,
         aiUsage as never,
         tools,
       );
       const result = await service.estimate(tournamentId, userId, { question: 'Top fighters' });
       expect(result.allowed).toBe(true);
+      expectSettingsReadOf(db.settingsChains);
     });
 
     it('history lets an Event referee in when the Tournament allows head judges', async () => {
       organizations.assertOrgRole.mockRejectedValue(new ForbiddenException('no'));
+      const db = refereeSupabase();
       const service = new TournamentQueryService(
-        refereeSupabase() as never,
+        db as never,
         organizations as never,
         aiUsage as never,
         tools,
       );
       await expect(service.history(tournamentId, userId)).resolves.toEqual({ queries: [] });
+      expectSettingsReadOf(db.settingsChains);
     });
   });
 
