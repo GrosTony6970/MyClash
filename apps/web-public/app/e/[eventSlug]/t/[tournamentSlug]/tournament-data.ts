@@ -143,18 +143,21 @@ function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
   });
 }
 
+/** A podium place: the name, and a team's colour (a Fighter's is null, so no chip is drawn). */
+function podiumPlace(s: BracketSlot, side: 'red' | 'blue') {
+  const name = side === 'red' ? s.redFighterName : s.blueFighterName;
+  const colour = (side === 'red' ? s.red : s.blue)?.colour ?? null;
+  return name ? { fighterName: name, colour } : null;
+}
+
 function winnerName(s: BracketSlot | null) {
   const side = winnerSide(s);
-  if (!side) return null;
-  const name = side === 'red' ? s!.redFighterName : s!.blueFighterName;
-  return name ? { fighterName: name } : null;
+  return side ? podiumPlace(s!, side) : null;
 }
 
 function loserName(s: BracketSlot | null) {
   const side = winnerSide(s);
-  if (!side) return null;
-  const name = side === 'red' ? s!.blueFighterName : s!.redFighterName;
-  return name ? { fighterName: name } : null;
+  return side ? podiumPlace(s!, side === 'red' ? 'blue' : 'red') : null;
 }
 
 /** Which slots decide each podium place, and how to read them. */
@@ -255,6 +258,27 @@ export function poolEntrants(pools: Pool[]): { count: number; teams: boolean } {
         pool.standings.some((row) => row.kind === 'team'),
     ),
   };
+}
+
+/**
+ * "N teams" or "N fighters", singular or plural. `t()` has no plurals, so the key pair is chosen
+ * here: English takes the singular for 1, French for 0 and 1.
+ */
+export function entrantCountLabel(
+  t: (key: string, values?: Record<string, string | number>) => string,
+  locale: string,
+  count: number,
+  teams: boolean,
+): string {
+  const singular = count === 1 || (locale === 'fr' && count === 0);
+  if (teams) {
+    return singular
+      ? t('publicApp.tournament.teamCountSingular', { count })
+      : t('publicApp.tournament.teamCountPlural', { count });
+  }
+  return singular
+    ? t('publicApp.tournament.fighterCountSingular', { count })
+    : t('publicApp.tournament.fighterCountPlural', { count });
 }
 
 /** Tournament brand colour token → hex for the legacy stripe/title paint. */

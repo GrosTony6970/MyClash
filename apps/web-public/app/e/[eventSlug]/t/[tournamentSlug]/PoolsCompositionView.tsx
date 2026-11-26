@@ -18,6 +18,7 @@ import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import type { SideSeat } from '@myclash/types/pool-standings';
 import { groupPoolsByStart } from './pool-sections';
+import { entrantCountLabel } from './tournament-data';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 
 /**
@@ -199,9 +200,12 @@ export function PoolsCompositionView({
                       )}
                       <span className="whitespace-nowrap text-xs uppercase tracking-wider text-muted">
                         {/* A Pool holds one kind of seat: a team Pool counts teams. */}
-                        {pool.members.some((m) => m.kind === 'team')
-                          ? t('publicApp.tournament.teamCount', { count: pool.members.length })
-                          : t('publicApp.tournament.fighterCount', { count: pool.members.length })}
+                        {entrantCountLabel(
+                          t,
+                          locale,
+                          pool.members.length,
+                          pool.members.some((m) => m.kind === 'team'),
+                        )}
                       </span>
                     </span>
                   </header>

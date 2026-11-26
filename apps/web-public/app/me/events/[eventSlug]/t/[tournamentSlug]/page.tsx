@@ -19,6 +19,7 @@ import {
   bracketPhaseType,
   derivePodium,
   colorTokenToHex,
+  poolEntrants,
   type TournamentData,
 } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/tournament-data';
 import { SwissRoundsView } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView';
@@ -196,6 +197,7 @@ export default function PersonalTournamentPage() {
                   eventSlug={eventSlug}
                   tournamentSlug={tournamentSlug}
                   colorToken={tournamentColor}
+                  teams={poolEntrants(pools).teams}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),

@@ -11,7 +11,8 @@ import { PoolMatchesView } from './PoolMatchesView';
 import { PoolsCompositionView, type PoolMember } from './PoolsCompositionView';
 import { StandingsTable } from './StandingsTable';
 import { StandingsView } from './StandingsView';
-import { poolEntrants, toStandingRow } from './tournament-data';
+import { createTranslator, getMessages } from '@myclash/i18n';
+import { entrantCountLabel, poolEntrants, toStandingRow } from './tournament-data';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // The live refetch needs a websocket; these pages are drawn from one read.
@@ -130,7 +131,10 @@ describe("a team Pool's bout list", () => {
   });
 
   it('names each team with its chip, and bolds the team that won by forfeit on the lower score', async () => {
-    await drawWithRead(<PoolMatchesView eventSlug="e" tournamentSlug="t" />, read([TEAM_BOUT]));
+    await drawWithRead(
+      <PoolMatchesView eventSlug="e" tournamentSlug="t" teams />,
+      read([TEAM_BOUT]),
+    );
 
     const lyon = nameCell('Lyon Blades');
     const paris = nameCell('Paris Rapiers');
@@ -142,7 +146,12 @@ describe("a team Pool's bout list", () => {
 
   it("still marks the reader's own bout by Registration, with no chip for a Fighter", async () => {
     await drawWithRead(
-      <PoolMatchesView eventSlug="e" tournamentSlug="t" highlightRegistrationId="reg-ada" />,
+      <PoolMatchesView
+        eventSlug="e"
+        tournamentSlug="t"
+        teams={false}
+        highlightRegistrationId="reg-ada"
+      />,
       read([FIGHTER_BOUT]),
     );
 
@@ -292,12 +301,40 @@ describe("a team Pool's words", () => {
     )?.[1];
 
   it('heads the bout list Team 1 and Team 2', async () => {
-    await drawWithRead(<PoolMatchesView eventSlug="e" tournamentSlug="t" />, pools([TEAM_BOUT]));
+    await drawWithRead(
+      <PoolMatchesView eventSlug="e" tournamentSlug="t" teams />,
+      pools([TEAM_BOUT]),
+    );
     expect(headers()).toEqual(expect.arrayContaining(['Team 1', 'Team 2']));
   });
 
+  it("heads a team Pool's bouts Team 1 and Team 2 from the Tournament's kind, while no bout has a side yet", async () => {
+    const undrawn = { ...TEAM_BOUT, redSideId: null, blueSideId: null, winnerSideId: null };
+    await drawWithRead(
+      <PoolMatchesView eventSlug="e" tournamentSlug="t" teams />,
+      pools([undrawn]),
+    );
+    expect(headers()).toEqual(expect.arrayContaining(['Team 1', 'Team 2']));
+  });
+
+  it('counts one team or one fighter in the singular, in English and French', () => {
+    const one = (teams: boolean, locale: 'en' | 'fr', count: number) =>
+      entrantCountLabel(createTranslator(getMessages(locale)), locale, count, teams);
+    expect(one(true, 'en', 1)).toBe('1 team');
+    expect(one(true, 'en', 2)).toBe('2 teams');
+    expect(one(true, 'en', 0)).toBe('0 teams');
+    expect(one(false, 'en', 1)).toBe('1 fighter');
+    expect(one(true, 'fr', 0)).toBe('0 équipe');
+    expect(one(true, 'fr', 1)).toBe('1 équipe');
+    expect(one(true, 'fr', 2)).toBe('2 équipes');
+    expect(one(false, 'fr', 1)).toBe('1 combattant');
+  });
+
   it('heads a Fighters bout list Fighter 1 and Fighter 2', async () => {
-    await drawWithRead(<PoolMatchesView eventSlug="e" tournamentSlug="t" />, pools([FIGHTER_BOUT]));
+    await drawWithRead(
+      <PoolMatchesView eventSlug="e" tournamentSlug="t" teams={false} />,
+      pools([FIGHTER_BOUT]),
+    );
     expect(headers()).toEqual(expect.arrayContaining(['Fighter 1', 'Fighter 2']));
   });
 

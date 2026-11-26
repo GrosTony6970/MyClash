@@ -581,14 +581,14 @@
       "why": "`mapMatchRow` builds each side's key and the winner's with `sideKey` from the Registration and team columns of the raw bout row (`:103`-`:105`); null for a side not known, never `''`"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 6,
-      "why": "1c: the public bracket's \"you\" mark by Registration (`:145`-`:146`); the card takes the side ids and typed sides from the wire (`:215`-`:235`)"
+      "why": "the card takes the side ids and typed sides from the wire as they are (`:227`-`:231`); the Registration ids beside them only mark the reader's own slot in the personal space (`:145`-`:146`), and a team has no Registration to mark"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
       "verdict": "side-key",
-      "hits": 6,
-      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them mark the reader's own bouts (`:372`-`:374`) and, null beside a side key, name a team Pool's bout for its column heads (`isTeamBout`, `:68`-`:69`); declared `:43`, `:51`"
+      "hits": 4,
+      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them only mark the reader's own bouts; the column heads read the Tournament's kind (`teams`), not a bout's side"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView.tsx": {
       "verdict": "individual-only",

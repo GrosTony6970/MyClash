@@ -93,7 +93,7 @@ describe('derivePodium', () => {
   it('crowns the forfeit winner of a final won on the lower score', () => {
     const podium = derivePodium([final]);
 
-    expect(podium?.gold).toEqual({ fighterName: 'Bea' });
-    expect(podium?.silver).toEqual({ fighterName: 'Anna' });
+    expect(podium?.gold).toEqual({ fighterName: 'Bea', colour: null });
+    expect(podium?.silver).toEqual({ fighterName: 'Anna', colour: null });
   });
 });

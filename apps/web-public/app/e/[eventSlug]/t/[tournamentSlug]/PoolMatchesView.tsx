@@ -59,17 +59,6 @@ interface PoolMatch {
   liceColorHex: string | null;
 }
 
-/**
- * A team Pool's bout: a side keyed with no Registration is a team (`publicPoolBoutSides` sends the
- * side key beside the Registration id, null on a team's side). A Pool holds one kind of entrant.
- */
-function isTeamBout(m: PoolMatch): boolean {
-  return (
-    (m.redSideId !== null && m.redRegistrationId === null) ||
-    (m.blueSideId !== null && m.blueRegistrationId === null)
-  );
-}
-
 /** Personal-space "YOU" chip marking the viewer's own row. */
 function YouChip({ label }: { label: string }) {
   return (
@@ -116,6 +105,8 @@ interface Props {
   tournamentSlug: string;
   /** Optional tournament brand color token for the section title. */
   colorToken?: string | null;
+  /** The Tournament's Pools seat teams: the bout columns say "Team", even before a bout has a side. */
+  teams: boolean;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -130,6 +121,7 @@ export function PoolMatchesView({
   eventSlug,
   tournamentSlug,
   colorToken,
+  teams,
   highlightRegistrationId,
 }: Props) {
   const { t, locale } = useI18n();
@@ -329,7 +321,7 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colRound')}
                     </th>
                     <th className="px-4 py-2">
-                      {pool.matches.some(isTeamBout)
+                      {teams
                         ? t('publicApp.tournament.poolMatches.colTeam1')
                         : t('publicApp.tournament.poolMatches.colFighter1')}
                     </th>
@@ -340,7 +332,7 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colPts')}
                     </th>
                     <th className="px-4 py-2">
-                      {pool.matches.some(isTeamBout)
+                      {teams
                         ? t('publicApp.tournament.poolMatches.colTeam2')
                         : t('publicApp.tournament.poolMatches.colFighter2')}
                     </th>

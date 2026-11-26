@@ -36,6 +36,7 @@ import {
   bracketPhaseType,
   derivePodium,
   colorTokenToHex,
+  entrantCountLabel,
   poolEntrants,
   type TournamentData,
 } from './tournament-data';
@@ -55,14 +56,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getServerApiUrl();
   const t = await getServerT();
+  const locale = await resolveServerLocale();
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
   // No name to give (not found, or the read failed): the address, as the Event's layout does.
   if (outcome.kind !== 'ok') return { title: tournamentSlug };
   const { data } = outcome;
   const entrants = poolEntrants(data.pools);
-  const counted = entrants.teams
-    ? t('publicApp.tournament.teamCount', { count: entrants.count })
-    : t('publicApp.tournament.fighterCount', { count: entrants.count });
+  const counted = entrantCountLabel(t, locale, entrants.count, entrants.teams);
   return {
     title: data.tournament.name,
     description: `${counted} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
@@ -290,11 +290,7 @@ export default async function TournamentPage({ params }: Props) {
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetLabel ?? tournament.rulesetCode}
             {entrants.count > 0 &&
-              ` · ${
-                entrants.teams
-                  ? t('publicApp.tournament.teamCount', { count: entrants.count })
-                  : t('publicApp.tournament.fighterCount', { count: entrants.count })
-              }`}
+              ` · ${entrantCountLabel(t, locale, entrants.count, entrants.teams)}`}
           </p>
         </div>
         {shareable && <ShareButton path={`/e/${eventSlug}/t/${tournamentSlug}`} />}
@@ -358,6 +354,7 @@ export default async function TournamentPage({ params }: Props) {
                 eventSlug={eventSlug}
                 tournamentSlug={tournamentSlug}
                 colorToken={tournamentColor}
+                teams={entrants.teams}
               />
             ),
           },

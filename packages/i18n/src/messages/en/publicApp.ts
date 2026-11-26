@@ -1169,6 +1169,7 @@ export const publicApp = {
     finalRanking: {
       colRank: 'Rank',
       colFighter: 'Fighter',
+      colTeam: 'Team',
       colResult: 'Result',
       colPoolScore: 'Pool score',
       champion: 'Champion',
@@ -1198,8 +1199,10 @@ export const publicApp = {
       emptyMain: 'No participants registered yet.',
       emptyWaitlist: 'No one on the waiting list.',
     },
-    fighterCount: '{count} fighters',
-    teamCount: '{count} teams',
+    fighterCountSingular: '{count} fighter',
+    fighterCountPlural: '{count} fighters',
+    teamCountSingular: '{count} team',
+    teamCountPlural: '{count} teams',
     loading: 'Loading…',
     errors: {
       loadFailedTitle: "This tournament couldn't be loaded",

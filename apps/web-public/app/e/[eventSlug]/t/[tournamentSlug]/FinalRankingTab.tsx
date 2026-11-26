@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import {
   computeFinalRanking,
   rankingBracketShape,
+  TeamChip,
   type FinalRankingEntry,
   type PoolEntry,
 } from '@myclash/ui';
@@ -156,6 +157,9 @@ export function FinalRankingTab({
     );
   }
 
+  // A team Tournament ranks teams only: its column says so, and a team has no club pill.
+  const ranksTeams = ranking.some((entry) => entry.kind === 'team');
+
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       {/* Personal space: scroll the viewer's own row into view on landing. */}
@@ -166,7 +170,11 @@ export function FinalRankingTab({
             <th className="w-16 px-4 py-2 text-center">
               {t('publicApp.tournament.finalRanking.colRank')}
             </th>
-            <th className="px-4 py-2">{t('publicApp.tournament.finalRanking.colFighter')}</th>
+            <th className="px-4 py-2">
+              {ranksTeams
+                ? t('publicApp.tournament.finalRanking.colTeam')
+                : t('publicApp.tournament.finalRanking.colFighter')}
+            </th>
             <th className="px-4 py-2">{t('publicApp.tournament.finalRanking.colResult')}</th>
             <th className="px-4 py-2 text-right">
               {t('publicApp.tournament.finalRanking.colPoolScore')}
@@ -194,6 +202,7 @@ export function FinalRankingTab({
                 </td>
                 <td className="px-4 py-2">
                   <span className={isYou ? 'font-bold text-accent' : 'font-medium text-foreground'}>
+                    <TeamChip colour={entry.colour} />
                     {entry.fighterName}
                   </span>
                   {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
