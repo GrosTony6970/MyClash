@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { createTranslator, messages } from '@myclash/i18n';
-import { bracketToken, roundTokenLabel } from '@myclash/types';
+import { bracketToken, extractBronzeMatch, roundTokenLabel } from '@myclash/types';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import type { McpRefusal } from './mcp-answer';
 import { poolTableRows, type PoolTables } from '../../pool-standings/pool-table-rows';
@@ -78,30 +78,15 @@ function roundLabel(round: number, s: PublicStandings): string {
   return descriptor ? english(descriptor.key, descriptor.params) : `Round ${round}`;
 }
 
-/**
- * The bronze bout: position 2 of the last round (the gold final is position 0). The public page
- * takes it out the same way with `extractBronzeMatch` (packages/ui bracket/extract-bronze-match.ts)
- * and shows it apart; the API cannot import packages/ui, so this is the same predicate. The
- * public page skips the split for double elimination (BracketLive.tsx), and so does `toBracket`.
- */
-function isBronze(slot: PublicStandings['bracketSlots'][number], maxRound: number): boolean {
-  return slot.round === maxRound && slot.position === 2;
-}
-
+/** The bracket by round, the bronze bout as its own last round, as the public page shows it. */
 function toBracket(s: PublicStandings): TournamentStandingsAnswer['bracket'] {
-  const maxRound = s.bracketSlots.reduce((max, slot) => Math.max(max, slot.round), 0);
+  const { bronze, mainSlots } = extractBronzeMatch(s.bracketSlots, s.phaseType);
   const rounds = new Map<number, PublicStandings['bracketSlots']>();
-  const bronze: PublicStandings['bracketSlots'] = [];
-  const splitBronze = s.phaseType !== 'double_elim';
-  for (const slot of s.bracketSlots) {
-    if (splitBronze && isBronze(slot, maxRound)) bronze.push(slot);
-    else rounds.set(slot.round, [...(rounds.get(slot.round) ?? []), slot]);
-  }
+  for (const slot of mainSlots) rounds.set(slot.round, [...(rounds.get(slot.round) ?? []), slot]);
   const named = [...rounds.entries()]
     .sort(([a], [b]) => a - b)
     .map(([round, slots]) => ({ round: roundLabel(round, s), slots }));
-  if (bronze.length > 0)
-    named.push({ round: english('common.bracket.bronzeMatch'), slots: bronze });
+  if (bronze) named.push({ round: english('common.bracket.bronzeMatch'), slots: [bronze] });
   return named.map(({ round, slots }) => ({
     round,
     fights: slots

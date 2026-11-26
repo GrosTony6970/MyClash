@@ -313,7 +313,7 @@ function SingleElimLayout({
             // Finals column: the gold/silver decider sits at its computed center
             // (the semifinal-pair midpoint — same rule as every other round) so
             // the SF→Final connectors stay symmetric. The bronze match is pulled
-            // out of `slots` (extractBronzeMatch) and has no computed center, so
+            // out of `slots` (`extractBronzeMatch`, @myclash/types) and has no computed center, so
             // it's placed one pitch below the final; both get a caption above the
             // card. `columnHeight` is widened so the lower bronze isn't clipped.
             const finalCenter = isFinalRound

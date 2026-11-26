@@ -798,7 +798,7 @@
     "apps/web-public/src/components/me/WorkshopRegisterControls.tsx:138",
     "apps/web-public/src/components/workshops/WorkshopCard.tsx:75",
     "apps/web-public/src/lib/supabase-browser.ts:68",
-    "apps/web-staff/app/lices/[liceId]/_components/BracketDisclosure.tsx:100",
+    "apps/web-staff/app/lices/[liceId]/_components/BracketDisclosure.tsx:94",
     "apps/web-staff/app/lices/[liceId]/_components/PoolsDisclosure.tsx:110",
     "apps/web-staff/app/lices/[liceId]/page.tsx:108",
     "apps/web-staff/app/lices/page.tsx:45",

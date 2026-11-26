@@ -2,14 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  BracketView,
-  CollapsibleSection,
-  asColorToken,
-  extractBronzeMatch,
-  type BracketSlotData,
-} from '@myclash/ui';
-import type { TournamentScoringConfig } from '@myclash/types';
+import { BracketView, CollapsibleSection, asColorToken, type BracketSlotData } from '@myclash/ui';
+import { extractBronzeMatch, type TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useLazyFetch } from '../../../../src/hooks/useLazyFetch';
 import { useScrollToBracketSlot } from '../../../../src/hooks/useScrollToBracketSlot';
@@ -53,8 +47,8 @@ function BracketTree({
 }) {
   const openMatch = useOpenMatch();
   // Mandatory before rendering: without it the bronze match and the final
-  // collapse onto the same card.
-  const { bronze, mainSlots } = extractBronzeMatch(slots);
+  // collapse onto the same card. A double-elimination bracket keeps them all.
+  const { bronze, mainSlots } = extractBronzeMatch(slots, bracket.phaseType);
   const sideColors = scoringConfig?.display?.sideColors;
   return (
     // MatchCard paints itself white with slate text, so the tree is pinned to

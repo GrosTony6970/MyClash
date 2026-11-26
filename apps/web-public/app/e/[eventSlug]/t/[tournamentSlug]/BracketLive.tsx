@@ -15,11 +15,11 @@ import { useRouter } from 'next/navigation';
 import {
   BracketView,
   MedalPodium,
-  extractBronzeMatch,
   type BracketSlotData,
   type ColorToken,
   type PodiumData,
 } from '@myclash/ui';
+import { extractBronzeMatch } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -246,11 +246,8 @@ export function BracketLive({
   // Extract the bronze final so BracketView renders it separately
   // below the gold final — without this split, both finals collapse
   // to a single card at the SF midpoint and the bronze disappears.
-  // Matches the admin bracket page's call shape.
-  const isDoubleElim = phaseType === 'double_elim';
-  const { bronze, mainSlots } = isDoubleElim
-    ? { bronze: undefined, mainSlots: adminShapeSlots }
-    : extractBronzeMatch(adminShapeSlots);
+  // A double-elimination bracket keeps every slot in the main lanes.
+  const { bronze, mainSlots } = extractBronzeMatch(adminShapeSlots, phaseType);
 
   return (
     <div
