@@ -242,14 +242,14 @@
       "why": "`resolveLoser` compares side keys (`sideKey`); `grandFinalEndsBracket` reads side A and the winner by Registration: a grand final is double elimination, which refuses a team Tournament (call 2)"
     },
     "apps/api/src/modules/phases/bracket-slots.controller.ts": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1c: slot override names Registrations (`:43`-`:46`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the slot override names each side by Registration or by team (`slotSide`, call 4): an entrant goes to the column of its kind (`seatColumns` in `overrideSlot`), `null` clears both columns, a side left out is unchanged; `assertCanFillBracketSlot` refuses a side of the other kind than the Tournament's and an entrant of another Tournament"
     },
     "apps/api/src/modules/phases/dto/phases.dto.ts": {
-      "verdict": "not-yet",
-      "hits": 2,
-      "why": "1c: slot override body names Registrations (`:108`-`:109`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the slot override body names each side by `registrationAId` / `teamAId` (b likewise), at most one per side (call 4)"
     },
     "apps/api/src/modules/phases/match-completion.service.ts": {
       "verdict": "side-key",

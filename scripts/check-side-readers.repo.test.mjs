@@ -22,8 +22,6 @@ const NOT_YET = [
   'apps/api/src/modules/me/me-events.service.ts',
   'apps/api/src/modules/people-context/people-context.service.ts',
   'apps/api/src/modules/persons/public-schedule.service.ts',
-  'apps/api/src/modules/phases/bracket-slots.controller.ts',
-  'apps/api/src/modules/phases/dto/phases.dto.ts',
   'apps/api/src/modules/privacy/subject-export.service.ts',
   'apps/api/src/modules/privacy/subject-export.tables.ts',
   'apps/api/src/modules/referees/assignment-board.service.ts',

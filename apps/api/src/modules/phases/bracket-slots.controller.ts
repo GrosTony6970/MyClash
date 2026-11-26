@@ -14,7 +14,7 @@ import { assertCanFillBracketSlot } from '../../common/auth/bracket-slot-authz';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { BracketAdvanceService } from './bracket-advance.service';
+import { BracketAdvanceService, type SlotEntrant } from './bracket-advance.service';
 import { UpdateBracketSlotDto } from './dto/phases.dto';
 
 @ApiTags('bracket-slots')
@@ -27,31 +27,40 @@ export class BracketSlotsController {
     private readonly organizations: OrganizationsService,
   ) {}
 
-  /** `admin` on the slot's own Event; each fighter entered in the slot's tournament. */
+  /** `admin` on the slot's own Event; each entrant of the Tournament's kind, and of it. */
   @Patch(':slotId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Override bracket slot registrations (org admin+)' })
+  @ApiOperation({ summary: 'Override bracket slot sides (org admin+)' })
   @ApiParam({ name: 'slotId', type: 'string', format: 'uuid' })
   async overrideSlot(
     @Param('slotId', ParseUUIDPipe) slotId: string,
     @Body() dto: UpdateBracketSlotDto,
     @Req() req: FastifyRequest,
   ) {
+    const sideA = slotSide(dto.registrationAId, dto.teamAId);
+    const sideB = slotSide(dto.registrationBId, dto.teamBId);
     await assertCanFillBracketSlot(
       { supabase: this.supabase, orgs: this.organizations },
       slotId,
-      [dto.registrationAId, dto.registrationBId],
+      [sideA, sideB],
       await requireRequestUserId(req, this.supabase),
     );
-    await this.bracketAdvance.overrideSlot(
-      slotId,
-      fighterSide(dto.registrationAId),
-      fighterSide(dto.registrationBId),
-    );
+    await this.bracketAdvance.overrideSlot(slotId, sideA, sideB);
     return { slotId };
   }
 }
 
-/** The body names a side by Registration: a Fighter, a clear (`null`), or no change. */
-const fighterSide = (id: string | null | undefined) =>
-  id == null ? id : { kind: 'individual' as const, id };
+/**
+ * One side of the body: a Fighter or a team, `null` to clear it, or `undefined` for no change. The
+ * DTO lets a side name one field at most.
+ */
+function slotSide(
+  registrationId: string | null | undefined,
+  teamId: string | null | undefined,
+): SlotEntrant | null | undefined {
+  if (registrationId !== undefined) {
+    return registrationId === null ? null : { kind: 'individual', id: registrationId };
+  }
+  if (teamId !== undefined) return teamId === null ? null : { kind: 'team', id: teamId };
+  return undefined;
+}

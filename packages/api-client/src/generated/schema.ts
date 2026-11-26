@@ -3941,7 +3941,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Override bracket slot registrations (org admin+) */
+    /** Override bracket slot sides (org admin+) */
     patch: operations['BracketSlotsController_overrideSlot'];
     trace?: never;
   };
@@ -12025,7 +12025,11 @@ export interface components {
       /** Format: uuid */
       registrationAId?: string | null;
       /** Format: uuid */
+      teamAId?: string | null;
+      /** Format: uuid */
       registrationBId?: string | null;
+      /** Format: uuid */
+      teamBId?: string | null;
     };
     UpsertQualificationDto: {
       /** Format: uuid */

@@ -59,9 +59,9 @@ beforeEach(() => {
     },
     tournaments: {
       rows: [
-        { id: TOURNAMENT_B, event_id: EVENT_B },
-        { id: TOURNAMENT_A, event_id: EVENT_A },
-        { id: TOURNAMENT_A2, event_id: EVENT_A },
+        { id: TOURNAMENT_B, event_id: EVENT_B, entrant_kind: 'individual' },
+        { id: TOURNAMENT_A, event_id: EVENT_A, entrant_kind: 'individual' },
+        { id: TOURNAMENT_A2, event_id: EVENT_A, entrant_kind: 'individual' },
       ],
     },
     phases: {
@@ -216,7 +216,7 @@ describe('BracketSlotsController authorization', () => {
     // alone would stay green with a column dropped from a read.
     expect(selectsFor(db.from, 'bracket_slots')).toEqual(['phase_id']);
     expect(selectsFor(db.from, 'phases')).toEqual(['tournament_id']);
-    expect(selectsFor(db.from, 'tournaments')).toEqual(['event_id']);
+    expect(selectsFor(db.from, 'tournaments')).toEqual(['event_id', 'entrant_kind']);
     expect(selectsFor(db.from, 'registrations')).toEqual(['id']);
   });
 });

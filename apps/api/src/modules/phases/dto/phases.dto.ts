@@ -103,10 +103,33 @@ const generateBracketSchema = z
   .superRefine(refineDoubleElimPodium);
 export class GenerateBracketDto extends createZodDto(generateBracketSchema) {}
 
+/**
+ * The slot override (call 4 of slice 1c-1). Each side is named by at most one field: a
+ * Registration on an individual Tournament, a team on a team Tournament. A side left out is
+ * unchanged; `null` clears both columns of the side.
+ */
+const SLOT_SIDE_FIELDS = [
+  ['registrationAId', 'teamAId'],
+  ['registrationBId', 'teamBId'],
+] as const;
+
 const updateBracketSlotSchema = z
   .object({
     registrationAId: z.uuid().nullish(),
+    teamAId: z.uuid().nullish(),
     registrationBId: z.uuid().nullish(),
+    teamBId: z.uuid().nullish(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    for (const [registration, team] of SLOT_SIDE_FIELDS) {
+      if (body[registration] !== undefined && body[team] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [team],
+          message: `A side is named by ${registration} or by ${team}, not both`,
+        });
+      }
+    }
+  });
 export class UpdateBracketSlotDto extends createZodDto(updateBracketSlotSchema) {}
