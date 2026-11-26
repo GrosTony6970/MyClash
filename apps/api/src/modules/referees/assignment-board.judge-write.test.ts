@@ -241,6 +241,21 @@ describe('AssignmentBoardService.judgeWrite', () => {
     });
   });
 
+  it('judgeVerdict answers a Discouraged write with its reasons; judgeWrite still 409s on it', async () => {
+    const w = write({ matchIds: ['m-2'] });
+    const judged = await service.judgeVerdict('event-1', w);
+    expect(judged).toMatchObject({
+      verdict: {
+        level: 'discouraged',
+        reasons: [expect.objectContaining({ code: 'own_pool', level: 'discouraged' })],
+      },
+      matchIds: ['m-2'],
+      skippedMatchIds: [],
+    });
+    const error = await refusal(w);
+    expect(error.getResponse()).toMatchObject({ code: 'referee_needs_confirmation' });
+  });
+
   it('judges a whole Pool as the board does (the AI door)', async () => {
     const error = await refusal(write({ poolId: 'pool-a' }));
     expect(error.getResponse()).toMatchObject({ code: 'referee_needs_confirmation' });

@@ -385,6 +385,15 @@ export interface JudgedWrite {
   skippedMatchIds: string[];
 }
 
+/** A write judged and not yet refused: the checker's whole answer, reasons included. */
+export interface JudgedVerdict {
+  verdict: RefereeVerdict;
+  /** The bouts to write (bout writes only). */
+  matchIds: string[];
+  /** The bouts left out because the person fights them (`skipOwnBouts`). */
+  skippedMatchIds: string[];
+}
+
 interface TournamentRow {
   id: string;
   name: string;
@@ -583,6 +592,16 @@ export class AssignmentBoardService {
    * unjudged write must never pass as fine.
    */
   async judgeWrite(eventId: string, write: RefereeWrite): Promise<JudgedWrite> {
+    const { verdict, matchIds, skippedMatchIds } = await this.judgeVerdict(eventId, write);
+    return { stored: refuseUnlessFine(verdict, write.confirm), matchIds, skippedMatchIds };
+  }
+
+  /**
+   * The same judging as `judgeWrite`, answered instead of refused: the verdict with its
+   * reasons, for a door that previews (the MCP connector). Throws what `judgeWrite` throws
+   * before the verdict: a roster or skill 400, a bout the board does not hold.
+   */
+  async judgeVerdict(eventId: string, write: RefereeWrite): Promise<JudgedVerdict> {
     const context = await this.loadContext(eventId);
     const { personId } = qualifiedCandidate(context.candidates, write.personId, write.role);
     if ('poolId' in write) {
@@ -595,11 +614,7 @@ export class AssignmentBoardService {
         unitTarget(pool, write.role, context.clock),
         personId,
       );
-      return {
-        stored: refuseUnlessFine(verdict, write.confirm),
-        matchIds: [],
-        skippedMatchIds: [],
-      };
+      return { verdict, matchIds: [], skippedMatchIds: [] };
     }
     const { judged, written, skippedMatchIds } = this.boutsOfWrite(
       context,
@@ -614,11 +629,7 @@ export class AssignmentBoardService {
         mergeVerdicts(merged, this.verdictFor(context, target, personId, written)),
       FINE,
     );
-    return {
-      stored: refuseUnlessFine(verdict, write.confirm),
-      matchIds: judged.flatMap((t) => t.matchIds),
-      skippedMatchIds,
-    };
+    return { verdict, matchIds: judged.flatMap((t) => t.matchIds), skippedMatchIds };
   }
 
   /**
