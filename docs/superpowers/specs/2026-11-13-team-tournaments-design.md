@@ -7,7 +7,7 @@ shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59
 it) is built on the same branch, from `9f9ee1b89` to the commit that closed it. Slice 1b-2 (the
 Match runs) is built on the same branch, from `5231a5c71` to `5c4e954d2`, which closes it. Slice 1c
 is split in two (ruling 979). Slice 1c-1 (the Tournament finishes) is built on the same branch and
-PR, from `69ab4e2dc` to the commit that wrote this line, which closes it. Slice 1c-2, the team gets
+PR, from `79b523ac2` to the commit that wrote this line, which closes it. Slice 1c-2, the team gets
 names, is next. Slices 1c-2 to 8 are not built; what 1a to 1c-1 left them is listed under
 "Slices". The decisions in "What the operator decided" are rulings. The items in "My calls" are
 proposals the operator has read and not overturned. Reviewed with `myclash-plan-review`; the record
@@ -554,35 +554,37 @@ Each slice is usable alone and lands as several single-concern commits.
    - **1c, the rest of a Tournament, in two parts** (ruling 979). Both are built on the same branch
      and the same pull request. The ledger's 38 `not-yet` lines split 25 for 1c-1 and 13 for 1c-2.
 
-     **1c-1, the Tournament finishes (BUILT on branch `feat/team-tournaments`, from `69ab4e2dc` to
+     **1c-1, the Tournament finishes (BUILT on branch `feat/team-tournaments`, from `79b523ac2` to
      the commit that wrote this line).** It needs no names; teams stay unnamed (ruling 973). A team
      Tournament runs its Pools, then a single elimination bracket, and ends with a champion, a final
      ranking and a podium. It held these items, all done:
      - Done: single elimination for teams, final ranking and podium (admin and public). A team's
-       seed sets the bracket order only (ruling 982). Commits `71ebecde3`, `6779fc9b5`, `72909a4dc`,
-       `1ff4eb9fd`, `3527f5da0`, `c23c93322`, `204847463`, `d824863ff`, `cfd450861`, `995361133`.
+       seed sets the bracket order only (ruling 982). Commits `b6c41ad57`, `2219d3d88`, `a5eeb2c55`,
+       `7880fccda`, `952fba30a`, `508dc3a86`, `e9d49ec07`, `2feae364c`, `af113ed78`, `72e87dc1c`.
      - Done: the League link refused for a team Tournament, and the switch to Team refused while a
-       League link is live (rulings 729 and 981). Migration 0287 in `fa834e19a`; the doors in
-       `7e805c9a9` and `3d223d962`.
-     - Done: HEMA Ratings export skips team Tournaments and says so (`6982e3e3e`). The archive
-       reports name a team side (`5ffbf2dda`).
+       League link is live (rulings 729 and 981). Migration 0287 in `1d2cdaf6d`; the doors in
+       `096bcf5ab` and `631a23366`.
+     - Done: a Tournament's kind locks once it has a phase (ruling 983, decision 23). Migration
+       0288 in `2e2659951`; the named 409 and the settings sentence in `84f492408`.
+     - Done: HEMA Ratings export skips team Tournaments and says so (`76661b984`). The archive
+       reports name a team side (`b60af582d`).
      - Done: `clearDependentPairing` clears both columns of a side, so an emptied team bout keeps
-       its team ids (`6779fc9b5`).
+       its team ids (`2219d3d88`).
      - Done (from 1b-1): `generateBracket` checks the Tournament's kind for every caller, the
-       `'system'` default included (`72909a4dc`).
-     - Done (from 1b-1): the AI assistant's `generate_pools` takes a team spread (`ba1093169`).
+       `'system'` default included (`a5eeb2c55`).
+     - Done (from 1b-1): the AI assistant's `generate_pools` takes a team spread (`1f7c4d459`).
      - Done (from 1b-2): the public bracket, its podium and its forfeit read and send a side
-       (`3527f5da0`, `995361133`, `d824863ff`).
+       (`952fba30a`, `72e87dc1c`, `2feae364c`).
      - Done (from 1b-2): the EN toast `admin.common.missingRegistrationId` reads "Missing
        registration for this side".
-     - Done (from 1b-2): `MatchScoreboard` is deleted (ruling 980, `44659a23c`).
-     - Done (from 1b-2): the lice and pad screens use `TeamChip` (`6f714b654`).
+     - Done (from 1b-2): `MatchScoreboard` is deleted (ruling 980, `fa3337fdf`).
+     - Done (from 1b-2): the lice and pad screens use `TeamChip` (`f99e74e73`).
      - Done (from 1b-2): `teamCount` and `fighterCount` have a plural form, and the public Pool
-       heading finds a team (`995361133`).
+       heading finds a team (`72e87dc1c`).
      - Done (from 1b-2): the two owners of "the side this body names" are one, `named-side.ts`
-       (`70aaa2c09`).
+       (`39689ecd3`).
      - Done (from 1b-2, parked): R1, the scope filters of the black-card repair now have a test
-       (`7d0dbcac8`). R3, the TV and the pad draw a team with `TeamChip` (`6f714b654`).
+       (`9349df9c8`). R3, the TV and the pad draw a team with `TeamChip` (`f99e74e73`).
      - Done: the 25 `not-yet` lines of `scripts/side-readers-ledger.json` that sat in the files
        above. 13 `not-yet` lines are left, all tagged `1c: (1c-2)`.
 
