@@ -5380,17 +5380,17 @@ Every refusal logs the host it would have sent the person to.
 Nine tools sit beside `whoami` in `modules/mcp/tools/`, registered in `mcp-server.ts`. All are
 read-only. Each calls a service that an existing route already calls, so it applies that route's gate.
 
-| Tool                   | Reads                                                                     | Service (gate)                                                     | Cap                   |
-| ---------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
-| `my_events`            | the person's Events: roles, Tournaments, referee duties, taught Workshops | `MeEventsService`                                                  | none                  |
-| `my_upcoming`          | the next bouts and referee duties, soonest first                          | `MeEventsService`                                                  | `limit` 1–50, def. 20 |
-| `my_schedule`          | the person's own bouts, duties and Workshops at one Event (`event` slug)  | `PublicScheduleService`, as `my-schedule.controller.ts`            | none                  |
-| `my_stats`             | career, per-weapon, referee and HEMA Ratings numbers                      | `FightersService.getMyDashboard`                                   | none                  |
-| `my_fight_history`     | the newest completed bouts                                                | `FightersService.getMyDashboard`                                   | `limit` 1–10, def. 10 |
-| `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                  | none                  |
-| `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug`                                              | none                  |
-| `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `PoolStandingsService`; the Event gate, then the Tournament's gate | none                  |
-| `event_schedule`       | an Event's public Matches, soonest first                                  | `ScheduleGridService`; the Event gate, draft Tournaments left out  | `limit` 1–50, def. 20 |
+| Tool                   | Reads                                                                     | Service (gate)                                                                                                                          | Cap                   |
+| ---------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `my_events`            | the person's Events: roles, Tournaments, referee duties, taught Workshops | `MeEventsService`                                                                                                                       | none                  |
+| `my_upcoming`          | the next bouts and referee duties, soonest first                          | `MeEventsService`                                                                                                                       | `limit` 1–50, def. 20 |
+| `my_schedule`          | the person's own bouts, duties and Workshops at one Event (`event` slug)  | `PublicScheduleService`, as `my-schedule.controller.ts`                                                                                 | none                  |
+| `my_stats`             | career, per-weapon, referee and HEMA Ratings numbers                      | `FightersService.getMyDashboard`                                                                                                        | none                  |
+| `my_fight_history`     | the newest completed bouts                                                | `FightersService.getMyDashboard`                                                                                                        | `limit` 1–10, def. 10 |
+| `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                                                                                       | none                  |
+| `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug` (the Event), `EventsService.listTournaments`                                                                      | none                  |
+| `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `readableEventBySlug`, then `EventsService.getPublicTournamentStandings` (the Tournament gate); `PoolStandingsService` reads the tables | none                  |
+| `event_schedule`       | an Event's public Matches, soonest first                                  | `ScheduleGridService`; the Event gate, draft Tournaments left out                                                                       | `limit` 1–50, def. 20 |
 
 The rules:
 
@@ -5398,7 +5398,7 @@ The rules:
   `McpDoorGuard`. No tool takes a person, and no input names one. The two fighter tools read
   the caller's own dashboard.
 - **No raw id leaves a tool.** Output carries names and slugs only. A model has no use for an id,
-  and the next tool takes a slug. Every tool test calls `expectNoRawIds`
+  and the next tool takes a slug. Every slice-2 tool test calls `expectNoRawIds`
   (`tools/no-raw-ids.test-helper.ts`), which fails on a UUID at any depth, in a key or a value.
 - **An Event you cannot see answers like an unknown one.** `readableEventBySlug` reads one row by slug
   and applies `canReadEvent`, the gate of the public Event page. A hidden Event and a missing
@@ -5423,8 +5423,8 @@ The calls made:
   matches no `day`. `total` counts the Matches before the cap.
 - **`my_fight_history` is the dashboard's 10 newest bouts, with no opponent name.** The owner view of a
   hidden fighter profile reads only the dashboard, so a person always sees their own fights. A
-  paginated match read would not. The career holds ten bouts, so there is no `offset`, and the
-  dashboard shows no opponent name. A later slice can add an owner-path paginated read.
+  paginated match read would not. The career holds ten bouts, so there is no `offset`.
+  The dashboard shows no opponent name. A later slice can add an owner-path paginated read.
 
 ### 28.6 Connected apps
 
