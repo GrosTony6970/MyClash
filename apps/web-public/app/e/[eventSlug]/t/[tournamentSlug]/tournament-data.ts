@@ -10,7 +10,7 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
-import { resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
+import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
 export interface StandingRow {
@@ -177,7 +177,7 @@ interface PodiumSlots {
  * Locate the deciding slots for each podium model.
  *
  * Single-elim: position 1 at maxRound is the final, position 2 (when present)
- * the bronze match.
+ * the bronze match, found by `extractBronzeMatch`.
  *
  * Double-elim, GOLD: gold/silver come from the last PLAYED grand final — the
  * reset slot exists whenever the option is on but is only played when the
@@ -197,7 +197,7 @@ function podiumSlots(bracketSlots: BracketSlot[], shape?: PodiumShape): PodiumSl
     const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
     return {
       final: at(maxRound, 1),
-      bronze: at(maxRound, 2),
+      bronze: extractBronzeMatch(bracketSlots, 'single_elim').bronze,
       fourthSlot: null,
       bronzeIsMatch: true,
     };

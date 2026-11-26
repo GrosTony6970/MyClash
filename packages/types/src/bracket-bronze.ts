@@ -1,6 +1,7 @@
 /**
  * Split a flat bracket-slot list into the bronze bout and the main bracket — the one owner of the
- * rule, for the public bracket, the staff piste screen, the final ranking and the API's Claude tool.
+ * rule, for the public bracket and its podium (`tournament-data.ts`), the staff piste screen, the
+ * final ranking and the API's Claude tool.
  *
  * The bronze bout is position 2 of the last round. Positions start at 1, and the Final is
  * position 1 of that same round (`single-elim.ts` in `@myclash/rules` generates both).
