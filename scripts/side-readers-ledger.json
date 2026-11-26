@@ -477,10 +477,15 @@
       "hits": 8,
       "why": "bout and follow alerts from team Matches are a non-goal (decision 16, non-goals)"
     },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/bracket-kind.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the bracket page's forfeit names a slot's corner through `forfeitingSide` (`sideKey`) over the side's Registration and team; the slot override names each changed side by `registrationAId` / `registrationBId` or `teamAId` / `teamBId`, by the Tournament's kind"
+    },
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
-      "verdict": "not-yet",
-      "hits": 12,
-      "why": "1c: the bracket screen and its forfeit by Registration (`:291`-`:302`); its podium reads the side ids of the bracket read"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the forfeit and the override go through `bracket-kind.ts`; the forfeit is offered when both side ids are known, the podium reads the recorded winner by side id and a team's colour; its two hits are the realtime payload's declared Registration columns, which it does not read"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
       "verdict": "side-key",

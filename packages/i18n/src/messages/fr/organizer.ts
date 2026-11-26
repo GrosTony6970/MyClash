@@ -764,6 +764,8 @@ export const organizer = {
       badge: 'Équipe',
       teamNotSupported:
         "La double élimination et la phase suisse ne prennent pas encore d'équipes.",
+      ratingNeedsNamedMembers:
+        'Une équipe est classée par ses membres nommés : un tableau par équipes ne peut pas encore être tiré au classement.',
       mismatch:
         "Ce tournoi accueille l'autre type de participant : un tournoi par équipes accueille des équipes, un tournoi individuel des combattants.",
       fieldRefused:
@@ -1648,10 +1650,14 @@ export const organizer = {
     overrideModal: {
       title: 'Modifier le slot',
       filterPlaceholder: 'Filtrer les combattants par nom…',
+      filterPlaceholderTeam: 'Filtrer les équipes par nom…',
       sideA: 'Côté A (combattant 1)',
       sideB: 'Côté B (combattant 2)',
+      sideATeam: 'Côté A (équipe 1)',
+      sideBTeam: 'Côté B (équipe 2)',
       clear: 'Vider ce côté',
       empty: 'Aucun combattant inscrit.',
+      emptyTeam: 'Aucune équipe dans ce tournoi.',
       liceLabel: 'Lice',
       liceNone: 'Non assignée',
       refereeNone: 'Non assigné',
@@ -1664,6 +1670,8 @@ export const organizer = {
     autoPopulateSuccess: 'Tableau rempli à partir du classement des poules',
     autoPopulateSuccessFromSeed:
       "Tableau rempli à partir de l'ordre d'inscription (aucune donnée de poule)",
+    autoPopulateSuccessFromSeedTeam:
+      "Tableau rempli dans l'ordre des têtes de série des équipes (aucune donnée de poule)",
     autoPopulateSuccessFromRating: 'Tableau rempli à partir du classement HEMA',
     autoPopulateSuccessFromRandom: 'Tableau rempli par tirage aléatoire',
     autoPopulateSuccessFromSwiss: 'Tableau rempli depuis le classement suisse',
@@ -1672,7 +1680,10 @@ export const organizer = {
     autoPopulateNoPoolsTitle: 'Remplir le tableau sans données de poule ?',
     autoPopulateNoPoolsBody:
       "Ce tournoi n'a pas de phase de poules. Le tableau sera classé selon l'ordre d'inscription. Continuer ?",
+    autoPopulateNoPoolsBodyTeam:
+      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé dans l'ordre des têtes de série des équipes : d'abord les équipes classées, puis les autres dans leur ordre de création. Continuer ?",
     autoPopulateNoPoolsConfirm: 'Classer par inscriptions',
+    autoPopulateNoPoolsConfirmTeam: 'Classer par têtes de série des équipes',
     autoPopulateNoPoolsCancel: 'Annuler',
   },
   phaseVisibility: {
@@ -1689,6 +1700,8 @@ export const organizer = {
     playIns: 'Barrages',
     seedingStrategyLabel: 'Stratégie de tirage',
     seedingStrategySnake: "Standard — rang de poule, ou ordre d'inscription (recommandé)",
+    seedingStrategySnakeTeam:
+      'Standard — rang de poule, ou ordre des têtes de série des équipes (recommandé)',
     seedingStrategyByRating: 'Par classement HEMA',
     seedingStrategyRandom: 'Tirage aléatoire',
     seedingStrategyByPoolRank: 'Par rang de poule (poules terminées requises)',
@@ -2755,6 +2768,8 @@ export const organizer = {
     forfeitTitle: 'Enregistrer un forfait',
     forfeitRed: 'Forfait du combattant 1',
     forfeitBlue: 'Forfait du combattant 2',
+    forfeitRedTeam: "Forfait de l'équipe 1",
+    forfeitBlueTeam: "Forfait de l'équipe 2",
     forfeitReasonVoluntary: 'Volontaire',
     forfeitReasonInjury: 'Blessure',
     forfeitReasonBlackCard1: 'Carton noir (simple)',

@@ -619,7 +619,7 @@ export const admin = {
     loadTrackedFightersFailed: 'Failed to load tracked fighters',
     lockOperationFailed: 'Lock operation failed',
     logoUploadFailed: 'Logo upload failed',
-    missingRegistrationId: 'Missing registration id for this side',
+    missingRegistrationId: 'Missing registration for this side',
     nameAndSlugRequired: 'Name and slug are required.',
     nameRequired: 'Name is required.',
     networkError: 'Network error',

@@ -766,6 +766,8 @@ export const organizer = {
       maxTeams: 'Max teams',
       badge: 'Team',
       teamNotSupported: 'Double elimination and Swiss do not take teams yet.',
+      ratingNeedsNamedMembers:
+        'A team is rated by its named members, so a team bracket cannot be seeded by rating yet.',
       mismatch:
         'This tournament takes the other kind of entrant: a team tournament takes teams, an individual one takes fighters.',
       fieldRefused:
@@ -1646,10 +1648,14 @@ export const organizer = {
     overrideModal: {
       title: 'Override slot',
       filterPlaceholder: 'Filter fighters by name…',
+      filterPlaceholderTeam: 'Filter teams by name…',
       sideA: 'Side A (fighter 1)',
       sideB: 'Side B (fighter 2)',
+      sideATeam: 'Side A (team 1)',
+      sideBTeam: 'Side B (team 2)',
       clear: 'Clear this side',
       empty: 'No registered fighters.',
+      emptyTeam: 'No teams in this tournament.',
       liceLabel: 'Lice',
       liceNone: 'Unassigned',
       refereeNone: 'Unassigned',
@@ -1661,6 +1667,7 @@ export const organizer = {
     autoPopulatePoolsNotFinished: 'Pools have not finished yet',
     autoPopulateSuccess: 'Bracket populated from pool standings',
     autoPopulateSuccessFromSeed: 'Bracket populated from registration seed (no pool data)',
+    autoPopulateSuccessFromSeedTeam: 'Bracket populated in team seed order (no pool data)',
     autoPopulateSuccessFromRating: 'Bracket populated from HEMA ratings',
     autoPopulateSuccessFromRandom: 'Bracket populated from a random draw',
     autoPopulateSuccessFromSwiss: 'Bracket populated from the Swiss standings',
@@ -1671,7 +1678,10 @@ export const organizer = {
     autoPopulateNoPoolsTitle: 'Auto-populate without pool data?',
     autoPopulateNoPoolsBody:
       'This tournament has no pool phase. The bracket will be seeded from registration order. Continue?',
+    autoPopulateNoPoolsBodyTeam:
+      'This tournament has no pool phase. The bracket will be seeded in team seed order: the seeded teams first, then the others in the order they were made. Continue?',
     autoPopulateNoPoolsConfirm: 'Seed from registrations',
+    autoPopulateNoPoolsConfirmTeam: 'Seed in team seed order',
     autoPopulateNoPoolsCancel: 'Cancel',
   },
   phaseVisibility: {
@@ -1688,6 +1698,7 @@ export const organizer = {
     playIns: 'Play-ins',
     seedingStrategyLabel: 'Seeding strategy',
     seedingStrategySnake: 'Standard — pool rank, or registration seed (recommended)',
+    seedingStrategySnakeTeam: 'Standard — pool rank, or team seed order (recommended)',
     seedingStrategyByRating: 'By HEMA rating',
     seedingStrategyRandom: 'Random draw',
     seedingStrategyByPoolRank: 'By pool rank (requires finished pools)',
@@ -2786,6 +2797,8 @@ export const organizer = {
     forfeitTitle: 'Record forfeit',
     forfeitRed: 'Fighter 1 forfeits',
     forfeitBlue: 'Fighter 2 forfeits',
+    forfeitRedTeam: 'Team 1 forfeits',
+    forfeitBlueTeam: 'Team 2 forfeits',
     forfeitReasonVoluntary: 'Voluntary',
     forfeitReasonInjury: 'Injury',
     forfeitReasonBlackCard1: 'Black card (single)',
