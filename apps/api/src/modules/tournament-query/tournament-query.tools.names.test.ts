@@ -11,8 +11,10 @@ import {
   POOL_B,
   REG_ADA,
   REG_GRACE_H,
+  REG_GRACE_M,
   refereeRows,
   tournament,
+  uuid,
 } from './tournament-query.tools.fixtures';
 
 const summariesMock = vi.hoisted(() => vi.fn());
@@ -166,5 +168,118 @@ describe('TournamentQueryToolsService · a fighter, a pool and a judge by name',
     }
     const bracket = await service.execute(tournament, 'get_bracket_status', {});
     expect(bracket.rows?.[0]?.['Match']).toBe('');
+  });
+});
+
+describe('TournamentQueryToolsService · the fighter lookup', () => {
+  let service: TournamentQueryToolsService;
+  let fighterChains: Array<ReturnType<typeof awaitableChain>>;
+  let fighters: Array<Record<string, unknown>>;
+  let matches: Array<Record<string, unknown>>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    summariesMock.mockResolvedValue(new Map());
+    fighterChains = [];
+    fighters = fighterRows;
+    matches = [];
+    service = new TournamentQueryToolsService(mockSupabase as never);
+    fromMock.mockImplementation((tableName: string) => {
+      if (tableName === 'vw_tournament_query_fighters') {
+        const chain = awaitableChain({ data: fighters, error: null });
+        fighterChains.push(chain);
+        return chain;
+      }
+      return awaitableChain({
+        data: tableName === 'vw_tournament_query_matches' ? matches : [],
+        error: null,
+      });
+    });
+  });
+
+  it('reads the fighters of this tournament, all columns', async () => {
+    await service.execute(tournament, 'get_fighter_stats', { fighter: 'Ada' });
+    await service.execute(tournament, 'find_matches', { fighter: 'Ada' });
+
+    expect(fighterChains).toHaveLength(2);
+    for (const chain of fighterChains) {
+      const spies = chain as unknown as Record<string, ReturnType<typeof vi.fn>>;
+      expect(spies['select']).toHaveBeenCalledWith('*');
+      expect(spies['eq']).toHaveBeenCalledWith('tournament_id', tournament.tournamentId);
+    }
+  });
+
+  it('names a fighter with no bouts by the name found, with zeros, never "Unknown fighter"', async () => {
+    const before = await service.execute(tournament, 'get_fighter_stats', { fighter: 'Lovelace' });
+    matches = [poolBout(M1, REG_GRACE_H, REG_GRACE_M, { phase_type: 'pool' })];
+    const elsewhere = await service.execute(tournament, 'get_fighter_stats', {
+      fighter: 'Lovelace',
+      phase: 'elimination',
+    });
+
+    for (const result of [before, elsewhere]) {
+      expect(result.title).toBe('Stats for Ada Lovelace');
+      expect(result.card).toMatchObject({ Matches: 0, Wins: 0, Losses: 0 });
+    }
+  });
+
+  it('find_matches keeps only the bouts of that fighter', async () => {
+    matches = [
+      poolBout(M1, REG_ADA, REG_GRACE_H),
+      poolBout(M2, REG_GRACE_H, REG_GRACE_M, {
+        red_name: 'Grace Hopper',
+        blue_name: 'Grace Murray',
+      }),
+    ];
+
+    const result = await service.execute(tournament, 'find_matches', { fighter: 'Ada' });
+
+    expect(result.rows?.map((row) => row['Fighters'])).toEqual(['Ada Lovelace vs Grace Hopper']);
+  });
+
+  it('an exact full name wins over longer names that contain it', async () => {
+    fighters = [
+      ...fighterRows,
+      {
+        registration_id: uuid(15),
+        person_id: uuid(44),
+        display_name: 'Grace Hopperton',
+        club_name: null,
+        status: 'registered',
+      },
+    ];
+
+    const exact = await service.execute(tournament, 'get_fighter_stats', {
+      fighter: ' grace hopper ',
+    });
+    const loose = await service.execute(tournament, 'get_fighter_stats', { fighter: 'Hopper' });
+
+    expect(exact.title).toBe('Stats for Grace Hopper');
+    expect(loose.render_hint).toBe('list');
+    expect(loose.items?.map((item) => item.label)).toEqual(['Grace Hopper', 'Grace Hopperton']);
+  });
+
+  it('two fighters with the same exact name stay a list', async () => {
+    fighters = [
+      ...fighterRows,
+      {
+        registration_id: uuid(16),
+        person_id: uuid(45),
+        display_name: 'Grace Hopper',
+        club_name: 'Gamma',
+        status: 'registered',
+      },
+    ];
+
+    const result = await service.execute(tournament, 'get_fighter_stats', {
+      fighter: 'Grace Hopper',
+    });
+
+    expect(result.render_hint).toBe('list');
+    expect(result.items).toEqual([
+      { label: 'Grace Hopper', value: 'Beta' },
+      { label: 'Grace Hopper', value: 'Gamma' },
+    ]);
+    expectNoRawIds(result);
   });
 });

@@ -176,13 +176,21 @@ export class TournamentQueryToolsService {
     return (data ?? []) as FighterRow[];
   }
 
-  /** The tournament's fighters whose name contains the text, case-insensitive. */
+  /**
+   * The tournament's fighters whose name contains the text, case-insensitive. A name that is
+   * exactly the text wins over longer names that merely contain it ("Grace Hopper" vs
+   * "Grace Hopperton"); two fighters with that same exact name stay a list.
+   */
   private async fightersNamed(tournamentId: string, text: unknown): Promise<FighterRow[]> {
     const wanted = String(text ?? '').trim();
     if (!wanted) return [];
-    return (await this.fighters(tournamentId)).filter((fighter) =>
+    const found = (await this.fighters(tournamentId)).filter((fighter) =>
       contains(fighter.display_name, wanted),
     );
+    const exact = found.filter(
+      (fighter) => fighter.display_name.trim().toLocaleLowerCase() === wanted.toLocaleLowerCase(),
+    );
+    return exact.length > 0 ? exact : found;
   }
 
   private async matches(tournamentId: string): Promise<MatchRow[]> {
@@ -263,15 +271,11 @@ export class TournamentQueryToolsService {
       [fighterId],
       relevant,
       await this.exchanges(tournament.tournamentId),
-    )[fighterId];
-    if (!stats) return empty('No matches found for this fighter', 'get_fighter_stats', args);
-    const fighterName =
-      relevant.find((match) => match.red_registration_id === fighterId)?.red_name ||
-      relevant.find((match) => match.blue_registration_id === fighterId)?.blue_name ||
-      unknownFighterInEnglish();
+    )[fighterId]!; // computeStats seeds every id it is given, so a fighter with no bouts reads zeros.
     return {
       render_hint: 'card',
-      title: `Stats for ${fighterName}`,
+      // The fighter just found, not a name read off the bouts: with no bouts there is none.
+      title: `Stats for ${named[0]!.display_name}`,
       card: {
         Matches: stats.matches,
         Wins: stats.wins,
