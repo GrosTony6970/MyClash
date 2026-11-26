@@ -47,6 +47,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     error,
     skillNameById,
     skillColorById,
+    liceNameById,
     manualAssign,
     unassign,
   } = useAssignmentBoard(eventId, {
@@ -149,6 +150,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           busy={busy}
           skillNameById={skillNameById}
           skillColorById={skillColorById}
+          liceNameById={liceNameById}
           onAssignClick={(pool, slot) => setPicker({ pool, slot })}
           onUnassign={(id) => void unassign(id)}
         />
@@ -176,6 +178,7 @@ function BracketMatchSection({
   busy,
   skillNameById,
   skillColorById,
+  liceNameById,
   onAssignClick,
   onUnassign,
 }: {
@@ -185,6 +188,7 @@ function BracketMatchSection({
   busy: boolean;
   skillNameById: Map<string, string>;
   skillColorById: Map<string, string>;
+  liceNameById: Map<string, string>;
   onAssignClick: (pool: AssignmentBoardPool, slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
@@ -199,6 +203,7 @@ function BracketMatchSection({
           busy={busy}
           skillNameById={skillNameById}
           skillColorById={skillColorById}
+          liceName={pool.liceId ? (liceNameById.get(pool.liceId) ?? null) : null}
           onAssignClick={(slot) => onAssignClick(pool, slot)}
           onUnassign={onUnassign}
         />
@@ -213,6 +218,7 @@ function BracketMatchCard({
   busy,
   skillNameById,
   skillColorById,
+  liceName,
   onAssignClick,
   onUnassign,
 }: {
@@ -221,6 +227,8 @@ function BracketMatchCard({
   busy: boolean;
   skillNameById: Map<string, string>;
   skillColorById: Map<string, string>;
+  /** The bout's piste, or null before it is placed on one. */
+  liceName: string | null;
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
@@ -231,15 +239,20 @@ function BracketMatchCard({
   // re-formatter — the code matches what the bracket page, scoring
   // app, and exports already show.
   const roundLabel = pool.name;
+  // Where and when: "Piste 2 · 09:00", or whichever half is known.
+  const whereWhen = [
+    liceName && t('organizer.poolsPage.refereesLiceLabel').replace('{lice}', liceName),
+    pool.scheduledStart && formatHHMM(pool.scheduledStart, locale),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-baseline justify-between">
         <p className="font-semibold text-foreground">
           {pool.tournamentName ? `${pool.tournamentName} – ${roundLabel}` : roundLabel}
         </p>
-        {pool.scheduledStart && (
-          <p className="text-xs text-muted">{formatHHMM(pool.scheduledStart, locale)}</p>
-        )}
+        {whereWhen && <p className="text-xs text-muted">{whereWhen}</p>}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {pool.roleSlots.map((slot) => (
