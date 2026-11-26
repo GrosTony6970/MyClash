@@ -14,6 +14,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MeEventsService } from '../me/me-events.service';
+import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { McpDoor } from './mcp-door.decorator';
@@ -45,6 +46,7 @@ export class McpController {
     private readonly meEvents: MeEventsService,
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    private readonly schedule: PublicScheduleService,
   ) {}
 
   @Post()
@@ -63,6 +65,7 @@ export class McpController {
         meEvents: this.meEvents,
         supabase: this.supabase,
         orgs: this.orgs,
+        schedule: this.schedule,
       });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

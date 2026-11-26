@@ -16,6 +16,7 @@ import { API_GLOBAL_PREFIX } from '../../common/global-prefix';
 import { configureHttpApp } from '../../common/http-bootstrap';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { MeEventsService } from '../me/me-events.service';
+import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
 import { verifyAccessTokenLocally } from '../supabase/access-token';
@@ -65,6 +66,7 @@ beforeAll(async () => {
       { provide: GuestJwtService, useValue: refuse },
       { provide: StaffJwtService, useValue: refuse },
       { provide: OrganizationsService, useValue: {} },
+      { provide: PublicScheduleService, useValue: {} },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
   }).compile();
@@ -126,6 +128,7 @@ describe('the MCP door, over HTTP', () => {
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
       'my_events',
+      'my_schedule',
       'my_upcoming',
       'whoami',
     ]);

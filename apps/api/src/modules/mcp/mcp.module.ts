@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MeModule } from '../me/me.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { PersonsModule } from '../persons/persons.module';
 import { ConnectedAppsController } from './connected-apps.controller';
 import { ConnectedAppsService } from './connected-apps.service';
 import { McpController } from './mcp.controller';
@@ -11,7 +12,7 @@ import { ProtectedResourceController } from './protected-resource.controller';
 
 /** The MCP door: Claude's connector into MyClash, and the consent page's API that opens it. */
 @Module({
-  imports: [MeModule, OrganizationsModule],
+  imports: [MeModule, OrganizationsModule, PersonsModule],
   controllers: [
     ProtectedResourceController,
     McpController,

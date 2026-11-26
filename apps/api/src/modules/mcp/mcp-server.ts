@@ -4,7 +4,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { MeEventsService } from '../me/me-events.service';
+import type { PublicScheduleService } from '../persons/public-schedule.service';
 import { myEvents } from './tools/my-events';
+import { mySchedule } from './tools/my-schedule';
 import { myUpcoming } from './tools/my-upcoming';
 import { whoami } from './tools/whoami';
 
@@ -19,6 +21,7 @@ export interface McpCaller {
 /** The services the tools read. */
 export interface McpToolDeps extends EventAuthzDeps {
   meEvents: MeEventsService;
+  schedule: PublicScheduleService;
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
@@ -101,4 +104,31 @@ function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps
     },
     ({ limit }) => answer('my_upcoming', () => myUpcoming(caller, deps, limit)),
   );
+  server.registerTool(
+    'my_schedule',
+    {
+      description:
+        "The signed-in person's own bouts, referee duties and Workshops at one Event, named by " +
+        'its slug (`event`, from my_events). Refuses an Event the person is not on the roster of.',
+      inputSchema: { event: z.string().min(1).max(200) },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ event }) => answerOrRefuse('my_schedule', () => mySchedule(event, caller, deps)),
+  );
+}
+
+/** Like `answer`, for a tool that may refuse with one plain sentence. */
+async function answerOrRefuse(
+  tool: string,
+  run: () => Promise<object | { refusal: string }>,
+): Promise<CallToolResult> {
+  try {
+    const result = await run();
+    if ('refusal' in result && typeof result.refusal === 'string') {
+      return toolRefusal(result.refusal);
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  } catch (error) {
+    return failed(tool, error);
+  }
 }
