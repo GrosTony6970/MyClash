@@ -90,7 +90,6 @@ function computeElapsedMs(state: ClockSnapshot): number {
  * so the displayed timer doesn't visibly stutter.
  *
  * Used by:
- *   - `<MatchScoreboard>` (admin preview)
  *   - `<TVScoreboard>`   (public TV display)
  *   - `BoardRowTimeline` (organiser live board, one expanded row, no poll)
  *

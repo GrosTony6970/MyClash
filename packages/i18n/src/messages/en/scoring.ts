@@ -4,7 +4,6 @@ export const scoring = {
   scoreboard: {
     loading: 'Loading scoreboard…',
     loadError: 'Could not load scoreboard data ({status}).',
-    retry: 'Retry',
     swapSides: '⇄ Swap sides',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit fullscreen',
@@ -636,7 +635,6 @@ export const scoring = {
     disabled: 'Live updates off',
   },
   liveMatch: {
-    penaltyCards: 'Penalty cards',
     red: 'Fighter 1',
     blue: 'Fighter 2',
     noExchanges: 'No exchanges yet.',
@@ -649,7 +647,6 @@ export const scoring = {
     doubleLoss: 'Double loss',
     doubleLossSubtitle: 'Both fighters lose - double cap reached',
     blackCard: 'Black card',
-    displayTitle: 'External display',
     upNext: 'Up next',
     versus: 'vs',
     waitingForMatch: 'Waiting for next match...',

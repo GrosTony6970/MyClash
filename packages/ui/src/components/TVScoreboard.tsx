@@ -16,8 +16,7 @@
  * stays on the endcard.
  *
  * Used by the two public display routes of `apps/web-public` and by the
- * organiser's popup (`apps/web-admin/app/display`). The admin preview
- * surface keeps using `<MatchScoreboard>` (the older single-column layout).
+ * organiser's popup (`apps/web-admin/app/display`).
  */
 
 import * as React from 'react';

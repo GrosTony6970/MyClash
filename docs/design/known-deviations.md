@@ -455,11 +455,11 @@ around it is `shadow-2xl` (D15). It is the first screen of web-admin and of the 
 **Rule broken:** Type — "exactly one H1 on a page, in `font-display`"; "don't drop `font-display`
 on dark pages".
 
-Seventeen `<h1>` elements carry no `font-display` (single-line elements only; a few public pages
+Sixteen `<h1>` elements carry no `font-display` (single-line elements only; a few public pages
 split the tag over several lines and were not counted):
 
 - **`packages/ui`:** `AuthPanel.tsx:158` (`text-4xl font-black`), the title of every sign-in page —
-  exactly the dark-page case `web-public.md` forbids; `MatchScoreboard.tsx:223`.
+  exactly the dark-page case `web-public.md` forbids.
 - **web-public:** `src/components/PasswordPanel.tsx:15`, `app/auth/oauth/callback/page.tsx:172,193`,
   `app/auth/signed-in/page.tsx:29`, `src/components/NotFoundCard.tsx:62`,
   `src/components/RouteErrorCard.tsx:36`.
@@ -525,14 +525,14 @@ is unreachable.
 
 ---
 
-## D21 — 26 files of `packages/ui` are exempt from the raw-palette lint
+## D21 — 25 files of `packages/ui` are exempt from the raw-palette lint
 
 **Rule broken:** Components — shared components read tokens, not raw palette classes (D5).
 
-`packages/ui/eslint.config.mjs:31-58` lists 26 files in `PRE_EXISTING_PALETTE_DEBT`, a ratchet that
+`packages/ui/eslint.config.mjs:31-57` lists 25 files in `PRE_EXISTING_PALETTE_DEBT`, a ratchet that
 "may only shrink": `no-raw-palette-color` does not run on them. D5 and D6 name five of them
-(`Button`, `FormField`, `FoilMark`, `AdminPageHeader`, `Input`). The other 21 are open debt this register did
-not record: `TVScoreboard`, `MatchScoreboard`, `MatchTimeline`, `LiceWaitingDisplay`, `BracketView`,
+(`Button`, `FormField`, `FoilMark`, `AdminPageHeader`, `Input`). The other 20 are open debt this register did
+not record: `TVScoreboard`, `MatchTimeline`, `LiceWaitingDisplay`, `BracketView`,
 `bracket/MatchCard`, `bracket/MedalPodium`, `bout-flow-geometry.ts`, `AiKeyFormDialog`,
 `BulkActionBar`, `CountryCombobox`, `Divider`, `HelpTooltip`, `MaintenanceBanner`, `MetricCard`,
 `Pill`, `RowActionButton`, `SortableHeader`, `StatusHelp`, `Toast` and `utils/status-pill.ts`.

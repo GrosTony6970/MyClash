@@ -30,7 +30,6 @@ import requireFieldNameRule from '../../eslint-rules/require-field-name.mjs';
  */
 const PRE_EXISTING_PALETTE_DEBT = [
   'src/components/TVScoreboard.tsx',
-  'src/components/MatchScoreboard.tsx',
   'src/components/MatchTimeline.tsx',
   'src/components/LiceWaitingDisplay.tsx',
   'src/components/BracketView.tsx',

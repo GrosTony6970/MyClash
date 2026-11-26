@@ -579,7 +579,7 @@ Each slice is usable alone and lands as several single-concern commits.
        (`packages/i18n/src/messages/en/admin.ts:621`).
      - (From 1b-2) `MatchScoreboard` (`packages/ui/src/components/MatchScoreboard.tsx`) has no
        caller in any app, but it ships in the `@myclash/ui` barrel (`packages/ui/src/index.ts:89`).
-       Ruling 980: it is deleted, in its own commit.
+       Ruling 980: it is deleted, in its own commit (done in 1c-1 T1).
      - (From 1b-2) Three own-dot copies could use `TeamChip`: `LiceWaitingDisplay`
        (`packages/ui/src/components/LiceWaitingDisplay.tsx`), `TileColour` in web-staff's
        `MatchHeader` (`apps/web-staff/src/components/MatchHeader.tsx:276`) and `LiceMatchCard`
