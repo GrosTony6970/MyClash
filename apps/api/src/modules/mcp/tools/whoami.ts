@@ -1,7 +1,7 @@
 import type { MyEvent } from '../../me/me-events.service';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 
-type RoleWord = 'fighter' | 'referee' | 'instructor' | 'workshop participant';
+export type RoleWord = 'fighter' | 'referee' | 'instructor' | 'workshop participant';
 
 export interface WhoAmI {
   email: string | null;
@@ -9,7 +9,7 @@ export interface WhoAmI {
 }
 
 /** Each role flag of the personal space, as the word a person would use. */
-const ROLE_WORDS: readonly (readonly [keyof MyEvent['roles'], RoleWord])[] = [
+export const ROLE_WORDS: readonly (readonly [keyof MyEvent['roles'], RoleWord])[] = [
   ['isCompetitor', 'fighter'],
   ['isReferee', 'referee'],
   ['isInstructor', 'instructor'],

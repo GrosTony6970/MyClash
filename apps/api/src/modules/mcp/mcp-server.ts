@@ -1,7 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
+import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { MeEventsService } from '../me/me-events.service';
+import { myEvents } from './tools/my-events';
+import { myUpcoming } from './tools/my-upcoming';
 import { whoami } from './tools/whoami';
 
 /** The person a connector token names, as McpDoorGuard verified it. */
@@ -13,7 +17,7 @@ export interface McpCaller {
 }
 
 /** The services the tools read. */
-export interface McpToolDeps {
+export interface McpToolDeps extends EventAuthzDeps {
   meEvents: MeEventsService;
 }
 
@@ -34,6 +38,11 @@ function failed(tool: string, error: unknown): CallToolResult {
     isError: true,
     content: [{ type: 'text', text: 'MyClash could not answer this. Try again later.' }],
   };
+}
+
+/** The answer of a tool that refuses with one plain sentence: a tool error result, never a throw. */
+export function toolRefusal(text: string): CallToolResult {
+  return { isError: true, content: [{ type: 'text', text }] };
 }
 
 async function answer(tool: string, run: () => Promise<unknown>): Promise<CallToolResult> {
@@ -60,5 +69,36 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
     },
     () => answer('whoami', () => whoami(caller, deps)),
   );
+  registerMyTools(server, caller, deps);
   return server;
+}
+
+/**
+ * The cap of `my_upcoming`. The schema owns it: the SDK refuses a value outside it before the tool
+ * runs, so the tool function only applies the default.
+ */
+const upcomingLimit = z.number().int().min(1).max(50).optional();
+
+function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
+  server.registerTool(
+    'my_events',
+    {
+      description:
+        'The Events the signed-in person is part of, with their roles, Tournaments, referee ' +
+        'duties and the Workshops they teach.',
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    () => answer('my_events', () => myEvents(caller, deps)),
+  );
+  server.registerTool(
+    'my_upcoming',
+    {
+      description:
+        "The signed-in person's next bouts and referee duties, soonest first. " +
+        '`limit` is 1 to 50 (default 20).',
+      inputSchema: { limit: upcomingLimit },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ limit }) => answer('my_upcoming', () => myUpcoming(caller, deps, limit)),
+  );
 }

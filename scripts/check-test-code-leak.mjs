@@ -55,6 +55,8 @@ export const EXEMPT = {};
  * seeing rather than silencing wholesale.
  */
 export const TEST_ONLY_ALLOWED = {
+  'apps/api/src/modules/mcp/tools/readable-event.ts':
+    "the MCP tools' one Event-by-slug read (slice 2). Built in Task 1 for the event tools of Tasks 2 to 5, which import it; only its own test imports it until then. Remove this entry when the first of them lands.",
   'apps/api/src/modules/realtime/channels.ts':
     'the canonical Realtime channel-name contract (ARCHITECTURE.md §9.1). Clients build these names; no API code calls the helpers yet, so only its own test imports it. Production contract, not a test helper — do not exclude it from the build.',
 };

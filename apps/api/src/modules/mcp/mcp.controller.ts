@@ -14,6 +14,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MeEventsService } from '../me/me-events.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { McpDoor } from './mcp-door.decorator';
 import { mcpCallerOf } from './mcp-door.guard';
 import { buildMcpServer } from './mcp-server';
@@ -39,7 +41,11 @@ export const MCP_INTERNAL_ERROR = JSON.stringify({
 export class McpController {
   private readonly logger = new Logger(McpController.name);
 
-  constructor(private readonly meEvents: MeEventsService) {}
+  constructor(
+    private readonly meEvents: MeEventsService,
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -53,7 +59,11 @@ export class McpController {
     let server: McpServer | undefined;
     let transport: StreamableHTTPServerTransport | undefined;
     try {
-      server = buildMcpServer(caller, { meEvents: this.meEvents });
+      server = buildMcpServer(caller, {
+        meEvents: this.meEvents,
+        supabase: this.supabase,
+        orgs: this.orgs,
+      });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,

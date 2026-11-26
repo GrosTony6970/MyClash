@@ -57,10 +57,9 @@ describe('whoami', () => {
       }),
     ]);
 
-    const result = await whoami(
-      { userId: 'user-1', email: 'a@b.c', clientId: 'claude-client' },
-      { meEvents: { listMyEvents } as never },
-    );
+    const result = await whoami({ userId: 'user-1', email: 'a@b.c', clientId: 'claude-client' }, {
+      meEvents: { listMyEvents },
+    } as never);
 
     expect(listMyEvents).toHaveBeenCalledWith({ userId: 'user-1', staff: null });
     expect(result).toEqual({

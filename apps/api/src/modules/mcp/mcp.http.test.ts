@@ -16,6 +16,7 @@ import { API_GLOBAL_PREFIX } from '../../common/global-prefix';
 import { configureHttpApp } from '../../common/http-bootstrap';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { MeEventsService } from '../me/me-events.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { StaffJwtService } from '../staff/staff-jwt.service';
 import { verifyAccessTokenLocally } from '../supabase/access-token';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -34,6 +35,7 @@ const refuse = {
   },
 };
 const listMyEvents = vi.fn();
+const getUpcoming = vi.fn();
 const connector = jwt.sign({ sub: 'user-1', email: 'a@b.c', client_id: 'claude-client' }, SECRET, {
   expiresIn: 3600,
 });
@@ -62,7 +64,8 @@ beforeAll(async () => {
       },
       { provide: GuestJwtService, useValue: refuse },
       { provide: StaffJwtService, useValue: refuse },
-      { provide: MeEventsService, useValue: { listMyEvents } },
+      { provide: OrganizationsService, useValue: {} },
+      { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
   }).compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
@@ -79,6 +82,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  getUpcoming.mockReset().mockResolvedValue([]);
   listMyEvents.mockReset().mockResolvedValue([
     {
       event: { id: 'event-uuid', name: 'FAL 2026', slug: 'fal-2026', startDate: '2026-03-14' },
@@ -116,11 +120,27 @@ describe('the MCP door, over HTTP', () => {
     expect(body.result.serverInfo.name).toBe('myclash');
   });
 
-  it('lists exactly one tool, whoami', async () => {
+  it('lists every tool, sorted', async () => {
     const res = await rpc('tools/list');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
-    expect(body.result.tools.map((t) => t.name)).toEqual(['whoami']);
+    expect(body.result.tools.map((t) => t.name).sort()).toEqual([
+      'my_events',
+      'my_upcoming',
+      'whoami',
+    ]);
+  });
+
+  it('refuses a limit past the cap before the tool runs', async () => {
+    const res = await rpc('tools/call', { name: 'my_upcoming', arguments: { limit: 51 } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      result?: { isError?: boolean; content: [{ text: string }] };
+      error?: unknown;
+    };
+    // The SDK answers a bad argument as a tool error result (or a JSON-RPC error): never a run.
+    expect(body.result?.isError === true || body.error !== undefined).toBe(true);
+    expect(getUpcoming).not.toHaveBeenCalled();
   });
 
   it('calls whoami for the signed-in account', async () => {
