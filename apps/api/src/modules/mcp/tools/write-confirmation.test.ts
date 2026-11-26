@@ -1,5 +1,5 @@
-import { createCipheriv, randomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
 import type { McpCaller } from '../mcp-server';
 import { expectNoRawIds } from './no-raw-ids.test-helper';
 import {
@@ -8,6 +8,16 @@ import {
   openConfirmation,
   sealConfirmation,
 } from './write-confirmation';
+
+// The real ciphers, watched: the tag-length pin is seen only in the call's options.
+vi.mock('node:crypto', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:crypto')>();
+  return {
+    ...real,
+    createCipheriv: vi.fn(real.createCipheriv),
+    createDecipheriv: vi.fn(real.createDecipheriv),
+  };
+});
 
 const key = confirmationKey('secret-one');
 const NOW = 1_800_000_000_000;
@@ -81,6 +91,33 @@ describe('write confirmation', () => {
   it('refuses a payload of the wrong shape', () => {
     expect(openConfirmation(key, sealRaw('not json'), caller, NOW)).toBeNull();
     expect(openConfirmation(key, sealRaw('{"v":1}'), caller, NOW)).toBeNull();
+  });
+
+  it('refuses a payload with a key it does not know', () => {
+    const extra = { ...payload, admin: true } as typeof payload;
+    const { token } = sealConfirmation(key, extra, NOW);
+    expect(openConfirmation(key, token, caller, NOW)).toBeNull();
+  });
+
+  it('refuses a payload with a field of the wrong type', () => {
+    const good = { ...payload, v: 1, exp: NOW + 1000 };
+    expect(openConfirmation(key, sealRaw(JSON.stringify(good)), caller, NOW)).not.toBeNull();
+    for (const bad of [{ codes: 'own_pool' }, { exp: String(NOW + 1000) }]) {
+      const body = JSON.stringify({ ...good, ...bad });
+      expect(openConfirmation(key, sealRaw(body), caller, NOW)).toBeNull();
+    }
+  });
+
+  it('pins the 16-byte tag on both ciphers', () => {
+    // The token's tag is sliced at a fixed 16 bytes, so no token can hand `setAuthTag` a
+    // shorter one: the pin is defence in depth, and only the options show it.
+    vi.mocked(createCipheriv).mockClear();
+    vi.mocked(createDecipheriv).mockClear();
+    const { token } = sealConfirmation(key, payload, NOW);
+    expect(openConfirmation(key, token, caller, NOW)).not.toBeNull();
+    const pin = { authTagLength: 16 };
+    expect(vi.mocked(createCipheriv).mock.calls[0]?.[3]).toEqual(pin);
+    expect(vi.mocked(createDecipheriv).mock.calls[0]?.[3]).toEqual(pin);
   });
 
   it('refuses another version', () => {
