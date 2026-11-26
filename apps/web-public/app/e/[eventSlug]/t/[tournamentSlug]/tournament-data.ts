@@ -10,6 +10,7 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
+import type { BracketSlotWire } from '@myclash/types/bracket-side';
 import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
@@ -42,30 +43,12 @@ export interface Pool {
   startAt?: string | null;
 }
 
-export interface BracketSlot {
-  id: string;
-  round: number;
-  position: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redClubAbbrev?: string | null;
-  blueClubAbbrev?: string | null;
-  redScore: number | null;
-  blueScore: number | null;
-  /** Recorded match winner — authoritative over score comparison (a forfeit
-   *  can complete a match with the lower-scored fighter winning). */
-  winnerRegistrationId?: string | null;
-  status: string;
-  matchId: string | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-  /** Assigned piste ("lice") name — rendered as a pill beside the match code,
-   *  mirroring the admin bracket. Null when no piste is assigned. */
-  liceName?: string | null;
-  /** Referees assigned to this bracket match (scope_type='match'). Rendered on
-   *  the card when the bracket's fold/unfold toggle is on. */
-  referees?: PoolReferee[];
-}
+/**
+ * One bracket slot, as the public bracket read declares it (`getPublishedBracket`): each side
+ * keyed by `sideKey` and typed (kind, name, a team's colour), the recorded winner by
+ * `winnerSideId` — authoritative over the scores, since a forfeit can award the lower score.
+ */
+export type BracketSlot = BracketSlotWire;
 
 export interface Tournament {
   id: string;
@@ -152,9 +135,9 @@ function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
   if (!s) return null;
   return resolveMatchWinner({
     status: s.status,
-    winnerSideId: s.winnerRegistrationId,
-    redSideId: s.redRegistrationId,
-    blueSideId: s.blueRegistrationId,
+    winnerSideId: s.winnerSideId,
+    redSideId: s.redSideId,
+    blueSideId: s.blueSideId,
     redScore: s.redScore,
     blueScore: s.blueScore,
   });

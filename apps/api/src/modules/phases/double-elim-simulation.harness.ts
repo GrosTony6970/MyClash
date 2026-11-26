@@ -31,6 +31,7 @@ import {
   type RankingBracketShape,
   type RankingSlot,
 } from '@myclash/types';
+import type { BracketSideWire } from '@myclash/types/bracket-side';
 import { buildSelfRef, grandFinalEndsBracket } from './bracket-refs';
 
 interface SimSlot {
@@ -157,17 +158,29 @@ function toRankingSlots(
       round: s.round,
       position: s.position,
       status: res ? 'completed' : 'scheduled',
-      redRegistrationId: cur.a,
-      blueRegistrationId: cur.b,
-      redFighterName: cur.a,
-      blueFighterName: cur.b,
-      redClubAbbrev: null,
-      blueClubAbbrev: null,
+      redSideId: cur.a,
+      blueSideId: cur.b,
+      winnerSideId: res?.winner ?? null,
+      red: fighterSide(cur.a),
+      blue: fighterSide(cur.b),
       redScore: res ? (res.winner === cur.a ? 5 : 3) : null,
       blueScore: res ? (res.winner === cur.b ? 5 : 3) : null,
-      winnerRegistrationId: res?.winner ?? null,
     };
   });
+}
+
+/** A simulated Fighter's side, named by its own key; null while the side is not known. */
+function fighterSide(name: string | null): BracketSideWire | null {
+  if (!name) return null;
+  return {
+    sideId: name,
+    kind: 'individual',
+    registrationId: name,
+    teamId: null,
+    name,
+    clubAbbrev: null,
+    colour: null,
+  };
 }
 
 /** Wire up the pass context for one generated bracket. */

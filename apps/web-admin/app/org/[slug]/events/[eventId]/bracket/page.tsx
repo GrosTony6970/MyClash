@@ -23,6 +23,7 @@ import {
   type PodiumData,
 } from '@myclash/ui';
 import { resolveMatchWinner } from '@myclash/types';
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -79,7 +80,8 @@ interface BracketResult {
   seedingStrategy?: string;
   bronzeSlotId?: string | null;
   totalSlots: number;
-  slots: BracketSlotData[];
+  /** The slots as the bracket read declares them. */
+  slots: TournamentBracketSlotWire[];
   /**
    * `true` when every pool of this tournament reports
    * `status === 'completed'`, OR when the tournament has no pool
@@ -2046,9 +2048,9 @@ export default function BracketPage() {
 function podiumSide(slot: BracketSlotData): 'red' | 'blue' | null {
   return resolveMatchWinner({
     status: 'completed', // both callers gate on slot.status === 'completed'
-    winnerSideId: slot.winnerRegistrationId,
-    redSideId: slot.redRegistrationId,
-    blueSideId: slot.blueRegistrationId,
+    winnerSideId: slot.winnerSideId,
+    redSideId: slot.redSideId,
+    blueSideId: slot.blueSideId,
     redScore: slot.redScore,
     blueScore: slot.blueScore,
   });

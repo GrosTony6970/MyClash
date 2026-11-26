@@ -1848,7 +1848,7 @@ describe('LeaguesService placement-driven contributions', () => {
       { id: 'reg-c', persons: { global_person_id: 'gp-c', given_name: 'Cy', family_name: 'C' } },
     ];
     const placements = {
-      byRegistrationId: new Map<string, { place: number; resultKind: string }>([
+      byEntrantId: new Map<string, { place: number; resultKind: string }>([
         ['reg-a', { place: 1, resultKind: 'champion' }],
         ['reg-b', { place: 2, resultKind: 'runnerUp' }],
         // reg-c has NO placement → must be skipped.
@@ -1910,7 +1910,7 @@ describe('LeaguesService placement-driven contributions', () => {
     const placement = {
       getTournamentPlacements: vi
         .fn()
-        .mockResolvedValue({ decided: false, byRegistrationId: new Map(), ordered: [] }),
+        .mockResolvedValue({ decided: false, byEntrantId: new Map(), ordered: [] }),
     };
     const scoring = { toTournamentContributions: vi.fn() };
     const service = new LeaguesService(
@@ -2342,7 +2342,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
     const placement = {
       getTournamentPlacements: vi.fn().mockResolvedValue({
         decided: placementDecided,
-        byRegistrationId: new Map([
+        byEntrantId: new Map([
           ['reg-t1', { place: 1, resultKind: 'champion' }],
           ['reg-t2', { place: 1, resultKind: 'champion' }],
         ]),
@@ -2406,7 +2406,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
         const index = Number(tournamentId.slice(1));
         await new Promise((resolve) => setTimeout(resolve, (count - index) * 2));
         inFlight.now -= 1;
-        return { decided: false, byRegistrationId: new Map(), ordered: [] };
+        return { decided: false, byEntrantId: new Map(), ordered: [] };
       }),
     };
     const service = new LeaguesService(
@@ -2713,7 +2713,7 @@ describe('LeaguesService.toContributionInputs — names', () => {
       ],
       new Map(),
       {
-        byRegistrationId: new Map([
+        byEntrantId: new Map([
           ['reg-blank', { place: 1, resultKind: 'placed' }],
           ['reg-gone', { place: 2, resultKind: 'placed' }],
         ]),

@@ -112,7 +112,7 @@ export function BracketDisclosure({
     `${apiUrl}/api/v1/staff/lices/${liceId}/tournaments/${tournamentId}/bracket`,
     open,
   );
-  const slots = (bracket.data?.slots ?? []) as BracketSlotData[];
+  const slots = bracket.data?.slots ?? [];
   const focus = buildLiceBracketFocus(slots, liceId);
   useScrollToBracketSlot(scrollerRef, focus.scrollTargetSlotId, open, slots.length > 0);
 

@@ -16,6 +16,13 @@ function makeSlots(rounds: Array<{ round: number; count: number }>): BracketSlot
         blueScore: null,
         status: 'pending',
         matchId: null,
+        redRegistrationId: null,
+        blueRegistrationId: null,
+        redSideId: null,
+        blueSideId: null,
+        winnerSideId: null,
+        red: null,
+        blue: null,
       });
     }
   }
@@ -38,6 +45,13 @@ function mk(
     blueScore: null,
     status: 'pending',
     matchId: null,
+    redRegistrationId: null,
+    blueRegistrationId: null,
+    redSideId: null,
+    blueSideId: null,
+    winnerSideId: null,
+    red: null,
+    blue: null,
     source_a_ref: refs?.a ?? null,
     source_b_ref: refs?.b ?? null,
   };

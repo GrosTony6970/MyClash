@@ -1,17 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { roundCodeFromMatchRow } from '../matches/round-code.helper';
-import {
-  computeFinalRanking,
-  rankingBracketShape,
-  type PoolEntry,
-  type RankingSlot,
-} from '@myclash/types';
+import { computeFinalRanking, rankingBracketShape, type PoolEntry } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { applyReachable } from '../fighters/directory-predicate';
 import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
-import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { PhasesService } from '../phases/phases.service';
 import { FollowsService } from '../follows/follows.service';
 
@@ -605,7 +601,7 @@ export class PeopleContextService {
     >();
     await Promise.all(
       tournamentIds.map(async (tId) => {
-        let rows: StandingsRow[];
+        let rows: PoolStandingsRow[];
         try {
           const standings = await this.poolStandings.getPoolStandings(tId, 'overall');
           rows = 'rows' in standings ? standings.rows : [];
@@ -627,46 +623,34 @@ export class PeopleContextService {
             const rawScore = row.stats?.['score'];
             const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
             return {
-              registrationId: row.entrantId,
+              entrantId: row.entrantId,
+              kind: row.kind,
               fighterName: row.displayName,
               clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+              colour: row.colour,
               poolScore: Number.isFinite(score) ? score : null,
             };
           });
           const bracket = await this.phases.getTournamentBracket(tId);
           if (bracket?.slots?.length) {
-            const slots: RankingSlot[] = bracket.slots.map((slot) => ({
-              id: slot.id,
-              round: slot.round,
-              position: slot.position,
-              status: slot.status,
-              redRegistrationId: slot.redRegistrationId ?? null,
-              blueRegistrationId: slot.blueRegistrationId ?? null,
-              redFighterName: slot.redFighterName ?? null,
-              blueFighterName: slot.blueFighterName ?? null,
-              redClubAbbrev: slot.redClubAbbrev ?? null,
-              blueClubAbbrev: slot.blueClubAbbrev ?? null,
-              redScore: slot.redScore ?? null,
-              blueScore: slot.blueScore ?? null,
-              winnerRegistrationId: slot.winnerRegistrationId ?? null,
-            }));
-            // No explicit bronzeSlotId, to match the public FinalRankingTab.
-            // The bracket shape IS passed so double-elim tournaments are ranked
-            // by their losers-bracket exit rather than their first loss.
+            // The slots as the bracket read sends them. No explicit bronzeSlotId,
+            // to match the public FinalRankingTab. The bracket shape IS passed so
+            // double-elim tournaments are ranked by their losers-bracket exit
+            // rather than their first loss.
             const ranking = computeFinalRanking(
-              slots,
+              bracket.slots,
               poolEntries,
               null,
               rankingBracketShape(bracket),
             );
             for (const entry of ranking) {
-              const existing = map.get(entry.registrationId) ?? { poolRank: null, finalRank: null };
+              const existing = map.get(entry.entrantId) ?? { poolRank: null, finalRank: null };
               existing.finalRank = {
                 place: entry.place,
                 resultKind: entry.resultKind,
                 totalRanked: ranking.length,
               };
-              map.set(entry.registrationId, existing);
+              map.set(entry.entrantId, existing);
             }
           }
         } catch (err) {

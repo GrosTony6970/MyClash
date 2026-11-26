@@ -22,7 +22,10 @@
  * orderings share `Ranking` and `winnerLoser` from `final-ranking-core.ts`, so
  * they cannot disagree about who won a match or how ties break.
  *
- * Winner of a match is the recorded `winnerRegistrationId` when present —
+ * Every entrant is keyed by its side key (`sideKey`): a Fighter's Registration
+ * id, or a team's id in a team Tournament.
+ *
+ * Winner of a match is the recorded `winnerSideId` when present —
  * forfeits and black cards can complete a match with the LOWER score winning
  * (e.g. an injury forfeit keeps the current 5-3 but awards the opponent).
  * Score comparison is only the fallback for slots without a recorded winner.
@@ -138,13 +141,13 @@ export function computeFinalRanking(
 ): FinalRankingEntry[] {
   const r = new Ranking(poolEntries);
 
-  // Every registration that appears anywhere in the bracket — used to keep the
-  // non-bracket tail (pool-only fighters) strictly below all bracket entrants,
-  // even bracket fighters not yet placed (an in-progress bracket).
-  const bracketRegIds = new Set<string>();
+  // Every side that appears anywhere in the bracket — used to keep the
+  // non-bracket tail (pool-only entrants) strictly below all bracket entrants,
+  // even bracket entrants not yet placed (an in-progress bracket).
+  const bracketSideIds = new Set<string>();
   for (const s of slots) {
-    if (s.redRegistrationId) bracketRegIds.add(s.redRegistrationId);
-    if (s.blueRegistrationId) bracketRegIds.add(s.blueRegistrationId);
+    if (s.redSideId) bracketSideIds.add(s.redSideId);
+    if (s.blueSideId) bracketSideIds.add(s.blueSideId);
   }
 
   // Swiss has no slots to read: the standings ARE the result.
@@ -159,14 +162,9 @@ export function computeFinalRanking(
   // Tail: everyone who competed in the pools but never reached the bracket,
   // ranked by pool score. Kept strictly below all bracket entrants.
   const nonBracket = poolEntries
-    .filter((e) => !bracketRegIds.has(e.registrationId) && !r.has(e.registrationId))
+    .filter((e) => !bracketSideIds.has(e.entrantId) && !r.has(e.entrantId))
     .sort(r.byPoolScore);
-  for (const e of nonBracket) {
-    r.push(
-      { registrationId: e.registrationId, fighterName: e.fighterName, clubAbbrev: e.clubAbbrev },
-      'pool',
-    );
-  }
+  for (const e of nonBracket) r.push(e, 'pool');
 
   return r.entries;
 }
@@ -181,16 +179,7 @@ export function computeFinalRanking(
  * their first bout.
  */
 function orderSwiss(standings: PoolEntry[], r: Ranking): FinalRankingEntry[] {
-  for (const entry of standings) {
-    r.push(
-      {
-        registrationId: entry.registrationId,
-        fighterName: entry.fighterName,
-        clubAbbrev: entry.clubAbbrev,
-      },
-      swissResultKind(r.entries.length),
-    );
-  }
+  for (const entry of standings) r.push(entry, swissResultKind(r.entries.length));
   return r.entries;
 }
 

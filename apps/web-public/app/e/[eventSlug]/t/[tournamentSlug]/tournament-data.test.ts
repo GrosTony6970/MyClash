@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { BracketSideWire } from '@myclash/types/bracket-side';
 import { derivePodium, type BracketSlot } from './tournament-data';
 
 /** A completed bout the red fighter won on points. Positions start at 1, as generated. */
@@ -9,11 +10,24 @@ function bout(round: number, position: number, red: string, blue: string): Brack
     position,
     redFighterName: red,
     blueFighterName: blue,
+    redClubAbbrev: null,
+    blueClubAbbrev: null,
     redScore: 5,
     blueScore: 2,
     winnerRegistrationId: null,
+    redSideId: `reg-${red}`,
+    blueSideId: `reg-${blue}`,
+    winnerSideId: null,
+    red: fighter(`reg-${red}`, red),
+    blue: fighter(`reg-${blue}`, blue),
     status: 'completed',
     matchId: null,
+    redRegistrationId: `reg-${red}`,
+    blueRegistrationId: `reg-${blue}`,
+    source_a_ref: null,
+    source_b_ref: null,
+    liceName: null,
+    referees: [],
   };
 }
 
@@ -23,19 +37,40 @@ function bout(round: number, position: number, red: string, blue: string): Brack
  * The podium once passed the whole slot to the winner helper; when the helper's keys were renamed
  * to side names, that call still compiled, found no recorded winner, and crowned the higher score.
  */
+const fighter = (registrationId: string, name: string): BracketSideWire => ({
+  sideId: registrationId,
+  kind: 'individual',
+  registrationId,
+  teamId: null,
+  name,
+  clubAbbrev: null,
+  colour: null,
+});
+
 const final: BracketSlot = {
   id: 'slot-final',
   round: 1,
   position: 1,
   redFighterName: 'Anna',
   blueFighterName: 'Bea',
+  redClubAbbrev: null,
+  blueClubAbbrev: null,
   redScore: 5,
   blueScore: 2,
   winnerRegistrationId: 'reg-bea',
+  redSideId: 'reg-anna',
+  blueSideId: 'reg-bea',
+  winnerSideId: 'reg-bea',
+  red: fighter('reg-anna', 'Anna'),
+  blue: fighter('reg-bea', 'Bea'),
   status: 'completed',
   matchId: 'match-final',
   redRegistrationId: 'reg-anna',
   blueRegistrationId: 'reg-bea',
+  source_a_ref: null,
+  source_b_ref: null,
+  liceName: null,
+  referees: [],
 };
 
 describe('derivePodium', () => {

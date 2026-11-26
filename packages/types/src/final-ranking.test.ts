@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeFinalRanking, rankingBracketShape, type RankingSlot } from './final-ranking';
-import { POOL, mk, poolEntry, resetSlotIds } from './final-ranking-test-helpers';
+import { POOL, mk, poolEntry, resetSlotIds, teamSide } from './final-ranking-test-helpers';
 
 // 8-fighter single-elim: QF (round 1) → SF (round 2) → Final (round 3, pos 1)
 // + Bronze (round 3, pos 2). Winner = higher score.
@@ -27,7 +27,7 @@ describe('computeFinalRanking', () => {
   it('ranks champion, runner-up, bronze 3rd/4th, then earlier rounds by pool score', () => {
     const { slots, bronzeId } = buildSlots();
     const ranking = computeFinalRanking(slots, POOL, bronzeId);
-    expect(ranking.map((r) => r.registrationId)).toEqual(['a', 'e', 'c', 'g', 'f', 'h', 'b', 'd']);
+    expect(ranking.map((r) => r.entrantId)).toEqual(['a', 'e', 'c', 'g', 'f', 'h', 'b', 'd']);
     expect(ranking.map((r) => r.place)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(ranking[0]?.resultKind).toBe('champion');
     expect(ranking[1]?.resultKind).toBe('runnerUp');
@@ -40,7 +40,7 @@ describe('computeFinalRanking', () => {
   it('finds the bronze match by its place in the bracket when no bronze slot id is given', () => {
     const { slots } = buildSlots();
     const ranking = computeFinalRanking(slots, POOL, null);
-    expect(ranking.map((r) => r.registrationId)).toEqual(['a', 'e', 'c', 'g', 'f', 'h', 'b', 'd']);
+    expect(ranking.map((r) => r.entrantId)).toEqual(['a', 'e', 'c', 'g', 'f', 'h', 'b', 'd']);
     expect(ranking[2]?.resultKind).toBe('third');
     expect(ranking[3]?.resultKind).toBe('fourth');
   });
@@ -49,7 +49,7 @@ describe('computeFinalRanking', () => {
     const { slots, bronzeId } = buildSlots();
     const noBronze = slots.filter((s) => s.id !== bronzeId);
     const ranking = computeFinalRanking(noBronze, POOL);
-    expect(ranking.map((r) => r.registrationId)).toEqual(['a', 'e', 'g', 'c', 'f', 'h', 'b', 'd']);
+    expect(ranking.map((r) => r.entrantId)).toEqual(['a', 'e', 'g', 'c', 'f', 'h', 'b', 'd']);
     expect(ranking[2]?.eliminationRound).toBe(2);
     expect(ranking[3]?.eliminationRound).toBe(2);
   });
@@ -60,7 +60,7 @@ describe('computeFinalRanking', () => {
     // several bracket fighters, yet must still rank below all of them.
     const pool = [...POOL, poolEntry('i', 4.0), poolEntry('j', 3.5)];
     const ranking = computeFinalRanking(slots, pool, bronzeId);
-    expect(ranking.map((r) => r.registrationId)).toEqual([
+    expect(ranking.map((r) => r.entrantId)).toEqual([
       'a',
       'e',
       'c',
@@ -73,7 +73,7 @@ describe('computeFinalRanking', () => {
       'j',
     ]);
     expect(ranking[8]?.resultKind).toBe('pool');
-    expect(ranking[8]?.registrationId).toBe('i');
+    expect(ranking[8]?.entrantId).toBe('i');
     expect(ranking[9]?.resultKind).toBe('pool');
     expect(ranking.map((r) => r.place)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
@@ -91,12 +91,12 @@ describe('computeFinalRanking', () => {
     // score-derived winner ranked the injured forfeiter champion.
     const { slots, bronzeId } = buildSlots();
     const forfeitFinal = slots.map((s) =>
-      s.round === 3 && s.position === 1 ? { ...s, winnerRegistrationId: 'e' } : s,
+      s.round === 3 && s.position === 1 ? { ...s, winnerSideId: 'e' } : s,
     );
     const ranking = computeFinalRanking(forfeitFinal, POOL, bronzeId);
-    expect(ranking[0]?.registrationId).toBe('e');
+    expect(ranking[0]?.entrantId).toBe('e');
     expect(ranking[0]?.resultKind).toBe('champion');
-    expect(ranking[1]?.registrationId).toBe('a');
+    expect(ranking[1]?.entrantId).toBe('a');
     expect(ranking[1]?.resultKind).toBe('runnerUp');
   });
 
@@ -106,12 +106,50 @@ describe('computeFinalRanking', () => {
     const { slots, bronzeId } = buildSlots();
     const zeroFinal = slots.map((s) =>
       s.round === 3 && s.position === 1
-        ? { ...s, redScore: 0, blueScore: 0, winnerRegistrationId: 'e' }
+        ? { ...s, redScore: 0, blueScore: 0, winnerSideId: 'e' }
         : s,
     );
     const ranking = computeFinalRanking(zeroFinal, POOL, bronzeId);
-    expect(ranking[0]?.registrationId).toBe('e');
-    expect(ranking[1]?.registrationId).toBe('a');
+    expect(ranking[0]?.entrantId).toBe('e');
+    expect(ranking[1]?.entrantId).toBe('a');
+  });
+});
+
+// ── A team bracket ───────────────────────────────────────────────────────────
+
+describe('computeFinalRanking — a team bracket', () => {
+  // Four teams. Semi-finals: Lyon beat Paris, Rome beat Oslo. Lyon led the final 5-3, then
+  // forfeited: Rome is the recorded winner. Paris beat Oslo in the bronze bout.
+  const lyon = teamSide('lyon', 'green');
+  const paris = teamSide('paris', 'purple');
+  const rome = teamSide('rome', 'red');
+  const oslo = teamSide('oslo', null);
+  function teamBracket(): { slots: RankingSlot[]; bronzeId: string } {
+    resetSlotIds(300);
+    const final = { ...mk(2, 1, lyon, 5, rome, 3), winnerSideId: 'rome' };
+    const bronze = mk(2, 2, paris, 5, oslo, 3, 'team-bronze');
+    return {
+      slots: [mk(1, 1, lyon, 5, paris, 2), mk(1, 2, rome, 5, oslo, 4), final, bronze],
+      bronzeId: bronze.id,
+    };
+  }
+
+  it('ranks 1-4 by team, the bronze bout deciding 3rd and 4th', () => {
+    const { slots, bronzeId } = teamBracket();
+    const ranking = computeFinalRanking(slots, [], bronzeId);
+    expect(ranking.map((e) => e.entrantId)).toEqual(['rome', 'lyon', 'paris', 'oslo']);
+    expect(ranking.map((e) => e.resultKind)).toEqual(['champion', 'runnerUp', 'third', 'fourth']);
+    expect(ranking.map((e) => e.fighterName)).toEqual(['ROME', 'LYON', 'PARIS', 'OSLO']);
+    expect(ranking.every((e) => e.kind === 'team')).toBe(true);
+    expect(ranking.map((e) => e.colour)).toEqual(['red', 'green', 'purple', null]);
+  });
+
+  it('keeps a team that competed in the pools only below every bracket team', () => {
+    const { slots, bronzeId } = teamBracket();
+    const pool = [{ ...poolEntry('nice', 99), kind: 'team' as const, colour: 'blue' }];
+    const ranking = computeFinalRanking(slots, pool, bronzeId);
+    expect(ranking[4]).toMatchObject({ entrantId: 'nice', kind: 'team', colour: 'blue' });
+    expect(ranking[4]?.resultKind).toBe('pool');
   });
 });
 
@@ -147,7 +185,7 @@ function buildDoubleElim(gfWinnerIsWb = true): RankingSlot[] {
 describe('computeFinalRanking — double elimination', () => {
   it('places fighters by their LOSERS-bracket exit, not their winners-bracket loss', () => {
     const ranking = computeFinalRanking(buildDoubleElim(), POOL, null, DE_SHAPE);
-    expect(ranking.map((e) => e.registrationId)).toEqual([
+    expect(ranking.map((e) => e.entrantId)).toEqual([
       'a', // champion — won the grand final
       'e', // runner-up — lost the WB final, won the LB, lost the GF
       'c', // 3rd — lost the LB final
@@ -163,7 +201,7 @@ describe('computeFinalRanking — double elimination', () => {
     // b lost in WB round 1 — under the single-elim ordering that put them
     // last. In double elim they get a second life and finish 6th.
     const ranking = computeFinalRanking(buildDoubleElim(), POOL, null, DE_SHAPE);
-    const b = ranking.find((e) => e.registrationId === 'b');
+    const b = ranking.find((e) => e.entrantId === 'b');
     expect(b?.place).toBe(6);
     expect(b?.bracketSection).toBe('LB');
     // LB-relative round, not the absolute round 5.
@@ -187,16 +225,16 @@ describe('computeFinalRanking — double elimination', () => {
     const slots = [...buildDoubleElim(), { ...mk(9, 1, 'e', 0, 'a', 0), status: 'scheduled' }];
     const ranking = computeFinalRanking(slots, POOL, null, DE_SHAPE);
     expect(ranking.length).toBe(8);
-    expect(ranking[0]?.registrationId).toBe('a');
-    expect(ranking[1]?.registrationId).toBe('e');
+    expect(ranking[0]?.entrantId).toBe('a');
+    expect(ranking[1]?.entrantId).toBe('e');
   });
 
   it('crowns the reset winner when the reset WAS played', () => {
     // LB entrant e wins the GF, forcing a reset; a wins the reset.
     const slots = [...buildDoubleElim(false), mk(9, 1, 'a', 5, 'e', 4)];
     const ranking = computeFinalRanking(slots, POOL, null, DE_SHAPE);
-    expect(ranking[0]?.registrationId).toBe('a');
-    expect(ranking[1]?.registrationId).toBe('e');
+    expect(ranking[0]?.entrantId).toBe('a');
+    expect(ranking[1]?.entrantId).toBe('e');
   });
 
   it('returns empty while the grand final is undecided', () => {
@@ -210,7 +248,7 @@ describe('computeFinalRanking — double elimination', () => {
     const pool = [...POOL, poolEntry('x', 0.5), poolEntry('y', 0.4)];
     const ranking = computeFinalRanking(slots, pool, null, DE_SHAPE);
     const tail = ranking.slice(-2);
-    expect(tail.map((e) => e.registrationId).sort()).toEqual(['x', 'y']);
+    expect(tail.map((e) => e.entrantId).sort()).toEqual(['x', 'y']);
     expect(tail.every((e) => e.bracketSection === 'PLAYIN')).toBe(true);
   });
 });
@@ -223,7 +261,7 @@ describe('computeFinalRanking — Swiss', () => {
 
   it('takes the standings order as given — no slots to read', () => {
     const ranking = computeFinalRanking([], standings, null, SWISS);
-    expect(ranking.map((e) => e.registrationId)).toEqual(['a', 'b', 'c', 'd']);
+    expect(ranking.map((e) => e.entrantId)).toEqual(['a', 'b', 'c', 'd']);
     expect(ranking.map((e) => e.place)).toEqual([1, 2, 3, 4]);
   });
 

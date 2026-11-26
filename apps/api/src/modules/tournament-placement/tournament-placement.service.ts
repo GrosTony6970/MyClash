@@ -4,13 +4,13 @@ import {
   rankingBracketShape,
   type FinalRankingResultKind,
   type PoolEntry,
-  type RankingSlot,
 } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { PhasesService } from '../phases/phases.service';
-import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SwissStandingsService } from '../swiss/swiss-standings.service';
 
 /** A single registration's final placement in one decided tournament, derived
@@ -23,18 +23,19 @@ export interface TournamentPlacement {
   totalRanked: number;
 }
 
-/** The full-field placement of a tournament: the ordered list, a per-registration
- *  lookup, and whether the tournament is decided at all. `decided:false` (empty
- *  map) means the Final isn't settled yet, or a pool-only tournament still has
- *  matches to play — callers must award nothing in that case. */
+/** The full-field placement of a tournament: the ordered list, a lookup by side
+ *  key (`sideKey`: a Fighter's Registration id, or a team's id), and whether the
+ *  tournament is decided at all. `decided:false` (empty map) means the Final
+ *  isn't settled yet, or a pool-only tournament still has matches to play —
+ *  callers must award nothing in that case. */
 export interface TournamentPlacements {
-  byRegistrationId: Map<string, TournamentPlacement>;
-  ordered: Array<{ registrationId: string } & TournamentPlacement>;
+  byEntrantId: Map<string, TournamentPlacement>;
+  ordered: Array<{ entrantId: string } & TournamentPlacement>;
   decided: boolean;
 }
 
 const UNDECIDED: TournamentPlacements = Object.freeze({
-  byRegistrationId: new Map(),
+  byEntrantId: new Map(),
   ordered: [],
   decided: false,
 });
@@ -66,10 +67,10 @@ export class TournamentPlacementService {
    * than throwing, matching the career-dashboard contract.
    */
   async getTournamentPlacements(tournamentId: string): Promise<TournamentPlacements> {
-    let rows: StandingsRow[];
+    let rows: PoolStandingsRow[];
     try {
       const standings = (await this.poolStandings.getPoolStandings(tournamentId, 'overall')) as {
-        rows?: StandingsRow[];
+        rows?: PoolStandingsRow[];
       };
       rows = standings.rows ?? [];
     } catch {
@@ -79,9 +80,11 @@ export class TournamentPlacementService {
       const rawScore = row.stats?.['score'];
       const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
       return {
-        registrationId: row.entrantId,
+        entrantId: row.entrantId,
+        kind: row.kind,
         fighterName: row.displayName,
         clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+        colour: row.colour,
         poolScore: Number.isFinite(score) ? score : null,
       };
     });
@@ -89,39 +92,30 @@ export class TournamentPlacementService {
     const bracket = await this.phases.getTournamentBracket(tournamentId);
     const hasBracket = Boolean(bracket?.slots?.length);
     if (bracket?.slots?.length) {
-      const slots: RankingSlot[] = bracket.slots.map((slot) => ({
-        id: slot.id,
-        round: slot.round,
-        position: slot.position,
-        status: slot.status,
-        redRegistrationId: slot.redRegistrationId ?? null,
-        blueRegistrationId: slot.blueRegistrationId ?? null,
-        redFighterName: slot.redFighterName ?? null,
-        blueFighterName: slot.blueFighterName ?? null,
-        redClubAbbrev: slot.redClubAbbrev ?? null,
-        blueClubAbbrev: slot.blueClubAbbrev ?? null,
-        redScore: slot.redScore ?? null,
-        blueScore: slot.blueScore ?? null,
-        winnerRegistrationId: slot.winnerRegistrationId ?? null,
-      }));
-      // No explicit bronzeSlotId, to match the public FinalRankingTab. The
-      // bracket shape IS passed: without it a double-elim tournament is ranked
-      // as if a winners-bracket loss eliminated the fighter, and an unplayed
-      // grand-final reset makes the whole ranking come back empty.
-      const ranking = computeFinalRanking(slots, poolEntries, null, rankingBracketShape(bracket));
+      // The slots as the bracket read sends them (`TournamentBracketSlotWire`): their side keys
+      // rank a team bracket by team. No explicit bronzeSlotId, to match the public FinalRankingTab.
+      // The bracket shape IS passed: without it a double-elim tournament is ranked as if a
+      // winners-bracket loss eliminated the fighter, and an unplayed grand-final reset makes the
+      // whole ranking come back empty.
+      const ranking = computeFinalRanking(
+        bracket.slots,
+        poolEntries,
+        null,
+        rankingBracketShape(bracket),
+      );
       if (ranking.length > 0) {
         const totalRanked = ranking.length;
-        const byRegistrationId = new Map<string, TournamentPlacement>();
+        const byEntrantId = new Map<string, TournamentPlacement>();
         const ordered = ranking.map((entry) => {
           const placement: TournamentPlacement = {
             place: entry.place,
             resultKind: entry.resultKind,
             totalRanked,
           };
-          byRegistrationId.set(entry.registrationId, placement);
-          return { registrationId: entry.registrationId, ...placement };
+          byEntrantId.set(entry.entrantId, placement);
+          return { entrantId: entry.entrantId, ...placement };
         });
-        return { byRegistrationId, ordered, decided: true };
+        return { byEntrantId, ordered, decided: true };
       }
     }
 
@@ -144,17 +138,17 @@ export class TournamentPlacementService {
     const ranked = rows.filter((row) => Number.isFinite(row.rank)).sort((a, b) => a.rank - b.rank);
     if (ranked.length === 0) return UNDECIDED;
     const totalRanked = ranked.length;
-    const byRegistrationId = new Map<string, TournamentPlacement>();
+    const byEntrantId = new Map<string, TournamentPlacement>();
     const ordered = ranked.map((row) => {
       const placement: TournamentPlacement = {
         place: row.rank,
         resultKind: 'pool',
         totalRanked,
       };
-      byRegistrationId.set(row.entrantId, placement);
-      return { registrationId: row.entrantId, ...placement };
+      byEntrantId.set(row.entrantId, placement);
+      return { entrantId: row.entrantId, ...placement };
     });
-    return { byRegistrationId, ordered, decided: true };
+    return { byEntrantId, ordered, decided: true };
   }
 
   /**
@@ -177,10 +171,13 @@ export class TournamentPlacementService {
       (standings.roundCount > 0 && standings.roundsCompleted >= standings.roundCount);
     if (!complete || standings.rows.length === 0) return null;
 
+    // Swiss has no team path: every row is a Fighter.
     const entries: PoolEntry[] = standings.rows.map((row) => ({
-      registrationId: row.entrantId,
+      entrantId: row.entrantId,
+      kind: 'individual',
       fighterName: row.displayName,
       clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+      colour: null,
       poolScore: null,
     }));
     // No slots: computeFinalRanking's Swiss branch takes the order as given,
@@ -189,17 +186,17 @@ export class TournamentPlacementService {
     if (ranking.length === 0) return null;
 
     const totalRanked = ranking.length;
-    const byRegistrationId = new Map<string, TournamentPlacement>();
+    const byEntrantId = new Map<string, TournamentPlacement>();
     const ordered = ranking.map((entry) => {
       const placement: TournamentPlacement = {
         place: entry.place,
         resultKind: entry.resultKind,
         totalRanked,
       };
-      byRegistrationId.set(entry.registrationId, placement);
-      return { registrationId: entry.registrationId, ...placement };
+      byEntrantId.set(entry.entrantId, placement);
+      return { entrantId: entry.entrantId, ...placement };
     });
-    return { byRegistrationId, ordered, decided: true };
+    return { byEntrantId, ordered, decided: true };
   }
 
   /** True when a tournament has no unfinished match left (voided ones don't

@@ -6,6 +6,7 @@
  * what every tiebreak reads, so they must not drift between the two files.
  */
 
+import type { BracketSideWire } from './bracket-side';
 import type { PoolEntry, RankingSlot } from './final-ranking';
 
 let seq = 0;
@@ -14,26 +15,54 @@ export function resetSlotIds(from = 0): void {
   seq = from;
 }
 
+/** A Fighter's side of a slot: the side key is the Registration id, named in capitals. */
+export function fighterSide(reg: string): BracketSideWire {
+  return {
+    sideId: reg,
+    kind: 'individual',
+    registrationId: reg,
+    teamId: null,
+    name: reg.toUpperCase(),
+    clubAbbrev: null,
+    colour: null,
+  };
+}
+
+/** A team's side of a slot: the side key is the team id. */
+export function teamSide(team: string, colour: string | null = null): BracketSideWire {
+  return {
+    sideId: team,
+    kind: 'team',
+    registrationId: null,
+    teamId: team,
+    name: team.toUpperCase(),
+    clubAbbrev: null,
+    colour,
+  };
+}
+
+/** A completed slot between two sides, each a Fighter unless given as a team's side. */
 export function mk(
   round: number,
   position: number,
-  red: string,
+  red: string | BracketSideWire,
   redScore: number,
-  blue: string,
+  blue: string | BracketSideWire,
   blueScore: number,
   id?: string,
 ): RankingSlot {
+  const redSide = typeof red === 'string' ? fighterSide(red) : red;
+  const blueSide = typeof blue === 'string' ? fighterSide(blue) : blue;
   return {
     id: id ?? `slot-${seq++}`,
     round,
     position,
     status: 'completed',
-    redRegistrationId: red,
-    blueRegistrationId: blue,
-    redFighterName: red.toUpperCase(),
-    blueFighterName: blue.toUpperCase(),
-    redClubAbbrev: null,
-    blueClubAbbrev: null,
+    redSideId: redSide.sideId,
+    blueSideId: blueSide.sideId,
+    winnerSideId: null,
+    red: redSide,
+    blue: blueSide,
     redScore,
     blueScore,
   };
@@ -41,9 +70,11 @@ export function mk(
 
 export function poolEntry(reg: string, score: number): PoolEntry {
   return {
-    registrationId: reg,
+    entrantId: reg,
+    kind: 'individual',
     fighterName: reg.toUpperCase(),
     clubAbbrev: null,
+    colour: null,
     poolScore: score,
   };
 }

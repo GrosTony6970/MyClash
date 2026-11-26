@@ -16,6 +16,13 @@ function slot(id: string, round: number, position: number): BracketSlotData {
     blueScore: 0,
     status: 'pending',
     matchId: null,
+    redRegistrationId: null,
+    blueRegistrationId: null,
+    redSideId: null,
+    blueSideId: null,
+    winnerSideId: null,
+    red: null,
+    blue: null,
   };
 }
 

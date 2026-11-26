@@ -298,4 +298,28 @@ describe('getTournamentBracket — an individual bracket', () => {
       },
     ]);
   });
+
+  it('sends null, never an empty name, for a side whose name is not known', async () => {
+    // Anna's Registration reads no Person: her side is placed, but has no name to show. An empty
+    // string would silence every fallback a screen puts in its place.
+    const { service } = makeService(
+      {
+        bracket_slots: {
+          rows: [slot('s-1', { registration_a_id: 'reg-anna', registration_b_id: null })],
+        },
+        matches: { rows: [] },
+        registrations: { rows: [] },
+      },
+      'individual',
+    );
+
+    const result = await service.getTournamentBracket(T);
+
+    expect(result!.slots[0]).toMatchObject({
+      redSideId: 'reg-anna',
+      redFighterName: null,
+      red: { sideId: 'reg-anna', kind: 'individual', name: null },
+      blue: null,
+    });
+  });
 });

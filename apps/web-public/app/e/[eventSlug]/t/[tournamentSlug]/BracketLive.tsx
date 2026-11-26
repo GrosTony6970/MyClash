@@ -142,10 +142,8 @@ export function BracketLive({
     if (highlightRegistrationId) {
       for (const s of slots) {
         const mine =
-          (s as { redRegistrationId?: string | null }).redRegistrationId ===
-            highlightRegistrationId ||
-          (s as { blueRegistrationId?: string | null }).blueRegistrationId ===
-            highlightRegistrationId;
+          s.redRegistrationId === highlightRegistrationId ||
+          s.blueRegistrationId === highlightRegistrationId;
         if (mine && (!fighter || s.round > fighter.round)) fighter = { id: s.id, round: s.round };
       }
     }
@@ -220,22 +218,24 @@ export function BracketLive({
     position: s.position,
     redFighterName: s.redFighterName,
     blueFighterName: s.blueFighterName,
-    redClubAbbrev: (s as { redClubAbbrev?: string | null }).redClubAbbrev ?? null,
-    blueClubAbbrev: (s as { blueClubAbbrev?: string | null }).blueClubAbbrev ?? null,
+    redClubAbbrev: s.redClubAbbrev,
+    blueClubAbbrev: s.blueClubAbbrev,
     redScore: s.redScore,
     blueScore: s.blueScore,
-    // The card bolds the RECORDED winner, and this projection used to drop the
-    // field its own source type already declared — so the public bracket
-    // announced whoever had more points, which a forfeit or an override can
-    // make the loser.
-    winnerRegistrationId: s.winnerRegistrationId ?? null,
+    // The card bolds the RECORDED winner: a forfeit or an override can make the higher score the
+    // loser. The side ids and the typed sides come from the wire as they are.
+    redSideId: s.redSideId,
+    blueSideId: s.blueSideId,
+    winnerSideId: s.winnerSideId,
+    red: s.red,
+    blue: s.blue,
     status: s.status,
     matchId: s.matchId,
-    redRegistrationId: (s as { redRegistrationId?: string | null }).redRegistrationId ?? null,
-    blueRegistrationId: (s as { blueRegistrationId?: string | null }).blueRegistrationId ?? null,
-    liceName: (s as { liceName?: string | null }).liceName ?? null,
+    redRegistrationId: s.redRegistrationId,
+    blueRegistrationId: s.blueRegistrationId,
+    liceName: s.liceName,
     // The card shows `roleLabel`: the public site's one wording of a role, never its id.
-    referees: (s.referees ?? []).map((r) => ({
+    referees: s.referees.map((r) => ({
       ...r,
       roleLabel: refereeRoleLabel(r.roleLabel, t),
     })),

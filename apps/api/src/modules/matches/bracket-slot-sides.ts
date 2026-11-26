@@ -59,8 +59,13 @@ export function bracketSlotSides<Club>(
   registrations: ReadonlyMap<string, RegistrationEmbed<Club>>,
   clubAbbrev: (club: Club | null) => string | null,
 ): BracketSlotSideFields {
-  const side = (registrationId: string | null, team: TeamEmbed | null): BracketSideWire | null => {
-    const sideId = sideKey(registrationId, team?.id);
+  // Each side is keyed once (`slotSideKeys`); the typed side and the top-level key share it.
+  const { a: redSideId, b: blueSideId } = slotSideKeys(slot);
+  const side = (
+    sideId: string | null,
+    registrationId: string | null,
+    team: TeamEmbed | null,
+  ): BracketSideWire | null => {
     if (!sideId) return null;
     const registration = registrationId
       ? (registrations.get(registrationId) ?? { id: registrationId, persons: null })
@@ -71,20 +76,21 @@ export function bracketSlotSides<Club>(
       kind: label.kind,
       registrationId,
       teamId: team?.id ?? null,
-      name: label.name,
+      // A name not known is null, never '': '' would silence every fallback downstream.
+      name: label.name || null,
       clubAbbrev: clubAbbrev(label.club),
       colour: label.colour,
     };
   };
-  const red = side(slot.registration_a_id, slot.team_a ?? null);
-  const blue = side(slot.registration_b_id, slot.team_b ?? null);
+  const red = side(redSideId, slot.registration_a_id, slot.team_a ?? null);
+  const blue = side(blueSideId, slot.registration_b_id, slot.team_b ?? null);
   return {
-    redFighterName: red?.name || null,
-    blueFighterName: blue?.name || null,
+    redFighterName: red?.name ?? null,
+    blueFighterName: blue?.name ?? null,
     redClubAbbrev: red?.clubAbbrev ?? null,
     blueClubAbbrev: blue?.clubAbbrev ?? null,
-    redSideId: sideKey(slot.registration_a_id, slot.team_a?.id),
-    blueSideId: sideKey(slot.registration_b_id, slot.team_b?.id),
+    redSideId,
+    blueSideId,
     winnerSideId: sideKey(bout?.winner_registration_id, bout?.winner_team_id),
     red,
     blue,

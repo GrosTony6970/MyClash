@@ -6,6 +6,7 @@
  * staff-scoped routes. The generated OpenAPI client carries the paths but no
  * response schemas — those services return plain objects, not DTO classes.
  */
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 /** A referee on a pool's default crew (`scope_type='pool'`). */
@@ -95,31 +96,10 @@ export interface TournamentBracketPayload {
   wbRounds?: number | null;
   lbRounds?: number | null;
   bronzeSlotId?: string | null;
-  slots: Array<{
-    id: string;
-    round: number;
-    position: number;
-    redFighterName: string | null;
-    blueFighterName: string | null;
-    redScore: number | null;
-    blueScore: number | null;
-    /** Recorded winner — what the card bolds. Authoritative over the scores,
-     *  which a forfeit or a `referee_decision` override can invert. */
-    winnerRegistrationId?: string | null;
-    redRegistrationId?: string | null;
-    blueRegistrationId?: string | null;
-    status: string;
-    matchId: string | null;
-    liceId?: string | null;
-    /** Piste name for the card's pill. Null when the bout has no lice yet. */
-    liceName?: string | null;
-    /** `BracketReferee` from @myclash/ui — rendered under the card. */
-    referees?: Array<{
-      role: string | null;
-      roleLabel?: string | null;
-      displayName: string;
-      status: string;
-      skillColor: string;
-    }>;
-  }>;
+  /**
+   * The slots as the bracket read declares them (`getTournamentBracket`, served through the staff
+   * route): side ids, typed sides, and `winnerSideId`, the recorded winner the card bolds —
+   * authoritative over the scores, which a forfeit or a `referee_decision` override can invert.
+   */
+  slots: TournamentBracketSlotWire[];
 }

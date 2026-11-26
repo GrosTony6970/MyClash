@@ -7,7 +7,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { PoolEntry, RankingSlot } from '@myclash/ui';
+import type { PoolEntry } from '@myclash/ui';
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { apiRequest } from '@myclash/api-client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -21,7 +22,8 @@ export interface BracketResponse {
   wbRounds?: number | null;
   lbRounds?: number | null;
   bronzeSlotId?: string | null;
-  slots: RankingSlot[];
+  /** The slots as the bracket read declares them. */
+  slots: TournamentBracketSlotWire[];
 }
 
 const apiUrl = getPublicApiUrl();
@@ -32,23 +34,29 @@ async function readRanking(
   signal: AbortSignal,
 ): Promise<{ bracket: BracketResponse | null; poolEntries: PoolEntry[] } | null> {
   const [bracketResult, standingsResult] = await Promise.all([
-    apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${tournamentId}/bracket`, { signal }),
-    apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`, {
+    apiRequest<BracketResponse | null>(apiUrl, `/api/v1/tournaments/${tournamentId}/bracket`, {
       signal,
     }),
+    apiRequest<{ rows?: PoolStandingsRow[] } | null>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`,
+      { signal },
+    ),
   ]);
   if (!bracketResult.ok || !standingsResult.ok) return null;
-  const bracket = bracketResult.data as BracketResponse | null;
-  const rows = (standingsResult.data as { rows?: PoolStandingsRow[] } | null)?.rows ?? [];
+  const bracket = bracketResult.data;
+  const rows = standingsResult.data?.rows ?? [];
   return {
     bracket: bracket && Array.isArray(bracket.slots) ? bracket : null,
     poolEntries: rows.map((row) => {
       const raw = row.stats?.['score'];
       const n = typeof raw === 'number' ? raw : Number(raw);
       return {
-        registrationId: row.entrantId,
+        entrantId: row.entrantId,
+        kind: row.kind,
         fighterName: row.displayName,
         clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+        colour: row.colour,
         poolScore: Number.isFinite(n) ? n : null,
       };
     }),

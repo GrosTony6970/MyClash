@@ -23,7 +23,6 @@ import {
   rankingBracketShape,
   type FinalRankingEntry,
   type PoolEntry,
-  type RankingSlot,
 } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { SelfRowFocus } from './SelfRowFocus';
@@ -105,10 +104,14 @@ export function FinalRankingTab({
           rows.map((row) => {
             const raw = row.stats?.['score'];
             const n = typeof raw === 'number' ? raw : Number(raw);
+            // A Swiss row has no kind: Swiss has no team path, every row is a Fighter.
+            const pool = 'kind' in row ? row : null;
             return {
-              registrationId: row.entrantId,
+              entrantId: row.entrantId,
+              kind: pool?.kind ?? 'individual',
               fighterName: row.displayName,
               clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+              colour: pool?.colour ?? null,
               poolScore: Number.isFinite(n) ? n : null,
             };
           }),
@@ -129,25 +132,10 @@ export function FinalRankingTab({
     );
   }
 
-  const rankingSlots: RankingSlot[] = bracketSlots.map((s) => ({
-    id: s.id,
-    round: s.round,
-    position: s.position,
-    status: s.status,
-    redRegistrationId: s.redRegistrationId ?? null,
-    blueRegistrationId: s.blueRegistrationId ?? null,
-    redFighterName: s.redFighterName,
-    blueFighterName: s.blueFighterName,
-    redClubAbbrev: s.redClubAbbrev ?? null,
-    blueClubAbbrev: s.blueClubAbbrev ?? null,
-    redScore: s.redScore,
-    blueScore: s.blueScore,
-    winnerRegistrationId: s.winnerRegistrationId ?? null,
-  }));
-
-  const maxRound = rankingSlots.reduce((m, s) => Math.max(m, s.round), 0);
+  // The slots as the public bracket read sends them: the side ids come from the wire.
+  const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
   const ranking = computeFinalRanking(
-    rankingSlots,
+    bracketSlots,
     poolEntries,
     null,
     rankingBracketShape({
@@ -188,11 +176,10 @@ export function FinalRankingTab({
         <tbody>
           {ranking.map((entry) => {
             const poolScoreText = entry.poolScore != null ? entry.poolScore.toFixed(2) : '—';
-            const isYou =
-              !!highlightRegistrationId && entry.registrationId === highlightRegistrationId;
+            const isYou = !!highlightRegistrationId && entry.entrantId === highlightRegistrationId;
             return (
               <tr
-                key={entry.registrationId}
+                key={entry.entrantId}
                 data-self-row={isYou ? '' : undefined}
                 className={[
                   'border-b border-border last:border-0 hover:bg-background',

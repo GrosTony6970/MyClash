@@ -2223,12 +2223,12 @@ export class LeaguesService {
     groupName: string | null,
     registrations: Row[],
     doubleHits: Map<string, number>,
-    placements: { byRegistrationId: Map<string, { place: number; resultKind: string }> },
+    placements: { byEntrantId: Map<string, { place: number; resultKind: string }> },
   ): TournamentContributionInput[] {
     const inputs: TournamentContributionInput[] = [];
     for (const registration of registrations) {
       const registrationId = String(registration['id']);
-      const placement = placements.byRegistrationId.get(registrationId);
+      const placement = placements.byEntrantId.get(registrationId);
       if (!placement) continue;
       const person = registration['persons'] as Row | null;
       const fighter = registration['global_persons'] as Row | null;

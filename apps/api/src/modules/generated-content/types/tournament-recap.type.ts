@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { computeFinalRanking, rankingBracketShape, type RankingSlot } from '@myclash/types';
+import { computeFinalRanking, rankingBracketShape } from '@myclash/types';
 import { canReadTournament, type PublicReader } from '../../../common/auth/competition-visibility';
 import { EventsService } from '../../events/events.service';
 import { OrganizationsService } from '../../organizations/organizations.service';
@@ -67,7 +67,8 @@ export class TournamentRecapType implements ContentTypeDef {
   ): Promise<Record<string, unknown>> {
     const t = await this.loadTournament(entityId);
     if (!t.events?.slug) throw new NotFoundException('Tournament event not found');
-    // Reuse the tested public assembly; its bracketSlots map 1:1 to RankingSlot.
+    // Reuse the tested public assembly; its bracketSlots are the slots the public
+    // read declares (`BracketSlotWire`), so a team's podium names the team.
     // The caller `assertAccess` just proved to be an org admin — that assembly
     // hides an unannounced event from non-members, and a recap is exactly the
     // thing an organiser writes before publishing.
@@ -76,16 +77,15 @@ export class TournamentRecapType implements ContentTypeDef {
       staff: null,
     });
     const header = standings.tournament as Record<string, unknown>;
-    const slots = (standings as { bracketSlots?: RankingSlot[] }).bracketSlots ?? [];
-    // The cast must expose the WHOLE shape, not just phaseType: narrowing it
-    // dropped wbRounds/lbRounds, which left a double-elim recap ranked as if
-    // its losers bracket were part of the winners tree.
-    const podium = computeFinalRanking(
-      slots,
-      [],
-      null,
-      rankingBracketShape(standings as Parameters<typeof rankingBracketShape>[0]),
-    )
+    // The WHOLE shape, not just phaseType: narrowing it dropped wbRounds/lbRounds,
+    // which left a double-elim recap ranked as if its losers bracket were part of
+    // the winners tree. A Tournament not published yet sends no bracket and no
+    // shape: no podium.
+    const ranking =
+      'phaseType' in standings
+        ? computeFinalRanking(standings.bracketSlots, [], null, rankingBracketShape(standings))
+        : [];
+    const podium = ranking
       .slice(0, 4)
       .map((e) => ({ place: e.place, fighter: e.fighterName, club: e.clubAbbrev ?? null }));
     return {

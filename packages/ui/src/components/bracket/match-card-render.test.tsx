@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { BracketSideWire } from '@myclash/types/bracket-side';
 import { describe, expect, it } from 'vitest';
 
 import { MatchCard } from './MatchCard';
@@ -39,7 +40,26 @@ function slot(over: Partial<BracketSlotData> = {}): BracketSlotData {
     status: 'completed',
     matchId: 'match-1',
     liceId: MINE,
+    redRegistrationId: 'reg-marie',
+    blueRegistrationId: 'reg-jean',
+    redSideId: 'reg-marie',
+    blueSideId: 'reg-jean',
+    winnerSideId: 'reg-marie',
+    red: fighter('reg-marie', 'Marie Dubois'),
+    blue: fighter('reg-jean', 'Jean Biras'),
     ...over,
+  };
+}
+
+function fighter(registrationId: string, name: string): BracketSideWire {
+  return {
+    sideId: registrationId,
+    kind: 'individual',
+    registrationId,
+    teamId: null,
+    name,
+    clubAbbrev: null,
+    colour: null,
   };
 }
 

@@ -21,8 +21,8 @@ export interface BracketSideWire {
   registrationId: string | null;
   /** The team; null for a Fighter. */
   teamId: string | null;
-  /** The side's label (`sideLabel`): the Fighter's name, or the team's. */
-  name: string;
+  /** The side's label (`sideLabel`): the Fighter's name, or the team's. Null when not known, never ''. */
+  name: string | null;
   /** The Fighter's club. A team has no club. */
   clubAbbrev: string | null;
   /** A team's colour name (`TOURNAMENT_COLORS`), or none. A Fighter has no colour. */

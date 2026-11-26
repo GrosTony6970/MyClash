@@ -11,7 +11,7 @@
  */
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { computeFinalRanking, rankingBracketShape, type RankingSlot } from '@myclash/types';
+import { computeFinalRanking, rankingBracketShape } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CLOCK_SKEW_REPORT_MS } from '../events/clock-reconciliation';
 import {
@@ -63,6 +63,9 @@ interface TournamentRow {
 /** How long after the fleet's last report a device counts as having gone quiet. */
 const SILENCE_GRACE_MS = 10 * 60 * 1000;
 
+/** The public standings payload, as `getPublicTournamentStandings` declares it. */
+type PublicStandings = Awaited<ReturnType<EventsService['getPublicTournamentStandings']>>;
+
 /** An organiser this service already proved a member, as the public reads' reader. */
 const asMember = (userId: string) => ({ userId, staff: null });
 
@@ -78,9 +81,11 @@ function roundPct(part: number, whole: number): number {
  * as an undecided bracket and blank the podium), and its 3rd place is the
  * losers-bracket final's loser rather than a bronze-match winner.
  */
-function topThreeFrom(standings: unknown): TournamentStatSummary['podium'] {
-  const bracket = (standings ?? {}) as { bracketSlots?: RankingSlot[]; phaseType?: string | null };
-  return computeFinalRanking(bracket.bracketSlots ?? [], [], null, rankingBracketShape(bracket))
+function topThreeFrom(standings: PublicStandings | null): TournamentStatSummary['podium'] {
+  // A Tournament not published yet sends no bracket and no shape: no podium.
+  if (!standings || !('phaseType' in standings)) return [];
+  // The slots as the public read declares them (`BracketSlotWire`): a team's podium names the team.
+  return computeFinalRanking(standings.bracketSlots, [], null, rankingBracketShape(standings))
     .slice(0, 3)
     .map((e) => ({ place: e.place, fighterName: e.fighterName, club: e.clubAbbrev ?? null }));
 }

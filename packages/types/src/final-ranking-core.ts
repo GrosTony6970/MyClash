@@ -7,32 +7,44 @@
  * "who won" and one place counter. Re-exported from `final-ranking.ts`, which
  * stays the public entry point.
  *
+ * A side is a Fighter's Registration or a team (ADR-022): every key here is a side key
+ * (`sideKey`), the Registration id or the team id, so a team bracket ranks its teams.
+ *
  * Pure: no React, no I/O.
  */
 
-export interface RankingSlot {
-  id: string;
-  round: number;
-  position: number;
-  status: string;
-  redRegistrationId: string | null;
-  blueRegistrationId: string | null;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redClubAbbrev?: string | null;
-  blueClubAbbrev?: string | null;
-  redScore: number | null;
-  blueScore: number | null;
-  /** Recorded match winner (matches.winner_registration_id) — authoritative
-   *  over score comparison; forfeits can award the lower-scored fighter. */
-  winnerRegistrationId?: string | null;
-}
+import type { BracketSideWire, BracketSlotWire } from './bracket-side';
 
-/** A pool-phase fighter (every registration that competed in the pools). */
+/**
+ * A bracket slot as the ranking reads it: the fields of the slot both bracket reads send
+ * (`BracketSlotWire`), so a field renamed on the wire is a compile error here. `winnerSideId` is
+ * the recorded winner, authoritative over the scores: a forfeit can award the lower score.
+ */
+export type RankingSlot = Pick<
+  BracketSlotWire,
+  | 'id'
+  | 'round'
+  | 'position'
+  | 'status'
+  | 'redSideId'
+  | 'blueSideId'
+  | 'winnerSideId'
+  | 'red'
+  | 'blue'
+  | 'redScore'
+  | 'blueScore'
+>;
+
+/** An entrant of the pools (every Fighter or team that competed in them). */
 export interface PoolEntry {
-  registrationId: string;
+  /** The side key (`sideKey`): the Registration id, or the team id. */
+  entrantId: string;
+  kind: BracketSideWire['kind'];
+  /** The side's label: the Fighter's name, or the team's. */
   fighterName: string;
   clubAbbrev: string | null;
+  /** A team's colour name (`TOURNAMENT_COLORS`), or none. A Fighter has no colour. */
+  colour: string | null;
   poolScore: number | null;
 }
 
@@ -85,9 +97,13 @@ export type FinalRankingBracketSection = 'WB' | 'LB' | 'PLAYIN';
 
 export interface FinalRankingEntry {
   place: number;
-  registrationId: string;
+  /** The side key (`sideKey`): the Registration id, or the team id. */
+  entrantId: string;
+  kind: BracketSideWire['kind'];
+  /** The side's label: the Fighter's name, or the team's. */
   fighterName: string;
   clubAbbrev: string | null;
+  colour: string | null;
   poolScore: number | null;
   resultKind: FinalRankingResultKind;
   /** Bracket round the fighter was eliminated in — only when resultKind === 'round'.
@@ -100,36 +116,30 @@ export interface FinalRankingEntry {
   bracketSection?: FinalRankingBracketSection;
 }
 
-export interface Side {
-  registrationId: string;
-  fighterName: string;
-  clubAbbrev: string | null;
+/** One ranked side: what a ranking entry says of the Fighter or the team. */
+export type Side = Pick<PoolEntry, 'entrantId' | 'kind' | 'fighterName' | 'clubAbbrev' | 'colour'>;
+
+/** A side of a slot that can be ranked: filled and named, else null. */
+function rankedSide(side: BracketSideWire | null): Side | null {
+  if (!side?.name) return null;
+  return {
+    entrantId: side.sideId,
+    kind: side.kind,
+    fighterName: side.name,
+    clubAbbrev: side.clubAbbrev,
+    colour: side.colour,
+  };
 }
 
 export function winnerLoser(slot: RankingSlot): { winner: Side; loser: Side } | null {
   if (slot.status !== 'completed') return null;
-  if (
-    !slot.redRegistrationId ||
-    !slot.blueRegistrationId ||
-    !slot.redFighterName ||
-    !slot.blueFighterName
-  ) {
-    return null;
-  }
-  const red: Side = {
-    registrationId: slot.redRegistrationId,
-    fighterName: slot.redFighterName,
-    clubAbbrev: slot.redClubAbbrev ?? null,
-  };
-  const blue: Side = {
-    registrationId: slot.blueRegistrationId,
-    fighterName: slot.blueFighterName,
-    clubAbbrev: slot.blueClubAbbrev ?? null,
-  };
+  const red = rankedSide(slot.red);
+  const blue = rankedSide(slot.blue);
+  if (!red || !blue) return null;
   // Recorded winner first: a keep-current forfeit stores the pre-forfeit score
   // (possibly favouring the forfeiter, or 0-0) with the OPPONENT as winner.
-  if (slot.winnerRegistrationId === red.registrationId) return { winner: red, loser: blue };
-  if (slot.winnerRegistrationId === blue.registrationId) return { winner: blue, loser: red };
+  if (slot.winnerSideId === red.entrantId) return { winner: red, loser: blue };
+  if (slot.winnerSideId === blue.entrantId) return { winner: blue, loser: red };
   if (slot.redScore === null || slot.blueScore === null || slot.redScore === slot.blueScore) {
     return null;
   }
@@ -138,26 +148,26 @@ export function winnerLoser(slot: RankingSlot): { winner: Side; loser: Side } | 
     : { winner: blue, loser: red };
 }
 
-/** Shared accumulator: assigns place numbers and dedupes by registration. */
+/** Shared accumulator: assigns place numbers and dedupes by side key. */
 export class Ranking {
   readonly entries: FinalRankingEntry[] = [];
   private readonly placed = new Set<string>();
-  private readonly poolScoreByReg = new Map<string, number>();
+  private readonly poolScoreByEntrant = new Map<string, number>();
 
   constructor(poolEntries: PoolEntry[]) {
     for (const e of poolEntries) {
       if (e.poolScore !== null && Number.isFinite(e.poolScore)) {
-        this.poolScoreByReg.set(e.registrationId, e.poolScore);
+        this.poolScoreByEntrant.set(e.entrantId, e.poolScore);
       }
     }
   }
 
-  poolScoreOf(regId: string): number | null {
-    return this.poolScoreByReg.get(regId) ?? null;
+  poolScoreOf(entrantId: string): number | null {
+    return this.poolScoreByEntrant.get(entrantId) ?? null;
   }
 
-  has(regId: string): boolean {
-    return this.placed.has(regId);
+  has(entrantId: string): boolean {
+    return this.placed.has(entrantId);
   }
 
   push(
@@ -165,24 +175,26 @@ export class Ranking {
     resultKind: FinalRankingResultKind,
     extra: Pick<FinalRankingEntry, 'eliminationRound' | 'bracketSection'> = {},
   ): void {
-    if (this.placed.has(side.registrationId)) return;
+    if (this.placed.has(side.entrantId)) return;
     this.entries.push({
       place: this.entries.length + 1,
-      registrationId: side.registrationId,
+      entrantId: side.entrantId,
+      kind: side.kind,
       fighterName: side.fighterName,
       clubAbbrev: side.clubAbbrev,
-      poolScore: this.poolScoreOf(side.registrationId),
+      colour: side.colour,
+      poolScore: this.poolScoreOf(side.entrantId),
       resultKind,
       ...(extra.eliminationRound !== undefined ? { eliminationRound: extra.eliminationRound } : {}),
       ...(extra.bracketSection !== undefined ? { bracketSection: extra.bracketSection } : {}),
     });
-    this.placed.add(side.registrationId);
+    this.placed.add(side.entrantId);
   }
 
   /** Deepest-first within a round: pool score descending, name as tiebreak. */
-  byPoolScore = (a: Side | PoolEntry, b: Side | PoolEntry): number => {
-    const na = this.poolScoreOf(a.registrationId) ?? Number.NEGATIVE_INFINITY;
-    const nb = this.poolScoreOf(b.registrationId) ?? Number.NEGATIVE_INFINITY;
+  byPoolScore = (a: Side, b: Side): number => {
+    const na = this.poolScoreOf(a.entrantId) ?? Number.NEGATIVE_INFINITY;
+    const nb = this.poolScoreOf(b.entrantId) ?? Number.NEGATIVE_INFINITY;
     if (nb !== na) return nb - na;
     return a.fighterName.localeCompare(b.fighterName);
   };
@@ -214,7 +226,7 @@ export function losersByRound(slots: RankingSlot[], r: Ranking): Map<number, Sid
   const out = new Map<number, Side[]>();
   for (const slot of slots) {
     const wl = winnerLoser(slot);
-    if (!wl || r.has(wl.loser.registrationId)) continue;
+    if (!wl || r.has(wl.loser.entrantId)) continue;
     const group = out.get(slot.round) ?? [];
     group.push(wl.loser);
     out.set(slot.round, group);

@@ -77,8 +77,8 @@
     },
     "apps/api/src/modules/matches/bracket-slot-sides.ts": {
       "verdict": "side-key",
-      "hits": 12,
-      "why": "the sides of a bracket slot for both bracket reads: `SLOT_TEAM_EMBEDS` reads the team of each side beside its Registration column; `slotSideKeys` and `bracketSlotSides` key each side and the recorded winner with `sideKey` and name each side through `sideLabel`"
+      "hits": 10,
+      "why": "the sides of a bracket slot for both bracket reads: `SLOT_TEAM_EMBEDS` reads the team of each side beside its Registration column; `slotSideKeys` keys each side once with `sideKey`, and `bracketSlotSides` shares that key between the typed side and the top-level side id, keys the recorded winner with `sideKey` and names each side through `sideLabel` (a name not known is null, never empty)"
     },
     "apps/api/src/modules/matches/clock.service.ts": {
       "verdict": "side-key",
@@ -218,8 +218,8 @@
     },
     "apps/api/src/modules/people-context/people-context.service.ts": {
       "verdict": "not-yet",
-      "hits": 26,
-      "why": "1c: people paths read bout sides by Registration (`:330`-`:358`)"
+      "hits": 15,
+      "why": "1c: people paths read bout sides by Registration (`:326`-`:354`); the final placement ranks the bracket read by side key (T7)"
     },
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "verdict": "not-yet",
@@ -452,11 +452,6 @@
       "hits": 7,
       "why": "a completed bracket bout is decided with either winner column (`bracketHasChampion`); `resetOwed` reads the grand final by Registration: double elimination refuses a team Tournament (call 2)"
     },
-    "apps/api/src/modules/tournament-placement/tournament-placement.service.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1c: final ranking by Registration (`:97`-`:105`)"
-    },
     "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts": {
       "verdict": "not-yet",
       "hits": 24,
@@ -479,8 +474,8 @@
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
       "verdict": "not-yet",
-      "hits": 18,
-      "why": "1c: the bracket screen and its forfeit by Registration (`:288`-`:299`)"
+      "hits": 12,
+      "why": "1c: the bracket screen and its forfeit by Registration (`:291`-`:302`); its podium reads the side ids of the bracket read"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
       "verdict": "side-key",
@@ -577,13 +572,8 @@
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx": {
       "verdict": "not-yet",
-      "hits": 12,
-      "why": "1c: the public bracket by Registration (`:145`-`:235`)"
-    },
-    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx": {
-      "verdict": "not-yet",
       "hits": 6,
-      "why": "1c: final ranking by Registration (`:142`-`:150`)"
+      "why": "1c: the public bracket's \"you\" mark by Registration (`:145`-`:146`); the card takes the side ids and typed sides from the wire (`:215`-`:235`)"
     },
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
       "verdict": "side-key",
@@ -594,11 +584,6 @@
       "verdict": "individual-only",
       "hits": 11,
       "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
-    },
-    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1c: the public bracket slot (`BracketSlot`, `:57`-`:61`) and its podium (`:155`-`:157`) by Registration; single elimination is 1c. The Pool standings row is keyed `entrantId` and carries a team's chip"
     },
     "apps/web-staff/src/components/MatchView.tsx": {
       "verdict": "side-key",
@@ -616,9 +601,9 @@
       "why": "the result screen's side keys come from `sideIdOf` (`bout-sides.ts`, `:21`-`:22`) and its winner's side key is built with `sideKey` (`:26`); the tablet's own winner is a side key too"
     },
     "apps/web-staff/src/components/tournament-context-types.ts": {
-      "verdict": "no-side-read",
-      "hits": 6,
-      "why": "declares the piste's Pool row with its Registration ids beside its team ids and both winner columns (`:50`-`:56`), and the bracket slot's Registration ids (`:108`-`:110`), as the server sends them (single elimination is 1c: a slot carries no team id); reads no side"
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "declares the piste's Pool row with its Registration ids beside its team ids and both winner columns (`:51`-`:57`), as the server sends them; the bracket slots are the bracket read's own type (`TournamentBracketSlotWire`): side ids the API builds with `sideKey`, and typed sides"
     },
     "apps/web-staff/src/lib/bout-read.ts": {
       "verdict": "no-side-read",
@@ -850,16 +835,6 @@
       "hits": 5,
       "why": "the bracket slot the two bracket reads send: `redSideId`, `blueSideId`, `winnerSideId` and the typed `red` / `blue` sides are side keys the API builds with `sideKey`; the Registration ids beside them keep their meaning, null on a team side"
     },
-    "packages/types/src/final-ranking-core.ts": {
-      "verdict": "not-yet",
-      "hits": 10,
-      "why": "1c: final ranking by Registration (`:18`-`:112`)"
-    },
-    "packages/types/src/final-ranking.ts": {
-      "verdict": "not-yet",
-      "hits": 5,
-      "why": "1c: final ranking by Registration (`:145`-`:146`)"
-    },
     "packages/types/src/match-winner.ts": {
       "verdict": "side-key",
       "hits": 1,
@@ -879,13 +854,13 @@
     },
     "packages/ui/src/components/bracket/MatchCard.tsx": {
       "verdict": "not-yet",
-      "hits": 8,
-      "why": "1c: bracket card by Registration (`:98`-`:414`)"
+      "hits": 2,
+      "why": "1c: the bracket card's \"you\" mark by Registration (`:98`-`:100`); its winner reads the side ids (`:408`-`:418`)"
     },
     "packages/ui/src/components/bracket/types.ts": {
       "verdict": "not-yet",
-      "hits": 4,
-      "why": "1c: bracket slot shape by Registration (`:41`-`:48`)"
+      "hits": 3,
+      "why": "1c: the bracket slot keeps its Registration ids beside its side ids and typed sides (`:37`-`:42`), for the forfeit and the \"you\" mark"
     },
     "packages/ui/src/types/match-events.ts": {
       "verdict": "side-key",
@@ -1006,14 +981,6 @@
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
       "why": "the round-count call asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:1979`-`:1980`)"
-    },
-    "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
-      "count": 3,
-      "why": "brackets refuse teams until 1c: the podium names the winner of a bracket slot by Registration (`:2049`-`:2051`)"
-    },
-    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts": {
-      "count": 3,
-      "why": "brackets refuse teams until 1c: the public bracket podium names the winner of a slot by Registration, and `BracketSlot` has no team ids (`:155`-`:157`)"
     }
   }
 }

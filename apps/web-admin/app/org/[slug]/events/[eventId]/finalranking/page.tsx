@@ -229,7 +229,7 @@ export default function FinalRankingPage() {
           </DataTableHead>
           <tbody>
             {ranking.map((entry) => (
-              <DataTableRow key={entry.registrationId}>
+              <DataTableRow key={entry.entrantId}>
                 <DataTableCell className="text-center font-mono tabular-nums">
                   <span className="inline-flex items-center gap-1 font-semibold text-foreground">
                     {medalFor(entry.place)}
