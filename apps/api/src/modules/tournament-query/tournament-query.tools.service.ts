@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { matchSummaries } from '../matches/match-summaries';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { poolTableRows } from '../pool-standings/pool-table-rows';
 import { isDoubleLossBout } from '@myclash/rulesets';
 import { unknownFighterInEnglish, unknownRefereeInEnglish } from '../../common/unknown-name';
 import type {
@@ -94,7 +96,10 @@ type RefereeRow = {
 export class TournamentQueryToolsService {
   private readonly logger = new Logger(TournamentQueryToolsService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly poolStandings: PoolStandingsService,
+  ) {}
 
   async getToolContext(tournament: TournamentContext): Promise<TournamentToolContext> {
     const [tournaments, pools, lices] = await Promise.all([
@@ -343,47 +348,28 @@ export class TournamentQueryToolsService {
   }
 
   private async getPoolStandings(tournament: TournamentContext, args: Record<string, unknown>) {
-    const matches = (await this.matches(tournament.tournamentId)).filter(
-      (match) => match.phase_type === 'pool' && optionalEquals(match.pool_name, args['pool']),
+    // The public Tournament page's table: the ruleset's columns and ranking, not our own count.
+    // The `weapon` argument is ignored: a Tournament has one weapon.
+    const standings = await this.poolStandings.getPoolStandings(tournament.tournamentId, 'by-pool');
+    if (!('pools' in standings)) return empty(NO_POOLS, 'get_pool_standings', args);
+    const pools = poolTableRows(standings).filter((pool) =>
+      optionalEquals(pool.name, args['pool']),
     );
-    if (matches.length === 0) return empty('No pool matches found', 'get_pool_standings', args);
-    const ids = unique(
-      matches
-        .flatMap((match) => [match.red_registration_id, match.blue_registration_id])
-        .filter(nonEmpty),
-    );
-    const stats = this.computeStats(ids, matches, await this.exchanges(tournament.tournamentId));
-    const names = new Map<string, { name: string; club: string; pool: string }>();
-    for (const match of matches) {
-      if (match.red_registration_id)
-        names.set(match.red_registration_id, {
-          name: match.red_name ?? '',
-          club: match.red_club ?? '',
-          pool: match.pool_name ?? '',
-        });
-      if (match.blue_registration_id)
-        names.set(match.blue_registration_id, {
-          name: match.blue_name ?? '',
-          club: match.blue_club ?? '',
-          pool: match.pool_name ?? '',
-        });
-    }
-    const rows = ids
-      .map((id) => ({ id, ...statOrZero(stats[id]), ...names.get(id) }))
-      .sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor)
-      .map((row, index) => ({
-        Rank: index + 1,
-        Pool: row.pool ?? '',
-        // The one place a blank name is worded: the view sends '' for a person nobody named.
+    if (pools.length === 0) return empty(NO_POOLS, 'get_pool_standings', args);
+    const labels = standings.columns.map((column) => column.label);
+    const rows = pools.flatMap((pool) =>
+      pool.rows.map((row) => ({
+        Rank: row.rank,
+        Pool: pool.name,
+        // The one place a blank name is worded: a person nobody named reads ''.
         Fighter: row.name || unknownFighterInEnglish(),
         Club: row.club ?? '',
-        Wins: row.wins,
-        Losses: row.losses,
-        Points: row.pointsFor,
-      }));
+        ...row.stats,
+      })),
+    );
     return table(
       'Pool standings',
-      ['Rank', 'Pool', 'Fighter', 'Club', 'Wins', 'Losses', 'Points'],
+      ['Rank', 'Pool', 'Fighter', 'Club', ...labels],
       rows,
       'get_pool_standings',
       args,
@@ -759,6 +745,8 @@ export class TournamentQueryToolsService {
   }
 }
 
+const NO_POOLS = 'No pool matches found';
+
 function table(
   title: string,
   columns: string[],
@@ -825,10 +813,6 @@ function zeroStats() {
     doublesRate: 0,
     afterblowRate: 0,
   };
-}
-
-function statOrZero(stats: ReturnType<typeof zeroStats> | undefined) {
-  return stats ?? zeroStats();
 }
 
 function addStats(target: ReturnType<typeof zeroStats>, source?: ReturnType<typeof zeroStats>) {

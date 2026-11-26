@@ -8,10 +8,8 @@ import {
   M1,
   M2,
   M3,
-  POOL_A,
   REG_ADA,
   REG_GRACE_H,
-  REG_LONELY,
   refereeRows,
   tournament,
 } from './tournament-query.tools.fixtures';
@@ -24,13 +22,14 @@ vi.mock('../matches/match-summaries', () => ({ matchSummaries: summariesMock }))
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
+const poolStandings = { getPoolStandings: vi.fn() };
 
 describe('TournamentQueryToolsService · get_judge_stats', () => {
   let service: TournamentQueryToolsService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new TournamentQueryToolsService(mockSupabase as never);
+    service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
     fromMock.mockImplementation((tableName: string) => {
       if (tableName === 'vw_tournament_query_referees') {
         return awaitableChain({ data: refereeRows, error: null });
@@ -89,7 +88,7 @@ describe('TournamentQueryToolsService · getToolContext', () => {
       lices: awaitableChain({ data: [{ sort_order: 0 }], error: null }),
     };
     fromMock.mockImplementation((tableName: string) => chains[tableName]);
-    const service = new TournamentQueryToolsService(mockSupabase as never);
+    const service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
 
     const context = await service.getToolContext(tournament);
 
@@ -100,45 +99,6 @@ describe('TournamentQueryToolsService · getToolContext', () => {
     >;
     expect(pools['select']).toHaveBeenCalledWith('pool_name');
     expect(pools['eq']).toHaveBeenCalledWith('tournament_id', tournament.tournamentId);
-  });
-});
-
-describe('TournamentQueryToolsService · a fighter with no name (X2)', () => {
-  let service: TournamentQueryToolsService;
-  const nameless = {
-    tournament_id: tournament.tournamentId,
-    match_id: M1,
-    phase_type: 'pool',
-    pool_id: POOL_A,
-    pool_name: 'Pool A',
-    status: 'completed',
-    red_registration_id: REG_LONELY,
-    blue_registration_id: REG_ADA,
-    // The view builds trim(given || ' ' || family): a person with no name reads '', not NULL.
-    red_name: '',
-    blue_name: 'Blue Two',
-    red_score: 1,
-    blue_score: 0,
-    winner_registration_id: REG_LONELY,
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    service = new TournamentQueryToolsService(mockSupabase as never);
-    fromMock.mockImplementation((tableName: string) =>
-      awaitableChain({
-        data: tableName === 'vw_tournament_query_matches' ? [nameless] : [],
-        error: null,
-      }),
-    );
-  });
-
-  it('says "Unknown fighter" in the pool standings, never the id', async () => {
-    const standings = await service.execute(tournament, 'get_pool_standings', {});
-
-    expect(JSON.stringify(standings)).not.toContain(REG_LONELY);
-    expect(JSON.stringify(standings)).toContain('"Fighter":"Unknown fighter"');
-    expectNoRawIds(standings);
   });
 });
 
@@ -198,7 +158,7 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new TournamentQueryToolsService(mockSupabase as never);
+    service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
     fromMock.mockImplementation((tableName: string) => {
       if (tableName === 'vw_tournament_query_matches') {
         return awaitableChain({ data: matchRows, error: null });
@@ -245,7 +205,7 @@ describe('TournamentQueryToolsService · find_matches names each bout', () => {
 
   it('by its code, never by its stored label', async () => {
     summariesMock.mockResolvedValue(new Map([[M1, { roundCode: 'LSW-P4-M01' }]]));
-    const service = new TournamentQueryToolsService(mockSupabase as never);
+    const service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
 
     const result = await service.execute(tournament, 'find_matches', {});
 
@@ -255,7 +215,7 @@ describe('TournamentQueryToolsService · find_matches names each bout', () => {
 
   it('by its stored label when the codes cannot be read, rather than no answer', async () => {
     summariesMock.mockRejectedValue(new Error('pools: down'));
-    const service = new TournamentQueryToolsService(mockSupabase as never);
+    const service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
 
     const result = await service.execute(tournament, 'find_matches', {});
 

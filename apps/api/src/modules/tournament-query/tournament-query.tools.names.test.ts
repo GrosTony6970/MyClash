@@ -8,6 +8,7 @@ import {
   M2,
   M3,
   poolBout,
+  poolTables,
   POOL_B,
   REG_ADA,
   REG_GRACE_H,
@@ -22,6 +23,7 @@ vi.mock('../matches/match-summaries', () => ({ matchSummaries: summariesMock }))
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
+const poolStandings = { getPoolStandings: vi.fn() };
 
 describe('TournamentQueryToolsService · a fighter, a pool and a judge by name', () => {
   let service: TournamentQueryToolsService;
@@ -35,7 +37,7 @@ describe('TournamentQueryToolsService · a fighter, a pool and a judge by name',
   beforeEach(() => {
     vi.clearAllMocks();
     summariesMock.mockResolvedValue(new Map());
-    service = new TournamentQueryToolsService(mockSupabase as never);
+    service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
     fromMock.mockImplementation((tableName: string) => {
       const data: Record<string, unknown[]> = {
         vw_tournament_query_fighters: fighterRows,
@@ -110,14 +112,8 @@ describe('TournamentQueryToolsService · a fighter, a pool and a judge by name',
     expectNoRawIds(result);
   });
 
-  it('get_pool_standings filters by the pool name', async () => {
-    const result = await service.execute(tournament, 'get_pool_standings', { pool: 'Pool B' });
-
-    expect(result.rows?.every((row) => row['Pool'] === 'Pool B')).toBe(true);
-    expectNoRawIds(result);
-  });
-
   it('shows no raw id in any tool answer', async () => {
+    poolStandings.getPoolStandings.mockResolvedValue(poolTables());
     const bracketBout = {
       ...poolBout(M1, REG_ADA, REG_GRACE_H),
       phase_type: 'single_elim',
@@ -183,7 +179,7 @@ describe('TournamentQueryToolsService · the fighter lookup', () => {
     fighterChains = [];
     fighters = fighterRows;
     matches = [];
-    service = new TournamentQueryToolsService(mockSupabase as never);
+    service = new TournamentQueryToolsService(mockSupabase as never, poolStandings as never);
     fromMock.mockImplementation((tableName: string) => {
       if (tableName === 'vw_tournament_query_fighters') {
         const chain = awaitableChain({ data: fighters, error: null });

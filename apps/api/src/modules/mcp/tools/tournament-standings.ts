@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { createTranslator, messages } from '@myclash/i18n';
 import { bracketToken, roundTokenLabel } from '@myclash/types';
 import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
+import { poolTableRows, type PoolTables } from '../../pool-standings/pool-table-rows';
 import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
 export interface TournamentStandingsAnswer {
@@ -59,11 +60,6 @@ interface PublicStandings {
   }[];
 }
 
-type PoolTables = Extract<
-  Awaited<ReturnType<McpToolDeps['poolStandings']['getPoolStandings']>>,
-  { pools: unknown }
->;
-
 const english = createTranslator(messages.en);
 
 /**
@@ -89,21 +85,6 @@ function roundLabel(round: number, s: PublicStandings): string {
  */
 function isBronze(slot: PublicStandings['bracketSlots'][number], maxRound: number): boolean {
   return slot.round === maxRound && slot.position === 2;
-}
-
-function toPools(tables: PoolTables): TournamentStandingsAnswer['pools'] {
-  return tables.pools.map((pool) => ({
-    name: pool.poolName,
-    status: pool.status,
-    rows: pool.rows.map((row) => ({
-      rank: row.rank,
-      name: row.displayName,
-      club: row.club ? (row.club.abbreviation ?? row.club.name) : null,
-      stats: Object.fromEntries(
-        tables.columns.flatMap((c) => (c.key in row.stats ? [[c.label, row.stats[c.key]!]] : [])),
-      ),
-    })),
-  }));
 }
 
 function toBracket(s: PublicStandings): TournamentStandingsAnswer['bracket'] {
@@ -185,7 +166,7 @@ export async function tournamentStandings(
       : null;
   return {
     tournament: { name: standings.tournament.name, status: standings.tournament.status },
-    pools: tables ? toPools(tables) : [],
+    pools: tables ? poolTableRows(tables) : [],
     swiss: standings.swissPhaseId
       ? {
           rounds: standings.swissRoundCount ?? 0,

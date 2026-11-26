@@ -120,3 +120,52 @@ export const poolBout = (matchId: string, red: string, blue: string, extra = {})
   match_number_label: null,
   ...extra,
 });
+
+// A pool-standings read (by-pool) as the service answers it: UUID ids, and a rank order that the
+// wins-then-points sort would reverse in Pool A (Grace leads with one win, Ada has two).
+export function poolTables() {
+  const row = (
+    rank: number,
+    id: string,
+    name: string,
+    wins: number,
+    score: number,
+    club = null as null | { id: string; name: string; abbreviation: string | null },
+  ) => ({
+    rank,
+    registrationId: id,
+    displayName: name,
+    club,
+    status: 'completed' as const,
+    stats: { wins, score },
+  });
+  return {
+    rulesetCode: 'TF_v1',
+    rulesetVersion: '1.0.0',
+    columns: [
+      { key: 'wins', label: 'Wins', type: 'number' },
+      { key: 'score', label: 'Score', type: 'number' },
+    ],
+    pools: [
+      {
+        poolId: POOL_A,
+        poolName: 'Pool A',
+        status: 'completed' as const,
+        rows: [
+          row(1, REG_GRACE_H, 'Grace Hopper', 1, 9, {
+            id: uuid(51),
+            name: 'Alpha Club',
+            abbreviation: 'ALP',
+          }),
+          row(2, REG_ADA, 'Ada Lovelace', 2, 5),
+        ],
+      },
+      {
+        poolId: POOL_B,
+        poolName: 'Pool B',
+        status: 'in_progress' as const,
+        rows: [row(1, REG_LONELY, '', 0, 0)],
+      },
+    ],
+  };
+}
