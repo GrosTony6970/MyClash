@@ -803,7 +803,7 @@
     "apps/web-staff/app/matches/[matchId]/page.tsx:38",
     "apps/web-staff/src/components/ForfeitPanel.tsx:37",
     "apps/web-staff/src/components/MatchClock.tsx:51",
-    "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:89",
+    "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:88",
     "apps/web-staff/src/components/MatchHeader.tsx:79",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:116",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:212",

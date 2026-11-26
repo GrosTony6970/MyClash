@@ -192,6 +192,16 @@ test('an assignment through sideKey passes, on one line or wrapped', () => {
   for (const source of [oneLine, wrapped, copied, assigned]) assert.deepEqual(rawOf(source), []);
 });
 
+test("the pad's corner key sideIdOf builds a side id; a raw fallback beside it is still a finding", () => {
+  assert.deepEqual(rawOf("const redSideId = sideIdOf(match, 'red');"), []);
+  assert.deepEqual(rawOf("const m = { blueSideId: sideIdOf(match, 'blue') };"), []);
+  assert.equal(
+    rawOf("const m = { redSideId: sideIdOf(m, 'red') ?? m.redRegistrationId };").length,
+    1,
+  );
+  assert.match(rawOf("const winnerSideId = sideIdOf(m, 'red') ?? '';")[0], /an empty side/);
+});
+
 test('a type declaration is not an assignment', () => {
   assert.deepEqual(rawOf('interface Bout { redSideId: string; }'), []);
   assert.deepEqual(rawOf('interface Bout { redSideId: Map<string, string>; }'), []);

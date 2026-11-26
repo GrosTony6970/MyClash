@@ -9,7 +9,7 @@
  */
 import { resolveMatchWinner } from '@myclash/types';
 import { sideKey } from '@myclash/types/side-key';
-import type { BoutSides } from '../lib/bout-sides';
+import { sideIdOf, type BoutSides } from '../lib/bout-sides';
 import { isDoubleLoss } from './is-double-loss';
 import type { MatchInfo } from './MatchView';
 
@@ -18,8 +18,8 @@ export function resultSides(
   match: BoutSides & Pick<MatchInfo, 'winnerRegistrationId' | 'winnerTeamId'>,
   own: { unconfirmed: boolean; winner: 'red' | 'blue' | null | undefined },
 ) {
-  const redSideId = sideKey(match.redRegistrationId, match.redTeamId);
-  const blueSideId = sideKey(match.blueRegistrationId, match.blueTeamId);
+  const redSideId = sideIdOf(match, 'red');
+  const blueSideId = sideIdOf(match, 'blue');
   const ownWinnerId = own.winner === 'red' ? redSideId : own.winner === 'blue' ? blueSideId : null;
   const winnerSideId = own.unconfirmed
     ? ownWinnerId

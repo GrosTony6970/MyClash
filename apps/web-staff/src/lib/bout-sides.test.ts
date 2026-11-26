@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sideMissing, sideOf } from './bout-sides';
+import { sideIdOf, sideMissing, sideOf } from './bout-sides';
 
 /**
  * Lyon Blades fight Paris Rapiers in a team Pool. The scorekeeper cards Lyon on red: the card
@@ -41,6 +41,17 @@ describe('sideOf', () => {
       id: 'reg-anna',
     });
     expect(sideOf({ redRegistrationId: 'reg-anna', blueRegistrationId: null }, 'blue')).toBeNull();
+  });
+});
+
+describe('sideIdOf', () => {
+  it("is the key of each corner's side: a team, a Registration, or null while to come", () => {
+    expect(sideIdOf(TEAMS, 'red')).toBe('team-lyon');
+    expect(sideIdOf(TEAMS, 'blue')).toBe('team-paris');
+    expect(sideIdOf({ ...TEAMS, redTeamId: null, redRegistrationId: 'reg-anna' }, 'red')).toBe(
+      'reg-anna',
+    );
+    expect(sideIdOf({ ...TEAMS, blueTeamId: null }, 'blue')).toBeNull();
   });
 });
 

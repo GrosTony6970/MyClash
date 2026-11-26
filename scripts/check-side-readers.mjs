@@ -44,8 +44,9 @@
  *
  * ── Raw side ids ────────────────────────────────────────────────────────────
  * In `.ts` / `.tsx` under `apps/`, a value put into `redSideId`, `blueSideId`
- * or `winnerSideId` (`x: value` or `x = value`) must come from `sideKey(` or
- * another side id. Every `sideKey(…)` call is cut from the value first, and
+ * or `winnerSideId` (`x: value` or `x = value`) must come from `sideKey(` (or
+ * the pad's `sideIdOf(`, built on it) or another side id. Every such call is
+ * cut from the value first, and
  * any Registration name left over is a finding: a fallback such as
  * `?? row.red_registration_id` compiles and gives a team a score of zero. So
  * is a fallback to `''` (`sideKey(…) ?? ''`): two sides not known yet would
@@ -159,12 +160,20 @@ function valueAt(source, from) {
   return { text: source.slice(start), end: source.length };
 }
 
-/** The value with every balanced `sideKey(…)` call cut out. */
+/**
+ * The calls that build a side id: `sideKey`, and the pad's one corner key `sideIdOf`
+ * (`apps/web-staff/src/lib/bout-sides.ts`), which is `sideKey` through `sideOf`.
+ */
+const SIDE_ID_BUILDERS = ['sideKey(', 'sideIdOf('];
+const firstBuilderCall = (text) =>
+  Math.min(...SIDE_ID_BUILDERS.map((call) => text.indexOf(call)).filter((at) => at !== -1));
+
+/** The value with every balanced side-id builder call (`sideKey(…)`, `sideIdOf(…)`) cut out. */
 function withoutSideKeyCalls(value) {
   let rest = value;
-  for (let at = rest.indexOf('sideKey('); at !== -1; at = rest.indexOf('sideKey(')) {
+  for (let at = firstBuilderCall(rest); at !== Infinity; at = firstBuilderCall(rest)) {
     let depth = 0;
-    let end = at + 'sideKey'.length;
+    let end = rest.indexOf('(', at);
     for (; end < rest.length; end += 1) {
       if (rest[end] === '(') depth += 1;
       else if (rest[end] === ')' && --depth === 0) break;
@@ -174,11 +183,13 @@ function withoutSideKeyCalls(value) {
   return rest;
 }
 
-/** A raw value: a Registration left once `sideKey` is cut, or a value with no side id at all. */
+/** A raw value: a Registration left once the builders are cut, or a value with no side id at all. */
 function isRawValue(value) {
   const rest = withoutSideKeyCalls(value);
   if (REGISTRATION_IN_VALUE.test(rest)) return true;
-  if (value.includes('sideKey(') || rest.includes('SideId')) return false;
+  if (SIDE_ID_BUILDERS.some((call) => value.includes(call)) || rest.includes('SideId')) {
+    return false;
+  }
   return !/^\s*(?:null|undefined)\s*$/.test(value);
 }
 

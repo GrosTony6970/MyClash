@@ -25,8 +25,7 @@ import { noExchangeRewrite } from '../lib/no-exchange-rewrite';
 import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, exchangeOptionLabel, useDialogLayer } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
-import { sideKey } from '@myclash/types/side-key';
-import type { BoutSides } from '../lib/bout-sides';
+import { sideIdOf, type BoutSides } from '../lib/bout-sides';
 import type { BoutNames } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
@@ -127,8 +126,8 @@ export function MatchCorrectionsDrawer({
   const { activeExchanges, activePenalties, activeProtests, ruleSetCards } = scoring;
   const [cardDraft, setCardDraft] = useState(NO_DIRECT_CARD_DRAFT);
   // The side keys the history places each row by: a team's card names no Registration.
-  const redSideId = sideKey(sides.redRegistrationId, sides.redTeamId);
-  const blueSideId = sideKey(sides.blueRegistrationId, sides.blueTeamId);
+  const redSideId = sideIdOf(sides, 'red');
+  const blueSideId = sideIdOf(sides, 'blue');
 
   // The same numbered timeline as the centre history; the picker only offers
   // the exchange rows (its void/edit action is exchange-only), but their `#`

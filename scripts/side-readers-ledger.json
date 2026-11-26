@@ -600,11 +600,6 @@
       "hits": 6,
       "why": "1c: the public bracket slot (`BracketSlot`, `:57`-`:61`) and its podium (`:155`-`:157`) by Registration; single elimination is 1c. The Pool standings row is keyed `entrantId` and carries a team's chip"
     },
-    "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": {
-      "verdict": "side-key",
-      "hits": 2,
-      "why": "the history of the exchange picker places rows by each side's key, built with `sideKey` (`:130`-`:131`); the direct card and the forfeit take the bout's sides and pick a corner's with `sideOf`"
-    },
     "apps/web-staff/src/components/MatchView.tsx": {
       "verdict": "side-key",
       "hits": 3,
@@ -617,18 +612,13 @@
     },
     "apps/web-staff/src/components/result-winner.ts": {
       "verdict": "side-key",
-      "hits": 5,
-      "why": "the result screen's side keys and winner's side key, each built with `sideKey` (`:21`-`:26`); the tablet's own winner is a side key too"
+      "hits": 3,
+      "why": "the result screen's side keys come from `sideIdOf` (`bout-sides.ts`, `:21`-`:22`) and its winner's side key is built with `sideKey` (`:26`); the tablet's own winner is a side key too"
     },
     "apps/web-staff/src/components/tournament-context-types.ts": {
       "verdict": "no-side-read",
       "hits": 6,
       "why": "declares the piste's Pool row with its Registration ids beside its team ids and both winner columns (`:50`-`:56`), and the bracket slot's Registration ids (`:108`-`:110`), as the server sends them (single elimination is 1c: a slot carries no team id); reads no side"
-    },
-    "apps/web-staff/src/hooks/usePadRounds.ts": {
-      "verdict": "side-key",
-      "hits": 2,
-      "why": "hands the round view each side's key, built with `sideKey` over the Registration and team ids (`:95`-`:96`): a team's queued card moves its team's score (`usePadRounds.test.ts`)"
     },
     "apps/web-staff/src/lib/bout-read.ts": {
       "verdict": "no-side-read",
@@ -638,7 +628,7 @@
     "apps/web-staff/src/lib/bout-sides.ts": {
       "verdict": "side-key",
       "hits": 7,
-      "why": "`sideOf` answers a corner's side, a Registration or a team, with `sideKey` over its two ids (`:23`-`:27`, call 9); `sideMissing` is written on it"
+      "why": "`sideOf` answers a corner's side, a Registration or a team, with `sideKey` over its two ids (`:23`-`:27`, call 9); `sideMissing` and `sideIdOf`, the pad's one corner key (the history, the rounds, the result screen), are written on it"
     },
     "apps/web-staff/src/lib/forfeit-body.ts": {
       "verdict": "side-key",
@@ -649,11 +639,6 @@
       "verdict": "side-key",
       "hits": 3,
       "why": "the piste's Pool list bolds the recorded winner, each side and the winner built with `sideKey` (`:18`-`:20`)"
-    },
-    "apps/web-staff/src/lib/undone-line.ts": {
-      "verdict": "side-key",
-      "hits": 2,
-      "why": "places the undone line's rows by each side's key, built with `sideKey` (`:59`-`:60`)"
     },
     "apps/web-staff/src/offline/db.ts": {
       "verdict": "no-side-read",

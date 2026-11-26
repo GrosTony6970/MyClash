@@ -28,6 +28,15 @@ export function sideOf(match: BoutSides, corner: 'red' | 'blue'): QueuedSide | n
 }
 
 /**
+ * One corner's side key (`sideKey`): the id of `sideOf`'s side, or null while the side is still
+ * to come. The one place the pad builds a corner's key: the history, the rounds and the result
+ * screen place rows and crown a winner by it.
+ */
+export function sideIdOf(match: BoutSides, corner: 'red' | 'blue'): string | null {
+  return sideOf(match, corner)?.id ?? null;
+}
+
+/**
  * Is a side of this bout still to come? A bracket bout can wait for a Fighter: a placeholder
  * with no side yet, or a bout whose other Fighter wins a bout still to fight. Such a bout takes
  * no Start, hit, card or colour swap (operator, 2026-11-24): the pad refuses them before the

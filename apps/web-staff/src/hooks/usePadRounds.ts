@@ -16,8 +16,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MatchFormatConfig } from '@myclash/types';
-import { sideKey } from '@myclash/types/side-key';
 import { editionOf } from '../lib/bout-edition';
+import { sideIdOf } from '../lib/bout-sides';
 import { endRefusedOnPad, pressedOn } from '../components/end-guard';
 import type { MatchInfo } from '../components/MatchView';
 import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock';
@@ -92,8 +92,8 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
   const edition = editionOf(match);
   const server = useServerRounds(match);
   const { matchNumberLabel } = match;
-  const redSideId = sideKey(match.redRegistrationId, match.redTeamId);
-  const blueSideId = sideKey(match.blueRegistrationId, match.blueTeamId);
+  const redSideId = sideIdOf(match, 'red');
+  const blueSideId = sideIdOf(match, 'blue');
   const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
   const { queuedRoundPresses } = scoring;
   return useMemo(
