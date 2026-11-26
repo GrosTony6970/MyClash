@@ -63,16 +63,20 @@ export async function eventSchedule(
   const event = await readableEventBySlug(eventSlug, caller, deps);
   if (!event) return noEventRefusal(eventSlug);
 
-  const grid = await deps.scheduleGrid.listEventSchedule(event.id, {
-    userId: caller.userId,
-    staff: null,
-  });
-  const lices = await liceNames(event.id, deps);
-  // A Tournament slug no bout carries is unknown (or a draft the grid leaves out): say so, never
-  // an empty list that reads as "nothing scheduled".
-  if (args.tournament && !grid.some((m) => m.tournamentSlug === args.tournament)) {
-    return noTournamentRefusal(args.tournament, event);
+  const reader = { userId: caller.userId, staff: null };
+  // A Tournament slug the person cannot see (unknown, or hidden: `listTournaments` leaves those
+  // out) is refused. The check is the Tournament list, not the grid: a visible Tournament with no
+  // bout yet is empty, not unknown.
+  if (args.tournament) {
+    const visible = (await deps.events.listTournaments(event.id, reader)) as unknown as {
+      slug: string;
+    }[];
+    if (!visible.some((t) => t.slug === args.tournament)) {
+      return noTournamentRefusal(args.tournament, event);
+    }
   }
+  const grid = await deps.scheduleGrid.listEventSchedule(event.id, reader);
+  const lices = await liceNames(event.id, deps);
 
   const matched = grid
     .filter((m) => !args.tournament || m.tournamentSlug === args.tournament)

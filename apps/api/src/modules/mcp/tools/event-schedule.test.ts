@@ -47,6 +47,7 @@ interface Call {
 function depsFor(opts: {
   matches: unknown[];
   noEvent?: boolean;
+  tournaments?: { slug: string }[];
   lices?: { data: unknown; error: { message: string } | null };
 }) {
   const calls: Call[] = [];
@@ -74,13 +75,18 @@ function depsFor(opts: {
     return chain;
   };
   const listEventSchedule = vi.fn().mockResolvedValue(opts.matches);
+  const listTournaments = vi
+    .fn()
+    .mockResolvedValue(opts.tournaments ?? [{ slug: 'longsword' }, { slug: 'sabre' }]);
   return {
     calls,
     listEventSchedule,
+    listTournaments,
     deps: {
       supabase: { service: { from } },
       orgs: {},
       scheduleGrid: { listEventSchedule },
+      events: { listTournaments },
     } as never,
   };
 }
@@ -199,14 +205,29 @@ describe('event_schedule', () => {
     expect(answer.fights).toHaveLength(20);
   });
 
-  it('refuses a Tournament slug no bout carries, rather than answering an empty list', async () => {
-    const answer = await eventSchedule(
-      'fal-2026',
-      { tournament: 'nope-t' },
-      caller,
-      depsFor({ matches: [match()] }).deps,
-    );
+  it('answers a visible Tournament with no bout yet as empty, not unknown', async () => {
+    const d = depsFor({
+      matches: [match()],
+      tournaments: [{ slug: 'longsword' }, { slug: 'epee' }],
+    });
+    const answer = await eventSchedule('fal-2026', { tournament: 'epee' }, caller, d.deps);
+    expect(answer).toEqual({ timezone: 'Europe/Paris', total: 0, fights: [] });
+    expect(d.listTournaments).toHaveBeenCalledWith(id(1), { userId: 'user-1', staff: null });
+  });
+
+  it('refuses an unknown Tournament slug', async () => {
+    const d = depsFor({ matches: [match()] });
+    const answer = await eventSchedule('fal-2026', { tournament: 'nope-t' }, caller, d.deps);
     expect(answer).toEqual({ refusal: 'No Tournament "nope-t" at FAL 2026 that you can see.' });
+  });
+
+  it('refuses a hidden Tournament with the same sentence, even when the grid carries it', async () => {
+    const d = depsFor({
+      matches: [match({ tournamentSlug: 'draft-t' })],
+      tournaments: [{ slug: 'longsword' }],
+    });
+    const answer = await eventSchedule('fal-2026', { tournament: 'draft-t' }, caller, d.deps);
+    expect(answer).toEqual({ refusal: 'No Tournament "draft-t" at FAL 2026 that you can see.' });
   });
 
   it('refuses an Event the caller cannot read as unknown', async () => {

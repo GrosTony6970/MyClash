@@ -5390,7 +5390,7 @@ read-only. Each calls a service that an existing route already calls, so it appl
 | `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                                                                                              | none                  |
 | `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug` (the Event), `EventsService.listTournaments`                                                                             | none                  |
 | `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `readableEventBySlug`, then `EventsService.getPublicTournamentStandings` (the Tournament gate); `PoolStandingsService` reads the tables        | none                  |
-| `event_schedule`       | an Event's public Matches, soonest first                                  | `readableEventBySlug` (the Event), `ScheduleGridService` (draft Tournaments left out), the `lices` read (names)                                | `limit` 1–50, def. 20 |
+| `event_schedule`       | an Event's public Matches, soonest first                                  | `readableEventBySlug` (the Event), `ScheduleGridService`, `EventsService.listTournaments` (only with `tournament`), the `lices` read (names)   | `limit` 1–50, def. 20 |
 
 The rules:
 
@@ -5426,8 +5426,9 @@ The rules:
   it. A double-elimination bracket keeps its last round whole: the bronze split is for
   single elimination only, as on the public page.
 - **A refusal names its owner.** `noEventRefusal` and `noTournamentRefusal` (`readable-event.ts`)
-  are the one sentence each. `event_schedule` with a `tournament` slug no bout carries refuses with
-  the Tournament sentence, so a Tournament with no scheduled bout reads as unknown too.
+  are the one sentence each. `event_schedule` with a `tournament` slug the person cannot see
+  (checked against `EventsService.listTournaments`, which leaves hidden ones out) refuses with the
+  Tournament sentence. A visible Tournament with no bout yet answers `total: 0`.
 - **A ruleset failure in the pool-standings read fails the whole `tournament_standings` answer.**
   It surfaces as the generic failure, never a half table. A roster read failure in `my_schedule`
   does the same: it throws, and `answer()` logs it.
