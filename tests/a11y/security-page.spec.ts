@@ -96,3 +96,33 @@ test('Enter in the new email field asks for the change, once', async ({ page }) 
   await expect(field).toHaveCount(0);
   expect(security.sent).toHaveLength(1);
 });
+
+test('a connected Claude is listed, and Disconnect takes it off the list', async ({ page }) => {
+  const issues = collectPageIssues(page);
+  await signInAsLea(page);
+  const disconnected: string[] = [];
+  await page.route('**/api/v1/me/connected-apps', (route) =>
+    route.fulfill({
+      json: { apps: [{ clientId: 'client-1', name: 'Claude', grantedAt: '2026-11-20T10:00:00Z' }] },
+    }),
+  );
+  await page.route('**/api/v1/me/connected-apps/*', (route) => {
+    disconnected.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
+    return route.fulfill({ status: 204, body: '' });
+  });
+  await page.route('**/api/v1/me/security-status', (route) => route.fulfill({ json: STATUS }));
+  await page.route('**/api/v1/persons/me/email-change', (route) => route.fulfill({ json: null }));
+  await page.goto(`${PUBLIC}/me/security`);
+
+  const section = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Connected apps' }),
+  });
+  await expect(section.getByText('Claude', { exact: true })).toBeVisible();
+  await expect(section.getByText('Connected on 20 November 2026')).toBeVisible();
+  await expectNoCriticalAxeViolations(page);
+
+  await section.getByRole('button', { name: 'Disconnect' }).click();
+  await expect(section.getByText('No app is connected to your account.')).toBeVisible();
+  expect(disconnected).toEqual(['DELETE /api/v1/me/connected-apps/client-1']);
+  await expectNoPageIssues(issues);
+});

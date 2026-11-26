@@ -7,6 +7,9 @@ import { stubPublicApi } from './helpers';
  * The shell reads `/me` (claimed), the Events of the sidebar and the unread count of the inbox;
  * every other call gets the catch-all `{}` of `stubPublicApi`. Register a story's own routes AFTER
  * this call: Playwright tries the last registered route first.
+ *
+ * Léa has no connected app: the security page's Connected-apps section reads `apps`, and the
+ * catch-all `{}` has none, so the section threw and the error page took `/me/security` away.
  */
 
 export const PUBLIC = 'http://localhost:3001';
@@ -19,4 +22,5 @@ export async function signInAsLea(page: Page): Promise<void> {
   );
   await page.route('**/api/v1/me/events', (route) => route.fulfill({ json: [] }));
   await page.route('**/api/v1/notifications/broadcasts', (route) => route.fulfill({ json: [] }));
+  await page.route('**/api/v1/me/connected-apps', (route) => route.fulfill({ json: { apps: [] } }));
 }
