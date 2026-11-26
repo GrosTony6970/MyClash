@@ -2581,17 +2581,32 @@ Slot references stored in `bracket_slots.source_a_ref` / `source_b_ref`:
 
 ```
 PATCH /api/v1/bracket-slots/:slotId   [org admin+, on the slot's own Event]
-Body: { registrationAId?: string | null, registrationBId?: string | null }
+Body: { registrationAId?, teamAId?, registrationBId?, teamBId? }   (each string | null)
 ```
 
-A registration named in the body must be entered in the slot's own tournament; one from another
-tournament and an unknown id get the same 400.
+Each side (`a`, `b`) is named by at most one field: a Registration on an individual Tournament, a
+team on a team Tournament (call 4 of slice 1c-1). Both fields of one side → 400. Per side:
 
-Setting a value to `null` cancels the assignment and voids the downstream match if it hasn't started. This gives organisers full control on top of automatic advancement.
+- **left out**: the side is unchanged;
+- **an id**: the entrant goes into the column of its kind and the other column is cleared
+  (`seatColumns`), so a side never holds both kinds (`*_one_kind`, 0282);
+- **`null`**: both columns of the side are cleared.
+
+A side of the other kind than the Tournament's is refused 409 `entrant_kind_mismatch`. A
+Registration must be entered in the slot's own Tournament and a team must be one of its teams; an
+entrant of another Tournament and an unknown id get the same 400. The database does not tie a
+slot's team to its Tournament, so this API check is the guard.
+
+The slot's own bout follows the slot (`syncMatchToSlot`): its sides are rewritten, a cleared side
+written as null, and the row is never deleted or voided (it may carry a piste and a time). A bout
+already under way refuses the edit 409 before the slot is written. Nothing downstream changes.
+
+A team Tournament takes single elimination only: double elimination is refused 409
+`team_tournament_not_supported` at generation, fill and reseed, whoever the actor (call 2).
 
 ### 11sexies.6 Bye handling
 
-Bye slots (`source_b_type = 'bye'`) get their `registration_a_id` from `populateBracket`, which seeds round 1 (the generator leaves every slot empty). `advanceByeSlots(phaseId)` runs at the end of `populateBracket`, not at bracket generation. It propagates seeded fighters into their downstream slots so round-2 matches can form as soon as the other seed completes.
+Bye slots (`source_b_type = 'bye'`) get their side `a` from `populateBracket`, which seeds round 1 (the generator leaves every slot empty): `registration_a_id` on an individual Tournament, `team_a_id` on a team Tournament. `advanceByeSlots(phaseId)` runs at the end of `populateBracket`, not at bracket generation. It reads the seeded side as one key (`sideKey`) and propagates it into its downstream slots, in the columns of the Tournament's kind, so round-2 matches can form as soon as the other seed completes. A team on a bye advances as a Fighter does. A bye slot has no bout.
 
 ---
 
