@@ -5,11 +5,13 @@ shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59
 `08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
 `bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slice 1b-1 (the organiser builds
 it) is built on the same branch, from `9f9ee1b89` to the commit that closed it. Slice 1b-2 (the
-Match runs) is built on the same branch, from `5231a5c71` to the commit that wrote this line,
-which closes it. Slice 1c is split in two (ruling 979): 1c-1, the Tournament finishes, is next and
-is built on the same branch and PR; 1c-2, the team gets names, follows. Slices 1c-1 to 8 are not
-built; what 1a, 1b-1 and 1b-2 left them is listed under "Slices". The decisions in "What the operator decided" are rulings. The items in "My calls" are
-proposals the operator has read and not overturned. Reviewed with `myclash-plan-review`; the record is at the end.
+Match runs) is built on the same branch, from `5231a5c71` to `5c4e954d2`, which closes it. Slice 1c
+is split in two (ruling 979). Slice 1c-1 (the Tournament finishes) is built on the same branch and
+PR, from `69ab4e2dc` to the commit that wrote this line, which closes it. Slice 1c-2, the team gets
+names, is next. Slices 1c-2 to 8 are not built; what 1a to 1c-1 left them is listed under
+"Slices". The decisions in "What the operator decided" are rulings. The items in "My calls" are
+proposals the operator has read and not overturned. Reviewed with `myclash-plan-review`; the record
+is at the end.
 
 ## Context
 
@@ -83,7 +85,7 @@ as a general option, used rarely.
 | 19  | **Slice 1c is split in two on one branch and one pull request** (ruling 979): 1c-1, the Tournament finishes (no names), then 1c-2, the team gets names.                                                                                                                                                                                                                                                                         |
 | 20  | **`MatchScoreboard` is deleted** (ruling 980), in its own commit. It ships in the `@myclash/ui` barrel with no caller, and web-admin has almost no bundle budget left.                                                                                                                                                                                                                                                          |
 | 21  | **A Tournament cannot switch to Team while it has a live League link** (ruling 981). A link is live when it is requested or approved. The refusal says: "Remove the League link first: League points belong to persons." The League link of a team Tournament is refused too (ruling 729).                                                                                                                                      |
-| 22  | **A team's seed sets the order only** (ruling 982). In a bracket the order is 1st, 2nd, 3rd, 4th seed, then the unseeded teams by creation, numbered 1 to N, as in a team Pool. No team drops out, and a gap in the seeds means nothing.                                                                                                                                                                                        |
+| 22  | **A team's seed sets the order only** (ruling 982). In a bracket the order is the seeded teams in seed order, then the unseeded teams by creation, numbered 1 to N, as in a team Pool. No team drops out, and a gap in the seeds means nothing.                                                                                                                                                                                 |
 
 ```text
 Decision 4, drawn:
@@ -550,52 +552,37 @@ Each slice is usable alone and lands as several single-concern commits.
    - **1c, the rest of a Tournament, in two parts** (ruling 979). Both are built on the same branch
      and the same pull request. The ledger's 38 `not-yet` lines split 25 for 1c-1 and 13 for 1c-2.
 
-     **1c-1, the Tournament finishes.** It needs no names; teams stay unnamed (ruling 973). A team
+     **1c-1, the Tournament finishes (BUILT on branch `feat/team-tournaments`, from `69ab4e2dc` to
+     the commit that wrote this line).** It needs no names; teams stay unnamed (ruling 973). A team
      Tournament runs its Pools, then a single elimination bracket, and ends with a champion, a final
-     ranking and a podium. It holds:
-     - Single elimination for teams, final ranking and podium (admin and public). A team's seed sets
-       the bracket order only (ruling 982).
-     - The League link refused for a team Tournament, and the switch to Team refused while a League
-       link is live (rulings 729 and 981).
-     - HEMA Ratings export skips team Tournaments and says so.
-     - `clearDependentPairing` nulls the Registration ids only, so an emptied team bout keeps its
-       team ids and the waiting-for-a-Fighter guard does not fire (`bracket-dependents.ts:234`).
-     - (From 1b-1) `generateBracket` checks the Tournament's kind only when the call names its
-       actor (`apps/api/src/modules/phases/phases.service.ts:514-533`). The
-       `actorUserId === 'system'` default skips the check. No caller passes it today, but nothing
-       stops one.
-     - (From 1b-1) The AI assistant's `generate_pools` sends no `teamSpread`, so the API answers 400
-       `entrant_kind_field` for a team Tournament
-       (`apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts`,
-       `applyAction`).
-     - (From 1b-2) The public bracket reads its slots and bouts by Registration
-       (`apps/api/src/modules/events/events.service.ts`, `getPublishedBracket`).
-     - (From 1b-2) The public bracket podium names its winner by Registration (`winnerSide`,
-       `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/tournament-data.ts:151`).
-     - (From 1b-2) The bracket page's forfeit sends a Registration only
-       (`apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx:289`).
-     - (From 1b-2) The EN toast `admin.common.missingRegistrationId` says "Missing registration id
-       for this side". A copy pass drops the word "id"
-       (`packages/i18n/src/messages/en/admin.ts:621`).
-     - (From 1b-2) `MatchScoreboard` (`packages/ui/src/components/MatchScoreboard.tsx`) has no
-       caller in any app, but it ships in the `@myclash/ui` barrel (`packages/ui/src/index.ts:89`).
-       Ruling 980: it is deleted, in its own commit (done in 1c-1 T1).
-     - (From 1b-2) Three own-dot copies could use `TeamChip`: `LiceWaitingDisplay`
-       (`packages/ui/src/components/LiceWaitingDisplay.tsx`), `TileColour` in web-staff's
-       `MatchHeader` (`apps/web-staff/src/components/MatchHeader.tsx:276`) and `LiceMatchCard`
-       (`apps/web-staff/app/lices/[liceId]/_components/LiceMatchCard.tsx`).
-     - (From 1b-2) `teamCount` and `fighterCount` have no plural form, so one team reads "1 teams"
-       (`packages/i18n/src/messages/en/publicApp.ts:1201-1202`).
-     - (From 1b-2) A team Pool whose bouts have no side yet heads its public bout list "Fighter".
-       `isTeamBout` finds a team only by a side key with no Registration
-       (`apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx:66-71`, `:332`).
-     - (From 1b-2) The two owners of "the side this body names" become one.
-     - (From 1b-2, parked) R1: the scope filters of the black-card repair (`match_id`,
-       `forfeiting_team_id` and the black-card reasons in `team-black-card.ts:79-81`) have no test
-       that pins them. R3: `docs/ARCHITECTURE.md` says the TV draws a team with `TeamChip`, but
-       `MatchHeader.tsx:210,214` and `LiceWaitingDisplay.tsx:109,115` draw the dot by hand.
-     - The `not-yet` lines of `scripts/side-readers-ledger.json` that sit in the files above: 25 of
-       the 38.
+     ranking and a podium. It held these items, all done:
+     - Done: single elimination for teams, final ranking and podium (admin and public). A team's
+       seed sets the bracket order only (ruling 982). Commits `71ebecde3`, `6779fc9b5`, `72909a4dc`,
+       `1ff4eb9fd`, `3527f5da0`, `c23c93322`, `204847463`, `d824863ff`, `cfd450861`, `995361133`.
+     - Done: the League link refused for a team Tournament, and the switch to Team refused while a
+       League link is live (rulings 729 and 981). Migration 0287 in `fa834e19a`; the doors in
+       `7e805c9a9` and `3d223d962`.
+     - Done: HEMA Ratings export skips team Tournaments and says so (`6982e3e3e`). The archive
+       reports name a team side (`5ffbf2dda`).
+     - Done: `clearDependentPairing` clears both columns of a side, so an emptied team bout keeps
+       its team ids (`6779fc9b5`).
+     - Done (from 1b-1): `generateBracket` checks the Tournament's kind for every caller, the
+       `'system'` default included (`72909a4dc`).
+     - Done (from 1b-1): the AI assistant's `generate_pools` takes a team spread (`ba1093169`).
+     - Done (from 1b-2): the public bracket, its podium and its forfeit read and send a side
+       (`3527f5da0`, `995361133`, `d824863ff`).
+     - Done (from 1b-2): the EN toast `admin.common.missingRegistrationId` reads "Missing
+       registration for this side".
+     - Done (from 1b-2): `MatchScoreboard` is deleted (ruling 980, `44659a23c`).
+     - Done (from 1b-2): the lice and pad screens use `TeamChip` (`6f714b654`).
+     - Done (from 1b-2): `teamCount` and `fighterCount` have a plural form, and the public Pool
+       heading finds a team (`995361133`).
+     - Done (from 1b-2): the two owners of "the side this body names" are one, `named-side.ts`
+       (`70aaa2c09`).
+     - Done (from 1b-2, parked): R1, the scope filters of the black-card repair now have a test
+       (`7d0dbcac8`). R3, the TV and the pad draw a team with `TeamChip` (`6f714b654`).
+     - Done: the 25 `not-yet` lines of `scripts/side-readers-ledger.json` that sat in the files
+       above. 13 `not-yet` lines are left, all tagged `1c: (1c-2)`.
 
      **1c-2, the team gets names.** Naming a Fighter makes three safety rules owe them (rule 8,
      hiding drafts, deleting a Person), so these items go together. It holds:
@@ -800,10 +787,10 @@ It answers "has every place that reads a Match side been visited?".
 2. Slice 1b-1 is built on the same branch; what it left is listed under 1b-2 and 1c in "Slices".
 3. Slice 1b-2, the Match runs, is built on the same branch; what it left is listed under 1c in
    "Slices". Slice 1b is finished.
-4. Slice 1c is split in two (ruling 979). Next: slice 1c-1, the Tournament finishes, built on the
-   same branch and the same pull request #109. Then slice 1c-2, the team gets names. Each gets its
-   own plan and its own review before it is built. This design stays in `specs/` while slice 1c is
-   not built.
+4. Slice 1c is split in two (ruling 979). Slice 1c-1, the Tournament finishes, is built on the
+   same branch and the same pull request #109; what it left is listed under 1c-2 in "Slices".
+   Next: slice 1c-2, the team gets names. It gets its own plan and its own review before it is
+   built. This design stays in `specs/` while slice 1c-2 is not built.
 5. No code before the operator says so.
 
 ## Review record

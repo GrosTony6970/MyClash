@@ -453,6 +453,23 @@ What is **not** derivable from the DDL, and so belongs here:
   before its name (`TeamChip`, `packages/ui/src/components/team-chip.tsx`); tight lists (Pool
   lists, standings) draw the chip (`TournamentColorDot`) themselves. The TV and the
   public bout page show a team's logo where a Fighter's photo sits.
+- **A team Tournament finishes in a bracket** (slice 1c-1). It runs its Pools, then a single
+  elimination bracket, and ends with a champion, a podium and a final ranking of teams. A bracket
+  writer names both columns of a side and puts the entrant in the column of the Tournament's kind
+  (`seatColumns`, `apps/api/src/modules/phases/seat-columns.ts`). The bracket reads send each side
+  as a typed wire side (`apps/api/src/modules/matches/bracket-slot-sides.ts`). The final ranking
+  keys every entrant by its side key, so a team bracket ranks its teams
+  (`packages/types/src/final-ranking-core.ts`). A team's seed sets the bracket order only (ruling
+  982, `apps/api/src/modules/phases/team-bracket-ranking.ts`). A team Tournament refuses three
+  things when its bracket is generated, each with a named 409. Seeding `by-rating` answers
+  `rating_needs_named_members`, because a rating needs named members (slice 1c-2). Seeding
+  `by-swiss-rank` answers `team_tournament_not_supported`. A double elimination bracket answers
+  `team_tournament_not_supported` too (`apps/api/src/common/entrant-kind-refusal.ts`). A League
+  takes individual Tournaments only (rulings 729, 981). Migration `0287` refuses a live League
+  link to a team Tournament (`league_link_individual_only`). It also refuses the switch to team
+  while a live link exists (`league_link_blocks_team`). The League doors refuse first, with the
+  same named 409 (`team_tournament_league`). The HEMA Ratings export leaves a team Tournament out
+  and names it in its answer (`apps/api/src/modules/exports/exports.service.ts`).
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.

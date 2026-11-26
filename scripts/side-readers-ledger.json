@@ -3,12 +3,12 @@
     "apps/api/src/modules/checkin/checkin.service.ts": {
       "verdict": "not-yet",
       "hits": 6,
-      "why": "1c: the check-in desk lists a person's next bouts by Registration (`:304`-`:344`); named members are people of 1c"
+      "why": "1c: (1c-2) the check-in desk lists a person's next bouts by Registration (`:304`-`:344`); named members are people of 1c"
     },
     "apps/api/src/modules/checkin/gear.service.ts": {
       "verdict": "not-yet",
       "hits": 16,
-      "why": "1c: the gear check names the Fighters of a bout by Registration (`:144`-`:152`); named members are people of 1c"
+      "why": "1c: (1c-2) the gear check names the Fighters of a bout by Registration (`:144`-`:152`); named members are people of 1c"
     },
     "apps/api/src/modules/events/events.service.ts": {
       "verdict": "side-key",
@@ -194,7 +194,7 @@
     "apps/api/src/modules/me/me-events.service.ts": {
       "verdict": "not-yet",
       "hits": 15,
-      "why": "1c: a person's own Events and Pools by Registration (`:1034`-`:1040`); personal schedule of named members is 1c"
+      "why": "1c: (1c-2) a person's own Events and Pools by Registration (`:1034`-`:1040`); personal schedule of named members is 1c"
     },
     "apps/api/src/modules/notifications/event-handlers/swiss-round-context.ts": {
       "verdict": "individual-only",
@@ -229,12 +229,12 @@
     "apps/api/src/modules/people-context/people-context.service.ts": {
       "verdict": "not-yet",
       "hits": 15,
-      "why": "1c: people paths read bout sides by Registration (`:326`-`:354`); the final placement ranks the bracket read by side key (T7)"
+      "why": "1c: (1c-2) people paths read bout sides by Registration (`:326`-`:354`); the final placement ranks the bracket read by side key (T7)"
     },
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "verdict": "not-yet",
       "hits": 9,
-      "why": "1c: a person's schedule reads bout sides by Registration (`:335`-`:389`); personal schedule of named members is 1c"
+      "why": "1c: (1c-2) a person's schedule reads bout sides by Registration (`:335`-`:389`); personal schedule of named members is 1c"
     },
     "apps/api/src/modules/phases/bracket-advance.service.ts": {
       "verdict": "side-key",
@@ -315,12 +315,12 @@
     "apps/api/src/modules/privacy/subject-export.service.ts": {
       "verdict": "not-yet",
       "hits": 2,
-      "why": "1c: the personal data export reaches fought bouts through Registrations (`:127`)"
+      "why": "1c: (1c-2) the personal data export reaches fought bouts through Registrations (`:127`)"
     },
     "apps/api/src/modules/privacy/subject-export.tables.ts": {
       "verdict": "not-yet",
       "hits": 2,
-      "why": "1c: the personal data export's reach map (`:147`, `:156`)"
+      "why": "1c: (1c-2) the personal data export's reach map (`:147`, `:156`)"
     },
     "apps/api/src/modules/programme/programme.service.ts": {
       "verdict": "side-key",
@@ -340,17 +340,17 @@
     "apps/api/src/modules/referees/assignment-board.service.ts": {
       "verdict": "not-yet",
       "hits": 48,
-      "why": "1c: the referee rule reads bout sides by Registration (`:173`-`:341`)"
+      "why": "1c: (1c-2) the referee rule reads bout sides by Registration (`:173`-`:341`)"
     },
     "apps/api/src/modules/referees/board-unit-ends.ts": {
       "verdict": "not-yet",
       "hits": 7,
-      "why": "1c: the referee board passes sides by Registration (`:83`-`:89`)"
+      "why": "1c: (1c-2) the referee board passes sides by Registration (`:83`-`:89`)"
     },
     "apps/api/src/modules/referees/event-commitments.ts": {
       "verdict": "not-yet",
       "hits": 7,
-      "why": "1c: the referee rule (`fightersOf`) reads bout sides by Registration (`:152`-`:200`)"
+      "why": "1c: (1c-2) the referee rule (`fightersOf`) reads bout sides by Registration (`:152`-`:200`)"
     },
     "apps/api/src/modules/referees/swiss-board-units.ts": {
       "verdict": "individual-only",
@@ -360,7 +360,7 @@
     "apps/api/src/modules/registrations/assignments.service.ts": {
       "verdict": "not-yet",
       "hits": 23,
-      "why": "1c: deleting a Person checks bouts and slots by Registration (`:222`-`:261`)"
+      "why": "1c: (1c-2) deleting a Person checks bouts and slots by Registration (`:222`-`:261`)"
     },
     "apps/api/src/modules/schedule/live-state.service.ts": {
       "verdict": "side-key",
@@ -465,7 +465,7 @@
     "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts": {
       "verdict": "not-yet",
       "hits": 24,
-      "why": "1c: the assistant's Tournament queries find a Fighter's bouts and wins by Registration (`:42`-`:55`, `:246`-`:256`, `:327`-`:340`, `:522`-`:524`, `:695`-`:708`). Their names come from view 0284, which replaced 0193 and names a team side by its team. Not in the design's slice list, put with the rest of a Tournament"
+      "why": "1c: (1c-2) the assistant's Tournament queries find a Fighter's bouts and wins by Registration (`:42`-`:55`, `:246`-`:256`, `:327`-`:340`, `:522`-`:524`, `:695`-`:708`). Their names come from view 0284, which replaced 0193 and names a team side by its team. Not in the design's slice list, put with the rest of a Tournament"
     },
     "apps/api/src/workers/alert-still-wanted.ts": {
       "verdict": "individual-only",
@@ -546,7 +546,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts": {
       "verdict": "not-yet",
       "hits": 0,
-      "why": "1c: the referee rule's second copy maps a side key to a Person through the Registrations (`fightersOf`); a team side maps to nobody until its members are named; no side token left, listed by hand",
+      "why": "1c: (1c-2) the referee rule's second copy maps a side key to a Person through the Registrations (`fightersOf`); a team side maps to nobody until its members are named; no side token left, listed by hand",
       "byHand": true
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/schedule-types.ts": {
