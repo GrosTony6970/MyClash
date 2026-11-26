@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { McpCaller, McpToolDeps } from '../mcp-server';
+import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
 import type { PersonSchedule } from '../../persons/public-schedule.service';
 import { readableEventBySlug, type McpEvent } from './readable-event';
 
@@ -31,11 +31,6 @@ export interface MyScheduleAnswer {
     location: string | null;
     cancelled: boolean;
   }[];
-}
-
-/** A tool's refusal: one plain sentence, which the registration turns into an MCP error result. */
-export interface McpRefusal {
-  refusal: string;
 }
 
 /**
