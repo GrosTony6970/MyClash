@@ -147,9 +147,9 @@ describe('TVScoreboard on a team bout', () => {
     const { red, blue } = columns(html);
     expect(red).toMatch(/bg-green-700[^>]*><\/span> Lyon Blades/);
     expect(blue).toMatch(/bg-violet-700[^>]*><\/span> Paris Rapiers/);
-    // The logo is named by the team name; a team with no logo shows the initials, as a Fighter
-    // with no photo does.
-    expect(blue).toContain('src="https://cdn.test/paris.png" alt="Paris Rapiers"');
+    // The logo is decorative, as the photo is: the team's name is the line under it (WAI H2). A
+    // team with no logo shows the initials, as a Fighter with no photo does.
+    expect(blue).toContain('src="https://cdn.test/paris.png" alt=""');
     expect(red).not.toContain('<img');
     expect(red).toContain('>LB</div>');
     // The header's "X vs Y" line carries the chips too.

@@ -578,8 +578,9 @@ function FighterColumn({
 }
 
 // Fighter photo for the scoreboard column. A team's logo takes the photo's
-// place, whole (contained, not cropped), and is named by the team name: the
-// name is the logo's text. Falls back to side-tinted initials (not the
+// place, whole (contained, not cropped). It is decorative (`alt=""`), as the
+// photo is: the team's name is the line right under it, and a screen reader
+// would read it twice (WAI H2). Falls back to side-tinted initials (not the
 // red-only packages/ui Avatar, which would mislabel the blue fighter) so both
 // sides stay legible on a projector: a team with no logo shows what a Fighter
 // with no photo shows.
@@ -599,7 +600,7 @@ function FighterAvatar({
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={logoUrl}
-        alt={name}
+        alt=""
         width={128}
         height={128}
         className={`${STAGE_AVATAR} rounded-full border-4 bg-stage-foreground/5 object-contain`}
