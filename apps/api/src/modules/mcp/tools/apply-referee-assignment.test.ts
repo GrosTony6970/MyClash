@@ -6,6 +6,7 @@ import { expectNoRawIds } from './no-raw-ids.test-helper';
 import {
   apply,
   assertOrgRole,
+  calls,
   caller,
   CREW_SELECT,
   crewRow,
@@ -57,6 +58,8 @@ function auditRow(over: Record<string, unknown> = {}, payload: Record<string, un
     ...over,
   };
 }
+
+const CHANGED = 'The referees of LSW-P2-M04 changed since the preview. Preview the change again.';
 
 const rest = {
   code: 'rest',
@@ -146,11 +149,42 @@ describe('apply_referee_assignment writes', () => {
     const token = seal();
     await done(token);
     world.crew = [crewRow(PAUL, DECLARANT, 'match')];
-    expect(await apply(token)).toEqual({
-      refusal: 'The referees of LSW-P2-M04 changed since the preview. Preview the change again.',
-    });
+    expect(await apply(token)).toEqual({ refusal: CHANGED });
     expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
     expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a replay of a removal: the role is now empty on the bout', async () => {
+    const token = seal({ personId: null });
+    await done(token);
+    world.crew = [];
+    expect(await apply(token)).toEqual({ refusal: CHANGED });
+    expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a replay of an assignment to an empty role: the role is now held', async () => {
+    world.crew = [];
+    const token = seal({ prev: null });
+    await done(token);
+    world.crew = [crewRow(PAUL, DECLARANT, 'match')];
+    expect(await apply(token)).toEqual({ refusal: CHANGED });
+    expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  // The app name is a call to the auth server: read after the crew re-read, it would stretch the
+  // window in which a change made in the app is overwritten unseen.
+  it('reads the app name before it reads the crew again', async () => {
+    let crewReadsBefore = -1;
+    getClient.mockImplementation(() => {
+      crewReadsBefore = calls.filter((c) => c.select === CREW_SELECT).length;
+      return Promise.resolve({ data: { client_name: 'Claude' }, error: null });
+    });
+    await done(seal());
+    expect(getClient).toHaveBeenCalledTimes(1);
+    expect(crewReadsBefore).toBe(0);
+    expect(calls.filter((c) => c.select === CREW_SELECT)).toHaveLength(1);
   });
 
   it('audits only after the write', async () => {

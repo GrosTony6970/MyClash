@@ -6,11 +6,18 @@
  * The race it handles: someone changes the bout's referee in the app between preview and
  * apply. The holder must still be the one the preview saw (call H), and a warning the person
  * did not see refuses (call I). A replay of the token meets the new holder and refuses.
+ *
+ * The race it accepts: the write does not compare the holder again. A change made in the app
+ * between the crew re-read and the write is overwritten, and the audit row's `previousPersonId`
+ * names the holder the re-read saw. The window is the roster read, the checker and the write's
+ * own lock and checker reads, all database reads of milliseconds: the app name, the one call to
+ * another server, is read before the re-read so it cannot stretch the window. The write still
+ * refuses an Impossible reason born in it; a Discouraged one only when the preview showed none
+ * (`confirm` false), as the plan's "race, named" accepts.
  */
 import { ConflictException, Logger } from '@nestjs/common';
 import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';
 import { insertAuditLog } from '../../../common/audit-log';
-import { ROUND_CODE_EMBEDS } from '../../matches/round-code.helper';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import { isRefusal, type McpRefusal } from './mcp-answer';
 import {
@@ -20,7 +27,7 @@ import {
   judgeSwap,
   LOCKED_REFUSAL,
   maintenanceRefusal,
-  MATCH_COLUMNS,
+  MATCH_SELECT,
   readCrewRows,
   refereeWriteRefusal,
   rowsAfterWrite,
@@ -50,10 +57,15 @@ const changed = (match: WriteMatch): McpRefusal => ({
   refusal: `The referees of ${match.code} changed since the preview. Preview the change again.`,
 });
 
-/** The bout, named by its round code, with its Event: one embed of `phases`, not two. */
-export const APPLY_MATCH_SELECT =
-  `${MATCH_COLUMNS}, phases(config_json,tournaments(weapon,events(id,name,status))),` +
-  ROUND_CODE_EMBEDS;
+/**
+ * The preview's bout select with the Event inside the round code's own `phases` embed: one
+ * embed of `phases`, not two. Should `ROUND_CODE_INPUTS` stop naming `tournaments(weapon)`, the
+ * replace finds nothing, `readMatch` throws "no Event embed" and the select pin goes red.
+ */
+export const APPLY_MATCH_SELECT = MATCH_SELECT.replace(
+  'tournaments(weapon)',
+  'tournaments(weapon,events(id,name,status))',
+);
 
 /** The bout and its Event, from the Match row (never from the token); null when it is gone. */
 async function readMatch(
@@ -188,11 +200,13 @@ export async function applyRefereeAssignment(
   const { event, match } = read;
   const gate = await refereeWriteRefusal(event, caller, deps);
   if (gate) return gate;
+  // Before the recheck: this call goes to the auth server, with no timeout of ours. Between
+  // the crew re-read and the write there is no network call but the write's own.
+  const clientName = await appName(deps, caller.clientId);
   const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
   if (!skill) return STALE;
   const checked = await recheck(deps, caller, token, event.id, { match, skill });
   if (isRefusal(checked)) return checked;
-  const clientName = await appName(deps, caller.clientId);
   const refused = await write(deps, token, { match, skill }, checked.person);
   if (refused) return refused;
   await audit(deps, caller, token, clientName);

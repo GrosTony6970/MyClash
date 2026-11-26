@@ -96,11 +96,8 @@ export async function eventSkills(deps: McpToolDeps, eventId: string): Promise<R
   return ((data ?? []) as { id: string; name: string }[]).map(({ id, name }) => ({ id, name }));
 }
 
-/** A bout's own columns and its piste's name; the round code's inputs come beside them. */
-export const MATCH_COLUMNS = 'id, match_number_label, scheduled_at, pool_id, lice_id, lices(name)';
-
 /** A `matches` select that names the bout (its round code), its piste, start, Pool and Lice. */
-export const MATCH_SELECT = `${MATCH_COLUMNS}, ${ROUND_CODE_INPUTS}`;
+export const MATCH_SELECT = `id, match_number_label, scheduled_at, pool_id, lice_id, lices(name), ${ROUND_CODE_INPUTS}`;
 
 /** One bout as the referee tools see it. Its ids stay inside the tool. */
 export interface WriteMatch {
