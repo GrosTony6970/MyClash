@@ -30,12 +30,21 @@ const ALLOWLIST = [
   '/api/v1/public/',
 ];
 
+/**
+ * The MCP door (operator ruling 985). Every MCP call is a POST, a question included, so the
+ * method says nothing here: a referee's "when is my next bout?" was refused for the whole
+ * maintenance. The door passes whole; a tool that writes refuses on its own
+ * (`assertNotReadOnly`), as `auth/`'s sign-up doors do. The door has no sub-path: only this
+ * exact path passes.
+ */
+const MCP_DOOR = '/api/v1/mcp';
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Read-only interceptor: when the `read_only_mode` flag is enabled, every
  * non-GET request to the API is rejected with a 503 coded `read_only_mode` —
- * except for super-admin users, the standard public/auth allowlist and a pad's beat.
+ * except for super-admin users, the standard public/auth allowlist, a pad's beat and the MCP door.
  * Organisers can still browse, they just can't write.
  */
 @Injectable()
@@ -56,6 +65,7 @@ export class ReadOnlyInterceptor implements NestInterceptor {
 
     const path: string = (req.url ?? '').toString();
     if (ALLOWLIST.some((p) => path.startsWith(p))) return next.handle();
+    if (path.split('?')[0] === MCP_DOOR) return next.handle();
 
     const readOnly = await this.flags.isEnabled('read_only_mode');
     if (!readOnly) return next.handle();

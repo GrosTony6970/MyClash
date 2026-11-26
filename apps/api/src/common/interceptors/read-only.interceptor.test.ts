@@ -141,6 +141,26 @@ describe('ReadOnlyInterceptor', () => {
     },
   );
 
+  // Ruling 985: every MCP call is a POST, a question included. The door passes; a tool that
+  // writes refuses on its own. Only the door's exact path passes, not a sibling of it.
+  it.each(['/api/v1/mcp', '/api/v1/mcp?x=1'])('lets the MCP door through: POST %s', async (url) => {
+    isEnabledMock.mockResolvedValue(true);
+    const ctx = makeContext({ url, method: 'POST', headers: { authorization: 'Bearer t' } });
+    const result = await interceptor.intercept(ctx, makeNext());
+    expect(await firstValueFrom(result)).toBe('passthrough');
+  });
+
+  it.each(['/api/v1/mcpx', '/api/v1/mcp/x'])(
+    'refuses a path beside the door: POST %s',
+    async (url) => {
+      isEnabledMock.mockResolvedValue(true);
+      const ctx = makeContext({ url, method: 'POST', headers: {} });
+      await expect(interceptor.intercept(ctx, makeNext())).rejects.toBeInstanceOf(
+        OperationalUnavailableException,
+      );
+    },
+  );
+
   it('passes through writes when the flag is off', async () => {
     isEnabledMock.mockResolvedValue(false);
     const ctx = makeContext({

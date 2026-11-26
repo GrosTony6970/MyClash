@@ -210,6 +210,9 @@ identity (call B), never a raw id from the model.
 - Every write is audit-logged with the person as actor and the source "MCP (client name)".
 - No apply on a completed Event. `EventReadOnlyGuard` locks the route, not the service, so the tool
   must reach the same lock — the builder verifies where it holds.
+- No write in read-only (maintenance) mode. The door passes that mode whole so the reads answer
+  (ruling 985), so each write tool calls `assertNotReadOnly` itself; the tool-list test in
+  `mcp.http.test.ts` turns red until it is changed for the first write tool.
 
 ## Left to the builder
 
