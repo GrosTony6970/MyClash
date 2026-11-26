@@ -445,10 +445,11 @@ What is **not** derivable from the DDL, and so belongs here:
   The status reconcile's automatic forfeit record names its winner Registration itself, as it only
   forfeits a Fighter (`apps/api/src/modules/matches/fighter-reconcile.ts`). The pad queues a card
   or a protest by side (`QueuedSide`, `apps/web-staff/src/offline/queued-side.ts`). The queued row
-  gains a `teamId` that is not indexed, so the Dexie version does not change. The TV, the public
-  bout page, the pad's result headline and the live board line put a team's colour chip before
-  its name (`TeamChip`, `packages/ui/src/components/team-chip.tsx`); tight lists (Pool lists,
-  standings, piste cards, tiles) draw the chip (`TournamentColorDot`) themselves. The TV and the
+  gains a `teamId` that is not indexed, so the Dexie version does not change. The TV (its
+  scoreboard and its card between bouts), the public bout page, the pad's header and its tiles,
+  the pad's result headline and piste cards, and the live board line put a team's colour chip
+  before its name (`TeamChip`, `packages/ui/src/components/team-chip.tsx`); tight lists (Pool
+  lists, standings) draw the chip (`TournamentColorDot`) themselves. The TV and the
   public bout page show a team's logo where a Fighter's photo sits.
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour

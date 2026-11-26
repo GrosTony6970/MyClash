@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { sideStyle, TournamentColorDot } from '@myclash/ui';
+import { sideStyle, TeamChip } from '@myclash/ui';
 import type { LiceMatch } from '../../../../src/components/lice-match-types';
 import { isLiveStatus } from '../../../../src/components/partition-lice-matches';
 import { CornerDot } from '../../../../src/components/CornerDot';
@@ -32,7 +32,7 @@ function FighterLine({
       className={`flex items-center gap-1.5 font-semibold leading-tight ${compact ? 'text-sm' : 'text-base'}`}
     >
       <CornerDot hex={color} />
-      <TournamentColorDot color={teamColour} size="md" />
+      <TeamChip colour={teamColour} />
       {name ?? '—'}
     </p>
   );

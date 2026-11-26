@@ -30,11 +30,17 @@ function render(nextMatch: LiceWaitingDisplayNextMatch, mirror = false): string 
   );
 }
 
+/** `TeamChip`'s own shape: its wrapper, the dot of a colour, then a space before the name. */
+const chipBefore = (fill: string, name: string) =>
+  new RegExp(
+    `<span class="inline-flex"><span aria-hidden="true" class="[^"]*${fill}"></span></span> ${name}`,
+  );
+
 describe('LiceWaitingDisplay next bout', () => {
   it('shows each team name with its colour chip, and no logo', () => {
     const html = render(next);
-    expect(html).toMatch(/bg-green-700[^>]*><\/span> Lyon Blades/);
-    expect(html).toMatch(/bg-slate-900[^>]*><\/span> Paris Rapiers/);
+    expect(html).toMatch(chipBefore('bg-green-700', 'Lyon Blades'));
+    expect(html).toMatch(chipBefore('bg-slate-900', 'Paris Rapiers'));
     expect(html).not.toContain('<img');
   });
 
@@ -47,7 +53,7 @@ describe('LiceWaitingDisplay next bout', () => {
   it('keeps the chip with its team when the screen is mirrored', () => {
     const html = render(next, true);
     expect(html.indexOf('Paris Rapiers')).toBeLessThan(html.indexOf('Lyon Blades'));
-    expect(html).toMatch(/bg-slate-900[^>]*><\/span> Paris Rapiers/);
+    expect(html).toMatch(chipBefore('bg-slate-900', 'Paris Rapiers'));
   });
 
   it('shows a Fighter name with no chip', () => {

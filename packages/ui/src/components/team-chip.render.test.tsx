@@ -192,7 +192,7 @@ describe('the bout-flow legend', () => {
 
 /** One owner for "dot and space before a team's name": a second copy drifts (CLAUDE.md). */
 describe('TeamChip, the one chip beside a team name', () => {
-  it.each(['TVScoreboard.tsx', 'MatchTimeline.tsx', 'BoutFlowChart.tsx'])(
+  it.each(['TVScoreboard.tsx', 'LiceWaitingDisplay.tsx', 'MatchTimeline.tsx', 'BoutFlowChart.tsx'])(
     '%s draws no dot of its own',
     (file) => {
       const source = readFileSync(join(__dirname, file), 'utf8');

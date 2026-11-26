@@ -4,7 +4,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { sideStyle } from '../utils/side-color';
 import { statusLabelKey } from '../utils/status-label';
-import { TournamentColorDot } from './TournamentColorDot';
+import { TeamChip } from './team-chip';
 
 /**
  * Public TV-display "waiting" surface used by the per-lice route
@@ -106,13 +106,15 @@ export function LiceWaitingDisplay({
               className="text-stage-name flex flex-wrap items-center justify-center gap-4 font-bold leading-tight"
             >
               <span style={{ color: left.color }}>
-                <TournamentColorDot color={left.colour} size="em" /> {left.name ?? '—'}
+                <TeamChip colour={left.colour} />
+                {left.name ?? '—'}
               </span>
               <span className="text-stage-club uppercase tracking-widest text-slate-500">
                 {t('scoring.liveMatch.versus')}
               </span>
               <span style={{ color: right.color }}>
-                <TournamentColorDot color={right.colour} size="em" /> {right.name ?? '—'}
+                <TeamChip colour={right.colour} />
+                {right.name ?? '—'}
               </span>
             </p>
             {nextMatch.tournamentName && (

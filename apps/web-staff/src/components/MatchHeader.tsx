@@ -23,7 +23,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
-import { sideStyle, roundLabel, TournamentColorDot } from '@myclash/ui';
+import { sideStyle, roundLabel, TeamChip } from '@myclash/ui';
 import { CallButton } from './CallButton';
 import { CornerDot } from './CornerDot';
 import type { NextMatchInfo } from '@myclash/ui';
@@ -167,13 +167,13 @@ export function MatchHeader({
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
                 <CornerDot hex={redStyle.border} className="mr-1.5" />
-                <TileColour colour={previous.redColour} />
+                <TeamChip colour={previous.redColour ?? null} />
                 {previous.redName}
                 {previous.redClub && <span className="text-muted"> · {previous.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
                 <CornerDot hex={blueStyle.border} className="mr-1.5" />
-                <TileColour colour={previous.blueColour} />
+                <TeamChip colour={previous.blueColour ?? null} />
                 {previous.blueName}
                 {previous.blueClub && <span className="text-muted"> · {previous.blueClub}</span>}
               </p>
@@ -207,11 +207,11 @@ export function MatchHeader({
           <p className="inline-flex flex-wrap items-center justify-center gap-x-1.5 text-base font-semibold text-foreground">
             <CornerDot hex={redStyle.border} />
             {/* A team's colour chip sits beside its name; a Fighter's side has none. */}
-            <TournamentColorDot color={redColour} size="md" />
+            <TeamChip colour={redColour} />
             <span>{redName}</span>
             <span className="text-muted">{t('scoring.lice.vs')}</span>
             <span>{blueName}</span>
-            <TournamentColorDot color={blueColour} size="md" />
+            <TeamChip colour={blueColour} />
             <CornerDot hex={blueStyle.border} />
           </p>
           <GearLine gear={gear} redName={redName} blueName={blueName} />
@@ -251,13 +251,13 @@ export function MatchHeader({
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
                 <CornerDot hex={redStyle.border} className="mr-1.5" />
-                <TileColour colour={next.redColour} />
+                <TeamChip colour={next.redColour ?? null} />
                 {next.redName}
                 {next.redClub && <span className="text-muted"> · {next.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
                 <CornerDot hex={blueStyle.border} className="mr-1.5" />
-                <TileColour colour={next.blueColour} />
+                <TeamChip colour={next.blueColour ?? null} />
                 {next.blueName}
                 {next.blueClub && <span className="text-muted"> · {next.blueClub}</span>}
               </p>
@@ -266,19 +266,6 @@ export function MatchHeader({
         </div>
       </div>
     </header>
-  );
-}
-
-/**
- * A team's colour chip on a neighbour tile, before its name (call 6: name and chip, no logo, on a
- * tight surface). A Fighter's side has none, and shows none.
- */
-function TileColour({ colour }: { colour: string | null | undefined }) {
-  if (!colour) return null;
-  return (
-    <span className="mr-1.5 inline-flex">
-      <TournamentColorDot color={colour} size="md" />
-    </span>
   );
 }
 

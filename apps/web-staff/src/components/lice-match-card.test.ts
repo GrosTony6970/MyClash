@@ -54,9 +54,11 @@ const BOUT: LiceMatch = {
 
 const drawn = (match: LiceMatch) => renderToStaticMarkup(createElement(LiceMatchCard, { match }));
 
-/** The chip of a colour token: its fill class, then the name the chip sits before. */
+/** `TeamChip`'s own shape: its wrapper, the dot of a colour token, a space, the name. */
 const chipBefore = (colour: string, name: string) =>
-  new RegExp(`${accentClassFor(colour)}[^>]*></span>${name}`);
+  new RegExp(
+    `<span class="inline-flex"><span aria-hidden="true" class="[^"]*${accentClassFor(colour)}"></span></span> ${name}`,
+  );
 
 describe('LiceMatchCard', () => {
   it('shows each team’s colour chip beside its name', () => {
