@@ -132,3 +132,27 @@ describe('the bout page forfeits a team by side', () => {
     expect(body).not.toHaveProperty('forfeitingTeamId');
   });
 });
+
+describe('the forfeit reasons name the kind of side', () => {
+  const groups = () => [...document.querySelectorAll('optgroup')].map((group) => group.label);
+
+  it('say a team stopped fighting on a team bout', async () => {
+    page = await openEventPage(<MatchDetailPage />, {
+      ...RUNNING_EVENT,
+      ...boutReads(RUNNING_TEAM_BOUT, null),
+    });
+
+    expect(groups()).toContain('Forfeit — a team stopped fighting');
+    expect(groups()).not.toContain('Forfeit — a fighter stopped fighting');
+  });
+
+  it('say a fighter stopped fighting on a Fighters’ bout', async () => {
+    page = await openEventPage(<MatchDetailPage />, {
+      ...RUNNING_EVENT,
+      ...boutReads(RUNNING_BOUT, null),
+    });
+
+    expect(groups()).toContain('Forfeit — a fighter stopped fighting');
+    expect(groups()).not.toContain('Forfeit — a team stopped fighting');
+  });
+});

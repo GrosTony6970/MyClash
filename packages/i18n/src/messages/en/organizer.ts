@@ -2790,6 +2790,7 @@ export const organizer = {
     forfeitReasonBlackCard2: 'Black card (two)',
     forfeitReasonConduct: 'Conduct violation',
     forfeitReasonGroup: 'Forfeit — a fighter stopped fighting',
+    forfeitReasonGroupTeam: 'Forfeit — a team stopped fighting',
     overrideTitle: 'Override result',
     overrideReasonGroup: 'Override — the recorded result was wrong',
     overrideReasonRefereeDecision: 'Referee decision',

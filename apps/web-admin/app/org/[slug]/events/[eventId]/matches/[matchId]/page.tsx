@@ -684,7 +684,13 @@ export default function MatchDetailPage() {
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
               {!boutEnded && (
-                <optgroup label={t('organizer.bracketPage.forfeitReasonGroup')}>
+                <optgroup
+                  label={t(
+                    side?.kind === 'team'
+                      ? 'organizer.bracketPage.forfeitReasonGroupTeam'
+                      : 'organizer.bracketPage.forfeitReasonGroup',
+                  )}
+                >
                   {FORFEIT_REASONS.map((each) => (
                     <option key={each} value={each}>
                       {t(REASON_LABEL_KEY[each] as never)}

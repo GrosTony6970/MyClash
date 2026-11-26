@@ -641,6 +641,7 @@ export const scoring = {
   forfeits: {
     title: 'Forfait',
     fighter: 'Combattant',
+    team: 'Équipe',
     reason: 'Motif',
     canContinue: 'Le combattant peut continuer le tournoi',
     note: 'Note optionnelle',

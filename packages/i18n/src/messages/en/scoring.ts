@@ -688,6 +688,7 @@ export const scoring = {
   forfeits: {
     title: 'Forfeit',
     fighter: 'Fighter',
+    team: 'Team',
     reason: 'Reason',
     canContinue: 'Fighter can continue in the tournament',
     note: 'Optional note',

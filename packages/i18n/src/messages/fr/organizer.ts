@@ -2757,6 +2757,7 @@ export const organizer = {
     forfeitReasonBlackCard2: 'Carton noir (double)',
     forfeitReasonConduct: 'Faute de comportement',
     forfeitReasonGroup: 'Forfait — un combattant a cessé de combattre',
+    forfeitReasonGroupTeam: 'Forfait — une équipe a cessé de combattre',
     overrideTitle: 'Corriger le résultat',
     overrideReasonGroup: 'Correction — le résultat enregistré était faux',
     overrideReasonRefereeDecision: 'Décision de l’arbitre',

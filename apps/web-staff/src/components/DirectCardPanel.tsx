@@ -71,14 +71,19 @@ export interface DirectCardPanelProps {
 function CardFields({
   draft,
   onDraft,
+  sides,
   redName,
   blueName,
   t,
-}: Pick<DirectCardPanelProps, 'draft' | 'onDraft' | 'redName' | 'blueName'> & { t: Translate }) {
+}: Pick<DirectCardPanelProps, 'draft' | 'onDraft' | 'sides' | 'redName' | 'blueName'> & {
+  t: Translate;
+}) {
+  // On a team bout the card goes to a team (call 5), and the picker says so.
+  const team = sideOf(sides, draft.fighter)?.kind === 'team';
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-        {t('scoring.forfeits.fighter')}
+        {t(team ? 'scoring.forfeits.team' : 'scoring.forfeits.fighter')}
         <select
           value={draft.fighter}
           onChange={(e) => onDraft({ ...draft, fighter: e.target.value as Corner })}
@@ -191,7 +196,14 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
       </p>
       {!online && <p className="mb-2 text-xs text-muted">{t('scoring.lice.directCardOffline')}</p>}
       {error && <p className="mb-2 text-xs text-danger">{error}</p>}
-      <CardFields draft={draft} onDraft={onDraft} redName={redName} blueName={blueName} t={t} />
+      <CardFields
+        draft={draft}
+        onDraft={onDraft}
+        sides={props.sides}
+        redName={redName}
+        blueName={blueName}
+        t={t}
+      />
       <CardChips
         cards={props.ruleSetCards}
         disabled={disabled || busy || reason.trim().length === 0}

@@ -102,7 +102,7 @@ export function ForfeitPanel({
           htmlFor={fighterId}
           className="text-xs font-semibold uppercase tracking-wide text-muted"
         >
-          {t('scoring.forfeits.fighter')}
+          {t(side?.kind === 'team' ? 'scoring.forfeits.team' : 'scoring.forfeits.fighter')}
           <select
             id={fighterId}
             value={fighter}
