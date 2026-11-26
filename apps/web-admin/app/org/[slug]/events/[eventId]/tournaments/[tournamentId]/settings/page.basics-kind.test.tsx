@@ -115,9 +115,8 @@ describe('the kind of entrant in the settings Basics tab', () => {
     expect(eventListReads()).toBe(before + 1);
   });
 
-  // Ruling 981: an empty individual Tournament linked to a League by mistake, then switched to team.
-  it('a switch to team under a live League link says to remove the link first', async () => {
-    opened = await openTab('basics');
+  /** The PATCH answers a 409 naming `reason`; every other request is served as before. */
+  function refusePatch(reason: string) {
     const served = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
     vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
       init?.method === 'PATCH'
@@ -127,16 +126,35 @@ describe('the kind of entrant in the settings Basics tab', () => {
             status: 409,
             detail: 'An English sentence from the API.',
             code: 'CONFLICT',
-            details: { reason: 'league_link_blocks_team' },
+            details: { reason },
             validationErrors: null,
           } as never)
         : served(base, path, init),
     );
+  }
+
+  // Ruling 981: an empty individual Tournament linked to a League by mistake, then switched to team.
+  it('a switch to team under a live League link says to remove the link first', async () => {
+    opened = await openTab('basics');
+    refusePatch('league_link_blocks_team');
     await act(async () => radio('team').click());
     await save();
 
     expect(document.body.textContent).toContain(
       'Remove the League link first: League points belong to persons.',
+    );
+  });
+
+  // Ruling 983: an empty individual Tournament given a double elimination bracket, then switched to
+  // team. The page reads no phase, so the choice stays open and the save's refusal says why.
+  it('a switch to team of a Tournament with Pools or a bracket says to delete them first', async () => {
+    opened = await openTab('basics');
+    refusePatch('kind_locked_by_phase');
+    await act(async () => radio('team').click());
+    await save();
+
+    expect(document.body.textContent).toContain(
+      'Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket.',
     );
   });
 

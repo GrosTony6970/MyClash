@@ -774,6 +774,8 @@ export const organizer = {
         "These settings do not fit this tournament's kind of entrant. Reload the page and try again.",
       leagueIndividualOnly: 'League points belong to persons.',
       leagueBlocksTeam: 'Remove the League link first: League points belong to persons.',
+      lockedByPhase:
+        'Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket.',
     },
     wizard: {
       eyebrow: 'New tournament',

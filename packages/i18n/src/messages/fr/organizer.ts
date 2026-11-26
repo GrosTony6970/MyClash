@@ -773,6 +773,8 @@ export const organizer = {
       leagueIndividualOnly: 'Les points de ligue appartiennent aux personnes.',
       leagueBlocksTeam:
         "Retirez d'abord le lien à la ligue : les points de ligue appartiennent aux personnes.",
+      lockedByPhase:
+        "Supprimez d'abord les poules et le tableau : un tournoi garde son type dès qu'il a des poules ou un tableau.",
     },
     wizard: {
       eyebrow: 'Nouveau tournoi',

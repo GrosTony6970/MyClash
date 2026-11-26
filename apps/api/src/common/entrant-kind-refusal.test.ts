@@ -21,6 +21,12 @@ const SETTLED = {
   code: '23514',
   message: 'entrant_kind_is_settled: Tournament 0b8f… has entrants, so its kind stays individual',
 };
+// 0288's refusal (ruling 983), as its `raise exception` writes it.
+const PHASED = {
+  code: '23514',
+  message:
+    'entrant_kind_set_before_phases: Tournament 0b8f… has a phase, so its kind stays individual',
+};
 // 0287's two League refusals, as its `raise exception` writes them.
 const LEAGUE_LINK = {
   code: '23514',
@@ -49,6 +55,16 @@ describe('entrantKindRefusal', () => {
     expect(entrantKindRefusal(SETTLED)?.getResponse()).toEqual({
       reason: 'entrant_kind_settled',
       message: 'This Tournament already has entrants, so its kind cannot change.',
+    });
+  });
+
+  it('names a change of kind of a Tournament with a phase locked by it (ruling 983)', () => {
+    const refusal = entrantKindRefusal(PHASED);
+    expect(refusal?.getStatus()).toBe(409);
+    expect(refusal?.getResponse()).toEqual({
+      reason: 'kind_locked_by_phase',
+      message:
+        'Delete the Pools and the bracket first: a Tournament keeps its kind once it has Pools or a bracket.',
     });
   });
 

@@ -33,7 +33,8 @@ export function refusalKey(r: ApiFailure, keys: RefusalKeys): string | undefined
  * of a team Tournament, an entrant of the other kind seated in a Pool, a field the kind refuses. A
  * League takes individual Tournaments only (rulings 729, 981): a League link to a team Tournament,
  * and a switch to team under a live League link. A team bracket is not seeded by rating: a team's
- * rating is its named members' (ruling 971).
+ * rating is its named members' (ruling 971). A Tournament keeps its kind once it has Pools or a
+ * bracket (ruling 983).
  */
 const KIND_REFUSALS: RefusalKeys = {
   conflict: {
@@ -42,6 +43,7 @@ const KIND_REFUSALS: RefusalKeys = {
     entrant_kind_mismatch: 'organizer.tournaments.kind.mismatch',
     team_tournament_league: 'organizer.tournaments.kind.leagueIndividualOnly',
     league_link_blocks_team: 'organizer.tournaments.kind.leagueBlocksTeam',
+    kind_locked_by_phase: 'organizer.tournaments.kind.lockedByPhase',
   },
   badRequest: {
     entrant_kind_field: 'organizer.tournaments.kind.fieldRefused',

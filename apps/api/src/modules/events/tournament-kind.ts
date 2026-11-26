@@ -13,8 +13,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * - An individual Tournament has no team size: a non-null `teamDefaultSize` is refused.
  * - A switch to team clears `max_waitlist`; a switch to individual clears `team_default_size`.
  *
- * Whether the kind may change at all is the database's (`entrant_kind_is_settled`): the save is
- * refused 409 once the Tournament holds an entrant (`entrantKindRefusal`).
+ * Whether the kind may change at all is the database's (`entrant_kind_is_settled`, and
+ * `entrant_kind_set_before_phases` since ruling 983): the save is refused 409 once the Tournament
+ * holds an entrant or has a phase (`entrantKindRefusal`).
  *
  * THE RACE, accepted: save A sends `maxWaitlist: 6` and is judged against the stored `individual`;
  * meanwhile save B switches the empty Tournament to `team` (and clears `max_waitlist`). If A writes

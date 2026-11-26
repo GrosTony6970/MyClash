@@ -39,3 +39,14 @@ describe('the League refusals of a team Tournament', () => {
     );
   });
 });
+
+describe('the kind of a Tournament with a phase (ruling 983)', () => {
+  it('a change of kind once the Tournament has Pools or a bracket says to delete them first', () => {
+    expect(kindRefusal(conflict('kind_locked_by_phase'), en)).toBe(
+      'Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket.',
+    );
+    expect(kindRefusal(conflict('kind_locked_by_phase'), fr)).toBe(
+      "Supprimez d'abord les poules et le tableau : un tournoi garde son type dès qu'il a des poules ou un tableau.",
+    );
+  });
+});
