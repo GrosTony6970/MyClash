@@ -65,10 +65,18 @@ export function ratingNeedsNamedMembers(): ConflictException {
   });
 }
 
+/**
+ * The 409 of a trigger's refusal, found by its reason, never by its place in the list: a refusal
+ * added before it must not change what a door says. The reason's type holds only the list's own.
+ */
+function conflictOf(reason: (typeof REFUSALS)[number]['reason']): ConflictException {
+  const { message } = REFUSALS.find((r) => r.reason === reason)!;
+  return new ConflictException({ reason, message });
+}
+
 /** The 409 for an entrant of the other kind, said by the API before the database would refuse it. */
 export function entrantKindMismatch(): ConflictException {
-  const [mismatch] = REFUSALS;
-  return new ConflictException({ reason: mismatch.reason, message: mismatch.message });
+  return conflictOf('entrant_kind_mismatch');
 }
 
 /**
@@ -76,8 +84,7 @@ export function entrantKindMismatch(): ConflictException {
  * refuse it (rulings 729, 981): the same reason as the trigger's, so one screen sentence names both.
  */
 export function teamTournamentLeague(): ConflictException {
-  const league = REFUSALS[2];
-  return new ConflictException({ reason: league.reason, message: league.message });
+  return conflictOf('team_tournament_league');
 }
 
 /** The 409 for a write a kind trigger refused; null for any other error. */

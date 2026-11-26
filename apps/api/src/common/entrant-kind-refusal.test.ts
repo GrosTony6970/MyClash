@@ -7,7 +7,11 @@
  */
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { entrantKindRefusal } from './entrant-kind-refusal';
+import {
+  entrantKindMismatch,
+  entrantKindRefusal,
+  teamTournamentLeague,
+} from './entrant-kind-refusal';
 
 const HOLDS = {
   code: '23514',
@@ -86,5 +90,21 @@ describe('entrantKindRefusal', () => {
   it('answers null for no error', () => {
     expect(entrantKindRefusal(null)).toBeNull();
     expect(entrantKindRefusal(undefined)).toBeNull();
+  });
+});
+
+describe('the refusals a door says before the database', () => {
+  it('says the mismatch as the trigger does', () => {
+    expect(entrantKindMismatch().getResponse()).toEqual(entrantKindRefusal(HOLDS)?.getResponse());
+    expect(entrantKindMismatch().getResponse()).toMatchObject({ reason: 'entrant_kind_mismatch' });
+  });
+
+  it('says a League link to a team Tournament as the trigger does', () => {
+    expect(teamTournamentLeague().getResponse()).toEqual(
+      entrantKindRefusal(LEAGUE_LINK)?.getResponse(),
+    );
+    expect(teamTournamentLeague().getResponse()).toMatchObject({
+      reason: 'team_tournament_league',
+    });
   });
 });
