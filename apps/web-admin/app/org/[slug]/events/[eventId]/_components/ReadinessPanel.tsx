@@ -241,9 +241,10 @@ function RowAction({ href, outstanding }: { href: string; outstanding: boolean }
 
 /**
  * Level is carried by an aria-labelled mark whose glyph differs per level, so
- * the severity does not rest on telling amber from red.
+ * the severity does not rest on telling amber from red. Exported for the
+ * publish dialog, which lists the same checks.
  */
-function LevelMark({ level }: { level: ReadinessLevel }) {
+export function LevelMark({ level }: { level: ReadinessLevel }) {
   const { t } = useI18n();
   const mark = readinessMark(level);
   return (
