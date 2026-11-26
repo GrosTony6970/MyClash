@@ -86,6 +86,8 @@ export interface BracketConfig {
 export interface PodiumFighter {
   fighterName: string;
   clubAbbrev?: string | null;
+  /** A team's colour name; a Fighter has none. The podium draws its chip before the name. */
+  colour?: string | null;
 }
 
 export interface PodiumData {

@@ -858,14 +858,14 @@
       "byHand": true
     },
     "packages/ui/src/components/bracket/MatchCard.tsx": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 2,
-      "why": "1c: the bracket card's \"you\" mark by Registration (`:98`-`:100`); its winner reads the side ids (`:408`-`:418`)"
+      "why": "the \"you\" mark reads the Registration through `isRowOfSide` (`:100`-`:108`), so a team row is nobody's; the winner reads the side ids (`:420`-`:431`); a team side draws its chip and no club"
     },
     "packages/ui/src/components/bracket/types.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 3,
-      "why": "1c: the bracket slot keeps its Registration ids beside its side ids and typed sides (`:37`-`:42`), for the forfeit and the \"you\" mark"
+      "why": "the slot keeps its Registration ids (null on a team) beside its side ids and typed sides (`:38`-`:52`), for the forfeit and the \"you\" mark"
     },
     "packages/ui/src/types/match-events.ts": {
       "verdict": "side-key",

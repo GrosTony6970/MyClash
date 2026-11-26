@@ -3,6 +3,7 @@ import type { BracketSideWire } from '@myclash/types/bracket-side';
 import { describe, expect, it } from 'vitest';
 
 import { MatchCard } from './MatchCard';
+import { MedalPodium } from './MedalPodium';
 import { BracketHighlightContext } from './highlight-context';
 import type { BracketSlotData } from './types';
 
@@ -107,6 +108,81 @@ describe("MatchCard winner's score", () => {
     const html = winner(color);
     expect(html).toContain(`${fill} text-slate-900 font-bold`);
     expect(html).not.toContain('text-white');
+  });
+});
+
+describe('MatchCard on a team bout', () => {
+  const team = (teamId: string, name: string, colour: string | null): BracketSideWire => ({
+    sideId: teamId,
+    kind: 'team',
+    registrationId: null,
+    teamId,
+    name,
+    clubAbbrev: null,
+    colour,
+  });
+  const teamSlot = (over: Partial<BracketSlotData> = {}) =>
+    slot({
+      redFighterName: 'Les Lions',
+      blueFighterName: 'Les Ours',
+      redClubAbbrev: 'LEAK',
+      redRegistrationId: null,
+      blueRegistrationId: null,
+      redSideId: 'team-lions',
+      blueSideId: 'team-ours',
+      winnerSideId: 'team-lions',
+      red: team('team-lions', 'Les Lions', 'green'),
+      blue: team('team-ours', 'Les Ours', null),
+      ...over,
+    });
+  const render = (s: BracketSlotData, highlightRegistrationId?: string) =>
+    renderToStaticMarkup(
+      <BracketHighlightContext.Provider value={{ highlightRegistrationId, youLabel: 'YOU' }}>
+        <MatchCard t={say} slot={s} redColor="red" blueColor="blue" />
+      </BracketHighlightContext.Provider>,
+    );
+
+  it("draws a team's colour chip and no club", () => {
+    const html = render(teamSlot());
+    expect(html.match(/rounded-full ring-1/g)).toHaveLength(1);
+    expect(html).toContain('bg-green-');
+    expect(html).not.toContain('LEAK');
+  });
+
+  it('bolds the recorded winner by side id, a forfeit won on the lower score', () => {
+    const html = render(teamSlot({ redScore: 0, blueScore: 3, winnerSideId: 'team-lions' }));
+    expect(html).toContain(
+      'title="Les Lions" class="min-w-0 flex-1 truncate text-xs font-semibold',
+    );
+    expect(html).not.toContain(
+      'title="Les Ours" class="min-w-0 flex-1 truncate text-xs font-semibold',
+    );
+  });
+
+  it('marks a team row as nobody’s "you"', () => {
+    expect(render(teamSlot(), 'team-lions')).not.toContain('YOU');
+  });
+
+  it('leaves an individual row unchanged: no chip, its club, its "you"', () => {
+    const html = render(
+      slot({
+        redClubAbbrev: 'PAR',
+        red: { ...fighter('reg-marie', 'Marie Dubois'), clubAbbrev: 'PAR' },
+      }),
+      'reg-marie',
+    );
+    expect(html).not.toContain('rounded-full ring-1');
+    expect(html).toContain('PAR');
+    expect(html).toContain('YOU');
+  });
+});
+
+describe('MedalPodium on a team', () => {
+  it('draws the chip before a team name and none before a Fighter', () => {
+    const draw = (gold: { fighterName: string; colour?: string }) =>
+      renderToStaticMarkup(<MedalPodium podium={{ gold }} />);
+    expect(draw({ fighterName: 'Les Lions', colour: 'green' })).toContain('bg-green-');
+    expect(draw({ fighterName: 'Marie' })).not.toContain('rounded-full ring-1');
   });
 });
 

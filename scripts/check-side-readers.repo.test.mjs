@@ -28,8 +28,6 @@ const NOT_YET = [
   'apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx',
   'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx',
-  'packages/ui/src/components/bracket/MatchCard.tsx',
-  'packages/ui/src/components/bracket/types.ts',
 ];
 
 const realLedger = () => JSON.parse(readFileSync('scripts/side-readers-ledger.json', 'utf8'));
