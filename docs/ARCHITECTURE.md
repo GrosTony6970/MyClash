@@ -437,13 +437,19 @@ What is **not** derivable from the DDL, and so belongs here:
   opens no review and sets no Fighter status. A team's card count starts fresh every Match
   (ruling 976, `ladderScopeOf` in `card-side.ts`). A team has no status to settle, so a team
   forfeit hands its bout to the completion owner itself, and its take-back puts the bout back
-  (`apps/api/src/modules/matches/match-forfeits.service.ts`). Every winner is written through
-  `winnerColumns` (`apps/api/src/modules/matches/winner-columns.ts`): a Fighter wins into
-  `winner_registration_id`, a team into `winner_team_id`. The pad queues a card or a protest by
-  side (`QueuedSide`, `apps/web-staff/src/offline/queued-side.ts`). The queued row gains a
-  `teamId` that is not indexed, so the Dexie version does not change. The TV and the public
-  pages name a team with its colour chip (`TeamChip`, `packages/ui/src/components/team-chip.tsx`)
-  and show its logo where a Fighter's photo sits.
+  (`apps/api/src/modules/matches/match-forfeits.service.ts`). Every winner the engine or a forfeit
+  decides is written on the bout through `winnerColumns`
+  (`apps/api/src/modules/matches/winner-columns.ts`): a Fighter wins into
+  `winner_registration_id`, a team into `winner_team_id`. A take-back restores the snapshot's two
+  winner columns as they were (`restoreMatchState`, `apps/api/src/modules/matches/fighter-bouts.ts`).
+  The status reconcile's automatic forfeit record names its winner Registration itself, as it only
+  forfeits a Fighter (`apps/api/src/modules/matches/fighter-reconcile.ts`). The pad queues a card
+  or a protest by side (`QueuedSide`, `apps/web-staff/src/offline/queued-side.ts`). The queued row
+  gains a `teamId` that is not indexed, so the Dexie version does not change. The TV, the public
+  bout page, the pad's result headline and the live board line put a team's colour chip before
+  its name (`TeamChip`, `packages/ui/src/components/team-chip.tsx`); tight lists (Pool lists,
+  standings, piste cards, tiles) draw the chip (`TournamentColorDot`) themselves. The TV and the
+  public bout page show a team's logo where a Fighter's photo sits.
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
