@@ -43,7 +43,6 @@ const NOT_YET = [
   'apps/api/src/modules/tournament-query/tournament-query.tools.service.ts',
   'apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx',
   'apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowTimeline.tsx',
-  'apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx',
   'apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx',
   'apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx',

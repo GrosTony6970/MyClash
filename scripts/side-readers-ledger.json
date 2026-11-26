@@ -487,10 +487,15 @@
       "hits": 4,
       "why": "1b: the live timeline places cards by Registration (`:87`-`:88`)"
     },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the bout page's forfeit and override name a corner's side through `sideKey` over the row's four ids: `forfeitingRegistrationId` for a Fighter, `forfeitingTeamId` for a team, null while the side is to come"
+    },
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx": {
-      "verdict": "not-yet",
-      "hits": 8,
-      "why": "1b: the bout page reads sides and winner by Registration (`:423`-`:424`)"
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "the forfeit and override send the side `forfeitingSide` builds (a Fighter or a team), and ask no \"can continue?\" for a team; the page reads no winner: its one hit is a comment on the winner column's readers (`:244`)"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/page.tsx": {
       "verdict": "individual-only",

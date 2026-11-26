@@ -35,6 +35,7 @@ import { phaseCrumb, type PhaseType } from './phase-crumb';
 import { useForfeitAsks } from './useForfeitAsks';
 import { forfeitQuestion } from '@myclash/types/forfeit-rules';
 import { FORFEIT_REASON_LABEL_KEY as REASON_LABEL_KEY } from '@/lib/forfeit-reason-label';
+import { forfeitingSide, type BoutSideColumns } from './forfeiting-side';
 
 /** The one live forfeit-or-override on a match. `match_forfeits` allows no second. */
 interface ActiveForfeit {
@@ -80,16 +81,15 @@ interface Exchange {
 
 /**
  * The bout's row as `GET matches/:id` hands it: the database's column names.
- * It carries no fighter name; those come from the summary.
+ * It carries no fighter name; those come from the summary. A side is a Fighter's Registration or
+ * a team (`BoutSideColumns`).
  */
-interface Match {
+interface Match extends BoutSideColumns {
   id: string;
   match_number_label?: string | null;
   status: string;
   red_score?: number;
   blue_score?: number;
-  red_registration_id?: string | null;
-  blue_registration_id?: string | null;
   locked_at?: string | null;
 }
 
@@ -263,7 +263,10 @@ export default function MatchDetailPage() {
     boutEnded && !isOverrideReason(forfeitReason) ? OVERRIDE_REASONS[0] : forfeitReason;
   const isOverride = isOverrideReason(reason);
   const forfeitAsks = useForfeitAsks(apiUrl, summary?.tournamentId);
-  const asksCanContinue = forfeitQuestion(reason, forfeitAsks, summary?.phaseType).ask;
+  const side = match ? forfeitingSide(match, forfeitSide) : null;
+  // A team has no Fighter status: its forfeit asks nothing (call 4).
+  const asksCanContinue =
+    side?.kind !== 'team' && forfeitQuestion(reason, forfeitAsks, summary?.phaseType).ask;
   // Derived in render, not in an effect: what a void does is a pure function of
   // the record the API just returned.
   const voidCopy = voidConfirmCopy(activeForfeit?.cascade);
@@ -420,10 +423,7 @@ export default function MatchDetailPage() {
 
   async function handleForfeit() {
     if (!match) return;
-    const redId = match.red_registration_id;
-    const blueId = match.blue_registration_id;
-    const forfeitingRegistrationId = forfeitSide === 'red' ? redId : blueId;
-    if (!forfeitingRegistrationId) {
+    if (!side) {
       toast.error(t('admin.common.missingRegistrationId'));
       return;
     }
@@ -431,7 +431,8 @@ export default function MatchDetailPage() {
     const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
       method: 'POST',
       body: {
-        forfeitingRegistrationId,
+        // A Fighter by Registration, a team by its id: exactly one (call 8).
+        ...side.body,
         reason,
         // The DTO refuses canContinue on an override and requires the scores;
         // an override never withdraws anyone, so there is nothing to ask.
