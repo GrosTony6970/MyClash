@@ -69,6 +69,18 @@ describe('ReadinessRow', () => {
     expect(html).not.toContain('text-muted');
   });
 
+  it("shows the Tournament's name only when it is given one", () => {
+    const tagged = renderToStaticMarkup(
+      <I18nProvider locale="en">
+        <ul>
+          <ReadinessRow check={POOLS_OK} slug="club" eventId="ev1" tournamentName="Rapier" />
+        </ul>
+      </I18nProvider>,
+    );
+    expect(tagged).toContain('>Rapier</span>');
+    expect(render(POOLS_OK)).not.toContain('Rapier');
+  });
+
   it('leaves a cleared row unflagged, with a plain View link', () => {
     const html = render(POOLS_OK);
     expect(html).not.toContain('border-l-4');

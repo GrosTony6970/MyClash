@@ -8,7 +8,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { ReadinessRow } from '../_components/ReadinessPanel';
 import { isOutstanding, type ReadinessReport } from '../readiness-copy';
-import { buildStartOfDay, type StartOfDayStage } from '../start-of-day';
+import { buildStartOfDay, tournamentTag, type StartOfDayStage } from '../start-of-day';
 
 interface Props {
   slug: string;
@@ -104,7 +104,14 @@ function StageList({
       </p>
       <ol className="mt-4 space-y-4">
         {stages.map((stage, index) => (
-          <Stage key={stage.key} stage={stage} index={index + 1} slug={slug} eventId={eventId} />
+          <Stage
+            key={stage.key}
+            stage={stage}
+            index={index + 1}
+            report={report}
+            slug={slug}
+            eventId={eventId}
+          />
         ))}
       </ol>
     </>
@@ -122,11 +129,13 @@ function StageList({
 function Stage({
   stage,
   index,
+  report,
   slug,
   eventId,
 }: {
   stage: StartOfDayStage;
   index: number;
+  report: ReadinessReport;
   slug: string;
   eventId: string;
 }) {
@@ -156,6 +165,7 @@ function Stage({
               check={check}
               slug={slug}
               eventId={eventId}
+              tournamentName={tournamentTag(report, check) ?? undefined}
             />
           ))}
         </ul>

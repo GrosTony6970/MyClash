@@ -181,10 +181,13 @@ export function ReadinessRow({
   check,
   slug,
   eventId,
+  tournamentName,
 }: {
   check: ReadinessCheck;
   slug: string;
   eventId: string;
+  /** Shown beside the label where rows of several Tournaments share one list (Start of day). */
+  tournamentName?: string;
 }) {
   const { t } = useI18n();
   const href = readinessFixHref(check, slug, eventId);
@@ -204,6 +207,11 @@ export function ReadinessRow({
       <span className={`text-foreground ${outstanding ? 'font-semibold' : 'font-medium'}`}>
         {t(readinessLabelKey(check))}
       </span>
+      {tournamentName && (
+        <StatusBadge semantic="pending" size="sm">
+          {tournamentName}
+        </StatusBadge>
+      )}
       <span
         className={`min-w-0 flex-1 ${outstanding ? 'text-foreground-secondary' : 'text-muted'}`}
       >
