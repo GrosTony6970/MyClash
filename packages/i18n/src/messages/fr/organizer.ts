@@ -2739,6 +2739,9 @@ export const organizer = {
     refereesUnassign: 'Retirer',
     refereesUnassigned: 'Non affecté',
     refereesTournamentTabsLabel: 'Changer de tournoi',
+    refereesFilterLabel: 'Rechercher un arbitre',
+    refereesFilterPlaceholder: "Nom de l'arbitre",
+    refereesFilterNoMatch: "Aucun combat n'a d'arbitre correspondant à « {query} ».",
   },
   pools: {
     tabs: {

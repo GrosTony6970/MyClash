@@ -2780,6 +2780,9 @@ export const organizer = {
     refereesUnassign: 'Unassign',
     refereesUnassigned: 'Unassigned',
     refereesTournamentTabsLabel: 'Switch tournament',
+    refereesFilterLabel: 'Find a referee',
+    refereesFilterPlaceholder: 'Referee name',
+    refereesFilterNoMatch: 'No bout has a referee matching "{query}".',
   },
   pools: {
     tabs: {

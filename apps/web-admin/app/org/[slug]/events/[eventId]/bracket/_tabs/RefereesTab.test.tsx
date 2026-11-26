@@ -112,3 +112,53 @@ describe('a bracket bout card', () => {
     expect(text).not.toContain('·');
   });
 });
+
+/**
+ * The organiser types a referee's name to see every bout that referee works on.
+ * Accents, case and word order do not count; a bout with nobody on it drops out.
+ */
+describe('the referee-name filter', () => {
+  beforeEach(async () => {
+    await render([
+      bout('LSW-B-R16-M1', null, [slot('assessor', 'Mathieu Bellini')]),
+      bout('LSW-B-R16-M2', null, [slot('table', 'François Berdou')]),
+      bout('LSW-B-R16-M3', null, [slot('main', null)]),
+    ]);
+  });
+
+  const field = () =>
+    container.querySelector<HTMLInputElement>('input[aria-label="Find a referee"]')!;
+  const shownCodes = () =>
+    [...container.querySelectorAll('div.rounded-lg p.font-semibold.text-foreground')].map((p) =>
+      p.textContent?.replace('Longsword Open – ', ''),
+    );
+  const search = async (value: string) => {
+    await act(async () => {
+      const proto = Object.getPrototypeOf(field()) as object;
+      Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(field(), value);
+      field().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('shows every bout while empty', () => {
+    expect(shownCodes()).toEqual(['LSW-B-R16-M1', 'LSW-B-R16-M2', 'LSW-B-R16-M3']);
+  });
+
+  it('keeps only the bouts the named referee holds a slot on', async () => {
+    await search('bellini');
+    expect(shownCodes()).toEqual(['LSW-B-R16-M1']);
+  });
+
+  it('ignores accents and case', async () => {
+    await search('FRANCOIS');
+    expect(shownCodes()).toEqual(['LSW-B-R16-M2']);
+  });
+
+  it('says so when no bout matches, and shows them all again once cleared', async () => {
+    await search('zzz');
+    expect(shownCodes()).toEqual([]);
+    expect(container.textContent).toContain('No bout has a referee matching "zzz".');
+    await search('');
+    expect(shownCodes()).toEqual(['LSW-B-R16-M1', 'LSW-B-R16-M2', 'LSW-B-R16-M3']);
+  });
+});
