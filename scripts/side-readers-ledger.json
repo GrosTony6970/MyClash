@@ -483,9 +483,9 @@
       "why": "1c: the bracket screen and its forfeit by Registration (`:288`-`:299`)"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowTimeline.tsx": {
-      "verdict": "not-yet",
-      "hits": 4,
-      "why": "1b: the live timeline places cards by Registration (`:87`-`:88`)"
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the live timeline places cards and protests by the display payload's side keys (`redSideId` / `blueSideId`, built with `sideKey`), null before the bout loads (`:89`-`:90`)"
     },
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
       "verdict": "side-key",

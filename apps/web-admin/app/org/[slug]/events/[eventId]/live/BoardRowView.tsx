@@ -6,6 +6,7 @@ import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { healthCellText } from '@/lib/live-board/health-cell';
+import { BoardBoutLine } from '@/lib/live-board/board-bout-line';
 import { BoardRowDetail } from './BoardRowDetail';
 import { TabletsWarning } from './TabletsWarning';
 import { statusLabel } from '@myclash/ui';
@@ -91,7 +92,7 @@ export function BoardRowView({
             href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
             className="relative z-10 min-w-0 flex-1 truncate text-foreground hover:underline"
           >
-            {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
+            <BoardBoutLine match={cm} />
           </Link>
         ) : (
           <span className="min-w-0 flex-1 truncate text-muted">

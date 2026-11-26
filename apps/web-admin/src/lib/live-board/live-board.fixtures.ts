@@ -20,6 +20,8 @@ export function mkMatch(over: Partial<BoardMatch> = {}): BoardMatch {
     id: 'm1',
     redFighterName: 'Red',
     blueFighterName: 'Blue',
+    redColour: null,
+    blueColour: null,
     redScore: 0,
     blueScore: 0,
     status: 'running',

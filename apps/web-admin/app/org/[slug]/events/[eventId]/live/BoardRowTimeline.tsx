@@ -84,10 +84,10 @@ function useTimelineEvents(
         protests,
         redName,
         blueName,
-        // Optional on DisplayMatch. Without them penalties render with no side
-        // rather than failing — a sideless card beats an empty panel.
-        redRegId: match?.redRegistrationId ?? '',
-        blueRegId: match?.blueRegistrationId ?? '',
+        // Each side's key: a Fighter's Registration or a team. Null before the
+        // bout loads or while a side is to come: a card then shows no side.
+        redRegId: match?.redSideId ?? null,
+        blueRegId: match?.blueSideId ?? null,
         t,
         config,
       }),
