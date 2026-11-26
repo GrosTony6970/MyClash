@@ -40,11 +40,14 @@ const linkOf = (tournamentId: string, status: string) => ({
   status,
 });
 
-function harness(links: ChainResult | ChainResult[] = { data: { id: 'link-1' }, error: null }) {
+function harness(
+  links: ChainResult | ChainResult[] = { data: { id: 'link-1' }, error: null },
+  tournaments: Array<Record<string, unknown>> = TOURNAMENTS,
+) {
   const db = mockSupabase({
     // A platform admin manages every League: the League door's own bar is not this file's story.
     platform_roles: { data: { role: 'platform_admin' }, error: null },
-    tournaments: { rows: TOURNAMENTS },
+    tournaments: { rows: tournaments },
     league_groups: { rows: [] },
     league_tournament_links: links,
     league_organization_roles: { data: null, error: null },
@@ -181,6 +184,48 @@ describe('the League manager approves a link again', () => {
     expectTeamLeagueRefusal(
       await refusalOf(service.reviewTournamentLink('link-1', { status: 'approved' }, 'u-league')),
     );
+  });
+});
+
+/**
+ * A Tournament row with no kind (a read whose select left the column out) must not pass for an
+ * individual one: each door throws (`storedKind`) and writes nothing, as the rest of the slice does.
+ */
+describe('a Tournament whose kind was not read', () => {
+  const NO_KIND = { id: 't-blank', name: 'Blank', event_id: 'e-spring', events: EVENT };
+
+  const harnessWithoutKind = (links?: ChainResult) => harness(links, [NO_KIND]);
+
+  it.each([
+    [
+      'the organiser asks',
+      (s: LeaguesService) => s.requestTournamentLink('league-fr', 't-blank', 'u'),
+    ],
+    [
+      'the manager links',
+      (s: LeaguesService) => s.addTournamentLink('league-fr', 't-blank', 'u', null),
+    ],
+    [
+      'the manager links the Event',
+      (s: LeaguesService) => s.addEventTournamentLinks('league-fr', 'e-spring', 'u'),
+    ],
+  ] as const)('%s: throws, and writes no link', async (_story, door) => {
+    const { db, service } = harnessWithoutKind();
+
+    await expect(door(service)).rejects.toThrow("The Tournament's kind was not read");
+    expect(writesTo(db, 'league_tournament_links')).toEqual([]);
+  });
+
+  it('the manager approves a link again: throws, and writes nothing', async () => {
+    const { db, service } = harnessWithoutKind({
+      data: linkOf('t-blank', 'rejected'),
+      error: null,
+    });
+
+    await expect(
+      service.reviewTournamentLink('link-1', { status: 'approved' }, 'u-league'),
+    ).rejects.toThrow("The Tournament's kind was not read");
+    expect(writesTo(db, 'league_tournament_links')).toEqual([]);
   });
 });
 

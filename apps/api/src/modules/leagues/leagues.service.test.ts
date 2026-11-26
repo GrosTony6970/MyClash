@@ -350,12 +350,13 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
         }
 
         // tournaments: the new lookup that resolves the tournament's org.
-        // Returns the embedded events row with the org id (or null if no org).
+        // Returns the embedded events row with the org id (or null if no org), and the kind the
+        // approval reads first (an individual Tournament: NOT NULL, so a real row always has it).
         if (table === 'tournaments') {
           const data =
             opts.tournamentOrgId === undefined
               ? null
-              : { events: { organization_id: opts.tournamentOrgId } };
+              : { entrant_kind: 'individual', events: { organization_id: opts.tournamentOrgId } };
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),

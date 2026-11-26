@@ -10,6 +10,7 @@ import { entrantKindRefusal, teamTournamentLeague } from '../../common/entrant-k
 import type { UploadLimit } from '../../common/read-upload';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
+import { storedKind } from '../events/tournament-kind';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -883,7 +884,7 @@ export class LeaguesService {
   ) {
     const tournament = await this.getTournamentWithEvent(tournamentId);
     await this.orgs.assertOrgRole(String(tournament['organization_id']), userId, 'admin');
-    if (tournament['entrant_kind'] === 'team') throw teamTournamentLeague();
+    if (storedKind(tournament['entrant_kind']) === 'team') throw teamTournamentLeague();
     if (groupId) await this.assertGroupBelongsToLeague(groupId, leagueId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
@@ -1431,7 +1432,7 @@ export class LeaguesService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    if ((data as Row)['entrant_kind'] === 'team') throw teamTournamentLeague();
+    if (storedKind((data as Row)['entrant_kind']) === 'team') throw teamTournamentLeague();
   }
 
   /**
@@ -1476,7 +1477,7 @@ export class LeaguesService {
     if (error) throw new BadRequestException(error.message);
     const skipped: Array<{ id: string; name: string }> = [];
     for (const t of (tournaments ?? []) as Row[]) {
-      if (t['entrant_kind'] === 'team') {
+      if (storedKind(t['entrant_kind']) === 'team') {
         skipped.push({ id: String(t['id']), name: String(t['name']) });
         continue;
       }
