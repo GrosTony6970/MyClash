@@ -1376,6 +1376,11 @@ requireContains(
   'prod GOTRUE_URI_ALLOW_LIST',
   'https://api.${DOMAIN}/api/v1/auth/callback',
 );
+// web-admin calls GoTrue cross-origin and supabase-js sends `apikey`: without it
+// in GoTrue's CORS list the preflight fails and admin Google sign-in never
+// exchanges its code.
+requireContains(composeText, 'prod supabase-auth', 'GOTRUE_CORS_ALLOWED_HEADERS: apikey');
+requireContains(devComposeText, 'dev supabase-auth', 'GOTRUE_CORS_ALLOWED_HEADERS: apikey');
 
 // GoTrue is reachable directly at app.${DOMAIN}/auth/v1/*, so it — not our Zod
 // — is the boundary for account passwords. Its default is 6 characters with no

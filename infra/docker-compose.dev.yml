@@ -155,6 +155,9 @@ services:
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string instead of falling back to GOTRUE_SITE_URL. Host-locked.
       GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://staff.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback,https://admin.myclash.localhost/**,https://app.myclash.localhost/**,https://staff.myclash.localhost/**
+      # Mirrors prod: web-admin calls /auth/v1 cross-origin, and supabase-js
+      # sends `apikey`, which GoTrue's CORS list lacks by default.
+      GOTRUE_CORS_ALLOWED_HEADERS: apikey
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       GOTRUE_JWT_EXP: 3600
       # Mirrors prod so a password accepted here is accepted there. Groups are

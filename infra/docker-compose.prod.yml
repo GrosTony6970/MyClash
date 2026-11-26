@@ -242,6 +242,12 @@ services:
       # on the public app. Host-locked to our own subdomains: no cross-host
       # open-redirect. The explicit callback paths above are kept as belt-and-braces.
       GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://staff.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback,https://admin.${DOMAIN}/**,https://app.${DOMAIN}/**,https://staff.${DOMAIN}/**
+      # supabase-js sends `apikey` on every call, and GoTrue's CORS list lacks it
+      # (Supabase's Kong normally answers the preflight). web-admin reaches
+      # app.${DOMAIN}/auth/v1 cross-origin, so without this its Google sign-in
+      # preflight got no Allow-Origin, the code exchange never left the browser,
+      # and every admin Google sign-in failed. web-public calls it same-origin.
+      GOTRUE_CORS_ALLOWED_HEADERS: apikey
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
       # Password policy. This is the REAL boundary, not our Zod: the
