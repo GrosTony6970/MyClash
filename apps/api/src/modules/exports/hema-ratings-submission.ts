@@ -86,6 +86,8 @@ export interface SubmissionInput {
   clubs: SubmissionClub[];
   fighters: SubmissionFighter[];
   tournaments: SubmissionTournament[];
+  /** Names of the team Tournaments left out: the file takes one person against one person. */
+  teamTournaments: string[];
 }
 
 // ── Output shapes ─────────────────────────────────────────────────────────────
@@ -98,7 +100,8 @@ export type SubmissionWarningCode =
   | 'tournament_name_missing_gender'
   | 'tournament_name_missing_material'
   | 'tournament_no_matches'
-  | 'matches_excluded';
+  | 'matches_excluded'
+  | 'tournament_team_skipped';
 
 export interface SubmissionWarning {
   code: SubmissionWarningCode;
@@ -268,6 +271,7 @@ function collectWarnings(
   if (tournamentFiles.excluded > 0) {
     warnings.push({ code: 'matches_excluded', count: tournamentFiles.excluded, samples: [] });
   }
+  push('tournament_team_skipped', input.teamTournaments);
   return warnings;
 }
 

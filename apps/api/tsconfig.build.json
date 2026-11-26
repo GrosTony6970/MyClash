@@ -157,6 +157,9 @@
     // The team card world (team Tournaments 1b-2), shared by the team card tests. It imports
     // vitest.
     "src/modules/penalties/penalties.team-card.fixtures.ts",
+    // The HEMA Ratings export's Supabase double and seeded rows, shared by its two test files
+    // when the team Tournament tests were split out. It imports the service, not vitest.
+    "src/modules/exports/exports.service.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

@@ -41,9 +41,9 @@
       "why": "a key-name list: each Registration column maps to `registrations` beside its team twin mapped to `teams` (`:110`-`:125`), and the forfeit snapshots map both winners (`:439`-`:442`)"
     },
     "apps/api/src/modules/exports/exports.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "individual-only",
       "hits": 7,
-      "why": "1c: the HEMA Ratings export reads bouts by Registration (`:143`-`:150`); 1c skips team Tournaments and says so"
+      "why": "the file takes one person against one person; team Tournaments skipped and named (`tournament_team_skipped`): their bouts are never read"
     },
     "apps/api/src/modules/exports/hema-ratings-rows.ts": {
       "verdict": "individual-only",

@@ -3155,6 +3155,8 @@ export const organizer = {
       tournament_name_missing_material: 'Noms de tournoi sans matériau (Acier / Nylon / Bois)',
       tournament_no_matches: 'Tournois sans match soumissible — ils sont écartés',
       matches_excluded: 'Matchs écartés (forfaits et walk-overs), comme HEMA Ratings le demande',
+      tournament_team_skipped:
+        'Tournois par équipes écartés — le fichier HEMA Ratings oppose une personne à une autre',
     },
   },
   archive: {

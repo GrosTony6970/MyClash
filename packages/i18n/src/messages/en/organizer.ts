@@ -3183,6 +3183,8 @@ export const organizer = {
       tournament_name_missing_material: 'Tournament names with no material (Steel / Nylon / Wood)',
       tournament_no_matches: 'Tournaments with no submittable matches — these are left out',
       matches_excluded: 'Matches left out as walk-overs or forfeits, as HEMA Ratings requires',
+      tournament_team_skipped:
+        'Team tournaments left out — the HEMA Ratings file takes one person against one person',
     },
   },
   archive: {
