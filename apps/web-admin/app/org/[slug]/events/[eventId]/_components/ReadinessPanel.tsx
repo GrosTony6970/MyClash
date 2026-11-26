@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CollapsibleSection, StatusBadge, statusPillTone } from '@myclash/ui';
+import { CollapsibleSection, StatusBadge } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   isOutstanding,
   readinessFixHref,
   readinessLabelKey,
+  readinessMark,
   readinessMessageKey,
   readinessSemantic,
   type ReadinessCheck,
@@ -188,18 +189,36 @@ export function ReadinessRow({
   const { t } = useI18n();
   const href = readinessFixHref(check, slug, eventId);
   const message = t(readinessMessageKey(check), check.values ?? {});
+  const outstanding = isOutstanding(check);
 
+  // A row with work left is flagged and its Fix link is a button; a cleared row stays quiet, so
+  // the eye lands on the problems. The message is in the secondary ink: the muted one fails
+  // contrast on the flag's wash (known-deviations D35).
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
-      <LevelDot level={check.level} />
-      <span className="font-medium text-foreground">{t(readinessLabelKey(check))}</span>
-      <span className="min-w-0 flex-1 text-muted">{message}</span>
+    <li
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm ${
+        readinessMark(check.level).rowClassName
+      }`}
+    >
+      <LevelMark level={check.level} />
+      <span className={`text-foreground ${outstanding ? 'font-semibold' : 'font-medium'}`}>
+        {t(readinessLabelKey(check))}
+      </span>
+      <span
+        className={`min-w-0 flex-1 ${outstanding ? 'text-foreground-secondary' : 'text-muted'}`}
+      >
+        {message}
+      </span>
       {href && (
         <Link
           href={href}
-          className="flex-shrink-0 text-xs font-semibold text-accent hover:underline"
+          className={`flex-shrink-0 text-xs font-semibold text-accent ${
+            outstanding
+              ? 'rounded border border-accent px-2 py-0.5 hover:bg-accent hover:text-accent-foreground'
+              : 'hover:underline'
+          }`}
         >
-          {isOutstanding(check) ? t('organizer.readiness.fix') : t('organizer.readiness.view')}
+          {outstanding ? t('organizer.readiness.fix') : t('organizer.readiness.view')}
         </Link>
       )}
     </li>
@@ -207,19 +226,19 @@ export function ReadinessRow({
 }
 
 /**
- * Level is carried by an aria-labelled dot rather than colour alone — the
- * message text says what is wrong, but the severity would otherwise be
- * available only to people who can tell amber from red.
+ * Level is carried by an aria-labelled mark whose glyph differs per level, so
+ * the severity does not rest on telling amber from red.
  */
-function LevelDot({ level }: { level: ReadinessLevel }) {
+function LevelMark({ level }: { level: ReadinessLevel }) {
   const { t } = useI18n();
+  const mark = readinessMark(level);
   return (
     <span
-      className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full border ${
-        statusPillTone(readinessSemantic(level), 'light').className
-      }`}
+      className={`inline-flex h-[1.125rem] w-[1.125rem] flex-shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold leading-none ${mark.markClassName}`}
       role="img"
       aria-label={t(`organizer.readiness.level.${level}`)}
-    />
+    >
+      <span aria-hidden="true">{mark.glyph}</span>
+    </span>
   );
 }
