@@ -3,6 +3,7 @@ import {
   refereeNamesOnly,
   resolveMatchReferees,
   type MatchRefereeTarget,
+  winningAssignmentRows,
   type RefereeAssignmentRow,
 } from './resolve-match-referees';
 
@@ -117,6 +118,42 @@ describe('resolveMatchReferees', () => {
       row({ scopeType: 'lice', liceId: 'l1', name: 'Lice Ref' }),
     ];
     expect(names(rows, { matchId: 'm1', poolId: null, liceId: null })).toEqual([]);
+  });
+});
+
+describe('winningAssignmentRows', () => {
+  type Held = RefereeAssignmentRow & { personId: string };
+  const held = (over: Partial<Held>): Held => ({ ...row({}), personId: 'p', ...over });
+  const people = (rows: Held[], t: MatchRefereeTarget = target) =>
+    winningAssignmentRows(rows, t).map((r) => r.personId);
+
+  it('match tier wins across roles and keeps the extra field', () => {
+    const rows = [
+      held({ scopeType: 'lice', liceId: 'l1', personId: 'lice' }),
+      held({ scopeType: 'pool', poolId: 'p1', personId: 'pool' }),
+      held({ scopeType: 'match', matchId: 'm1', role: 'a', personId: 'head' }),
+      held({ scopeType: 'match', matchId: 'm1', role: 'b', personId: 'table' }),
+    ];
+    expect(people(rows)).toEqual(['head', 'table']);
+  });
+
+  it('pool tier when no match row', () => {
+    const rows = [
+      held({ scopeType: 'lice', liceId: 'l1', personId: 'lice' }),
+      held({ scopeType: 'pool', poolId: 'p1', personId: 'pool' }),
+      held({ scopeType: 'match', matchId: 'OTHER', personId: 'elsewhere' }),
+    ];
+    expect(people(rows)).toEqual(['pool']);
+  });
+
+  it('lice tier last', () => {
+    expect(people([held({ scopeType: 'lice', liceId: 'l1', personId: 'lice' })])).toEqual(['lice']);
+  });
+
+  it('none when nothing covers the target', () => {
+    const rows = [held({ scopeType: 'pool', poolId: 'OTHER' })];
+    expect(people(rows)).toEqual([]);
+    expect(people(rows, { matchId: 'm1', poolId: null, liceId: null })).toEqual([]);
   });
 });
 

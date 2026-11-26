@@ -88,22 +88,33 @@ export function refereeNamesOnly(referees: readonly ResolvedReferee[]): string[]
   return Array.from(new Set(referees.map((r) => r.name)));
 }
 
-export function resolveMatchReferees(
-  rows: RefereeAssignmentRow[],
-  target: MatchRefereeTarget,
-): ResolvedReferee[] {
+/**
+ * The scope precedence, once: the rows of the first tier (match, then pool, then lice) that
+ * has ANY row for the target — the whole tier wins across roles, not role by role. Generic
+ * so a caller whose rows carry more (a person id) keeps it.
+ */
+export function winningAssignmentRows<
+  R extends Pick<RefereeAssignmentRow, 'scopeType' | 'matchId' | 'poolId' | 'liceId'>,
+>(rows: readonly R[], target: MatchRefereeTarget): R[] {
   const matchScope = rows.filter((r) => r.scopeType === 'match' && r.matchId === target.matchId);
-  if (matchScope.length > 0) return uniqueReferees(matchScope);
+  if (matchScope.length > 0) return matchScope;
 
   if (target.poolId) {
     const poolScope = rows.filter((r) => r.scopeType === 'pool' && r.poolId === target.poolId);
-    if (poolScope.length > 0) return uniqueReferees(poolScope);
+    if (poolScope.length > 0) return poolScope;
   }
 
   if (target.liceId) {
     const liceScope = rows.filter((r) => r.scopeType === 'lice' && r.liceId === target.liceId);
-    if (liceScope.length > 0) return uniqueReferees(liceScope);
+    if (liceScope.length > 0) return liceScope;
   }
 
   return [];
+}
+
+export function resolveMatchReferees(
+  rows: RefereeAssignmentRow[],
+  target: MatchRefereeTarget,
+): ResolvedReferee[] {
+  return uniqueReferees(winningAssignmentRows(rows, target));
 }
