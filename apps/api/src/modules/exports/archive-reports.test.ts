@@ -21,6 +21,7 @@ function tables(over: Partial<ArchiveTables> = {}): ArchiveTables {
   return {
     persons: [],
     registrations: [],
+    teams: [],
     phases: [],
     pools: [],
     bracketSlots: [],
@@ -366,6 +367,53 @@ describe('names', () => {
 
     expect(reports.resultsCsv.split('\n')[1]).toContain('max_doubles');
     expect(reports.matchesCsv.split('\n')[1]).toContain('max_doubles');
+  });
+});
+
+describe('a team Tournament', () => {
+  const teamTables = () =>
+    tables({
+      teams: [
+        { id: 'tm-1', tournament_id: 't-1', name: 'Nantes' },
+        { id: 'tm-2', tournament_id: 't-1', name: 'Lyon' },
+        { id: 'tm-other', tournament_id: 't-2', name: 'Elsewhere' },
+      ],
+      phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }],
+      matches: [
+        {
+          id: 'm-1',
+          phase_id: 'ph-1',
+          status: 'completed',
+          match_number_label: 'M1',
+          red_team_id: 'tm-1',
+          blue_team_id: 'tm-2',
+          red_score: 5,
+          blue_score: 2,
+          winner_team_id: 'tm-1',
+        },
+      ],
+    });
+
+  it('names each side and the winner by its team in the results', () => {
+    const reports = buildTournamentReports(TOURNAMENT, teamTables());
+
+    expect(reports.resultsCsv.split('\n')[1]).toBe('LSW-M1,M1,Nantes,Lyon,5,2,Nantes,');
+    expect(reports.resultsCsv).not.toContain('Unknown fighter');
+  });
+
+  it('carries the team columns in the machine-readable bouts', () => {
+    const reports = buildTournamentReports(TOURNAMENT, teamTables());
+    const [header, row] = reports.matchesCsv.split('\n');
+
+    expect(header).toContain('red_team_id,blue_team_id');
+    expect(header).toContain('winner_team_id');
+    expect(row).toContain('tm-1,tm-2');
+  });
+
+  it('ranks the teams of the Tournament, and no other', () => {
+    const reports = buildTournamentReports(TOURNAMENT, teamTables());
+
+    expect(reports.rankingsCsv.split('\n').slice(1)).toEqual(['1,Nantes,1,5,2', '2,Lyon,0,2,5']);
   });
 });
 

@@ -31,9 +31,14 @@
       "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive, and leaves a team's forfeit and a team's card out, never keyed as \"null\" (`fighterOf` answers null, `:50`-`:53`; `fighterBlackCards` keeps only a card that names a Registration, `:64`-`:73`)"
     },
     "apps/api/src/modules/exports/archive-reports.ts": {
-      "verdict": "not-yet",
-      "hits": 13,
-      "why": "1c: the archive report names bout sides by Registration (`:204`-`:303`); a people path of 1c"
+      "verdict": "side-key",
+      "hits": 9,
+      "why": "the archive reports read both kinds of each side of the snapshot's bouts: the bout CSV carries the team columns, the results name each side and the winner through `sideName` (`sideLabel`), the rankings table is keyed by side with `boutSideKey` and `winnerSideKey` (teams when the Tournament has any)"
+    },
+    "apps/api/src/modules/exports/archive-report-sides.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "keys each side and the winner of a snapshot bout with `sideKey` (a Registration or a team, never both) and names a side through `sideLabel`"
     },
     "apps/api/src/modules/exports/archive.tables.ts": {
       "verdict": "no-side-read",
