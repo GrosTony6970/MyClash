@@ -263,9 +263,9 @@
       "why": "the add body names a Registration or a team (`AddPoolMemberDto`) and hands each to its own service door; remove hands the seat key on; it keys and compares no side"
     },
     "apps/api/src/modules/phases/phases.service.ts": {
-      "verdict": "not-yet",
+      "verdict": "side-key",
       "hits": 62,
-      "why": "1c: the bracket writers name a side by kind (`seatColumns`), and a team bracket is sized and seeded by its teams; the bracket read and its seeding drift still read slots by Registration (`getTournamentBracket`, `computeSeedingDrift`). A team Tournament is refused before generation (`team_tournament_not_supported`) only when the call names its actor: the `actorUserId === 'system'` default skips the check. No caller passes it today; the guard for it is 1c. The Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
+      "why": "the bracket writers name a side by kind (`seatColumns`); a team bracket is sized and seeded by its teams; a team Tournament takes single elimination only, checked for every caller at generation, fill and reseed (`assertTeamBracket`, call 2). The Pools take teams (`poolEntrantColumns`, `poolSeatOf`). The bracket read and its seeding drift (`getTournamentBracket`, `computeSeedingDrift`) still read slots by Registration: task T6 of 1c-1 moves them to side keys and recounts this line"
     },
     "apps/api/src/modules/phases/pool-entrant.ts": {
       "verdict": "no-side-read",

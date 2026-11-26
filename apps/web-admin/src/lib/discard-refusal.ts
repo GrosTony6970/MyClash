@@ -11,7 +11,7 @@ import { kindRefusal } from './named-refusal';
  * so these screens ask here first and fall back to `failureMessage`.
  *
  * A generation is also refused for the Tournament's kind of entrant (a team
- * Tournament takes no bracket; a field or a seat of the other kind): said in
+ * Tournament takes no double elimination; a field or a seat of the other kind): said in
  * the reader's language too (`kindRefusal`).
  */
 export function discardFailureMessage(

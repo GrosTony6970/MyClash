@@ -8,10 +8,11 @@ import { I18nProvider } from '@/i18n/I18nProvider';
 import BracketPage from './page';
 
 /**
- * A team Tournament takes no bracket in slice 1b-1: the API refuses the generation with a 409 whose
- * `details.reason` is `team_tournament_not_supported`. The page said the API's English sentence, to
- * a French organiser too, and first read the 409 as "a bracket exists" and offered to overwrite it.
- * Now it says the refusal in the reader's language, and asks nothing.
+ * A team Tournament takes no double elimination (call 2 of slice 1c-1): the API refuses the
+ * generation with a 409 whose `details.reason` is `team_tournament_not_supported`. The page said the
+ * API's English sentence, to a French organiser too, and first read the 409 as "a bracket exists"
+ * and offered to overwrite it. Now it says the refusal in the reader's language, and asks nothing.
+ * The API double here refuses whatever bracket is asked: the refusal is what is under test.
  */
 
 vi.mock('next/navigation', () => ({
@@ -35,8 +36,7 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const API_SENTENCE =
-  'A team Tournament runs Pools only for now: it takes no bracket and no Swiss phase.';
+const API_SENTENCE = 'A team Tournament takes no double elimination and no Swiss phase yet.';
 const NOT_SUPPORTED = {
   ok: false,
   kind: 'http',
@@ -123,15 +123,13 @@ async function tap(label: string) {
 
 const page = () => document.body.textContent ?? '';
 
-describe('Bracket page: a team Tournament takes no bracket', () => {
+describe('Bracket page: a team Tournament takes no double elimination', () => {
   it('says so in English, and offers no overwrite', async () => {
     await openPage('en');
 
     await tap('Generate bracket');
 
-    expect(page()).toContain(
-      'A team tournament runs pools only for now: it takes no bracket and no Swiss phase.',
-    );
+    expect(page()).toContain('Double elimination and Swiss do not take teams yet.');
     expect(page()).not.toContain(API_SENTENCE);
     expect(page()).not.toContain('Regenerate bracket?');
     expect(sent).toEqual([GENERATE]);
@@ -143,7 +141,7 @@ describe('Bracket page: a team Tournament takes no bracket', () => {
     await tap('Générer le tableau');
 
     expect(page()).toContain(
-      "Un tournoi par équipes se joue en poules seulement pour l'instant : il ne prend ni tableau ni phase suisse.",
+      "La double élimination et la phase suisse ne prennent pas encore d'équipes.",
     );
     expect(page()).not.toContain(API_SENTENCE);
   });

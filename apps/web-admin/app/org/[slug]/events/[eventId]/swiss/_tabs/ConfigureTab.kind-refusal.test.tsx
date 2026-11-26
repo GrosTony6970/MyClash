@@ -10,7 +10,7 @@ import type { SwissAdminView, UseSwissAdmin } from '../useSwissAdmin';
 import { ConfigureTab } from './ConfigureTab';
 
 /**
- * A team Tournament takes no Swiss phase in slice 1b-1: the API refuses the generation with a 409
+ * A team Tournament takes no Swiss phase (ADR-022): the API refuses the generation with a 409
  * whose `details.reason` is `team_tournament_not_supported`. The tab said the API's English
  * sentence, to a French organiser too. Now it says the refusal in the reader's language.
  */
@@ -26,8 +26,7 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const API_SENTENCE =
-  'A team Tournament runs Pools only for now: it takes no bracket and no Swiss phase.';
+const API_SENTENCE = 'A team Tournament takes no double elimination and no Swiss phase yet.';
 
 /** A Tournament with no Swiss phase yet, and two teams: the Generate button is live. */
 const VIEW: SwissAdminView = {

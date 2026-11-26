@@ -763,7 +763,7 @@ export const organizer = {
       maxTeams: 'Équipes max.',
       badge: 'Équipe',
       teamNotSupported:
-        "Un tournoi par équipes se joue en poules seulement pour l'instant : il ne prend ni tableau ni phase suisse.",
+        "La double élimination et la phase suisse ne prennent pas encore d'équipes.",
       mismatch:
         "Ce tournoi accueille l'autre type de participant : un tournoi par équipes accueille des équipes, un tournoi individuel des combattants.",
       fieldRefused:

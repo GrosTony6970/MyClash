@@ -339,8 +339,7 @@ describe('generateBracket — a team Tournament', () => {
       },
     });
 
-    // The guard that refuses a team Tournament runs for a named actor only, until T5.
-    await service.generateBracket(TEAM_T, {}, false, 'system');
+    await service.generateBracket(TEAM_T, {}, false, 'actor-1');
 
     const phase = writesTo(supabase, 'phases').find((write) => write.op === 'insert');
     expect((phase?.row as SupabaseRow)['config_json']).toMatchObject({ fighterCount: 3 });
@@ -361,7 +360,9 @@ describe('generateBracket — a team Tournament', () => {
     expect(bouts.length).toBeGreaterThan(0);
     for (const bout of bouts) expect(bout).toMatchObject(teamBout(null, null));
     expect(selectsFor(supabase.from, 'teams')).toEqual(['id, seed, created_at']);
-    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['entrant_kind']);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual([
+      'id, entrant_kind, events!inner(organization_id)',
+    ]);
     expect(queriedTables(supabase.from)).not.toContain('registrations');
   });
 });

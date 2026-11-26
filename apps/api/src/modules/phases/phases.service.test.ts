@@ -141,8 +141,9 @@ describe('PhasesService.generateBracket — authorization', () => {
 
   it('lets the system actor through, as the auto-advance paths rely on', async () => {
     // 'system' is the default and the sentinel populateBracket already uses.
-    // The org lookup lives inside the actor branch, so the system path must
-    // never reach it: its one Tournament read is the kind the count needs.
+    // The org check lives inside the actor branch, so the system path never
+    // makes it. Its one Tournament read is the kind: checked for every caller,
+    // and passed to the count.
     const { service, supabase } = makeService({
       phases: { rows: [] },
       tournaments: { rows: TOURNAMENTS },
@@ -152,8 +153,10 @@ describe('PhasesService.generateBracket — authorization', () => {
     await service.generateBracket('t-1', { phaseType: 'single_elim' } as never).catch(() => {});
 
     expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
-    expect(queriedTables(supabase.from)).toEqual(['phases', 'tournaments', 'registrations']);
-    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['entrant_kind']);
+    expect(queriedTables(supabase.from)).toEqual(['tournaments', 'phases', 'registrations']);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual([
+      'id, entrant_kind, events!inner(organization_id)',
+    ]);
   });
 });
 
@@ -849,6 +852,7 @@ describe('PhasesService', () => {
         phases: {
           rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'single_elim' }],
         },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
       });
 
       await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
@@ -872,7 +876,10 @@ describe('PhasesService', () => {
     });
 
     it('throws BadRequestException when generated bracket would exceed 128 slots', async () => {
-      const { service } = makeService({ phases: { rows: [] } });
+      const { service } = makeService({
+        phases: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
+      });
 
       await expect(
         service.generateBracket('tournament-1', { qualifyCount: 256 }, false),

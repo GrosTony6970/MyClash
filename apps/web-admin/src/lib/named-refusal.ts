@@ -29,8 +29,8 @@ export function refusalKey(r: ApiFailure, keys: RefusalKeys): string | undefined
 
 /**
  * The refusals of a Tournament's kind of entrant (`apps/api/src/common/entrant-kind-refusal.ts`,
- * `events/tournament-kind.ts`, `phases/team-pool-draw.ts`): a bracket or a Swiss phase asked of a
- * team Tournament, an entrant of the other kind seated in a Pool, a field the kind refuses.
+ * `events/tournament-kind.ts`, `phases/team-pool-draw.ts`): double elimination or a Swiss phase asked
+ * of a team Tournament, an entrant of the other kind seated in a Pool, a field the kind refuses.
  */
 const KIND_REFUSALS: RefusalKeys = {
   conflict: {

@@ -31,12 +31,12 @@ const REFUSALS = [
 const CHECK_VIOLATION = '23514';
 
 /**
- * The 409 for what a team Tournament does not take yet: in slice 1b-1 a team Tournament runs
- * Pools only. A bracket of teams lands in 1c; Swiss has no team path (ADR-022). A route that is
- * not a phase says its own English sentence; the `reason` stays the same.
+ * The 409 for what a team Tournament does not take yet: its Pools and a single elimination bracket
+ * run, double elimination and Swiss have no team path (ADR-022, call 2 of slice 1c-1). A route that
+ * is not a phase says its own English sentence; the `reason` stays the same.
  */
 export function teamTournamentNotSupported(
-  message = 'A team Tournament runs Pools only for now: it takes no bracket and no Swiss phase.',
+  message = 'A team Tournament takes no double elimination and no Swiss phase yet.',
 ): ConflictException {
   return new ConflictException({ reason: 'team_tournament_not_supported', message });
 }

@@ -26,7 +26,6 @@ import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema
 import { randomInt } from 'node:crypto';
 import type { TeamEmbed } from '../matches/side-label';
 import { storedKind, type EntrantKind } from '../events/tournament-kind';
-import { teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
 import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
 import {
   assertSeatFitsKind,
@@ -35,7 +34,13 @@ import {
   type PoolSeatColumns,
 } from './pool-entrant';
 import { teamDrawOf, teamPoolMap, type DrawTeam } from './team-pool-draw';
-import { assertTeamSeeding, rankTeamsBySeed, rankTeamsRandom } from './team-bracket-ranking';
+import {
+  assertTeamBracket,
+  assertTeamBracketType,
+  assertTeamSeeding,
+  rankTeamsBySeed,
+  rankTeamsRandom,
+} from './team-bracket-ranking';
 import { EMPTY_SLOT_SIDES, seatColumns } from './seat-columns';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import: a DI dependency (see di-wiring.regression.test.ts).
@@ -509,39 +514,15 @@ export class PhasesService {
     force = false,
     actorUserId = 'system',
   ) {
-    // Authorization, which this endpoint has never had. Its three siblings —
-    // populateBracket, reseedBracketRoundOne and deleteBracketPhase — all
-    // assert org admin; this one took no actor at all, so `?force=true`
-    // (a DELETE of the phase, cascading to every match, exchange, card,
-    // forfeit and referee assignment under it) ran for anyone the global
-    // AuthGuard admitted, in any organisation.
-    let organizationId: string | null = null;
-    if (actorUserId !== 'system') {
-      const { data: tournamentRow } = await this.supabase.service
-        .from('tournaments')
-        .select('id, entrant_kind, events!inner(organization_id)')
-        .eq('id', tournamentId)
-        .maybeSingle();
-      const eventEmbed = (tournamentRow as Record<string, unknown> | null)?.['events'];
-      const event = Array.isArray(eventEmbed) ? eventEmbed[0] : eventEmbed;
-      const orgId = (event as Record<string, unknown> | null)?.['organization_id'];
-      if (!this.orgs || typeof orgId !== 'string') {
-        throw new BadRequestException('Tournament organization could not be resolved');
-      }
-      await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
-      organizationId = orgId;
-      // A team Tournament runs Pools only in 1b-1: refused before any read or write of a phase.
-      // Every caller names its actor (the controller, the organiser's assistant); 'system' is
-      // the default no caller passes.
-      const kind = (tournamentRow as { entrant_kind?: unknown }).entrant_kind;
-      if (storedKind(kind) === 'team') throw teamTournamentNotSupported();
-    }
-
     const phaseType = dto.phaseType ?? 'single_elim';
     const isDoubleElim = phaseType === 'double_elim';
     // Stamped onto config_json only. generateBracket builds the STRUCTURE;
     // populateBracket resolves the rank order from this value later.
     const seedingStrategy = dto.seedingStrategy ?? 'snake';
+    const { kind, organizationId } = await this.admitBracketGeneration(tournamentId, actorUserId, {
+      phaseType,
+      seedingStrategy,
+    });
 
     // Check for existing elim phase
     const { data: existing } = await this.supabase.service
@@ -561,10 +542,12 @@ export class PhasesService {
     // read below has passed.
     const replaced = existing && force ? (existing as { id: string }).id : null;
 
-    const qualifyCount = dto.qualifyCount || (await this.countBracketEntrants(tournamentId));
+    const qualifyCount = dto.qualifyCount || (await this.countBracketEntrants(tournamentId, kind));
 
     if (qualifyCount < 2) {
-      throw new BadRequestException('Need at least 2 fighters to generate a bracket');
+      throw new BadRequestException(
+        `Need at least 2 ${kind === 'team' ? 'teams' : 'fighters'} to generate a bracket`,
+      );
     }
 
     // R1 registration seeding is intentionally NOT applied here.
@@ -719,11 +702,50 @@ export class PhasesService {
   }
 
   /**
+   * The Tournament a bracket is generated for, read once: its organisation and its kind.
+   *
+   * Authorization, which this endpoint once lacked: its three siblings (populateBracket,
+   * reseedBracketRoundOne, deleteBracketPhase) assert org admin, and `?force=true` deletes the
+   * phase and every bout under it. A named actor must be an admin of the Tournament's
+   * organisation; 'system' is the default no caller passes.
+   *
+   * The kind is checked for every caller, 'system' included, before any phase is read or written:
+   * a team Tournament takes single elimination only, seeded by a strategy a team takes (call 2,
+   * `assertTeamBracket`).
+   */
+  private async admitBracketGeneration(
+    tournamentId: string,
+    actorUserId: string,
+    bracket: { phaseType: string; seedingStrategy: SeedingStrategy },
+  ): Promise<{ kind: EntrantKind; organizationId: string | null }> {
+    const { data: tournamentRow, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, entrant_kind, events!inner(organization_id)')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    let organizationId: string | null = null;
+    if (actorUserId !== 'system') {
+      const eventEmbed = (tournamentRow as Record<string, unknown> | null)?.['events'];
+      const event = Array.isArray(eventEmbed) ? eventEmbed[0] : eventEmbed;
+      const orgId = (event as Record<string, unknown> | null)?.['organization_id'];
+      if (!this.orgs || typeof orgId !== 'string') {
+        throw new BadRequestException('Tournament organization could not be resolved');
+      }
+      await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+      organizationId = orgId;
+    }
+    const kind = storedKind((tournamentRow as { entrant_kind?: unknown } | null)?.entrant_kind);
+    if (kind === 'team') assertTeamBracket(bracket.phaseType, bracket.seedingStrategy);
+    return { kind, organizationId };
+  }
+
+  /**
    * How many entrants a bracket takes when the organiser names no count: every team of a team
    * Tournament (a team has no status), else the active Registrations.
    */
-  private async countBracketEntrants(tournamentId: string): Promise<number> {
-    if ((await this.readEntrantKind(tournamentId)) === 'team') {
+  private async countBracketEntrants(tournamentId: string, kind: EntrantKind): Promise<number> {
+    if (kind === 'team') {
       return (await this.readTeamsForDraw(tournamentId)).length;
     }
     const { data: regs } = await this.supabase.service
@@ -950,6 +972,7 @@ export class PhasesService {
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
     const kind = storedKind(tournament?.['entrant_kind']);
+    if (kind === 'team') assertTeamBracketType(phaseType);
 
     // Load all R1 bracket slots for this phase.
     const r1Round = phaseType === 'double_elim' ? 1 : 1;
@@ -1158,11 +1181,12 @@ export class PhasesService {
     const organizationId = eventEmbed['organization_id'] as string;
     const kind = storedKind(tournamentEmbed['entrant_kind']);
 
-    // 2. Auth — non-system actors must be org admins.
+    // 2. Auth — non-system actors must be org admins. The kind is checked for every actor.
     if (actorUserId !== 'system') {
       if (!this.orgs) throw new BadRequestException('Organizations service not wired');
       await this.orgs.assertOrgRole(organizationId, actorUserId, 'admin');
     }
+    if (kind === 'team') assertTeamBracketType(phaseRow['type'] as string);
 
     // 3. Resolve seeding mode (DTO > persisted > default).
     const persistedMode = config['populateSeedingMode'] as 'overall' | 'top-n-per-pool' | undefined;

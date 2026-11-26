@@ -28,6 +28,25 @@ export function assertTeamSeeding(strategy: SeedingStrategy): void {
   }
 }
 
+/**
+ * Throws the named 409 for a bracket a team Tournament does not take (call 2): double elimination.
+ * Single elimination passes. Every bracket door calls it, whoever the actor.
+ */
+export function assertTeamBracketType(phaseType: string): void {
+  if (phaseType === 'double_elim') throw teamTournamentNotSupported();
+}
+
+/**
+ * The generation check of a team bracket: its type, and its seeding strategy. The strategy is
+ * refused at generation, not only when the bracket is filled: the fill after the last Pool bout
+ * runs as 'system' and only logs a refusal, so a bracket stamped with a strategy a team does not
+ * take would never fill and nobody would be told.
+ */
+export function assertTeamBracket(phaseType: string, strategy: SeedingStrategy): void {
+  assertTeamBracketType(phaseType);
+  assertTeamSeeding(strategy);
+}
+
 /** The teams by seed, ranked 1..N in that order. */
 export function rankTeamsBySeed(teams: readonly DrawTeam[]): RankedEntrant[] {
   return orderTeams(teams, { teamSpread: 'seed' }).map((team, index) => ({

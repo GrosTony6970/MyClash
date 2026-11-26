@@ -673,7 +673,7 @@ export default function BracketPage() {
 
       // NOT a message: a 409 means a bracket exists, and the screen offers to overwrite it. Only
       // for a call that did not force: a forced one is past that question. A refusal of the
-      // Tournament's kind (a team Tournament takes no bracket) is no such 409: it is said below.
+      // Tournament's kind (a team Tournament takes no double elimination) is no such 409: said below.
       if (!force && !r.ok && r.kind === 'http' && r.status === 409 && !kindRefusal(r, t)) {
         setShowForceConfirm(true);
         return;
