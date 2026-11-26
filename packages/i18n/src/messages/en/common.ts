@@ -312,5 +312,9 @@ export const common = {
     running: 'Simulated time: {time}',
     paused: 'Simulated time, paused: {time}',
   },
+  // The target-zone bar's legend. Here because the organiser and public stats share it.
+  pointDistribution: {
+    segment: '{points} pt',
+  },
   rulesChange,
 } as const satisfies MessageTree;

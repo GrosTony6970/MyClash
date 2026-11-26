@@ -17,7 +17,13 @@
  */
 
 import type { TranslationValues } from '@myclash/i18n';
-import { blowCount, blowValueColumns, tintTextClassFor, type AfterblowRule } from '@myclash/ui';
+import {
+  blowCount,
+  blowValueColumns,
+  PointValueBar,
+  tintTextClassFor,
+  type AfterblowRule,
+} from '@myclash/ui';
 import type { FighterStats, Overview, TargetValueStats } from './stats-data';
 
 /** Structural translator type — satisfied by both `getServerT()` and `useI18n().t`. */
@@ -83,7 +89,6 @@ export function StatsView({ overview, fighters, afterblow, targets, colorToken, 
 
   // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
   const targetTotal = targets.distribution.reduce((s, d) => s + d.cleanHits, 0);
-  const DIST_COLORS = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4'];
 
   // Exchange type distribution
   // Every value, not just 1 and 2 — summing two named buckets undercounted any
@@ -241,26 +246,7 @@ export function StatsView({ overview, fighters, afterblow, targets, colorToken, 
             {t('publicApp.tournamentStats.pointDistributionTitle')}
           </h2>
           <div className="bg-surface border border-border rounded-xl p-4">
-            <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
-              {targets.distribution.map((d, i) => (
-                <div
-                  key={d.value}
-                  className={`${DIST_COLORS[i % DIST_COLORS.length]} transition-all`}
-                  style={{ width: `${(d.cleanHits / targetTotal) * 100}%` }}
-                />
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-4 text-xs text-muted">
-              {targets.distribution.map((d, i) => (
-                <span key={d.value}>
-                  <span
-                    className={`inline-block w-2 h-2 rounded-full ${DIST_COLORS[i % DIST_COLORS.length]} mr-1`}
-                  />
-                  {t('publicApp.tournamentStats.pointDistributionSegment', { points: d.value })}{' '}
-                  {pct(d.cleanHits, targetTotal)}
-                </span>
-              ))}
-            </div>
+            <PointValueBar distribution={targets.distribution} t={t} />
           </div>
         </section>
       )}

@@ -1263,7 +1263,6 @@ export const organizer = {
     },
     pointDistribution: {
       title: 'Zones de cible',
-      segment: '{points} pt',
       noWeapon: 'Sans arme',
     },
     referees: {

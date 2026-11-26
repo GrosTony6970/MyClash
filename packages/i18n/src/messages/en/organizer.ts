@@ -1268,7 +1268,6 @@ export const organizer = {
     },
     pointDistribution: {
       title: 'Target zones',
-      segment: '{points} pt',
       noWeapon: 'No weapon',
     },
     referees: {

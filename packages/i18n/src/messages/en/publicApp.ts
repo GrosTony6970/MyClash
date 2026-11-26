@@ -1975,6 +1975,5 @@ export const publicApp = {
     deepTargetsTitle: 'Deep-target hunters',
     deepTargetsCaption: 'Deepest target ({points} pts)',
     pointDistributionTitle: 'Target zones',
-    pointDistributionSegment: '{points} pt',
   },
 } as const satisfies MessageTree;

@@ -1,19 +1,14 @@
 'use client';
 
+import { PointValueBar, type Translator } from '@myclash/ui';
 import type { WeaponTargetStats } from './types';
 
-type Translate = (key: string, values?: Record<string, string | number>) => string;
-
-// Chart series tokens for point-value segments, lowest value first. Not the
-// status colours: warning and danger are both orange-red and read as one.
-const VALUE_COLORS = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4'];
-
-function weaponLabel(weapon: string | null, t: Translate): string {
+function weaponLabel(weapon: string | null, t: Translator): string {
   return weapon ?? t('organizer.eventStats.pointDistribution.noWeapon');
 }
 
 // ── Deep-target hunters (top 5 per weapon) ──────────────────────────────────
-function HuntersCard({ w, t }: { w: WeaponTargetStats; t: Translate }) {
+function HuntersCard({ w, t }: { w: WeaponTargetStats; t: Translator }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <h5 className="font-display text-base font-semibold capitalize text-foreground">
@@ -48,34 +43,13 @@ function HuntersCard({ w, t }: { w: WeaponTargetStats; t: Translate }) {
 }
 
 // ── 1pt / 2pt / 3pt distribution bar (per weapon) ───────────────────────────
-function DistributionCard({ w, t }: { w: WeaponTargetStats; t: Translate }) {
-  const total = w.distribution.reduce((s, d) => s + d.cleanHits, 0);
-  const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '0%');
+function DistributionCard({ w, t }: { w: WeaponTargetStats; t: Translator }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <h5 className="mb-3 font-display text-base font-semibold capitalize text-foreground">
         {weaponLabel(w.weapon, t)}
       </h5>
-      <div className="mb-2 flex h-7 gap-0.5 overflow-hidden rounded-md">
-        {w.distribution.map((d, i) => (
-          <div
-            key={d.value}
-            className={VALUE_COLORS[i % VALUE_COLORS.length]}
-            style={{ width: pct(d.cleanHits) }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-4 text-xs text-muted">
-        {w.distribution.map((d, i) => (
-          <span key={d.value} className="inline-flex items-center gap-1.5">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${VALUE_COLORS[i % VALUE_COLORS.length]}`}
-            />
-            {t('organizer.eventStats.pointDistribution.segment', { points: d.value })}{' '}
-            {pct(d.cleanHits)}
-          </span>
-        ))}
-      </div>
+      <PointValueBar distribution={w.distribution} t={t} />
     </div>
   );
 }
@@ -90,7 +64,7 @@ export function WeaponPointStatsSection({
   t,
 }: {
   breakdown: WeaponTargetStats[];
-  t: Translate;
+  t: Translator;
 }) {
   if (breakdown.length === 0) return null;
   return (

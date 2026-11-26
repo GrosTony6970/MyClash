@@ -1994,6 +1994,5 @@ export const publicApp = {
     deepTargetsTitle: 'Chasseurs de cibles profondes',
     deepTargetsCaption: 'Cible la plus profonde ({points} pts)',
     pointDistributionTitle: 'Zones de cible',
-    pointDistributionSegment: '{points} pt',
   },
 } as const satisfies DeepString<typeof enPublicApp>;

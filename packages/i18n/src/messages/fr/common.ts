@@ -259,5 +259,8 @@ export const common = {
     running: 'Heure simulée : {time}',
     paused: 'Heure simulée, en pause : {time}',
   },
+  pointDistribution: {
+    segment: '{points} pt',
+  },
   rulesChange,
 } as const satisfies DeepString<typeof enCommon>;
