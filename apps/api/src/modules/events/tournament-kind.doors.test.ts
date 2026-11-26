@@ -176,7 +176,7 @@ describe('the save', () => {
     expect(error.getResponse()).toMatchObject({ reason: 'entrant_kind_settled' });
   });
 
-  // Ruling 983: an empty individual Tournament given a double elimination bracket, then switched to
+  // Ruling 989: an empty individual Tournament given a double elimination bracket, then switched to
   // team.
   it('answers 409 kind_locked_by_phase when the Tournament has a phase', async () => {
     const h = harness(

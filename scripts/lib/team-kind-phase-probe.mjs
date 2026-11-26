@@ -1,6 +1,6 @@
 /**
  * Part of check 25 of the RLS probe (`team-tables-probe.mjs` runs it): a Tournament keeps its kind
- * once it has a phase (migration 0288, ruling 983).
+ * once it has a phase (migration 0288, ruling 989).
  *
  * Each write runs AS THE OWNER in a savepoint rolled back, on a new Tournament of the published
  * Event that each case makes, with no entrant and no League link: `entrant_kind_is_settled` (0281)

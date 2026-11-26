@@ -1,9 +1,9 @@
--- 0288: a Tournament's kind is fixed once it has a phase (team Tournaments, slice 1c-1; ruling 983).
+-- 0288: a Tournament's kind is fixed once it has a phase (team Tournaments, slice 1c-1; ruling 989).
 --
 -- A Tournament is individual or team (0281), and its kind was fixed only once it held an entrant.
 -- An organiser could build a double elimination bracket for an empty individual Tournament, then
 -- switch it to team: the teams then sat in a bracket a team Tournament refuses everywhere else, and
--- a bracket seeded by rating never filled. The operator's ruling 983: the switch individual <-> team
+-- a bracket seeded by rating never filled. The operator's ruling 989: the switch individual <-> team
 -- is refused once the Tournament has a phase (its Pools, a Swiss phase or a bracket), not only once
 -- it has an entrant, and the database judges it, as it judges the entrant lock.
 --
@@ -68,7 +68,7 @@ end;
 $$;
 
 comment on function public.entrant_kind_set_before_phases() is
-  'Refuses a change of a Tournament''s kind once it has a phase (0288, ruling 983).';
+  'Refuses a change of a Tournament''s kind once it has a phase (0288, ruling 989).';
 
 revoke execute on function public.entrant_kind_set_before_phases() from public, anon, authenticated;
 grant execute on function public.entrant_kind_set_before_phases() to service_role;

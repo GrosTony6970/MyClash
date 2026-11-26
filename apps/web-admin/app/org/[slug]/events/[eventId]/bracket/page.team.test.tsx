@@ -287,8 +287,8 @@ describe('Bracket page of a team Tournament', () => {
  * The page can offer "By HEMA rating" on a team Tournament, and the API refuses it with
  * `rating_needs_named_members`. On a generation the page is stale: it was opened while the
  * Tournament was individual, and the organiser switched it to team in another tab since (it had
- * no Pools and no bracket yet, so ruling 983 let the switch through). On a reseed the bracket
- * exists, so the kind is locked (ruling 983): the page reads it as individual only when the list
+ * no Pools and no bracket yet, so ruling 989 let the switch through). On a reseed the bracket
+ * exists, so the kind is locked (ruling 989): the page reads it as individual only when the list
  * leaves the field out.
  */
 describe('Bracket page: a team bracket seeded by rating', () => {

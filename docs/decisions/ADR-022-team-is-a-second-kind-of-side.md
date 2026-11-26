@@ -32,7 +32,7 @@ Approach A is the cheaper build. The operator declined it twice, for the same re
 meaning: one Person entered in one Tournament. A Team is its own table, `teams`, with its numbered
 slots in `team_slots`. A Tournament is `individual` or `team` (`tournaments.entrant_kind`), and a
 database trigger holds the kind: no Registration in a team Tournament, no Team in an individual one,
-no change of kind once an entrant exists, nor once a phase exists (ruling 983, migration 0288).
+no change of kind once an entrant exists, nor once a phase exists (ruling 989, migration 0288).
 
 **Each Registration link gains a team twin**, with a check "a Registration or a Team, never both":
 the Pool seat, both bracket slots, both sides and the winner of a Match, a card, the forfeiting

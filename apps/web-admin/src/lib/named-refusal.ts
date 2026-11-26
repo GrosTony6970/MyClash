@@ -34,7 +34,7 @@ export function refusalKey(r: ApiFailure, keys: RefusalKeys): string | undefined
  * League takes individual Tournaments only (rulings 729, 981): a League link to a team Tournament,
  * and a switch to team under a live League link. A team bracket is not seeded by rating: a team's
  * rating is its named members' (ruling 971). A Tournament keeps its kind once it has Pools or a
- * bracket (ruling 983).
+ * bracket (ruling 989).
  */
 const KIND_REFUSALS: RefusalKeys = {
   conflict: {

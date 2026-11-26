@@ -24,7 +24,7 @@
  *   - a switch to 'team' while a link is requested: A requests the link and holds its FOR SHARE;
  *     B's switch waits on it, then its AFTER check sees A's link and is refused
  *     (`league_link_blocks_team:`);
- *   - a switch to 'team' while a phase is added (0288, ruling 983): A adds a bracket phase and holds
+ *   - a switch to 'team' while a phase is added (0288, ruling 989): A adds a bracket phase and holds
  *     its FOR SHARE (`phase_locks_entrant_kind`); B's switch waits on it, then its AFTER check sees
  *     A's phase and is refused (`entrant_kind_set_before_phases:`). The phase's foreign key alone
  *     takes FOR KEY SHARE, which a switch does not block: without the lock B would not wait, would

@@ -6,7 +6,7 @@ import { ConflictException } from '@nestjs/common';
  * A Tournament holds one kind of entrant: Registrations when it is individual, teams when it is a
  * team Tournament. The database refuses the other kind (`entrant_kind_holds`), and refuses a change
  * of kind once the Tournament holds any entrant (`entrant_kind_is_settled`) or has a phase
- * (`entrant_kind_set_before_phases`, ruling 983). A League takes
+ * (`entrant_kind_set_before_phases`, ruling 989). A League takes
  * individual Tournaments only (rulings 729, 981): the database refuses a live League link to a team
  * Tournament (`league_link_individual_only`), and a switch to team while a live link exists
  * (`league_link_blocks_team`). Each raises `check_violation` (23514) with the trigger's name first

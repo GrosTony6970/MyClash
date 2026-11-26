@@ -403,7 +403,7 @@ What is **not** derivable from the DDL, and so belongs here:
 - **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
   `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
   new team. The kind changes only while the Tournament holds no entrant (its read's
-  `entrant_count`) and has no phase (ruling 983, migration 0288; the settings page reads no phase,
+  `entrant_count`) and has no phase (ruling 989, migration 0288; the settings page reads no phase,
   so the save's refusal says it). The database refuses the rest and the API answers 409
   `entrant_kind_settled`, `kind_locked_by_phase` or `entrant_kind_mismatch`
   (`common/entrant-kind-refusal.ts`). A phase's insert holds its Tournament FOR SHARE, so a change

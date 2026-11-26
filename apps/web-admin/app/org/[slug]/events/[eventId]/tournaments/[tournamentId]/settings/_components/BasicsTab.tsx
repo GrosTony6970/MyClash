@@ -160,7 +160,7 @@ export function BasicsTab({
         if (locked) audit.open({ ...locked, body, sent: { form: sent, after } });
         else {
           // A switch to team under a live League link (ruling 981), a change of kind once the
-          // Tournament has Pools or a bracket (ruling 983) and a kind settled by an entrant: said.
+          // Tournament has Pools or a bracket (ruling 989) and a kind settled by an entrant: said.
           const message =
             kindSettledRefusal(r, t) ??
             kindRefusal(r, t) ??

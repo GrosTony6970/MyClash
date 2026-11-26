@@ -86,7 +86,7 @@ as a general option, used rarely.
 | 20  | **`MatchScoreboard` is deleted** (ruling 980), in its own commit. It ships in the `@myclash/ui` barrel with no caller, and web-admin has almost no bundle budget left.                                                                                                                                                                                                                                                          |
 | 21  | **A Tournament cannot switch to Team while it has a live League link** (ruling 981). A link is live when it is requested or approved. The refusal says: "Remove the League link first: League points belong to persons." The League link of a team Tournament is refused too (ruling 729).                                                                                                                                      |
 | 22  | **A team's seed sets the order only** (ruling 982). In a bracket the order is the seeded teams in seed order, then the unseeded teams by creation, numbered 1 to N, as in a team Pool. No team drops out, and a gap in the seeds means nothing.                                                                                                                                                                                 |
-| 23  | **A Tournament's kind locks once it has a phase** (ruling 983), not only once it has an entrant: its Pools, a Swiss phase or a bracket. The database refuses the switch (migration 0288). The settings screen says: "Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket."                                                                                                       |
+| 23  | **A Tournament's kind locks once it has a phase** (ruling 989), not only once it has an entrant: its Pools, a Swiss phase or a bracket. The database refuses the switch (migration 0288). The settings screen says: "Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket."                                                                                                       |
 
 ```text
 Decision 4, drawn:
@@ -100,7 +100,7 @@ Blue   Xavier       |Yann          |Zoé          |
 Each is a proposal with its reason. Correct any of them.
 
 1. **A Tournament is individual or team, chosen at creation.** It locks once the first entrant
-   or the first phase exists (the phase since ruling 983, decision 23). Mixing the two would need
+   or the first phase exists (the phase since ruling 989, decision 23). Mixing the two would need
    every screen to handle both in one list.
 2. **Order of work: relay first, duels last.** The request describes relay in detail; duels reuse it.
 3. **After the last slot, the order returns to the first slot** (Anna at 2:30 in decision 4).
@@ -564,7 +564,7 @@ Each slice is usable alone and lands as several single-concern commits.
      - Done: the League link refused for a team Tournament, and the switch to Team refused while a
        League link is live (rulings 729 and 981). Migration 0287 in `1d2cdaf6d`; the doors in
        `096bcf5ab` and `631a23366`.
-     - Done: a Tournament's kind locks once it has a phase (ruling 983, decision 23). Migration
+     - Done: a Tournament's kind locks once it has a phase (ruling 989, decision 23). Migration
        0288 in `2e2659951`; the named 409 and the settings sentence in `84f492408`.
      - Done: HEMA Ratings export skips team Tournaments and says so (`76661b984`). The archive
        reports name a team side (`b60af582d`).

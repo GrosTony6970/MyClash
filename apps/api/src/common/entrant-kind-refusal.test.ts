@@ -21,7 +21,7 @@ const SETTLED = {
   code: '23514',
   message: 'entrant_kind_is_settled: Tournament 0b8f… has entrants, so its kind stays individual',
 };
-// 0288's refusal (ruling 983), as its `raise exception` writes it.
+// 0288's refusal (ruling 989), as its `raise exception` writes it.
 const PHASED = {
   code: '23514',
   message:
@@ -58,7 +58,7 @@ describe('entrantKindRefusal', () => {
     });
   });
 
-  it('names a change of kind of a Tournament with a phase locked by it (ruling 983)', () => {
+  it('names a change of kind of a Tournament with a phase locked by it (ruling 989)', () => {
     const refusal = entrantKindRefusal(PHASED);
     expect(refusal?.getStatus()).toBe(409);
     expect(refusal?.getResponse()).toEqual({

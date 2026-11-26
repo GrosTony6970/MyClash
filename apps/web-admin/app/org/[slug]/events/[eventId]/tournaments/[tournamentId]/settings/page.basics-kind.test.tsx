@@ -145,7 +145,7 @@ describe('the kind of entrant in the settings Basics tab', () => {
     );
   });
 
-  // Ruling 983: an empty individual Tournament given a double elimination bracket, then switched to
+  // Ruling 989: an empty individual Tournament given a double elimination bracket, then switched to
   // team. The page reads no phase, so the choice stays open and the save's refusal says why.
   it('a switch to team of a Tournament with Pools or a bracket says to delete them first', async () => {
     opened = await openTab('basics');
