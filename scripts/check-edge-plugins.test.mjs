@@ -202,6 +202,19 @@ const GOTRUE_ROUTERS = [
     status: 'enabled',
     middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker', ...GOTRUE_TAIL],
   },
+  {
+    name: 'myclash-auth-oauth-register@docker',
+    rule: 'Host(`app.myclash.fr`) && Path(`/auth/v1/oauth/clients/register`)',
+    priority: 40,
+    status: 'enabled',
+    middlewares: [
+      'myclash-geoblock-public@file',
+      'myclash-fail2ban-oauth@docker',
+      'myclash-security-headers@file',
+      'myclash-oauth-register-ratelimit@docker',
+      'supabase-auth-strip@docker',
+    ],
+  },
 ];
 function liveRouters(patch = {}) {
   return [
@@ -330,6 +343,35 @@ test('an expected router on the wrong geoblock instance fails', () => {
   assert.deepEqual(errors, [
     'router myclash-staff-auth-admin@docker does not chain myclash-geoblock-admin@file.',
   ]);
+});
+
+// Ruling 984: Claude's registration path is capped. Without the cap, or below
+// the OAuth router's 30, the path still answers, uncapped.
+test('the registration router without its cap, or outranked, fails', () => {
+  const name = 'myclash-auth-oauth-register@docker';
+  const uncapped = routerVerdicts(
+    liveRouters({
+      [name]: {
+        middlewares: [
+          'myclash-geoblock-public@file',
+          'myclash-fail2ban-oauth@docker',
+          ...GOTRUE_TAIL,
+        ],
+      },
+    }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.deepEqual(uncapped, [
+    `router ${name} does not chain myclash-oauth-register-ratelimit@docker.`,
+  ]);
+  const outranked = routerVerdicts(
+    liveRouters({ [name]: { priority: 30 } }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.ok(
+    outranked.some((e) => /\(priority 30\) does not outrank myclash-auth-oauth@docker/.test(e)),
+    outranked.join('\n'),
+  );
 });
 
 // Existing and enabled is not the same as winning. A jail router that loses the

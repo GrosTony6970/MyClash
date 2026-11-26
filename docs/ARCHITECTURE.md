@@ -4231,7 +4231,8 @@ throttler cannot reach them: `/auth/v1` proxies straight to GoTrue without passi
 staff PIN login carries no `@Throttle` override (see §14.3). `/auth/v1/oauth/` (GoTrue's OAuth server,
 which Claude's connector calls) has a jail of its own, `myclash-fail2ban-oauth`: the auth jail's
 numbers, with Anthropic's egress range `160.79.104.0/21` allowed, because Claude reaches it from those
-few addresses for every person who connects. The discovery path is rewritten onto GoTrue's own
+few addresses for every person who connects. Its registration path `/auth/v1/oauth/clients/register`
+is also capped per address (§28.7, ruling 984). The discovery path is rewritten onto GoTrue's own
 document, which GoTrue serves only at its root. Port 80 exists only to redirect to 443, and
 **Traefik is the only container that publishes ports**.
 
@@ -5473,6 +5474,17 @@ disconnected.
   registers, swaps codes and refreshes tokens for every person from those few addresses, so one
   person's failures must not ban everyone's Claude. It is a jail of its own, so the exemption never
   reaches the password door.
+- **The registration cap** (operator ruling 984). Claude registers itself as a client (RFC 7591)
+  before it connects, and GoTrue caps nothing there (`GOTRUE_RATE_LIMIT_HEADER` is unset). The router
+  `myclash-auth-oauth-register` (priority 40, above the OAuth router's 30) takes the one path
+  `/auth/v1/oauth/clients/register` through the same chain plus Traefik's own rate limit
+  `myclash-oauth-register-ratelimit`: 30 a minute per address, bursts of 60. It is sized for every
+  person's Claude together, because they share Anthropic's addresses: a Connect registers once. It
+  still stops one address filling GoTrue's client table. The cap's 429 counts in the OAuth jail, which
+  lets Anthropic's range through. It is named literally, so `TRAEFIK_PLUGINS=off` never lifts it.
+  `infra:review` pins it in prod and dev; the deep edge probe expects the router to win the path. A
+  burst against Traefik v3.7.10 with these labels: 60 registrations answered, the next 10 got 429,
+  and the token path was not capped.
 - **The e2e** `tests/e2e/48-mcp-connector.spec.ts` plays Claude Code as fighter A: the whole flow
   above, the wall, a refused callback, and Disconnect. It leaves **two OAuth clients per run**
   behind: only GoTrue's admin can delete a client, and an unapproved one grants nothing. It disconnects the

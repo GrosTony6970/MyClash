@@ -221,6 +221,17 @@ services:
       - traefik.http.routers.dev-auth-oauth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-oauth@docker,dev-supabase-auth-strip
       - traefik.http.routers.dev-auth-oauth.priority=30
       - traefik.http.routers.dev-auth-oauth.service=dev-auth
+      # Dev twin of prod's myclash-auth-oauth-register: the registration cap
+      # (ruling 984), same numbers. Priority 40 beats dev-auth-oauth's 30.
+      - traefik.http.middlewares.dev-oauth-register-ratelimit.ratelimit.average=30
+      - traefik.http.middlewares.dev-oauth-register-ratelimit.ratelimit.period=1m
+      - traefik.http.middlewares.dev-oauth-register-ratelimit.ratelimit.burst=60
+      - traefik.http.routers.dev-auth-oauth-register.rule=Host(`api.myclash.localhost`) && Path(`/auth/v1/oauth/clients/register`)
+      - traefik.http.routers.dev-auth-oauth-register.entrypoints=websecure
+      - traefik.http.routers.dev-auth-oauth-register.tls=true
+      - traefik.http.routers.dev-auth-oauth-register.middlewares=myclash-geoblock-public@file,myclash-fail2ban-oauth@docker,dev-oauth-register-ratelimit@docker,dev-supabase-auth-strip
+      - traefik.http.routers.dev-auth-oauth-register.priority=40
+      - traefik.http.routers.dev-auth-oauth-register.service=dev-auth
       - traefik.http.middlewares.dev-auth-discovery-path.replacepath.path=/.well-known/oauth-authorization-server
       - traefik.http.routers.dev-auth-discovery.rule=Host(`api.myclash.localhost`) && Path(`/.well-known/oauth-authorization-server/auth/v1`)
       - traefik.http.routers.dev-auth-discovery.entrypoints=websecure

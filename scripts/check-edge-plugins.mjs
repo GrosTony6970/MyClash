@@ -167,6 +167,17 @@ export const EXPECTED_ROUTERS = {
       middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker'],
       outranks: ['myclash-auth@docker'],
     },
+    {
+      // Its registration path, capped (ruling 984). Losing to the OAuth router
+      // serves the path uncapped, with the same answer from outside.
+      name: 'myclash-auth-oauth-register@docker',
+      middlewares: [
+        'myclash-geoblock-public@file',
+        'myclash-fail2ban-oauth@docker',
+        'myclash-oauth-register-ratelimit@docker',
+      ],
+      outranks: ['myclash-auth-oauth@docker', 'myclash-auth@docker'],
+    },
   ],
   dev: [
     {
@@ -183,6 +194,15 @@ export const EXPECTED_ROUTERS = {
       name: 'dev-auth-oauth@docker',
       middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-oauth@docker'],
       outranks: ['dev-auth@docker', 'dev-api@docker'],
+    },
+    {
+      name: 'dev-auth-oauth-register@docker',
+      middlewares: [
+        'myclash-geoblock-public@file',
+        'myclash-fail2ban-oauth@docker',
+        'dev-oauth-register-ratelimit@docker',
+      ],
+      outranks: ['dev-auth-oauth@docker', 'dev-api@docker'],
     },
   ],
 };

@@ -1429,6 +1429,46 @@ assertGoTrueOAuthServer('dev', devServices, devComposeText, {
   service: 'dev-auth',
 });
 
+// Claude registers itself as a client before it connects, and GoTrue caps
+// nothing there. Operator ruling 984: a generous cap on that one path, sized for
+// every person's Claude together (they share Anthropic's few addresses). Above
+// the OAuth router's 30, or that router answers the path uncapped. The cap is
+// named literally: a ${MW_*} prefix that TRAEFIK_PLUGINS=off empties would lift
+// it in silence.
+assertOAuthRegisterCap(composeText, 'infra/docker-compose.prod.yml', {
+  host: 'app.${DOMAIN}',
+  router: 'myclash-auth-oauth-register',
+  middleware: 'myclash-oauth-register-ratelimit',
+  chain:
+    '${MW_GEO_PUBLIC}${MW_F2B_OAUTH}myclash-security-headers@file,' +
+    'myclash-oauth-register-ratelimit@docker,supabase-auth-strip',
+  service: 'myclash-supabase-auth',
+});
+assertOAuthRegisterCap(devComposeText, 'infra/docker-compose.dev.yml', {
+  host: 'api.myclash.localhost',
+  router: 'dev-auth-oauth-register',
+  middleware: 'dev-oauth-register-ratelimit',
+  chain:
+    'myclash-geoblock-public@file,myclash-fail2ban-oauth@docker,' +
+    'dev-oauth-register-ratelimit@docker,dev-supabase-auth-strip',
+  service: 'dev-auth',
+});
+
+function assertOAuthRegisterCap(text, label, { host, router, middleware, chain, service }) {
+  const rule = `Host(\`${host}\`) && Path(\`/auth/v1/oauth/clients/register\`)`;
+  for (const expected of [
+    `traefik.http.middlewares.${middleware}.ratelimit.average=30`,
+    `traefik.http.middlewares.${middleware}.ratelimit.period=1m`,
+    `traefik.http.middlewares.${middleware}.ratelimit.burst=60`,
+    `traefik.http.routers.${router}.rule=${rule}`,
+    `traefik.http.routers.${router}.middlewares=${chain}`,
+    `traefik.http.routers.${router}.priority=40`,
+    `traefik.http.routers.${router}.service=${service}`,
+  ]) {
+    requireLine(text, label, `- ${expected}`);
+  }
+}
+
 function assertGoTrueOAuthServer(mode, serviceMap, text, options) {
   const { host, discovery, discoveryChain, oauthRouter, oauthChain, service } = options;
   const label = `infra/docker-compose.${mode}.yml`;
@@ -3088,6 +3128,7 @@ const publicRouters = [
   'myclash-auth',
   'myclash-auth-signup',
   'myclash-auth-oauth',
+  'myclash-auth-oauth-register',
   'myclash-auth-discovery',
   'myclash-realtime',
   'myclash-storage',
@@ -3486,6 +3527,7 @@ const geoblockRouters = {
   'myclash-rest': 'public',
   'myclash-auth': 'public',
   'myclash-auth-oauth': 'public',
+  'myclash-auth-oauth-register': 'public',
   'myclash-auth-discovery': 'public',
   'myclash-realtime': 'public',
   'myclash-realtime-api': 'public',
@@ -3511,6 +3553,8 @@ const fail2banRouters = {
   // GoTrue's OAuth server, which Claude calls. Its discovery router has no
   // jail: it serves one public document and answers no 401 or 403.
   'myclash-auth-oauth': 'MW_F2B_OAUTH',
+  // Its registration path, capped (ruling 984): the cap's 429 is counted too.
+  'myclash-auth-oauth-register': 'MW_F2B_OAUTH',
   'myclash-studio': 'MW_F2B_AUTH',
   'myclash-traefik-dashboard': 'MW_F2B_AUTH',
   // Both halves of the staff-auth pair, or the endpoint goes back to being
@@ -3686,6 +3730,7 @@ const devGeoblockRouters = {
   'dev-api': 'public',
   'dev-auth': 'public',
   'dev-auth-oauth': 'public',
+  'dev-auth-oauth-register': 'public',
   'dev-auth-discovery': 'public',
   'dev-rest': 'public',
   'dev-realtime': 'public',
@@ -3710,6 +3755,7 @@ for (const [router, variant] of Object.entries(devGeoblockRouters)) {
 for (const [router, middleware] of Object.entries({
   'dev-auth': 'myclash-fail2ban-auth@docker',
   'dev-auth-oauth': 'myclash-fail2ban-oauth@docker',
+  'dev-auth-oauth-register': 'myclash-fail2ban-oauth@docker',
 })) {
   const pattern = new RegExp(
     `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*${escapeRegExp(middleware)}`,

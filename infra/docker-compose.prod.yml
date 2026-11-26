@@ -908,6 +908,24 @@ services:
       - traefik.http.routers.myclash-auth-oauth.middlewares=${MW_GEO_PUBLIC}${MW_F2B_OAUTH}myclash-security-headers@file,supabase-auth-strip
       - traefik.http.routers.myclash-auth-oauth.priority=30
       - traefik.http.routers.myclash-auth-oauth.service=myclash-supabase-auth
+      # Claude registers itself as a client (RFC 7591) before it connects, and
+      # GoTrue caps nothing here (no GOTRUE_RATE_LIMIT_HEADER). A generous cap
+      # per address (ruling 984): every person's Claude registers from
+      # Anthropic's few addresses, so it is sized for all of them together. A
+      # Connect registers once; 30 a minute with bursts of 60 still stops one
+      # address filling GoTrue's client table. Its 429 feeds the OAuth jail
+      # (Anthropic's range excepted). Traefik's own middleware, named
+      # literally: no ${MW_*} prefix that TRAEFIK_PLUGINS=off would empty.
+      - traefik.http.middlewares.myclash-oauth-register-ratelimit.ratelimit.average=30
+      - traefik.http.middlewares.myclash-oauth-register-ratelimit.ratelimit.period=1m
+      - traefik.http.middlewares.myclash-oauth-register-ratelimit.ratelimit.burst=60
+      - traefik.http.routers.myclash-auth-oauth-register.rule=Host(`app.${DOMAIN}`) && Path(`/auth/v1/oauth/clients/register`)
+      - traefik.http.routers.myclash-auth-oauth-register.entrypoints=websecure
+      - traefik.http.routers.myclash-auth-oauth-register.tls=true
+      - traefik.http.routers.myclash-auth-oauth-register.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth-oauth-register.middlewares=${MW_GEO_PUBLIC}${MW_F2B_OAUTH}myclash-security-headers@file,myclash-oauth-register-ratelimit@docker,supabase-auth-strip
+      - traefik.http.routers.myclash-auth-oauth-register.priority=40
+      - traefik.http.routers.myclash-auth-oauth-register.service=myclash-supabase-auth
       # GoTrue's discovery document. Claude looks for it by RFC 8414's path
       # insertion (/.well-known/oauth-authorization-server/auth/v1); GoTrue
       # serves it only at its own root, so this one path is rewritten there.
