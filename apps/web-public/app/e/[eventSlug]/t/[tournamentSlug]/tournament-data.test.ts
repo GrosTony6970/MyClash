@@ -83,10 +83,10 @@ describe('derivePodium', () => {
     ];
 
     expect(derivePodium(slots, { phaseType: 'single_elim' })).toEqual({
-      gold: { fighterName: 'Anna' },
-      silver: { fighterName: 'Eve' },
-      bronze: { fighterName: 'Cleo' },
-      fourth: { fighterName: 'Gus' },
+      gold: { fighterName: 'Anna', colour: null },
+      silver: { fighterName: 'Eve', colour: null },
+      bronze: { fighterName: 'Cleo', colour: null },
+      fourth: { fighterName: 'Gus', colour: null },
     });
   });
 
