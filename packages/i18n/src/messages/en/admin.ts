@@ -636,7 +636,7 @@ export const admin = {
     requestFailed: 'Request failed',
     resetScheduleFailed: 'Failed to reset schedule',
     serverRejectedDeletion: 'Server rejected the deletion',
-    sideNoRegistrationYet: 'This side has no registration id yet.',
+    sideNoEntrantYet: 'This side has no fighter or team yet.',
     signupFailed: 'Signup failed',
     slugMinLength: 'Slug must be at least 3 characters',
     someGroupsNotScheduled: 'Some selected groups could not be scheduled.',

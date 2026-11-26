@@ -314,7 +314,7 @@ export default function BracketPage() {
     // The side's Registration, or its team (`forfeitingTeamId`).
     const forfeiting = slot ? slotForfeitingSide(slot, forfeitSide) : null;
     if (!forfeiting) {
-      setForfeitError(t('admin.common.sideNoRegistrationYet'));
+      setForfeitError(t('admin.common.sideNoEntrantYet'));
       return;
     }
     setForfeitBusy(true);

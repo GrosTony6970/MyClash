@@ -646,7 +646,7 @@ export const admin = {
     requestFailed: 'Échec de la requête',
     resetScheduleFailed: 'Échec de la réinitialisation du programme',
     serverRejectedDeletion: 'Le serveur a refusé la suppression',
-    sideNoRegistrationYet: "Ce côté n'a pas encore d'inscription.",
+    sideNoEntrantYet: "Ce côté n'a pas encore de combattant ni d'équipe.",
     signupFailed: "Échec de l'inscription",
     slugMinLength: 'Le slug doit comporter au moins 3 caractères',
     someGroupsNotScheduled: "Certains groupes sélectionnés n'ont pas pu être programmés.",

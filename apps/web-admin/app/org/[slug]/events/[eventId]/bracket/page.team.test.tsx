@@ -63,7 +63,8 @@ interface Sent {
 let sent: Sent[];
 
 interface Serve {
-  kind?: 'team' | null;
+  /** The kind the Event's Tournament list says; null leaves the field out. */
+  kind?: 'team' | 'individual' | null;
   bracket?: unknown;
   /** The answer to a write; ok by default. */
   write?: (path: string) => unknown;
@@ -184,6 +185,21 @@ describe('Bracket page of a team Tournament', () => {
     ]);
   });
 
+  // The slot keys its blue side but sends no typed side for it: no Registration and no team to
+  // forfeit. The sentence names what is missing, never an id.
+  it('names the side, never an id, when the side to forfeit holds nobody', async () => {
+    const [s1] = BRACKET.slots;
+    await openPage({ bracket: { ...BRACKET, slots: [{ ...s1!, blue: null }] } });
+    await openSlot('s1');
+
+    await tap('Team 2 forfeits');
+    await tap('Record forfeit');
+
+    expect(sent).toEqual([]);
+    expect(page()).toContain('This side has no fighter or team yet.');
+    expect(page()).not.toContain('registration id');
+  });
+
   it('overrides a slot with a team of the Tournament', async () => {
     await openPage();
     await openSlot('s1');
@@ -268,13 +284,28 @@ describe('Bracket page of a team Tournament', () => {
 });
 
 /**
- * The page's list can still read the Tournament as individual (the field is missing, or the list
- * is stale), so it offers "By HEMA rating"; the API refuses it on a team Tournament with
- * `rating_needs_named_members`.
+ * The page can offer "By HEMA rating" on a team Tournament, and the API refuses it with
+ * `rating_needs_named_members`. On a generation the page is stale: it was opened while the
+ * Tournament was individual, and the organiser switched it to team in another tab since (it had
+ * no Pools and no bracket yet, so ruling 983 let the switch through). On a reseed the bracket
+ * exists, so the kind is locked (ruling 983): the page reads it as individual only when the list
+ * leaves the field out.
  */
 describe('Bracket page: a team bracket seeded by rating', () => {
   const refuseRating = (path: string) =>
     path.endsWith('/reseed') || path.includes('/generate-bracket') ? RATING_REFUSED : null;
+
+  /** Picks "By HEMA rating" in the generation form, which the stale page still offers. */
+  async function pickRating() {
+    const seeding = [...document.body.querySelectorAll('select')].find((select) =>
+      [...select.options].some((option) => option.value === 'by-rating'),
+    );
+    expect(seeding, 'the page offers no seed by rating').toBeDefined();
+    await act(async () => {
+      seeding!.value = 'by-rating';
+      seeding!.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
 
   it('names the refusal on a reseed, not "Round 1 has started"', async () => {
     await openPage({ kind: null, write: refuseRating });
@@ -295,17 +326,25 @@ describe('Bracket page: a team bracket seeded by rating', () => {
     expect(page()).not.toContain('Some Round 1 matches have already started');
   });
 
-  it('names the refusal on a generation, and asks no overwrite', async () => {
-    await openPage({ kind: null, bracket: null, write: refuseRating });
+  it('names the refusal on a generation from a stale page, and asks no overwrite', async () => {
+    await openPage({ kind: 'individual', bracket: null, write: refuseRating });
+    await pickRating();
 
     await tap('Generate bracket');
 
+    expect(sent).toEqual([
+      expect.objectContaining({
+        path: '/api/v1/tournaments/t1/generate-bracket',
+        body: expect.objectContaining({ seedingStrategy: 'by-rating' }),
+      }),
+    ]);
     expect(page()).toContain(RATING_SENTENCE);
     expect(page()).not.toContain('Regenerate bracket?');
   });
 
   it('names the refusal in French', async () => {
-    await openPage({ kind: null, bracket: null, write: refuseRating }, 'fr');
+    await openPage({ kind: 'individual', bracket: null, write: refuseRating }, 'fr');
+    await pickRating();
 
     await tap('Générer le tableau');
 
