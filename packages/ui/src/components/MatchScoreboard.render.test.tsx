@@ -45,8 +45,6 @@ const teamBout: DisplayMatch = {
   blueLogoUrl: null,
   startedAt: null,
   endedAt: null,
-  redRegistrationId: null,
-  blueRegistrationId: null,
 };
 
 function teamCard(id: string, teamId: string): Penalty {

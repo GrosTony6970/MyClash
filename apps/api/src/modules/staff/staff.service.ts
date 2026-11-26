@@ -1996,15 +1996,13 @@ export class StaffService {
       endedAt: match['ended_at'],
       matchNumberLabel: match['match_number_label'],
       roundCode,
-      redRegistrationId: match['red_registration_id'],
-      blueRegistrationId: match['blue_registration_id'],
       redScore: match['red_score'],
       blueScore: match['blue_score'],
       // Why the match ended ('first_to_points' | 'time_limit' |
-      // 'max_doubles') + the winner — lets the TV show a 0-0 'max_doubles'
-      // DOUBLE LOSS distinctly from a tie. Null on manual end / legacy rows.
+      // 'max_doubles') + the winner (`winnerSideId`) — lets the TV show a 0-0
+      // 'max_doubles' DOUBLE LOSS distinctly from a tie. Null on manual end /
+      // legacy rows.
       endReason: match['end_reason'] ?? null,
-      winnerRegistrationId: match['winner_registration_id'] ?? null,
       sideOrder: match['side_order'] ?? 'red_left',
       lockedAt: match['locked_at'] ?? null,
       ...displaySides(match),

@@ -262,9 +262,6 @@ export interface DisplayMatch {
    *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
    *  winner). Null on manual clock-end / forfeit / legacy rows. */
   endReason?: string | null;
-  /** Winner's registration id when the ruleset declared one (point cap).
-   *  Null for a double loss / tie / not-yet-decided. */
-  winnerRegistrationId?: string | null;
   lice?: { name?: string } | null;
   event?: { name?: string } | null;
   tournament?: { name?: string; weapon?: string } | null;
@@ -288,8 +285,6 @@ export interface DisplayMatch {
   totalFightsInPool?: number | null;
   redClub?: { name: string; logoUrl: string | null } | null;
   blueClub?: { name: string; logoUrl: string | null } | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
   /** External-display redesign: next match on this lice (for the
    *  corner NEXT tile, and what a TV screen is told when its bout is
    *  over). Public surfaces can rely on this without a second

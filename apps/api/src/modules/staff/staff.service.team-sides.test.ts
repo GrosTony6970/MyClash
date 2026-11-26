@@ -72,6 +72,16 @@ describe('StaffService.getPublicMatchDisplay: the sides of the TV payload', () =
     });
   });
 
+  it('carries no Registration id beside the side keys: nothing can crown by one', async () => {
+    const { service } = serviceOn([displayRow('solo', { winner_registration_id: 'reg-b' })]);
+
+    const payload = await service.getPublicMatchDisplay('solo', ANON);
+
+    expect(payload).not.toHaveProperty('winnerRegistrationId');
+    expect(payload).not.toHaveProperty('redRegistrationId');
+    expect(payload).not.toHaveProperty('blueRegistrationId');
+  });
+
   it('gives a side not known yet no key, no name and no winner', async () => {
     const { service } = serviceOn([
       displayRow('placeholder', { red_registration_id: null, red: null }),

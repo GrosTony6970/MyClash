@@ -51,10 +51,6 @@ const teamBout: DisplayMatch = {
   blueLogoUrl: 'https://cdn.test/paris.png',
   startedAt: null,
   endedAt: null,
-  // A team side has no Registration: the payload's Registration ids are null.
-  redRegistrationId: null,
-  blueRegistrationId: null,
-  winnerRegistrationId: null,
 };
 
 function teamCard(id: string, teamId: string): Penalty {
@@ -251,8 +247,6 @@ describe('TVScoreboard on a Fighter bout', () => {
       blueColour: null,
       redLogoUrl: null,
       blueLogoUrl: null,
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
       status: 'completed',
       redScore: 5,
       winnerSideId: 'reg-red',

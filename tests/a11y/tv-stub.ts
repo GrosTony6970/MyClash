@@ -26,9 +26,6 @@ export const BOUT = {
   redSideId: 'reg-ada',
   blueSideId: 'reg-mary',
   winnerSideId: null,
-  redRegistrationId: 'reg-ada',
-  blueRegistrationId: 'reg-mary',
-  winnerRegistrationId: null,
   redFighterName: 'Ada Lovelace',
   blueFighterName: 'Mary Somerville',
   redColour: null,
@@ -62,7 +59,6 @@ export const ENDED_BOUT = {
   status: 'completed',
   endedAt: '2027-03-13T09:03:00.000Z',
   winnerSideId: 'reg-ada',
-  winnerRegistrationId: 'reg-ada',
 };
 
 export interface PisteTv {
@@ -91,8 +87,6 @@ export const NEXT_BOUT = {
   blueScore: 0,
   redSideId: 'reg-grace',
   blueSideId: 'reg-emmy',
-  redRegistrationId: 'reg-grace',
-  blueRegistrationId: 'reg-emmy',
   redFighterName: 'Grace Hopper',
   blueFighterName: 'Emmy Noether',
   startedAt: null,

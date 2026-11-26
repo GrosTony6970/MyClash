@@ -379,8 +379,8 @@
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "verdict": "side-key",
-      "hits": 21,
-      "why": "every bout read (the live board `:875`, the neighbour tiles `:1243`, the display `:1527`, the next bout `:1601`, the piste through `LICE_MATCH_SELECT`) reads both kinds of each side and names each through `sideLabel` (`bout-side-labels.ts`); the display keys its sides and its winner with `sideKey` (`displaySides`, `:2043`-`:2045`). The current bout and the display still pass the Registration columns on under their own names (`:1850`-`:1851`, `:1999`-`:2007`): null on a team side, never a side key"
+      "hits": 15,
+      "why": "every bout read (the live board `:875`, the neighbour tiles `:1243`, the display `:1527`, the next bout `:1601`, the piste through `LICE_MATCH_SELECT`) reads both kinds of each side and names each through `sideLabel` (`bout-side-labels.ts`); the display keys its sides and its winner with `sideKey` (`displaySides`, `:2041`-`:2043`) and carries no Registration id. The current bout still passes the Registration columns on under their own names (`:1850`-`:1851`): null on a team side, never a side key"
     },
     "apps/api/src/modules/swiss/dto/swiss.dto.ts": {
       "verdict": "individual-only",
@@ -910,8 +910,8 @@
     },
     "packages/ui/src/types/match-events.ts": {
       "verdict": "side-key",
-      "hits": 7,
-      "why": "a card and a protest row name their side by `registration_id` or `team_id` (`:141`-`:142`, `:193`-`:194`), read through `isRowOfSide`; the bout payload carries the side keys (`:241`-`:244`). The other hits are the scorer's Registration on a hit (`:79`) and the Registration ids kept beside the side keys (`:267`, `:291`-`:292`)"
+      "hits": 4,
+      "why": "a card and a protest row name their side by `registration_id` or `team_id` (`:141`-`:142`, `:193`-`:194`), read through `isRowOfSide`; the bout payload carries the side keys (`:241`-`:244`) and no Registration id beside them. The other hit is the scorer's Registration on a hit (`:79`)"
     },
     "packages/ui/src/utils/bout-flow.ts": {
       "verdict": "side-key",
