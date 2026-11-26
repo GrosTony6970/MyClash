@@ -394,7 +394,7 @@ export function isDoubleLossBout(endReason: string | null | undefined): boolean 
  * the scores would invent someone.
  *
  * Extracted from `resolveMatchWinner`, which keeps the status guard and its
- * eight display call sites and now delegates the rule here — so the crown on a
+ * nine display call sites and now delegates the rule here — so the crown on a
  * scoreboard and the W in a standings table cannot drift apart.
  */
 export function winnerColorFrom(bout: {

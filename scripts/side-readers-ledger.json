@@ -28,7 +28,7 @@
     "apps/api/src/modules/exports/archive-fighter-status.ts": {
       "verdict": "individual-only",
       "hits": 3,
-      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive, and leaves a team's forfeit and a team's card out, never keyed as \"null\" (`fighterOf` answers null, `:50`-`:53`; `fighterBlackCards` keeps only a card that names a Registration, `:68`-`:73`)"
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive, and leaves a team's forfeit and a team's card out, never keyed as \"null\" (`fighterOf` answers null, `:50`-`:53`; `fighterBlackCards` keeps only a card that names a Registration, `:64`-`:73`)"
     },
     "apps/api/src/modules/exports/archive-reports.ts": {
       "verdict": "not-yet",
@@ -138,7 +138,7 @@
     "apps/api/src/modules/matches/match-summaries.ts": {
       "verdict": "no-side-read",
       "hits": 0,
-      "why": "reads no side id: the names, clubs and team colours come from the view (`:33`-`:34`), which names a team side by its team, with no club (0284); a team side's logo from the bout's team embeds (`:43`, `:278`-`:289`)",
+      "why": "reads no side id: the names, clubs and team colours come from the view (`:33`-`:34`), which names a team side by its team, with no club (0284); a team side's logo from the bout's team embeds (`:40`-`:43`, `:278`-`:289`)",
       "byHand": true
     },
     "apps/api/src/modules/matches/matches.service.ts": {
