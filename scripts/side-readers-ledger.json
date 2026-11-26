@@ -191,6 +191,11 @@
       "hits": 8,
       "why": "writes the engine's winner by side: `sidesOf` (`sideKey`) picks the Registration or the team column"
     },
+    "apps/api/src/modules/mcp/tools/tournament-query.test-helper.ts": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "the organiser tools' test harness: it declares the columns of the mock `vw_tournament_query_matches` rows of an individual fixture Tournament (`bouts`) and reads no side; the tools service it drives is its own `not-yet` line (1c-2)"
+    },
     "apps/api/src/modules/me/me-events.service.ts": {
       "verdict": "not-yet",
       "hits": 15,
