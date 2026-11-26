@@ -172,6 +172,8 @@ test.describe('team tournament', () => {
    * does.
    */
   test.afterAll(async ({ playwright }) => {
+    // A skipped or early-failed run made nothing: no context to open, no admin session to read.
+    if (!createdLeagueId && !createdEventId) return;
     const { baseURL } = runContext();
     const ctx = await playwright.request.newContext({
       baseURL,
