@@ -217,19 +217,25 @@ export function ReadinessRow({
       >
         {message}
       </span>
-      {href && (
-        <Link
-          href={href}
-          className={`flex-shrink-0 text-xs font-semibold text-accent ${
-            outstanding
-              ? 'rounded border border-accent px-2 py-0.5 hover:bg-accent hover:text-accent-foreground'
-              : 'hover:underline'
-          }`}
-        >
-          {outstanding ? t('organizer.readiness.fix') : t('organizer.readiness.view')}
-        </Link>
-      )}
+      {href && <RowAction href={href} outstanding={outstanding} />}
     </li>
+  );
+}
+
+/** "Fix" as a button on a row with work left; a plain "View" link on a cleared one. */
+function RowAction({ href, outstanding }: { href: string; outstanding: boolean }) {
+  const { t } = useI18n();
+  return (
+    <Link
+      href={href}
+      className={`flex-shrink-0 text-xs font-semibold text-accent ${
+        outstanding
+          ? 'rounded border border-accent px-2 py-0.5 hover:bg-accent hover:text-accent-foreground'
+          : 'hover:underline'
+      }`}
+    >
+      {outstanding ? t('organizer.readiness.fix') : t('organizer.readiness.view')}
+    </Link>
   );
 }
 
