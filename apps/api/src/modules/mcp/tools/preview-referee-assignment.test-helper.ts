@@ -19,6 +19,7 @@ export const JEAN = id(10);
 export const PAUL = id(11);
 export const MARIE = id(12);
 export const LUC = id(13);
+export const MARC = id(14);
 
 export const caller: McpCaller = { userId: id(90), email: 'marie@example.org', clientId: id(91) };
 export const key = confirmationKey('test-secret');
@@ -50,6 +51,7 @@ export function crewRow(
     [JEAN]: ['Jean', 'Dupont'],
     [PAUL]: ['Paul', 'Martin'],
     [MARIE]: ['Marie', 'Curie'],
+    [MARC]: ['Marc', 'Blanc'],
   };
   const [given_name, family_name] = names[person]!;
   return {

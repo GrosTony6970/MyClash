@@ -172,7 +172,7 @@ function removalRefusal(holder: CrewRow | null, skill: RefereeSkill, match: Writ
   if (holder.scopeType !== 'match') {
     return {
       refusal:
-        `${holder.name} holds ${skill.name} for every Match on ${match.piste}, not this Match ` +
+        `${holder.name} holds ${skill.name} for every Match on ${match.piste ?? 'its piste'}, not this Match ` +
         'alone. Change it in MyClash, or name someone for this Match.',
     };
   }
@@ -241,7 +241,11 @@ function crews(
         },
       ]
     : [];
-  return { crewBefore: crewOf(rows), crewAfter: crewOf([...kept, ...written]) };
+  const after = [...kept, ...written];
+  // `to` is who holds the role once written: after a removal, the Pool's or Lice's holder of the
+  // same role takes the Match back, so "nobody" is said only when nobody holds it.
+  const to = holderOf(after, seat, skill.id)?.name ?? null;
+  return { to, crewBefore: crewOf(rows), crewAfter: crewOf(after) };
 }
 
 /** The bout's two fighters, by the view the schedule grid reads. A failed read throws. */
@@ -354,7 +358,6 @@ async function answerOf(
     },
     role: skill.name,
     from: holder?.name ?? null,
-    to: person?.displayName ?? null,
     ...crews(p.rows, match, skill, person, p.skills),
     level: judged.level,
     warnings: judged.warnings,

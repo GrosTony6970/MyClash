@@ -13,6 +13,7 @@ import {
   key,
   LICE,
   listEventReferees,
+  MARC,
   MARIE,
   MATCH,
   PAUL,
@@ -177,6 +178,19 @@ describe('preview_referee_assignment answers', () => {
     expect(payloadOf(answer.confirmation)).toMatchObject({ personId: null, prev: JEAN, codes: [] });
     expect(judgeVerdict).not.toHaveBeenCalled();
     expect(listEventReferees).not.toHaveBeenCalled();
+  });
+
+  it('names the Pool crew holder who takes the role back after a removal, not "nobody"', async () => {
+    world.crew = [crewRow(JEAN, DECLARANT, 'match'), crewRow(MARC, DECLARANT, 'pool')];
+    const answer = await answered({ referee: null });
+    expect(answer).toMatchObject({
+      from: 'Jean Dupont',
+      to: 'Marc Blanc',
+      crewBefore: [{ role: 'Déclarant', name: 'Jean Dupont' }],
+      crewAfter: [{ role: 'Déclarant', name: 'Marc Blanc' }],
+    });
+    // The write is still a removal of the Match's own row.
+    expect(payloadOf(answer.confirmation)).toMatchObject({ personId: null, prev: JEAN });
   });
 
   it('shows the crew after a swap over a Pool-crew holder: the Match row hides the rest', async () => {

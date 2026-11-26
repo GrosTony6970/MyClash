@@ -162,6 +162,15 @@ describe('preview_referee_assignment refuses', () => {
         'it in MyClash, or name someone for this Match.',
     );
   });
+
+  it('a removal of a piste-crew holder on a piste with no name, never saying "null"', async () => {
+    world.bouts = [bout({ lices: null })];
+    world.crew = [crewRow(JEAN, DECLARANT, 'lice')];
+    expect(await refused({ referee: null })).toBe(
+      'Jean Dupont holds Déclarant for every Match on its piste, not this Match alone. Change ' +
+        'it in MyClash, or name someone for this Match.',
+    );
+  });
 });
 
 describe('preview_referee_assignment fails', () => {
