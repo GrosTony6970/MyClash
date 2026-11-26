@@ -84,6 +84,11 @@ const ROOTS = [
   // this root those keys are referenced from nowhere the sweep can see, and it
   // asks you to delete strings that ship on every failed request.
   'packages/api-client/src',
+  // `refereeReasonText` names the `organizer.refereeBoard.reasons.*` keys as whole
+  // literals but takes the translator as a parameter (the package has no i18n
+  // dependency), so the web app and the API that render the words are not the
+  // module that chooses the keys. Only this directory, not the whole package.
+  'packages/rulesets/src/scheduling',
   // Holds key literals without calling `t()`: roundTokenLabel() maps a round
   // token to an i18n key so the module can stay locale-agnostic. Whitelisting
   // the `common.round.` prefix instead would have exempted that whole family

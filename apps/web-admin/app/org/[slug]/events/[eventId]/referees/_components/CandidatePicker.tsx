@@ -16,7 +16,8 @@ import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Modal, nameOrUnknown } from '@myclash/ui';
 import { PageAlert, errorOutcome } from '@/components/PageAlert';
-import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
+import { refereeReasonsText } from '@myclash/rulesets/scheduling/referee-reason-text';
+import type { PickerReason } from '@/lib/referee-reasons';
 import { slotRoleName } from '@/lib/referee-role-name';
 import { filterCandidates } from './candidate-filter';
 import type {

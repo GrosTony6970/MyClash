@@ -17,6 +17,10 @@
     "./scheduling/referee-checker": {
       "types": "./dist/scheduling/referee-checker.d.ts",
       "default": "./dist/scheduling/referee-checker.js"
+    },
+    "./scheduling/referee-reason-text": {
+      "types": "./dist/scheduling/referee-reason-text.d.ts",
+      "default": "./dist/scheduling/referee-reason-text.js"
     }
   },
   "scripts": {

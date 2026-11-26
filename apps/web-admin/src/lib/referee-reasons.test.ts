@@ -1,7 +1,10 @@
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { REFEREE_REASON_CODES } from '@myclash/rulesets/scheduling/referee-checker';
 import { describe, expect, it } from 'vitest';
-import { refereeReasonText, refereeReasonsText } from './referee-reasons';
+import {
+  refereeReasonText,
+  refereeReasonsText,
+} from '@myclash/rulesets/scheduling/referee-reason-text';
 
 /**
  * Every code the checker can give has words, in both languages. The list comes from the

@@ -2,7 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';
-import { refereeReasonText } from '@/lib/referee-reasons';
+import { refereeReasonText } from '@myclash/rulesets/scheduling/referee-reason-text';
 
 /**
  * The reasons of one referee verdict (ADR-016), as every screen shows them: red when
