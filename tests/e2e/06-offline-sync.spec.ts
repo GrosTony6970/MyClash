@@ -1,5 +1,7 @@
 import { test, expect, type APIResponse, type Page } from '@playwright/test';
 import { runContext } from './_context';
+import { apiFor } from './_api';
+import { aScheduledTeamBout } from './_team';
 
 /**
  * Offline scoring durability (web-staff PWA) — drives the real scoring pad and
@@ -302,4 +304,79 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     .toBe(penaltiesBefore + (redFirst ? 2 : 1));
   // The protest of step 2d: exactly one live row.
   await expect.poll(liveProtests, { timeout: 20_000 }).toBe(1);
+});
+
+/**
+ * A team bout (slice 1b-2): a card queued with no network names the red corner's TEAM, and
+ * reaches the server once — `team_id` set, `registration_id` null (call 10: a queued row writes
+ * `registration_id: null`, never `''`). A reload after the drain sends nothing again.
+ */
+test('a team card queued offline reaches the server once, named by its team', async ({
+  page,
+  context,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const api = apiFor(request);
+  const { eventId, baseURL } = runContext();
+  const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
+  const { bout } = await aScheduledTeamBout(api, eventId, 'offline-sync');
+  for (const action of ['start', 'halt']) {
+    await api.ok(await api.post(`matches/${bout.id}/clock`, { data: { action } }));
+  }
+  type Card = { team_id: string | null; registration_id: string | null };
+  const serverCards = async (): Promise<Card[]> =>
+    api.json<Card[]>(await api.get(`matches/${bout.id}/penalties`));
+  type QueuedRow = { kind?: string; teamId?: string; registrationId?: string };
+  const queued = (p: Page): Promise<QueuedRow[]> =>
+    p.evaluate(
+      () =>
+        new Promise<QueuedRow[]>((resolve) => {
+          const open = indexedDB.open('myclash-staff');
+          open.onerror = () => resolve([]);
+          open.onsuccess = () => {
+            const all = open.result.transaction('outbox').objectStore('outbox').getAll();
+            all.onsuccess = () => {
+              open.result.close();
+              resolve(all.result as QueuedRow[]);
+            };
+          };
+        }),
+    );
+  const bar = page.getByTestId('network-bar');
+
+  await page.goto(`${staffBase}/matches/${bout.id}`);
+  await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
+  await expect(page.getByTestId('clean-hit-button').first()).toBeEnabled({ timeout: 30_000 });
+
+  await context.setOffline(true);
+  await expect(bar).toHaveAttribute('data-network', 'offline', { timeout: 15_000 });
+  await page.getByTestId('open-corrections').click();
+  await page.getByTestId('direct-card-reason').fill('Late on the piste');
+  const yellow = page.locator('[data-testid="direct-card-button"][data-card="yellow"]');
+  await yellow.click();
+  await expect(yellow, 'the drawer closes at once').toHaveCount(0);
+  await expect
+    .poll(async () =>
+      (await queued(page)).map((row) => ({
+        kind: row.kind,
+        teamId: row.teamId,
+        registrationId: row.registrationId,
+      })),
+    )
+    .toEqual([{ kind: 'penalty', teamId: bout.red_team_id, registrationId: undefined }]);
+  expect(await serverCards(), 'still offline: the server has no card').toEqual([]);
+
+  await context.setOffline(false);
+  await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 15_000 });
+  await expect.poll(async () => (await queued(page)).length, { timeout: 20_000 }).toBe(0);
+  const named = (cards: Card[]) =>
+    cards.map((card) => ({ team: card.team_id, registration: card.registration_id }));
+  const once = [{ team: bout.red_team_id, registration: null }];
+  await expect.poll(async () => named(await serverCards()), { timeout: 20_000 }).toEqual(once);
+
+  await page.reload();
+  await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
+  await expect(bar).toHaveAttribute('data-pending', '0', { timeout: 15_000 });
+  expect(named(await serverCards()), 'the drained card is not sent again').toEqual(once);
 });
