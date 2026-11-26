@@ -45,8 +45,8 @@ interface PublicStandings {
   lbRounds?: number | null;
   phaseType?: string;
   swissPhaseId?: string | null;
-  swissRoundCount?: number;
-  swissRoundsCompleted?: number;
+  swissRoundCount: number;
+  swissRoundsCompleted: number;
   bracketSlots: {
     round: number;
     position: number;
@@ -155,8 +155,8 @@ export async function tournamentStandings(
     pools: tables ? poolTableRows(tables) : [],
     swiss: standings.swissPhaseId
       ? {
-          rounds: standings.swissRoundCount ?? 0,
-          roundsCompleted: standings.swissRoundsCompleted ?? 0,
+          rounds: standings.swissRoundCount,
+          roundsCompleted: standings.swissRoundsCompleted,
         }
       : null,
     bracket: toBracket(standings),

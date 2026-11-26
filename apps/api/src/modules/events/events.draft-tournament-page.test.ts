@@ -197,6 +197,22 @@ describe.each(Object.keys(ROUTES) as Array<keyof typeof ROUTES>)('%s (ruling 127
 });
 
 /**
+ * An insider's standings of a Tournament that is not public stop before the phases are read. The
+ * answer still says it has no Swiss phase, in the full answer's shape: the MCP tool reads the two
+ * round counts as numbers.
+ */
+it.each(HIDDEN)('answers an insider a %s Tournament with no Swiss phase', async (slug) => {
+  const standings = await ROUTES.standings(slug, req({ user: 'u-member' }));
+  expect(standings).toMatchObject({
+    swissPhaseId: null,
+    swissRoundCount: 0,
+    swissRoundsCompleted: 0,
+    swissFinalized: false,
+  });
+  expect(queriedTables(db.from)).not.toContain('phases');
+});
+
+/**
  * A hidden EVENT on the same two reads and on the roster (operator ruling 2026-10-13: a test
  * Event follows the rule of a draft, its club reads its public pages). All three read the Event
  * through `getEventBySlug`, which refused a test Event to its own club too. The service door has

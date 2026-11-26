@@ -162,6 +162,19 @@ export function countDistinctPersonIds(rows: Array<{ person_id: string }>): numb
   return new Set(rows.map((r) => r.person_id)).size;
 }
 
+/**
+ * The Swiss summary of a Tournament with no Swiss phase. A Tournament that is not public yet
+ * answers it too: its phases are not read.
+ */
+function noSwissPhase() {
+  return {
+    swissPhaseId: null,
+    swissRoundCount: 0,
+    swissRoundsCompleted: 0,
+    swissFinalized: false,
+  };
+}
+
 export interface EventLogoUpload {
   buffer: Buffer;
   filename: string;
@@ -1556,6 +1569,7 @@ export class EventsService {
         bracketSlots: [],
         bracketSize: 0,
         bracketRounds: 0,
+        ...noSwissPhase(),
       };
     }
 
@@ -1652,14 +1666,7 @@ export class EventsService {
   private async resolveSwissSummary(phaseRows: Array<Record<string, unknown>>) {
     const swissPhase = phaseRows.find((phase) => phase['type'] === 'swiss');
     const phaseId = typeof swissPhase?.['id'] === 'string' ? swissPhase['id'] : null;
-    if (!phaseId) {
-      return {
-        swissPhaseId: null,
-        swissRoundCount: 0,
-        swissRoundsCompleted: 0,
-        swissFinalized: false,
-      };
-    }
+    if (!phaseId) return noSwissPhase();
 
     const config = parseSwissConfig(swissPhase?.['config_json']);
     const { data: rounds } = await this.supabase.service
