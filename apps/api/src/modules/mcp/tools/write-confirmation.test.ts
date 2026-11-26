@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import type * as NodeCrypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { McpCaller } from '../mcp-server';
 import { expectNoRawIds } from './no-raw-ids.test-helper';
@@ -11,7 +12,7 @@ import {
 
 // The real ciphers, watched: the tag-length pin is seen only in the call's options.
 vi.mock('node:crypto', async (importOriginal) => {
-  const real = await importOriginal<typeof import('node:crypto')>();
+  const real = await importOriginal<typeof NodeCrypto>();
   return {
     ...real,
     createCipheriv: vi.fn(real.createCipheriv),
