@@ -49,7 +49,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.dev.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.dev.yml:/etc/traefik/dynamic.dev.yml:ro
-    networks: [myclash-dev]
+    networks:
+      myclash-dev:
+        # Inside the network a *.localhost name resolves to 127.0.0.1 — the calling
+        # container itself — so the api's own SUPABASE_URL calls were refused. In prod
+        # these names are real DNS that lands on Traefik; the aliases do the same here.
+        aliases:
+          - myclash.localhost
+          - admin.myclash.localhost
+          - staff.myclash.localhost
+          - api.myclash.localhost
+          - marketing.myclash.localhost
     labels:
       - traefik.enable=true
       # Shared compress middleware (referenced by all routers)
@@ -496,6 +506,11 @@ services:
       PHOTO_TOKEN_SECRET: ${PHOTO_TOKEN_SECRET:-dev-photo-token-secret-change-me}
       PHOTO_DEVICE_JWT_SECRET: ${PHOTO_DEVICE_JWT_SECRET:-dev-photo-device-secret-change-me}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
+      # MailService reads this with getOrThrow, so the api did not boot without it. The
+      # default is no Resend key: a dev stack sends no mail, and every send fails loudly.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_dev_not_a_real_key}
+      # Read at boot and must be 64 hex characters (32 bytes, ai-key-crypto.ts). Dev only.
+      AI_KEY_SECRET: ${AI_KEY_SECRET:-0000000000000000000000000000000000000000000000000000000000000000}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
       # See prod compose — without this passthrough the whitelist can't be set.
@@ -531,6 +546,10 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.dev-api.rule=Host(`api.myclash.localhost`)
+      # The host's catch-all must lose to every path router on it. With no priority
+      # Traefik ranks a rule by its length — 29 here — which beat /auth, /rest,
+      # /storage and /realtime (20-25), so those reached Nest instead of Supabase.
+      - traefik.http.routers.dev-api.priority=1
       - traefik.http.routers.dev-api.entrypoints=websecure
       - traefik.http.routers.dev-api.tls=true
       # No fail2ban, matching prod's myclash-api — which never had one. The
@@ -660,6 +679,8 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.dev-staff.rule=Host(`staff.myclash.localhost`)
+      # Its rule's length (31) beat dev-staff-api's 30 — see dev-api's priority.
+      - traefik.http.routers.dev-staff.priority=1
       - traefik.http.routers.dev-staff.entrypoints=websecure
       - traefik.http.routers.dev-staff.tls=true
       - traefik.http.routers.dev-staff.middlewares=myclash-geoblock-public@file,myclash-compress@docker
@@ -692,6 +713,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.dev-admin.rule=Host(`admin.myclash.localhost`)
+      # Its rule's length (31) beat dev-admin-api's 30, so /api/v1 reached Next and
+      # every login 404'd — see dev-api's priority. Prod's myclash-admin is pinned to 1 too.
+      - traefik.http.routers.dev-admin.priority=1
       - traefik.http.routers.dev-admin.entrypoints=websecure
       - traefik.http.routers.dev-admin.tls=true
       - traefik.http.routers.dev-admin.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
@@ -726,7 +750,9 @@ services:
       PHOTO_DEVICE_JWT_SECRET: ${PHOTO_DEVICE_JWT_SECRET:-dev-photo-device-secret-change-me}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-cookie-secret-change-me}
-      AI_KEY_SECRET: ${AI_KEY_SECRET:-dev-ai-key-secret-change-me}
+      # Same two as the api above: the worker boots the same modules.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_dev_not_a_real_key}
+      AI_KEY_SECRET: ${AI_KEY_SECRET:-0000000000000000000000000000000000000000000000000000000000000000}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
       # The runtime-health monitor runs here (only), and reads the photo bucket with these keys.
