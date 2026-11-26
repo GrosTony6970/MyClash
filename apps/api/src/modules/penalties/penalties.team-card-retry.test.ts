@@ -199,6 +199,107 @@ describe('a team black card sent again after its forfeit was taken back', () => 
   });
 });
 
+/**
+ * A resend reads two things of the bout's forfeits: the live one its card made, to repair it, and
+ * one its card made since and an organiser took back. Each read keeps to this bout, this team and
+ * a black card's reasons; a forfeit outside any of the three is not this card's.
+ */
+describe('a team black card sent again keeps to its bout, its team and a black card', () => {
+  /** When an organiser took a forfeit back, after the card was saved. */
+  const VOIDED_AT = '2026-11-25T10:05:00.000Z';
+  /** The bout as the blue team's black card left it: the blue team lost it, 7 to 0. */
+  const ENDED_BY_BLUE = { ...ENDED_BY_THE_CARD, winner_team_id: 'team-red' };
+  /** The blue team's black-card forfeit, written after the red card was saved. */
+  const BLUE = {
+    ...RECORD,
+    id: 'ff-blue',
+    forfeiting_team_id: 'team-blue',
+    winner_team_id: 'team-red',
+    resulting_match_state: {},
+  };
+  /** The red team's withdrawal from the bout, written after the card was saved. */
+  const WITHDRAWAL = {
+    ...RECORD,
+    id: 'ff-withdrawal',
+    reason: 'voluntary',
+    resulting_match_state: {},
+  };
+
+  /** The resend forfeited this bout for the red team's black card. */
+  const forfeitedThisBout = (again: ReturnType<typeof teamCardBout>) => {
+    expect(written(again.db, 'match_forfeits', 'insert')).toEqual([
+      expect.objectContaining({
+        match_id: 'm1',
+        forfeiting_team_id: 'team-red',
+        reason: 'black_card_1',
+      }),
+    ]);
+    expect(again.completion.onMatchCompleted).toHaveBeenCalledWith('m1');
+  };
+
+  /** The resend touched no forfeit and handed nothing on. */
+  const leftAlone = (again: ReturnType<typeof teamCardBout>) => {
+    expect(writesTo(again.db, 'match_forfeits')).toEqual([]);
+    expect(written(again.db, 'matches', 'update')).toEqual([]);
+    expect(again.completion.onMatchCompleted).not.toHaveBeenCalled();
+  };
+
+  it('a forfeit of the team on another bout is not its own: the resend forfeits this bout', async () => {
+    // The red team's live black-card forfeit of bout m2, written after this card was saved.
+    const again = teamCardBout({
+      cards: [cardOf()],
+      forfeits: [{ ...RECORD, id: 'ff-m2', match_id: 'm2' }],
+    });
+
+    await again.send(BLACK_CARD);
+
+    forfeitedThisBout(again);
+  });
+
+  it('the other team’s live forfeit, which ended the bout, is not its own to repair', async () => {
+    const again = teamCardBout({ bout: ENDED_BY_BLUE, cards: [cardOf()], forfeits: [BLUE] });
+
+    await expect(again.send(BLACK_CARD)).resolves.toMatchObject({ id: 'card-new' });
+
+    leftAlone(again);
+  });
+
+  it('the other team’s forfeit taken back is not its own take-back: the resend forfeits', async () => {
+    const again = teamCardBout({
+      cards: [cardOf()],
+      forfeits: [{ ...BLUE, voided_at: VOIDED_AT }],
+    });
+
+    await again.send(BLACK_CARD);
+
+    forfeitedThisBout(again);
+  });
+
+  it('the team’s live forfeit for another reason is not its own to repair', async () => {
+    const ENDED_BY_WITHDRAWAL = { ...ENDED_BY_THE_CARD, end_reason: 'forfeit' };
+    const again = teamCardBout({
+      bout: ENDED_BY_WITHDRAWAL,
+      cards: [cardOf()],
+      forfeits: [WITHDRAWAL],
+    });
+
+    await expect(again.send(BLACK_CARD)).resolves.toMatchObject({ id: 'card-new' });
+
+    leftAlone(again);
+  });
+
+  it('the team’s forfeit for another reason, taken back, does not stop the resend', async () => {
+    const again = teamCardBout({
+      cards: [cardOf()],
+      forfeits: [{ ...WITHDRAWAL, voided_at: VOIDED_AT }],
+    });
+
+    await again.send(BLACK_CARD);
+
+    forfeitedThisBout(again);
+  });
+});
+
 describe('a team black card taken back', () => {
   it('a 2nd black card of the team taken back leaves the forfeit its 1st made', async () => {
     const second = { ...cardOf(), id: 'card-2', client_uuid: 'uuid-2' };
