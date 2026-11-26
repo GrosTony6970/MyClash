@@ -122,6 +122,22 @@ describe('TournamentQueryService', () => {
     expect(organizations.assertOrgRole).toHaveBeenCalledWith(orgId, userId, 'admin');
   });
 
+  it('saveSettings refuses the removed coaches setting with a 400 and writes nothing', async () => {
+    const service = new TournamentQueryService(
+      supabase as never,
+      organizations as never,
+      aiUsage as never,
+      tools,
+    );
+
+    await expect(
+      service.saveSettings(tournamentId, userId, {
+        accessPolicy: 'organizers_head_judges_coaches',
+      } as never),
+    ).rejects.toThrow(new BadRequestException('Invalid query access policy'));
+    expect(supabase.service.from).not.toHaveBeenCalledWith('tournament_query_settings');
+  });
+
   describe('head judge policy', () => {
     function refereeSupabase() {
       const base = makeSupabase();

@@ -3,7 +3,11 @@ import { countRows } from '../../common/pg-aggregate';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import type { TournamentQueryDto, TournamentQuerySettingsDto } from './dto/tournament-query.dto';
+import {
+  QUERY_ACCESS_POLICIES,
+  type TournamentQueryDto,
+  type TournamentQuerySettingsDto,
+} from './dto/tournament-query.dto';
 import {
   DEFAULT_RATE_LIMIT,
   assertQueryAccess,
@@ -195,14 +199,7 @@ export class TournamentQueryService {
       throw new BadRequestException('Rate limit must be between 1 and 500 queries per hour');
     }
     const accessPolicy = dto.accessPolicy ?? 'organizers_only';
-    if (
-      ![
-        'organizers_only',
-        'organizers_head_judges',
-        'organizers_head_judges_coaches',
-        'anyone_with_tournament_access',
-      ].includes(accessPolicy)
-    ) {
+    if (!(QUERY_ACCESS_POLICIES as readonly string[]).includes(accessPolicy)) {
       throw new BadRequestException('Invalid query access policy');
     }
     const { data, error } = await this.supabase.service

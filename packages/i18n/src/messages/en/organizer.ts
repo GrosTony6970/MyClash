@@ -1390,8 +1390,7 @@ export const organizer = {
     rateLimit: 'Per-user hourly limit',
     access: {
       organizersOnly: 'Organizers only',
-      headJudges: 'Organizers + head judges',
-      coaches: 'Organizers + head judges + coaches',
+      headJudges: "Organizers + the Event's referees",
       anyone: 'Anyone with tournament access',
     },
     suggestions: {

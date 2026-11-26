@@ -349,9 +349,6 @@ export function TournamentQueryPanel(props: {
                 <option value="organizers_head_judges">
                   {t('organizer.tournamentQuery.access.headJudges')}
                 </option>
-                <option value="organizers_head_judges_coaches">
-                  {t('organizer.tournamentQuery.access.coaches')}
-                </option>
                 <option value="anyone_with_tournament_access">
                   {t('organizer.tournamentQuery.access.anyone')}
                 </option>

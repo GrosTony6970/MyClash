@@ -1388,8 +1388,7 @@ export const organizer = {
     rateLimit: 'Limite horaire par utilisateur',
     access: {
       organizersOnly: 'Organisateurs seulement',
-      headJudges: 'Organisateurs + arbitres principaux',
-      coaches: 'Organisateurs + arbitres principaux + coaches',
+      headJudges: "Organisateurs + arbitres de l'Événement",
       anyone: 'Toute personne avec accès au tournoi',
     },
     suggestions: {
