@@ -34,12 +34,12 @@ export {
 export type {
   BracketR1Slot,
   PoolRanking,
-  RankedRegistration,
+  RankedEntrant,
   SlotSeedUpdate,
 } from './bracket-r1-seeding';
 
 export { rankByRating, rankBySeed, rankRandom } from './r1-ranking';
-export type { SeedableRegistration } from './r1-ranking';
+export type { SeedableEntrant } from './r1-ranking';
 
 // ── The League: cross-EVENT aggregation ─────────────────────────────────────
 // A league table is stale by DEFAULT — recompute is never triggered by a match

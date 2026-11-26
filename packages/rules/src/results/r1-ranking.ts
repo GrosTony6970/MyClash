@@ -2,7 +2,7 @@
  * Bracket Round-1 ranking strategies.
  *
  * Every seeding strategy reduces to the same job: turn a set of registrations
- * into a `RankedRegistration[]` (rank 1..N). `buildR1SeedingPlan` then maps
+ * into a `RankedEntrant[]` (rank 1..N). `buildR1SeedingPlan` then maps
  * rank K onto the bracket side labelled "seed K" — the canonical standard
  * distribution is already baked into `bracket_slots.source_a_ref` by the
  * generator, so the strategies differ ONLY in how they order fighters, never
@@ -16,9 +16,9 @@
  * `buildCrossPoolSnakeRanking` in bracket-r1-seeding.ts.
  */
 import { mulberry32 } from '../scheduling/local-search';
-import type { RankedRegistration } from './bracket-r1-seeding';
+import type { RankedEntrant } from './bracket-r1-seeding';
 
-export interface SeedableRegistration {
+export interface SeedableEntrant {
   id: string;
   seed: number | null;
   bibNumber: number | null;
@@ -39,10 +39,10 @@ export interface SeedableRegistration {
  * verbatim from the two call sites this replaces so the default path is
  * behaviour-identical.
  */
-export function rankBySeed(regs: SeedableRegistration[]): RankedRegistration[] {
+export function rankBySeed(regs: SeedableEntrant[]): RankedEntrant[] {
   return regs.map((reg, idx) => ({
     rank: reg.seed ?? reg.bibNumber ?? idx + 1,
-    registrationId: reg.id,
+    entrantId: reg.id,
   }));
 }
 
@@ -56,10 +56,10 @@ export function rankBySeed(regs: SeedableRegistration[]): RankedRegistration[] {
  * that reshuffles on every re-run is not defensible).
  */
 export function rankByRating(
-  regs: SeedableRegistration[],
+  regs: SeedableEntrant[],
   ratings: Map<string, number>,
-): RankedRegistration[] {
-  const ratingOf = (reg: SeedableRegistration): number | null =>
+): RankedEntrant[] {
+  const ratingOf = (reg: SeedableEntrant): number | null =>
     reg.hemaRatingsId ? (ratings.get(reg.hemaRatingsId) ?? null) : null;
 
   const ordered = [...regs].sort((a, b) => {
@@ -80,7 +80,7 @@ export function rankByRating(
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 
-  return ordered.map((reg, idx) => ({ rank: idx + 1, registrationId: reg.id }));
+  return ordered.map((reg, idx) => ({ rank: idx + 1, entrantId: reg.id }));
 }
 
 /**
@@ -90,15 +90,15 @@ export function rankByRating(
  * seed, never on the order Postgres happened to return rows in — that is what
  * makes a draw replayable months later when someone contests it.
  */
-export function rankRandom(regs: SeedableRegistration[], prngSeed: number): RankedRegistration[] {
+export function rankRandom(regs: SeedableEntrant[], prngSeed: number): RankedEntrant[] {
   const pool = [...regs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const rng = mulberry32(prngSeed);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    const a = pool[i] as SeedableRegistration;
-    const b = pool[j] as SeedableRegistration;
+    const a = pool[i] as SeedableEntrant;
+    const b = pool[j] as SeedableEntrant;
     pool[i] = b;
     pool[j] = a;
   }
-  return pool.map((reg, idx) => ({ rank: idx + 1, registrationId: reg.id }));
+  return pool.map((reg, idx) => ({ rank: idx + 1, entrantId: reg.id }));
 }

@@ -81,14 +81,9 @@ import {
   diffR1SeedingPlan,
   parseSeed,
   seedingSourceKind,
-  type RankedRegistration,
+  type RankedEntrant,
 } from '@myclash/rules/results';
-import {
-  rankBySeed,
-  rankByRating,
-  rankRandom,
-  type SeedableRegistration,
-} from '@myclash/rules/results';
+import { rankBySeed, rankByRating, rankRandom, type SeedableEntrant } from '@myclash/rules/results';
 // Value import, not `import type`: Nest DI metadata.
 import { SwissStandingsService } from '../swiss/swiss-standings.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
@@ -153,7 +148,7 @@ type PerPoolStandings = Extract<
 type SeedingResolution =
   | {
       ok: true;
-      rankings: RankedRegistration[];
+      rankings: RankedEntrant[];
       source: R1RankingSource;
       warnings: SeedingWarning[];
       randomSeed?: number;
@@ -986,7 +981,7 @@ export class PhasesService {
     }
 
     // Resolve the rank order for the chosen strategy.
-    let rankings: RankedRegistration[];
+    let rankings: RankedEntrant[];
     let usedRandomSeed: number | undefined;
     let warnings: SeedingWarning[] = [];
     if (dto.strategy === 'by-pool-rank') {
@@ -1017,8 +1012,8 @@ export class PhasesService {
     const planBySlotId = new Map(plan.map((p) => [p.slotId, p]));
 
     for (const slot of slots) {
-      const regA = planBySlotId.get(slot.id)?.registrationAId ?? null;
-      const regB = planBySlotId.get(slot.id)?.registrationBId ?? null;
+      const regA = planBySlotId.get(slot.id)?.entrantAId ?? null;
+      const regB = planBySlotId.get(slot.id)?.entrantBId ?? null;
       const { error: updateErr } = await this.supabase.service
         .from('bracket_slots')
         .update({ registration_a_id: regA, registration_b_id: regB })
@@ -1255,8 +1250,8 @@ export class PhasesService {
       const { error: slotErr } = await this.supabase.service
         .from('bracket_slots')
         .update({
-          registration_a_id: update.registrationAId,
-          registration_b_id: update.registrationBId,
+          registration_a_id: update.entrantAId,
+          registration_b_id: update.entrantBId,
         })
         .eq('id', update.slotId);
       if (slotErr) throw new BadRequestException(slotErr.message);
@@ -1276,9 +1271,9 @@ export class PhasesService {
       // permanently. Byes need no special case here: they never get a
       // matches row, so the UPDATE below simply matches nothing.
       const knownSides: Record<string, string> = {};
-      if (update.registrationAId) knownSides['red_registration_id'] = update.registrationAId;
-      if (update.registrationBId) knownSides['blue_registration_id'] = update.registrationBId;
-      const bothSidesKnown = !!update.registrationAId && !!update.registrationBId;
+      if (update.entrantAId) knownSides['red_registration_id'] = update.entrantAId;
+      if (update.entrantBId) knownSides['blue_registration_id'] = update.entrantBId;
+      const bothSidesKnown = !!update.entrantAId && !!update.entrantBId;
 
       if (Object.keys(knownSides).length > 0) {
         const { data: existingMatch } = await this.supabase.service
@@ -1295,8 +1290,8 @@ export class PhasesService {
           await this.supabase.service.from('matches').insert({
             phase_id: phaseId,
             bracket_slot_id: update.slotId,
-            red_registration_id: update.registrationAId,
-            blue_registration_id: update.registrationBId,
+            red_registration_id: update.entrantAId,
+            blue_registration_id: update.entrantBId,
             ...rulesetStamp,
             status: 'scheduled',
             red_score: 0,
@@ -1472,7 +1467,7 @@ export class PhasesService {
         rankings: buildCrossPoolSnakeRanking(
           perPool.map((p) => ({
             poolId: p.poolId,
-            rows: p.rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId })),
+            rows: p.rows.map((r) => ({ rank: r.rank, entrantId: r.entrantId })),
           })),
           topN,
         ),
@@ -1485,7 +1480,7 @@ export class PhasesService {
       ok: true,
       source: 'pool-standings',
       warnings: [],
-      rankings: rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId })),
+      rankings: rows.map((r) => ({ rank: r.rank, entrantId: r.entrantId })),
     };
   }
 
@@ -1537,7 +1532,7 @@ export class PhasesService {
    * to assert "seed from how they placed in pools", so incomplete pools are an
    * error, not a cue to fall back to registration order.
    */
-  private async rankFromCompletedPools(tournamentId: string): Promise<RankedRegistration[]> {
+  private async rankFromCompletedPools(tournamentId: string): Promise<RankedEntrant[]> {
     if (!this.poolStandings) {
       throw new BadRequestException('Pool standings are unavailable — cannot seed by pool rank.');
     }
@@ -1553,7 +1548,7 @@ export class PhasesService {
     }
     const overallResponse = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
     const rows = 'rows' in overallResponse ? overallResponse.rows : [];
-    return rows.map((r) => ({ rank: r.rank, registrationId: r.entrantId }));
+    return rows.map((r) => ({ rank: r.rank, entrantId: r.entrantId }));
   }
 
   /**
@@ -1567,7 +1562,7 @@ export class PhasesService {
   private async loadSeedableRegistrations(
     tournamentId: string,
     opts: { withRatings: boolean },
-  ): Promise<SeedableRegistration[]> {
+  ): Promise<SeedableEntrant[]> {
     const select = opts.withRatings
       ? 'id, seed, bib_number, persons(hema_ratings_id, global_persons(hema_ratings_id))'
       : 'id, seed, bib_number';
@@ -1605,7 +1600,7 @@ export class PhasesService {
     strategy: SeedingStrategy,
     opts: { randomSeed?: number },
   ): Promise<{
-    rankings: RankedRegistration[];
+    rankings: RankedEntrant[];
     source: R1RankingSource;
     randomSeed?: number;
     warnings: SeedingWarning[];
@@ -1641,7 +1636,7 @@ export class PhasesService {
    */
   private async rankFromSwiss(
     tournamentId: string,
-  ): Promise<{ rankings: RankedRegistration[]; warnings: SeedingWarning[] }> {
+  ): Promise<{ rankings: RankedEntrant[]; warnings: SeedingWarning[] }> {
     if (!this.swissStandings) {
       throw new BadRequestException('Swiss standings are unavailable on this server');
     }
@@ -1668,7 +1663,7 @@ export class PhasesService {
     return {
       rankings: standings.rows.map((row) => ({
         rank: row.rank,
-        registrationId: row.entrantId,
+        entrantId: row.entrantId,
       })),
       warnings,
     };
@@ -2161,8 +2156,8 @@ export class PhasesService {
         position: 0,
         seedA: parseSeed(slot.source_a_ref),
         seedB: parseSeed(slot.source_b_ref),
-        registrationAId: slot.registration_a_id,
-        registrationBId: slot.registration_b_id,
+        entrantAId: slot.registration_a_id,
+        entrantBId: slot.registration_b_id,
       }));
     // Nothing seeded means nothing to diff — an ungenerated bracket, or one
     // whose first round is entirely fed by advancement.

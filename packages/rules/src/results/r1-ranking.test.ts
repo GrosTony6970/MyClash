@@ -1,29 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
+import { rankBySeed, rankByRating, rankRandom, type SeedableEntrant } from './r1-ranking';
 
 function reg(
   id: string,
   seed: number | null = null,
   bibNumber: number | null = null,
   hemaRatingsId: string | null = null,
-): SeedableRegistration {
+): SeedableEntrant {
   return { id, seed, bibNumber, hemaRatingsId };
 }
 
 describe('rankBySeed', () => {
   it('uses the operator seed as the rank, not the list position', () => {
     expect(rankBySeed([reg('a', 1), reg('b', 5), reg('c', 8)])).toEqual([
-      { rank: 1, registrationId: 'a' },
-      { rank: 5, registrationId: 'b' },
-      { rank: 8, registrationId: 'c' },
+      { rank: 1, entrantId: 'a' },
+      { rank: 5, entrantId: 'b' },
+      { rank: 8, entrantId: 'c' },
     ]);
   });
 
   it('falls back to bib number, then to list position', () => {
     expect(rankBySeed([reg('a', null, 3), reg('b', null, null), reg('c', 2)])).toEqual([
-      { rank: 3, registrationId: 'a' },
-      { rank: 2, registrationId: 'b' },
-      { rank: 2, registrationId: 'c' },
+      { rank: 3, entrantId: 'a' },
+      { rank: 2, entrantId: 'b' },
+      { rank: 2, entrantId: 'c' },
     ]);
   });
 
@@ -45,17 +45,17 @@ describe('rankByRating', () => {
       ratings,
     );
     expect(out).toEqual([
-      { rank: 1, registrationId: 'b' },
-      { rank: 2, registrationId: 'c' },
-      { rank: 3, registrationId: 'a' },
+      { rank: 1, entrantId: 'b' },
+      { rank: 2, entrantId: 'c' },
+      { rank: 3, entrantId: 'a' },
     ]);
   });
 
   it('sorts unrated fighters last rather than treating them as rating 0', () => {
     const out = rankByRating([reg('unrated', 1, null, null), reg('rated', 9, null, 'h1')], ratings);
     expect(out).toEqual([
-      { rank: 1, registrationId: 'rated' },
-      { rank: 2, registrationId: 'unrated' },
+      { rank: 1, entrantId: 'rated' },
+      { rank: 2, entrantId: 'unrated' },
     ]);
   });
 
@@ -64,7 +64,7 @@ describe('rankByRating', () => {
       [reg('missing', 1, null, 'h-unknown'), reg('rated', 2, null, 'h1')],
       ratings,
     );
-    expect(out.map((r) => r.registrationId)).toEqual(['rated', 'missing']);
+    expect(out.map((r) => r.entrantId)).toEqual(['rated', 'missing']);
   });
 
   it('breaks rating ties on seed, then on id, deterministically', () => {
@@ -78,7 +78,7 @@ describe('rankByRating', () => {
       tied,
     );
     // seed 1 first; the two seed-2 entries fall back to id order (b before c).
-    expect(out.map((r) => r.registrationId)).toEqual(['a', 'b', 'c']);
+    expect(out.map((r) => r.entrantId)).toEqual(['a', 'b', 'c']);
   });
 
   it('does not mutate the input array', () => {
@@ -96,8 +96,8 @@ describe('rankRandom', () => {
   });
 
   it('produces a different draw for a different seed', () => {
-    const a = rankRandom(pool, 42).map((r) => r.registrationId);
-    const b = rankRandom(pool, 43).map((r) => r.registrationId);
+    const a = rankRandom(pool, 42).map((r) => r.entrantId);
+    const b = rankRandom(pool, 43).map((r) => r.entrantId);
     expect(a).not.toEqual(b);
   });
 
@@ -109,26 +109,17 @@ describe('rankRandom', () => {
   it('keeps every registration exactly once with dense ranks 1..N', () => {
     const out = rankRandom(pool, 99);
     expect(out.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(out.map((r) => r.registrationId).sort()).toEqual([
-      'a',
-      'b',
-      'c',
-      'd',
-      'e',
-      'f',
-      'g',
-      'h',
-    ]);
+    expect(out.map((r) => r.entrantId).sort()).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
   });
 
   it('actually shuffles rather than returning id order', () => {
-    const out = rankRandom(pool, 42).map((r) => r.registrationId);
+    const out = rankRandom(pool, 42).map((r) => r.entrantId);
     expect(out).not.toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
   });
 
   it('handles empty and single-entry pools', () => {
     expect(rankRandom([], 1)).toEqual([]);
-    expect(rankRandom([reg('solo', 1)], 1)).toEqual([{ rank: 1, registrationId: 'solo' }]);
+    expect(rankRandom([reg('solo', 1)], 1)).toEqual([{ rank: 1, entrantId: 'solo' }]);
   });
 
   it('does not mutate the input array', () => {

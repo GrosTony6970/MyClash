@@ -424,7 +424,7 @@
     },
     "apps/api/src/modules/swiss/swiss-seeding.service.ts": {
       "verdict": "individual-only",
-      "hits": 5,
+      "hits": 4,
       "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
     },
     "apps/api/src/modules/swiss/swiss-snapshot.ts": {
@@ -829,11 +829,6 @@
       "verdict": "no-side-read",
       "hits": 1,
       "why": "names `winner_registration_id` in a comment (`:384`); the engine reads side ids"
-    },
-    "packages/rules/src/results/bracket-r1-seeding.ts": {
-      "verdict": "not-yet",
-      "hits": 10,
-      "why": "1c: first-round bracket seeds by Registration (`:20`-`:64`)"
     },
     "packages/rules/src/results/fighter-career.ts": {
       "verdict": "individual-only",

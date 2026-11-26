@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
-import type { SeedableRegistration } from '@myclash/rules/results';
+import type { SeedableEntrant } from '@myclash/rules/results';
 import type { GenerateSwissDto } from './dto/swiss.dto';
 import { SwissSeedingService } from './swiss-seeding.service';
 
 const as = (supabase: { service: unknown }): SupabaseService =>
   supabase as unknown as SupabaseService;
 
-const reg = (id: string, hemaRatingsId: string | null = null): SeedableRegistration => ({
+const reg = (id: string, hemaRatingsId: string | null = null): SeedableEntrant => ({
   id,
   seed: null,
   bibNumber: null,

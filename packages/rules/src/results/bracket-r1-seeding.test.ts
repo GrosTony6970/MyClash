@@ -18,20 +18,20 @@ const slots8 = [
 ];
 
 const ranks = (n: number) =>
-  Array.from({ length: n }, (_, i) => ({ rank: i + 1, registrationId: `r${i + 1}` }));
+  Array.from({ length: n }, (_, i) => ({ rank: i + 1, entrantId: `r${i + 1}` }));
 
 describe('buildR1SeedingPlan', () => {
   it('places rank K into the slot side seeded K (standard distribution, not adjacent)', () => {
     const plan = buildR1SeedingPlan(ranks(8), slots8);
     expect(plan).toEqual([
-      { slotId: 's1', registrationAId: 'r1', registrationBId: 'r8' },
-      { slotId: 's2', registrationAId: 'r5', registrationBId: 'r4' },
-      { slotId: 's3', registrationAId: 'r3', registrationBId: 'r6' },
-      { slotId: 's4', registrationAId: 'r7', registrationBId: 'r2' },
+      { slotId: 's1', entrantAId: 'r1', entrantBId: 'r8' },
+      { slotId: 's2', entrantAId: 'r5', entrantBId: 'r4' },
+      { slotId: 's3', entrantAId: 'r3', entrantBId: 'r6' },
+      { slotId: 's4', entrantAId: 'r7', entrantBId: 'r2' },
     ]);
     // The two top seeds must NOT share a slot (the reported bug).
     const slotOf = (reg: string) =>
-      plan.find((p) => p.registrationAId === reg || p.registrationBId === reg)!.slotId;
+      plan.find((p) => p.entrantAId === reg || p.entrantBId === reg)!.slotId;
     expect(slotOf('r1')).not.toBe(slotOf('r2'));
   });
 
@@ -45,10 +45,10 @@ describe('buildR1SeedingPlan', () => {
       { id: 'm13', position: 13, seedA: 3, seedB: 30 },
     ]);
     expect(plan).toEqual([
-      { slotId: 'm1', registrationAId: 'r1', registrationBId: 'r32' },
-      { slotId: 'm2', registrationAId: 'r16', registrationBId: 'r17' },
-      { slotId: 'm9', registrationAId: 'r2', registrationBId: 'r31' },
-      { slotId: 'm13', registrationAId: 'r3', registrationBId: 'r30' },
+      { slotId: 'm1', entrantAId: 'r1', entrantBId: 'r32' },
+      { slotId: 'm2', entrantAId: 'r16', entrantBId: 'r17' },
+      { slotId: 'm9', entrantAId: 'r2', entrantBId: 'r31' },
+      { slotId: 'm13', entrantAId: 'r3', entrantBId: 'r30' },
     ]);
   });
 
@@ -68,21 +68,21 @@ describe('buildR1SeedingPlan', () => {
       { id: 'r1p4', position: 4, seedA: null, seedB: 2 }, // seedA = winner of R0P3
     ]);
     expect(plan).toEqual([
-      { slotId: 'r0p1', registrationAId: 'r5', registrationBId: 'r12' },
-      { slotId: 'r0p2', registrationAId: 'r6', registrationBId: 'r11' },
-      { slotId: 'r0p3', registrationAId: 'r7', registrationBId: 'r10' },
-      { slotId: 'r0p4', registrationAId: 'r8', registrationBId: 'r9' },
-      { slotId: 'r1p1', registrationAId: 'r1', registrationBId: null },
-      { slotId: 'r1p2', registrationAId: null, registrationBId: 'r4' },
-      { slotId: 'r1p3', registrationAId: 'r3', registrationBId: null },
-      { slotId: 'r1p4', registrationAId: null, registrationBId: 'r2' },
+      { slotId: 'r0p1', entrantAId: 'r5', entrantBId: 'r12' },
+      { slotId: 'r0p2', entrantAId: 'r6', entrantBId: 'r11' },
+      { slotId: 'r0p3', entrantAId: 'r7', entrantBId: 'r10' },
+      { slotId: 'r0p4', entrantAId: 'r8', entrantBId: 'r9' },
+      { slotId: 'r1p1', entrantAId: 'r1', entrantBId: null },
+      { slotId: 'r1p2', entrantAId: null, entrantBId: 'r4' },
+      { slotId: 'r1p3', entrantAId: 'r3', entrantBId: null },
+      { slotId: 'r1p4', entrantAId: null, entrantBId: 'r2' },
     ]);
   });
 
   it('leaves a seed with no matching rank null (bye for advanceByeSlots)', () => {
     // Only 7 ranked fighters: seed 8 has no rank → that side (s1.b) is a bye.
     const plan = buildR1SeedingPlan(ranks(7), slots8);
-    expect(plan[0]).toEqual({ slotId: 's1', registrationAId: 'r1', registrationBId: null });
+    expect(plan[0]).toEqual({ slotId: 's1', entrantAId: 'r1', entrantBId: null });
   });
 
   it('treats a null-seed side (bye / play-in feeder) as empty', () => {
@@ -91,14 +91,14 @@ describe('buildR1SeedingPlan', () => {
       { id: 's2', position: 2, seedA: null, seedB: 2 },
     ]);
     expect(plan).toEqual([
-      { slotId: 's1', registrationAId: 'r1', registrationBId: null },
-      { slotId: 's2', registrationAId: null, registrationBId: 'r2' },
+      { slotId: 's1', entrantAId: 'r1', entrantBId: null },
+      { slotId: 's2', entrantAId: null, entrantBId: 'r2' },
     ]);
   });
 
   it('yields all-null updates when rankings are empty', () => {
     const plan = buildR1SeedingPlan([], slots8);
-    expect(plan.every((p) => p.registrationAId === null && p.registrationBId === null)).toBe(true);
+    expect(plan.every((p) => p.entrantAId === null && p.entrantBId === null)).toBe(true);
   });
 });
 
@@ -122,43 +122,43 @@ describe('buildCrossPoolSnakeRanking', () => {
         {
           poolId: 'P1',
           rows: [
-            { rank: 1, registrationId: 'P1-1' },
-            { rank: 2, registrationId: 'P1-2' },
+            { rank: 1, entrantId: 'P1-1' },
+            { rank: 2, entrantId: 'P1-2' },
           ],
         },
         {
           poolId: 'P2',
           rows: [
-            { rank: 1, registrationId: 'P2-1' },
-            { rank: 2, registrationId: 'P2-2' },
+            { rank: 1, entrantId: 'P2-1' },
+            { rank: 2, entrantId: 'P2-2' },
           ],
         },
         {
           poolId: 'P3',
           rows: [
-            { rank: 1, registrationId: 'P3-1' },
-            { rank: 2, registrationId: 'P3-2' },
+            { rank: 1, entrantId: 'P3-1' },
+            { rank: 2, entrantId: 'P3-2' },
           ],
         },
         {
           poolId: 'P4',
           rows: [
-            { rank: 1, registrationId: 'P4-1' },
-            { rank: 2, registrationId: 'P4-2' },
+            { rank: 1, entrantId: 'P4-1' },
+            { rank: 2, entrantId: 'P4-2' },
           ],
         },
       ],
       2,
     );
     expect(ranking).toEqual([
-      { rank: 1, registrationId: 'P1-1' },
-      { rank: 2, registrationId: 'P2-1' },
-      { rank: 3, registrationId: 'P3-1' },
-      { rank: 4, registrationId: 'P4-1' },
-      { rank: 5, registrationId: 'P4-2' },
-      { rank: 6, registrationId: 'P3-2' },
-      { rank: 7, registrationId: 'P2-2' },
-      { rank: 8, registrationId: 'P1-2' },
+      { rank: 1, entrantId: 'P1-1' },
+      { rank: 2, entrantId: 'P2-1' },
+      { rank: 3, entrantId: 'P3-1' },
+      { rank: 4, entrantId: 'P4-1' },
+      { rank: 5, entrantId: 'P4-2' },
+      { rank: 6, entrantId: 'P3-2' },
+      { rank: 7, entrantId: 'P2-2' },
+      { rank: 8, entrantId: 'P1-2' },
     ]);
   });
 
@@ -168,23 +168,23 @@ describe('buildCrossPoolSnakeRanking', () => {
         {
           poolId: 'P1',
           rows: [
-            { rank: 1, registrationId: 'P1-1' },
-            { rank: 2, registrationId: 'P1-2' },
+            { rank: 1, entrantId: 'P1-1' },
+            { rank: 2, entrantId: 'P1-2' },
           ],
         },
         {
           poolId: 'P2',
           rows: [
-            { rank: 1, registrationId: 'P2-1' },
-            { rank: 2, registrationId: 'P2-2' },
+            { rank: 1, entrantId: 'P2-1' },
+            { rank: 2, entrantId: 'P2-2' },
           ],
         },
-        { poolId: 'P3', rows: [{ rank: 1, registrationId: 'P3-1' }] }, // no #2
+        { poolId: 'P3', rows: [{ rank: 1, entrantId: 'P3-1' }] }, // no #2
         {
           poolId: 'P4',
           rows: [
-            { rank: 1, registrationId: 'P4-1' },
-            { rank: 2, registrationId: 'P4-2' },
+            { rank: 1, entrantId: 'P4-1' },
+            { rank: 2, entrantId: 'P4-2' },
           ],
         },
       ],
@@ -192,29 +192,29 @@ describe('buildCrossPoolSnakeRanking', () => {
     );
     // P3#2 absent → only 7 entries; ranks remain dense (1..7)
     expect(ranking).toEqual([
-      { rank: 1, registrationId: 'P1-1' },
-      { rank: 2, registrationId: 'P2-1' },
-      { rank: 3, registrationId: 'P3-1' },
-      { rank: 4, registrationId: 'P4-1' },
-      { rank: 5, registrationId: 'P4-2' },
-      { rank: 6, registrationId: 'P2-2' },
-      { rank: 7, registrationId: 'P1-2' },
+      { rank: 1, entrantId: 'P1-1' },
+      { rank: 2, entrantId: 'P2-1' },
+      { rank: 3, entrantId: 'P3-1' },
+      { rank: 4, entrantId: 'P4-1' },
+      { rank: 5, entrantId: 'P4-2' },
+      { rank: 6, entrantId: 'P2-2' },
+      { rank: 7, entrantId: 'P1-2' },
     ]);
   });
 
   it('takes only top-1 when topN=1 — no reversal kicks in', () => {
     const ranking = buildCrossPoolSnakeRanking(
       [
-        { poolId: 'P1', rows: [{ rank: 1, registrationId: 'P1-1' }] },
-        { poolId: 'P2', rows: [{ rank: 1, registrationId: 'P2-1' }] },
-        { poolId: 'P3', rows: [{ rank: 1, registrationId: 'P3-1' }] },
+        { poolId: 'P1', rows: [{ rank: 1, entrantId: 'P1-1' }] },
+        { poolId: 'P2', rows: [{ rank: 1, entrantId: 'P2-1' }] },
+        { poolId: 'P3', rows: [{ rank: 1, entrantId: 'P3-1' }] },
       ],
       1,
     );
     expect(ranking).toEqual([
-      { rank: 1, registrationId: 'P1-1' },
-      { rank: 2, registrationId: 'P2-1' },
-      { rank: 3, registrationId: 'P3-1' },
+      { rank: 1, entrantId: 'P1-1' },
+      { rank: 2, entrantId: 'P2-1' },
+      { rank: 3, entrantId: 'P3-1' },
     ]);
   });
 });
@@ -226,15 +226,15 @@ describe('buildCrossPoolSnakeRanking', () => {
  */
 describe('diffR1SeedingPlan', () => {
   const plan = [
-    { slotId: 's1', registrationAId: 'r1', registrationBId: 'r8' },
-    { slotId: 's2', registrationAId: 'r5', registrationBId: 'r4' },
+    { slotId: 's1', entrantAId: 'r1', entrantBId: 'r8' },
+    { slotId: 's2', entrantAId: 'r5', entrantBId: 'r4' },
   ];
 
   it('reports nothing when every seeded side still holds its fighter', () => {
     expect(
       diffR1SeedingPlan(plan, [
-        { id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' },
-        { id: 's2', seedA: 5, seedB: 4, registrationAId: 'r5', registrationBId: 'r4' },
+        { id: 's1', seedA: 1, seedB: 8, entrantAId: 'r1', entrantBId: 'r8' },
+        { id: 's2', seedA: 5, seedB: 4, entrantAId: 'r5', entrantBId: 'r4' },
       ]),
     ).toEqual([]);
   });
@@ -242,9 +242,9 @@ describe('diffR1SeedingPlan', () => {
   it('names the slot whose seeded fighter no longer matches the standings', () => {
     expect(
       diffR1SeedingPlan(plan, [
-        { id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' },
+        { id: 's1', seedA: 1, seedB: 8, entrantAId: 'r1', entrantBId: 'r8' },
         // A reopened pool bout changed who finished 4th.
-        { id: 's2', seedA: 5, seedB: 4, registrationAId: 'r5', registrationBId: 'r9' },
+        { id: 's2', seedA: 5, seedB: 4, entrantAId: 'r5', entrantBId: 'r9' },
       ]),
     ).toEqual(['s2']);
   });
@@ -256,14 +256,14 @@ describe('diffR1SeedingPlan', () => {
     // first qualifier came through — the banner would never be off.
     expect(
       diffR1SeedingPlan(
-        [{ slotId: 's1', registrationAId: 'r1', registrationBId: null }],
+        [{ slotId: 's1', entrantAId: 'r1', entrantBId: null }],
         [
           {
             id: 's1',
             seedA: 1,
             seedB: null,
-            registrationAId: 'r1',
-            registrationBId: 'winner-of-play-in',
+            entrantAId: 'r1',
+            entrantBId: 'winner-of-play-in',
           },
         ],
       ),
@@ -275,8 +275,8 @@ describe('diffR1SeedingPlan', () => {
     // the standings no longer place at all.
     expect(
       diffR1SeedingPlan(
-        [{ slotId: 's1', registrationAId: 'r1', registrationBId: null }],
-        [{ id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' }],
+        [{ slotId: 's1', entrantAId: 'r1', entrantBId: null }],
+        [{ id: 's1', seedA: 1, seedB: 8, entrantAId: 'r1', entrantBId: 'r8' }],
       ),
     ).toEqual(['s1']);
   });

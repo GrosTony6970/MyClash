@@ -3,9 +3,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest DI metadata.
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
-import { rankByRating, rankRandom, type SeedableRegistration } from '@myclash/rules/results';
+import { rankByRating, rankRandom, type SeedableEntrant } from '@myclash/rules/results';
 import { SWISS_DEFAULTS, type GenerateSwissDto } from './dto/swiss.dto';
-import type { RankedRegistration } from '@myclash/rules/results';
+import type { RankedEntrant } from '@myclash/rules/results';
 
 export interface RatingCoverage {
   rated: number;
@@ -53,7 +53,7 @@ export class SwissSeedingService {
 
   async resolveSeeding(
     tournamentId: string,
-    registrations: SeedableRegistration[],
+    registrations: SeedableEntrant[],
     dto: GenerateSwissDto,
   ): Promise<SwissSeeding> {
     const strategy = dto.seedingStrategy ?? SWISS_DEFAULTS.seedingStrategy;
@@ -94,7 +94,7 @@ export class SwissSeedingService {
 
   async ratingsFor(
     tournamentId: string,
-    registrations: SeedableRegistration[],
+    registrations: SeedableEntrant[],
   ): Promise<{ ratings: Map<string, number>; coverage: RatingCoverage }> {
     const { data } = await this.supabase.service
       .from('tournaments')
@@ -172,7 +172,7 @@ export class SwissSeedingService {
     return { order: snakeAcrossPools(members ?? []), sourcePhaseId: phase.id };
   }
 
-  async loadRegistrations(tournamentId: string): Promise<SeedableRegistration[]> {
+  async loadRegistrations(tournamentId: string): Promise<SeedableEntrant[]> {
     const { data, error } = await this.supabase.service
       .from('registrations')
       // persons.global_person_id is the route to global_persons; 0083 retired
@@ -194,8 +194,8 @@ export class SwissSeedingService {
   }
 }
 
-const idsOf = (ranked: RankedRegistration[]): string[] =>
-  [...ranked].sort((a, b) => a.rank - b.rank).map((r) => r.registrationId);
+const idsOf = (ranked: RankedEntrant[]): string[] =>
+  [...ranked].sort((a, b) => a.rank - b.rank).map((r) => r.entrantId);
 
 /**
  * Snake the pool members into one list: every pool's #1, then every pool's #2, …
