@@ -83,7 +83,7 @@ export function StatsView({ overview, fighters, afterblow, targets, colorToken, 
 
   // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
   const targetTotal = targets.distribution.reduce((s, d) => s + d.cleanHits, 0);
-  const DIST_COLORS = ['bg-amber-600', 'bg-red-800', 'bg-purple-700', 'bg-emerald-700'];
+  const DIST_COLORS = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4'];
 
   // Exchange type distribution
   // Every value, not just 1 and 2 — summing two named buckets undercounted any

@@ -4,8 +4,9 @@ import type { WeaponTargetStats } from './types';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-// Token color ramp for point-value segments, lowest value first.
-const VALUE_COLORS = ['bg-warning', 'bg-danger', 'bg-accent', 'bg-success', 'bg-info'];
+// Chart series tokens for point-value segments, lowest value first. Not the
+// status colours: warning and danger are both orange-red and read as one.
+const VALUE_COLORS = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4'];
 
 function weaponLabel(weapon: string | null, t: Translate): string {
   return weapon ?? t('organizer.eventStats.pointDistribution.noWeapon');
@@ -55,7 +56,7 @@ function DistributionCard({ w, t }: { w: WeaponTargetStats; t: Translate }) {
       <h5 className="mb-3 font-display text-base font-semibold capitalize text-foreground">
         {weaponLabel(w.weapon, t)}
       </h5>
-      <div className="mb-2 flex h-7 overflow-hidden rounded-md">
+      <div className="mb-2 flex h-7 gap-0.5 overflow-hidden rounded-md">
         {w.distribution.map((d, i) => (
           <div
             key={d.value}
