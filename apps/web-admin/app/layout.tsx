@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { ToastProvider } from '@myclash/ui';
-import { AppLegalFooter } from './_components/AppLegalFooter';
+import { AppLegalFooter } from '../src/components/AppLegalFooter';
 import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
 import { RuntimeBanner } from './_components/RuntimeBanner';
 import { I18nProvider } from '../src/i18n/I18nProvider';
@@ -81,7 +81,7 @@ export default async function RootLayout({
             <RuntimeBanner />
             <LegalUpdateBanner />
             {children}
-            <AppLegalFooter />
+            <AppLegalFooter placement="page" />
           </ToastProvider>
         </I18nProvider>
       </body>

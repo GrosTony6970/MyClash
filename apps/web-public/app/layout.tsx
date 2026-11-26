@@ -4,7 +4,7 @@ import { InstallOfferCapture, ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getAppOrigin } from '@/lib/app-origin';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
-import { AppLegalFooter } from './_components/AppLegalFooter';
+import { AppLegalFooter } from '../src/components/AppLegalFooter';
 import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
 import { RuntimeBanner } from './_components/RuntimeBanner';
@@ -85,7 +85,7 @@ export default async function RootLayout({
             <LegalUpdateBanner />
             <MaybeSiteHeader />
             {children}
-            <AppLegalFooter />
+            <AppLegalFooter placement="page" />
             <SimulatedTimeBadge />
           </ToastProvider>
         </I18nProvider>

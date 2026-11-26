@@ -18,6 +18,7 @@ import { useIdentityGate } from '../hooks/useIdentityGate';
 import { visibleNavSections } from './admin-nav';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { AppLegalFooter } from './AppLegalFooter';
 import { resolveWorkspaceOptions } from './workspace-options';
 
 function isActive(pathname: string, href: string) {
@@ -228,6 +229,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           {accountFooter}
           <LanguageSwitcher className="px-3" />
           {logoutAction}
+          <AppLegalFooter placement="sidebar" />
         </div>
       </aside>
 
@@ -306,6 +308,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                 {accountFooter}
                 <LanguageSwitcher className="px-3" />
                 {logoutAction}
+                <AppLegalFooter placement="sidebar" />
               </div>
             </div>
           </div>
