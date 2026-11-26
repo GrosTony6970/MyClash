@@ -1,76 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TournamentQueryToolsService } from './tournament-query.tools.service';
+import { expectNoRawIds } from '../mcp/tools/no-raw-ids.test-helper';
+import {
+  awaitableChain,
+  fighterRows,
+  GP_JEAN,
+  M1,
+  M2,
+  M3,
+  POOL_A,
+  REG_ADA,
+  REG_GRACE_H,
+  REG_LONELY,
+  refereeRows,
+  tournament,
+} from './tournament-query.tools.fixtures';
 
 const summariesMock = vi.hoisted(() => vi.fn());
 vi.mock('../matches/match-summaries', () => ({ matchSummaries: summariesMock }));
-import type { TournamentContext } from './tournament-query.types';
 
 // Same per-table dispatch pattern as the other API service tests: one fromMock
 // reused, branched by tableName.
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
-
-function awaitableChain(result: { data: unknown; error: unknown }) {
-  const chain = Object.assign(Promise.resolve(result), {}) as Record<string, unknown> &
-    Promise<typeof result>;
-  for (const key of ['select', 'eq', 'in', 'or', 'order', 'limit']) {
-    (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-  }
-  return chain;
-}
-
-const tournament: TournamentContext = {
-  tournamentId: 't-1',
-  eventId: 'event-1',
-  organizationId: 'org-1',
-  name: 'Longsword Open',
-  weapon: 'longsword',
-  weapons: ['longsword'],
-  poolIds: ['pool-1'],
-  liceNumbers: [1],
-  divisions: [],
-};
-
-// The projection vw_tournament_query_referees actually has, confirmed against a
-// replayed database: 0063 replaced user_id with person_id. Nothing here may
-// carry a user_id field — a fixture that invents one cannot catch the bug that
-// made this tool return "no assignments" for every judge.
-const refereeRows = [
-  {
-    tournament_id: 't-1',
-    event_id: 'event-1',
-    person_id: 'gp-jean',
-    judge_name: 'Jean Dupont',
-    pool_id: 'pool-1',
-    pool_name: 'Pool A',
-    match_id: 'm-1',
-    role: 'arbitre_declarant',
-    status: 'confirmed',
-  },
-  {
-    tournament_id: 't-1',
-    event_id: 'event-1',
-    person_id: 'gp-jean',
-    judge_name: 'Jean Dupont',
-    pool_id: 'pool-2',
-    pool_name: 'Pool B',
-    match_id: 'm-2',
-    role: 'arbitre_assesseur',
-    status: 'confirmed',
-  },
-  {
-    tournament_id: 't-1',
-    event_id: 'event-1',
-    person_id: 'gp-marie',
-    judge_name: 'Marie Martin',
-    pool_id: 'pool-1',
-    pool_name: 'Pool A',
-    match_id: null,
-    role: 'arbitre_table',
-    status: 'confirmed',
-  },
-];
 
 describe('TournamentQueryToolsService · get_judge_stats', () => {
   let service: TournamentQueryToolsService;
@@ -86,26 +39,25 @@ describe('TournamentQueryToolsService · get_judge_stats', () => {
     });
   });
 
-  it('aggregates a judge matched by person id', async () => {
-    const result = await service.execute(tournament, 'get_judge_stats', { judge_id: 'gp-jean' });
+  it('aggregates a judge matched by name, in any letter case', async () => {
+    const result = await service.execute(tournament, 'get_judge_stats', { judge: 'jean dup' });
 
     expect(result.title).toBe('Judge stats for Jean Dupont');
     expect(result.card).toEqual({ Assignments: 2, Pools: 2, Matches: 2 });
+    expectNoRawIds(result);
   });
 
-  it('aggregates a judge matched by name, which is the only id the model ever sees', async () => {
-    const result = await service.execute(tournament, 'get_judge_stats', {
-      judge_id: 'Marie Martin',
-    });
+  it('aggregates another judge by name', async () => {
+    const result = await service.execute(tournament, 'get_judge_stats', { judge: 'Marie Martin' });
 
     expect(result.title).toBe('Judge stats for Marie Martin');
     expect(result.card).toEqual({ Assignments: 1, Pools: 1, Matches: 0 });
   });
 
-  it('does not fall back to every judge when the id is blank', async () => {
+  it('does not fall back to every judge when the name is blank', async () => {
     // A blank filter must not become "matches everyone": contains('') is true
     // for every row.
-    const result = await service.execute(tournament, 'get_judge_stats', { judge_id: '   ' });
+    const result = await service.execute(tournament, 'get_judge_stats', { judge: '   ' });
 
     expect(result.render_hint).toBe('empty');
     expect(result.metadata?.notes).toContain('No judge assignments found');
@@ -113,46 +65,61 @@ describe('TournamentQueryToolsService · get_judge_stats', () => {
   });
 
   it('reports nothing for a judge who is not in this event', async () => {
-    const result = await service.execute(tournament, 'get_judge_stats', { judge_id: 'gp-nobody' });
+    const result = await service.execute(tournament, 'get_judge_stats', { judge: 'Nobody' });
 
     expect(result.render_hint).toBe('empty');
     expect(result.metadata?.notes).toContain('No judge assignments found');
   });
 
-  it('names a judge with no name "Unknown referee", never their id (X2)', async () => {
-    fromMock.mockImplementation((tableName: string) =>
-      awaitableChain({
-        data:
-          tableName === 'vw_tournament_query_referees'
-            ? [{ ...refereeRows[0], person_id: 'gp-anon', judge_name: null }]
-            : [],
+  it('does not take an id for a name', async () => {
+    const result = await service.execute(tournament, 'get_judge_stats', { judge: GP_JEAN });
+
+    expect(result.render_hint).toBe('empty');
+  });
+});
+
+describe('TournamentQueryToolsService · getToolContext', () => {
+  it('lists the pools by name, and reads nothing else of them', async () => {
+    const chains: Record<string, ReturnType<typeof awaitableChain>> = {
+      tournaments: awaitableChain({ data: [{ weapon: 'longsword' }], error: null }),
+      vw_tournament_query_pools: awaitableChain({
+        data: [{ pool_name: 'Pool A' }, { pool_name: 'Pool A' }, { pool_name: 'Pool B' }],
         error: null,
       }),
-    );
+      lices: awaitableChain({ data: [{ sort_order: 0 }], error: null }),
+    };
+    fromMock.mockImplementation((tableName: string) => chains[tableName]);
+    const service = new TournamentQueryToolsService(mockSupabase as never);
 
-    const result = await service.execute(tournament, 'get_judge_stats', { judge_id: 'gp-anon' });
+    const context = await service.getToolContext(tournament);
 
-    expect(result.title).toBe('Judge stats for Unknown referee');
+    expect(context.poolNames).toEqual(['Pool A', 'Pool B']);
+    const pools = chains['vw_tournament_query_pools'] as unknown as Record<
+      string,
+      ReturnType<typeof vi.fn>
+    >;
+    expect(pools['select']).toHaveBeenCalledWith('pool_name');
+    expect(pools['eq']).toHaveBeenCalledWith('tournament_id', tournament.tournamentId);
   });
 });
 
 describe('TournamentQueryToolsService · a fighter with no name (X2)', () => {
   let service: TournamentQueryToolsService;
   const nameless = {
-    tournament_id: 't-1',
-    match_id: 'm-1',
+    tournament_id: tournament.tournamentId,
+    match_id: M1,
     phase_type: 'pool',
-    pool_id: 'pool-1',
+    pool_id: POOL_A,
     pool_name: 'Pool A',
     status: 'completed',
-    red_registration_id: 'reg-anon',
-    blue_registration_id: 'r-2',
+    red_registration_id: REG_LONELY,
+    blue_registration_id: REG_ADA,
     // The view builds trim(given || ' ' || family): a person with no name reads '', not NULL.
     red_name: '',
     blue_name: 'Blue Two',
     red_score: 1,
     blue_score: 0,
-    winner_registration_id: 'reg-anon',
+    winner_registration_id: REG_LONELY,
   };
 
   beforeEach(() => {
@@ -166,13 +133,12 @@ describe('TournamentQueryToolsService · a fighter with no name (X2)', () => {
     );
   });
 
-  it('says "Unknown fighter" in the pool standings and the fighter card, never the id', async () => {
+  it('says "Unknown fighter" in the pool standings, never the id', async () => {
     const standings = await service.execute(tournament, 'get_pool_standings', {});
-    const card = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'reg-anon' });
 
-    expect(JSON.stringify(standings)).not.toContain('reg-anon');
+    expect(JSON.stringify(standings)).not.toContain(REG_LONELY);
     expect(JSON.stringify(standings)).toContain('"Fighter":"Unknown fighter"');
-    expect(card.title).toBe('Stats for Unknown fighter');
+    expectNoRawIds(standings);
   });
 });
 
@@ -184,48 +150,48 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
   // result-stands bout names a real winner.
   const matchRows = [
     {
-      tournament_id: 't-1',
-      match_id: 'm-1',
+      tournament_id: tournament.tournamentId,
+      match_id: M1,
       phase_type: 'pool',
       pool_name: 'Pool A',
       status: 'completed',
-      red_registration_id: 'r-1',
-      blue_registration_id: 'r-2',
-      red_name: 'Red One',
-      blue_name: 'Blue Two',
+      red_registration_id: REG_ADA,
+      blue_registration_id: REG_GRACE_H,
+      red_name: 'Ada Lovelace',
+      blue_name: 'Grace Hopper',
       red_score: 0,
       blue_score: 0,
       winner_registration_id: null,
       end_reason: 'max_doubles',
     },
     {
-      tournament_id: 't-1',
-      match_id: 'm-2',
+      tournament_id: tournament.tournamentId,
+      match_id: M2,
       phase_type: 'pool',
       pool_name: 'Pool A',
       status: 'completed',
-      red_registration_id: 'r-1',
-      blue_registration_id: 'r-2',
-      red_name: 'Red One',
-      blue_name: 'Blue Two',
+      red_registration_id: REG_ADA,
+      blue_registration_id: REG_GRACE_H,
+      red_name: 'Ada Lovelace',
+      blue_name: 'Grace Hopper',
       red_score: 0,
       blue_score: 0,
       winner_registration_id: null,
       end_reason: 'max_doubles_draw',
     },
     {
-      tournament_id: 't-1',
-      match_id: 'm-3',
+      tournament_id: tournament.tournamentId,
+      match_id: M3,
       phase_type: 'pool',
       pool_name: 'Pool A',
       status: 'completed',
-      red_registration_id: 'r-1',
-      blue_registration_id: 'r-2',
-      red_name: 'Red One',
-      blue_name: 'Blue Two',
+      red_registration_id: REG_ADA,
+      blue_registration_id: REG_GRACE_H,
+      red_name: 'Ada Lovelace',
+      blue_name: 'Grace Hopper',
       red_score: 2,
       blue_score: 0,
-      winner_registration_id: 'r-1',
+      winner_registration_id: REG_ADA,
       end_reason: 'max_doubles_result_stands',
     },
   ];
@@ -237,6 +203,9 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
       if (tableName === 'vw_tournament_query_matches') {
         return awaitableChain({ data: matchRows, error: null });
       }
+      if (tableName === 'vw_tournament_query_fighters') {
+        return awaitableChain({ data: fighterRows, error: null });
+      }
       return awaitableChain({ data: [], error: null });
     });
   });
@@ -247,8 +216,8 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
     // shown and the one the assistant reasons from. The view carries
     // `end_reason` from migration 0193; before that it could not be seen here
     // at all.
-    const red = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'r-1' });
-    const blue = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'r-2' });
+    const red = await service.execute(tournament, 'get_fighter_stats', { fighter: 'Ada' });
+    const blue = await service.execute(tournament, 'get_fighter_stats', { fighter: 'Hopper' });
 
     // Red won m-3, lost m-1 (double loss); m-2 is a draw and counts as neither.
     expect(red.card).toMatchObject({ Matches: 3, Wins: 1, Losses: 1 });
@@ -259,7 +228,7 @@ describe('TournamentQueryToolsService · the doubles ceiling', () => {
 
 describe('TournamentQueryToolsService · find_matches names each bout', () => {
   const bout = {
-    match_id: 'm-1',
+    match_id: M1,
     match_number_label: 'L1-PD-M01',
     pool_name: 'Pool 4',
     lice_name: 'Lice 1',
@@ -275,12 +244,12 @@ describe('TournamentQueryToolsService · find_matches names each bout', () => {
   });
 
   it('by its code, never by its stored label', async () => {
-    summariesMock.mockResolvedValue(new Map([['m-1', { roundCode: 'LSW-P4-M01' }]]));
+    summariesMock.mockResolvedValue(new Map([[M1, { roundCode: 'LSW-P4-M01' }]]));
     const service = new TournamentQueryToolsService(mockSupabase as never);
 
     const result = await service.execute(tournament, 'find_matches', {});
 
-    expect(summariesMock.mock.calls[0]?.[1]).toEqual(['m-1']);
+    expect(summariesMock.mock.calls[0]?.[1]).toEqual([M1]);
     expect(result.rows?.map((row) => row['Match'])).toEqual(['LSW-P4-M01']);
   });
 

@@ -52,7 +52,7 @@ export async function queryTournamentContext(
     name: row.name,
     weapon: row.weapon ?? null,
     weapons: row.weapon ? [row.weapon] : [],
-    poolIds: [],
+    poolNames: [],
     liceNumbers: [],
     divisions: [],
   };

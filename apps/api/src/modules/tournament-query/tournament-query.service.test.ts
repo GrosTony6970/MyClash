@@ -86,7 +86,7 @@ describe('TournamentQueryService', () => {
     tools = {
       getToolContext: vi.fn(async () => ({
         weapons: ['Longsword'],
-        poolIds: [],
+        poolNames: [],
         liceNumbers: [1],
         divisions: ['open'],
       })),

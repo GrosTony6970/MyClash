@@ -10,7 +10,7 @@ export type RankMetric = 'wins' | 'win_rate' | 'doubles_rate' | 'afterblow_rate'
 
 export interface TournamentToolContext {
   weapons: string[];
-  poolIds: string[];
+  poolNames: string[];
   liceNumbers: number[];
   divisions: string[];
 }

@@ -101,7 +101,7 @@ export class TournamentQueryToolsService {
       this.supabase.service.from('tournaments').select('weapon').eq('event_id', tournament.eventId),
       this.supabase.service
         .from('vw_tournament_query_pools')
-        .select('pool_id')
+        .select('pool_name')
         .eq('tournament_id', tournament.tournamentId),
       this.supabase.service.from('lices').select('sort_order').eq('event_id', tournament.eventId),
     ]);
@@ -111,9 +111,9 @@ export class TournamentQueryToolsService {
         .map((row) => row.weapon)
         .filter(nonEmpty),
     );
-    const poolIds = unique(
-      ((pools.data ?? []) as Array<{ pool_id?: string | null }>)
-        .map((row) => row.pool_id)
+    const poolNames = unique(
+      ((pools.data ?? []) as Array<{ pool_name?: string | null }>)
+        .map((row) => row.pool_name)
         .filter(nonEmpty),
     );
     const liceNumbers = unique(
@@ -124,7 +124,7 @@ export class TournamentQueryToolsService {
 
     return {
       weapons: weapons.length > 0 ? weapons : tournament.weapon ? [tournament.weapon] : [],
-      poolIds,
+      poolNames,
       liceNumbers,
       divisions: [],
     };
@@ -174,6 +174,15 @@ export class TournamentQueryToolsService {
       .eq('tournament_id', tournamentId);
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as FighterRow[];
+  }
+
+  /** The tournament's fighters whose name contains the text, case-insensitive. */
+  private async fightersNamed(tournamentId: string, text: unknown): Promise<FighterRow[]> {
+    const wanted = String(text ?? '').trim();
+    if (!wanted) return [];
+    return (await this.fighters(tournamentId)).filter((fighter) =>
+      contains(fighter.display_name, wanted),
+    );
   }
 
   private async matches(tournamentId: string): Promise<MatchRow[]> {
@@ -239,7 +248,12 @@ export class TournamentQueryToolsService {
   }
 
   private async getFighterStats(tournament: TournamentContext, args: Record<string, unknown>) {
-    const fighterId = String(args['fighter_id']);
+    const named = await this.fightersNamed(tournament.tournamentId, args['fighter']);
+    if (named.length === 0) {
+      return empty('No matches found for this fighter', 'get_fighter_stats', args);
+    }
+    if (named.length > 1) return severalFighters(named, args['fighter'], 'get_fighter_stats', args);
+    const fighterId = named[0]!.registration_id;
     const matches = filterPhase(await this.matches(tournament.tournamentId), args['phase']);
     const relevant = matches.filter(
       (match) =>
@@ -271,14 +285,21 @@ export class TournamentQueryToolsService {
   }
 
   private async findMatches(tournament: TournamentContext, args: Record<string, unknown>) {
+    let fighterId: string | undefined;
+    if (args['fighter']) {
+      const named = await this.fightersNamed(tournament.tournamentId, args['fighter']);
+      if (named.length === 0) return empty('No matching matches', 'find_matches', args);
+      if (named.length > 1) return severalFighters(named, args['fighter'], 'find_matches', args);
+      fighterId = named[0]!.registration_id;
+    }
     const rows = (await this.matches(tournament.tournamentId))
       .filter((match) => optionalEquals(match.lice_number, args['ring_number']))
-      .filter((match) => optionalEquals(match.pool_id, args['pool_id']))
+      .filter((match) => optionalEquals(match.pool_name, args['pool']))
       .filter(
         (match) =>
-          !args['fighter_id'] ||
-          match.red_registration_id === args['fighter_id'] ||
-          match.blue_registration_id === args['fighter_id'],
+          !fighterId ||
+          match.red_registration_id === fighterId ||
+          match.blue_registration_id === fighterId,
       )
       .filter((match) => this.matchesMatchStatus(match, args['status']))
       .slice(0, limit(args['limit'], 50, 200));
@@ -289,7 +310,7 @@ export class TournamentQueryToolsService {
       'Matching matches',
       ['Match', 'Pool', 'Lice', 'Fighters', 'Status', 'Scheduled'],
       rows.map((match) => ({
-        Match: codes.get(match.match_id) ?? match.match_number_label ?? match.match_id,
+        Match: codes.get(match.match_id) ?? match.match_number_label ?? '',
         Pool: match.pool_name ?? '',
         Lice: match.lice_name ?? '',
         Fighters: `${match.red_name ?? 'TBD'} vs ${match.blue_name ?? 'TBD'}`,
@@ -319,7 +340,7 @@ export class TournamentQueryToolsService {
 
   private async getPoolStandings(tournament: TournamentContext, args: Record<string, unknown>) {
     const matches = (await this.matches(tournament.tournamentId)).filter(
-      (match) => match.phase_type === 'pool' && optionalEquals(match.pool_id, args['pool_id']),
+      (match) => match.phase_type === 'pool' && optionalEquals(match.pool_name, args['pool']),
     );
     if (matches.length === 0) return empty('No pool matches found', 'get_pool_standings', args);
     const ids = unique(
@@ -445,20 +466,17 @@ export class TournamentQueryToolsService {
   }
 
   private async getJudgeStats(tournament: TournamentContext, args: Record<string, unknown>) {
-    const judgeId = String(args['judge_id'] ?? '').trim();
-    // Matched on the name as well as the id: judge_name is the only judge
-    // identity any tool puts in front of the model (find_lagging_pools lists
-    // referees by name), so an id-only filter is one the model can never
-    // satisfy.
-    const refs = judgeId
-      ? (await this.referees(tournament)).filter(
-          (row) => row.person_id === judgeId || contains(row.judge_name, judgeId),
-        )
+    const judge = String(args['judge'] ?? '').trim();
+    // Matched on the name only: judge_name is the one judge identity any tool puts in front of
+    // the model (find_lagging_pools lists referees by name), and no output shows an id.
+    const refs = judge
+      ? (await this.referees(tournament)).filter((row) => contains(row.judge_name, judge))
       : [];
     if (refs.length === 0) return empty('No judge assignments found', 'get_judge_stats', args);
     return {
       render_hint: 'card',
-      title: `Judge stats for ${refs[0]?.judge_name || unknownRefereeInEnglish()}`,
+      // A name matched the text, so it is never blank.
+      title: `Judge stats for ${refs[0]!.judge_name}`,
       card: {
         Assignments: refs.length,
         Pools: unique(refs.map((row) => row.pool_id).filter(nonEmpty)).length,
@@ -515,7 +533,7 @@ export class TournamentQueryToolsService {
       ['Round', 'Match', 'Fighters', 'Status', 'Winner'],
       rows.map((match) => ({
         Round: match.bracket_round ?? '',
-        Match: match.bracket_position ?? match.match_number_label ?? match.match_id,
+        Match: match.bracket_position ?? match.match_number_label ?? '',
         Fighters: `${match.red_name ?? 'TBD'} vs ${match.blue_name ?? 'TBD'}`,
         Status: match.status,
         Winner:
@@ -558,11 +576,11 @@ export class TournamentQueryToolsService {
     args: Record<string, unknown>,
   ) {
     const matches = (await this.matches(tournament.tournamentId)).filter(
-      (match) => match.phase_type === 'pool' && optionalEquals(match.pool_id, args['pool_id']),
+      (match) => match.phase_type === 'pool' && optionalEquals(match.pool_name, args['pool']),
     );
     if (matches.length === 0)
       return empty('No active pool matches found', 'estimate_pool_completion', args);
-    const byPool = groupBy(matches, (match) => match.pool_name ?? match.pool_id ?? 'Pool');
+    const byPool = groupBy(matches, (match) => match.pool_name ?? 'Pool');
     const rows = Object.entries(byPool).map(([pool, poolMatches]) => {
       const complete = poolMatches.filter((match) => match.status === 'completed');
       const remaining = poolMatches.length - complete.length;
@@ -645,9 +663,7 @@ export class TournamentQueryToolsService {
       (match) => match.phase_type === 'pool',
     );
     const refs = await this.referees(tournament);
-    const rows = Object.entries(
-      groupBy(matches, (match) => match.pool_name ?? match.pool_id ?? 'Pool'),
-    )
+    const rows = Object.entries(groupBy(matches, (match) => match.pool_name ?? 'Pool'))
       .map(([pool, poolMatches]) => {
         const remaining = poolMatches.filter((match) => match.status !== 'completed').length;
         const avgMs = average(
@@ -766,6 +782,29 @@ function empty(
     render_hint: 'empty',
     title: 'No results',
     metadata: { tool_name: toolName, arguments: args, row_count: 0, notes: [note, ...notes] },
+  };
+}
+
+/** Several fighters answer to the text: name each one (never an id) so the model can ask again. */
+function severalFighters(
+  fighters: FighterRow[],
+  text: unknown,
+  toolName: string,
+  args: Record<string, unknown>,
+): ToolResult {
+  return {
+    render_hint: 'list',
+    title: `Several fighters match "${String(text).trim()}"`,
+    items: fighters.map((fighter) => ({
+      label: fighter.display_name,
+      value: fighter.club_name || fighter.status,
+    })),
+    metadata: {
+      tool_name: toolName,
+      arguments: args,
+      row_count: fighters.length,
+      notes: ['Ask again with a more precise name'],
+    },
   };
 }
 

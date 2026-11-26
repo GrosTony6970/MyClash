@@ -3,6 +3,7 @@ import {
   buildTournamentToolDefinitions,
   detectQueryLanguage,
   normalizeQuestionAliases,
+  QUERY_TOOL_SPECS,
   validateToolCall,
 } from './tournament-query.tools';
 
@@ -30,7 +31,7 @@ describe('tournament query language and tool schemas', () => {
   it('narrows weapons, pools, and lices to values from the current tournament', () => {
     const tools = buildTournamentToolDefinitions({
       weapons: ['Longsword', 'Sabre'],
-      poolIds: ['pool-a', 'pool-b'],
+      poolNames: ['Pool A', 'Pool B'],
       liceNumbers: [1, 2],
       divisions: ['open'],
     });
@@ -39,16 +40,69 @@ describe('tournament query language and tool schemas', () => {
     expect(findMatches?.parameters).toMatchObject({
       properties: {
         weapon: { enum: ['Longsword', 'Sabre'] },
-        pool_id: { enum: ['pool-a', 'pool-b'] },
+        pool: { enum: ['Pool A', 'Pool B'] },
         ring_number: { enum: [1, 2] },
       },
     });
+    const bracket = tools.find((tool) => tool.name === 'get_bracket_status');
+    expect(bracket?.parameters).toMatchObject({ properties: { division: { enum: ['open'] } } });
+  });
+
+  it('takes no argument named by an id, and keeps one table of the 13 tools', () => {
+    const tools = buildTournamentToolDefinitions({
+      weapons: [],
+      poolNames: [],
+      liceNumbers: [],
+      divisions: [],
+    });
+
+    expect(QUERY_TOOL_SPECS.map((spec) => spec.name).sort()).toEqual(
+      [
+        'compare_clubs',
+        'estimate_pool_completion',
+        'find_fighters',
+        'find_lagging_pools',
+        'find_matches',
+        'get_bracket_status',
+        'get_fighter_stats',
+        'get_judge_stats',
+        'get_pool_standings',
+        'get_ring_status',
+        'get_schedule_status',
+        'get_tournament_summary',
+        'rank_fighters',
+      ].sort(),
+    );
+    expect(tools.map((tool) => tool.name)).toEqual(QUERY_TOOL_SPECS.map((spec) => spec.name));
+    for (const tool of tools) {
+      const properties = (tool.parameters as { properties: Record<string, unknown> }).properties;
+      expect(Object.keys(properties).filter((arg) => arg.endsWith('_id'))).toEqual([]);
+    }
+  });
+
+  it('asks for a fighter or a judge by name, and checks the pool by name', () => {
+    const context = { weapons: [], poolNames: ['Pool A'], liceNumbers: [], divisions: [] };
+
+    expect(validateToolCall({ name: 'get_fighter_stats', arguments: {} }, context)).toEqual({
+      ok: false,
+      message: 'fighter is required',
+    });
+    expect(validateToolCall({ name: 'get_judge_stats', arguments: {} }, context)).toEqual({
+      ok: false,
+      message: 'judge is required',
+    });
+    expect(
+      validateToolCall({ name: 'find_matches', arguments: { pool: 'Pool Z' } }, context),
+    ).toEqual({ ok: false, message: 'Unknown pool: Pool Z' });
+    expect(
+      validateToolCall({ name: 'find_matches', arguments: { pool: 'Pool A' } }, context).ok,
+    ).toBe(true);
   });
 
   it('rejects unknown tools and invalid enum arguments before dispatch', () => {
     const context = {
       weapons: ['Longsword'],
-      poolIds: ['pool-a'],
+      poolNames: ['Pool A'],
       liceNumbers: [1],
       divisions: [],
     };
