@@ -195,7 +195,7 @@ export class BracketAdvanceService {
     const { data: downstream } = await this.supabase.service
       .from('bracket_slots')
       .select(
-        'id, round, position, phase_id, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id',
+        'id, round, position, phase_id, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id, team_a_id, team_b_id',
       )
       .eq('phase_id', phaseId)
       .or(
@@ -216,6 +216,8 @@ export class BracketAdvanceService {
         source_b_ref: string;
         registration_a_id: string | null;
         registration_b_id: string | null;
+        team_a_id: string | null;
+        team_b_id: string | null;
       };
 
       let updatedA = ds.registration_a_id;

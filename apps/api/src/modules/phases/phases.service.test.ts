@@ -141,17 +141,19 @@ describe('PhasesService.generateBracket — authorization', () => {
 
   it('lets the system actor through, as the auto-advance paths rely on', async () => {
     // 'system' is the default and the sentinel populateBracket already uses.
-    // No `tournaments` seed: the org lookup lives inside the actor branch, so
-    // the system path must never reach it — and would throw if it did.
+    // The org lookup lives inside the actor branch, so the system path must
+    // never reach it: its one Tournament read is the kind the count needs.
     const { service, supabase } = makeService({
       phases: { rows: [] },
+      tournaments: { rows: TOURNAMENTS },
       registrations: { rows: [] },
     });
 
     await service.generateBracket('t-1', { phaseType: 'single_elim' } as never).catch(() => {});
 
     expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
-    expect(queriedTables(supabase.from)).toEqual(['phases', 'registrations']);
+    expect(queriedTables(supabase.from)).toEqual(['phases', 'tournaments', 'registrations']);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['entrant_kind']);
   });
 });
 
@@ -857,6 +859,7 @@ describe('PhasesService', () => {
     it('throws BadRequestException when fewer than 2 fighters qualify', async () => {
       const { service } = makeService({
         phases: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
         registrations: { rows: qualifiers(1) },
       });
 
@@ -2949,7 +2952,10 @@ describe('PhasesService', () => {
       const writes = writesTo(supabase, 'matches');
       // The whole point: the known side reaches the matches row even though the
       // other side is still null. Previously this list was empty.
-      expect(writes.map((write) => write.row)).toContainEqual({ red_registration_id: 'reg-1' });
+      expect(writes.map((write) => write.row)).toContainEqual({
+        red_registration_id: 'reg-1',
+        red_team_id: null,
+      });
       // On THIS slot's bout, not whichever row the lookup happened to find.
       expect(scopedTo(writes[0], 'id')).toBe('match-r1p1');
       // And no phantom row is inserted for a slot that cannot be played yet.

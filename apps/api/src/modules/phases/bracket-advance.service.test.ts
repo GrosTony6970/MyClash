@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
 import { singleElimBracket } from '@myclash/rules/scheduling';
-import { supabaseRpc } from '../../common/testing/supabase-chain';
+import { selectsFor, supabaseRpc } from '../../common/testing/supabase-chain';
 import { rulesOf } from './match-rules.fixtures';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -791,6 +791,23 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
     expect(mock.slotUpdates).toContainEqual({ registration_a_id: 'reg-winner' });
   });
 
+  // The sync writes both columns of each side from the slot it is handed: a read that drops
+  // the team columns hands it a team slot with no teams, and the bout keeps a stale team id.
+  // The double ignores the projection, so the select string is asserted whole.
+  it('reads each downstream slot with both kinds of side', async () => {
+    const mock = makeAdvanceMock({
+      existingMatch: { id: 'm-ds', status: 'scheduled', started_at: null },
+    });
+    const service = new BracketAdvanceService(mock.mockSupabase as never);
+
+    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+
+    expect(selectsFor(mock.mockSupabase.service.from as never, 'bracket_slots')).toEqual([
+      'id, round, position, phase_id, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id, team_a_id, team_b_id',
+      'id',
+    ]);
+  });
+
   it('stamps match_number_label when it creates the row', async () => {
     // Carried over from the deleted `createMatchIfReady` test — the guarantee
     // is the same, only its owner changed. Without the stamp buildRoundCode
@@ -882,7 +899,11 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     source_b_type: 'winner_of',
     registration_a_id: null,
     registration_b_id: 'reg-b',
+    team_a_id: null,
+    team_b_id: null,
   };
+  /** A side is a Registration or a team (0282): the row names both columns of each side. */
+  const NO_TEAMS = { red_team_id: null, blue_team_id: null };
 
   it('writes BOTH sides when one is cleared and the other set', async () => {
     // The clear+set PATCH. Pre-fix `overrideSlot` returned after blanking both.
@@ -896,7 +917,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
 
     expect(updates).toContainEqual({
       table: 'matches',
-      patch: { red_registration_id: null, blue_registration_id: 'reg-b' },
+      patch: { red_registration_id: null, blue_registration_id: 'reg-b', ...NO_TEAMS },
     });
   });
 
@@ -913,13 +934,26 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
 
     expect(updates).toContainEqual({
       table: 'matches',
-      patch: { red_registration_id: 'reg-a', blue_registration_id: 'reg-b' },
+      patch: { red_registration_id: 'reg-a', blue_registration_id: 'reg-b', ...NO_TEAMS },
     });
+  });
+
+  // `loadSlot` feeds the sync: without the team columns a team slot reaches it with no teams.
+  it('reads the slot back with both kinds of side', async () => {
+    const { mockSupabase } = makeMock({ id: 'm-1', status: 'scheduled', started_at: null }, SLOT);
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', null, 'reg-b');
+
+    expect(selectsFor(mockSupabase.service.from as never, 'bracket_slots')).toEqual([
+      'id, registration_a_id, registration_b_id',
+      'id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id, team_a_id, team_b_id',
+    ]);
   });
 
   it('never writes lice_id or scheduled_at', async () => {
     // The row can carry an operator-placed schedule; blanking a side must be an
-    // UPDATE of the two registration columns and nothing else.
+    // UPDATE of the side columns and nothing else.
     const { updates, mockSupabase } = makeMock(
       { id: 'm-1', status: 'scheduled', started_at: null },
       SLOT,
@@ -929,7 +963,12 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     await service.overrideSlot('slot-1', null, 'reg-b');
 
     const matchPatch = updates.find((u) => u.table === 'matches')?.patch ?? {};
-    expect(Object.keys(matchPatch).sort()).toEqual(['blue_registration_id', 'red_registration_id']);
+    expect(Object.keys(matchPatch).sort()).toEqual([
+      'blue_registration_id',
+      'blue_team_id',
+      'red_registration_id',
+      'red_team_id',
+    ]);
   });
 
   it('refuses to rewrite a bout that has already started', async () => {

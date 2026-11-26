@@ -229,7 +229,9 @@ export async function loadMatch(supabase: Client, matchId: string) {
 export async function loadSlot(supabase: Client, slotId: string) {
   const { data } = await supabase
     .from('bracket_slots')
-    .select('id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id')
+    .select(
+      'id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id, team_a_id, team_b_id',
+    )
     .eq('id', slotId)
     .maybeSingle();
   return data as {
@@ -240,6 +242,8 @@ export async function loadSlot(supabase: Client, slotId: string) {
     source_b_type: string;
     registration_a_id: string | null;
     registration_b_id: string | null;
+    team_a_id: string | null;
+    team_b_id: string | null;
   } | null;
 }
 

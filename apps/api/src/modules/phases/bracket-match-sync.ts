@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { hasBeenFought } from '../matches/fought-match';
+import { sidesOf } from '../matches/bout-sides';
 import { matchRulesetForPhase, restampAfterInsert } from './match-ruleset';
+import { boutSidesOfSlot, type SlotSides } from './seat-columns';
 
 /**
  * "What should this slot's `matches` row say?", answered in one place.
@@ -22,14 +24,13 @@ type Client = SupabaseService['service'];
 
 const logger = new Logger('BracketMatchSync');
 
-export interface SyncableSlot {
+/** A slot and its sides: each a Registration or a team (0282). */
+export interface SyncableSlot extends SlotSides {
   id: string;
   phase_id: string;
   /** 1-indexed position within the round; stamped as `match_number_label`. */
   position?: number;
   source_b_type: string;
-  registration_a_id: string | null;
-  registration_b_id: string | null;
 }
 
 export interface SlotMatch {
@@ -121,17 +122,16 @@ export async function syncMatchToSlot(
   if (existing) {
     const { error } = await supabase
       .from('matches')
-      .update({
-        red_registration_id: slot.registration_a_id,
-        blue_registration_id: slot.registration_b_id,
-      })
+      .update(boutSidesOfSlot(slot))
       .eq('id', existing.id);
     if (error) throw new BadRequestException(error.message);
     return;
   }
 
-  // No row yet: only worth creating once both fighters are known.
-  if (!slot.registration_a_id || !slot.registration_b_id) return;
+  // No row yet: only worth creating once both sides are known, by side (a team bout's
+  // Registration ids are null).
+  const sides = sidesOf(boutSidesOfSlot(slot));
+  if (!sides.red || !sides.blue) return;
   await insertMatchForSlot(supabase, slot, opts);
 }
 
@@ -150,8 +150,7 @@ async function insertMatchForSlot(
   const { error } = await supabase.from('matches').insert({
     phase_id: slot.phase_id,
     bracket_slot_id: slot.id,
-    red_registration_id: slot.registration_a_id,
-    blue_registration_id: slot.registration_b_id,
+    ...boutSidesOfSlot(slot),
     status: 'scheduled',
     red_score: 0,
     blue_score: 0,

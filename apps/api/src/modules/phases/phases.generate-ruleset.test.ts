@@ -174,7 +174,7 @@ describe('generateBracket — the ruleset of its bouts', () => {
         },
         matches: { rows: [{ id: 'm-1', phase_id: 'old-bracket', status: 'scheduled' }] },
         registrations: { rows: registrations(8) },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, entrant_kind: 'individual' }] },
         // The regeneration's audit line, written after the delete.
         audit_log: { rows: [] },
       },
@@ -196,7 +196,7 @@ describe('generateBracket — the ruleset of its bouts', () => {
         },
         matches: { rows: [{ id: 'm-1', phase_id: 'old-bracket', status: 'completed' }] },
         registrations: { rows: registrations(8) },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, entrant_kind: 'individual' }] },
       },
       'fails',
     );
@@ -213,6 +213,7 @@ describe('generateBracket — the ruleset of its bouts', () => {
         },
         matches: { rows: [{ id: 'm-1', phase_id: 'old-bracket', status: 'scheduled' }] },
         registrations: { rows: registrations(1) },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, entrant_kind: 'individual' }] },
       },
       'works',
     );

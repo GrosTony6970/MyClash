@@ -236,15 +236,10 @@
       "hits": 13,
       "why": "1c: bracket refs by Registration (`:124`-`:224`)"
     },
-    "apps/api/src/modules/phases/bracket-match-sync.ts": {
-      "verdict": "not-yet",
-      "hits": 12,
-      "why": "1c: bracket slots to bouts by Registration (`:125`-`:153`)"
-    },
     "apps/api/src/modules/phases/bracket-placeholder-match.ts": {
-      "verdict": "not-yet",
-      "hits": 6,
-      "why": "1c: placeholder bout sides from slot Registrations (`:21`-`:24`)"
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "copies both columns of each side from the generated slot (`boutSidesOfSlot`): a Registration or a team, null at generation"
     },
     "apps/api/src/modules/phases/bracket-refs.ts": {
       "verdict": "not-yet",
@@ -274,13 +269,18 @@
     },
     "apps/api/src/modules/phases/phases.service.ts": {
       "verdict": "not-yet",
-      "hits": 98,
-      "why": "1c: bracket generation and seeding name slots by Registration (`:618`-`:690`, `:916`-`:951`). A team Tournament is refused before it (`team_tournament_not_supported`) only when the call names its actor (`:514`-`:533`): the `actorUserId === 'system'` default skips the check. No caller passes it today; the guard for it is 1c. The Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
+      "hits": 62,
+      "why": "1c: the bracket writers name a side by kind (`seatColumns`), and a team bracket is sized and seeded by its teams; the bracket read and its seeding drift still read slots by Registration (`getTournamentBracket`, `computeSeedingDrift`). A team Tournament is refused before generation (`team_tournament_not_supported`) only when the call names its actor: the `actorUserId === 'system'` default skips the check. No caller passes it today; the guard for it is 1c. The Pools take teams (`poolEntrantColumns`, `poolSeatOf`)"
     },
     "apps/api/src/modules/phases/pool-entrant.ts": {
       "verdict": "no-side-read",
       "hits": 4,
       "why": "a key-name list: the seat and bout columns of each kind for the Pool writers; it keys and compares no side"
+    },
+    "apps/api/src/modules/phases/seat-columns.ts": {
+      "verdict": "side-key",
+      "hits": 12,
+      "why": "the columns of a bracket side: `seatColumns` puts the entrant in the column of the Tournament's kind and clears the other; `boutSidesOfSlot` copies a slot's two columns per side onto its bout; `EMPTY_SLOT_SIDES` is a generated slot's"
     },
     "apps/api/src/modules/pool-standings/compute-rows.ts": {
       "verdict": "side-key",

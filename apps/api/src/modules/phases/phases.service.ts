@@ -25,7 +25,7 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { randomInt } from 'node:crypto';
 import type { TeamEmbed } from '../matches/side-label';
-import { storedKind } from '../events/tournament-kind';
+import { storedKind, type EntrantKind } from '../events/tournament-kind';
 import { teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
 import { poolSeatOf, type PoolSeatRegistration } from './pool-seat';
 import {
@@ -35,6 +35,8 @@ import {
   type PoolSeatColumns,
 } from './pool-entrant';
 import { teamDrawOf, teamPoolMap, type DrawTeam } from './team-pool-draw';
+import { assertTeamSeeding, rankTeamsBySeed, rankTeamsRandom } from './team-bracket-ranking';
+import { EMPTY_SLOT_SIDES, seatColumns } from './seat-columns';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService, type JudgedWrite } from '../referees/assignment-board.service';
@@ -143,6 +145,14 @@ type PerPoolStandings = Extract<
   Awaited<ReturnType<PoolStandingsService['getPoolStandings']>>,
   { pools: unknown }
 >['pools'];
+
+/** A Round-1 rank order, where it came from, and the draw seed of a random one. */
+type EntrantRanking = {
+  rankings: RankedEntrant[];
+  source: R1RankingSource;
+  randomSeed?: number;
+  warnings: SeedingWarning[];
+};
 
 /** Either the Round-1 rank order, or the gate that is not met yet. */
 type SeedingResolution =
@@ -551,18 +561,7 @@ export class PhasesService {
     // read below has passed.
     const replaced = existing && force ? (existing as { id: string }).id : null;
 
-    // Determine qualify count
-    let qualifyCount = dto.qualifyCount;
-
-    if (!qualifyCount) {
-      const { data: regs } = await this.supabase.service
-        .from('registrations')
-        .select('id')
-        .eq('tournament_id', tournamentId)
-        .in('status', ['registered', 'checked_in', 'done']);
-
-      qualifyCount = regs?.length ?? 0;
-    }
+    const qualifyCount = dto.qualifyCount || (await this.countBracketEntrants(tournamentId));
 
     if (qualifyCount < 2) {
       throw new BadRequestException('Need at least 2 fighters to generate a bracket');
@@ -610,8 +609,7 @@ export class PhasesService {
         source_a_ref: slot.homeSource,
         source_b_type: slot.sourceBType,
         source_b_ref: slot.awaySource,
-        registration_a_id: null,
-        registration_b_id: null,
+        ...EMPTY_SLOT_SIDES,
       }));
     } else {
       let bracket: ReturnType<typeof singleElimBracket>;
@@ -640,8 +638,7 @@ export class PhasesService {
         source_a_ref: slot.homeSource,
         source_b_type: slot.sourceBType,
         source_b_ref: slot.awaySource,
-        registration_a_id: null,
-        registration_b_id: null,
+        ...EMPTY_SLOT_SIDES,
       }));
     }
 
@@ -682,7 +679,7 @@ export class PhasesService {
       .from('bracket_slots')
       .insert(finalInserts)
       .select(
-        'id, phase_id, round, position, source_a_type, source_b_type, registration_a_id, registration_b_id',
+        'id, phase_id, round, position, source_a_type, source_b_type, registration_a_id, registration_b_id, team_a_id, team_b_id',
       );
 
     if (slotInsertError) {
@@ -719,6 +716,22 @@ export class PhasesService {
     // page renders <BracketView slots={bracket.slots} /> immediately after a
     // successful POST, and a missing `slots` field crashes the render.
     return this.getTournamentBracket(tournamentId);
+  }
+
+  /**
+   * How many entrants a bracket takes when the organiser names no count: every team of a team
+   * Tournament (a team has no status), else the active Registrations.
+   */
+  private async countBracketEntrants(tournamentId: string): Promise<number> {
+    if ((await this.readEntrantKind(tournamentId)) === 'team') {
+      return (await this.readTeamsForDraw(tournamentId)).length;
+    }
+    const { data: regs } = await this.supabase.service
+      .from('registrations')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in', 'done']);
+    return regs?.length ?? 0;
   }
 
   private async createInitialBracketMatches(
@@ -908,8 +921,7 @@ export class PhasesService {
       source_a_ref: reset.homeSource,
       source_b_type: reset.sourceBType,
       source_b_ref: reset.awaySource,
-      registration_a_id: null,
-      registration_b_id: null,
+      ...EMPTY_SLOT_SIDES,
     });
   }
 
@@ -937,6 +949,7 @@ export class PhasesService {
       throw new BadRequestException('Phase organization could not be resolved');
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+    const kind = storedKind(tournament?.['entrant_kind']);
 
     // Load all R1 bracket slots for this phase.
     const r1Round = phaseType === 'double_elim' ? 1 : 1;
@@ -988,7 +1001,7 @@ export class PhasesService {
       rankings = await this.rankFromCompletedPools(tournamentId);
     } else {
       // No stored seed passed on purpose: a reseed is a new draw.
-      const resolved = await this.resolveRegistrationRanking(tournamentId, dto.strategy, {});
+      const resolved = await this.resolveRegistrationRanking(tournamentId, kind, dto.strategy, {});
       rankings = resolved.rankings;
       usedRandomSeed = resolved.randomSeed;
       warnings = resolved.warnings;
@@ -1012,11 +1025,11 @@ export class PhasesService {
     const planBySlotId = new Map(plan.map((p) => [p.slotId, p]));
 
     for (const slot of slots) {
-      const regA = planBySlotId.get(slot.id)?.entrantAId ?? null;
-      const regB = planBySlotId.get(slot.id)?.entrantBId ?? null;
+      const entrantA = planBySlotId.get(slot.id)?.entrantAId ?? null;
+      const entrantB = planBySlotId.get(slot.id)?.entrantBId ?? null;
       const { error: updateErr } = await this.supabase.service
         .from('bracket_slots')
-        .update({ registration_a_id: regA, registration_b_id: regB })
+        .update({ ...seatColumns(kind, 'a', entrantA), ...seatColumns(kind, 'b', entrantB) })
         .eq('id', slot.id);
       if (updateErr) throw new BadRequestException(updateErr.message);
 
@@ -1026,19 +1039,19 @@ export class PhasesService {
         .select('id, status')
         .eq('bracket_slot_id', slot.id)
         .eq('status', 'scheduled');
-      if (regA && regB) {
+      if (entrantA && entrantB) {
+        const sides = {
+          ...seatColumns(kind, 'red', entrantA),
+          ...seatColumns(kind, 'blue', entrantB),
+        };
         if ((existingMatches ?? []).length > 0) {
           const matchId = (existingMatches![0] as { id: string }).id;
-          await this.supabase.service
-            .from('matches')
-            .update({ red_registration_id: regA, blue_registration_id: regB })
-            .eq('id', matchId);
+          await this.supabase.service.from('matches').update(sides).eq('id', matchId);
         } else {
           await this.supabase.service.from('matches').insert({
             phase_id: phaseId,
             bracket_slot_id: slot.id,
-            red_registration_id: regA,
-            blue_registration_id: regB,
+            ...sides,
             ...rulesetStamp,
             status: 'scheduled',
             red_score: 0,
@@ -1117,7 +1130,7 @@ export class PhasesService {
     const { data: bracketPhase } = await this.supabase.service
       .from('phases')
       .select(
-        'id, type, config_json, tournament_id, tournaments!inner(event_id, events!inner(organization_id))',
+        'id, type, config_json, tournament_id, tournaments!inner(event_id, entrant_kind, events!inner(organization_id))',
       )
       .eq('tournament_id', tournamentId)
       .in('type', ['single_elim', 'double_elim'])
@@ -1143,6 +1156,7 @@ export class PhasesService {
     const tournamentEmbed = phaseRow['tournaments'] as Record<string, unknown>;
     const eventEmbed = tournamentEmbed['events'] as Record<string, unknown>;
     const organizationId = eventEmbed['organization_id'] as string;
+    const kind = storedKind(tournamentEmbed['entrant_kind']);
 
     // 2. Auth — non-system actors must be org admins.
     if (actorUserId !== 'system') {
@@ -1224,6 +1238,7 @@ export class PhasesService {
       slotCount: slots.length,
       randomSeed: config['seedingRandomSeed'] as number | undefined,
       perPool,
+      kind,
     });
     if (!resolved.ok) {
       if (options?.silentIfGateNotMet) {
@@ -1250,8 +1265,8 @@ export class PhasesService {
       const { error: slotErr } = await this.supabase.service
         .from('bracket_slots')
         .update({
-          registration_a_id: update.entrantAId,
-          registration_b_id: update.entrantBId,
+          ...seatColumns(kind, 'a', update.entrantAId),
+          ...seatColumns(kind, 'b', update.entrantBId),
         })
         .eq('id', update.slotId);
       if (slotErr) throw new BadRequestException(slotErr.message);
@@ -1270,9 +1285,10 @@ export class PhasesService {
       // entire losers bracket (plus the grand final and reset) stalled
       // permanently. Byes need no special case here: they never get a
       // matches row, so the UPDATE below simply matches nothing.
-      const knownSides: Record<string, string> = {};
-      if (update.entrantAId) knownSides['red_registration_id'] = update.entrantAId;
-      if (update.entrantBId) knownSides['blue_registration_id'] = update.entrantBId;
+      const knownSides = {
+        ...(update.entrantAId ? seatColumns(kind, 'red', update.entrantAId) : {}),
+        ...(update.entrantBId ? seatColumns(kind, 'blue', update.entrantBId) : {}),
+      };
       const bothSidesKnown = !!update.entrantAId && !!update.entrantBId;
 
       if (Object.keys(knownSides).length > 0) {
@@ -1290,8 +1306,8 @@ export class PhasesService {
           await this.supabase.service.from('matches').insert({
             phase_id: phaseId,
             bracket_slot_id: update.slotId,
-            red_registration_id: update.entrantAId,
-            blue_registration_id: update.entrantBId,
+            ...seatColumns(kind, 'red', update.entrantAId),
+            ...seatColumns(kind, 'blue', update.entrantBId),
             ...rulesetStamp,
             status: 'scheduled',
             red_score: 0,
@@ -1403,6 +1419,8 @@ export class PhasesService {
       slotCount: number;
       randomSeed?: number;
       perPool: PerPoolStandings | null;
+      /** The Tournament's kind: a team Tournament ranks its teams (call 3). */
+      kind: EntrantKind;
     },
   ): Promise<SeedingResolution> {
     const { strategy, perPool } = input;
@@ -1422,7 +1440,7 @@ export class PhasesService {
       // tournaments see an honest message instead of the pool-standings text.
       return {
         ok: true,
-        ...(await this.resolveRegistrationRanking(tournamentId, strategy, input)),
+        ...(await this.resolveRegistrationRanking(tournamentId, input.kind, strategy, input)),
       };
     }
 
@@ -1449,7 +1467,7 @@ export class PhasesService {
       // phase but seeds its bracket from the Swiss phase that came after it.
       return {
         ok: true,
-        ...(await this.resolveRegistrationRanking(tournamentId, strategy, input)),
+        ...(await this.resolveRegistrationRanking(tournamentId, input.kind, strategy, input)),
       };
     }
 
@@ -1597,14 +1615,11 @@ export class PhasesService {
    */
   private async resolveRegistrationRanking(
     tournamentId: string,
+    kind: EntrantKind,
     strategy: SeedingStrategy,
     opts: { randomSeed?: number },
-  ): Promise<{
-    rankings: RankedEntrant[];
-    source: R1RankingSource;
-    randomSeed?: number;
-    warnings: SeedingWarning[];
-  }> {
+  ): Promise<EntrantRanking> {
+    if (kind === 'team') return this.resolveTeamRanking(tournamentId, strategy, opts);
     const regs = await this.loadSeedableRegistrations(tournamentId, {
       withRatings: strategy === 'by-rating',
     });
@@ -1622,6 +1637,30 @@ export class PhasesService {
       return { rankings, source: 'swiss-standings', warnings };
     }
     return { rankings: rankBySeed(regs), source: 'registration-seed', warnings: [] };
+  }
+
+  /**
+   * The Round-1 order of a team Tournament's teams (ruling 982, call 3): by seed, ranked 1..N in
+   * that order, or a draw its seed replays. A strategy a team does not take is refused before the
+   * read.
+   */
+  private async resolveTeamRanking(
+    tournamentId: string,
+    strategy: SeedingStrategy,
+    opts: { randomSeed?: number },
+  ): Promise<EntrantRanking> {
+    assertTeamSeeding(strategy);
+    const teams = await this.readTeamsForDraw(tournamentId);
+    if (strategy !== 'random') {
+      return { rankings: rankTeamsBySeed(teams), source: 'registration-seed', warnings: [] };
+    }
+    const randomSeed = opts.randomSeed ?? Math.floor(Math.random() * 0x7fffffff);
+    return {
+      rankings: rankTeamsRandom(teams, randomSeed),
+      source: 'random',
+      randomSeed,
+      warnings: [],
+    };
   }
 
   /**
@@ -2191,6 +2230,7 @@ export class PhasesService {
       slotCount: seedSlots.length,
       randomSeed: input.randomSeed,
       perPool: input.perPool,
+      kind: await this.readEntrantKind(tournamentId),
     });
     // The pool gates come back here, not as a throw — a bout back in play, or
     // no pools at all. Both mean "the source is not final", never a drift
@@ -2278,7 +2318,9 @@ export class PhasesService {
   private async getPhaseWithOrg(phaseId: string): Promise<Record<string, unknown>> {
     const { data, error } = await this.supabase.service
       .from('phases')
-      .select('id, tournament_id, type, tournaments(event_id, events(organization_id))')
+      .select(
+        'id, tournament_id, type, tournaments(event_id, entrant_kind, events(organization_id))',
+      )
       .eq('id', phaseId)
       .maybeSingle();
 
@@ -2874,16 +2916,21 @@ export class PhasesService {
    * its active Registrations (`listUnassignedFighters`).
    */
   async listUnassignedEntrants(tournamentId: string) {
+    const kind = await this.readEntrantKind(tournamentId);
+    return kind === 'team'
+      ? this.listUnassignedTeams(tournamentId)
+      : this.listUnassignedFighters(tournamentId);
+  }
+
+  /** The Tournament's kind of entrant (`storedKind`: throws when it was not read). */
+  private async readEntrantKind(tournamentId: string): Promise<EntrantKind> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('entrant_kind')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    const kind = storedKind((data as { entrant_kind?: unknown } | null)?.entrant_kind);
-    return kind === 'team'
-      ? this.listUnassignedTeams(tournamentId)
-      : this.listUnassignedFighters(tournamentId);
+    return storedKind((data as { entrant_kind?: unknown } | null)?.entrant_kind);
   }
 
   /** A team Tournament's teams not yet in a Pool. A team has no status: every team is offered. */

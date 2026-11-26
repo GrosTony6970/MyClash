@@ -25,8 +25,6 @@ const NOT_YET = [
   'apps/api/src/modules/phases/bracket-advance.service.ts',
   'apps/api/src/modules/phases/bracket-dependents.ts',
   'apps/api/src/modules/phases/bracket-downstream.ts',
-  'apps/api/src/modules/phases/bracket-match-sync.ts',
-  'apps/api/src/modules/phases/bracket-placeholder-match.ts',
   'apps/api/src/modules/phases/bracket-refs.ts',
   'apps/api/src/modules/phases/bracket-slots.controller.ts',
   'apps/api/src/modules/phases/dto/phases.dto.ts',

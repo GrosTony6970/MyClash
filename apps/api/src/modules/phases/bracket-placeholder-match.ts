@@ -1,4 +1,7 @@
 import type { MatchRulesetStamp } from './match-ruleset';
+import { boutSidesOfSlot } from './seat-columns';
+
+const idOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /**
  * The `matches` row shape pre-created for a freshly generated bracket slot.
@@ -10,6 +13,9 @@ import type { MatchRulesetStamp } from './match-ruleset';
  * BracketAdvanceService later UPDATEs registrations into the existing row
  * rather than INSERTing a fresh one, which preserves any placement the
  * operator already made.
+ *
+ * Both columns of each side come from the slot (`boutSidesOfSlot`): a Registration or a team
+ * (0282), null at generation.
  */
 export function placeholderMatchRow(
   slot: Record<string, unknown>,
@@ -18,10 +24,12 @@ export function placeholderMatchRow(
   return {
     phase_id: slot['phase_id'],
     bracket_slot_id: slot['id'],
-    red_registration_id:
-      typeof slot['registration_a_id'] === 'string' ? slot['registration_a_id'] : null,
-    blue_registration_id:
-      typeof slot['registration_b_id'] === 'string' ? slot['registration_b_id'] : null,
+    ...boutSidesOfSlot({
+      registration_a_id: idOf(slot['registration_a_id']),
+      registration_b_id: idOf(slot['registration_b_id']),
+      team_a_id: idOf(slot['team_a_id']),
+      team_b_id: idOf(slot['team_b_id']),
+    }),
     ...rulesetStamp,
     status: 'scheduled',
     red_score: 0,

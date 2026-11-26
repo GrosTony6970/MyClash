@@ -41,6 +41,18 @@ export function teamTournamentNotSupported(
   return new ConflictException({ reason: 'team_tournament_not_supported', message });
 }
 
+/**
+ * The 409 for a team bracket seeded by rating: a team's rating is its named members' (ruling 971),
+ * and the teams have no names until slice 1c-2.
+ */
+export function ratingNeedsNamedMembers(): ConflictException {
+  return new ConflictException({
+    reason: 'rating_needs_named_members',
+    message:
+      'A team is rated by its named members, so a team bracket cannot be seeded by rating yet.',
+  });
+}
+
 /** The 409 for an entrant of the other kind, said by the API before the database would refuse it. */
 export function entrantKindMismatch(): ConflictException {
   const [mismatch] = REFUSALS;
