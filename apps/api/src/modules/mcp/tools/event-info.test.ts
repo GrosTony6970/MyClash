@@ -51,6 +51,7 @@ describe('event_info', () => {
       startDate: '2026-03-14',
       endDate: '2026-03-15',
       status: 'published',
+      timezone: 'Europe/Paris',
       city: 'Lyon',
       country: 'FR',
       tournaments: [

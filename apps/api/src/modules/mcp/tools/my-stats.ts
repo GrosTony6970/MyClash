@@ -1,5 +1,5 @@
-import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
-import { isRefusal, ownDashboard } from './no-fighter-profile';
+import { isRefusal, type McpCaller, type McpRefusal, type McpToolDeps } from '../mcp-server';
+import { ownDashboard } from './no-fighter-profile';
 
 interface BoutTally {
   bouts: number;
@@ -65,6 +65,7 @@ export async function myStats(
       totalMatches: refereeStats.totalMatches,
       averageRefereeTimeMs: refereeStats.averageRefereeTimeMs,
       eventsWorked: refereeStats.eventsWorked,
+      // Keyed by the raw role: the stats carry no skill names, so a custom role shows as its id.
       roles: { ...refereeStats.roles },
       cards: { ...refereeStats.cards },
     },

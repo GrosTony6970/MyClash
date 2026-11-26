@@ -1,6 +1,6 @@
 import { canReadEvent, type CompetitionEvent } from '../../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../../common/auth/event-authz';
-import type { McpCaller } from '../mcp-server';
+import type { McpCaller, McpRefusal } from '../mcp-server';
 
 /**
  * An Event as a tool sees it. The `id` is for service calls inside the tool; it never reaches the
@@ -13,9 +13,19 @@ export interface McpEvent {
   startDate: string | null;
   endDate: string | null;
   status: string;
-  timezone: string | null;
+  timezone: string;
   city: string | null;
   country: string | null;
+}
+
+/** The one sentence for an unknown Event and a hidden one alike: it must not reveal a draft. */
+export function noEventRefusal(slug: string): McpRefusal {
+  return { refusal: `No Event "${slug}" that you can see.` };
+}
+
+/** The one sentence for an unknown Tournament and a hidden one alike, at a readable Event. */
+export function noTournamentRefusal(slug: string, event: McpEvent): McpRefusal {
+  return { refusal: `No Tournament "${slug}" at ${event.name} that you can see.` };
 }
 
 interface EventRow extends CompetitionEvent {
@@ -23,7 +33,7 @@ interface EventRow extends CompetitionEvent {
   slug: string;
   start_date: string | null;
   end_date: string | null;
-  timezone: string | null;
+  timezone: string;
   city: string | null;
   country: string | null;
 }

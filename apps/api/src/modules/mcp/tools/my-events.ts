@@ -58,7 +58,8 @@ export async function myEvents(caller: McpCaller, deps: McpToolDeps): Promise<My
       refereeOf: entry.refereeOf.map((r) => ({
         tournamentName: r.tournamentName,
         poolName: r.poolName,
-        role: r.role,
+        // The skill's name, as the app shows it; the raw role is a skill id (`custom-<hex>-<nonce>`).
+        role: r.skillName ?? r.role,
         liceName: r.liceName,
       })),
       teaching: entry.workshopsTeaching.map((w) => ({

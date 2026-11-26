@@ -80,6 +80,7 @@ const schedule = {
       opponentName: null,
       redScore: 2,
       blueScore: 5,
+      outcome: null,
       isRed: false,
       tournamentName: 'Longsword',
       liceName: null,
@@ -95,7 +96,8 @@ const schedule = {
       scheduledAt: '2026-03-14T11:00:00Z',
       startsAt: '2026-03-14T11:00:00Z',
       endsAt: '2026-03-14T12:00:00Z',
-      role: 'Judge',
+      role: 'custom-0a1b2c3d-x9z',
+      skillName: 'Judge',
       poolName: 'Pool 4',
       poolId: '00000004-aaaa-4bbb-8ccc-000000000004',
       tournamentName: 'Longsword',
@@ -134,7 +136,7 @@ describe('my_schedule', () => {
     // Own view: the requester is the person.
     expect(getSchedule).toHaveBeenCalledWith(EVENT_ID, PERSON_ID, PERSON_ID);
     expect(result).toEqual({
-      event: { name: 'FAL 2026', slug: 'fal-2026' },
+      event: { name: 'FAL 2026', slug: 'fal-2026', timezone: 'Europe/Paris' },
       fights: [
         {
           tournamentName: 'Longsword',
@@ -143,6 +145,7 @@ describe('my_schedule', () => {
           liceName: 'Lice A',
           start: '2026-03-14T09:00:00Z',
           status: 'completed',
+          result: 'win',
           score: { mine: 7, opponent: 3 },
         },
         {
@@ -152,7 +155,8 @@ describe('my_schedule', () => {
           liceName: null,
           start: '2026-03-14T10:00:00Z',
           status: 'scheduled',
-          score: { mine: 5, opponent: 2 },
+          result: null,
+          score: null,
         },
       ],
       refereeing: [
@@ -160,6 +164,7 @@ describe('my_schedule', () => {
           tournamentName: 'Longsword',
           poolName: 'Pool 4',
           role: 'Judge',
+          roundCode: 'LSW-P4-M01',
           liceName: 'Lice B',
           start: '2026-03-14T11:00:00Z',
           end: '2026-03-14T12:00:00Z',
@@ -218,12 +223,49 @@ describe('my_schedule', () => {
     expect(getSchedule).not.toHaveBeenCalled();
   });
 
-  it('refuses with a retry sentence, not "not on the roster", when the person read fails', async () => {
+  it('throws, not "not on the roster", when the person read fails', async () => {
     const double = supabaseDouble({
       event: eventRow,
       person: { data: null, error: { message: 'connection reset' } },
     });
-    const result = await mySchedule('fal-2026', caller, depsFor(double));
-    expect(result).toEqual({ refusal: 'Could not read your schedule. Try again.' });
+    await expect(mySchedule('fal-2026', caller, depsFor(double))).rejects.toThrow(
+      'roster read failed: connection reset',
+    );
+  });
+
+  it('reads a forfeit win on the lower score as a win, from the outcome and not the scores', async () => {
+    const double = supabaseDouble({
+      event: eventRow,
+      person: { data: { id: PERSON_ID }, error: null },
+    });
+    const forfeit = {
+      ...schedule,
+      matches: [{ ...schedule.matches[0], isRed: true, redScore: 0, blueScore: 5, outcome: 'win' }],
+    };
+    const result = (await mySchedule(
+      'fal-2026',
+      caller,
+      depsFor(double, vi.fn().mockResolvedValue(forfeit)),
+    )) as { fights: { result: string; score: unknown }[] };
+    expect(result.fights[0]).toMatchObject({ result: 'win', score: { mine: 0, opponent: 5 } });
+  });
+
+  it('shows a refereeing role by the skill name, and the raw role when it has none', async () => {
+    const double = supabaseDouble({
+      event: eventRow,
+      person: { data: { id: PERSON_ID }, error: null },
+    });
+    const bare = {
+      ...schedule,
+      refereeSlots: [
+        { ...schedule.refereeSlots[0], skillName: null, role: 'Judge', roundCode: '' },
+      ],
+    };
+    const result = (await mySchedule(
+      'fal-2026',
+      caller,
+      depsFor(double, vi.fn().mockResolvedValue(bare)),
+    )) as { refereeing: { role: string; roundCode: string | null }[] };
+    expect(result.refereeing[0]).toMatchObject({ role: 'Judge', roundCode: null });
   });
 });

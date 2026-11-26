@@ -58,7 +58,7 @@ function failed(tool: string, error: unknown): CallToolResult {
 }
 
 /** The answer of a tool that refuses with one plain sentence: a tool error result, never a throw. */
-export function toolRefusal(text: string): CallToolResult {
+function toolRefusal(text: string): CallToolResult {
   return { isError: true, content: [{ type: 'text', text }] };
 }
 
@@ -71,7 +71,7 @@ export interface McpRefusal {
   refusal: string;
 }
 
-function isRefusal(result: unknown): result is McpRefusal {
+export function isRefusal(result: unknown): result is McpRefusal {
   if (typeof result !== 'object' || result === null) return false;
   const keys = Object.keys(result);
   return (
@@ -148,7 +148,8 @@ function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps
     {
       description:
         "The signed-in person's own bouts, referee duties and Workshops at one Event, named by " +
-        'its slug (`event`, from my_events). Refuses an Event the person is not on the roster of.',
+        'its slug (`event`, from my_events). Times are UTC ISO; `event.timezone` is the ' +
+        "Event's own zone. Refuses an Event the person is not on the roster of.",
       inputSchema: { event: z.string().min(1).max(200) },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -205,7 +206,8 @@ function registerEventTools(server: McpServer, caller: McpCaller, deps: McpToolD
     {
       description:
         "An Event's dates, place, status and the Tournaments the person can see, named by the " +
-        "Event's slug (`event`, from my_events).",
+        "Event's slug (`event`, from my_events). Times are UTC ISO; `timezone` is the Event's " +
+        'own zone.',
       inputSchema: { event: slug },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -217,19 +219,26 @@ function registerEventTools(server: McpServer, caller: McpCaller, deps: McpToolD
       description:
         "A Tournament's pool tables (rank, fighter, club, the ruleset's numbers) and bracket " +
         'rounds, named by the Event slug (`event`) and the Tournament slug (`tournament`, from ' +
-        'event_info). Refuses a Tournament the person cannot see.',
+        'event_info). A Swiss Tournament lists no round standings: only `swiss`, that it runs ' +
+        'Swiss and how many rounds are done. Refuses a Tournament the person cannot see.',
       inputSchema: { event: slug, tournament: slug },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     ({ event, tournament }) =>
       answer('tournament_standings', () => tournamentStandings(event, tournament, caller, deps)),
   );
+  registerEventScheduleTool(server, caller, deps);
+}
+
+/** The Event's bouts, filtered and capped: a busy Event has hundreds. */
+function registerEventScheduleTool(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
   server.registerTool(
     'event_schedule',
     {
       description:
-        "An Event's public bouts, soonest first, with lice, Tournament, round and fighters. " +
-        "Filter by `tournament` (slug) and/or `day` (YYYY-MM-DD, the Event's own day); bouts " +
+        "An Event's public bouts, soonest first, with piste (lice), Tournament, round and " +
+        "fighters. Times are UTC ISO; `timezone` is the Event's own zone. Filter by " +
+        "`tournament` (slug) and/or `day` (YYYY-MM-DD, the Event's own day); bouts " +
         'with no start time come last and match no `day`. `limit` is 1 to 50 (default 20); ' +
         '`total` counts the bouts before the cap.',
       inputSchema: {

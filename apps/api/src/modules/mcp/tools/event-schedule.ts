@@ -1,13 +1,10 @@
 import { zonedDay } from '@myclash/time';
 import type { ScheduleGridMatch } from '../../schedule/schedule-grid-match';
 import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
-import { readableEventBySlug } from './readable-event';
+import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
 /** How many bouts a call answers when the model names no `limit`. The bounds live in the schema. */
 export const EVENT_SCHEDULE_DEFAULT_LIMIT = 20;
-
-/** The zone the public schedule uses for an Event that names none. */
-const FALLBACK_ZONE = 'Europe/Paris';
 
 export interface EventScheduleArgs {
   tournament?: string;
@@ -17,6 +14,8 @@ export interface EventScheduleArgs {
 }
 
 export interface EventScheduleAnswer {
+  /** The Event's own IANA zone: `day` is read on its clock, and `start` is UTC. */
+  timezone: string;
   /** How many bouts matched the filters, before the cap. */
   total: number;
   fights: {
@@ -38,8 +37,8 @@ async function liceNames(eventId: string, deps: McpToolDeps): Promise<Map<string
     .select('id, name')
     .eq('event_id', eventId);
   if (error) throw new Error(`lices read failed: ${error.message}`);
-  const rows = (data ?? []) as unknown as { id: string; name: string | null }[];
-  return new Map(rows.flatMap((l) => (l.name ? [[l.id, l.name] as const] : [])));
+  const rows = (data ?? []) as unknown as { id: string; name: string }[];
+  return new Map(rows.map((l) => [l.id, l.name] as const));
 }
 
 /** Soonest first; a bout with no start has no day and goes last. */
@@ -62,23 +61,30 @@ export async function eventSchedule(
   deps: McpToolDeps,
 ): Promise<EventScheduleAnswer | McpRefusal> {
   const event = await readableEventBySlug(eventSlug, caller, deps);
-  if (!event) return { refusal: `No Event "${eventSlug}" that you can see.` };
+  if (!event) return noEventRefusal(eventSlug);
 
   const grid = await deps.scheduleGrid.listEventSchedule(event.id, {
     userId: caller.userId,
     staff: null,
   });
   const lices = await liceNames(event.id, deps);
-  const zone = event.timezone ?? FALLBACK_ZONE;
+  // A Tournament slug no bout carries is unknown (or a draft the grid leaves out): say so, never
+  // an empty list that reads as "nothing scheduled".
+  if (args.tournament && !grid.some((m) => m.tournamentSlug === args.tournament)) {
+    return noTournamentRefusal(args.tournament, event);
+  }
 
   const matched = grid
     .filter((m) => !args.tournament || m.tournamentSlug === args.tournament)
     .filter(
-      (m) => !args.day || (m.scheduledAt !== null && zonedDay(m.scheduledAt, zone) === args.day),
+      (m) =>
+        !args.day ||
+        (m.scheduledAt !== null && zonedDay(m.scheduledAt, event.timezone) === args.day),
     )
     .sort(byStart);
 
   return {
+    timezone: event.timezone,
     total: matched.length,
     fights: matched.slice(0, args.limit ?? EVENT_SCHEDULE_DEFAULT_LIMIT).map((m) => ({
       start: m.scheduledAt,

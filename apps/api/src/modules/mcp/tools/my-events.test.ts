@@ -44,7 +44,7 @@ const entry = {
       id: U(4),
       tournamentName: 'Longsword',
       poolName: 'Pool 1',
-      role: 'Director',
+      role: 'custom-0a1b2c3d-x9z',
       skillName: 'Director',
       skillColor: '#fff',
       liceName: 'Lice A',

@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { createTranslator, messages } from '@myclash/i18n';
 import { bracketToken, roundTokenLabel } from '@myclash/types';
 import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
-import { readableEventBySlug } from './readable-event';
+import { noEventRefusal, noTournamentRefusal, readableEventBySlug } from './readable-event';
 
 export interface TournamentStandingsAnswer {
   tournament: { name: string; status: string };
@@ -17,6 +17,11 @@ export interface TournamentStandingsAnswer {
       stats: Record<string, number | string>;
     }[];
   }[];
+  /**
+   * Set when the Tournament runs a Swiss phase. Its round standings are not listed: only that it
+   * runs Swiss and how far it is.
+   */
+  swiss: { rounds: number; roundsCompleted: number } | null;
   bracket: {
     round: string;
     fights: {
@@ -36,6 +41,10 @@ interface PublicStandings {
   bracketSize?: number;
   wbRounds?: number | null;
   lbRounds?: number | null;
+  phaseType?: string;
+  swissPhaseId?: string | null;
+  swissRoundCount?: number;
+  swissRoundsCompleted?: number;
   bracketSlots: {
     round: number;
     position: number;
@@ -75,7 +84,8 @@ function roundLabel(round: number, s: PublicStandings): string {
 /**
  * The bronze bout: position 2 of the last round (the gold final is position 0). The public page
  * takes it out the same way with `extractBronzeMatch` (packages/ui bracket/extract-bronze-match.ts)
- * and shows it apart; the API cannot import packages/ui, so this is the same predicate.
+ * and shows it apart; the API cannot import packages/ui, so this is the same predicate. The
+ * public page skips the split for double elimination (BracketLive.tsx), and so does `toBracket`.
  */
 function isBronze(slot: PublicStandings['bracketSlots'][number], maxRound: number): boolean {
   return slot.round === maxRound && slot.position === 2;
@@ -100,8 +110,9 @@ function toBracket(s: PublicStandings): TournamentStandingsAnswer['bracket'] {
   const maxRound = s.bracketSlots.reduce((max, slot) => Math.max(max, slot.round), 0);
   const rounds = new Map<number, PublicStandings['bracketSlots']>();
   const bronze: PublicStandings['bracketSlots'] = [];
+  const splitBronze = s.phaseType !== 'double_elim';
   for (const slot of s.bracketSlots) {
-    if (isBronze(slot, maxRound)) bronze.push(slot);
+    if (splitBronze && isBronze(slot, maxRound)) bronze.push(slot);
     else rounds.set(slot.round, [...(rounds.get(slot.round) ?? []), slot]);
   }
   const named = [...rounds.entries()]
@@ -147,7 +158,7 @@ export async function tournamentStandings(
   deps: McpToolDeps,
 ): Promise<TournamentStandingsAnswer | McpRefusal> {
   const event = await readableEventBySlug(eventSlug, caller, deps);
-  if (!event) return { refusal: `No Event "${eventSlug}" that you can see.` };
+  if (!event) return noEventRefusal(eventSlug);
 
   const reader = { userId: caller.userId, staff: null };
   let standings: PublicStandings;
@@ -158,9 +169,7 @@ export async function tournamentStandings(
       reader,
     )) as unknown as PublicStandings;
   } catch (error) {
-    if (error instanceof NotFoundException) {
-      return { refusal: `No Tournament "${tournamentSlug}" at ${event.name} that you can see.` };
-    }
+    if (error instanceof NotFoundException) return noTournamentRefusal(tournamentSlug, event);
     throw error;
   }
 
@@ -177,6 +186,12 @@ export async function tournamentStandings(
   return {
     tournament: { name: standings.tournament.name, status: standings.tournament.status },
     pools: tables ? toPools(tables) : [],
+    swiss: standings.swissPhaseId
+      ? {
+          rounds: standings.swissRoundCount ?? 0,
+          roundsCompleted: standings.swissRoundsCompleted ?? 0,
+        }
+      : null,
     bracket: toBracket(standings),
   };
 }

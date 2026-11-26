@@ -143,6 +143,7 @@ describe('tournament_standings', () => {
     expect(d.getPoolStandings).toHaveBeenCalledWith(id(2), 'by-pool');
     expect(result).toEqual({
       tournament: { name: 'Longsword', status: 'running' },
+      swiss: null,
       pools: [
         {
           name: 'Pool 1',
@@ -242,6 +243,50 @@ describe('tournament_standings', () => {
       ['Losers Round 2', ['l2']],
       ['Grand Final', ['gf']],
     ]);
+  });
+
+  it('does not split a bronze bout out of a double-elimination bracket, as the public page', async () => {
+    const rounds = await roundsOf({
+      bracketSize: 4,
+      wbRounds: 2,
+      lbRounds: 2,
+      phaseType: 'double_elim',
+      bracketSlots: [slot(1, 0, 'w1'), slot(2, 0, 'w2'), slot(2, 2, 'lb-final-side')],
+    });
+    expect(rounds).toEqual([
+      ['Winners Semi Final', ['w1']],
+      ['Winners Final', ['w2', 'lb-final-side']],
+    ]);
+  });
+
+  it('says a Swiss Tournament runs Swiss and how far it is, from the payload', async () => {
+    const getStandings = vi.fn().mockResolvedValue({
+      ...standings,
+      pools: [],
+      bracketSlots: [],
+      swissPhaseId: id(5),
+      swissRoundCount: 5,
+      swissRoundsCompleted: 2,
+    });
+    const d = depsFor({ event: eventRow, getStandings });
+    const result = await tournamentStandings('fal-2026', 'longsword', caller, d.deps);
+    expect(result).toMatchObject({ swiss: { rounds: 5, roundsCompleted: 2 }, pools: [] });
+    expectNoRawIds(result);
+  });
+
+  it('answers swiss null for a Tournament with no Swiss phase', async () => {
+    const getStandings = vi.fn().mockResolvedValue({
+      ...standings,
+      pools: [],
+      bracketSlots: [],
+      swissPhaseId: null,
+      swissRoundCount: 0,
+      swissRoundsCompleted: 0,
+    });
+    const d = depsFor({ event: eventRow, getStandings });
+    expect(await tournamentStandings('fal-2026', 'longsword', caller, d.deps)).toMatchObject({
+      swiss: null,
+    });
   });
 
   it('answers no pool tables when the Tournament shows no pools yet', async () => {

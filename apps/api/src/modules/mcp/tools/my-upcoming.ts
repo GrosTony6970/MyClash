@@ -9,8 +9,8 @@ export interface MyUpcomingAnswer {
     eventName: string;
     eventSlug: string;
     timezone: string | null;
-    scheduledAt: string;
-    code: string;
+    start: string;
+    roundCode: string;
     tournamentName: string | null;
     poolName: string | null;
     liceName: string | null;
@@ -36,13 +36,14 @@ export async function myUpcoming(
       eventName: item.eventName,
       eventSlug: item.eventSlug,
       timezone: item.eventTimezone,
-      scheduledAt: item.scheduledAt,
-      code: item.roundCode,
+      start: item.scheduledAt,
+      roundCode: item.roundCode,
       tournamentName: item.tournamentName,
       poolName: item.poolName,
       liceName: item.liceName,
       opponentName: item.opponentName,
       isRed: item.isRed,
+      // The raw role: an UpcomingItem carries no skill name, so a custom one shows as its id.
       role: item.role,
     })),
   };

@@ -99,6 +99,7 @@ describe('event_schedule', () => {
     const answer = await result;
     expect(d.listEventSchedule).toHaveBeenCalledWith(id(1), { userId: 'user-1', staff: null });
     expect(answer).toEqual({
+      timezone: 'Europe/Paris',
       total: 1,
       fights: [
         {
@@ -196,6 +197,16 @@ describe('event_schedule', () => {
     };
     expect(answer.total).toBe(25);
     expect(answer.fights).toHaveLength(20);
+  });
+
+  it('refuses a Tournament slug no bout carries, rather than answering an empty list', async () => {
+    const answer = await eventSchedule(
+      'fal-2026',
+      { tournament: 'nope-t' },
+      caller,
+      depsFor({ matches: [match()] }).deps,
+    );
+    expect(answer).toEqual({ refusal: 'No Tournament "nope-t" at FAL 2026 that you can see.' });
   });
 
   it('refuses an Event the caller cannot read as unknown', async () => {

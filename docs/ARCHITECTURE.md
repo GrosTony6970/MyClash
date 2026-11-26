@@ -5380,17 +5380,17 @@ Every refusal logs the host it would have sent the person to.
 Nine tools sit beside `whoami` in `modules/mcp/tools/`, registered in `mcp-server.ts`. All are
 read-only. Each calls a service that an existing route already calls, so it applies that route's gate.
 
-| Tool                   | Reads                                                                     | Service (gate)                                                                                                                          | Cap                   |
-| ---------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `my_events`            | the person's Events: roles, Tournaments, referee duties, taught Workshops | `MeEventsService`                                                                                                                       | none                  |
-| `my_upcoming`          | the next bouts and referee duties, soonest first                          | `MeEventsService`                                                                                                                       | `limit` 1–50, def. 20 |
-| `my_schedule`          | the person's own bouts, duties and Workshops at one Event (`event` slug)  | `PublicScheduleService`, as `my-schedule.controller.ts`                                                                                 | none                  |
-| `my_stats`             | career, per-weapon, referee and HEMA Ratings numbers                      | `FightersService.getMyDashboard`                                                                                                        | none                  |
-| `my_fight_history`     | the newest completed bouts                                                | `FightersService.getMyDashboard`                                                                                                        | `limit` 1–10, def. 10 |
-| `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                                                                                       | none                  |
-| `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug` (the Event), `EventsService.listTournaments`                                                                      | none                  |
-| `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `readableEventBySlug`, then `EventsService.getPublicTournamentStandings` (the Tournament gate); `PoolStandingsService` reads the tables | none                  |
-| `event_schedule`       | an Event's public Matches, soonest first                                  | `ScheduleGridService`; the Event gate, draft Tournaments left out                                                                       | `limit` 1–50, def. 20 |
+| Tool                   | Reads                                                                     | Service (gate)                                                                                                                                 | Cap                   |
+| ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `my_events`            | the person's Events: roles, Tournaments, referee duties, taught Workshops | `MeEventsService`                                                                                                                              | none                  |
+| `my_upcoming`          | the next bouts and referee duties, soonest first                          | `MeEventsService`                                                                                                                              | `limit` 1–50, def. 20 |
+| `my_schedule`          | the person's own bouts, duties and Workshops at one Event (`event` slug)  | `readableEventBySlug` (the Event), the `persons` read (the caller's row at that Event), `PublicScheduleService` as `my-schedule.controller.ts` | none                  |
+| `my_stats`             | career, per-weapon, referee and HEMA Ratings numbers                      | `FightersService.getMyDashboard`                                                                                                               | none                  |
+| `my_fight_history`     | the newest completed bouts                                                | `FightersService.getMyDashboard`                                                                                                               | `limit` 1–10, def. 10 |
+| `my_workshops`         | Workshops taught (with session counts) and attended                       | `MeEventsService`                                                                                                                              | none                  |
+| `event_info`           | an Event's dates, city, country, status and visible Tournaments           | `readableEventBySlug` (the Event), `EventsService.listTournaments`                                                                             | none                  |
+| `tournament_standings` | a Tournament's Pool tables and bracket rounds                             | `readableEventBySlug`, then `EventsService.getPublicTournamentStandings` (the Tournament gate); `PoolStandingsService` reads the tables        | none                  |
+| `event_schedule`       | an Event's public Matches, soonest first                                  | `readableEventBySlug` (the Event), `ScheduleGridService` (draft Tournaments left out), the `lices` read (names)                                | `limit` 1–50, def. 20 |
 
 The rules:
 
@@ -5410,7 +5410,27 @@ The rules:
 - **Bounds live in the input schema.** The SDK refuses an out-of-range `limit` before the tool
   runs. The tool only applies the default.
 - **Lice are named.** `event_schedule` reads the Event's lices once (`id, name`) and maps each
-  Match's Lice to its name. The UI calls a Lice a "piste" (`docs/HIERARCHY.md`).
+  Match's Lice to its name. The UI calls a Lice a "piste" (`docs/HIERARCHY.md`); tool descriptions
+  say "piste (lice)".
+- **Times are UTC, and the Event's zone comes with them.** `event_info`, `my_schedule` (in `event`)
+  and `event_schedule` all answer `timezone`, the Event's IANA zone. `event_schedule`'s `day` is
+  read on that clock.
+- **A bout's result is the app's `outcome`.** `my_schedule` shows `result` (win, loss, draw; null
+  until the bout is completed), the words `my_fight_history` uses. A forfeit wins on the lower
+  score, so the scores never decide it. `score` is null while the bout is still scheduled.
+- **A referee role is shown by the skill's name** (`skillName ?? role`) in `my_events` and
+  `my_schedule`, as the app does. `my_upcoming` and the `my_stats` role keys carry the raw role:
+  their services hold no name. `my_schedule`'s duties carry the duty's `roundCode`.
+- **A Swiss Tournament lists no round standings.** `tournament_standings` answers
+  `swiss: { rounds, roundsCompleted }` (null when there is no Swiss phase) and nothing more of
+  it. A double-elimination bracket keeps its last round whole: the bronze split is for
+  single elimination only, as on the public page.
+- **A refusal names its owner.** `noEventRefusal` and `noTournamentRefusal` (`readable-event.ts`)
+  are the one sentence each. `event_schedule` with a `tournament` slug no bout carries refuses with
+  the Tournament sentence, so a Tournament with no scheduled bout reads as unknown too.
+- **A ruleset failure in the pool-standings read fails the whole `tournament_standings` answer.**
+  It surfaces as the generic failure, never a half table. A roster read failure in `my_schedule`
+  does the same: it throws, and `answer()` logs it.
 - **`event_info` gives a place as `city` and `country`** (ISO alpha-2), the two columns of the
   public Events list. The `events` table has no venue column.
 

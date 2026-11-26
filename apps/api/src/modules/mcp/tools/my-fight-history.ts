@@ -1,5 +1,5 @@
-import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
-import { isRefusal, ownDashboard } from './no-fighter-profile';
+import { isRefusal, type McpCaller, type McpRefusal, type McpToolDeps } from '../mcp-server';
+import { ownDashboard } from './no-fighter-profile';
 
 /** How many bouts a call answers when the model names no `limit`; also the most there are to give. */
 export const MY_FIGHT_HISTORY_DEFAULT_LIMIT = 10;

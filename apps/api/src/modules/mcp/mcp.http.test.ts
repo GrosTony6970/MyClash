@@ -5,6 +5,7 @@
  * a GET is a 405.
  */
 import 'reflect-metadata';
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -167,6 +168,16 @@ describe('the MCP door, over HTTP', () => {
     const body = (await res.json()) as { result?: { isError?: boolean }; error?: unknown };
     expect(body.result?.isError === true || body.error !== undefined).toBe(true);
     expect(getMyDashboard).not.toHaveBeenCalled();
+  });
+
+  it('answers a refusal as an error result with its one sentence, not a success', async () => {
+    getMyDashboard.mockRejectedValue(new NotFoundException('no profile'));
+    const res = await rpc('tools/call', { name: 'my_stats', arguments: {} });
+    const body = (await res.json()) as {
+      result: { isError?: boolean; content: [{ text: string }] };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toBe('You have no fighter profile yet.');
   });
 
   it('calls whoami for the signed-in account', async () => {

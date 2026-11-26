@@ -1,5 +1,5 @@
 import type { McpCaller, McpRefusal, McpToolDeps } from '../mcp-server';
-import { readableEventBySlug } from './readable-event';
+import { noEventRefusal, readableEventBySlug } from './readable-event';
 
 export interface EventInfoAnswer {
   name: string;
@@ -7,6 +7,8 @@ export interface EventInfoAnswer {
   startDate: string | null;
   endDate: string | null;
   status: string;
+  /** The Event's own IANA zone; its dates and times are read on that clock. */
+  timezone: string;
   city: string | null;
   country: string | null;
   tournaments: { name: string; slug: string; weapon: string | null; status: string }[];
@@ -30,7 +32,7 @@ export async function eventInfo(
   deps: McpToolDeps,
 ): Promise<EventInfoAnswer | McpRefusal> {
   const event = await readableEventBySlug(eventSlug, caller, deps);
-  if (!event) return { refusal: `No Event "${eventSlug}" that you can see.` };
+  if (!event) return noEventRefusal(eventSlug);
 
   const rows = (await deps.events.listTournaments(event.id, {
     userId: caller.userId,
@@ -42,6 +44,7 @@ export async function eventInfo(
     startDate: event.startDate,
     endDate: event.endDate,
     status: event.status,
+    timezone: event.timezone,
     city: event.city,
     country: event.country,
     tournaments: rows.map((t) => ({

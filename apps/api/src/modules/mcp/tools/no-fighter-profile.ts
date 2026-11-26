@@ -21,7 +21,3 @@ export async function ownDashboard(
     throw error;
   }
 }
-
-export function isRefusal(value: Dashboard | McpRefusal): value is McpRefusal {
-  return 'refusal' in value && typeof value.refusal === 'string';
-}
