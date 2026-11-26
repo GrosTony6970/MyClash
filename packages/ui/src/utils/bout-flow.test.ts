@@ -63,8 +63,8 @@ function build(
   return buildBoutFlow({
     exchanges,
     penalties,
-    redRegId: RED_REG,
-    blueRegId: BLUE_REG,
+    redSideId: RED_REG,
+    blueSideId: BLUE_REG,
     matchFormat,
     phaseType: 'pool',
     ...extra,
@@ -154,7 +154,7 @@ describe('buildBoutFlow — penalties', () => {
       [ex({ scoringSide: 'red', scoreDelta: 3 })],
       [card({ registration_id: null, team_id: 'team-blue', score_delta: -1 })],
       DEFAULT_MATCH_FORMAT_CONFIG,
-      { redRegId: 'team-red', blueRegId: 'team-blue' },
+      { redSideId: 'team-red', blueSideId: 'team-blue' },
     );
     expect(final(s)).toEqual({ red: 3, blue: -1 });
     expect(s.points[2]).toMatchObject({ kind: 'penalty', side: 'blue' });

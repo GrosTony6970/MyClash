@@ -149,8 +149,8 @@ describe('buildUnifiedTimeline', () => {
     protests: [] as MatchProtest[],
     redName: 'Red Fighter',
     blueName: 'Blue Fighter',
-    redRegId: 'reg-red',
-    blueRegId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     t,
     config: DEFAULT_SCORING_CONFIG,
   };

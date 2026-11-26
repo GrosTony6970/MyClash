@@ -50,8 +50,8 @@ export function MatchEventFeed({
         redName,
         blueName,
         // Side keys: a team card or protest names its team, and is placed on that team's side.
-        redRegId: match.redSideId,
-        blueRegId: match.blueSideId,
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         t,
         config,
       }),
@@ -75,8 +75,8 @@ export function MatchEventFeed({
       buildBoutFlow({
         exchanges,
         penalties,
-        redRegId: match.redSideId,
-        blueRegId: match.blueSideId,
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         matchFormat: summary.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
         phaseType: summary.phaseType,
         endReason: match.endReason,

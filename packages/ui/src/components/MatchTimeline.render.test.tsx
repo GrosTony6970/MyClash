@@ -55,8 +55,8 @@ const events = buildUnifiedTimeline({
   ],
   redName: 'Ana Red',
   blueName: 'Bo Blue',
-  redRegId: 'reg-red',
-  blueRegId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   t: say,
   config: DEFAULT_SCORING_CONFIG,
 });

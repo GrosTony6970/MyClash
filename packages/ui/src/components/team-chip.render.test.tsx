@@ -66,8 +66,8 @@ const events = buildUnifiedTimeline({
   protests: [],
   redName: 'Lyon Blades',
   blueName: 'Paris Rapiers',
-  redRegId: 'team-lyon',
-  blueRegId: 'team-paris',
+  redSideId: 'team-lyon',
+  blueSideId: 'team-paris',
   t,
   config: DEFAULT_SCORING_CONFIG,
 });
@@ -137,8 +137,8 @@ function legend(
   const series = buildBoutFlow({
     exchanges,
     penalties: [card],
-    redRegId: 'team-lyon',
-    blueRegId: 'team-paris',
+    redSideId: 'team-lyon',
+    blueSideId: 'team-paris',
     matchFormat: DEFAULT_MATCH_FORMAT_CONFIG,
     phaseType: 'pool',
     endReason: null,

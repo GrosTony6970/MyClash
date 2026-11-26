@@ -245,8 +245,8 @@ function BoutReview({
     protests: activeProtests,
     redName,
     blueName,
-    redRegId: redSideId,
-    blueRegId: blueSideId,
+    redSideId,
+    blueSideId,
     t,
     config: scoringConfig,
   });
@@ -254,8 +254,8 @@ function BoutReview({
   const flow = buildBoutFlow({
     exchanges,
     penalties,
-    redRegId: redSideId,
-    blueRegId: blueSideId,
+    redSideId,
+    blueSideId,
     matchFormat,
     phaseType,
     endReason,

@@ -174,9 +174,9 @@ export interface BuildTimelineArgs {
   protests: MatchProtest[];
   redName: string;
   blueName: string;
-  /** Each side's key: its Registration id or its team id (`redSideId`), null while not known. */
-  redRegId: string | null;
-  blueRegId: string | null;
+  /** Each side's key: its Registration id or its team id, null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
   t: (k: string, p?: Record<string, string>) => string;
   config: TournamentScoringConfig;
 }
@@ -187,8 +187,8 @@ export function buildUnifiedTimeline({
   protests,
   redName,
   blueName,
-  redRegId,
-  blueRegId,
+  redSideId,
+  blueSideId,
   t,
   config,
 }: BuildTimelineArgs): UnifiedEvent[] {
@@ -248,7 +248,7 @@ export function buildUnifiedTimeline({
   const penaltyRows: UnifiedEventDraft[] = penalties
     .filter((p) => !p.voided)
     .map((p) => {
-      const side = rowSide(p, redRegId, blueRegId);
+      const side = rowSide(p, redSideId, blueSideId);
       const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
       // A direct card carries no ruleset entry, so it has neither short_name
       // nor reason — name it rather than rendering a blank cell.
@@ -278,7 +278,7 @@ export function buildUnifiedTimeline({
   const numbered: UnifiedEvent[] = ascendingWithNumbers([...exchangeRows, ...penaltyRows]);
   const protestRows = protests
     .filter((p) => !p.voided)
-    .map((p) => protestRow(p, { redName, blueName, redRegId, blueRegId, t, config }));
+    .map((p) => protestRow(p, { redName, blueName, redSideId, blueSideId, t, config }));
   return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
 }
 
@@ -320,7 +320,7 @@ function protestRow(
   p: MatchProtest,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
-  const side = rowSide(p, a.redRegId, a.blueRegId);
+  const side = rowSide(p, a.redSideId, a.blueSideId);
   return {
     id: `pro-${p.id}`,
     kind: 'protest',

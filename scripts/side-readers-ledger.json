@@ -482,11 +482,6 @@
       "hits": 18,
       "why": "1c: the bracket screen and its forfeit by Registration (`:288`-`:299`)"
     },
-    "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowTimeline.tsx": {
-      "verdict": "side-key",
-      "hits": 2,
-      "why": "the live timeline places cards and protests by the display payload's side keys (`redSideId` / `blueSideId`, built with `sideKey`), null before the bout loads (`:89`-`:90`)"
-    },
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
       "verdict": "side-key",
       "hits": 6,
@@ -575,11 +570,6 @@
       "hits": 1,
       "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); names the Fighters a refused forfeit rules change moves (`:61`)"
     },
-    "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-event-feed.tsx": {
-      "verdict": "side-key",
-      "hits": 4,
-      "why": "the public bout feed hands the timeline and the flow the bout's side keys (`match.redSideId` / `blueSideId`, from `mapMatchRow`) in their `redRegId` / `blueRegId` arguments, so a team card sits on its team (`:53`-`:54`, `:78`-`:79`)"
-    },
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-row.ts": {
       "verdict": "side-key",
       "hits": 3,
@@ -612,23 +602,13 @@
     },
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": {
       "verdict": "side-key",
-      "hits": 4,
-      "why": "the history of the exchange picker places rows by each side's key, built with `sideKey` (`:130`-`:145`); the direct card and the forfeit take the bout's sides and pick a corner's with `sideOf`"
-    },
-    "apps/web-staff/src/components/MatchResultOverlay.tsx": {
-      "verdict": "side-key",
-      "hits": 4,
-      "why": "the headline, the protest counts, the history and the chart read the side keys and the winner's side key the bout screen builds with `resultSides` (`:230`-`:240`)"
+      "hits": 2,
+      "why": "the history of the exchange picker places rows by each side's key, built with `sideKey` (`:130`-`:131`); the direct card and the forfeit take the bout's sides and pick a corner's with `sideOf`"
     },
     "apps/web-staff/src/components/MatchView.tsx": {
       "verdict": "side-key",
       "hits": 3,
       "why": "declares the bout's Registration ids beside its team ids (`:63`-`:73`); each corner's side comes from `sideOf`, the side keys and the winner's from `resultSides`"
-    },
-    "apps/web-staff/src/components/ScoringCenterControls.tsx": {
-      "verdict": "side-key",
-      "hits": 2,
-      "why": "the history and the black-card banner take each side's key from the bout screen (`:276`-`:277`)"
     },
     "apps/web-staff/src/components/black-card-loss.ts": {
       "verdict": "side-key",
@@ -673,7 +653,7 @@
     "apps/web-staff/src/lib/undone-line.ts": {
       "verdict": "side-key",
       "hits": 2,
-      "why": "places the undone line's rows by each side's key from `sideOf` (`:58`-`:59`)"
+      "why": "places the undone line's rows by each side's key, built with `sideKey` (`:59`-`:60`)"
     },
     "apps/web-staff/src/offline/db.ts": {
       "verdict": "no-side-read",
@@ -908,8 +888,9 @@
     },
     "packages/ui/src/components/TVScoreboard.tsx": {
       "verdict": "side-key",
-      "hits": 4,
-      "why": "the TV reads the payload's side keys: each column's cards by `isRowOfSide` and its protest chip by `redSideId` / `blueSideId` (`:273`, `:523`), the winner by `winnerSideId` with no fallback to the Registration (`:691`-`:693`), the timeline and the flow fed the side keys under their kept names `redRegId` / `blueRegId` (the 4 hits, `:725`-`:726`, `:750`-`:751`)"
+      "hits": 0,
+      "why": "the TV reads the payload's side keys: each column's cards by `isRowOfSide` and its protest chip by `redSideId` / `blueSideId` (`:273`, `:290`, `:519`), the winner by `winnerSideId` with no fallback to the Registration (`:688`-`:690`), the timeline and the flow fed the side keys (`:722`-`:723`, `:747`-`:748`); no side token left, listed by hand: the raw-assignment rule scans `apps/` only",
+      "byHand": true
     },
     "packages/ui/src/components/TvProtestChip.tsx": {
       "verdict": "side-key",
@@ -934,13 +915,14 @@
     },
     "packages/ui/src/utils/bout-flow.ts": {
       "verdict": "side-key",
-      "hits": 10,
-      "why": "a card's points go to the side `rowSide` reads by side key; the bout's side keys come in under the kept names `redRegId` / `blueRegId` (`:88`-`:89`, `:166`-`:167`)"
+      "hits": 0,
+      "why": "a card's points go to the side `rowSide` reads by side key (`:173`); every caller passes side keys (`redSideId` / `blueSideId`, `:88`-`:89`, `:166`-`:167`); no side token left, listed by hand: the raw-assignment rule scans `apps/` only",
+      "byHand": true
     },
     "packages/ui/src/utils/exchange-timeline.ts": {
       "verdict": "side-key",
-      "hits": 12,
-      "why": "`isRowOfSide` reads a row's side key `registration_id ?? team_id` inline (bundle rule) and a side with no key is nobody (`:301`-`:303`); `rowSide` places a card or a protest by it. The bout's side keys come in under the kept names `redRegId` / `blueRegId` (`:178`-`:179`): each caller passes side keys (an individual bout's side key is its Registration id; the app callers switch in T10-T12)"
+      "hits": 2,
+      "why": "`isRowOfSide` reads a row's side key `registration_id ?? team_id` inline (bundle rule) and a side with no key is nobody (`:287`, `:301`-`:303`); `rowSide` places a card or a protest by it. Every caller passes side keys (`redSideId` / `blueSideId`, `:178`-`:179`)"
     },
     "packages/ui/src/utils/protest-chip.ts": {
       "verdict": "side-key",

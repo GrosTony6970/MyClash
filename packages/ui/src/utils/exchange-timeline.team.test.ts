@@ -61,8 +61,8 @@ describe('buildUnifiedTimeline on a team bout', () => {
       protests: [protest],
       redName: 'Lyon Blades',
       blueName: 'Paris Rapiers',
-      redRegId: 'team-red',
-      blueRegId: 'team-blue',
+      redSideId: 'team-red',
+      blueSideId: 'team-blue',
       t: (k: string) => k,
       config: DEFAULT_SCORING_CONFIG,
     });
