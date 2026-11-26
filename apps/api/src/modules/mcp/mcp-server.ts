@@ -3,11 +3,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
+import type { FightersService } from '../fighters/fighters.service';
 import type { MeEventsService } from '../me/me-events.service';
 import type { PublicScheduleService } from '../persons/public-schedule.service';
 import { myEvents } from './tools/my-events';
+import { myFightHistory } from './tools/my-fight-history';
 import { mySchedule } from './tools/my-schedule';
+import { myStats } from './tools/my-stats';
 import { myUpcoming } from './tools/my-upcoming';
+import { myWorkshops } from './tools/my-workshops';
 import { whoami } from './tools/whoami';
 
 /** The person a connector token names, as McpDoorGuard verified it. */
@@ -21,6 +25,7 @@ export interface McpCaller {
 /** The services the tools read. */
 export interface McpToolDeps extends EventAuthzDeps {
   meEvents: MeEventsService;
+  fighters: FightersService;
   schedule: PublicScheduleService;
 }
 
@@ -93,6 +98,7 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
     () => answer('whoami', () => whoami(caller, deps)),
   );
   registerMyTools(server, caller, deps);
+  registerMyRecordTools(server, caller, deps);
   return server;
 }
 
@@ -101,6 +107,9 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
  * runs, so the tool function only applies the default.
  */
 const upcomingLimit = z.number().int().min(1).max(50).optional();
+
+/** The cap of `my_fight_history`: the career keeps its newest ten bouts, so ten is all there is. */
+const fightHistoryLimit = z.number().int().min(1).max(10).optional();
 
 function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
   server.registerTool(
@@ -134,5 +143,41 @@ function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     ({ event }) => answer('my_schedule', () => mySchedule(event, caller, deps)),
+  );
+}
+
+/** The fighter, referee and Workshop reads of the personal space. */
+function registerMyRecordTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
+  server.registerTool(
+    'my_stats',
+    {
+      description:
+        "The signed-in person's fighter and referee numbers: bouts, wins, losses, draws, per " +
+        'weapon, current streak, referee totals and HEMA Ratings. Refuses an account with no ' +
+        'fighter profile.',
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    () => answer('my_stats', () => myStats(caller, deps)),
+  );
+  server.registerTool(
+    'my_fight_history',
+    {
+      description:
+        "The signed-in person's newest completed bouts, with the Event, Tournament, result and " +
+        'score. `limit` is 1 to 10 (default 10). Refuses an account with no fighter profile.',
+      inputSchema: { limit: fightHistoryLimit },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    ({ limit }) => answer('my_fight_history', () => myFightHistory(caller, deps, limit)),
+  );
+  server.registerTool(
+    'my_workshops',
+    {
+      description:
+        'The Workshops the signed-in person teaches (with session counts) and the ones they ' +
+        'attend, by name, time and place.',
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    () => answer('my_workshops', () => myWorkshops(caller, deps)),
   );
 }

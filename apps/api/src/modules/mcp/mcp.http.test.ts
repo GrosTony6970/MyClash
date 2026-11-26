@@ -15,6 +15,7 @@ import { AuthGuard } from '../../common/auth/auth.guard';
 import { API_GLOBAL_PREFIX } from '../../common/global-prefix';
 import { configureHttpApp } from '../../common/http-bootstrap';
 import { GuestJwtService } from '../auth/guest-jwt.service';
+import { FightersService } from '../fighters/fighters.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -67,6 +68,7 @@ beforeAll(async () => {
       { provide: StaffJwtService, useValue: refuse },
       { provide: OrganizationsService, useValue: {} },
       { provide: PublicScheduleService, useValue: {} },
+      { provide: FightersService, useValue: {} },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
   }).compile();
@@ -128,8 +130,11 @@ describe('the MCP door, over HTTP', () => {
     const body = (await res.json()) as { result: { tools: { name: string }[] } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
       'my_events',
+      'my_fight_history',
       'my_schedule',
+      'my_stats',
       'my_upcoming',
+      'my_workshops',
       'whoami',
     ]);
   });
@@ -144,6 +149,16 @@ describe('the MCP door, over HTTP', () => {
     // The SDK answers a bad argument as a tool error result (or a JSON-RPC error): never a run.
     expect(body.result?.isError === true || body.error !== undefined).toBe(true);
     expect(getUpcoming).not.toHaveBeenCalled();
+  });
+
+  it('refuses a fight-history limit past ten before the tool runs', async () => {
+    const getMyDashboard = vi.fn();
+    (app.get(FightersService) as unknown as { getMyDashboard: unknown }).getMyDashboard =
+      getMyDashboard;
+    const res = await rpc('tools/call', { name: 'my_fight_history', arguments: { limit: 11 } });
+    const body = (await res.json()) as { result?: { isError?: boolean }; error?: unknown };
+    expect(body.result?.isError === true || body.error !== undefined).toBe(true);
+    expect(getMyDashboard).not.toHaveBeenCalled();
   });
 
   it('calls whoami for the signed-in account', async () => {
