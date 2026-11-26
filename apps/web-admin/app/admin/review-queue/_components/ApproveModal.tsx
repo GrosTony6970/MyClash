@@ -4,6 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useState } from 'react';
 import { Modal } from '@myclash/ui';
+import { kindRefusal } from '@/lib/named-refusal';
 import type { ReviewQueueItem } from '../_types';
 
 export interface ApproveModalProps {
@@ -37,7 +38,9 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
         { method: 'POST', body },
       );
       if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.reviewQueue.actionFailed'));
+        // A League link to a team Tournament is refused (rulings 729, 981): said in the reader's language.
+        const message =
+          kindRefusal(r, t) ?? failureMessage(r, t, t('admin.reviewQueue.actionFailed'));
         if (message) setError(message);
         return;
       }

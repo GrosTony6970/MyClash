@@ -269,6 +269,7 @@ export const admin = {
     selectedCount: 'Selected ({count}):',
     noGroupOption: '— no group —',
     cancelButton: 'Cancel',
+    linkRefused: '{name} was not linked: {reason}',
   },
   adminMisc: {
     superAdminNoOrg: 'Super-admin — cannot belong to an organization.',

@@ -770,6 +770,8 @@ export const organizer = {
         'This tournament takes the other kind of entrant: a team tournament takes teams, an individual one takes fighters.',
       fieldRefused:
         "These settings do not fit this tournament's kind of entrant. Reload the page and try again.",
+      leagueIndividualOnly: 'League points belong to persons.',
+      leagueBlocksTeam: 'Remove the League link first: League points belong to persons.',
     },
     wizard: {
       eyebrow: 'New tournament',

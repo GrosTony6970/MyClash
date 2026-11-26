@@ -14,6 +14,7 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { CsvExportMenu, downloadServerCsv, statusLabel, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { kindRefusal } from '@/lib/named-refusal';
 import { BackLink } from '@/components/BackLink';
 import {
   ACCOUNT_SEARCH_MIN_LENGTH,
@@ -94,6 +95,8 @@ interface TournamentOption {
   name: string | null;
   weapon: string | null;
   status: string | null;
+  /** A League takes individual Tournaments only (rulings 729, 981): a team one is not offered. */
+  entrant_kind?: string;
 }
 
 interface ScoringSystemOption {
@@ -660,7 +663,9 @@ export default function EditLeaguePage() {
         { method: 'POST', body: { groupId } },
       );
       if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.leagues.editPage.tournaments.addError'));
+        const message =
+          kindRefusal(r, t) ??
+          failureMessage(r, t, t('admin.leagues.editPage.tournaments.addError'));
         if (message) setError(message);
         return;
       }
@@ -1383,50 +1388,56 @@ export default function EditLeaguePage() {
                                     </span>
                                   )}
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                  {!already && groups.length > 0 && (
-                                    <select
-                                      value={selectedGroupByTournament[tour.id] ?? ''}
-                                      onChange={(e) =>
-                                        setSelectedGroupByTournament((prev) => ({
-                                          ...prev,
-                                          [tour.id]: e.target.value || null,
-                                        }))
-                                      }
-                                      disabled={busy}
-                                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-[11px]"
-                                    >
-                                      <option value="">
-                                        {t('admin.leagues.editPage.tournaments.noGroupOption')}
-                                      </option>
-                                      {groups.map((g) => (
-                                        <option key={g.id} value={g.id}>
-                                          {g.name}
+                                {tour.entrant_kind === 'team' ? (
+                                  <span className="text-muted">
+                                    {t('organizer.tournaments.kind.leagueIndividualOnly')}
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    {!already && groups.length > 0 && (
+                                      <select
+                                        value={selectedGroupByTournament[tour.id] ?? ''}
+                                        onChange={(e) =>
+                                          setSelectedGroupByTournament((prev) => ({
+                                            ...prev,
+                                            [tour.id]: e.target.value || null,
+                                          }))
+                                        }
+                                        disabled={busy}
+                                        className="rounded border border-border bg-surface px-1.5 py-0.5 text-[11px]"
+                                      >
+                                        <option value="">
+                                          {t('admin.leagues.editPage.tournaments.noGroupOption')}
                                         </option>
-                                      ))}
-                                    </select>
-                                  )}
-                                  <button
-                                    type="button"
-                                    disabled={already || busy}
-                                    onClick={() =>
-                                      void addTournamentLink(
-                                        tour.id,
-                                        selectedGroupByTournament[tour.id] ?? null,
-                                      )
-                                    }
-                                    className={[
-                                      'rounded px-2 py-0.5 font-semibold',
-                                      already
-                                        ? 'bg-background text-muted'
-                                        : 'bg-info/10 text-info hover:bg-info/20',
-                                    ].join(' ')}
-                                  >
-                                    {already
-                                      ? t('admin.leagues.editPage.tournaments.linkedButton')
-                                      : t('admin.leagues.editPage.tournaments.addButton')}
-                                  </button>
-                                </div>
+                                        {groups.map((g) => (
+                                          <option key={g.id} value={g.id}>
+                                            {g.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    <button
+                                      type="button"
+                                      disabled={already || busy}
+                                      onClick={() =>
+                                        void addTournamentLink(
+                                          tour.id,
+                                          selectedGroupByTournament[tour.id] ?? null,
+                                        )
+                                      }
+                                      className={[
+                                        'rounded px-2 py-0.5 font-semibold',
+                                        already
+                                          ? 'bg-background text-muted'
+                                          : 'bg-info/10 text-info hover:bg-info/20',
+                                      ].join(' ')}
+                                    >
+                                      {already
+                                        ? t('admin.leagues.editPage.tournaments.linkedButton')
+                                        : t('admin.leagues.editPage.tournaments.addButton')}
+                                    </button>
+                                  </div>
+                                )}
                               </li>
                             );
                           })}

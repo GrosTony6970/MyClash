@@ -5,6 +5,7 @@ import { useConfirm, statusLabel, statusPillTone, reviewStatusSemantic } from '@
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { kindRefusal } from '@/lib/named-refusal';
 import { PageAlert, errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 
 const apiUrl = getPublicApiUrl();
@@ -17,7 +18,11 @@ interface League {
 interface Tournament {
   id: string;
   name: string;
+  /** A League takes individual Tournaments only (rulings 729, 981): a team one is not offered. */
+  entrant_kind?: string;
 }
+
+const isTeam = (tournament: Tournament) => tournament.entrant_kind === 'team';
 
 interface LeagueGroup {
   id: string;
@@ -87,7 +92,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       }
       if (tournamentRes.ok) {
         setTournaments(tournamentRes.data);
-        setTournamentId(tournamentRes.data[0]?.id ?? '');
+        setTournamentId(tournamentRes.data.find((tour) => !isTeam(tour))?.id ?? '');
       }
       const failed = [leagueRes, tournamentRes].find((r) => !r.ok);
       if (failed && !failed.ok) {
@@ -147,7 +152,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       if (!r.ok) {
         // `throw new Error()` with no message at all, replaced by one fixed
         // sentence — the API says which league or tournament refused, and why.
-        const message = failureMessage(r, t, t('admin.leagues.requestError'));
+        const message = kindRefusal(r, t) ?? failureMessage(r, t, t('admin.leagues.requestError'));
         if (message) setOutcome(errorOutcome(message));
         return;
       }
@@ -235,14 +240,15 @@ export function AttachToLeaguePanel({ eventId }: Props) {
             >
               {tournaments.map((tournament) => {
                 const blocked = tournamentStatusForLeague.get(tournament.id);
-                const suffix =
-                  blocked === 'requested'
+                const suffix = isTeam(tournament)
+                  ? ` — ${t('organizer.tournaments.kind.leagueIndividualOnly')}`
+                  : blocked === 'requested'
                     ? ` ${t('admin.leagues.myRequests.alreadyRequested')}`
                     : blocked === 'approved'
                       ? ` ${t('admin.leagues.myRequests.alreadyAttached')}`
                       : '';
                 return (
-                  <option key={tournament.id} value={tournament.id}>
+                  <option key={tournament.id} value={tournament.id} disabled={isTeam(tournament)}>
                     {tournament.name}
                     {suffix}
                   </option>

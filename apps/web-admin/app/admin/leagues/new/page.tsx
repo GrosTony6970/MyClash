@@ -6,9 +6,10 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '@myclash/next-i18n/client';
-import { statusLabel } from '@myclash/ui';
+import { statusLabel, useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { kindRefusal } from '@/lib/named-refusal';
 import { BackLink } from '@/components/BackLink';
 import {
   ACCOUNT_SEARCH_MIN_LENGTH,
@@ -36,6 +37,8 @@ interface TournamentOption {
   name: string | null;
   weapon: string | null;
   status: string | null;
+  /** A League takes individual Tournaments only (rulings 729, 981): a team one is not offered. */
+  entrant_kind?: string;
 }
 
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -44,6 +47,7 @@ const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 export default function NewLeaguePage() {
   const { t } = useI18n();
   const router = useRouter();
+  const toast = useToast();
 
   // Basics
   const [name, setName] = useState('');
@@ -233,10 +237,12 @@ export default function NewLeaguePage() {
       const leagueId = created.data.id;
 
       // Everything below is a follow-up write on a league that already exists,
-      // and every one of them still discards its refusal. That is unchanged
-      // here on purpose: the operator lands on the edit page, which lists the
-      // logo, the owners, the orgs, the groups and the linked tournaments, so a
-      // dropped step is visible there. Naming it rather than hiding it.
+      // and every one but the tournament links still discards its refusal. That
+      // is unchanged here on purpose: the operator lands on the edit page, which
+      // lists the logo, the owners, the orgs, the groups and the linked
+      // tournaments, so a dropped step is visible there. Naming it rather than
+      // hiding it. A refused link says why (a team Tournament, rulings 729, 981):
+      // an error toast stays until clicked, so it is still there after the push.
 
       // Logo upload
       if (logoFile) {
@@ -280,13 +286,20 @@ export default function NewLeaguePage() {
       }
 
       // Tournaments
-      for (const t of selectedTournaments) {
-        const resolvedGroupId = t.groupTmpId ? (groupIdByTmp.get(t.groupTmpId) ?? null) : null;
-        await apiRequest(
+      for (const sel of selectedTournaments) {
+        const resolvedGroupId = sel.groupTmpId ? (groupIdByTmp.get(sel.groupTmpId) ?? null) : null;
+        const r = await apiRequest(
           apiUrl,
-          `/api/v1/admin/leagues/${leagueId}/tournaments/${t.tournamentId}/link`,
+          `/api/v1/admin/leagues/${leagueId}/tournaments/${sel.tournamentId}/link`,
           { method: 'POST', body: { groupId: resolvedGroupId } },
         );
+        if (r.ok) continue;
+        const reason =
+          kindRefusal(r, t) ??
+          failureMessage(r, t, t('admin.leagues.editPage.tournaments.addError'));
+        if (reason) {
+          toast.error(t('admin.adminLeagues.linkRefused', { name: sel.tournamentName, reason }));
+        }
       }
 
       router.push(`/admin/leagues/${leagueId}/edit?created=1`);
@@ -655,19 +668,25 @@ export default function NewLeaguePage() {
                                   </span>
                                 )}
                               </span>
-                              <button
-                                type="button"
-                                disabled={picked}
-                                onClick={() => pickTournament(tour, ev.name)}
-                                className={[
-                                  'rounded px-2 py-0.5 font-semibold',
-                                  picked
-                                    ? 'bg-background text-muted'
-                                    : 'bg-info/10 text-info hover:bg-info/20',
-                                ].join(' ')}
-                              >
-                                {picked ? t('admin.adminLeagues.added') : t('actions.add')}
-                              </button>
+                              {tour.entrant_kind === 'team' ? (
+                                <span className="text-muted">
+                                  {t('organizer.tournaments.kind.leagueIndividualOnly')}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={picked}
+                                  onClick={() => pickTournament(tour, ev.name)}
+                                  className={[
+                                    'rounded px-2 py-0.5 font-semibold',
+                                    picked
+                                      ? 'bg-background text-muted'
+                                      : 'bg-info/10 text-info hover:bg-info/20',
+                                  ].join(' ')}
+                                >
+                                  {picked ? t('admin.adminLeagues.added') : t('actions.add')}
+                                </button>
+                              )}
                             </li>
                           );
                         })}

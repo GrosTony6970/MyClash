@@ -19,6 +19,7 @@ import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { kindRefusal } from '@/lib/named-refusal';
 import { needsAuditOf, rulesChangeRefusal } from '@/lib/rules-change-refusal';
 import { PenaltyPickField } from '../../../_shared/PenaltyPickField';
 import { TournamentForfeitRules } from '../../../_shared/TournamentForfeitRules';
@@ -158,8 +159,11 @@ export function BasicsTab({
         const locked = needsAuditOf(r);
         if (locked) audit.open({ ...locked, body, sent: { form: sent, after } });
         else {
+          // A switch to team under a live League link is refused too (ruling 981): said, as is a
+          // kind settled by an entrant.
           const message =
             kindSettledRefusal(r, t) ??
+            kindRefusal(r, t) ??
             rulesChangeRefusal(r, t) ??
             failureMessage(r, t, t('admin.common.saveFailed'));
           if (message) toast.error(message);

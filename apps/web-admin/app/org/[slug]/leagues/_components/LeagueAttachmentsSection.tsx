@@ -5,6 +5,7 @@ import { useConfirm, statusLabel, statusPillTone, reviewStatusSemantic } from '@
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { kindRefusal } from '@/lib/named-refusal';
 
 const apiUrl = getPublicApiUrl();
 
@@ -12,9 +13,13 @@ interface OrgTournament {
   id: string;
   name: string;
   weapon: string | null;
+  /** A League takes individual Tournaments only (rulings 729, 981): a team one is not offered. */
+  entrant_kind: string;
   event_id: string;
   event_name: string | null;
 }
+
+const isTeam = (tournament: OrgTournament) => tournament.entrant_kind === 'team';
 
 interface LeagueGroup {
   id: string;
@@ -89,7 +94,7 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
       const gData = gRes.ok ? gRes.data : [];
       setTournaments(tData);
       setGroups(gData);
-      setTournamentId(tData[0]?.id ?? '');
+      setTournamentId(tData.find((tr) => !isTeam(tr))?.id ?? '');
       setGroupId(gData[0]?.id ?? '');
       await loadAttachments();
       setLoaded(true);
@@ -142,7 +147,8 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
         // The API says which league or tournament refused, and why. This used
         // to `throw new Error()` with no message at all and print "Could not
         // send the request." over the top of it.
-        const message = failureMessage(r, t, t('organizer.leagues.attach.error'));
+        const message =
+          kindRefusal(r, t) ?? failureMessage(r, t, t('organizer.leagues.attach.error'));
         if (message) setMessage(message);
         return;
       }
@@ -270,14 +276,15 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
                         <optgroup key={eventName} label={eventName}>
                           {list.map((tr) => {
                             const blocked = blockedByTournament.get(tr.id);
-                            const suffix =
-                              blocked === 'requested'
+                            const suffix = isTeam(tr)
+                              ? ` — ${t('organizer.tournaments.kind.leagueIndividualOnly')}`
+                              : blocked === 'requested'
                                 ? ` ${t('organizer.leagues.attach.alreadyRequested')}`
                                 : blocked === 'approved'
                                   ? ` ${t('organizer.leagues.attach.alreadyAttached')}`
                                   : '';
                             return (
-                              <option key={tr.id} value={tr.id}>
+                              <option key={tr.id} value={tr.id} disabled={isTeam(tr)}>
                                 {tr.name}
                                 {tr.weapon ? ` (${tr.weapon})` : ''}
                                 {suffix}

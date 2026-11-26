@@ -1,6 +1,6 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type * as ApiClient from '@myclash/api-client';
+import * as ApiClient from '@myclash/api-client';
 import { EVENTS_READ, type } from '../../../archived-page.fixtures';
 import { button } from './page.fixtures';
 import { openTab, type OpenedTab } from './page.rules.fixtures';
@@ -113,6 +113,31 @@ describe('the kind of entrant in the settings Basics tab', () => {
       },
     ]);
     expect(eventListReads()).toBe(before + 1);
+  });
+
+  // Ruling 981: an empty individual Tournament linked to a League by mistake, then switched to team.
+  it('a switch to team under a live League link says to remove the link first', async () => {
+    opened = await openTab('basics');
+    const served = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
+    vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
+      init?.method === 'PATCH'
+        ? ({
+            ok: false,
+            kind: 'http',
+            status: 409,
+            detail: 'An English sentence from the API.',
+            code: 'CONFLICT',
+            details: { reason: 'league_link_blocks_team' },
+            validationErrors: null,
+          } as never)
+        : served(base, path, init),
+    );
+    await act(async () => radio('team').click());
+    await save();
+
+    expect(document.body.textContent).toContain(
+      'Remove the League link first: League points belong to persons.',
+    );
   });
 
   it('a Tournament that holds entrants shows its kind fixed, says why, and sends no kind', async () => {

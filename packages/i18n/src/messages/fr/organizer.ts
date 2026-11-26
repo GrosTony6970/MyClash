@@ -768,6 +768,9 @@ export const organizer = {
         "Ce tournoi accueille l'autre type de participant : un tournoi par équipes accueille des équipes, un tournoi individuel des combattants.",
       fieldRefused:
         'Ces réglages ne conviennent pas au type de participant de ce tournoi. Rechargez la page et réessayez.',
+      leagueIndividualOnly: 'Les points de ligue appartiennent aux personnes.',
+      leagueBlocksTeam:
+        "Retirez d'abord le lien à la ligue : les points de ligue appartiennent aux personnes.",
     },
     wizard: {
       eyebrow: 'Nouveau tournoi',

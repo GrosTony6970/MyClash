@@ -30,12 +30,16 @@ export function refusalKey(r: ApiFailure, keys: RefusalKeys): string | undefined
 /**
  * The refusals of a Tournament's kind of entrant (`apps/api/src/common/entrant-kind-refusal.ts`,
  * `events/tournament-kind.ts`, `phases/team-pool-draw.ts`): double elimination or a Swiss phase asked
- * of a team Tournament, an entrant of the other kind seated in a Pool, a field the kind refuses.
+ * of a team Tournament, an entrant of the other kind seated in a Pool, a field the kind refuses. A
+ * League takes individual Tournaments only (rulings 729, 981): a League link to a team Tournament,
+ * and a switch to team under a live League link.
  */
 const KIND_REFUSALS: RefusalKeys = {
   conflict: {
     team_tournament_not_supported: 'organizer.tournaments.kind.teamNotSupported',
     entrant_kind_mismatch: 'organizer.tournaments.kind.mismatch',
+    team_tournament_league: 'organizer.tournaments.kind.leagueIndividualOnly',
+    league_link_blocks_team: 'organizer.tournaments.kind.leagueBlocksTeam',
   },
   badRequest: {
     entrant_kind_field: 'organizer.tournaments.kind.fieldRefused',
