@@ -1610,7 +1610,11 @@ export class PenaltiesService {
     const side = savedCardSide(stored);
     const match = await this.getMatchContext(String(stored['match_id']));
     if (side.kind === 'team') {
-      const card = { teamId: side.id, note: (stored['reason'] as string | null) ?? 'Black card' };
+      const card = {
+        teamId: side.id,
+        note: (stored['reason'] as string | null) ?? 'Black card',
+        savedAt: stored['recorded_at'] as string,
+      };
       await replayTeamBlackCard(this.teamCardDeps(), match, card, context ?? {}, causedAt);
       return stored;
     }

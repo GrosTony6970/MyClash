@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filtersFor,
   queriedTables,
   selectsFor,
   supabaseChain,
@@ -8,6 +9,7 @@ import {
 import { refuseFirstUpdate } from '../matches/match-forfeits.team.fixtures';
 import {
   BLACK_CARD,
+  CARD_SAVED_AT,
   ENDED_BY_THE_CARD,
   TEAM_BOUT,
   keptCard,
@@ -25,6 +27,9 @@ import {
 
 const RECORD_SELECT =
   'id, match_id, reason, forfeiting_registration_id, forfeiting_team_id, winner_registration_id, winner_team_id, forfeiting_score, opponent_score, resulting_match_state';
+
+/** The read of a team black-card forfeit taken back since the card was saved. */
+const TAKEN_BACK_SELECT = 'id';
 
 /** The forfeit's write that kept its result (`stampResultingState`). */
 const stamps = (db: ReturnType<typeof teamCardBout>['db']) =>
@@ -72,6 +77,14 @@ describe('a team black card sent again after a send cut short', () => {
       }),
     ]);
     expect(again.completion.onMatchCompleted).toHaveBeenCalledWith('m1');
+    // The live record, then the take-backs since the card, then the forfeit's own reads.
+    expect(selectsFor(again.db.from, 'match_forfeits').slice(0, 2)).toEqual([
+      RECORD_SELECT,
+      TAKEN_BACK_SELECT,
+    ]);
+    expect(filtersFor(again.db.from, 'match_forfeits', 'gte')).toEqual([
+      ['created_at', CARD_SAVED_AT],
+    ]);
   });
 
   it('the result was not kept: the resend stamps the completed bout and hands it on', async () => {
@@ -125,6 +138,64 @@ describe('a team black card sent again after a send cut short', () => {
     expect(writesTo(again.db, 'match_forfeits')).toEqual([]);
     expect(again.status.settle).not.toHaveBeenCalled();
     expect(queriedTables(again.db.from)).not.toContain('tournament_penalty_reviews');
+  });
+});
+
+describe('a team black card sent again after its forfeit was taken back', () => {
+  /** The card's forfeit, written after the card was saved, then voided by an organiser. */
+  const TAKEN_BACK = { ...RECORD, voided_at: '2026-11-25T10:05:00.000Z' };
+  /** An earlier card's forfeit, taken back before this card was saved. */
+  const EARLIER = { ...TAKEN_BACK, id: 'ff-earlier', created_at: '2026-11-25T09:00:00.000Z' };
+
+  it('its forfeit ran and was taken back: the resend leaves the bout in play', async () => {
+    // The organiser put the bout back; the tablet never heard the first answer and sends again.
+    const again = teamCardBout({ cards: [cardOf()], forfeits: [TAKEN_BACK] });
+
+    await expect(again.send(BLACK_CARD)).resolves.toMatchObject({ id: 'card-new' });
+
+    expect(writesTo(again.db, 'match_forfeits')).toEqual([]);
+    expect(written(again.db, 'matches', 'update')).toEqual([]);
+    expect(again.completion.onMatchCompleted).not.toHaveBeenCalled();
+    expect(selectsFor(again.db.from, 'match_forfeits')).toEqual([RECORD_SELECT, TAKEN_BACK_SELECT]);
+  });
+
+  it('a later black card, after an earlier forfeit was taken back, forfeits on its first send', async () => {
+    const first = teamCardBout({ forfeits: [EARLIER] });
+
+    await first.send(BLACK_CARD);
+
+    expect(written(first.db, 'match_forfeits', 'insert')).toEqual([
+      expect.objectContaining({ forfeiting_team_id: 'team-red', reason: 'black_card_1' }),
+    ]);
+    expect(first.completion.onMatchCompleted).toHaveBeenCalledWith('m1');
+  });
+
+  it('and on its resend, when that first send stopped before its forfeit', async () => {
+    const again = teamCardBout({ cards: [cardOf()], forfeits: [EARLIER] });
+
+    await again.send(BLACK_CARD);
+
+    expect(written(again.db, 'match_forfeits', 'insert')).toEqual([
+      expect.objectContaining({ forfeiting_team_id: 'team-red', reason: 'black_card_1' }),
+    ]);
+    expect(again.completion.onMatchCompleted).toHaveBeenCalledWith('m1');
+  });
+
+  it('a read of the take-backs that fails is an error: nothing is forfeited', async () => {
+    const again = teamCardBout({ cards: [cardOf()] });
+    const seeded = again.db.from.getMockImplementation()!;
+    let reads = 0;
+    again.db.from.mockImplementation((name: string) =>
+      name === 'match_forfeits' && ++reads === 2
+        ? supabaseChain({ data: null, error: { message: 'connection lost' } })
+        : seeded(name),
+    );
+
+    await expect(again.send(BLACK_CARD)).rejects.toThrow(
+      'The taken-back forfeits of the team were not read: connection lost',
+    );
+    expect(writesTo(again.db, 'match_forfeits')).toEqual([]);
+    expect(again.completion.onMatchCompleted).not.toHaveBeenCalled();
   });
 });
 
@@ -216,5 +287,6 @@ function cardOf() {
     card: 'black',
     reason: 'brutality',
     voided: false,
+    recorded_at: CARD_SAVED_AT,
   };
 }

@@ -177,10 +177,14 @@ export const written = (db: Db, table: string, op: 'insert' | 'update') =>
     .filter((write) => write.op === op)
     .map((write) => write.row as Record<string, unknown>);
 
+/** When the database saved the card (`recorded_at`): before any forfeit it made. */
+export const CARD_SAVED_AT = '2026-11-25T09:59:59.000Z';
+
 /** The card a first send inserted, as the database keeps it. */
 export const keptCard = (db: Db) => ({
   ...written(db, 'match_penalties', 'insert')[0],
   id: 'card-new',
+  recorded_at: CARD_SAVED_AT,
 });
 
 /** The forfeit record a first send inserted, as the database keeps it: no result kept yet. */
