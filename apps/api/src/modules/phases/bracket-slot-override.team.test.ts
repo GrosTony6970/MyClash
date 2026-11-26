@@ -143,6 +143,10 @@ describe('the bracket slot override, by side', () => {
       answers.push((error as BadRequestException).getResponse());
     }
     expect(answers[1]).toEqual(answers[0]);
+    // The organiser reads this sentence: it names what the team must be.
+    expect(answers[0]).toMatchObject({
+      message: "A team in a bracket slot must be one of its tournament's teams",
+    });
     expect(slotWrite()).toEqual([]);
   });
 

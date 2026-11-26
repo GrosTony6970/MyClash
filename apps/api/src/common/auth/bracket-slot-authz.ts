@@ -96,6 +96,6 @@ async function assertTeamsOfTournament(
   if (error) throw new BadRequestException(error.message);
   const ours = new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
   if (teamIds.some((id) => !ours.has(id))) {
-    throw new BadRequestException('A team in a bracket slot must be one of its tournament');
+    throw new BadRequestException("A team in a bracket slot must be one of its tournament's teams");
   }
 }
