@@ -97,6 +97,28 @@ describe('my_fight_history', () => {
     });
   });
 
+  it('keeps a bout whose match is known but whose Tournament has no placement, names null', async () => {
+    const getMyDashboard = vi.fn().mockResolvedValue({
+      career: { ...career, tournamentPlacements: [] },
+    });
+    const result = await myFightHistory(caller, depsOf(getMyDashboard), 1);
+    expect(result).toEqual({
+      total: 2,
+      fights: [
+        {
+          eventName: null,
+          eventSlug: null,
+          tournamentName: null,
+          tournamentSlug: null,
+          date: '2026-03-12T09:00:00Z',
+          result: 'win',
+          myScore: 5,
+          opponentScore: 3,
+        },
+      ],
+    });
+  });
+
   it('the owner of a hidden profile still sees their own fights', async () => {
     const getMyDashboard = vi
       .fn()

@@ -38,6 +38,7 @@ const refuse = {
 };
 const listMyEvents = vi.fn();
 const getUpcoming = vi.fn();
+const getMyDashboard = vi.fn();
 const connector = jwt.sign({ sub: 'user-1', email: 'a@b.c', client_id: 'claude-client' }, SECRET, {
   expiresIn: 3600,
 });
@@ -68,7 +69,7 @@ beforeAll(async () => {
       { provide: StaffJwtService, useValue: refuse },
       { provide: OrganizationsService, useValue: {} },
       { provide: PublicScheduleService, useValue: {} },
-      { provide: FightersService, useValue: {} },
+      { provide: FightersService, useValue: { getMyDashboard } },
       { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
     ],
   }).compile();
@@ -87,6 +88,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   getUpcoming.mockReset().mockResolvedValue([]);
+  getMyDashboard.mockReset();
   listMyEvents.mockReset().mockResolvedValue([
     {
       event: { id: 'event-uuid', name: 'FAL 2026', slug: 'fal-2026', startDate: '2026-03-14' },
@@ -152,9 +154,6 @@ describe('the MCP door, over HTTP', () => {
   });
 
   it('refuses a fight-history limit past ten before the tool runs', async () => {
-    const getMyDashboard = vi.fn();
-    (app.get(FightersService) as unknown as { getMyDashboard: unknown }).getMyDashboard =
-      getMyDashboard;
     const res = await rpc('tools/call', { name: 'my_fight_history', arguments: { limit: 11 } });
     const body = (await res.json()) as { result?: { isError?: boolean }; error?: unknown };
     expect(body.result?.isError === true || body.error !== undefined).toBe(true);

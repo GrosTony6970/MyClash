@@ -101,6 +101,9 @@ describe('my_stats', () => {
       'Bob',
       'Zed',
       'bestBuddies',
+      'Anna',
+      'hemaratings.com',
+      'detailsUrl',
     ]) {
       expect(text).not.toContain(word);
     }

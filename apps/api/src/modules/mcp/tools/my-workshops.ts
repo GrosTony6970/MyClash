@@ -22,9 +22,7 @@ interface GroupOf<W> {
 }
 
 export interface MyWorkshopsAnswer {
-  teaching: (WorkshopHead & {
-    sessions: (SessionHead & { confirmed: number; waitlisted: number; capacity: number | null })[];
-  })[];
+  teaching: (WorkshopHead & { sessions: TaughtSession[] })[];
   attended: (WorkshopHead & { instructors: string[]; sessions: SessionHead[] })[];
 }
 
@@ -40,8 +38,16 @@ interface WorkshopHead {
 interface SessionHead {
   start: string | null;
   end: string | null;
-  location: string | null;
+  /** The parts the app holds, as plain names: the model reads them, no rule picks one here. */
+  location: { label: string | null; venue: string | null; area: string | null };
+}
+
+/** An attended session is never cancelled: the history drops those, so it carries no flag. */
+interface TaughtSession extends SessionHead {
   cancelled: boolean;
+  confirmed: number;
+  waitlisted: number;
+  capacity: number | null;
 }
 
 function headOf<W extends WorkshopOfGroup>(group: GroupOf<W>, workshop: W): WorkshopHead {
@@ -55,13 +61,18 @@ function headOf<W extends WorkshopOfGroup>(group: GroupOf<W>, workshop: W): Work
   };
 }
 
-/** Where a session is held: its own label first, then the area, then the venue. */
+/** An empty name is no name. */
+const nameOrNull = (value: string | null | undefined): string | null => value || null;
+
 function sessionHead(s: WorkshopSession): SessionHead {
   return {
     start: s.startsAt,
     end: s.endsAt,
-    location: s.locationLabel ?? s.area?.name ?? s.venue?.name ?? null,
-    cancelled: s.status === 'cancelled',
+    location: {
+      label: nameOrNull(s.locationLabel),
+      venue: nameOrNull(s.venue?.name),
+      area: nameOrNull(s.area?.name),
+    },
   };
 }
 
@@ -85,6 +96,7 @@ export async function myWorkshops(
         ...headOf(group, w),
         sessions: w.sessions.map((s) => ({
           ...sessionHead(s),
+          cancelled: s.status === 'cancelled',
           confirmed: s.confirmedCount,
           waitlisted: s.waitlistCount,
           capacity: s.capacity,

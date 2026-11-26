@@ -43,7 +43,7 @@ const teachingGroups = [
             startsAt: '2026-03-15T10:00:00Z',
             endsAt: null,
             status: 'scheduled',
-            locationLabel: null,
+            locationLabel: '',
             venue: { name: 'Gym' },
             area: null,
             capacity: null,
@@ -108,7 +108,7 @@ describe('my_workshops', () => {
             {
               start: '2026-03-14T10:00:00Z',
               end: '2026-03-14T11:00:00Z',
-              location: 'Hall B',
+              location: { label: 'Hall B', venue: 'Gym', area: 'Mat 2' },
               cancelled: true,
               confirmed: 12,
               waitlisted: 3,
@@ -117,7 +117,7 @@ describe('my_workshops', () => {
             {
               start: '2026-03-15T10:00:00Z',
               end: null,
-              location: 'Gym',
+              location: { label: null, venue: 'Gym', area: null },
               cancelled: false,
               confirmed: 0,
               waitlisted: 0,
@@ -139,8 +139,7 @@ describe('my_workshops', () => {
             {
               start: '2026-03-14T14:00:00Z',
               end: '2026-03-14T15:00:00Z',
-              location: 'Mat 1',
-              cancelled: false,
+              location: { label: null, venue: null, area: 'Mat 1' },
             },
           ],
         },
