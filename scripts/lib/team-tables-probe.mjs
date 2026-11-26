@@ -11,8 +11,8 @@
  * Tournament whose teams start at 11, a Registration in a team Tournament and a Team in an
  * individual one, a change of kind of a Tournament that holds a Registration or a Team. Taken, at
  * the operator's boundaries: an empty seat, a reserve, a team of 10, a change of kind of a
- * Tournament with no entrant, and a save that sends a Tournament's own kind again although it
- * holds entrants.
+ * Tournament with no entrant and no phase, and a save that sends a Tournament's own kind again
+ * although it holds entrants.
  *
  * The team twins of the side links (migration 0282), on a phase, a copy of the rules, a Pool and a
  * second team each case builds in its savepoint. Refused, each by its check: a row that names both
@@ -24,14 +24,16 @@
  * And the index on each key that names a team (migration 0283, `team-key-indexes-probe.mjs`), and
  * the view of bouts that names a team side (migration 0284, `team-view-probe.mjs`), and the blow
  * stats that leave a team bout out (migration 0285, `team-blow-stats-probe.mjs`), and a League that
- * takes individual Tournaments only (migration 0287, `team-league-probe.mjs`). The kind trigger's
- * race and the League link's need two connections on committed rows: the cascade probe runs them
- * (`team-kind-race.mjs`).
+ * takes individual Tournaments only (migration 0287, `team-league-probe.mjs`), and a Tournament
+ * that keeps its kind once it has a phase (migration 0288, `team-kind-phase-probe.mjs`). The kind
+ * trigger's races, the League link's and the phase's need two connections on committed rows: the
+ * cascade probe runs them (`team-kind-race.mjs`).
  */
 
 import { errorOf, OPEN, TOURNAMENT } from './match-rules-probe-kit.mjs';
 import { teamBlowStatsFailures } from './team-blow-stats-probe.mjs';
 import { teamKeyIndexFailures } from './team-key-indexes-probe.mjs';
+import { teamKindPhaseFailures } from './team-kind-phase-probe.mjs';
 import { teamLeagueFailures } from './team-league-probe.mjs';
 import { teamViewFailures } from './team-view-probe.mjs';
 
@@ -116,7 +118,9 @@ const CASES = [
                       VALUES (${TOURNAMENT}, 'Probe team', 'probe-team', 3)`,
   },
   {
-    what: 'a change of kind of a Tournament with a Registration',
+    // The seed's individual Tournament also has a Pool phase: the entrant check fires first by
+    // name (0288's `entrant_kind_set_before_phases` after it), so the entrants are what is said.
+    what: 'a change of kind of a Tournament with a Registration and a phase',
     refusedBy: 'entrant_kind_is_settled',
     write: (sp) => sp`UPDATE tournaments SET entrant_kind = 'team' WHERE id = ${TOURNAMENT}`,
   },
@@ -127,7 +131,7 @@ const CASES = [
       sp`UPDATE tournaments SET entrant_kind = 'individual' WHERE id = ${TEAM_TOURNAMENT}`,
   },
   {
-    what: 'a change of kind of a Tournament with no entrant',
+    what: 'a change of kind of a Tournament with no entrant and no phase',
     refusedBy: null,
     write: async (sp) => {
       const [{ id }] = await sp`INSERT INTO tournaments (event_id, slug, name, status)
@@ -371,6 +375,7 @@ export async function teamTablesFailures(tx) {
     ...(await teamViewFailures(tx)),
     ...(await teamBlowStatsFailures(tx)),
     ...(await teamLeagueFailures(tx)),
+    ...(await teamKindPhaseFailures(tx)),
   ];
   for (const { what, refusedBy, write } of [...CASES, ...TWIN_CASES]) {
     const error = await errorOf(tx, async (sp) => {

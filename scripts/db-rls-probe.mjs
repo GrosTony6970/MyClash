@@ -45,7 +45,8 @@
  *      check 24: anon runs only the helpers its read rules need, every one of them needed, and
  *      nothing else of `public` is open to a web role or PUBLIC (0275,
  *      `lib/function-door-probe.mjs`); check 25: a Tournament holds only entrants of its kind and
- *      keeps its kind once it holds one, a team's slots keep their rules (0281), and each side
+ *      keeps its kind once it holds one (0281) or has a phase (0288,
+ *      `lib/team-kind-phase-probe.mjs`), a team's slots keep their rules (0281), and each side
  *      link names a Registration or a Team, never both, with a Match and a forfeit of one kind
  *      (0282, `lib/team-tables-probe.mjs`), each key that names a team has its index (0283,
  *      `lib/team-key-indexes-probe.mjs`), and `vw_tournament_query_matches` runs as its caller and

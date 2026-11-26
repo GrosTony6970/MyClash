@@ -6,8 +6,8 @@
  * rolled back, on the seed's two Leagues, its published team Tournament and its individual one, and
  * on an empty individual Tournament a case makes. A refusal is matched by the name the trigger
  * raises with, so a write refused for another reason is a failure too. Each refused case holds only
- * its own fault: the empty Tournament has no entrant, so `entrant_kind_is_settled` (0281), the other
- * check of a change of kind, holds. Refused: a requested or an approved link to a team Tournament, a
+ * its own fault: the empty Tournament has no entrant and no phase, so `entrant_kind_is_settled`
+ * (0281) and `entrant_kind_set_before_phases` (0288), the other checks of a change of kind, hold. Refused: a requested or an approved link to a team Tournament, a
  * rejected link to one approved again, a live link moved to one, and the switch to team of a
  * Tournament with a requested or an approved link. Taken: a rejected and a removed link to a team
  * Tournament, a requested link to an individual one, and the switch to team of a Tournament whose

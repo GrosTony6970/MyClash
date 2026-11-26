@@ -10,8 +10,9 @@
  * (`pg_blocking_pids`) and that B has not answered 500 ms after it started. Only then does A
  * commit, and B's answer is checked. Both write as the service role, the API's client.
  *
- * The races, each on a Tournament with no entrant, made for it under the seed's Event: a team one
- * for the kind trigger (0281), an individual one for the League link (0287):
+ * The races, each on a Tournament with no entrant and no phase, made for it under the seed's Event:
+ * a team one for the kind trigger (0281), an individual one for the League link (0287) and for the
+ * phase (0288):
  *   - a team added while the kind changes: A changes the kind to 'individual'; B's insert waits in
  *     its trigger's FOR SHARE read of the Tournament, then reads the kind of after A and is
  *     refused (`entrant_kind_holds:`);
@@ -22,7 +23,12 @@
  *     (`league_link_individual_only:`);
  *   - a switch to 'team' while a link is requested: A requests the link and holds its FOR SHARE;
  *     B's switch waits on it, then its AFTER check sees A's link and is refused
- *     (`league_link_blocks_team:`).
+ *     (`league_link_blocks_team:`);
+ *   - a switch to 'team' while a phase is added (0288, ruling 983): A adds a bracket phase and holds
+ *     its FOR SHARE (`phase_locks_entrant_kind`); B's switch waits on it, then its AFTER check sees
+ *     A's phase and is refused (`entrant_kind_set_before_phases:`). The phase's foreign key alone
+ *     takes FOR KEY SHARE, which a switch does not block: without the lock B would not wait, would
+ *     not see the phase, and would be taken.
  * The Tournaments stay committed and go with the seed's Event, by the probe's club delete; the
  * League the link races make is deleted at the end, and its links with it.
  */
@@ -113,14 +119,21 @@ const requestLink = (q, tournament, league) =>
   q`INSERT INTO league_tournament_links (league_id, tournament_id, status, requested_by_user_id)
     VALUES (${league}, ${tournament}, 'requested', ${REQUESTER})`;
 
-/** The Tournament's kind, its number of teams and its number of live League links, as committed. */
+const addPhase = (q, tournament) =>
+  q`INSERT INTO phases (tournament_id, type) VALUES (${tournament}, 'single_elim')`;
+
+/**
+ * The Tournament's kind, its number of teams, its number of live League links and its number of
+ * phases, as committed.
+ */
 async function stateOf(watch, tournament) {
   const [row] = await watch`SELECT t.entrant_kind AS kind,
       (SELECT count(*)::int FROM teams tm WHERE tm.tournament_id = t.id) AS teams,
       (SELECT count(*)::int FROM league_tournament_links l
-        WHERE l.tournament_id = t.id AND l.status IN ('requested', 'approved')) AS links
+        WHERE l.tournament_id = t.id AND l.status IN ('requested', 'approved')) AS links,
+      (SELECT count(*)::int FROM phases p WHERE p.tournament_id = t.id) AS phases
     FROM tournaments t WHERE t.id = ${tournament}`;
-  return [row.kind, row.teams, row.links];
+  return [row.kind, row.teams, row.links, row.phases];
 }
 
 /**
@@ -131,9 +144,9 @@ const refusedWith = (outcome, prefix) =>
   outcome?.code === '23514' && outcome.refused?.startsWith(prefix) === true;
 
 /**
- * The four races: the kind the empty Tournament starts with, what A does and keeps open, what B
- * does, the prefix B must be refused with, and the Tournament's kind, number of teams and number of
- * live League links once both ended. `league` is the race League's id.
+ * The five races: the kind the empty Tournament starts with, what A does and keeps open, what B
+ * does, the prefix B must be refused with, and the Tournament's kind, number of teams, number of
+ * live League links and number of phases once both ended. `league` is the race League's id.
  */
 const RACES = [
   {
@@ -143,7 +156,7 @@ const RACES = [
     first: (tx, id) => makeIndividual(tx, id),
     second: (sp, id) => addTeam(sp, id, 'late-team'),
     refusedWith: 'entrant_kind_holds:',
-    after: ['individual', 0, 0],
+    after: ['individual', 0, 0, 0],
   },
   {
     what: 'a change of kind during a team',
@@ -152,7 +165,7 @@ const RACES = [
     first: (tx, id) => addTeam(tx, id, 'early-team'),
     second: (sp, id) => makeIndividual(sp, id),
     refusedWith: 'entrant_kind_is_settled:',
-    after: ['team', 1, 0],
+    after: ['team', 1, 0, 0],
   },
   {
     what: 'a League link during a switch to team',
@@ -161,7 +174,7 @@ const RACES = [
     first: (tx, id) => makeTeam(tx, id),
     second: (sp, id, league) => requestLink(sp, id, league),
     refusedWith: 'league_link_individual_only:',
-    after: ['team', 0, 0],
+    after: ['team', 0, 0, 0],
   },
   {
     what: 'a switch to team during a League link',
@@ -170,7 +183,16 @@ const RACES = [
     first: (tx, id, league) => requestLink(tx, id, league),
     second: (sp, id) => makeTeam(sp, id),
     refusedWith: 'league_link_blocks_team:',
-    after: ['individual', 0, 1],
+    after: ['individual', 0, 1, 0],
+  },
+  {
+    what: 'a switch to team during a phase',
+    slug: 'kind-race-phased',
+    kind: 'individual',
+    first: (tx, id) => addPhase(tx, id),
+    second: (sp, id) => makeTeam(sp, id),
+    refusedWith: 'entrant_kind_set_before_phases:',
+    after: ['individual', 0, 0, 1],
   },
 ];
 
@@ -190,7 +212,7 @@ async function oneRace(conns, { check, event, league }, spec) {
   );
   const after = await stateOf(conns.watch, id);
   check(
-    `${spec.what}: the Tournament's kind, teams and live League links after`,
+    `${spec.what}: the Tournament's kind, teams, live League links and phases after`,
     JSON.stringify(after) === JSON.stringify(spec.after),
     `${JSON.stringify(after)}, not ${JSON.stringify(spec.after)}`,
   );
