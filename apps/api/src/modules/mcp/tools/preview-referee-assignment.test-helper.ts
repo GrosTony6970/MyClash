@@ -190,7 +190,24 @@ function single(table: string, select: string): unknown {
   }
 }
 
-function list(table: string, select: string): { data: unknown; error: unknown } {
+/** PostgREST's silent cut of every read (`PGRST_DB_MAX_ROWS`, ruling 831). */
+const MAX_ROWS = 1000;
+
+/** The bouts as PostgREST answers one page: ordered by id if asked, after the cursor, cut. */
+function boutPage(call: Call): Record<string, unknown>[] {
+  const after = call.args['gt']?.[0]?.[1] as string | undefined;
+  const limit = Math.min(
+    (call.args['limit']?.[0]?.[0] as number | undefined) ?? MAX_ROWS,
+    MAX_ROWS,
+  );
+  const byId = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+    String(a['id']) < String(b['id']) ? -1 : 1;
+  const ordered = call.args['order'] ? [...world.bouts].sort(byId) : world.bouts;
+  return ordered.filter((b) => after === undefined || String(b['id']) > after).slice(0, limit);
+}
+
+function list(call: Call): { data: unknown; error: unknown } {
+  const { table, select } = call;
   if (table === 'referee_assignments' && select === 'id') {
     return { data: world.locked ? [{ id: id(30) }] : [], error: null };
   }
@@ -210,7 +227,7 @@ function list(table: string, select: string): { data: unknown; error: unknown } 
       error: null,
     };
   }
-  if (table === 'matches') return { data: world.bouts, error: null };
+  if (table === 'matches') return { data: boutPage(call), error: null };
   return { data: [], error: null };
 }
 
@@ -236,7 +253,7 @@ function from(table: string) {
   const chain: Record<string, unknown> = {
     insert: (row: unknown) => insert(table, row),
   };
-  for (const name of ['select', 'eq', 'in', 'or', 'limit', 'order']) {
+  for (const name of ['select', 'eq', 'in', 'or', 'gt', 'limit', 'order']) {
     chain[name] = (...args: unknown[]) => {
       if (name === 'select') call.select = args[0] as string;
       (call.args[name] ??= []).push(args);
@@ -245,7 +262,7 @@ function from(table: string) {
   }
   chain['maybeSingle'] = () => Promise.resolve({ data: single(table, call.select), error: null });
   chain['then'] = (ok: (r: unknown) => unknown, bad: (e: unknown) => unknown) =>
-    Promise.resolve(list(table, call.select)).then(ok, bad);
+    Promise.resolve(list(call)).then(ok, bad);
   return chain;
 }
 

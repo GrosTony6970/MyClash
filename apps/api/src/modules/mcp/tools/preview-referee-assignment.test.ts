@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { READ_PAGE } from '../../../common/postgrest-in-list';
 import { expectNoRawIds } from './no-raw-ids.test-helper';
 import { isRefusal } from './mcp-answer';
 import type { PreviewRefereeAnswer } from './preview-referee-assignment';
 import {
+  bout,
   caller,
+  calls,
   CREW_SELECT,
   crewRow,
   DECLARANT,
@@ -101,7 +104,9 @@ describe('preview_referee_assignment answers', () => {
     );
     const matches = readOf('matches', MATCH_SELECT);
     expect(matches.args['in']).toEqual([['phase_id', [PHASE]]]);
-    expect(matches.args['limit']).toEqual([[10_000]]);
+    expect(matches.args['order']).toEqual([['id']]);
+    expect(matches.args['limit']).toEqual([[READ_PAGE]]);
+    expect(matches.args['gt']).toBeUndefined();
     const skills = readOf('referee_skills', 'id, name, event_id');
     expect(skills.args['or']).toEqual([[`event_id.is.null,event_id.eq.${EVENT}`]]);
     const crew = readOf('referee_assignments', CREW_SELECT);
@@ -114,6 +119,28 @@ describe('preview_referee_assignment answers', () => {
     expect(fighters.args['eq']).toEqual([['match_id', MATCH]]);
     expect(listEventReferees).toHaveBeenCalledWith(EVENT, caller.userId);
     expect(assertOrgRole).toHaveBeenCalledWith(ORG, caller.userId, 'editor');
+  });
+
+  it("finds a bout past PostgREST's cut of 1000 rows, on the next page by id", async () => {
+    // A full first page of other bouts, whose ids sort before the wanted one.
+    const others = Array.from({ length: READ_PAGE }, (_, n) =>
+      bout({ id: id(1000 + n), match_number_label: `M${n}`, pools: { sort_order: 5 } }),
+    );
+    world.bouts = [...others, bout({ id: id(999_999) })];
+    const answer = await answered();
+    expect(answer.match.code).toBe('LSW-P2-M04');
+    const pages = calls.filter((c) => c.table === 'matches');
+    expect(pages.map((c) => c.select)).toEqual([MATCH_SELECT, MATCH_SELECT, MATCH_SELECT]);
+    expect(pages.map((c) => c.args['gt'])).toEqual([
+      undefined,
+      [['id', id(1000 + READ_PAGE - 1)]],
+      [['id', id(999_999)]],
+    ]);
+    for (const page of pages) {
+      expect(page.args['in']).toEqual([['phase_id', [PHASE]]]);
+      expect(page.args['order']).toEqual([['id']]);
+      expect(page.args['limit']).toEqual([[READ_PAGE]]);
+    }
   });
 
   it('scopes the crew read to the Match alone when it has no Pool and no Lice', async () => {

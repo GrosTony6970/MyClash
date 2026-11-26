@@ -5532,7 +5532,7 @@ person the change, the crew after it and every warning, and to call apply only a
 `destructiveHint` makes Claude ask before it calls apply. Neither tool answers an id: the
 confirmation is sealed, and everything else is a name or a code.
 
-**The preview, in order** (`preview-referee-assignment.ts:229-261`):
+**The preview, in order** (`preview-referee-assignment.ts:238-270`):
 
 1. No confirmation key → the tool throws (the generic failure). It never answers a preview that
    apply could not check.
@@ -5639,6 +5639,8 @@ The calls made (the operator may overrule):
 - **O. The Match is named by Tournament slug and round code** (`LSW-P2-M04`, what the app shows).
   No column is unique, so the tool reads the Tournament's Matches, derives their codes
   (`roundCodeFromMatchRow`) and compares case-blind. No match or several matches refuse.
+  PostgREST cuts a read at 1000 rows and says nothing (ruling 831). So the tool reads the Matches
+  page after page by id (`readEveryRowById`), and a bout past the first 1000 is found.
 - **P. The role is named by the skill's name or id** (`Déclarant` or `arbitre_declarant`), case-
   and accent-blind, among the Event's skills (`referee_skills` with `event_id` null or this Event).
   A refusal lists the Event's roles.
@@ -5680,9 +5682,11 @@ The races, named:
 - **Two applies of one token at once.** Both pass the `prev` check, and both write the same
   person in the same role. The two RPC calls are not serialised, and `referee_assignments` has no
   unique index on Match and role. So both inserts can survive, and the Match then has two
-  identical rows. The same person holds the role either way. The crew resolver shows them once
-  (`uniqueReferees`, by name and role). The next write of that role deletes both rows. Two audit
-  rows are written. Accepted.
+  identical rows. The same person holds the role either way. The app's crew screens show them once
+  (`uniqueReferees`, by name and role). Claude's preview does not: it lists the crew from
+  `winningAssignmentRows` with no dedupe, so a later preview names that referee twice. The next
+  per-Match write of that role deletes both rows. The board's Assign does not: it writes Pool rows
+  through `persistAssignments` and leaves the Match rows. Two audit rows are written. Accepted.
 
 ### 28.6 Connected apps
 
