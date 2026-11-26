@@ -1390,6 +1390,8 @@ function AssignmentsTab({
               pools={timelinePools}
               title={t('organizer.refereesPage.eventTimelineTitle')}
               emptyLabel={t('organizer.refereesPage.eventTimelineEmpty')}
+              timeZone={eventTz}
+              eventId={eventId}
               breaks={timelineBreaks}
               onPoolClick={handleChipClick}
             />
