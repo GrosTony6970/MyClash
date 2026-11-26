@@ -15,6 +15,7 @@ import {
   holderOf,
   judgeSwap,
   MATCH_SELECT,
+  missingSkillRefusal,
   readCrewRows,
   refereeWriteRefusal,
   rowsAfterWrite,
@@ -154,12 +155,7 @@ async function findReferee(
     return { refusal: `Several referees of ${event.name} match "${text}": ${who}. Which one?` };
   }
   const person = named[0]!;
-  if (!person.qualifications.some((q) => q.skillId === skill.id)) {
-    return {
-      refusal: `${person.displayName} does not hold the ${skill.name} skill at ${event.name}.`,
-    };
-  }
-  return person;
+  return missingSkillRefusal(person, skill, event) ?? person;
 }
 
 /** A removal takes off only a holder of THIS Match (call M): the RPC deletes Match rows only. */

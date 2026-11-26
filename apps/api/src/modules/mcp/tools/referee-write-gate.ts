@@ -190,6 +190,26 @@ export interface WritePerson {
   displayName: string;
 }
 
+/** A referee as the Event's roster lists them (`listEventReferees`), with their skills. */
+export interface RosterReferee extends WritePerson {
+  qualifications: readonly { skillId: string }[];
+}
+
+/**
+ * A referee without the role's skill refuses by name (call Q): at the preview, and again at
+ * the apply, where the skill may have gone since. The checker would throw a 400 for it.
+ */
+export function missingSkillRefusal(
+  person: RosterReferee,
+  skill: RefereeSkill,
+  event: { name: string },
+): McpRefusal | null {
+  if (person.qualifications.some((q) => q.skillId === skill.id)) return null;
+  return {
+    refusal: `${person.displayName} does not hold the ${skill.name} skill at ${event.name}.`,
+  };
+}
+
 /**
  * The crew rows once the write lands (call M2): `replace_match_referee_role` replaces the
  * Match's own rows of the role by the new person's, or by none for a removal.

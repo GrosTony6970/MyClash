@@ -142,6 +142,20 @@ describe('apply_referee_assignment refuses', () => {
     expect(await refused(seal())).toBe(CHANGED);
   });
 
+  it("a referee who lost the role's skill since the preview, in words, before the checker", async () => {
+    listEventReferees.mockResolvedValue(
+      roster.map((r) => (r.personId === PAUL ? { ...r, qualifications: [] } : r)),
+    );
+    // What the real checker does for a person without the skill: a 400, the generic failure.
+    judgeVerdict.mockRejectedValue(
+      new BadRequestException('Selected referee is not qualified for this role'),
+    );
+    expect(await refused(seal())).toBe(
+      'Paul Martin does not hold the Déclarant skill at FAL 2026.',
+    );
+    expect(judgeVerdict).not.toHaveBeenCalled();
+  });
+
   it('a swap that became Impossible, with every reason in words', async () => {
     judgeVerdict.mockResolvedValue({
       verdict: { level: 'impossible', reasons: impossibleReasons },

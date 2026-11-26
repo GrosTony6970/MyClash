@@ -5532,7 +5532,7 @@ person the change, the crew after it and every warning, and to call apply only a
 `destructiveHint` makes Claude ask before it calls apply. Neither tool answers an id: the
 confirmation is sealed, and everything else is a name or a code.
 
-**The preview, in order** (`preview-referee-assignment.ts:238-270`):
+**The preview, in order** (`preview-referee-assignment.ts:234-266`):
 
 1. No confirmation key → the tool throws (the generic failure). It never answers a preview that
    apply could not check.
@@ -5550,13 +5550,13 @@ confirmation is sealed, and everything else is a name or a code.
    (`winningAssignmentRows`, `matches/resolve-match-referees.ts:96-113`), or none. Two rows of one
    role in one tier take the lowest person id, so preview and apply name the same holder.
 9. A swap: the same person as the holder refuses. Else the checker judges it (`judgeSwap`,
-   `referee-write-gate.ts:242-267`, through `AssignmentBoardService.judgeVerdict`). Impossible
+   `referee-write-gate.ts:262-287`, through `AssignmentBoardService.judgeVerdict`). Impossible
    refuses, with every Impossible reason in words. Discouraged and Fine answer. A removal is not
    judged (call M).
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
     the sealed confirmation (call G).
 
-**The apply, in order** (`apply-referee-assignment.ts:187-220`):
+**The apply, in order** (`apply-referee-assignment.ts:194-227`):
 
 1. Maintenance first, before the token is opened or anything is read.
 2. No confirmation key → the tool throws.
@@ -5567,13 +5567,17 @@ confirmation is sealed, and everything else is a name or a code.
 5. The write gate again: maintenance, the organiser bar, an Event that is over, the board lock.
 6. The app's name (call L).
 7. The role by the token's skill id. A role that is gone gives the bad-token refusal.
-8. The recheck (`recheck`, `apply-referee-assignment.ts:107-135`), on a new crew read. The holder
+8. The recheck (`recheck`, `apply-referee-assignment.ts:110-142`), on a new crew read. The holder
    must still be the token's `prev` (call H). A removal: the holder must still be a Match-level row
-   (call M). A swap: the new referee must still be on the Event's referee roster, and the checker
-   judges again. A new holder, a holder no longer at Match level, or a referee off the roster
-   refuses with "The referees of (code) changed since the preview. Preview the change again."
-   Impossible refuses with its reasons in words. A warning the person did not see refuses and
-   names it (call I).
+   (call M). A swap: the new referee must still be on the Event's referee roster and still hold the
+   role's skill, and the checker judges again. A new holder, a holder no longer at Match level, or
+   a referee off the roster refuses with "The referees of (code) changed since the preview.
+   Preview the change again." A referee who lost the role's skill since the preview refuses with
+   the preview's own sentence, "(name) does not hold the (role) skill at (Event)." One helper owns
+   that test and its words for both tools (`missingSkillRefusal`, `referee-write-gate.ts:198-211`).
+   It runs before the checker, whose skill check would throw a 400 (`qualifiedCandidate`,
+   `referees/write-verdict.ts`) and give the generic failure. Impossible refuses with its reasons
+   in words. A warning the person did not see refuses and names it (call I).
 9. The write: `MatchesService.setRefereeRoleAssignment(matchId, role, personId | null, confirm)`,
    the route's own write (`matches.service.ts:411-455`). `confirm` is true only when the preview
    showed a Discouraged reason. The write asks the board lock and judges again inside
@@ -5581,10 +5585,6 @@ confirmation is sealed, and everything else is a name or a code.
    refusals: a lock, a new Discouraged reason ("changed since the preview"), or an Impossible one
    in words. Any other throw is the generic failure.
 10. The audit row, after the write only.
-
-A referee who lost the role's skill between the preview and the apply gets no refusal sentence.
-The checker's roster and skill check throws a 400 (`qualifiedCandidate`, `referees/write-verdict.ts`),
-and the tool answers the generic failure.
 
 The calls made (the operator may overrule):
 
@@ -5632,7 +5632,7 @@ The calls made (the operator may overrule):
   `@myclash/rulesets/scheduling/referee-reason-text`, beside the checker that owns the codes. The
   translator is a parameter, so the package takes no i18n dependency. Web-admin and the API call
   the same switch and the same `organizer.refereeBoard.reasons.*` keys. The API words them in
-  English (`createTranslator(messages.en)`, `referee-write-gate.ts:219`): Claude reads English and
+  English (`createTranslator(messages.en)`, `referee-write-gate.ts:239`): Claude reads English and
   answers the person in their language (spec call F). The words are fragments said after a name,
   so a warning reads "(name) (reason)." and an Impossible refusal reads "(name) cannot take (role)
   on (code): (reasons)."
@@ -5649,7 +5649,7 @@ The calls made (the operator may overrule):
   case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
   club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
 
-**The audit row** (`apply-referee-assignment.ts:223-247`). `setRefereeRoleAssignment` writes no
+**The audit row** (`apply-referee-assignment.ts:230-254`). `setRefereeRoleAssignment` writes no
 audit row, so the tool writes one per write, after the write only:
 
 - action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
@@ -5677,7 +5677,7 @@ The races, named:
   `previousPersonId` names the holder the re-read saw. The window is a few database reads: the
   roster, the checker, and the write's own lock and checker reads. The app's name is the one call
   to GoTrue (the sign-in server). It is read before the re-read. So no call to GoTrue sits between
-  the re-read and the write, only database reads (`apply-referee-assignment.ts:10-16,203-205`).
+  the re-read and the write, only database reads (`apply-referee-assignment.ts:10-16,210-212`).
   Accepted.
 - **Two applies of one token at once.** Both pass the `prev` check, and both write the same
   person in the same role. The two RPC calls are not serialised, and `referee_assignments` has no

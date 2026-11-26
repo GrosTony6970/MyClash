@@ -28,12 +28,14 @@ import {
   LOCKED_REFUSAL,
   maintenanceRefusal,
   MATCH_SELECT,
+  missingSkillRefusal,
   readCrewRows,
   refereeWriteRefusal,
   rowsAfterWrite,
   toWriteMatch,
   type GateEvent,
   type RefereeSkill,
+  type RosterReferee,
   type WriteMatch,
   type WritePerson,
 } from './referee-write-gate';
@@ -86,13 +88,13 @@ async function readMatch(
   return { event, match: toWriteMatch(row) };
 }
 
-/** The new referee's roster name, the one the preview showed; null when they left the roster. */
+/** The new referee as the roster lists them now; null when they left the roster. */
 async function rosterPerson(
   deps: McpToolDeps,
   eventId: string,
   caller: McpCaller,
   personId: string,
-): Promise<WritePerson | null> {
+): Promise<RosterReferee | null> {
   const roster = await deps.qualifications.listEventReferees(eventId, caller.userId);
   return roster.find((r) => r.personId === personId) ?? null;
 }
@@ -101,27 +103,32 @@ type Checked = { from: string | null; to: string | null; person: WritePerson | n
 
 /**
  * The preview's questions again, on the crew as it is now: the holder is still `prev` (call H);
- * a removal still takes off a Match row (call M); a swap is judged again, and a warning the
- * person did not see refuses (call I). Answers who held the role, who will, and the new one.
+ * a removal still takes off a Match row (call M); a swap's referee still holds the role's
+ * skill, the swap is judged again, and a warning the person did not see refuses (call I).
+ * Answers who held the role, who will, and the new one.
  */
 async function recheck(
   deps: McpToolDeps,
   caller: McpCaller,
   token: ConfirmationPayload,
-  eventId: string,
+  event: GateEvent,
   found: { match: WriteMatch; skill: RefereeSkill },
 ): Promise<Checked | McpRefusal> {
   const { match, skill } = found;
-  const rows = await readCrewRows(deps, eventId, match.seat);
+  const rows = await readCrewRows(deps, event.id, match.seat);
   const holder = holderOf(rows, match.seat, skill.id);
   if ((holder?.personId ?? null) !== token.prev) return changed(match);
   let person: WritePerson | null = null;
   if (token.personId === null) {
     if (holder?.scopeType !== 'match') return changed(match);
   } else {
-    person = await rosterPerson(deps, eventId, caller, token.personId);
-    if (!person) return changed(match);
-    const verdict = await judgeSwap(deps, eventId, match, skill, person);
+    const listed = await rosterPerson(deps, event.id, caller, token.personId);
+    if (!listed) return changed(match);
+    // Before the checker, whose skill check would throw a 400: the generic failure.
+    const unskilled = missingSkillRefusal(listed, skill, event);
+    if (unskilled) return unskilled;
+    person = listed;
+    const verdict = await judgeSwap(deps, event.id, match, skill, person);
     if (isRefusal(verdict)) return verdict;
     const unseen = verdict.warnings.filter((w) => !token.codes.includes(w.code));
     if (unseen.length > 0) {
@@ -205,7 +212,7 @@ export async function applyRefereeAssignment(
   const clientName = await appName(deps, caller.clientId);
   const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
   if (!skill) return STALE;
-  const checked = await recheck(deps, caller, token, event.id, { match, skill });
+  const checked = await recheck(deps, caller, token, event, { match, skill });
   if (isRefusal(checked)) return checked;
   const refused = await write(deps, token, { match, skill }, checked.person);
   if (refused) return refused;
