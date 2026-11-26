@@ -230,7 +230,10 @@ describe('the Teams page', () => {
     ['tournament_full', 'This tournament has its maximum number of teams.'],
     ['team_name_taken', 'Another team of this tournament has this name.'],
     ['team_size_locked', 'A bout of this team has started, so its size cannot change.'],
-    ['team_in_bouts', 'A bout names this team. Remove the team from its Pool first.'],
+    [
+      'team_in_bouts',
+      'A bout or the bracket names this team. Remove the team from its Pool and the bracket first.',
+    ],
     ['entrant_kind_mismatch', 'This tournament takes individual fighters, not teams.'],
   ])('says the 409 %s in words, in the dialog', async (reason, sentence) => {
     await open(READS, refused(409, 'CONFLICT', { reason }));
@@ -255,7 +258,7 @@ describe('the Teams page', () => {
     await press('Delete');
     await press('Delete team', dialog()!);
     expect(body().textContent).toContain(
-      'A bout names this team. Remove the team from its Pool first.',
+      'A bout or the bracket names this team. Remove the team from its Pool and the bracket first.',
     );
   });
 

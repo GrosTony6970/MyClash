@@ -332,7 +332,8 @@ export const organizer = {
       tournamentFull: "Ce tournoi a atteint son nombre maximum d'équipes.",
       nameTaken: 'Une autre équipe de ce tournoi porte ce nom.',
       sizeLocked: 'Un combat de cette équipe a commencé : sa taille ne peut plus changer.',
-      inBouts: "Un combat nomme cette équipe. Retirez d'abord l'équipe de sa poule.",
+      inBouts:
+        "Un combat ou le tableau nomme cette équipe. Retirez d'abord l'équipe de sa poule et du tableau.",
       kindMismatch: 'Ce tournoi accueille des combattants individuels, pas des équipes.',
       sizeRequired:
         "Ce tournoi n'a pas de taille d'équipe par défaut : donnez une taille à l'équipe.",

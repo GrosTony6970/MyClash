@@ -164,7 +164,7 @@ export class TeamsService {
   /** A team in a Pool with no bout leaves its Pool by cascade (`pool_members`, 0282). */
   async remove(tournamentId: string, teamId: string): Promise<void> {
     await this.teamOf(tournamentId, teamId);
-    if (await this.isNamedByBout(teamId)) throw teamInBouts();
+    if (await this.isNamedByBoutOrSlot(teamId)) throw teamInBouts();
     const { error } = await this.supabase.service
       .from('teams')
       .delete()
@@ -245,14 +245,36 @@ export class TeamsService {
     return (data ?? []).length > 0;
   }
 
-  /** Whether any bout names the team, in any status: its key refuses the delete at commit. */
-  private async isNamedByBout(teamId: string): Promise<boolean> {
-    const { data, error } = await this.supabase.service
+  /**
+   * Whether any bout names the team, in any status (its key refuses the delete at commit), or a
+   * bracket slot holds it. A slot's key is `ON DELETE SET NULL` (0282) and a bye slot has no bout,
+   * so without the slot read the team would leave the bracket with no word (call 15).
+   *
+   * THE RACE, accepted: the slot read and the delete are two statements. A populate or a slot
+   * override that runs between them places the team after the read said "no slot". The delete
+   * then succeeds, and the slot's `ON DELETE SET NULL` empties that side with no word. A bout
+   * does not have this gap: its key refuses the delete at commit (`teamDeleteRefusal`). Accepted
+   * because the window is two round trips wide (an organiser's delete against an organiser's
+   * populate or override, or the auto-populate after the last Pool bout), and a Fighter's delete
+   * has the same shape: it reads, then deletes, and its slot key nulls out too
+   * (`assignments.service.ts`, `forceDeleteRegistration`). The emptied side shows on the bracket,
+   * and a reseed or a slot override fills it again.
+   */
+  private async isNamedByBoutOrSlot(teamId: string): Promise<boolean> {
+    const bouts = await this.supabase.service
       .from('matches')
       .select('id')
       .or(`red_team_id.eq.${teamId},blue_team_id.eq.${teamId}`)
       .limit(1);
-    if (error) throw new BadRequestException(error.message);
-    return (data ?? []).length > 0;
+    if (bouts.error) throw new BadRequestException(bouts.error.message);
+    if ((bouts.data ?? []).length > 0) return true;
+
+    const slots = await this.supabase.service
+      .from('bracket_slots')
+      .select('id')
+      .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
+      .limit(1);
+    if (slots.error) throw new BadRequestException(slots.error.message);
+    return (slots.data ?? []).length > 0;
   }
 }

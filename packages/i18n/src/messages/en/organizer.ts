@@ -334,7 +334,8 @@ export const organizer = {
       tournamentFull: 'This tournament has its maximum number of teams.',
       nameTaken: 'Another team of this tournament has this name.',
       sizeLocked: 'A bout of this team has started, so its size cannot change.',
-      inBouts: 'A bout names this team. Remove the team from its Pool first.',
+      inBouts:
+        'A bout or the bracket names this team. Remove the team from its Pool and the bracket first.',
       kindMismatch: 'This tournament takes individual fighters, not teams.',
       sizeRequired: 'This tournament has no default team size: give the team a size.',
     },

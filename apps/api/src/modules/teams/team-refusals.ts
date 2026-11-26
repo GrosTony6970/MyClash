@@ -40,11 +40,12 @@ export function teamSizeLocked(): ConflictException {
   });
 }
 
-/** A Match names the team, so it cannot be deleted. */
+/** A Match or a bracket slot names the team, so it cannot be deleted. */
 export function teamInBouts(): ConflictException {
   return new ConflictException({
     reason: 'team_in_bouts',
-    message: 'A bout names this team. Remove the team from its Pool first.',
+    message:
+      'A bout or the bracket names this team. Remove the team from its Pool and the bracket first.',
   });
 }
 

@@ -70,6 +70,7 @@ function setup(seeds: Record<string, TableSeed> = {}) {
     tournaments,
     teams: { rows: [paris, lyon] },
     matches: { rows: [] },
+    bracket_slots: { rows: [] },
     ...seeds,
   });
   const files = storageDouble();
