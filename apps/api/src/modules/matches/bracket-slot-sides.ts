@@ -11,16 +11,21 @@ export const SLOT_TEAM_EMBEDS =
   'team_a:teams!bracket_slots_team_a_id_fkey(id,name,color,logo_url),' +
   'team_b:teams!bracket_slots_team_b_id_fkey(id,name,color,logo_url)';
 
-/** A slot row read with its Registration columns and `SLOT_TEAM_EMBEDS`. */
-export interface SlotSides {
+/**
+ * A slot row read with its Registration columns and `SLOT_TEAM_EMBEDS`: each team is the embed,
+ * null when the side holds none. Not `phases/seat-columns.ts`'s `SlotSides`, the raw `team_a_id`
+ * columns. Both embeds are required: a raw row, which has none, does not type-check here, so its
+ * team sides cannot come back null in silence.
+ */
+export interface EmbeddedSlotSides {
   registration_a_id: string | null;
   registration_b_id: string | null;
-  team_a?: TeamEmbed | null;
-  team_b?: TeamEmbed | null;
+  team_a: TeamEmbed | null;
+  team_b: TeamEmbed | null;
 }
 
 /** The side keys of a slot (`sideKey`): what a seeding plan or a ranking compares. */
-export function slotSideKeys(slot: SlotSides): { a: string | null; b: string | null } {
+export function slotSideKeys(slot: EmbeddedSlotSides): { a: string | null; b: string | null } {
   return {
     a: sideKey(slot.registration_a_id, slot.team_a?.id),
     b: sideKey(slot.registration_b_id, slot.team_b?.id),
@@ -54,7 +59,7 @@ export type BracketSlotSideFields = Pick<
  * club. A side not filled yet is null, and its name is null.
  */
 export function bracketSlotSides<Club>(
-  slot: SlotSides,
+  slot: EmbeddedSlotSides,
   bout: WinnerOfBout | null,
   registrations: ReadonlyMap<string, RegistrationEmbed<Club>>,
   clubAbbrev: (club: Club | null) => string | null,
@@ -82,8 +87,8 @@ export function bracketSlotSides<Club>(
       colour: label.colour,
     };
   };
-  const red = side(redSideId, slot.registration_a_id, slot.team_a ?? null);
-  const blue = side(blueSideId, slot.registration_b_id, slot.team_b ?? null);
+  const red = side(redSideId, slot.registration_a_id, slot.team_a);
+  const blue = side(blueSideId, slot.registration_b_id, slot.team_b);
   return {
     redFighterName: red?.name ?? null,
     blueFighterName: blue?.name ?? null,

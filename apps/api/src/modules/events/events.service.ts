@@ -71,7 +71,7 @@ import { TEAM_SIDE_EMBEDS } from '../matches/bout-side-labels';
 import {
   bracketSlotSides,
   SLOT_TEAM_EMBEDS,
-  type SlotSides,
+  type EmbeddedSlotSides,
   type WinnerOfBout,
 } from '../matches/bracket-slot-sides';
 import type { RegistrationEmbed } from '../matches/side-label';
@@ -2997,7 +2997,7 @@ export class EventsService {
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
 
-    type RawSlot = SlotSides & {
+    type RawSlot = EmbeddedSlotSides & {
       id: string;
       round: number;
       position: number;

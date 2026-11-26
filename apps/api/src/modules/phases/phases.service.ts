@@ -29,7 +29,7 @@ import {
   bracketSlotSides,
   SLOT_TEAM_EMBEDS,
   slotSideKeys,
-  type SlotSides,
+  type EmbeddedSlotSides,
   type WinnerOfBout,
 } from '../matches/bracket-slot-sides';
 import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
@@ -1923,7 +1923,7 @@ export class PhasesService {
     // scores + matchId), and the registrations referenced by either
     // side of any slot (with persons + clubs embeds for the name +
     // club label). A team side comes with the slot (`SLOT_TEAM_EMBEDS`).
-    type RawSlot = SlotSides & {
+    type RawSlot = EmbeddedSlotSides & {
       id: string;
       round: number;
       position: number;
@@ -2199,7 +2199,7 @@ export class PhasesService {
       topNPerPool?: number;
       randomSeed?: number;
       rawSlots: Array<
-        SlotSides & {
+        EmbeddedSlotSides & {
           id: string;
           round: number;
           source_a_ref: string | null;
