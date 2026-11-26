@@ -818,6 +818,14 @@ describe('not(column, in, list)', () => {
     expect(idsOf(data)).toEqual(['a', 'b', 'c']);
   });
 
+  // The Tournament completion's spelling: `.not('status', 'in', '("completed","voided")')`.
+  it('reads a double-quoted value as its text, and refuses one that holds a comma', async () => {
+    const chain = () => supabaseFrom(ROSTER)('persons').select();
+    const { data } = await chain().not('id', 'in', '("a","c")');
+    expect(idsOf(data)).toEqual(['b']);
+    expect(() => chain().not('id', 'in', '("a,c")')).toThrow(/a quoted value in a list/);
+  });
+
   it('records the filter as it was called', async () => {
     const supabase = mockSupabase(ROSTER);
     await supabase.service.from('persons').select().not('id', 'in', '(a)');
