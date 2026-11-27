@@ -1713,6 +1713,7 @@ export const organizer = {
     configCardTitle: 'Configuration',
     configBracketSize: 'Bracket size',
     configFighterCount: 'Fighters',
+    configTeamCount: 'Teams',
     configPhaseType: 'Phase type',
     configGrandFinalResetHint:
       'If on, the lower-bracket winner must beat the upper-bracket winner twice to take the title.',
@@ -2596,6 +2597,8 @@ export const organizer = {
     title: 'Final ranking',
     subtitle:
       'Bracket placement — fighters eliminated in the same round are separated by their pool score.',
+    subtitleTeam:
+      'Bracket placement — teams eliminated in the same round are separated by their pool score.',
     printPdf: 'Print / PDF',
     loading: 'Loading…',
     noBracket: 'No bracket for this tournament yet.',
@@ -2793,6 +2796,7 @@ export const organizer = {
     deleteRowReferees: 'Referee assignments',
     deleteRowCascaded: 'cascaded',
     deleteConfirmHint: 'You can re-create the bracket later from the registered fighters.',
+    deleteConfirmHintTeam: "You can re-create the bracket later from the tournament's teams.",
     deleting: 'Deleting…',
     cancel: 'Cancel',
     save: 'Save',
@@ -2865,6 +2869,8 @@ export const organizer = {
     emptyTitle: 'No bracket created yet',
     emptyBody:
       'Configure the bracket above (phase type, size, and seeding), then click Generate to lock in the matchups for the registered fighters.',
+    emptyBodyTeam:
+      "Configure the bracket above (phase type, size, and seeding), then click Generate to lock in the matchups for the tournament's teams.",
     refereesLoading: 'Loading referees...',
     refereesLoadFailed: 'Could not load bracket assignments.',
     refereesAssignFailed: 'Could not save referee assignment.',

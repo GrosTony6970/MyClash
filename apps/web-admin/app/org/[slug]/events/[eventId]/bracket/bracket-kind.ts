@@ -77,6 +77,12 @@ export interface BracketWords {
   /** The forfeit's two corners. */
   forfeitRed: string;
   forfeitBlue: string;
+  /** The config card's count of the bracket's entrants. */
+  configCount: string;
+  /** The delete confirm's closing hint. */
+  deleteConfirmHint: string;
+  /** The empty state's body, before a bracket is generated. */
+  emptyBody: string;
 }
 
 const WORDS: Record<SeatKind, BracketWords> = {
@@ -90,6 +96,9 @@ const WORDS: Record<SeatKind, BracketWords> = {
     empty: 'organizer.bracket.overrideModal.empty',
     forfeitRed: 'organizer.bracketPage.forfeitRed',
     forfeitBlue: 'organizer.bracketPage.forfeitBlue',
+    configCount: 'organizer.phaseVisibility.configFighterCount',
+    deleteConfirmHint: 'organizer.bracketPage.deleteConfirmHint',
+    emptyBody: 'organizer.bracketPage.emptyBody',
   },
   team: {
     noPoolsBody: 'organizer.bracket.autoPopulateNoPoolsBodyTeam',
@@ -101,6 +110,9 @@ const WORDS: Record<SeatKind, BracketWords> = {
     empty: 'organizer.bracket.overrideModal.emptyTeam',
     forfeitRed: 'organizer.bracketPage.forfeitRedTeam',
     forfeitBlue: 'organizer.bracketPage.forfeitBlueTeam',
+    configCount: 'organizer.phaseVisibility.configTeamCount',
+    deleteConfirmHint: 'organizer.bracketPage.deleteConfirmHintTeam',
+    emptyBody: 'organizer.bracketPage.emptyBodyTeam',
   },
 };
 

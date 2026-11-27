@@ -1716,6 +1716,7 @@ export const organizer = {
     configCardTitle: 'Configuration',
     configBracketSize: 'Taille du tableau',
     configFighterCount: 'Combattants',
+    configTeamCount: 'Équipes',
     configPhaseType: 'Type de phase',
     configGrandFinalResetHint:
       "Si activé, le vainqueur du tableau bas doit battre celui du haut deux fois pour s'imposer.",
@@ -2565,6 +2566,8 @@ export const organizer = {
     title: 'Classement final',
     subtitle:
       'Placement au tableau — les combattants éliminés au même tour sont départagés par leur score de poule.',
+    subtitleTeam:
+      'Placement au tableau — les équipes éliminées au même tour sont départagées par leur score de poule.',
     printPdf: 'Imprimer / PDF',
     loading: 'Chargement…',
     noBracket: 'Aucun tableau pour ce tournoi pour le moment.',
@@ -2764,6 +2767,8 @@ export const organizer = {
     deleteRowCascaded: 'en cascade',
     deleteConfirmHint:
       'Vous pourrez recréer le tableau plus tard à partir des combattants inscrits.',
+    deleteConfirmHintTeam:
+      'Vous pourrez recréer le tableau plus tard à partir des équipes du tournoi.',
     deleting: 'Suppression…',
     cancel: 'Annuler',
     save: 'Enregistrer',
@@ -2830,6 +2835,8 @@ export const organizer = {
     emptyTitle: 'Aucun tableau créé pour le moment',
     emptyBody:
       'Configurez le tableau ci-dessus (format, taille, tirage), puis cliquez sur Générer pour figer les rencontres des combattants inscrits.',
+    emptyBodyTeam:
+      'Configurez le tableau ci-dessus (format, taille, tirage), puis cliquez sur Générer pour figer les rencontres des équipes du tournoi.',
     refereesLoading: 'Chargement des arbitres...',
     refereesLoadFailed: 'Impossible de charger les affectations.',
     refereesAssignFailed: "Impossible d'enregistrer l'affectation.",

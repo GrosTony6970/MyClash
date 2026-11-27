@@ -159,7 +159,11 @@ export default function FinalRankingPage() {
           <h1 className="font-display font-bold text-2xl sm:text-3xl">
             {t('organizer.finalRanking.title')}
           </h1>
-          <p className="mt-1 text-sm text-muted">{t('organizer.finalRanking.subtitle')}</p>
+          <p className="mt-1 text-sm text-muted">
+            {ranksTeams
+              ? t('organizer.finalRanking.subtitleTeam')
+              : t('organizer.finalRanking.subtitle')}
+          </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <CsvExportMenu

@@ -271,6 +271,42 @@ describe('Bracket page of a team Tournament', () => {
     );
   });
 
+  /** The config card's figure under its label. */
+  const configFigure = (label: string) =>
+    [...document.body.querySelectorAll('p')].find((p) => p.textContent === label)
+      ?.nextElementSibling?.textContent;
+
+  it('counts the bracket’s teams on the config card, not its fighters', async () => {
+    await openPage();
+    expect(configFigure('Teams')).toBe('2');
+    expect(configFigure('Fighters')).toBeUndefined();
+  });
+
+  it('counts the bracket’s teams in French', async () => {
+    await openPage({}, 'fr');
+    expect(configFigure('Équipes')).toBe('2');
+    expect(configFigure('Combattants')).toBeUndefined();
+  });
+
+  it('says the bracket to generate is for the teams, in English and French', async () => {
+    await openPage({ bracket: null });
+    expect(page()).toContain("lock in the matchups for the tournament's teams.");
+    expect(page()).not.toContain('registered fighters');
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    await openPage({ bracket: null }, 'fr');
+    expect(page()).toContain('figer les rencontres des équipes du tournoi.');
+    expect(page()).not.toContain('combattants inscrits');
+  });
+
+  it('says a deleted bracket is re-created from the teams', async () => {
+    await openPage();
+    await tap('Delete bracket');
+    expect(page()).toContain("You can re-create the bracket later from the tournament's teams.");
+    expect(page()).not.toContain('registered fighters');
+  });
+
   it('draws the champion team with its colour on the podium', async () => {
     await openPage({ bracket: PLAYED });
 

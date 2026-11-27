@@ -156,4 +156,24 @@ describe('Final ranking of a team Tournament', () => {
     expect(headers()).toContain('Fighter');
     expect(headers()).not.toContain('Team');
   });
+
+  it('says teams, not fighters, are separated by their pool score', async () => {
+    await openPage('team');
+    expect(container.textContent).toContain(
+      'Bracket placement — teams eliminated in the same round are separated by their pool score.',
+    );
+    expect(container.textContent).not.toContain('fighters eliminated');
+
+    await openPage('team', 'fr');
+    expect(container.textContent).toContain(
+      'Placement au tableau — les équipes éliminées au même tour sont départagées par leur score de poule.',
+    );
+  });
+
+  it('keeps the fighters subtitle on an individual Tournament', async () => {
+    await openPage('individual');
+    expect(container.textContent).toContain(
+      'Bracket placement — fighters eliminated in the same round are separated by their pool score.',
+    );
+  });
 });

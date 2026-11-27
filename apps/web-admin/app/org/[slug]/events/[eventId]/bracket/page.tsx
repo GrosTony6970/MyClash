@@ -1371,9 +1371,7 @@ export default function BracketPage() {
                 <p className="font-mono text-foreground">{bracket.bracketSize}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">
-                  {t('organizer.phaseVisibility.configFighterCount')}
-                </p>
+                <p className="text-xs text-muted">{t(words.configCount)}</p>
                 <p className="font-mono text-foreground">{bracket.fighterCount}</p>
               </div>
               <div>
@@ -1625,9 +1623,7 @@ export default function BracketPage() {
                 <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
               </li>
             </ul>
-            <p className="text-xs text-muted mb-5 text-center">
-              {t('organizer.bracketPage.deleteConfirmHint')}
-            </p>
+            <p className="text-xs text-muted mb-5 text-center">{t(words.deleteConfirmHint)}</p>
           </Modal>
         )}
 
@@ -2058,9 +2054,7 @@ export default function BracketPage() {
             <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground mb-1">
               {t('organizer.bracketPage.emptyTitle')}
             </h3>
-            <p className="text-muted text-sm mb-5 max-w-md mx-auto">
-              {t('organizer.bracketPage.emptyBody')}
-            </p>
+            <p className="text-muted text-sm mb-5 max-w-md mx-auto">{t(words.emptyBody)}</p>
             <button
               onClick={() => void generate(false)}
               disabled={generating || !selectedTournament || isReadOnly}
