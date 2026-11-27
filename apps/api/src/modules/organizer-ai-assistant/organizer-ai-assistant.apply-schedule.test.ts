@@ -6,11 +6,15 @@ import {
   placement,
   resetHarness,
   service,
+  MATCH_1,
+  MATCH_2,
+  MATCH_3,
+  LICE_2,
 } from './organizer-ai-assistant.harness';
 
 type Placement = { matchId: string; liceId: string; scheduledAt: string };
 
-const PISTE_2 = 'l-2';
+const PISTE_2 = LICE_2;
 const at = (time: string) => `2026-06-01T${time}:00.000Z`;
 
 /**
@@ -84,29 +88,29 @@ describe('OrganizerAIAssistantService.applyDraft, a schedule draft', () => {
   it('shifts three bouts on one piste by 30 minutes', async () => {
     // Marie is 30 minutes late on Piste 2.
     board({
-      'm-1': `${PISTE_2} ${at('14:00')}`,
-      'm-2': `${PISTE_2} ${at('14:30')}`,
-      'm-3': `${PISTE_2} ${at('15:00')}`,
+      [MATCH_1]: `${PISTE_2} ${at('14:00')}`,
+      [MATCH_2]: `${PISTE_2} ${at('14:30')}`,
+      [MATCH_3]: `${PISTE_2} ${at('15:00')}`,
     });
     const batch = scheduleDraft([
-      ['m-1', '14:30'],
-      ['m-2', '15:00'],
-      ['m-3', '15:30'],
+      [MATCH_1, '14:30'],
+      [MATCH_2, '15:00'],
+      [MATCH_3, '15:30'],
     ]);
 
     const result = await service().applyDraft('event-1', 'draft-1', 'user-1');
 
     expect(writes()).toEqual([['event-1', batch]]);
     expect(result.appliedResults).toEqual(
-      ['m-1', 'm-2', 'm-3'].map((id) => ({ kind: 'schedule_match', result: { id } })),
+      [MATCH_1, MATCH_2, MATCH_3].map((id) => ({ kind: 'schedule_match', result: { id } })),
     );
   });
 
   it('swaps two bouts', async () => {
-    board({ 'm-1': `${PISTE_2} ${at('14:00')}`, 'm-2': `${PISTE_2} ${at('14:30')}` });
+    board({ [MATCH_1]: `${PISTE_2} ${at('14:00')}`, [MATCH_2]: `${PISTE_2} ${at('14:30')}` });
     const batch = scheduleDraft([
-      ['m-1', '14:30'],
-      ['m-2', '14:00'],
+      [MATCH_1, '14:30'],
+      [MATCH_2, '14:00'],
     ]);
 
     const result = await service().applyDraft('event-1', 'draft-1', 'user-1');
@@ -127,7 +131,7 @@ describe('OrganizerAIAssistantService.applyDraft, a schedule draft that collides
     ['the check before the claim', 0],
     ['the write after it', 1],
   ])('is refused at %s in its own words, with no id', async (_when, call) => {
-    scheduleDraft([['m-1', '14:30']]);
+    scheduleDraft([[MATCH_1, '14:30']]);
     const busy = new ConflictException(
       'Piste already busy: this bout overlaps match 0b9c5a52-1d2e-4f3a-8b4c-5d6e7f8a9b0c',
     );
@@ -147,7 +151,7 @@ describe('OrganizerAIAssistantService.applyDraft, a schedule draft that collides
   });
 
   it('leaves a refusal that is not a collision as the owner threw it', async () => {
-    scheduleDraft([['m-1', '14:30']]);
+    scheduleDraft([[MATCH_1, '14:30']]);
     const unreadable = new BadRequestException('Cannot read the time "noon"');
     placement.placeMatches.mockRejectedValueOnce(unreadable);
 

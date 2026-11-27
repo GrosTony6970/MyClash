@@ -64,8 +64,9 @@ const flag = (value: unknown): boolean | undefined =>
  * The uuid ids `key` holds across the actions of `kinds`, once each. Any other value is never
  * sent: one value Postgres cannot read as a uuid refuses the whole read (22P02), and the list,
  * the draft and the chat would answer 500. The chat's model passes `"matchId": "LSW-P2-M04"`;
- * that id names no row, so it reads as missing. Lower-cased, as the database answers ids: an
- * upper-case uuid names a row that exists, and Apply would find it.
+ * that id names no row, so it reads as missing (the draft check refuses it, and the draft is
+ * `failed`). Lower-cased, as the database answers ids: the draft check stores ids lower-cased, but
+ * a draft saved before that check may still hold an upper-case uuid.
  */
 function idsOf(actions: readonly Action[], kinds: readonly string[], key: string): string[] {
   const ids = actions

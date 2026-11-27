@@ -9,6 +9,11 @@ import {
   mockSupabaseFrom,
   resetHarness,
   service,
+  MATCH_1,
+  MATCH_2,
+  LICE_1,
+  TOURNAMENT_9,
+  PERSON_1,
 } from './organizer-ai-assistant.harness';
 
 /** A ready `schedule_grid` draft holding one `schedule_match` action. */
@@ -20,7 +25,7 @@ const scheduleDraft = (liceId: string, scheduledAt: string) =>
       actor_user_id: 'user-1',
       draft_type: 'schedule_grid',
       status: 'ready',
-      proposed_actions_json: [{ kind: 'schedule_match', matchId: 'm-1', liceId, scheduledAt }],
+      proposed_actions_json: [{ kind: 'schedule_match', matchId: MATCH_1, liceId, scheduledAt }],
       events: { organization_id: 'org-1' },
     },
   });
@@ -30,7 +35,7 @@ const scheduleDraft = (liceId: string, scheduledAt: string) =>
  * Event through its Phase's Tournament.
  */
 function matchRead(eventId: string) {
-  const rows = [{ id: 'm-1', phases: { tournaments: { event_id: eventId } } }];
+  const rows = [{ id: MATCH_1, phases: { tournaments: { event_id: eventId } } }];
   const read = Object.assign(Promise.resolve({ data: rows, error: null }), {
     select: vi.fn(() => read),
     in: vi.fn(() => read),
@@ -199,7 +204,9 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
           actor_user_id: 'user-1',
           draft_type: 'pool_plan',
           status: 'ready',
-          proposed_actions_json: [{ kind: 'generate_pools', tournamentId: 't-9', targetSize: 8 }],
+          proposed_actions_json: [
+            { kind: 'generate_pools', tournamentId: TOURNAMENT_9, targetSize: 8 },
+          ],
           events: { organization_id: 'org-1' },
         },
       });
@@ -211,7 +218,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     expect(mockGeneratePools).not.toHaveBeenCalled();
     expect(tournaments.select).toHaveBeenCalledWith('id');
     expect(tournaments.eq).toHaveBeenCalledWith('event_id', 'event-1');
-    expect(tournaments.in).toHaveBeenCalledWith('id', ['t-9']);
+    expect(tournaments.in).toHaveBeenCalledWith('id', [TOURNAMENT_9]);
   });
 
   it('hands the placement owner the bout, its piste and its time', async () => {
@@ -219,7 +226,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();
-      return scheduleDraft('l-1', '2026-06-01T09:00:00.000Z');
+      return scheduleDraft(LICE_1, '2026-06-01T09:00:00.000Z');
     });
 
     const result = await service().applyDraft('event-1', 'draft-1', 'user-1');
@@ -228,7 +235,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     // all live in the placement owner now; this door used to do the write and
     // none of the checking.
     // Checked first with every placement of the draft, writing nothing; then written.
-    const placed = { matchId: 'm-1', liceId: 'l-1', scheduledAt: '2026-06-01T09:00:00.000Z' };
+    const placed = { matchId: MATCH_1, liceId: LICE_1, scheduledAt: '2026-06-01T09:00:00.000Z' };
     expect(placement.placeMatches.mock.calls).toEqual([
       ['event-1', [placed], { checkOnly: true }],
       ['event-1', [placed]],
@@ -236,8 +243,8 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     // The double answers whatever the projection names. The Match's Event is
     // resolved through this embed, so the string is the proof of the read.
     expect(matches.select).toHaveBeenCalledWith('id, phases!inner(tournaments!inner(event_id))');
-    expect(matches.in).toHaveBeenCalledWith('id', ['m-1']);
-    expect(result.appliedResults).toEqual([{ kind: 'schedule_match', result: { id: 'm-1' } }]);
+    expect(matches.in).toHaveBeenCalledWith('id', [MATCH_1]);
+    expect(result.appliedResults).toEqual([{ kind: 'schedule_match', result: { id: MATCH_1 } }]);
   });
 
   it("refuses another Event's Match before handing it to the placement owner", async () => {
@@ -245,7 +252,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();
-      return scheduleDraft('l-1', '2026-06-01T09:00:00.000Z');
+      return scheduleDraft(LICE_1, '2026-06-01T09:00:00.000Z');
     });
 
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
@@ -269,7 +276,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
           draft_type: 'referee_assignments',
           status: 'ready',
           proposed_actions_json: [
-            { kind: 'assign_referee', userId: 'p-1', role: 'referee', matchId: 'm-1' },
+            { kind: 'assign_referee', userId: PERSON_1, role: 'referee', matchId: MATCH_1 },
           ],
           events: { organization_id: 'org-1' },
         },
@@ -279,14 +286,14 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
       'Every Match must belong to this event',
     );
-    expect(matches.in).toHaveBeenCalledWith('id', ['m-1']);
+    expect(matches.in).toHaveBeenCalledWith('id', [MATCH_1]);
     expect(assignments.insert).not.toHaveBeenCalled();
   });
 
   // Apply ran one placement per action: M04 moved for real, M05 collided, and the draft ended
   // failed, "Partially applied 1/2", for good.
   it('refuses a schedule draft whose placements collide before the claim: nothing moves', async () => {
-    const rows = ['m-1', 'm-2'].map((id) => ({
+    const rows = [MATCH_1, MATCH_2].map((id) => ({
       id,
       phases: { tournaments: { event_id: 'event-1' } },
     }));
@@ -296,8 +303,8 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     });
     const at = '2026-06-01T09:00:00.000Z';
     const actions = [
-      { kind: 'schedule_match', matchId: 'm-1', liceId: 'l-1', scheduledAt: at },
-      { kind: 'schedule_match', matchId: 'm-2', liceId: 'l-1', scheduledAt: at },
+      { kind: 'schedule_match', matchId: MATCH_1, liceId: LICE_1, scheduledAt: at },
+      { kind: 'schedule_match', matchId: MATCH_2, liceId: LICE_1, scheduledAt: at },
     ];
     const drafts = chain({
       data: {
@@ -321,7 +328,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
       ConflictException,
     );
-    expect(matches.in).toHaveBeenCalledWith('id', ['m-1', 'm-2']);
+    expect(matches.in).toHaveBeenCalledWith('id', [MATCH_1, MATCH_2]);
     expect(placement.placeMatches.mock.calls).toEqual([
       [
         'event-1',
@@ -342,7 +349,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
             event_id: 'event-1',
             draft_type: 'schedule_grid',
             status: 'ready',
-            proposed_actions_json: [{ kind: 'schedule_match', matchId: '', liceId: 'l-1' }],
+            proposed_actions_json: [{ kind: 'schedule_match', matchId: '', liceId: LICE_1 }],
             events: { organization_id: 'org-1' },
           },
           error: null,

@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockSupabase, queriedTables, writesTo } from '../../common/testing/supabase-chain';
-import { mockSupabaseFrom, resetHarness, service } from './organizer-ai-assistant.harness';
+import {
+  mockSupabaseFrom,
+  resetHarness,
+  service,
+  MATCH_1,
+  MATCH_2,
+  LICE_1,
+  LICE_2,
+} from './organizer-ai-assistant.harness';
 
 /**
  * Calls S and T (MCP slice 4b). Marie asks the in-app chat to make 4 Pools: the chat saves a
@@ -35,14 +43,14 @@ const pools = { kind: 'generate_pools', tournamentId: TOURNAMENT, poolCount: 4 }
 const placements = [
   {
     kind: 'schedule_match',
-    matchId: 'match-1',
-    liceId: 'lice-1',
+    matchId: MATCH_1,
+    liceId: LICE_1,
     scheduledAt: '2026-12-05T13:30:00.000Z',
   },
   {
     kind: 'schedule_match',
-    matchId: 'match-2',
-    liceId: 'lice-2',
+    matchId: MATCH_2,
+    liceId: LICE_2,
     scheduledAt: '2026-12-05T13:45:00.000Z',
   },
 ];

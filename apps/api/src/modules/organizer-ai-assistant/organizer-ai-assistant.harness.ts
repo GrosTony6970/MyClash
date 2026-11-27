@@ -13,6 +13,20 @@ import { vi, type Mock } from 'vitest';
 import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
 
 /**
+ * The ids the service tests name, uuid-shaped: the draft check refuses any other value in an
+ * id field (`checkIds`), as the database would.
+ */
+export const MATCH_1 = 'a0000000-0000-4000-8000-000000000001';
+export const MATCH_2 = 'a0000000-0000-4000-8000-000000000002';
+export const MATCH_3 = 'a0000000-0000-4000-8000-000000000003';
+export const LICE_1 = 'b0000000-0000-4000-8000-000000000001';
+export const LICE_2 = 'b0000000-0000-4000-8000-000000000002';
+export const TOURNAMENT_1 = 'c0000000-0000-4000-8000-000000000001';
+export const TOURNAMENT_9 = 'c0000000-0000-4000-8000-000000000009';
+export const PERSON_1 = 'd0000000-0000-4000-8000-000000000001';
+export const POOL_1 = 'e0000000-0000-4000-8000-000000000001';
+
+/**
  * A query builder whose filters chain and whose terminals resolve to one canned
  * result. Typed by hand: exported, its inferred type is too large for the
  * compiler to write out (TS7056).
@@ -99,7 +113,7 @@ export function resetHarness(): void {
   mockGenerateWithCap.mockResolvedValue({
     text: JSON.stringify({
       summary: 'Use four balanced pools.',
-      actions: [{ kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 }],
+      actions: [{ kind: 'generate_pools', tournamentId: TOURNAMENT_1, targetSize: 8 }],
       warnings: [],
     }),
     inputTokens: 20,

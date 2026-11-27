@@ -15,6 +15,7 @@ import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { parseModelJson } from '../../common/model-json';
+import { isUuidShape } from '../../common/uuid-shape';
 import type {
   CreateOrganizerAIDraftDto,
   OrganizerAIDraftType,
@@ -73,6 +74,41 @@ function scheduleCollision(): ConflictException {
     message: 'A bout of this draft overlaps another on its piste.',
   });
 }
+
+/**
+ * The id fields of each action kind. A referee's `role` is a skill id, text, so it is not here.
+ */
+const ID_FIELDS: Record<string, readonly string[]> = {
+  generate_pools: ['tournamentId'],
+  generate_bracket: ['tournamentId', 'poolPhaseId'],
+  schedule_match: ['matchId', 'liceId'],
+  assign_referee: ['userId', 'poolId', 'matchId'],
+};
+
+/**
+ * Refuse an id field that is not uuid-shaped, and lower-case, in place, each one it keeps.
+ *
+ * Marie tells the chat "put LSW-P2-M04 on Piste 2 at 14:30", and the model sends
+ * `"matchId": "LSW-P2-M04"`. That is a round code, not an id. A uuid column refuses the whole
+ * read for it (22P02), so Confirm showed Postgres's sentence. Refused here, the draft is `failed`
+ * and the value never reaches a read. The database answers ids in lower case: an upper-case uuid
+ * matched no row in Apply's checks (`assertMatchesBelongToEvent`), so the kept ids are lower-cased.
+ * A field that is absent or not text is left to the required checks.
+ */
+function checkIds(action: Record<string, unknown>, errors: string[]) {
+  const kind = String(action['kind']);
+  const fields = Object.hasOwn(ID_FIELDS, kind) ? (ID_FIELDS[kind] ?? []) : [];
+  for (const field of fields) {
+    const value = action[field];
+    if (typeof value !== 'string') continue;
+    if (isUuidShape(value)) action[field] = value.toLowerCase();
+    else errors.push(`${field} must be an id, not a name or a code`);
+  }
+}
+
+/** An id the caller passed, lower-cased, or null when it is not uuid-shaped. */
+const uuidOrNull = (value: unknown): string | null =>
+  isUuidShape(value) ? value.toLowerCase() : null;
 
 /** A `schedule_match` action as the placement owner takes it: the bout, its piste, its time. */
 function schedulePlacement(action: Record<string, unknown>) {
@@ -288,17 +324,16 @@ export class OrganizerAIAssistantService {
   /**
    * The Tournament a draft from actions is about: the caller's, else its first action's. Every
    * action's own Tournament is checked as well: the ids may be the model's own tool arguments,
-   * and each is checked like any caller's.
+   * and each is checked like any caller's. An id that is not uuid-shaped is left out: the draft
+   * check refused it already (`checkIds`), and a uuid column refuses the whole read for it.
    */
   private async draftTournament(
     eventId: string,
     actions: Array<Record<string, unknown>>,
     stored: string | null | undefined,
   ): Promise<string | null> {
-    const named = actions.map((action) =>
-      typeof action['tournamentId'] === 'string' ? action['tournamentId'] : null,
-    );
-    const tournamentId = stored ?? named[0] ?? null;
+    const named = actions.map((action) => uuidOrNull(action['tournamentId']));
+    const tournamentId = uuidOrNull(stored) ?? named[0] ?? null;
     await assertTournamentsBelongToEvent(this.supabase.service, eventId, [tournamentId, ...named]);
     return tournamentId;
   }
@@ -393,6 +428,8 @@ export class OrganizerAIAssistantService {
     if (closed) throw draftClosed(closed);
     if (draft.status !== 'ready') throw new BadRequestException('Only ready drafts can be applied');
 
+    // A draft saved before an id check existed is refused here, before any read with its ids. The
+    // check also lower-cases the ids in place, so every read below names them as the rows do.
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);
     if (!validation.ok) throw new BadRequestException(validation.errors.join('; '));
     await this.assertPlacementsFit(eventId, draft);
@@ -782,6 +819,7 @@ export class OrganizerAIAssistantService {
     } else {
       errors.push(`Unsupported draft action: ${String(kind)}`);
     }
+    checkIds(action, errors);
   }
 
   private parseAIResult(

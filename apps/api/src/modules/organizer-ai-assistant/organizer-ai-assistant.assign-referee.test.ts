@@ -16,6 +16,9 @@ import {
   resetHarness,
   service,
   type Chain,
+  MATCH_1,
+  PERSON_1,
+  POOL_1,
 } from './organizer-ai-assistant.harness';
 
 /** A refusal, or a loud failure when the call went through. */
@@ -25,7 +28,7 @@ const unexpected = (): never => {
 
 /** The Match's Event, awaited after `.in()`. */
 function matchRead(eventId: string) {
-  const rows = [{ id: 'm-1', phases: { tournaments: { event_id: eventId } } }];
+  const rows = [{ id: MATCH_1, phases: { tournaments: { event_id: eventId } } }];
   const read = Object.assign(Promise.resolve({ data: rows, error: null }), {
     select: vi.fn(() => read),
     in: vi.fn(() => read),
@@ -42,7 +45,7 @@ const draft = (action: Record<string, unknown>) =>
       draft_type: 'referee_assignments',
       status: 'ready',
       proposed_actions_json: [
-        { kind: 'assign_referee', userId: 'p-1', role: 'referee', ...action },
+        { kind: 'assign_referee', userId: PERSON_1, role: 'referee', ...action },
       ],
       events: { organization_id: 'org-1' },
     },
@@ -67,7 +70,7 @@ function route(action: Record<string, unknown>, locked = false) {
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === 'matches') return matchRead('event-1');
     if (table === 'pools') {
-      return chain({ data: { id: 'pool-1', phases: { tournaments: { event_id: 'event-1' } } } });
+      return chain({ data: { id: POOL_1, phases: { tournaments: { event_id: 'event-1' } } } });
     }
     if (table === 'referee_assignments') {
       return assignmentReads++ === 0 ? lock.from(table) : insert;
@@ -84,20 +87,20 @@ describe('the assistant assigns a referee only past the checker (ADR-016)', () =
   beforeEach(() => resetHarness());
 
   it('asks about the bout, never confirming, and stores what was confirmed over', async () => {
-    const { insert } = route({ matchId: 'm-1' });
+    const { insert } = route({ matchId: MATCH_1 });
 
     await service().applyDraft('event-1', 'draft-1', 'user-1');
 
     expect(refereeBoard.judgeWrite).toHaveBeenCalledWith('event-1', {
-      matchIds: ['m-1'],
+      matchIds: [MATCH_1],
       role: 'referee',
-      personId: 'p-1',
+      personId: PERSON_1,
       confirm: false,
     });
     expect(insertedRow(insert)).toMatchObject({
-      person_id: 'p-1',
+      person_id: PERSON_1,
       scope_type: 'match',
-      match_id: 'm-1',
+      match_id: MATCH_1,
       pool_id: null,
       role: 'referee',
       conflicts_jsonb: [],
@@ -105,20 +108,20 @@ describe('the assistant assigns a referee only past the checker (ADR-016)', () =
   });
 
   it('asks about a whole Pool as the board does', async () => {
-    route({ poolId: 'pool-1' });
+    route({ poolId: POOL_1 });
 
     await service().applyDraft('event-1', 'draft-1', 'user-1');
 
     expect(refereeBoard.judgeWrite).toHaveBeenCalledWith('event-1', {
-      poolId: 'pool-1',
+      poolId: POOL_1,
       role: 'referee',
-      personId: 'p-1',
+      personId: PERSON_1,
       confirm: false,
     });
   });
 
   it('a refusal writes nothing, and the failed draft keeps the reasons', async () => {
-    const { insert, drafts } = route({ matchId: 'm-1' });
+    const { insert, drafts } = route({ matchId: MATCH_1 });
     refereeBoard.judgeWrite.mockRejectedValueOnce(
       new ConflictException({
         code: 'referee_needs_confirmation',
@@ -140,7 +143,7 @@ describe('the assistant assigns a referee only past the checker (ADR-016)', () =
   });
 
   it('on a locked board it is 409 referee_board_locked, and nothing is judged or written', async () => {
-    const { insert } = route({ matchId: 'm-1' }, true);
+    const { insert } = route({ matchId: MATCH_1 }, true);
 
     const error = await service()
       .applyDraft('event-1', 'draft-1', 'user-1')

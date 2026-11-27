@@ -6,6 +6,7 @@ import {
   mockSupabaseFrom,
   resetHarness,
   service,
+  TOURNAMENT_1,
 } from './organizer-ai-assistant.harness';
 
 /** Creating a draft. Applying one is in organizer-ai-assistant.apply-draft.test.ts. */
@@ -122,7 +123,7 @@ describe('OrganizerAIAssistantService.createDraft', () => {
       expect.objectContaining({ temperature: 0.2 }),
     );
     expect(inserted[0]?.['proposed_actions_json']).toEqual([
-      { kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 },
+      { kind: 'generate_pools', tournamentId: TOURNAMENT_1, targetSize: 8 },
     ]);
     expect(mockSupabaseFrom).not.toHaveBeenCalledWith('platform_ai_settings');
   });
@@ -140,7 +141,7 @@ describe('OrganizerAIAssistantService.createDraft', () => {
         '```json\n' +
         JSON.stringify({
           summary: 'Four pools of eight',
-          actions: [{ kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 }],
+          actions: [{ kind: 'generate_pools', tournamentId: TOURNAMENT_1, targetSize: 8 }],
           warnings: [],
         }) +
         '\n```',
@@ -178,7 +179,7 @@ describe('OrganizerAIAssistantService.createDraft', () => {
     expect(draft.status).toBe('ready');
     expect(inserted[0]?.['status']).toBe('ready');
     expect(inserted[0]?.['proposed_actions_json']).toEqual([
-      { kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 },
+      { kind: 'generate_pools', tournamentId: TOURNAMENT_1, targetSize: 8 },
     ]);
   });
 });

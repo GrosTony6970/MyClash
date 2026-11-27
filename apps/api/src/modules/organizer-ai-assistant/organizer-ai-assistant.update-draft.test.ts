@@ -6,10 +6,11 @@ import {
   mockSupabaseFrom,
   resetHarness,
   service,
+  TOURNAMENT_1,
 } from './organizer-ai-assistant.harness';
 
 const DRAFTS = 'organizer_ai_assistant_drafts';
-const ACTIONS = [{ kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 }];
+const ACTIONS = [{ kind: 'generate_pools', tournamentId: TOURNAMENT_1, poolCount: 4 }];
 
 /** A draft whose Apply claimed it, ran its first action and failed on the next. */
 const PARTLY_APPLIED = { status: 'failed', applied_at: '2026-11-27T09:00:00.000Z' };

@@ -11,6 +11,7 @@ import {
   mockSupabaseFrom,
   resetHarness,
   service,
+  TOURNAMENT_1,
 } from './organizer-ai-assistant.harness';
 
 /**
@@ -103,10 +104,13 @@ describe('createDraft', () => {
       tournamentId: OWN_TOURNAMENT,
     });
 
-    // The model's action names `t-1` (the harness's answer): the form flow checks only the
-    // Tournament the organiser picked, and `t-1` is no uuid, so the answer reads it as missing
-    // without a read.
-    expectOneTournamentRead(supabase, OWN_TOURNAMENT);
+    // The form flow checks only the Tournament the organiser picked. The answer then reads the
+    // name of the one the model's action names (the harness's answer), at this Event.
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id', 'id, name']);
+    expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([
+      ['id', [OWN_TOURNAMENT]],
+      ['id', [TOURNAMENT_1]],
+    ]);
     expect(storedTournaments(supabase)).toEqual([OWN_TOURNAMENT]);
   });
 });

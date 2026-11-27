@@ -8,6 +8,7 @@ import {
   resetHarness,
   service,
   type Chain,
+  TOURNAMENT_1,
 } from './organizer-ai-assistant.harness';
 
 const DRAFTS = 'organizer_ai_assistant_drafts';
@@ -15,7 +16,7 @@ const DRAFTS = 'organizer_ai_assistant_drafts';
 /** The row a write was given, or undefined for a read. */
 const updateOf = (c: Chain) => c.update.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
 
-const POOLS_4 = { kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 };
+const POOLS_4 = { kind: 'generate_pools', tournamentId: TOURNAMENT_1, poolCount: 4 };
 
 /** The draft as it was saved: `ready`, holding `actions`. */
 const savedDraft = (actions: Array<Record<string, unknown>>): Record<string, unknown> => ({
@@ -55,7 +56,9 @@ function oneDraft({
     if (matches) Object.assign(row, update);
     return matches;
   };
-  const tournaments = mockSupabase({ tournaments: { rows: [{ id: 't-1', event_id: 'event-1' }] } });
+  const tournaments = mockSupabase({
+    tournaments: { rows: [{ id: TOURNAMENT_1, event_id: 'event-1' }] },
+  });
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === 'tournaments') return tournaments.from(table);
     if (table !== DRAFTS) return chain();
@@ -151,7 +154,7 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
     const { row } = oneDraft({
       afterRead: (stored) => {
         stored['proposed_actions_json'] = [
-          { kind: 'generate_pools', tournamentId: 't-1', poolCount: 6 },
+          { kind: 'generate_pools', tournamentId: TOURNAMENT_1, poolCount: 6 },
         ];
         stored['updated_at'] = '2026-11-27T09:00:01.000Z';
       },
