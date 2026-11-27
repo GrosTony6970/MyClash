@@ -16,6 +16,7 @@ import {
   FormulaConfigSchema,
   FormulaConstantsSchema,
   FormulaNodeSchema,
+  MAX_AUTHORED_TARGET_VALUE,
   TFv1ConfigSchema,
   TiebreakerSchema,
   RulesetRegistry,
@@ -274,7 +275,30 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
   // The TF parse above reads a legacy key of the match format and lets it through; stored raw, it
   // would override the field the editor shows. The one check of a stored match format refuses it.
   if (out['matchFormat'] !== undefined) validateMatchFormatDefaults(out['matchFormat']);
+  refuseUnplayableTargets(out);
   return out;
+}
+
+/**
+ * The TF parse above reads targets with the READ bound (`MAX_STORED_TARGET_VALUE`, 99), so a stored
+ * config written before the bound still parses. A WRITE takes the authoring bound, 1 to 10, as the
+ * create and update DTOs and a Tournament's own config do: a target worth more makes a pad button
+ * whose exchange the API refuses. The legacy pair is checked too, because a config without
+ * `targets` derives them from it (`withDerivedTargets`).
+ */
+function refuseUnplayableTargets(patch: Record<string, unknown>): void {
+  const message = `Invalid tfConfig: each target needs a name and a value between 1 and ${MAX_AUTHORED_TARGET_VALUE}.`;
+  if (
+    patch['targets'] !== undefined &&
+    !AuthoredTargetsSchema.safeParse(patch['targets']).success
+  ) {
+    throw new BadRequestException(message);
+  }
+  const pair = patch['targetValues'] as Record<string, unknown> | undefined;
+  const values = pair ? [pair['deepTarget'], pair['shallowTarget']] : [];
+  if (values.some((value) => typeof value === 'number' && value > MAX_AUTHORED_TARGET_VALUE)) {
+    throw new BadRequestException(message);
+  }
 }
 
 /**

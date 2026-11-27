@@ -199,6 +199,30 @@ describe('validateTfConfigPatch — double penalty', () => {
   });
 });
 
+describe('validateTfConfigPatch — targets take the authoring bound', () => {
+  // The TF parse reads targets up to 99 so an old config still parses. A write
+  // must not store one: a pad button worth 11 sends an exchange the API refuses.
+  it('accepts targets worth 1 to 10', () => {
+    const targets = [
+      { name: 'Head', value: 10 },
+      { name: 'Body', value: 1 },
+    ];
+    expect(validateTfConfigPatch({ targets })['targets']).toEqual(targets);
+  });
+
+  it('refuses a target worth more than 10', () => {
+    expect(() => validateTfConfigPatch({ targets: [{ name: 'Head', value: 11 }] })).toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('refuses the legacy pair above 10, which targets would be derived from', () => {
+    expect(() =>
+      validateTfConfigPatch({ targetValues: { deepTarget: 11, shallowTarget: 1 } }),
+    ).toThrow(BadRequestException);
+  });
+});
+
 describe('grammarColumnsFrom', () => {
   it('projects exactly the five grammar columns a snapshot must carry', () => {
     // One helper feeds both snapshotVersion and rollback, so the capture and
