@@ -15,7 +15,7 @@ import {
 /**
  * Venues scoring: a round is fought over N venues, and a clean hit wins one. The server prices
  * a hit at 1 per venue (`exchangeDeltas`), ends a bout on `venue_limit`, and closes a best-of
- * round the same way. See docs/superpowers/specs/2026-11-27-venue-scoring-design.md.
+ * round the same way. See docs/superpowers/archive/specs/2026-11-27-venue-scoring-design.md.
  */
 const venuesFormat = (over: Record<string, unknown> = {}) => ({
   scoringUnit: 'venues',

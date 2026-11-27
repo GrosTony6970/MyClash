@@ -908,6 +908,82 @@ The provisional score itself remains display-only —
 outbox, and nothing derived on the pad is ever stored. Hard rule 1 is unchanged:
 the server is the only thing that DERIVES a persisted score.
 
+### 7.4 The match format: scoring by points or by venues
+
+A bout counts target points (`scoringUnit: 'points'`, the default) or won venues
+(`'venues'`). A venue is an exchange won by a clean hit: the striker wins it and
+scores 1, whatever the button. An afterblow, a double and a no-exchange win no
+venue and score nothing in venues mode. A card is not a venue, but its points go
+on the board as in points mode. Three fields of `MatchFormatConfig` carry the
+mode, in the three places that must agree (`@myclash/rules` `MatchFormatConfig`,
+`@myclash/rulesets` `MatchFormatConfigSchema`, the API's `matchFormatSchema`):
+
+- `scoringUnit`: `'points' | 'venues'`.
+- `venuesPerRound`: N, the won venues that end a round, per phase (pool, Swiss
+  falling back to pool, bracket, finals; default 5), read by
+  `getEffectiveVenuesPerRound`.
+- `stopWhenDecided`: end the round as soon as the lead cannot be caught (default
+  on), or play all N venues.
+
+In venues mode the point cap is still stored but never read: `isPointCapReached`
+answers false.
+
+**One pricer.** `exchangeDeltas` (`packages/rules/src/afterblow.ts`) says what
+one exchange is worth to each side, and which side it won a venue for (the
+striker of a clean hit, from the exchange type, never from the deltas). Every
+place that prices an exchange asks it: the scorer (`computeMatchFormatScore`,
+which counts `redVenuesWon` / `blueVenuesWon` on the score), the server's stored
+delta on a hit's save and edit (`computeDeltas` in `matches.service.ts`), and the
+pad's queued hit (`offline/pending-events.ts`). Who won a venue on a stored hit
+row is `isWonVenue` (`packages/ui/src/utils/venues-won.ts`), built on the same
+pricer; the pad's venue tally (`pad-series.ts`, its `wonVenue`) reads it.
+
+**When a venues round ends.** `roundOutcome` stays the one decider, for a single
+bout, a best-of round and the pad. In venues mode its `venueLimitOutcome` takes
+the cap's place. With `remaining` = N minus the venues won, the round ends when
+`remaining` is 0, or, with `stopWhenDecided`, when the lead on the BOARD (cards
+included) is greater than `remaining`. A lead equal to `remaining` plays on. The
+leader wins, with the end reason `venue_limit`. A level board at that moment (an
+even N, or a card) follows the rule of a level board at the cap: a phase whose
+chain allows a level end (`chainAllowsLevelEnd`) draws, and any other plays on
+until the next won venue decides. The doubles ceiling keeps its place in the
+order. The clock is unchanged: it ends a round that stalls, as in points mode.
+
+**The pad's buttons.** `buttonsInForce` (`@myclash/types`) puts the stored
+buttons in force by the unit, at read: a venues bout shows one `+1` per side, and
+one `1-1` where a stored afterblow button is shown (§10, "A bout scores with its
+own rules"). The stored buttons are never rewritten, so a switch of the unit
+needs no write. The server prices a venues clean hit at 1 whatever value
+arrives.
+
+**The direction: stored, and in force.** A venues bout always counts up. That is
+how the format is READ, not what is stored. `parseMatchFormatConfig`
+(`@myclash/rulesets`) is the format as stored: validated, legacy keys folded, the
+organiser's direction kept. Every write stores it. `formatInForce` puts it in
+force: a venues format counts up (`scoringDirection: 'normal'`).
+`normalizeMatchFormatConfig` is the two in a row, for every reader that plays
+the format. So a countdown Tournament that tries venues and goes back to points
+counts down again. The settings screens and the wizard edit the stored direction:
+`GET /tournaments/:id` answers its `effectiveRules.matchFormat` with
+`editedMatchFormat` (the ruleset's strips, the stored direction), and the pad,
+the TV and the scorer read `scoredMatchFormat`, which is that format put in
+force.
+
+**A ruleset that offers no venues.** `RulesetMetadata.hasVenues` is false for
+`Generic_PointsCap` alone; a ruleset that says nothing offers venues. It is
+honoured in four places: the Generic engine scores in points whatever the
+Tournament stores; `scoredMatchFormat` forces `scoringUnit: 'points'` before the
+format is put in force, so the round lifecycle, the pad and the TV play points
+(and the stored direction); the TV and the public bout page show the format
+through the same strip (`match-summaries.ts`, the `/display` payload); and the
+admin screens offer no "Score by" choice (`ruleset_grammar.hasVenues`).
+
+**The "Venues 3/5" counter.** In a venues bout the pad header and the TV
+scoreboard show the venues won in the open round over N, beside "Round 2/3".
+Both count from the hit rows they already hold, by `isWonVenue`
+(`venuesCounterOnPad`, `venuesWonInRound`); nothing is added to the display
+payload.
+
 ---
 
 ## 7bis. Ruleset authoring, sharing and pinning

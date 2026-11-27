@@ -1,6 +1,6 @@
 # Venue scoring — rounds limited by a number of won exchanges
 
-Status: approved design (brainstorm 2026-11-27). Not built yet.
+Status: built (2026-11-27). `docs/ARCHITECTURE.md` §7.4 says what the code does now.
 
 ## Intent and why
 
