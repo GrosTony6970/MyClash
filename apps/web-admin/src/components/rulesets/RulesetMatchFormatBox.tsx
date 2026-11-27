@@ -97,6 +97,7 @@ function leafFields(props: Props, t: Translator) {
       label={label}
       hint={hint}
       checked={shownLeaf(own, leaf) as boolean}
+      engineLabel={t(engineLeaf(leaf) ? 'admin.common.yes' : 'admin.common.no')}
     />
   );
   return { number, select, bestOf, check };

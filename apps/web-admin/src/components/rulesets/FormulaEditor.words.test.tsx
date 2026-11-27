@@ -71,4 +71,26 @@ describe('the words of the ruleset editor', () => {
     );
     expect(container.textContent).not.toContain('Best of');
   });
+
+  it('names the venues stop and the engine value its badge and Reset put back', () => {
+    act(() =>
+      root.render(
+        <I18nProvider locale="fr">
+          <RulesetMatchFormatBox
+            own={{ scoringUnit: 'venues', stopWhenDecided: false }}
+            loaded={{}}
+            onChange={() => undefined}
+            onValidity={() => undefined}
+            hasMaxDoubles
+            hasVenues
+          />
+        </I18nProvider>,
+      ),
+    );
+    const labels = [...container.querySelectorAll('label')].map((l) => l.textContent);
+    expect(labels).toContain("Arrêter la manche dès qu'elle est décidée");
+    // The engine stops a decided round: its badge and its Reset say "Oui", not nothing.
+    const titles = [...container.querySelectorAll('[title]')].map((e) => e.getAttribute('title'));
+    expect(titles).toEqual(expect.arrayContaining(['Par défaut : Oui', 'Revenir à Oui']));
+  });
 });

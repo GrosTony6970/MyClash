@@ -787,7 +787,7 @@ export const organizer = {
       venuesPerRoundPool: 'Venues gagnées par manche (poule)',
       venuesPerRoundBracket: 'Venues gagnées par manche (tableau)',
       venuesPerRoundFinals: 'Venues gagnées par manche (finales)',
-      stopWhenDecidedLabel: "Arrêter la manche dès qu'elle est jouée",
+      stopWhenDecidedLabel: "Arrêter la manche dès qu'elle est décidée",
       stopWhenDecidedHelp:
         'Désactivé : toutes les venues gagnées sont jouées, même quand le résultat ne peut plus changer.',
       softClock: 'Horloge souple',
