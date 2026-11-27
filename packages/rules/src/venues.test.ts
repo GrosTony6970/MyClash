@@ -226,6 +226,22 @@ describe('roundOutcome in venues mode', () => {
     });
   });
 
+  /**
+   * The round stops early only on a lead MORE than the venues left. A lead equal to them can
+   * still be caught: the trailer wins every venue left and levels the board.
+   */
+  it('a lead equal to the venues left keeps a round open', () => {
+    const four = config({ venuesPerRound: { pool: 4, bracket: 4, finals: 4 } });
+    const twoOfFour = { redScore: 2, blueScore: 0, doubles: 0, redVenuesWon: 2, blueVenuesWon: 0 };
+    expect(roundOutcome(POOL, twoOfFour, four, EDITION_2026_10)).toEqual(OPEN);
+    // Five venues: lead 2, three left.
+    const twoOfFive = { redScore: 2, blueScore: 0, doubles: 0, redVenuesWon: 2, blueVenuesWon: 0 };
+    expect(roundOutcome(POOL, twoOfFive, config(), EDITION_2026_10)).toEqual(OPEN);
+    // One card point for red: lead 2, two venues left.
+    const card = { redScore: 3, blueScore: 1, doubles: 0, redVenuesWon: 2, blueVenuesWon: 1 };
+    expect(roundOutcome(POOL, card, config(), EDITION_2026_10)).toEqual(OPEN);
+  });
+
   it('a card keeps a round open', () => {
     // Two card points for blue: lead 1, two venues left.
     const score = { redScore: 3, blueScore: 2, doubles: 0, redVenuesWon: 3, blueVenuesWon: 0 };
