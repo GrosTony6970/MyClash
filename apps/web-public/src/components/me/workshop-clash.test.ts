@@ -17,6 +17,7 @@ const at = (hhmm: string) => `2027-05-22T${hhmm}:00.000Z`;
 
 const WORDS: Record<string, string> = {
   'publicApp.me.schedule.referee': 'Referee',
+  'publicApp.me.events.roleInstructor': 'Instructor',
   'publicApp.me.hub.kindQuarterFinal': 'Quarter-final',
   'publicApp.me.schedule.eliminationBlock': 'Elimination',
 };
@@ -231,6 +232,62 @@ describe('a session against those commitments', () => {
       item: 'Pool A',
       time: '10:00–11:00',
     });
+  });
+});
+
+/**
+ * Marie teaches "Demo Workshop 6" from 14:00 to 16:00. She booked Jean's 15:00 class and the
+ * page said nothing: the check left out every Workshop, the ones she teaches too.
+ */
+describe('a session against the classes she teaches', () => {
+  const taught = (
+    id: string,
+    start: string,
+    end: string | null,
+    sessionCancelled = false,
+  ): NonNullable<PersonSchedule['teaching']>[number] => ({
+    sessionId: id,
+    workshopSlug: 'demo-6',
+    workshopName: 'Demo Workshop 6',
+    sessionStart: at(start),
+    sessionEnd: end ? at(end) : null,
+    location: null,
+    sessionCancelled,
+  });
+
+  it('warns of a class she teaches at that hour, and names it as hers', () => {
+    const { commitments } = commitmentsOf(
+      schedule({ teaching: [taught('s-demo', '14:00', '16:00')] }),
+      t,
+    );
+    const clash = clashOf(session('15:00', '17:00'), commitments)!;
+    expect(clashWords(clash, (iso) => iso.slice(11, 16))).toEqual({
+      item: 'Instructor · Demo Workshop 6',
+      time: '14:00–16:00',
+    });
+  });
+
+  it('holds nothing for a cancelled class, and counts a class with no end as unchecked', () => {
+    const { commitments, unchecked } = commitmentsOf(
+      schedule({
+        teaching: [taught('s-off', '14:00', '16:00', true), taught('s-open', '18:00', null)],
+      }),
+      t,
+    );
+    expect(commitments).toEqual([]);
+    expect(unchecked).toBe(1);
+  });
+
+  it('never warns a session of itself', () => {
+    const { commitments } = commitmentsOf(
+      schedule({ teaching: [taught('s-1', '14:00', '16:00')] }),
+      t,
+    );
+    expect(clashOf(session('14:00', '16:00'), commitments)).toBeNull();
+  });
+
+  it('reads a schedule cached before the API sent the classes as holding none', () => {
+    expect(commitmentsOf(schedule({}), t)).toEqual({ commitments: [], unchecked: 0 });
   });
 });
 

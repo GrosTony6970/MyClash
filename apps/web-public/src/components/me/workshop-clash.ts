@@ -5,7 +5,14 @@
 
 import type { Translator } from '@myclash/next-i18n/client';
 import { overlapsHalfOpen } from '@myclash/schedule-core';
-import { dutyTimed, fightItems, toTimed, uncheckedCount, type TimedItem } from './conflicts';
+import {
+  dutyTimed,
+  fightItems,
+  toTimed,
+  uncheckedCount,
+  workshopTimed,
+  type TimedItem,
+} from './conflicts';
 import { matchKindLabel } from './match-kind';
 import type { PersonSchedule } from './types';
 
@@ -28,11 +35,12 @@ function dutyLabel(t: Translator, c: Duty): string {
 }
 
 /**
- * The viewer's fights, the blocks they fight in, and their referee duties as timed
- * windows, for conflict checks — and how many fights and duties the check cannot
- * see. A duty's window is the one the API works out, so a Pool duty (no Match of
- * its own) takes part too; an item whose end is unknown does not. Workshops stay
- * out: every enrolled session would clash with itself.
+ * The viewer's fights, the blocks they fight in, their referee duties and the Workshop
+ * sessions they teach, as timed windows, for conflict checks — and how many of them the
+ * check cannot see. A duty's window is the one the API works out, so a Pool duty (no Match
+ * of its own) takes part too; an item whose end is unknown does not. A cancelled class
+ * holds nothing (ruling 529). The sessions they BOOKED stay out: the booking pages ask
+ * about those very sessions.
  *
  * The block spans come first (`fightItems`): `clashOf` names the first overlap, so a
  * session inside a Pool or a bracket names the whole block and its whole window.
@@ -47,6 +55,8 @@ export function commitmentsOf(
   const referee = t('publicApp.me.schedule.referee');
   const boutKey = (m: PersonSchedule['matches'][number]) => `fight-${m.id}`;
   const dutyKey = (r: PersonSchedule['refereeSlots'][number]) => `ref-${r.id}`;
+  const instructor = t('publicApp.me.events.roleInstructor');
+  const classes = schedule.teaching ?? [];
   const commitments = [
     ...fightItems(schedule, boutKey, t),
     ...schedule.refereeSlots.flatMap((r) => {
@@ -54,17 +64,28 @@ export function commitmentsOf(
       const ti = dutyTimed(dutyKey(r), what ? `${referee} · ${what}` : referee, r);
       return ti ? [ti] : [];
     }),
+    // "Instructor · Demo Workshop 6": a class she teaches.
+    ...classes.flatMap((c) => {
+      const ti = workshopTimed(`ws-${c.sessionId}`, `${instructor} · ${c.workshopName}`, c);
+      return ti ? [ti] : [];
+    }),
   ];
   const cards = [
     ...schedule.matches.map((m) => ({ key: boutKey(m), time: m.scheduledAt })),
     ...schedule.refereeSlots.map((r) => ({ key: dutyKey(r), time: r.scheduledAt ?? r.startsAt })),
+    // A cancelled class will not run: nothing for the check to miss (ruling 529).
+    ...classes.map((c) => ({
+      key: `ws-${c.sessionId}`,
+      time: c.sessionCancelled ? null : c.sessionStart,
+    })),
   ];
   return { commitments, unchecked: uncheckedCount(cards, commitments) };
 }
 
 /**
  * The first commitment a session overlaps, or null. A session with no readable
- * start and end has no window, and clashes with nothing.
+ * start and end has no window, and clashes with nothing; nor does a session clash
+ * with itself (a class she teaches, on her own Workshops page).
  */
 export function clashOf(
   session: { id: string; startsAt: string | null; endsAt: string | null },
@@ -72,7 +93,11 @@ export function clashOf(
 ): TimedItem | null {
   const window = toTimed(`ws-${session.id}`, '', session.startsAt, session.endsAt);
   if (!window) return null;
-  return commitments.find((commitment) => overlapsHalfOpen(window, commitment)) ?? null;
+  return (
+    commitments.find(
+      (commitment) => commitment.key !== window.key && overlapsHalfOpen(window, commitment),
+    ) ?? null
+  );
 }
 
 /**
