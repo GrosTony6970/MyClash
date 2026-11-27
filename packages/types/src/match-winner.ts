@@ -13,10 +13,13 @@ import { winnerColorFrom } from '@myclash/rules/pad';
  * each of them bolded, badged or crowned the wrong fighter in exactly those
  * cases.
  *
- * The score fallback is deliberate and must stay. A completed match with no
- * stored winner is ordinary, not exotic: it is every bout that ends on the
- * clock or on max-doubles. Dropping the fallback would stop the projector
- * naming a winner for every time-limit bout in the hall.
+ * The score fallback is deliberate. A completed match with no stored winner is
+ * ordinary, not exotic: it is every genuine draw, and a bout whose board was
+ * wiped at max doubles. A bout that ends on the clock with a leader records
+ * that leader as its winner (`timeLimitResult`,
+ * `apps/api/src/modules/matches/time-limit-result.ts`), as a bout ended at the
+ * points cap records its winner; until the clock named its own winner, the
+ * fallback was how every time-limit bout got one.
  *
  * The `winnerSideId !== null` guard is load-bearing too: a stored
  * winner matching NEITHER side means the caller handed over a mismatched
