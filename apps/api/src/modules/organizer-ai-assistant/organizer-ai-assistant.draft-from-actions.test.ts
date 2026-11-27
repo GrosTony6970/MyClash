@@ -183,4 +183,21 @@ describe('createDraftFromAction, by source', () => {
     expect(queriedTables(supabase.from)).toEqual(['events']);
     expect(supabase.writes).toEqual([]);
   });
+
+  // `constructor` and `toString` are keys every object inherits: only the map's own kinds count.
+  it.each(['delete_event', 'constructor', 'toString', '__proto__'])(
+    'refuses the unknown kind %s before it reads a Tournament or saves anything',
+    async (kind) => {
+      const supabase = seeded();
+
+      await expect(
+        service().createDraftFromAction(EVENT, 'user-1', [{ kind, tournamentId: TOURNAMENT }], {
+          source: 'mcp',
+        }),
+      ).rejects.toMatchObject({ status: 400, message: `Unsupported action: ${kind}` });
+
+      expect(queriedTables(supabase.from)).toEqual(['events']);
+      expect(supabase.writes).toEqual([]);
+    },
+  );
 });

@@ -112,9 +112,12 @@ function draftTypeOf(actions: Array<Record<string, unknown>>) {
     throw new BadRequestException(`A draft holds actions of one kind, not ${kinds.join(', ')}`);
   }
   const kind = kinds[0] as string;
-  const draftType = ACTION_KIND_TO_DRAFT_TYPE[kind];
-  if (!draftType) throw new BadRequestException(`Unsupported action: ${kind}`);
-  return { kind, draftType };
+  // An own key only: `constructor` or `toString` would find Object.prototype's (the kind comes
+  // from a model's tool call, through the chat or the MCP server).
+  if (!Object.hasOwn(ACTION_KIND_TO_DRAFT_TYPE, kind)) {
+    throw new BadRequestException(`Unsupported action: ${kind}`);
+  }
+  return { kind, draftType: ACTION_KIND_TO_DRAFT_TYPE[kind] as OrganizerAIDraftType };
 }
 
 interface ParsedAIDraft {
