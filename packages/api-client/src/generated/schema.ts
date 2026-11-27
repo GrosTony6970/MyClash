@@ -12307,6 +12307,15 @@ export interface components {
                 }
             )[];
           };
+          /** @enum {string} */
+          scoringUnit?: 'points' | 'venues';
+          venuesPerRound?: {
+            pool?: number;
+            swiss?: number;
+            bracket?: number;
+            finals?: number;
+          };
+          stopWhenDecided?: boolean;
         };
       };
       lockConfig?: {
@@ -12441,6 +12450,15 @@ export interface components {
                 }
             )[];
           };
+          /** @enum {string} */
+          scoringUnit?: 'points' | 'venues';
+          venuesPerRound?: {
+            pool?: number;
+            swiss?: number;
+            bracket?: number;
+            finals?: number;
+          };
+          stopWhenDecided?: boolean;
         };
       };
       lockConfig?: {
