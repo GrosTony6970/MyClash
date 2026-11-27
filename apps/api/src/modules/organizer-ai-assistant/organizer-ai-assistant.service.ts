@@ -47,10 +47,19 @@ function draftClosed(message: string): ConflictException {
  */
 function closedReason(draft: Pick<DraftRow, 'status' | 'applied_at'>): string | null {
   if (!OPEN_STATUSES.includes(draft.status)) return `This draft is already ${draft.status}.`;
-  if (draft.applied_at) {
+  if (applyStarted(draft)) {
     return 'This draft was partly applied before it failed. It cannot be changed, applied again or rejected.';
   }
   return null;
+}
+
+/**
+ * Did an Apply of this draft start? The claim sets `applied_at` and nothing clears it, so an
+ * applied draft and a partly applied one both answer yes. The page reads it on a `failed` draft
+ * to say "partly applied" and to hide Apply and Reject (ruling 997).
+ */
+function applyStarted(draft: Pick<DraftRow, 'applied_at'>): boolean {
+  return Boolean(draft.applied_at);
 }
 
 interface EventRow {
@@ -829,6 +838,7 @@ export class OrganizerAIAssistantService {
       proposedActions: row['proposed_actions_json'] ?? [],
       validationState: row['validation_state'] ?? { ok: false, warnings: [] },
       status: row['status'],
+      applyStarted: applyStarted(row),
       error: row['error'] ?? null,
       createdAt: row['created_at'],
       updatedAt: row['updated_at'],
