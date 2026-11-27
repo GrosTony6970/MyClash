@@ -126,11 +126,37 @@ describe('the Archive button of a Tournament', () => {
     expect(page.writes()).toEqual([]);
   });
 
-  it('archives on yes', async () => {
+  it('archives on yes, and says so', async () => {
     await open();
     await press('Archive');
     await press('Archive', dialog()!);
     expect(page.writes()).toEqual([SAVE]);
     expect(saved()).toEqual({ status: 'archived' });
+    expect(document.body.textContent).toContain('Tournament archived.');
+  });
+});
+
+describe('the Delete button of a Tournament', () => {
+  const DELETE = 'DELETE /api/v1/tournaments/t-1';
+
+  it('sends nothing until the organiser confirms, then says it is deleted', async () => {
+    page = await openEventPage(<TournamentsPage />, READS, { [DELETE]: {} });
+    await press('Delete');
+    expect(dialog()?.textContent).toContain('Delete tournament');
+    expect(page.writes()).toEqual([]);
+    await press('Delete permanently', dialog()!);
+    expect(page.writes()).toEqual([DELETE]);
+    expect(dialog()).toBeNull();
+    expect(document.body.textContent).toContain('Tournament deleted.');
+  });
+
+  it("closes the dialog on a refusal, so the server's reason shows", async () => {
+    page = await openEventPage(<TournamentsPage />, READS);
+    await press('Delete');
+    await press('Delete permanently', dialog()!);
+    expect(page.writes()).toEqual([DELETE]);
+    expect(dialog()).toBeNull();
+    expect(document.body.textContent).toContain('This event is archived and read-only.');
+    expect(document.body.textContent).not.toContain('Tournament deleted.');
   });
 });

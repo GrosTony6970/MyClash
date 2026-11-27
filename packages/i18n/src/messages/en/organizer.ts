@@ -1044,7 +1044,7 @@ export const organizer = {
       live: 'Live now',
       completed: 'Completed',
       visibility: 'Visibility: {status}',
-      tournaments: 'Tournaments',
+      tournamentsSection: 'Tournaments ({count})',
       participants: 'Participants',
       uniqueFighters: 'Unique fighters',
       uniqueReferees: 'Unique referees',

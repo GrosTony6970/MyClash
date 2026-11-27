@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Button,
   DataTable,
   DataTableCell,
   DataTableHead,
@@ -36,6 +37,7 @@ import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
 import { isOutstanding, type ReadinessReport } from './readiness-copy';
 import { statusChangeQuestion } from './tournaments/_lib/status-change-question';
+import { TournamentRowActions } from './tournaments/_components/TournamentRowActions';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { withTournament } from '@/lib/tournament-choice';
@@ -468,56 +470,281 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {event && vis && (
-        <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {t('organizer.events.visibilityCardTitle')}
-              </p>
-              <p className="mt-1 text-sm text-muted">
-                {vis.isPublic
-                  ? t('organizer.events.visibilityPublicHint')
-                  : t('organizer.events.visibilityHiddenHint')}
-              </p>
-              {!vis.canToggle && (
-                <p className="mt-1 text-xs text-warning">
-                  {t('organizer.events.visibilityLocked', { status: event.status })}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-3">
-              <span className="text-sm font-semibold text-foreground-secondary">
-                {vis.isPublic
-                  ? t('organizer.events.visibilityPublic')
-                  : t('organizer.events.visibilityHidden')}
-              </span>
-              <button
+      {showTournaments && (
+        <section className="mb-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+              {t('organizer.eventHub.dashboard.tournamentsSection', {
+                count: stats?.totals.tournaments ?? 0,
+              })}
+            </h2>
+            {isArchived ? (
+              <Button
                 type="button"
-                role="switch"
-                aria-checked={vis.isPublic}
-                aria-label={
-                  vis.isPublic ? t('organizer.events.setDraft') : t('organizer.events.setPublic')
-                }
-                disabled={!vis.canToggle || isReadOnly || visibilityBusy}
-                onClick={() => requestVisibilityToggle()}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  vis.isPublic ? 'bg-success' : 'bg-border'
-                }`}
+                variant="primary"
+                disabled
+                title={t('organizer.deletionRequest.archivedReadOnly')}
               >
-                <span
-                  aria-hidden="true"
-                  className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow transition-transform ${
-                    vis.isPublic ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
+                {t('organizer.tournaments.create')}
+              </Button>
+            ) : (
+              <Button asChild variant="primary">
+                <Link href={`/org/${slug}/events/${eventId}/tournaments/new`}>
+                  {t('organizer.tournaments.create')}
+                </Link>
+              </Button>
+            )}
           </div>
-        </div>
+          {tournamentError && (
+            <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
+              {tournamentError}
+            </div>
+          )}
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.tournament')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.registered')}</DataTableCell>
+              <DataTableCell as="th">
+                {t('organizer.eventHub.dashboard.assignedReferees')}
+              </DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colPools')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colSwiss')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colBracket')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colElim')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colRuleset')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.status')}</DataTableCell>
+              <DataTableCell as="th">
+                {t('organizer.eventHub.dashboard.visibilityColumn')}
+              </DataTableCell>
+              <DataTableCell as="th">{t('organizer.tournaments.table.actions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {(stats?.tournaments ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={11} className="px-4 py-6 text-center text-muted">
+                    {t('organizer.eventHub.dashboard.noTournaments')}
+                  </td>
+                </tr>
+              )}
+              {(stats?.tournaments ?? []).map((tournament) => {
+                const settingsHref = `/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings`;
+                const cellLinkClass =
+                  'block w-full text-foreground-secondary hover:text-accent hover:underline';
+                const canToggleVisibility =
+                  tournament.status === 'draft' || tournament.status === 'published';
+                return (
+                  <DataTableRow key={tournament.id}>
+                    <DataTableCell className="font-semibold text-foreground">
+                      <Link
+                        href={settingsHref}
+                        className="inline-flex items-center gap-1.5 hover:text-accent hover:underline"
+                      >
+                        <TournamentColorDot color={tournament.color} />
+                        {tournament.name}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link
+                        href={withTournament(
+                          `/org/${slug}/events/${eventId}/persons`,
+                          tournament.id,
+                        )}
+                        className={cellLinkClass}
+                      >
+                        {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link
+                        href={`/org/${slug}/events/${eventId}/referees`}
+                        className={cellLinkClass}
+                      >
+                        {tournament.assignedRefereeCount}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link
+                        href={withTournament(`/org/${slug}/events/${eventId}/pools`, tournament.id)}
+                        className={cellLinkClass}
+                      >
+                        {tournament.poolCount ?? 0}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link
+                        href={withTournament(`/org/${slug}/events/${eventId}/swiss`, tournament.id)}
+                        className={cellLinkClass}
+                      >
+                        {tournament.swissRoundCount
+                          ? t('organizer.eventHub.dashboard.swissRounds', {
+                              count: tournament.swissRoundCount,
+                            })
+                          : '—'}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link
+                        href={withTournament(
+                          `/org/${slug}/events/${eventId}/bracket`,
+                          tournament.id,
+                        )}
+                        className={cellLinkClass}
+                      >
+                        {tournament.bracketSize ?? '—'}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell className="text-muted">
+                      {tournament.eliminationType === 'single_elim'
+                        ? t('organizer.eventHub.dashboard.elimSingle')
+                        : tournament.eliminationType === 'double_elim'
+                          ? t('organizer.eventHub.dashboard.elimDouble')
+                          : '—'}
+                    </DataTableCell>
+                    <DataTableCell mono>
+                      <Link href={settingsHref} className="hover:text-accent hover:underline">
+                        {tournament.rulesetCode ?? '—'}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <select
+                        aria-label={t('organizer.eventHub.dashboard.status')}
+                        value={tournament.status}
+                        disabled={tournamentBusy === tournament.id || isReadOnly}
+                        onChange={(ev) =>
+                          void changeTournamentStatus(
+                            tournament.id,
+                            tournament.name,
+                            ev.target.value,
+                          )
+                        }
+                        className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {t(statusLabelKey('tournament', status))}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <button
+                        type="button"
+                        aria-label={
+                          tournament.status === 'draft'
+                            ? t('organizer.eventHub.dashboard.setPublic')
+                            : t('organizer.eventHub.dashboard.setDraft')
+                        }
+                        title={
+                          tournament.status === 'draft'
+                            ? t('organizer.eventHub.dashboard.setPublic')
+                            : tournament.status === 'published'
+                              ? t('organizer.eventHub.dashboard.setDraft')
+                              : statusLabel('tournament', tournament.status, t)
+                        }
+                        disabled={
+                          !canToggleVisibility || tournamentBusy === tournament.id || isReadOnly
+                        }
+                        onClick={() => void toggleTournamentVisibility(tournament)}
+                        className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {tournament.status === 'draft' ? (
+                          <span aria-hidden="true" className="text-muted">
+                            ◌
+                          </span>
+                        ) : tournament.status === 'published' ? (
+                          <span aria-hidden="true" className="text-success">
+                            ●
+                          </span>
+                        ) : (
+                          <span aria-hidden="true" className="text-muted">
+                            —
+                          </span>
+                        )}
+                        {tournament.status === 'draft'
+                          ? t('organizer.eventHub.dashboard.visibilityDraft')
+                          : tournament.status === 'published'
+                            ? t('organizer.eventHub.dashboard.visibilityPublic')
+                            : statusLabel('tournament', tournament.status, t)}
+                      </button>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <TournamentRowActions
+                        tournament={tournament}
+                        slug={slug}
+                        eventId={eventId}
+                        isArchived={isArchived}
+                        isReadOnly={isReadOnly}
+                        busy={tournamentBusy === tournament.id}
+                        onBusyChange={(busy) => setTournamentBusy(busy ? tournament.id : null)}
+                        onError={setTournamentError}
+                        // The table redraws from the server's answer; the readiness
+                        // checklist counts Tournaments, so it reloads too.
+                        onChanged={async () => {
+                          await Promise.all([reloadStats(), reloadReadiness()]);
+                        }}
+                      />
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
+            </tbody>
+          </DataTable>
+        </section>
       )}
 
-      <ReadinessPanel report={readiness} error={readinessError} slug={slug} eventId={eventId} />
+      <div className="mb-8 grid items-start gap-4 empty:hidden lg:grid-cols-2">
+        {event && vis && (
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  {t('organizer.events.visibilityCardTitle')}
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {vis.isPublic
+                    ? t('organizer.events.visibilityPublicHint')
+                    : t('organizer.events.visibilityHiddenHint')}
+                </p>
+                {!vis.canToggle && (
+                  <p className="mt-1 text-xs text-warning">
+                    {t('organizer.events.visibilityLocked', { status: event.status })}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-3">
+                <span className="text-sm font-semibold text-foreground-secondary">
+                  {vis.isPublic
+                    ? t('organizer.events.visibilityPublic')
+                    : t('organizer.events.visibilityHidden')}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={vis.isPublic}
+                  aria-label={
+                    vis.isPublic ? t('organizer.events.setDraft') : t('organizer.events.setPublic')
+                  }
+                  disabled={!vis.canToggle || isReadOnly || visibilityBusy}
+                  onClick={() => requestVisibilityToggle()}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    vis.isPublic ? 'bg-success' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow transition-transform ${
+                      vis.isPublic ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <ReadinessPanel report={readiness} error={readinessError} slug={slug} eventId={eventId} />
+      </div>
 
       {readiness && (
         <PublishReadinessDialog
@@ -573,10 +800,6 @@ export default function EventDetailPage() {
           {showTournaments ? (
             <>
               <MetricCard
-                label={t('organizer.eventHub.dashboard.tournaments')}
-                value={String(stats?.totals.tournaments ?? 0)}
-              />
-              <MetricCard
                 label={t('organizer.eventHub.dashboard.participants')}
                 value={formatCountOfMax(
                   stats?.totals.registeredFighters ?? 0,
@@ -616,203 +839,6 @@ export default function EventDetailPage() {
             })}
           />
         </div>
-
-        {showTournaments && tournamentError && (
-          <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
-            {tournamentError}
-          </div>
-        )}
-        {showTournaments && (
-          <div className="mt-4">
-            <DataTable>
-              <DataTableHead>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.tournament')}
-                </DataTableCell>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.registered')}
-                </DataTableCell>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.assignedReferees')}
-                </DataTableCell>
-                <DataTableCell as="th">{t('organizer.eventHub.dashboard.colPools')}</DataTableCell>
-                <DataTableCell as="th">{t('organizer.eventHub.dashboard.colSwiss')}</DataTableCell>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.colBracket')}
-                </DataTableCell>
-                <DataTableCell as="th">{t('organizer.eventHub.dashboard.colElim')}</DataTableCell>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.colRuleset')}
-                </DataTableCell>
-                <DataTableCell as="th">{t('organizer.eventHub.dashboard.status')}</DataTableCell>
-                <DataTableCell as="th">
-                  {t('organizer.eventHub.dashboard.visibilityColumn')}
-                </DataTableCell>
-              </DataTableHead>
-              <tbody>
-                {(stats?.tournaments ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-6 text-center text-muted">
-                      {t('organizer.eventHub.dashboard.noTournaments')}
-                    </td>
-                  </tr>
-                )}
-                {(stats?.tournaments ?? []).map((tournament) => {
-                  const settingsHref = `/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings`;
-                  const cellLinkClass =
-                    'block w-full text-foreground-secondary hover:text-accent hover:underline';
-                  const canToggleVisibility =
-                    tournament.status === 'draft' || tournament.status === 'published';
-                  return (
-                    <DataTableRow key={tournament.id}>
-                      <DataTableCell className="font-semibold text-foreground">
-                        <Link
-                          href={settingsHref}
-                          className="inline-flex items-center gap-1.5 hover:text-accent hover:underline"
-                        >
-                          <TournamentColorDot color={tournament.color} />
-                          {tournament.name}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <Link
-                          href={withTournament(
-                            `/org/${slug}/events/${eventId}/persons`,
-                            tournament.id,
-                          )}
-                          className={cellLinkClass}
-                        >
-                          {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <Link
-                          href={`/org/${slug}/events/${eventId}/referees`}
-                          className={cellLinkClass}
-                        >
-                          {tournament.assignedRefereeCount}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <Link
-                          href={withTournament(
-                            `/org/${slug}/events/${eventId}/pools`,
-                            tournament.id,
-                          )}
-                          className={cellLinkClass}
-                        >
-                          {tournament.poolCount ?? 0}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <Link
-                          href={withTournament(
-                            `/org/${slug}/events/${eventId}/swiss`,
-                            tournament.id,
-                          )}
-                          className={cellLinkClass}
-                        >
-                          {tournament.swissRoundCount
-                            ? t('organizer.eventHub.dashboard.swissRounds', {
-                                count: tournament.swissRoundCount,
-                              })
-                            : '—'}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <Link
-                          href={withTournament(
-                            `/org/${slug}/events/${eventId}/bracket`,
-                            tournament.id,
-                          )}
-                          className={cellLinkClass}
-                        >
-                          {tournament.bracketSize ?? '—'}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell className="text-muted">
-                        {tournament.eliminationType === 'single_elim'
-                          ? t('organizer.eventHub.dashboard.elimSingle')
-                          : tournament.eliminationType === 'double_elim'
-                            ? t('organizer.eventHub.dashboard.elimDouble')
-                            : '—'}
-                      </DataTableCell>
-                      <DataTableCell mono>
-                        <Link href={settingsHref} className="hover:text-accent hover:underline">
-                          {tournament.rulesetCode ?? '—'}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <select
-                          aria-label={t('organizer.eventHub.dashboard.status')}
-                          value={tournament.status}
-                          disabled={tournamentBusy === tournament.id || isReadOnly}
-                          onChange={(ev) =>
-                            void changeTournamentStatus(
-                              tournament.id,
-                              tournament.name,
-                              ev.target.value,
-                            )
-                          }
-                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {(
-                            ['draft', 'published', 'running', 'completed', 'archived'] as const
-                          ).map((status) => (
-                            <option key={status} value={status}>
-                              {t(statusLabelKey('tournament', status))}
-                            </option>
-                          ))}
-                        </select>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <button
-                          type="button"
-                          aria-label={
-                            tournament.status === 'draft'
-                              ? t('organizer.eventHub.dashboard.setPublic')
-                              : t('organizer.eventHub.dashboard.setDraft')
-                          }
-                          title={
-                            tournament.status === 'draft'
-                              ? t('organizer.eventHub.dashboard.setPublic')
-                              : tournament.status === 'published'
-                                ? t('organizer.eventHub.dashboard.setDraft')
-                                : statusLabel('tournament', tournament.status, t)
-                          }
-                          disabled={
-                            !canToggleVisibility || tournamentBusy === tournament.id || isReadOnly
-                          }
-                          onClick={() => void toggleTournamentVisibility(tournament)}
-                          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {tournament.status === 'draft' ? (
-                            <span aria-hidden="true" className="text-muted">
-                              ◌
-                            </span>
-                          ) : tournament.status === 'published' ? (
-                            <span aria-hidden="true" className="text-success">
-                              ●
-                            </span>
-                          ) : (
-                            <span aria-hidden="true" className="text-muted">
-                              —
-                            </span>
-                          )}
-                          {tournament.status === 'draft'
-                            ? t('organizer.eventHub.dashboard.visibilityDraft')
-                            : tournament.status === 'published'
-                              ? t('organizer.eventHub.dashboard.visibilityPublic')
-                              : statusLabel('tournament', tournament.status, t)}
-                        </button>
-                      </DataTableCell>
-                    </DataTableRow>
-                  );
-                })}
-              </tbody>
-            </DataTable>
-          </div>
-        )}
       </section>
 
       {aiEnabled && showTournaments && (

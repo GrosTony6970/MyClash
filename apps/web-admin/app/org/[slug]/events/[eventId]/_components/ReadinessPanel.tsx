@@ -42,7 +42,7 @@ export function ReadinessPanel({ report, error, slug, eventId }: Props) {
 
   if (error) {
     return (
-      <section className="mb-8 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+      <section className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
         {error}
       </section>
     );
@@ -50,7 +50,7 @@ export function ReadinessPanel({ report, error, slug, eventId }: Props) {
   if (!report) return null;
 
   return (
-    <section className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-sm">
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-sm">
       <CollapsibleSection
         open={open}
         onToggle={() => setOpen((wasOpen) => !wasOpen)}
