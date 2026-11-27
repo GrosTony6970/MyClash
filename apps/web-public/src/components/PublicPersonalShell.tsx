@@ -11,6 +11,7 @@ import { getPublicApiUrl } from '../lib/api-url';
 import { dropForeignAddress, signOut } from '../lib/phone-alerts';
 import { signInAgainHere } from '../lib/sign-in-return';
 import { resolvePublicPersonal } from './public-personal-decision';
+import { AppLegalFooter } from './AppLegalFooter';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
 import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
@@ -258,6 +259,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         <div className="mt-4 space-y-3 border-t border-border pt-4">
           {accountFooter}
           {logoutAction}
+          <AppLegalFooter placement="sidebar" />
         </div>
       </aside>
 
@@ -332,7 +334,10 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
                 </div>
               )}
               <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-              <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
+              <div className="mt-4 space-y-3 border-t border-border pt-4">
+                {logoutAction}
+                <AppLegalFooter placement="sidebar" />
+              </div>
             </div>
           </div>
         )}

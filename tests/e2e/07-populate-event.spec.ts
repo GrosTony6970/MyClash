@@ -178,7 +178,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
   // A club's logo and the platform clock are a super admin's writes: they go through a second
   // login (E2E_SUPERADMIN_*), and without one they are skipped with a line that says so.
   type Send = (u: string, o?: Parameters<typeof request.post>[1]) => Promise<APIResponse>;
-  const asSuperAdmin = async (label: string, fn: (post: Send, put: Send) => Promise<void>) => {
+  const asSuperAdmin = async (
+    label: string,
+    fn: (post: Send, put: Send, patch: Send, get: Send) => Promise<void>,
+  ) => {
     const email = process.env.E2E_SUPERADMIN_EMAIL ?? '';
     const password = process.env.E2E_SUPERADMIN_PASSWORD ?? '';
     if (!email || !password) {
@@ -192,6 +195,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
         await fn(
           (u, o) => paced(() => platform.post(api(u), o)),
           (u, o) => paced(() => platform.put(api(u), o)),
+          (u, o) => paced(() => platform.patch(api(u), o)),
+          (u, o) => paced(() => platform.get(api(u), o)),
         );
       }
     } finally {
@@ -291,6 +296,38 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     await reqOk(await patch(`persons/${p.id}`, { data: { clubId: id } }));
     attached++;
   }
+  // The profile keeps a club of its own (`global_persons.club_id`): the Global Profiles page and a
+  // fighter's page show it, and the person edit above never reaches it (operator, 2026-11-26). A
+  // demo profile gets its roster club; a linked one (a real person) only when it has none.
+  const linked = new Set(linkedNames(process.env.E2E_POPULATE_LINKED).map(fold));
+  const profileClubs = new Map<string, string>(); // global person id → the club it must hold
+  await asSuperAdmin('profile clubs', async (_post, _put, patchAs, getAs) => {
+    type Profile = { id: string; club_id: string | null };
+    const profileOf = async (p: Person) =>
+      (
+        (await (
+          await reqOk(await getAs(`global-persons?q=${encodeURIComponent(p.familyName)}`))
+        ).json()) as Profile[]
+      ).find((row) => row.id === p.globalPersonId);
+    let given = 0;
+    for (const p of persons) {
+      const id = clubWanted(p);
+      if (!id || !p.globalPersonId) continue;
+      if (linked.has(fold(`${p.givenName} ${p.familyName}`)) && (await profileOf(p))?.club_id) {
+        continue;
+      }
+      await reqOk(await patchAs(`global-persons/${p.globalPersonId}`, { data: { clubId: id } }));
+      profileClubs.set(p.globalPersonId, id);
+      given++;
+    }
+    console.log(`  ✓ clubs on ${given} profiles`);
+    const missing: string[] = [];
+    for (const p of persons) {
+      const want = p.globalPersonId ? profileClubs.get(p.globalPersonId) : undefined;
+      if (want && (await profileOf(p))?.club_id !== want) missing.push(p.familyName);
+    }
+    expect(missing, 'profiles without their roster club').toEqual([]);
+  });
   if (clubIds.size > 0) {
     persons = await listPersons();
     console.log(`  ✓ clubs given back to ${attached} people`);

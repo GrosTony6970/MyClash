@@ -34,6 +34,8 @@ export interface CsvLabels {
   red: string;
   blue: string;
   status: string;
+  /** Names a bracket or Swiss round from its token, for the group column. */
+  roundName: (token: string) => string;
 }
 
 function headerRow(labels: CsvLabels): string[] {
@@ -72,7 +74,8 @@ export function scheduleToCsv(
       // 00:30 Paris bout filed under the previous day on the sheet that gets
       // taped to the wall.
       const day = zonedDay(m.scheduledAt!, tz) ?? m.scheduledAt!.slice(0, 10);
-      const group = m.poolName ?? parseBracketRound(m.roundCode)?.label ?? '';
+      const round = parseBracketRound(m.roundCode);
+      const group = m.poolName ?? (round ? labels.roundName(round.token) : '');
       return {
         day,
         liceName,

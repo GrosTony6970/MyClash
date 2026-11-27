@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toCameraJpeg } from '@/lib/photos/camera-jpeg';
 import { removed, retried, type QueueItem } from '@/lib/photos/photo-queue';
 import type { PhotoFields, PhotoTarget } from '@/lib/photos/send-photo';
 import { photoSender, pickedItems, sendQueued } from '@/lib/photos/send-queue';
@@ -112,6 +113,7 @@ export function usePhotoQueue({ apiUrl, target, t, onSent }: QueueTarget) {
         items: () => itemsRef.current,
         update,
         fields: () => fieldsRef.current,
+        prepare: toCameraJpeg,
         send: photoSender({ apiUrl, target: to, signal }),
         t,
         onClosed: setClosedBy,

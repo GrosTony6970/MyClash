@@ -146,14 +146,21 @@ function compareValues(a: unknown, b: unknown, collator: Intl.Collator): number 
 
 /**
  * `[sortKey, direction]` cycler that pairs with `<SortableHeader>`'s
- * `onToggle`. Cycle: null → asc → desc → null.
+ * `onToggle`. Cycle: null → preferred → opposite → null.
+ *
+ * `preferred` is the column's natural first direction: `'desc'` for a
+ * higher-is-better number (most Matches on top), `'asc'` (the default) for a
+ * name.
  */
 export function nextSortState(
   currentKey: string | null,
   currentDir: 'asc' | 'desc' | null,
   columnKey: string,
+  preferred: 'asc' | 'desc' = 'asc',
 ): { key: string | null; direction: 'asc' | 'desc' | null } {
-  if (currentKey !== columnKey) return { key: columnKey, direction: 'asc' };
-  if (currentDir === 'asc') return { key: columnKey, direction: 'desc' };
+  if (currentKey !== columnKey) return { key: columnKey, direction: preferred };
+  if (currentDir === preferred) {
+    return { key: columnKey, direction: preferred === 'asc' ? 'desc' : 'asc' };
+  }
   return { key: null, direction: null };
 }

@@ -80,4 +80,23 @@ describe('nextSortState', () => {
   it('restarts at asc when another column is clicked', () => {
     expect(nextSortState('name', 'desc', 'score')).toEqual({ key: 'score', direction: 'asc' });
   });
+
+  it('opens a desc-preferred column descending, then flips, then clears', () => {
+    expect(nextSortState(null, null, 'matches', 'desc')).toEqual({
+      key: 'matches',
+      direction: 'desc',
+    });
+    expect(nextSortState('matches', 'desc', 'matches', 'desc')).toEqual({
+      key: 'matches',
+      direction: 'asc',
+    });
+    expect(nextSortState('matches', 'asc', 'matches', 'desc')).toEqual({
+      key: null,
+      direction: null,
+    });
+    expect(nextSortState('name', 'asc', 'matches', 'desc')).toEqual({
+      key: 'matches',
+      direction: 'desc',
+    });
+  });
 });

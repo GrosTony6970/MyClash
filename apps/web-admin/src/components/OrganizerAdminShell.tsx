@@ -26,6 +26,7 @@ import { roleAtLeast } from '@myclash/types';
 import { useIdentityGate } from '../hooks/useIdentityGate';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { AppLegalFooter } from './AppLegalFooter';
 import { resolveWorkspaceOptions } from './workspace-options';
 
 // Flat list of every event-scoped nav item (overview + all themed groups), shown or not. It
@@ -533,6 +534,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           {accountFooter}
           <LanguageSwitcher className="px-3" />
           {logoutAction}
+          <AppLegalFooter placement="sidebar" />
         </div>
       </aside>
 
@@ -632,6 +634,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 {accountFooter}
                 <LanguageSwitcher className="px-3" />
                 {logoutAction}
+                <AppLegalFooter placement="sidebar" />
               </div>
             </div>
           </div>

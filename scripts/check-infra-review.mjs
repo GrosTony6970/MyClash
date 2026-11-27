@@ -1405,6 +1405,10 @@ assertGoTrueSignupRefused(devComposeText, 'infra/docker-compose.dev.yml', {
   host: 'api.myclash.localhost',
 });
 
+// A host's catch-all router must lose to every path router on that host, by an
+// explicit priority — never by the accident of how long the host name is.
+assertCatchAllRoutersLose(devComposeText, 'infra/docker-compose.dev.yml');
+
 // Claude's connector signs a person in through GoTrue's own OAuth server (MCP
 // slice 1). GoTrue writes GOTRUE_JWT_ISSUER into every token's `iss` and builds
 // every URL of its discovery document from it, and the API tells Claude where
@@ -1500,7 +1504,7 @@ function assertGoTrueOAuthServer(mode, serviceMap, text, options) {
     `traefik.http.routers.${discovery.router}.middlewares=${discoveryChain}`,
     `traefik.http.routers.${discovery.router}.service=${service}`,
     // Above the host's catch-all (the public app, or dev's whole-host API
-    // router at its rule-length 29), below the sign-up refusal's 60.
+    // router, both pinned to 1), below the sign-up refusal's 60.
     `traefik.http.routers.${discovery.router}.priority=30`,
     `traefik.http.routers.${oauthRouter}.rule=${oauthRule}`,
     `traefik.http.routers.${oauthRouter}.middlewares=${oauthChain}`,
@@ -1533,20 +1537,9 @@ function assertGoTrueSignupRefused(text, label, { router, middleware, host }) {
         '${MW_*} prefix that TRAEFIK_PLUGINS=off would empty.',
     );
   }
-  // Traefik's default priority is the rule's length: every other router on the
-  // same host, explicit or default, must lose to the refusal. A rule with no
-  // Host() matches every host, so it competes too.
-  const priorityOf = (name) => {
-    const explicit = new RegExp(
-      `traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.priority=(\\d+)`,
-      'u',
-    ).exec(text);
-    if (explicit) return Number(explicit[1]);
-    const rule = new RegExp(`traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.rule=(.*)`, 'u')
-      .exec(text)?.[1]
-      .trim();
-    return rule?.length ?? 0;
-  };
+  // Every other router on the same host, explicit or default, must lose to the
+  // refusal. A rule with no Host() matches every host, so it competes too.
+  const priorityOf = (name) => routerPriority(text, name);
   const own = priorityOf(router);
   for (const match of text.matchAll(/traefik\.http\.routers\.([\w-]+)\.rule=(.*)/gu)) {
     const [, other, rule] = match;
@@ -1557,6 +1550,63 @@ function assertGoTrueSignupRefused(text, label, { router, middleware, host }) {
         `${label} router ${router} (priority ${own}) must outrank ${other} ` +
           `(priority ${priorityOf(other)}) on ${host}, or GoTrue's sign-up door reopens.`,
       );
+    }
+  }
+}
+
+/**
+ * A router's Traefik priority: its explicit `priority=` label, else Traefik's
+ * default, the length of its rule.
+ */
+function routerPriority(text, name) {
+  const explicit = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.priority=(\\d+)`,
+    'u',
+  ).exec(text);
+  if (explicit) return Number(explicit[1]);
+  const rule = new RegExp(`traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.rule=(.*)`, 'u')
+    .exec(text)?.[1]
+    .trim();
+  return rule?.length ?? 0;
+}
+
+/**
+ * A router whose rule is a bare Host() catches the whole host. It must carry an
+ * explicit priority below every other router on that host. Left to Traefik's
+ * default, it ranks by its rule's length, so the host NAME decides whether
+ * /api/v1 or /rest/v1 reaches its service: dev's `Host(\`admin.myclash.localhost\`)`
+ * (31) beat dev-admin-api's 30, and every admin login 404'd on the Next app.
+ */
+function assertCatchAllRoutersLose(text, label) {
+  const rules = [...text.matchAll(/traefik\.http\.routers\.([\w-]+)\.rule=(.*)/gu)].map(
+    ([, name, rule]) => ({ name, rule: rule.trim() }),
+  );
+  for (const catchAll of rules) {
+    const host = /^Host\(`([^`]+)`\)$/u.exec(catchAll.rule)?.[1];
+    if (!host) continue;
+    const siblings = rules.filter(
+      (other) => other.name !== catchAll.name && other.rule.includes(`Host(\`${host}\`)`),
+    );
+    if (siblings.length === 0) continue;
+    const explicit = new RegExp(
+      `traefik\\.http\\.routers\\.${escapeRegExp(catchAll.name)}\\.priority=\\d+`,
+      'u',
+    ).test(text);
+    if (!explicit) {
+      errors.push(
+        `${label} router ${catchAll.name} catches all of ${host} with no explicit priority: ` +
+          'its rule length decides whether it outranks the path routers on that host.',
+      );
+      continue;
+    }
+    const own = routerPriority(text, catchAll.name);
+    for (const sibling of siblings) {
+      if (routerPriority(text, sibling.name) <= own) {
+        errors.push(
+          `${label} router ${catchAll.name} (priority ${own}) must lose to ${sibling.name} ` +
+            `(priority ${routerPriority(text, sibling.name)}) on ${host}.`,
+        );
+      }
     }
   }
 }

@@ -30,7 +30,7 @@ export function nextWaiting(items: readonly QueueItem[]): QueueItem | null {
 export function withState(
   items: readonly QueueItem[],
   key: number,
-  patch: Partial<Omit<QueueItem, 'key' | 'file'>>,
+  patch: Partial<Omit<QueueItem, 'key'>>,
 ): QueueItem[] {
   return items.map((item) => (item.key === key ? { ...item, ...patch } : item));
 }

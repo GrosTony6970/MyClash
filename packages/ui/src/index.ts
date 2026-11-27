@@ -116,6 +116,9 @@ export type { MetricCardProps } from './components/MetricCard';
 export { StatsGrid } from './components/StatsGrid';
 export type { StatsGridProps } from './components/StatsGrid';
 
+export { PointValueBar } from './components/PointValueBar';
+export type { PointValueBarProps } from './components/PointValueBar';
+
 export { DataTable, DataTableHead, DataTableRow, DataTableCell } from './components/DataTable';
 export type { DataTableProps, DataTableRowProps, DataTableCellProps } from './components/DataTable';
 
@@ -281,6 +284,7 @@ export {
   boutName,
   roundLabel,
   roundColumnLabel,
+  roundGroupName,
   type BoutNameParts,
   type RoundTranslator,
 } from './utils/round-label';

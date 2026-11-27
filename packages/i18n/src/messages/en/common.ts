@@ -125,7 +125,11 @@ export const common = {
     final: 'Final',
     semiFinal: 'Semi Final',
     quarterFinal: 'Quarter Final',
-    roundOf: 'Round of {count}',
+    // One key per size: French names these rounds by their fraction of the final.
+    roundOf16: 'Round of 16',
+    roundOf32: 'Round of 32',
+    roundOf64: 'Round of 64',
+    roundOf128: 'Round of 128',
     playIn: 'Play-in',
     bracketRound: 'Round {n}',
     swissRound: 'Swiss Round {n}',
@@ -135,13 +139,21 @@ export const common = {
     winnersFinal: 'Winners Final',
     winnersSemiFinal: 'Winners Semi Final',
     winnersQuarterFinal: 'Winners Quarter Final',
-    winnersRoundOf: 'Winners Round of {count}',
+    winnersRoundOf16: 'Winners Round of 16',
+    winnersRoundOf32: 'Winners Round of 32',
+    winnersRoundOf64: 'Winners Round of 64',
+    winnersRoundOf128: 'Winners Round of 128',
     winnersRound: 'Winners Round {n}',
-    // Bracket COLUMN headers name the whole round, not one bout. Only the
-    // three named rounds inflect — "Round of 16" already reads as a group.
+    // Bracket COLUMN headers name the whole round, not one bout. The
+    // single-elim rounds inflect — "Round of 16" reads as a group in English,
+    // but French says "Huitième" for one bout and "Huitièmes" for the round.
     columnFinals: 'Finals',
     columnSemiFinals: 'Semi Finals',
     columnQuarterFinals: 'Quarter Finals',
+    columnRoundOf16: 'Round of 16',
+    columnRoundOf32: 'Round of 32',
+    columnRoundOf64: 'Round of 64',
+    columnRoundOf128: 'Round of 128',
     // A bout made by hand holds no round: it is named by its phase.
     phasePool: 'Pools',
     phaseSwiss: 'Swiss',
@@ -311,6 +323,10 @@ export const common = {
   simulatedTime: {
     running: 'Simulated time: {time}',
     paused: 'Simulated time, paused: {time}',
+  },
+  // The target-zone bar's legend. Here because the organiser and public stats share it.
+  pointDistribution: {
+    segment: '{points} pt',
   },
   rulesChange,
 } as const satisfies MessageTree;

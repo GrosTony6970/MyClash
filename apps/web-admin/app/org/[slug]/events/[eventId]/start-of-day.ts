@@ -95,12 +95,36 @@ export function buildStartOfDay(report: ReadinessReport): StartOfDayStage[] {
 }
 
 /**
- * Outstanding rows first, then the rest in their server order.
+ * Outstanding rows first, then the same check's rows side by side.
  *
  * Within a stage the organiser wants the work, not the receipt. Cleared rows
  * stay visible underneath rather than being filtered out — "pools: 4 created"
  * is how you confirm you are looking at the right event.
+ *
+ * The server sends one row per Tournament, Tournament by Tournament. Left in
+ * that order, an Event with two Tournaments read "Ruleset, Fighters, Ruleset,
+ * Fighters": the same check twice, apart. Keys keep the order they first
+ * appear in, and the sort is stable, so each key's rows stay in Tournament order.
  */
 function sortOutstandingFirst(checks: ReadinessCheck[]): ReadinessCheck[] {
-  return [...checks].sort((a, b) => Number(isOutstanding(b)) - Number(isOutstanding(a)));
+  const keyOrder = [...new Set(checks.map((check) => check.key))];
+  return [...checks].sort(
+    (a, b) =>
+      Number(isOutstanding(b)) - Number(isOutstanding(a)) ||
+      keyOrder.indexOf(a.key) - keyOrder.indexOf(b.key),
+  );
+}
+
+/**
+ * The Tournament a row belongs to, to show beside its label — or null.
+ *
+ * Start of day lists every Tournament's rows together, so two "Ruleset" rows
+ * need a name to tell them apart. With a single Tournament there is nothing to
+ * tell apart, and an Event-level row belongs to no Tournament.
+ */
+export function tournamentTag(report: ReadinessReport, check: ReadinessCheck): string | null {
+  if (check.tournamentId === null || report.tournaments.length < 2) return null;
+  return (
+    report.tournaments.find((tournament) => tournament.id === check.tournamentId)?.name ?? null
+  );
 }

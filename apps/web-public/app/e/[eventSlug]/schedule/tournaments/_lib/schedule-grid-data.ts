@@ -137,9 +137,11 @@ function breakEndSlot(hhmm: string, startSlot: number): number {
   return Math.max(startSlot + 1, Math.max(0, Math.ceil(endMin / SLOT_MINUTES)));
 }
 
+/** `roundName` names a round block in the visitor's language ("R16" → "Huitièmes de finale"). */
 export async function loadTournamentSchedule(
   eventSlug: string,
   apiUrl: string,
+  roundName: (token: string) => string,
 ): Promise<TournamentScheduleData> {
   const event = await eventOrNotFound(eventSlug);
   const tz = event.timezone || 'Europe/Paris';
@@ -196,7 +198,7 @@ export async function loadTournamentSchedule(
       durationMinutes: m.durationMinutes,
       status: m.status,
     }));
-    for (const b of buildScheduleBlocks(inputs)) {
+    for (const b of buildScheduleBlocks(inputs, roundName)) {
       blocks.push({
         key: `${day.index}:${b.key}`,
         dayIndex: day.index,

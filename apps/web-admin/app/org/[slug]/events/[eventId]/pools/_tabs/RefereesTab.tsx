@@ -24,9 +24,11 @@
  * and nothing else. The bracket and Swiss tabs read the same payload.
  */
 
-import { useMemo, useState } from 'react';
-import { type AppLocale } from '@myclash/time';
+import { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_EVENT_TIMEZONE, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { nameOrUnknown } from '@myclash/ui';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
@@ -65,6 +67,18 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
+  // The Event's zone, so the timeline reads days and times on its clock. Same
+  // read and same fallback as the Referees page: a failed fetch leaves the default.
+  const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
+  useEffect(() => {
+    const controller = new AbortController();
+    void apiRequest<{ timezone?: string | null }>(getPublicApiUrl(), `/api/v1/events/${eventId}`, {
+      signal: controller.signal,
+    }).then((r) => {
+      if (r.ok && r.data.timezone) setEventTz(r.data.timezone);
+    });
+    return () => controller.abort();
+  }, [eventId]);
 
   const tournamentPools = useMemo(
     () =>
@@ -140,6 +154,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         pools={timelinePools}
         title={t('organizer.poolsPage.refereesTimelineTitle')}
         emptyLabel={t('organizer.poolsPage.refereesTimelineEmpty')}
+        timeZone={eventTz}
+        eventId={eventId}
       />
 
       {concurrentPools.length > 0 && (

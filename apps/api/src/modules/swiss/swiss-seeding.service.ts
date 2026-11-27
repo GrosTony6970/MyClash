@@ -70,9 +70,15 @@ export class SwissSeedingService {
       const { ratings, coverage } = await this.ratingsFor(tournamentId, registrations);
       const threshold = dto.minRatingCoveragePercent ?? 0;
       if (coverage.percent < threshold) {
-        throw new BadRequestException(
-          `Only ${coverage.rated} of ${coverage.total} fighters (${coverage.percent}%) have a HEMA rating, below the ${threshold}% required. Seed by random draw instead, or lower the threshold.`,
-        );
+        // Coded, with its numbers, so the Swiss screen says it in the reader's language.
+        throw new BadRequestException({
+          code: 'rating_coverage_low',
+          message: `Only ${coverage.rated} of ${coverage.total} fighters (${coverage.percent}%) have a HEMA rating, below the ${threshold}% required. Seed by random draw instead, or lower the threshold.`,
+          rated: coverage.rated,
+          total: coverage.total,
+          percent: coverage.percent,
+          threshold,
+        });
       }
       return {
         order: idsOf(rankByRating(registrations, ratings)),
@@ -145,9 +151,10 @@ export class SwissSeedingService {
 
     const phase = ((data ?? []) as Array<{ id: string; type: string; status: string }>)[0];
     if (!phase) {
-      throw new BadRequestException(
-        'by-pool-rank seeding needs a pool phase on this tournament; none was found.',
-      );
+      throw new BadRequestException({
+        code: 'pool_phase_missing',
+        message: 'by-pool-rank seeding needs a pool phase on this tournament; none was found.',
+      });
     }
 
     const { data: matches } = await this.supabase.service
@@ -156,9 +163,11 @@ export class SwissSeedingService {
       .eq('phase_id', phase.id);
     const rows = (matches ?? []) as Array<{ status: string }>;
     if (rows.length === 0 || rows.some((m) => m.status !== 'completed')) {
-      throw new BadRequestException(
-        'by-pool-rank seeding needs the pool phase to be complete; some bouts are still open.',
-      );
+      throw new BadRequestException({
+        code: 'pool_phase_open',
+        message:
+          'by-pool-rank seeding needs the pool phase to be complete; some bouts are still open.',
+      });
     }
 
     const { data: members } = await this.supabase.service

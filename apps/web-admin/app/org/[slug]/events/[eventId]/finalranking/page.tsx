@@ -22,6 +22,7 @@ import {
   useToast,
   computeFinalRanking,
   rankingBracketShape,
+  roundGroupName,
   type FinalRankingEntry,
   CsvExportMenu,
 } from '@myclash/ui';
@@ -320,5 +321,5 @@ function roundLabel(round: number, maxRound: number, t: Translator): string {
   if (remaining <= 0) return t('organizer.finalRanking.roundFinal');
   if (remaining === 1) return t('organizer.finalRanking.roundSemis');
   if (remaining === 2) return t('organizer.finalRanking.roundQuarters');
-  return t('organizer.finalRanking.roundOfN', { n: 1 << (remaining + 1) });
+  return roundGroupName(`R${1 << (remaining + 1)}`, t);
 }

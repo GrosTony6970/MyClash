@@ -49,6 +49,47 @@ export function readinessSemantic(level: ReadinessLevel): StatusSemantic {
   }
 }
 
+export interface ReadinessMark {
+  /** The symbol inside the mark. Its shape tells the levels apart without colour. */
+  glyph: string;
+  /** The mark's fill and ink: the SOLID status token, never the pale chip palette. */
+  markClassName: string;
+  /** The row's flag: an edge and a light wash on a row with work left, nothing otherwise. */
+  rowClassName: string;
+}
+
+/**
+ * How a level looks on a checklist row.
+ *
+ * The row mark used to borrow the chip palette (`bg-emerald-50 border-emerald-200`). That palette
+ * sits BEHIND words, so a 10 px dot painted with it came out almost white, and an organiser could
+ * not tell a cleared row from one with work left. The mark is a solid disc in the theme's status
+ * colour, with the glyphs the toasts already use.
+ *
+ * A flagged row's wash is 5 %: every status ink clears 4.5:1 on its own 15 % wash, and the row
+ * puts its message in the secondary ink, never the muted one (known-deviations D35).
+ */
+export function readinessMark(level: ReadinessLevel): ReadinessMark {
+  switch (level) {
+    case 'critical':
+      return {
+        glyph: '✕',
+        markClassName: 'bg-danger text-danger-foreground',
+        rowClassName: 'border-l-4 border-l-danger bg-danger/5',
+      };
+    case 'warn':
+      return {
+        glyph: '!',
+        markClassName: 'bg-warning text-warning-foreground',
+        rowClassName: 'border-l-4 border-l-warning bg-warning/5',
+      };
+    case 'ok':
+      return { glyph: '✓', markClassName: 'bg-success text-success-foreground', rowClassName: '' };
+    case 'info':
+      return { glyph: 'i', markClassName: 'bg-info text-info-foreground', rowClassName: '' };
+  }
+}
+
 /** Levels that represent outstanding work, worst first. */
 export const OUTSTANDING_LEVELS: ReadinessLevel[] = ['critical', 'warn'];
 

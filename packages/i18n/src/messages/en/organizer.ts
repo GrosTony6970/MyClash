@@ -1122,7 +1122,7 @@ export const organizer = {
       live: 'Live now',
       completed: 'Completed',
       visibility: 'Visibility: {status}',
-      tournaments: 'Tournaments',
+      tournamentsSection: 'Tournaments ({count})',
       participants: 'Participants',
       uniqueFighters: 'Unique fighters',
       uniqueReferees: 'Unique referees',
@@ -1347,7 +1347,6 @@ export const organizer = {
     },
     pointDistribution: {
       title: 'Target zones',
-      segment: '{points} pt',
       noWeapon: 'No weapon',
     },
     referees: {
@@ -1361,6 +1360,11 @@ export const organizer = {
       colCards: 'Cards',
       colProtests: 'Protests',
       colAvgTime: 'Avg. time',
+      colAvgLead: 'Avg. lead',
+      colAvgAssessor: 'Avg. assessor',
+      colAvgTable: 'Avg. table',
+      searchReferee: 'Search a referee',
+      noMatch: 'No referee matches.',
       empty: 'No refereeing recorded yet.',
     },
   },
@@ -1852,6 +1856,12 @@ export const organizer = {
       fighterOut:
         'This fighter is out of the tournament (withdrawn or disqualified): bring them back first.',
       fieldChanged: 'The field changed while the round was being paired: try again.',
+      poolPhaseMissing:
+        'Seeding by pool rank needs a pool phase in this tournament, and there is none.',
+      poolPhaseOpen:
+        'Seeding by pool rank needs every pool bout finished: some bouts are still open.',
+      ratingCoverageLow:
+        'Only {rated} of {total} fighters ({percent}%) have a HEMA rating, below the {threshold}% required. Seed by random draw, or lower the threshold.',
     },
     rounds: {
       roundHasRecords: 'This round holds a black card or a forfeit: take it back first.',
@@ -2617,7 +2627,6 @@ export const organizer = {
     roundFinal: 'Final',
     roundSemis: 'Semi-finals',
     roundQuarters: 'Quarter-finals',
-    roundOfN: 'Round of {n}',
     printTitle: '{name} — Final ranking',
     tournamentFallback: 'Tournament',
   },
@@ -2879,6 +2888,9 @@ export const organizer = {
     refereesUnassign: 'Unassign',
     refereesUnassigned: 'Unassigned',
     refereesTournamentTabsLabel: 'Switch tournament',
+    refereesFilterLabel: 'Find a referee',
+    refereesFilterPlaceholder: 'Referee name',
+    refereesFilterNoMatch: 'No bout has a referee matching "{query}".',
   },
   pools: {
     tabs: {

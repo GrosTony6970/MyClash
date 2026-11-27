@@ -5333,7 +5333,10 @@ The server keeps the picture and nothing else. `jpeg-strip.ts` walks the JPEG an
 segments that draw the image, by whitelist: EXIF, GPS, thumbnails, comments and everything after
 the first end-of-image marker go. The picture bytes are copied as sent, with no re-compression.
 Only what phone cameras write is accepted (one baseline or extended-sequential frame in one scan,
-at most 64 megapixels), so decode memory is bounded. `photo-preview.ts` makes a 1024-pixel preview
+at most 64 megapixels), so decode memory is bounded. The phone page sends a JPEG of that shape as it
+is; any other JPEG (a website's, often progressive, or a Google Photos cloud copy) it draws on a
+canvas and sends as a new baseline JPEG, re-compressed (`camera-jpeg.ts`, ruling 1004). The API's
+check is unchanged and stays the authority. `photo-preview.ts` makes a 1024-pixel preview
 from the stripped bytes. The objects are written first and the row last.
 
 In `live` mode the photo is public at once. In `approve` mode it waits for a moderator.

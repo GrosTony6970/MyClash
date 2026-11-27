@@ -244,15 +244,23 @@ export function roundTokenLabel(token: string | null | undefined): RoundLabelDes
     WBF: 'common.round.winnersFinal',
     WBSF: 'common.round.winnersSemiFinal',
     WBQF: 'common.round.winnersQuarterFinal',
+    // One key per size, not "Round of {count}": French names these rounds by
+    // their fraction of the final ("Huitièmes de finale" for R16), which no
+    // count can fill in. A bracket holds at most 128 fighters.
+    R16: 'common.round.roundOf16',
+    R32: 'common.round.roundOf32',
+    R64: 'common.round.roundOf64',
+    R128: 'common.round.roundOf128',
+    WBR16: 'common.round.winnersRoundOf16',
+    WBR32: 'common.round.winnersRoundOf32',
+    WBR64: 'common.round.winnersRoundOf64',
+    WBR128: 'common.round.winnersRoundOf128',
   };
   const named = NAMED[token];
   if (named) return { key: named };
 
-  // Counted forms. Each pattern is anchored so `WBR16` can't be mistaken for
-  // `R16` — the winners-bracket prefixes are tested first for that reason.
-  const wbRoundOf = /^WBR(\d+)$/.exec(token);
-  if (wbRoundOf) return { key: 'common.round.winnersRoundOf', params: { count: wbRoundOf[1]! } };
-
+  // Counted forms. Each pattern is anchored so `WBB2` can't be mistaken for
+  // `B2` — the winners-bracket prefixes are tested first for that reason.
   const wbFallback = /^WBB(\d+)$/.exec(token);
   if (wbFallback) return { key: 'common.round.winnersRound', params: { n: wbFallback[1]! } };
 
@@ -261,9 +269,6 @@ export function roundTokenLabel(token: string | null | undefined): RoundLabelDes
 
   const swiss = /^S(\d+)$/.exec(token);
   if (swiss) return { key: 'common.round.swissRound', params: { n: swiss[1]! } };
-
-  const roundOf = /^R(\d+)$/.exec(token);
-  if (roundOf) return { key: 'common.round.roundOf', params: { count: roundOf[1]! } };
 
   const fallback = /^B(\d+)$/.exec(token);
   if (fallback) return { key: 'common.round.bracketRound', params: { n: fallback[1]! } };

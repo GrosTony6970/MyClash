@@ -31,14 +31,19 @@ export function roundLabel(token: string | null | undefined, t: RoundTranslator)
 
 /**
  * Same expansion for a bracket COLUMN header, which names the whole round
- * rather than one bout — "Semi Finals", not "Semi Final". Only the three named
- * rounds inflect; "Round of 16" already reads as a group, so everything else
- * falls through to {@link roundLabel} rather than carry a duplicate key.
+ * rather than one bout — "Semi Finals", not "Semi Final". The single-elim rounds
+ * inflect: "Round of 16" reads as a group in English, but French says
+ * "Huitième de finale" for one bout and "Huitièmes de finale" for the round.
+ * Everything else falls through to {@link roundLabel}.
  */
 const PLURAL_KEYS: Record<string, string> = {
   'common.round.final': 'common.round.columnFinals',
   'common.round.semiFinal': 'common.round.columnSemiFinals',
   'common.round.quarterFinal': 'common.round.columnQuarterFinals',
+  'common.round.roundOf16': 'common.round.columnRoundOf16',
+  'common.round.roundOf32': 'common.round.columnRoundOf32',
+  'common.round.roundOf64': 'common.round.columnRoundOf64',
+  'common.round.roundOf128': 'common.round.columnRoundOf128',
 };
 
 /** A phase as one word, for a bout that holds no round of its own: one made by hand. */
@@ -79,4 +84,14 @@ export function roundColumnLabel(
   if (!descriptor) return null;
   const plural = PLURAL_KEYS[descriptor.key];
   return t(plural ?? descriptor.key, descriptor.params);
+}
+
+/**
+ * The heading of a group of bracket or Swiss bouts: the schedule's round blocks, the
+ * planning sidebar, the CSV's group column, the bracket Referees tab. A group with no
+ * round — bouts made by hand — is named by its phase, "Bracket", never a raw code and
+ * never an English word.
+ */
+export function roundGroupName(token: string | null | undefined, t: RoundTranslator): string {
+  return roundColumnLabel(token, t) ?? t('common.round.phaseBracket');
 }

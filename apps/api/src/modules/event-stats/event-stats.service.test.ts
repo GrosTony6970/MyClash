@@ -365,6 +365,9 @@ describe('EventStatsService', () => {
     expect(jane.roles.arbitre_declarant).toBe(2);
     expect(jane.cards.yellow).toBe(1); // declarant on m1
     expect(jane.averageRefereeTimeMs).toBe(90000); // (60000 + 120000) / 2
+    const max = res.referees.find((r) => r.personId === 'ref-2')!;
+    expect(jane.averageTimeMsByRole).toMatchObject({ arbitre_declarant: 90000, arbitre_table: 0 });
+    expect(max.averageTimeMsByRole.arbitre_assesseur).toBe(120000);
     // Declarant on m1 (2) and m2 (1); m3 is not completed.
     expect(jane.protests).toBe(3);
     // Max assessed m2: a protest counts for the declarant only.

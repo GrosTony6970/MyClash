@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { fuzzyMatch, sortRows } from '@myclash/ui';
+import { fuzzyMatch, nextSortState, sortRows } from '@myclash/ui';
 
 /**
  * Minimal row shape the standings filter/sort needs. Both the pools-tab row
@@ -57,14 +57,9 @@ export function useStandingsView<T extends StandingsRowLike>(rows: readonly T[])
   );
 
   const toggle = useCallback((columnKey: string, sortDesc?: boolean) => {
-    const preferred: 'asc' | 'desc' = sortDesc ? 'desc' : 'asc';
-    setSort((prev) => {
-      if (prev.key !== columnKey) return { key: columnKey, direction: preferred };
-      if (prev.direction === preferred) {
-        return { key: columnKey, direction: preferred === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key: null, direction: null };
-    });
+    setSort((prev) =>
+      nextSortState(prev.key, prev.direction, columnKey, sortDesc ? 'desc' : 'asc'),
+    );
   }, []);
 
   return {

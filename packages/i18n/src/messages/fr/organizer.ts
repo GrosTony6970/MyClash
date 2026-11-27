@@ -1123,7 +1123,7 @@ export const organizer = {
       live: 'En direct',
       completed: 'Terminé',
       visibility: 'Visibilité : {status}',
-      tournaments: 'Tournois',
+      tournamentsSection: 'Tournois ({count})',
       participants: 'Participants',
       uniqueFighters: 'Combattants uniques',
       uniqueReferees: 'Arbitres uniques',
@@ -1346,7 +1346,6 @@ export const organizer = {
     },
     pointDistribution: {
       title: 'Zones de cible',
-      segment: '{points} pt',
       noWeapon: 'Sans arme',
     },
     referees: {
@@ -1360,6 +1359,11 @@ export const organizer = {
       colCards: 'Cartons',
       colProtests: 'Réclamations',
       colAvgTime: 'Temps moy.',
+      colAvgLead: 'Moy. déclarant',
+      colAvgAssessor: 'Moy. assesseur',
+      colAvgTable: 'Moy. table',
+      searchReferee: 'Rechercher un arbitre',
+      noMatch: 'Aucun arbitre ne correspond.',
       empty: 'Aucun arbitrage enregistré pour le moment.',
     },
   },
@@ -1848,6 +1852,12 @@ export const organizer = {
       fighterOut:
         'Ce combattant est hors du tournoi (retiré ou disqualifié) : réintégrez-le d’abord.',
       fieldChanged: 'Les combattants ont changé pendant l’appariement de la ronde : réessayez.',
+      poolPhaseMissing:
+        'Le classement par rang de poule demande une phase de poules dans ce tournoi, et il n’y en a pas.',
+      poolPhaseOpen:
+        'Le classement par rang de poule demande que tous les combats de poule soient terminés : certains sont encore ouverts.',
+      ratingCoverageLow:
+        'Seuls {rated} combattants sur {total} ({percent} %) ont un classement HEMA, sous les {threshold} % requis. Tirez au sort, ou baissez le seuil.',
     },
     rounds: {
       roundHasRecords: 'Cette ronde porte un carton noir ou un forfait : annulez-le d’abord.',
@@ -2586,7 +2596,6 @@ export const organizer = {
     roundFinal: 'Finale',
     roundSemis: 'Demi-finales',
     roundQuarters: 'Quarts de finale',
-    roundOfN: 'Tableau de {n}',
     printTitle: '{name} — Classement final',
     tournamentFallback: 'Tournoi',
   },
@@ -2845,6 +2854,9 @@ export const organizer = {
     refereesUnassign: 'Retirer',
     refereesUnassigned: 'Non affecté',
     refereesTournamentTabsLabel: 'Changer de tournoi',
+    refereesFilterLabel: 'Rechercher un arbitre',
+    refereesFilterPlaceholder: "Nom de l'arbitre",
+    refereesFilterNoMatch: "Aucun combat n'a d'arbitre correspondant à « {query} ».",
   },
   pools: {
     tabs: {

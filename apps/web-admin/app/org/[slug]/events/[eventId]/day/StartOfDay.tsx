@@ -3,11 +3,12 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '@myclash/api-client';
+import { StatusBadge } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { ReadinessRow } from '../_components/ReadinessPanel';
 import { isOutstanding, type ReadinessReport } from '../readiness-copy';
-import { buildStartOfDay, type StartOfDayStage } from '../start-of-day';
+import { buildStartOfDay, tournamentTag, type StartOfDayStage } from '../start-of-day';
 
 interface Props {
   slug: string;
@@ -103,7 +104,14 @@ function StageList({
       </p>
       <ol className="mt-4 space-y-4">
         {stages.map((stage, index) => (
-          <Stage key={stage.key} stage={stage} index={index + 1} slug={slug} eventId={eventId} />
+          <Stage
+            key={stage.key}
+            stage={stage}
+            index={index + 1}
+            report={report}
+            slug={slug}
+            eventId={eventId}
+          />
         ))}
       </ol>
     </>
@@ -121,11 +129,13 @@ function StageList({
 function Stage({
   stage,
   index,
+  report,
   slug,
   eventId,
 }: {
   stage: StartOfDayStage;
   index: number;
+  report: ReadinessReport;
   slug: string;
   eventId: string;
 }) {
@@ -146,13 +156,16 @@ function Stage({
         // is more honest than a green tick.
         <p className="mt-2 text-sm text-muted">{t('organizer.startOfDay.stageEmpty')}</p>
       ) : (
-        <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+        // `bg-surface`: the current stage's accent wash must not reach the rows, where it put
+        // the muted message ink under 4.5:1 (known-deviations D35).
+        <ul className="mt-3 divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
           {stage.checks.map((check) => (
             <ReadinessRow
               key={`${check.tournamentId ?? 'event'}-${check.key}`}
               check={check}
               slug={slug}
               eventId={eventId}
+              tournamentName={tournamentTag(report, check) ?? undefined}
             />
           ))}
         </ul>
@@ -165,18 +178,24 @@ function StageHeader({ stage, index }: { stage: StartOfDayStage; index: number }
   const { t } = useI18n();
 
   const done = stage.outstandingCount === 0;
+  const blocking = stage.checks.some((check) => check.level === 'critical');
 
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="font-semibold text-foreground">
         <span className="mr-2 text-muted">{index}</span>
         {t(`organizer.startOfDay.stage.${stage.key}`)}
       </h2>
-      <span className={`text-xs font-semibold ${done ? 'text-success' : 'text-warning'}`}>
+      <StatusBadge semantic={done ? 'done' : blocking ? 'danger' : 'paused'}>
+        {done && (
+          <span aria-hidden="true" className="mr-1">
+            ✓
+          </span>
+        )}
         {done
           ? t('organizer.startOfDay.stageClear')
           : t('organizer.startOfDay.stageOutstanding', { count: stage.outstandingCount })}
-      </span>
+      </StatusBadge>
     </div>
   );
 }

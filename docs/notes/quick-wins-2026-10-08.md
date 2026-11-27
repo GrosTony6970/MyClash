@@ -4294,6 +4294,15 @@ to see in a side panel the corresponding log, a bit like Azure event viewer". Sp
 | Error text (913) | A failed restart keeps only "failed, exit code 1, not timed out": no error text.                                                | **Not now**: the panel shows what is stored. Keeping a failed action's last output lines is its own slice (the runner returns them; check them for secrets first). | —                                      |
 | No outcome (914) | Most rows (an Event edit) record no outcome: they are written after the change succeeded.                                       | **A dash.** Only system actions get a mark: green Succeeded, red Failed, grey Started. One rule, on the server.                                                    | `audit-outcome.ts`                     |
 
+### Rulings — operator, 2026-11-27: a photo a camera did not write
+
+Asked when the test Event refused `m-magazine-1.jfif` (saved from a website) and a photo picked
+from the Android gallery: the API keeps only the JPEG shape a camera writes (`jpeg-strip.ts`).
+
+| Row            | Story                                                                                                                              | Ruling                                                                                                                                                                    | Files                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Convert (1004) | A spectator sends a picture saved from a website, or a Google Photos cloud copy. Both are often progressive; the API refuses them. | **The phone converts it first**: drawn on a canvas, sent as one baseline scan, re-compressed. A camera JPEG is still sent byte for byte. The API's check does not change. | `apps/web-public/src/lib/photos/camera-jpeg.ts` |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

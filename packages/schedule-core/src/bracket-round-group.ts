@@ -1,5 +1,5 @@
 /**
- * Parse a round-bearing match code into a stable group key, human label,
+ * Parse a round-bearing match code into a stable group key (its round token)
  * and sort order so the Schedule sidebar can group matches by phase round
  * (Swiss rounds → Play-ins → Final), the same way pools group.
  *
@@ -10,8 +10,9 @@
  * Pool codes (`LSW-P1-M3`) and anything without a round segment return
  * null, so only round-bearing matches get grouped.
  *
- * Label vocabulary mirrors bracketRoundLabel() in @myclash/types and
- * the BracketView round headers. Pure: no React, no I/O.
+ * It names nothing: a round is named in the reader's language from its token,
+ * through `roundColumnLabel` / `roundLabel` in @myclash/ui. An English label
+ * here once reached French organisers and the public schedule. Pure: no React, no I/O.
  *
  * Named `parseBracketRound` for its original bracket-only scope; kept as-is
  * because five call sites across web-admin import it from the package barrel
@@ -20,8 +21,6 @@
 export interface BracketRound {
   /** Round token from the code: S<n> / PI / R16 / QF / SF / F / B<n>. */
   token: string;
-  /** Human label, e.g. "Swiss Round 3", "Play-ins", "Quarter-finals". */
-  label: string;
   /** Sort order, ascending = Swiss rounds first … final last. */
   order: number;
 }
@@ -40,7 +39,7 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
   if (bIdx === -1 || bIdx + 1 >= parts.length) return null;
   const token = parts[bIdx + 1]!;
 
-  if (token === 'PI') return { token, label: 'Play-ins', order: 0 };
+  if (token === 'PI') return { token, order: 0 };
 
   const de = parseDoubleElimToken(token);
   if (de) return de;
@@ -50,16 +49,12 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
   // R32 < R16 < QF(8) < SF(4) < F(2), all after play-ins (0).
   const FIGHTERS_LEFT: Record<string, number> = { F: 2, SF: 4, QF: 8 };
   const named = FIGHTERS_LEFT[token];
-  if (named !== undefined) {
-    const label = token === 'F' ? 'Final' : token === 'SF' ? 'Semi-finals' : 'Quarter-finals';
-    return { token, label, order: 1000 - named };
-  }
+  if (named !== undefined) return { token, order: 1000 - named };
 
   // R<k> (Round of 128/64/32/16): k = fighters left at that round.
   const rMatch = /^R(\d+)$/.exec(token);
   if (rMatch) {
-    const k = Number(rMatch[1]);
-    return { token, label: `Round of ${k}`, order: 1000 - k };
+    return { token, order: 1000 - Number(rMatch[1]) };
   }
 
   // B<n>: the generator's fallback when the named round can't be
@@ -67,8 +62,7 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
   // Group by absolute round number, sorted after the named rounds.
   const bMatch = /^B(\d+)$/.exec(token);
   if (bMatch) {
-    const n = Number(bMatch[1]);
-    return { token, label: `Round ${n}`, order: 1000 + n };
+    return { token, order: 1000 + Number(bMatch[1]) };
   }
 
   return null;
@@ -88,8 +82,7 @@ function parseSwissToken(parts: string[]): BracketRound | null {
   for (const part of parts) {
     const m = /^S(\d+)$/.exec(part);
     if (!m) continue;
-    const n = Number(m[1]);
-    return { token: part, label: `Swiss Round ${n}`, order: -1000 + n };
+    return { token: part, order: -1000 + Number(m[1]) };
   }
   return null;
 }
@@ -102,29 +95,23 @@ function parseSwissToken(parts: string[]): BracketRound | null {
  * single-elim band (1000+) since the two never mix within one phase.
  */
 function parseDoubleElimToken(token: string): BracketRound | null {
-  if (token === 'GF') return { token, label: 'Grand Final', order: 900 };
-  if (token === 'GFR') return { token, label: 'Grand Final Reset', order: 901 };
+  if (token === 'GF') return { token, order: 900 };
+  if (token === 'GFR') return { token, order: 901 };
 
   const lbMatch = /^LB(\d+)$/.exec(token);
   if (lbMatch) {
-    const k = Number(lbMatch[1]);
-    return { token, label: `Losers Round ${k}`, order: 500 + k };
+    return { token, order: 500 + Number(lbMatch[1]) };
   }
 
   const wbMatch = /^WB(F|SF|QF|R\d+|B\d+)$/.exec(token);
   if (!wbMatch) return null;
   const inner = wbMatch[1]!;
-  const NAMED: Record<string, { label: string; left: number }> = {
-    F: { label: 'Winners Final', left: 2 },
-    SF: { label: 'Winners Semi-finals', left: 4 },
-    QF: { label: 'Winners Quarter-finals', left: 8 },
-  };
-  const hit = NAMED[inner];
-  if (hit) return { token, label: hit.label, order: 100 + (1000 - hit.left) / 10 };
+  const LEFT: Record<string, number> = { F: 2, SF: 4, QF: 8 };
+  const left = LEFT[inner];
+  if (left !== undefined) return { token, order: 100 + (1000 - left) / 10 };
   const r = /^R(\d+)$/.exec(inner);
   if (r) {
-    const k = Number(r[1]);
-    return { token, label: `Winners Round of ${k}`, order: 100 + (1000 - k) / 10 };
+    return { token, order: 100 + (1000 - Number(r[1])) / 10 };
   }
-  return { token, label: `Winners ${inner}`, order: 199 };
+  return { token, order: 199 };
 }

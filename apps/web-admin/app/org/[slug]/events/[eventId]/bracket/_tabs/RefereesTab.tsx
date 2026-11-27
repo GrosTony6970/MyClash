@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { slotRoleName } from '@/lib/referee-role-name';
-import { nameOrUnknown } from '@myclash/ui';
+import { fuzzyMatch, nameOrUnknown, roundGroupName } from '@myclash/ui';
 import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
 import {
@@ -47,6 +47,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     error,
     skillNameById,
     skillColorById,
+    liceNameById,
     manualAssign,
     unassign,
   } = useAssignmentBoard(eventId, {
@@ -91,9 +92,22 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     [allBoardPools, activeTournamentId],
   );
 
+  /** The referee-name filter: "bellini" keeps the bouts Bellini holds any slot on.
+   *  Kept across tournament tabs, to find the same referee in the other one. */
+  const [query, setQuery] = useState('');
+  const shownPools = useMemo(
+    () =>
+      query.trim()
+        ? bracketPools.filter((p) =>
+            p.roleSlots.some((s) => s.assignment && fuzzyMatch(query, s.assignment.displayName)),
+          )
+        : bracketPools,
+    [bracketPools, query],
+  );
+
   // Group every bracket + finals match of the active tournament into round
   // sections (Play-ins → Round of 16 → … → Final), ordered play-ins first.
-  const sections = useMemo(() => groupBracketPoolsBySection(bracketPools), [bracketPools]);
+  const sections = useMemo(() => groupBracketPoolsBySection(shownPools), [shownPools]);
 
   if (loading && !board) {
     return <p className="text-sm text-muted">{t('organizer.bracketPage.refereesLoading')}</p>;
@@ -140,15 +154,32 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         </nav>
       )}
 
+      <input
+        type="search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        aria-label={t('organizer.bracketPage.refereesFilterLabel')}
+        placeholder={t('organizer.bracketPage.refereesFilterPlaceholder')}
+        className="w-full max-w-xs rounded-md border border-border bg-surface px-3 py-1.5 text-sm"
+      />
+
+      {query.trim() && sections.length === 0 && (
+        <p className="text-sm text-muted">
+          {t('organizer.bracketPage.refereesFilterNoMatch', { query: query.trim() })}
+        </p>
+      )}
+
       {sections.map((section) => (
         <BracketMatchSection
-          key={section.label}
-          title={section.label}
+          key={section.token ?? ''}
+          // A bout made by hand holds no round: roundGroupName names it by its phase.
+          title={roundGroupName(section.token, t)}
           pools={section.pools}
           isReadOnly={isReadOnly || board.locked}
           busy={busy}
           skillNameById={skillNameById}
           skillColorById={skillColorById}
+          liceNameById={liceNameById}
           onAssignClick={(pool, slot) => setPicker({ pool, slot })}
           onUnassign={(id) => void unassign(id)}
         />
@@ -176,6 +207,7 @@ function BracketMatchSection({
   busy,
   skillNameById,
   skillColorById,
+  liceNameById,
   onAssignClick,
   onUnassign,
 }: {
@@ -185,6 +217,7 @@ function BracketMatchSection({
   busy: boolean;
   skillNameById: Map<string, string>;
   skillColorById: Map<string, string>;
+  liceNameById: Map<string, string>;
   onAssignClick: (pool: AssignmentBoardPool, slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
@@ -199,6 +232,7 @@ function BracketMatchSection({
           busy={busy}
           skillNameById={skillNameById}
           skillColorById={skillColorById}
+          liceName={pool.liceId ? (liceNameById.get(pool.liceId) ?? null) : null}
           onAssignClick={(slot) => onAssignClick(pool, slot)}
           onUnassign={onUnassign}
         />
@@ -213,6 +247,7 @@ function BracketMatchCard({
   busy,
   skillNameById,
   skillColorById,
+  liceName,
   onAssignClick,
   onUnassign,
 }: {
@@ -221,6 +256,8 @@ function BracketMatchCard({
   busy: boolean;
   skillNameById: Map<string, string>;
   skillColorById: Map<string, string>;
+  /** The bout's piste, or null before it is placed on one. */
+  liceName: string | null;
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
@@ -231,15 +268,20 @@ function BracketMatchCard({
   // re-formatter — the code matches what the bracket page, scoring
   // app, and exports already show.
   const roundLabel = pool.name;
+  // Where and when: "Piste 2 · 09:00", or whichever half is known.
+  const whereWhen = [
+    liceName && t('organizer.poolsPage.refereesLiceLabel').replace('{lice}', liceName),
+    pool.scheduledStart && formatHHMM(pool.scheduledStart, locale),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-baseline justify-between">
         <p className="font-semibold text-foreground">
           {pool.tournamentName ? `${pool.tournamentName} – ${roundLabel}` : roundLabel}
         </p>
-        {pool.scheduledStart && (
-          <p className="text-xs text-muted">{formatHHMM(pool.scheduledStart, locale)}</p>
-        )}
+        {whereWhen && <p className="text-xs text-muted">{whereWhen}</p>}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {pool.roleSlots.map((slot) => (

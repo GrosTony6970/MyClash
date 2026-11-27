@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ReadinessCheck, ReadinessLevel, ReadinessReport } from './readiness-copy';
-import { buildStartOfDay, stageOf, STAGE_ORDER } from './start-of-day';
+import { buildStartOfDay, stageOf, STAGE_ORDER, tournamentTag } from './start-of-day';
 
 function check(key: string, level: ReadinessLevel = 'ok'): ReadinessCheck {
   return { key, level, tournamentId: null };
@@ -16,6 +16,29 @@ function report(checks: ReadinessCheck[]): ReadinessReport {
     counts: { ok: 0, warn: 0, critical: 0, info: 0 },
   };
 }
+
+describe('tournamentTag', () => {
+  const LONGSWORD = { id: 'a', name: 'Longsword' };
+  const RAPIER = { id: 'b', name: 'Rapier' };
+  const withTournaments = (tournaments: ReadinessReport['tournaments']) => ({
+    ...report([]),
+    tournaments,
+  });
+
+  it("names a row's Tournament when the Event holds several", () => {
+    const ruleset = { ...check('ruleset'), tournamentId: 'b' };
+    expect(tournamentTag(withTournaments([LONGSWORD, RAPIER]), ruleset)).toBe('Rapier');
+  });
+
+  it('names nothing when the Event holds one Tournament — there is nothing to tell apart', () => {
+    const ruleset = { ...check('ruleset'), tournamentId: 'a' };
+    expect(tournamentTag(withTournaments([LONGSWORD]), ruleset)).toBeNull();
+  });
+
+  it('names nothing on an Event-level row', () => {
+    expect(tournamentTag(withTournaments([LONGSWORD, RAPIER]), check('pistes'))).toBeNull();
+  });
+});
 
 describe('stageOf', () => {
   it.each([
@@ -103,6 +126,23 @@ describe('buildStartOfDay', () => {
       report([check('fighters', 'ok'), check('rosterClub', 'info'), check('schedule', 'warn')]),
     );
     expect(stages.filter((s) => s.current).map((s) => s.key)).toEqual(['run']);
+  });
+
+  it("keeps one check's rows side by side across Tournaments", () => {
+    // The server sends them Tournament by Tournament; read in that order, two
+    // Tournaments gave "Ruleset, Fighters, Ruleset, Fighters".
+    const stages = buildStartOfDay(
+      report([
+        check('tournaments'),
+        { ...check('ruleset'), tournamentId: 'a' },
+        { ...check('fighters'), tournamentId: 'a' },
+        { ...check('ruleset'), tournamentId: 'b' },
+        { ...check('fighters'), tournamentId: 'b' },
+      ]),
+    );
+    expect(
+      stages.find((s) => s.key === 'event')?.checks.map((c) => `${c.key}:${c.tournamentId}`),
+    ).toEqual(['tournaments:null', 'ruleset:a', 'ruleset:b', 'fighters:a', 'fighters:b']);
   });
 
   it('marks NO stage current when everything is clear', () => {
