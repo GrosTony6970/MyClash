@@ -50,6 +50,7 @@ function auditRow(over: Record<string, unknown> = {}, payload: Record<string, un
       clientId: caller.clientId,
       clientName: 'Claude',
       role: DECLARANT,
+      roleName: 'Déclarant',
       previousPersonId: JEAN,
       personId: PAUL,
       confirmedReasons: [],

@@ -95,6 +95,17 @@ describe('collectPayloadRefs', () => {
     expect(collect('some.unmapped.action', { sourceId: A }).refs).toEqual([]);
   });
 
+  it("names the MCP referee apply's two people as global persons, and only for its actions", () => {
+    const payload = { via: 'mcp', clientId: C, previousPersonId: A, personId: B };
+    for (const action of ['match.referee_role_assigned', 'match.referee_role_removed']) {
+      expect(collect(action, payload).refs).toEqual([
+        { pointer: '/previousPersonId', kind: 'global_person', id: A },
+        { pointer: '/personId', kind: 'global_person', id: B },
+      ]);
+    }
+    expect(collect('some.unmapped.action', payload).refs).toEqual([]);
+  });
+
   it('never emits a ref for a value that is not UUID-shaped', () => {
     // `entity_id: 'batch'` is real (clubs.service bulk actions); probing it
     // would raise 22P02 invalid input syntax for type uuid.

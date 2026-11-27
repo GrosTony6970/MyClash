@@ -5651,16 +5651,21 @@ The calls made (the operator may overrule):
   case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
   club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
 
-**The audit row** (`apply-referee-assignment.ts:230-254`). `setRefereeRoleAssignment` writes no
+**The audit row** (`apply-referee-assignment.ts:239-268`). `setRefereeRoleAssignment` writes no
 audit row, so the tool writes one per write, after the write only:
 
 - action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
 - entity `match` and the Match's id; actor the caller;
-- payload `{ via: 'mcp', clientId, clientName, role, previousPersonId, personId, confirmedReasons }`.
-  `confirmedReasons` holds the Discouraged codes the person confirmed.
+- payload
+  `{ via: 'mcp', clientId, clientName, role, roleName, previousPersonId, personId, confirmedReasons }`.
+  `role` is the skill id (`arbitre_declarant`, `custom-…`) and `roleName` its name. `confirmedReasons`
+  holds the Discouraged codes the person confirmed. `previousPersonId` and `personId` are global
+  person ids; the audit log shows them as names (action-scoped rules in
+  `entity-label/audit-payload-refs.ts`).
 
 `clientName` is the name the app gave itself when it registered with GoTrue. Anyone can choose that
-name, so it proves nothing (§28.4). The tool reads it from GoTrue's admin
+name, so it proves nothing (§28.4). Two apps can share a name, or take a misleading one, so the
+row keeps `clientId` too: the id is the one forensic handle on the app. The tool reads it from GoTrue's admin
 `GET /admin/oauth/clients/{id}` (`auth.admin.oauth.getClient`). A failed read, a throw or an
 answer with no `client_name` gives `null` and a logged warning. The write still goes ahead: the
 person is the actor either way. A failed audit insert is logged and never answered as a failure of

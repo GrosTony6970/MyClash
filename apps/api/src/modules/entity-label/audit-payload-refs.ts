@@ -113,6 +113,11 @@ export const REF_RULES: readonly RefRule[] = [
   { action: 'league.scoring_system.cloned', suffix: ['source_id'], kind: 'league_scoring_system' },
   { action: 'fighter.merge_revert', suffix: ['source_id'], kind: 'global_person' },
   { action: 'fighter.merge_revert', suffix: ['target_id'], kind: 'global_person' },
+  // The MCP referee apply: `referee_assignments.person_id` points at a global_person (0062).
+  { action: 'match.referee_role_assigned', suffix: ['personId'], kind: 'global_person' },
+  { action: 'match.referee_role_assigned', suffix: ['previousPersonId'], kind: 'global_person' },
+  { action: 'match.referee_role_removed', suffix: ['personId'], kind: 'global_person' },
+  { action: 'match.referee_role_removed', suffix: ['previousPersonId'], kind: 'global_person' },
 ];
 
 const RULE_INDEX: ReadonlyMap<string, EntityKind> = new Map(

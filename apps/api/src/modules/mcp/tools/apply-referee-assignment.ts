@@ -226,7 +226,7 @@ export async function applyRefereeAssignment(
     return (await write(deps, token, { match, skill }, seen.person)) ?? seen;
   });
   if (isRefusal(checked)) return checked;
-  await audit(deps, caller, token, clientName);
+  await audit(deps, caller, token, { clientName, roleName: skill.name });
   return {
     result: 'Done',
     match: match.code,
@@ -236,12 +236,15 @@ export async function applyRefereeAssignment(
   };
 }
 
-/** The audit row, after the write only. A failed insert is logged, never the write's failure. */
+/**
+ * The audit row, after the write only. A failed insert is logged, never the write's failure.
+ * `roleName` beside `role`: the skill id is a technical string (`arbitre_declarant`, `custom-…`).
+ */
 async function audit(
   deps: McpToolDeps,
   caller: McpCaller,
   token: ConfirmationPayload,
-  clientName: string | null,
+  names: { clientName: string | null; roleName: string },
 ): Promise<void> {
   const action =
     token.personId === null ? 'match.referee_role_removed' : 'match.referee_role_assigned';
@@ -253,8 +256,9 @@ async function audit(
     payload: {
       via: 'mcp',
       clientId: caller.clientId,
-      clientName,
+      clientName: names.clientName,
       role: token.role,
+      roleName: names.roleName,
       previousPersonId: token.prev,
       personId: token.personId,
       confirmedReasons: token.codes,
