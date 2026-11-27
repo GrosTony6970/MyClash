@@ -197,7 +197,8 @@ identity (call B), never a raw id from the model.
 
 ### Slice 4 — organiser writes
 
-Operator rulings (2026-11-26), made on the slice 4a plan:
+Operator rulings (2026-11-26), made when slice 4a was planned (its calls G–Q are in ARCHITECTURE
+§28.5c):
 
 - **989 — Slice 4 is split.** Story: the organiser asks Claude for 4 Pools; Claude saves a draft;
   the link opens the assistant page's list, and the draft shows as a box of raw JSON full of ids.

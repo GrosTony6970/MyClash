@@ -76,6 +76,16 @@ here.
   anonymous RLS helper loop, which had failed every anonymous read in prod, and so woke 0187's
   directory branch: a listed fighter's email and date of birth went to anyone (0272 closed it).
   Before ending an error, list what it was stopping, and decide each one.
+- **An id from a model or from stored JSON is checked for its shape before it reaches `.in()` on
+  a uuid column.** One value Postgres cannot read as a uuid fails the WHOLE read (22P02), not its
+  own row: a draft action holding `"matchId": "LSW-P2-M04"` would have made the Event's draft list
+  and the chat answer 500. Filter with `isUuidShape` (`apps/api/src/common/uuid-shape.ts`, the one
+  owner) and read the rest as missing.
+- **A "does it exist yet" read that guards an insert fails CLOSED.** Read as "none" on an error,
+  a database blip would let Generate Pools insert a second Pool phase; with no unique index, every
+  one-row read of it then fails on two rows, reads "none" again, and the app cannot repair the
+  Tournament. Throw on the error (`apps/api/src/modules/phases/existing-phase.ts`): a retry costs a
+  click, a duplicate costs the Tournament.
 - **A policy subquery needs SELECT on the table it names, checked when the query starts**, even on
   an empty table and whatever the `OR` order (measured on Postgres 17). Revoking a web role's read
   of table B fails every read of table A whose policy names B with 42501: take the branch out of

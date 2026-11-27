@@ -19,7 +19,7 @@
  * own board-lock and checker reads, all database reads of milliseconds: the app name, the one call to
  * the auth server, is read before the re-read so it cannot stretch the window. The write still
  * refuses an Impossible reason born in it; a Discouraged one only when the preview showed none
- * (`confirm` false), as the plan's "race, named" accepts.
+ * (`confirm` false), as ARCHITECTURE §28.5c's "The races, named" accepts.
  */
 import { ConflictException, Logger } from '@nestjs/common';
 import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';

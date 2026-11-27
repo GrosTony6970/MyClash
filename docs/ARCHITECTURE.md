@@ -2372,6 +2372,19 @@ balances skill by HEMA Ratings; the request can turn either off. The search make
 The cost report is stored on the phase and returned with the Pools; no screen shows it. There is
 no `/pool-populator` page and no live cost recomputation on drag.
 
+Generate Pools refuses a Tournament that already has a Pool phase, unless `?force=true`. Generate
+Bracket does the same for an elimination phase of either type, and Add Pool adds to the Pool phase
+it finds, or makes one. The question "does this Tournament have its Pools (or its bracket) yet" has
+one owner, `existingPhase` (`phases/existing-phase.ts`), which Claude's `draft_pools` and
+`draft_bracket` ask too (§28.5d). It fails CLOSED: a read error throws (a 5xx), and nothing is
+written. Read as "none", a database blip would let Generate Pools write a second Pool phase beside
+the first. `phases` has no unique index on (Tournament, type), so from then on every one-row read
+of the Pool phase would fail on two rows and read as "none" again, and nothing in the app could
+repair the Tournament. A race stays open: two Generate Pools at the same moment (two drafts
+applied at once) can both read "none" and both insert, because nothing ties the read to the
+insert. A partial unique index on `phases(tournament_id)` per type would close it; that is the
+operator's decision.
+
 See `berger.ts` for the round construction and the pool match labels.
 
 ### 11quater.2 Referee Assignment
@@ -5047,7 +5060,19 @@ POST  /api/v1/events/:eventId/ai-assistant/drafts/:draftId/apply
 
 No draft is applied on a completed Event, whatever it does (283, 283a).
 
-V1 is constrained draft-and-review only. AI returns strict JSON actions for tournament config, pool planning, bracket generation, match-grid scheduling, and referee assignment. Organizers review or edit drafts before applying, and apply routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
+V1 is constrained draft-and-review only. AI returns strict JSON actions for tournament config, pool planning, bracket generation, match-grid scheduling, and referee assignment. Organizers review a draft in words and apply or reject it, and apply routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
+
+**Where a draft comes from** (`source`: `form`, `chat` or `mcp`; migration `0287`). The page's form asks the organisation's AI for the actions (`createDraft`). The in-app chat and Claude, through the MCP server (§28.5d), hand over actions they already hold: `createDraftFromAction(eventId, actor, actions, { source, prompt?, auditExtra? })` saves one draft of one or several actions. They are all of one kind, because a draft type allows one kind. An empty list, two kinds, or a kind no draft type has refuses with a 400 before any write. A draft from Claude has the prompt "Claude proposed: (kind)", spends none of the Event's AI usage (`ai_usage_feature` keeps the column default), and its create audit row adds `via: 'mcp'`, `clientId` and `clientName`.
+
+**A draft in words** (rulings 993, 995). Every draft the API answers (the list, `GET …/drafts/:draftId`, a create, an edit, and the chat conversation's proposals) carries `readable` beside the raw `proposedActions`. `readableDraftActions` (`organizer-ai-assistant/readable-draft.ts`) names each id: the Tournament's name, the Match's round code, the Lice's name, the start with the Event's zone, the Pool's number, the phase's type, the referee's and the role's names. It makes one read per kind of id for all the drafts of an answer, each scoped to the Event. An id the Event does not have (a Match deleted since, another Event's Tournament) reads as `{ missing: true }`, never as the id. A value that is not uuid-shaped (a model that passed `"matchId": "LSW-P2-M04"`) is never sent to the database, and reads as missing too: one such value in an `.in()` list fails the whole read (22P02), and the list would answer 500. A failed read throws; it never reads as missing. The type is `ReadableDraftAction` in `@myclash/types`, so the API, web-admin and Claude read one shape. Each draft also answers `applyStarted`: whether an Apply of it started.
+
+**A closed draft stays as it is** (`closedReason`, rulings 994, 997). A draft is closed once it is applied, once it is rejected, or once an Apply of it started (`applied_at` is set: the claim writes it, and nothing clears it). An edit, an Apply or a Reject of a closed draft answers 409 `draft_closed`. A draft whose Apply started and then failed reads `failed`, but its first actions ran: an edit back to `ready` and a second Apply would run them again (the Tournament created twice). So it can be neither edited, applied again, nor rejected (ruling 997). A draft that failed the shape check never ran: it has no `applied_at` and stays open. The edit's write is conditional too (an open status, `applied_at` null): an Apply or a Reject in another tab can land between the edit's read and its write, and the write then matches no row and refuses.
+
+**A draft applies once** (`claimDraft`, ruling 996). Marie presses Apply in two tabs a second apart, and both reads find the draft `ready`. So Apply claims the draft before it runs any action, in one conditional update: `status: 'applied'`, `applied_at` and `applied_by_user_id`, on the row that still reads `status = 'ready'` AND still has the `updated_at` this Apply read. Only one Apply finds that row; the other answers 409 `draft_closed` and runs nothing. An edit between the read and the claim (4 Pools made 6) empties the claim the same way, so Apply never runs actions older than the row. The window, named: from the claim until the last action ends, the row reads `applied` while its actions run. A failed action turns it `failed` ("Partially applied n/m action(s) before failing: …"); a crash leaves it `applied`. It stays closed either way.
+
+**A schedule draft is checked whole first** (`assertPlacementsFit`). Apply runs one placement per action, so two bouts of one draft on one Lice at one time would move the first bout and fail on the second. Before the claim, Apply checks every Match is at this Event, then gives every placement to the placement owner with `checkOnly` (`placeMatches`, which writes nothing). A collision refuses the Apply, nothing moves, and the draft stays `ready`. The board can still change between this check and the writes; a placement's own check then refuses, and the draft ends partly applied.
+
+**The page** (`/org/[slug]/events/[eventId]/ai-assistant`). `?draft=<id>` opens one draft through `GET …/drafts/:draftId`, so a link from Claude opens a draft older than the list's newest 50. An id of no draft at this Event (404) or a malformed one (400) shows "This draft is not at this Event.", never the API's sentence, which names the id. Choosing a draft in the history writes its id into the address. The draft shows in words only, with Apply and Reject (ruling 993): the JSON box and its Save are gone, so to change a draft the organiser rejects it and asks again. `DraftActionsView` (`apps/web-admin/src/components/ai/DraftActionsView.tsx`) words `readable` in EN and FR, each start on its Event's wall clock; the chat's proposal card shows the same view (ruling 995). After Apply or Reject the open draft reads again and shows its new state. A draft whose Apply started shows neither Apply nor Reject; a partly applied one (`failed` and `applyStarted`) says so in words (ruling 997). `draft_closed` has its own words on the page and on the card, and the card reads the conversation again after it.
 
 ### 26.5 Super-admin AI Data Quality (T-1305)
 
@@ -5114,7 +5139,7 @@ The tools take a Pool, a fighter or a referee by name, never by id (`pool`, `fig
 
 **Event hub AI budget card** (`/org/[slug]/events/[eventId]`) — collapsible, shown only when org has AI key configured. Spend cap number input saved via `PATCH /events/:eventId`. Read-only spend meter with progress bar (cap set) or plain spend total (no cap).
 
-**Organizer AI assistant** (`/org/[slug]/events/[eventId]/ai-assistant`) - event setup assistant with persisted draft history, editable structured actions, and step-by-step apply. Existing tournament, pools, bracket, schedule, and referee pages link into it with prefilled draft type context.
+**Organizer AI assistant** (`/org/[slug]/events/[eventId]/ai-assistant`) - event setup assistant with persisted draft history, one draft opened by `?draft=` and shown in words, and Apply / Reject (§26.4). Existing tournament, pools, bracket, schedule, and referee pages link into it with prefilled draft type context.
 
 **Natural-language tournament query** (`/org/[slug]/events/[eventId]`) - event hub query panel shown when org AI is configured. Organizer selects a tournament, asks English/French questions, sees rendered table/list/card/comparison/summary/empty results, can inspect tool metadata, rerun recent personal queries, and configure per-tournament access/rate settings.
 
@@ -5248,9 +5273,9 @@ delete photos it knows nothing of.
 
 A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
 Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
-This section describes what slices 1 to 3 and 4a built: sign-in, and a door with twenty-four tools.
+This section describes what slices 1 to 4 built: sign-in, and a door with twenty-eight tools.
 Twenty-three read (`whoami`, the nine of §28.5a, the twelve of §28.5b and the preview of §28.5c),
-and one writes (the apply of §28.5c). Slice 4b (the drafts, ruling 989) is in the spec.
+and five write: the apply of §28.5c and the four draft tools of §28.5d.
 
 ### 28.1 Addresses
 
@@ -5380,12 +5405,15 @@ Every refusal logs the host it would have sent the person to.
 - **Read-only (maintenance) mode lets the door through** (operator ruling 985). Every MCP call is a
   `POST`, a question included, so `read-only.interceptor.ts` passes the door's exact path
   (`/api/v1/mcp`, nothing beside it) without reading the switch. So the door itself never refuses
-  in maintenance, and each tool that writes asks the switch itself. One tool writes:
-  `apply_referee_assignment` (§28.5c). It calls `assertNotReadOnly` first, as the sign-up doors
-  under `auth/` do. It does so before it opens its confirmation or reads anything. In maintenance
-  it answers the maintenance refusal: "MyClash is in maintenance: nothing can change right now."
-  (`tools/referee-write-gate.ts:29-45`). `mcp.http.test.ts` fails when any other listed tool is not
-  marked `readOnlyHint`, and proves that apply refuses in maintenance without writing.
+  in maintenance, and each tool that writes asks the switch itself. Five tools write:
+  `apply_referee_assignment` (§28.5c) and the four draft tools (§28.5d). Each calls
+  `assertNotReadOnly` first, as the sign-up doors under `auth/` do. It does so before it reads
+  anything: apply before it opens its confirmation, a draft tool before it reads the Event. In
+  maintenance it answers the maintenance refusal: "MyClash is in maintenance: nothing can change
+  right now." (`maintenanceRefusal`, `tools/referee-write-gate.ts:31-47`).
+  `mcp.http.writes.test.ts` fails when any other listed tool is not marked `readOnlyHint`. It
+  proves that each of the five refuses in maintenance and writes nothing, and that a draft tool
+  reads nothing but the switch.
 - **`whoami`** (`modules/mcp/tools/whoami.ts`) is the first tool: the account's email, and the Events
   where the person fights, referees, teaches or attends a Workshop (the personal space's
   `me/events`). It gives names, slugs and start dates, **never an id**: a model has no use for one,
@@ -5516,47 +5544,48 @@ The calls made:
 
 An organiser asks Claude to put a referee on one Match in one role, in place of the holder, or to
 take the holder off. Two tools do it, as preview → yes → apply (spec call E, ruling 963). Ruling 989
-split slice 4: 4a is this swap and removal, and 4b (the drafts) is in the spec. Ruling 990 added the
+split slice 4: 4a is this swap and removal, and 4b is the drafts (§28.5d). Ruling 990 added the
 removal and the app's name in the audit row. Code: `modules/mcp/tools/preview-referee-assignment.ts`,
 `apply-referee-assignment.ts`, and `referee-write-gate.ts`, which holds the questions both ask, so
-each rule has one owner. The calls G–Q below are the slice 4a plan's, corrected to the code.
-Adding the two tools raised `MCP_SERVER_VERSION` to `1.2.0` (`mcp-server.ts:54`).
+each rule has one owner. The calls G–Q below were made when slice 4a was planned. That plan is
+deleted, so this section is their record, corrected to the code. Adding the two tools raised
+`MCP_SERVER_VERSION` to `1.2.0`; slice 4b raised it to `1.3.0` (`mcp-server.ts:63`).
 
 | Tool                         | Input                                                                                                                                  | Annotations                                                                                     | Answer                                                                                                                                                                             |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `preview_referee_assignment` | `event` (slug), `tournament` (slug), `match` (round code, `LSW-P2-M04`), `role` (name or id), `referee` (full name, or `null`: remove) | `readOnlyHint: true`                                                                            | `match` (code, Tournament, `start`, `timezone`, `piste`, `red`, `blue`), `role`, `from`, `to`, `crewBefore`, `crewAfter`, `level`, `warnings`, `confirmation`, `expiresAt`, `next` |
-| `apply_referee_assignment`   | `confirmation` only (1 to 4096 characters, `mcp-server.ts:86`)                                                                         | `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false` | `result: 'Done'`, `match` (code), `role`, `from`, `to`                                                                                                                             |
+| `apply_referee_assignment`   | `confirmation` only (1 to 4096 characters, `mcp-server.ts:96`)                                                                         | `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false` | `result: 'Done'`, `match` (code), `role`, `from`, `to`                                                                                                                             |
 
 `level` is `fine` or `discouraged`. `warnings` are sentences. `next` tells Claude to show the
 person the change, the crew after it and every warning, and to call apply only after they say yes.
 `destructiveHint` makes Claude ask before it calls apply. Neither tool answers an id: the
 confirmation is sealed, and everything else is a name or a code.
 
-**The preview, in order** (`preview-referee-assignment.ts:234-266`):
+**The preview, in order** (`preview-referee-assignment.ts:184-216`):
 
 1. No confirmation key → the tool throws (the generic failure). It never answers a preview that
    apply could not check.
 2. The Event gate and the Tournament gate (`readableTournamentId`, §28.5b).
-3. The write gate (`refereeWriteRefusal`, `referee-write-gate.ts:58-76`): maintenance; the
+3. The write gate (`refereeWriteRefusal`, `referee-write-gate.ts:60-78`): maintenance; the
    organiser bar; an Event that is over; the referee board's lock. Each refuses with one sentence.
 4. The Match by its round code (call O).
 5. The role among the Event's skills (call P).
 6. A swap only: the referee by full name (call Q).
-7. The Match's crew (`readCrewRows`, `referee-write-gate.ts:144-169`): every active
+7. The Match's crew (`readCrewRows`, `referee-write-gate.ts:146-171`): every active
    `referee_assignments` row of the Match, its Pool and its Lice, all roles, with `person_id`. This
    read throws on an error. `fetchRefereeAssignmentIndex` answers `[]` on an error, which here would
    read as "nobody holds the role" and pass the holder check.
-8. The holder (`holderOf`, `referee-write-gate.ts:176-185`): the winning tier's row for the role
+8. The holder (`holderOf`, `referee-write-gate.ts:178-187`): the winning tier's row for the role
    (`winningAssignmentRows`, `matches/resolve-match-referees.ts:96-113`), or none. Two rows of one
    role in one tier take the lowest person id, so preview and apply name the same holder.
 9. A swap: the same person as the holder refuses. Else the checker judges it (`judgeSwap`,
-   `referee-write-gate.ts:262-287`, through `AssignmentBoardService.judgeVerdict`). Impossible
+   `referee-write-gate.ts:264-289`, through `AssignmentBoardService.judgeVerdict`). Impossible
    refuses, with every Impossible reason in words. Discouraged and Fine answer. A removal is not
    judged (call M).
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
     the sealed confirmation (call G).
 
-**The apply, in order** (`apply-referee-assignment.ts:205-262`):
+**The apply, in order** (`apply-referee-assignment.ts:182-241`):
 
 1. Maintenance first, before the token is opened or anything is read.
 2. No confirmation key → the tool throws.
@@ -5577,7 +5606,7 @@ confirmation is sealed, and everything else is a name or a code.
      maintenance. So the gate that counts is the one asked after the wait, on the Event's status
      as it is then.
 
-8. The recheck (`recheck`, `apply-referee-assignment.ts:118-153`), on a new crew read. The holder
+8. The recheck (`recheck`, `apply-referee-assignment.ts:119-154`), on a new crew read. The holder
    must still be the token's `prev`, and who holds the role once written must still be the token's
    `next` (call H). A removal: the holder must still be a Match-level row (call M). A swap: the new
    referee must still be on the Event's referee roster and still hold the role's skill, and the
@@ -5585,7 +5614,7 @@ confirmation is sealed, and everything else is a name or a code.
    level, or a referee off the roster refuses with "The referees of (code) changed since the preview.
    Preview the change again." A referee who lost the role's skill since the preview refuses with
    the preview's own sentence, "(name) does not hold the (role) skill at (Event)." One helper owns
-   that test and its words for both tools (`missingSkillRefusal`, `referee-write-gate.ts:198-211`).
+   that test and its words for both tools (`missingSkillRefusal`, `referee-write-gate.ts:200-213`).
    It runs before the checker, whose skill check would throw a 400 (`qualifiedCandidate`,
    `referees/write-verdict.ts`) and give the generic failure. Impossible refuses with its reasons
    in words. A warning the person did not see refuses and names it (call I).
@@ -5603,7 +5632,7 @@ The calls made (the operator may overrule):
   `{v, sub, cid, matchId, role, personId, prev, next, codes, exp}`, sent as base64url of the IV, the tag
   and the ciphertext (`tools/write-confirmation.ts`). The key is HKDF-SHA256 of
   `SUPABASE_JWT_SECRET`, info `myclash/mcp/confirm/v1`. `McpController` derives it once
-  (`mcp.controller.ts:71-74`), and the tools never read the environment. A token lives 10 minutes
+  (`mcp.controller.ts:76-79`), and the tools never read the environment. A token lives 10 minutes
   (`CONFIRMATION_TTL_MS`). It opens only for the same person (`sub`) and the same connector app
   (`cid`). Sealed, not only signed: the ids inside stay hidden from the model. No table, no
   migration and no new `.env` key: a stored row would need RLS and the archive guard for a
@@ -5649,13 +5678,15 @@ The calls made (the operator may overrule):
   `@myclash/rulesets/scheduling/referee-reason-text`, beside the checker that owns the codes. The
   translator is a parameter, so the package takes no i18n dependency. Web-admin and the API call
   the same switch and the same `organizer.refereeBoard.reasons.*` keys. The API words them in
-  English (`createTranslator(messages.en)`, `referee-write-gate.ts:239`): Claude reads English and
+  English (`createTranslator(messages.en)`, `referee-write-gate.ts:241`): Claude reads English and
   answers the person in their language (spec call F). The words are fragments said after a name,
   so a warning reads "(name) (reason)." and an Impossible refusal reads "(name) cannot take (role)
   on (code): (reasons)."
 - **O. The Match is named by Tournament slug and round code** (`LSW-P2-M04`, what the app shows).
   No column is unique, so the tool reads the Tournament's Matches, derives their codes
-  (`roundCodeFromMatchRow`) and compares case-blind. No match or several matches refuse.
+  (`roundCodeFromMatchRow`) and compares case-blind. No match or several matches refuse. The read
+  and the compare have one owner, `tools/match-by-code.ts` (`tournamentBouts`, `matchByCode`),
+  which `draft_match_schedule` uses too (§28.5d).
   PostgREST cuts a read at 1000 rows and says nothing (ruling 831). So the tool reads the Matches
   page after page by id (`readEveryRowById`), and a bout past the first 1000 is found.
 - **P. The role is named by the skill's name or id** (`Déclarant` or `arbitre_declarant`), case-
@@ -5666,7 +5697,7 @@ The calls made (the operator may overrule):
   case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
   club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
 
-**The audit row** (`apply-referee-assignment.ts:264-293`). `setRefereeRoleAssignment` writes no
+**The audit row** (`apply-referee-assignment.ts:243-272`). `setRefereeRoleAssignment` writes no
 audit row, so the tool writes one per write, after the write only:
 
 - action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
@@ -5681,7 +5712,8 @@ audit row, so the tool writes one per write, after the write only:
 `clientName` is the name the app gave itself when it registered with GoTrue. Anyone can choose that
 name, so it proves nothing (§28.4). Two apps can share a name, or take a misleading one, so the
 row keeps `clientId` too: the id is the one forensic handle on the app. The tool reads it from GoTrue's admin
-`GET /admin/oauth/clients/{id}` (`auth.admin.oauth.getClient`). A failed read, a throw or an
+`GET /admin/oauth/clients/{id}` (`auth.admin.oauth.getClient`), through `appName`
+(`tools/connector-app-name.ts`), which the draft tools' audit row reads too. A failed read, a throw or an
 answer with no `client_name` gives `null` and a logged warning. The write still goes ahead: the
 person is the actor either way. A failed audit insert is logged and never answered as a failure of
 the write, which has already landed.
@@ -5700,7 +5732,7 @@ The races, named:
   roster, the checker, and the write's own lock and checker reads. The app's name is the one call
   to GoTrue (the sign-in server). It is read before the re-read and before the per-Event lock. So
   no call to GoTrue sits between the re-read and the write, only database reads, and no apply of
-  the Event waits on GoTrue (`apply-referee-assignment.ts:16-22,245-248`). Accepted.
+  the Event waits on GoTrue (`apply-referee-assignment.ts:16-22,222-225`). Accepted.
 - **Two applies of one Event at once.** Marie says "put Paul on LSW-P2-M04 and on LSW-P3-M01".
   The two Matches overlap on two pistes. Claude previews both (each is Fine: neither is written
   yet), and calls apply twice in one turn. Each apply's recheck, and each write's own `judgeWrite`,
@@ -5723,6 +5755,128 @@ The races, named:
   (`uniqueReferees`, by name and role); Claude's preview lists the crew from
   `winningAssignmentRows` with no dedupe and would name that referee twice. The next per-Match
   write of that role deletes both rows.
+
+### 28.5d The draft tools (slice 4b)
+
+An organiser asks Claude for a big change: a new Tournament, its Pools, its bracket, or when and
+where its Matches are fought. Marie types "make 4 Pools in the Longsword Open, keep clubs apart".
+Claude calls `draft_pools`. MyClash saves one assistant draft (§26.4) and answers it by name, with
+a link. Nothing in the Event changes until Marie opens the link and presses Apply in MyClash
+(ruling 989). Code: `modules/mcp/tools/draft-gate.ts` (what every draft tool asks, and its
+answer), `draft-tools.ts` (three tools) and `draft-match-schedule.ts`. The tools save through the
+assistant's own `createDraftFromAction`, and Apply is the assistant's. Adding the four tools
+raised `MCP_SERVER_VERSION` to `1.3.0` (`mcp-server.ts:63`).
+
+| Tool                   | Input (`event` and `tournament` are slugs)                                                                                                                                                    | The draft holds                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `draft_tournament`     | `event`, `name` (trimmed, then 2 to 200 characters), `slug` (2 to 100, lowercase letters, digits and hyphens), `weapon` (the catalogue's name, optional), `ruleset` (a code, default `TF_v1`) | one `create_tournament`            |
+| `draft_pools`          | `event`, `tournament`, exactly one of `poolCount` (1 or more) or `targetSize` (2 to 20), `schoolSeparation`, `skillBalance`                                                                   | one `generate_pools`               |
+| `draft_bracket`        | `event`, `tournament`, `phaseType` (`single_elim` or `double_elim`), `qualifyCount` (2 or more), `bracketSize` (2 to 128)                                                                     | one `generate_bracket`             |
+| `draft_match_schedule` | `event`, `tournament`, `placements`: 1 to 50 of `{ match, piste, start }`                                                                                                                     | one `schedule_match` per placement |
+
+The bounds are the app's own schemas (`createTournamentSchema`, `generatePoolsSchema`,
+`generateBracketSchema`), so the SDK refuses a value outside them before the tool runs. Every tool
+answers `{ draft, link, status }`: `draft` is the draft's actions by name (`readable`, §26.4),
+`link` opens it, and `status` is `ready`. Every description ends with the same words: the tool
+changes nothing in the Event, Claude tells the person what the draft does and gives them the
+link, and the tools are for the organisation's admins (`DRAFT_NEXT`).
+
+**The gate, in order** (`draftGate`, `draft-gate.ts:77-97`):
+
+1. Maintenance (`maintenanceRefusal`), before any read.
+2. The Event by slug, through the public Event gate (`readableEventBySlug`). An Event the person
+   cannot see refuses like an unknown one (`noEventRefusal`).
+3. The Event's organisation: `events` with `organizations!inner(slug)`, by the Event's id. Its id
+   is for the bar, its slug for the link.
+4. An admin or owner of that organisation (call R). Only a `ForbiddenException` is a refusal:
+   "Only the organisation's admins can make drafts at (Event)."
+5. An Event that is over (`isOver`: completed or archived): "(Event) is over: nothing there can
+   change now."
+
+Then each tool asks what Apply would refuse (call X) and calls `saveDraft`
+(`draft-gate.ts:112-135`):
+
+1. No `DOMAIN` → the tool throws (the generic failure) before it saves: a draft whose link cannot
+   be built would be saved and never shown.
+2. The app's name (`appName`, `tools/connector-app-name.ts`), as in §28.5c.
+3. `createDraftFromAction` with the actions, `source: 'mcp'` and the audit extra (call S). It
+   asks the admin bar again and runs the draft's shape check.
+4. A draft the shape check marks `failed` answers a refusal with its errors ("MyClash cannot use
+   this draft: …"), never a link. A `ready` one answers `{ draft, link, status }`.
+
+The calls made (the operator may overrule):
+
+- **R. The draft tools need the page's bar: org admin or owner.** `createDraftFromAction`,
+  `applyDraft` and the assistant page all ask `assertOrgRole(…, 'admin')`. An editor could make a
+  draft they could not apply, so the gate refuses them first.
+- **S. A draft from Claude is `source = 'mcp'`.** Migration 0287 replaces the `source` CHECK with
+  `organizer_ai_assistant_drafts_source_allowed` (`form`, `chat`, `mcp`). The row's prompt is
+  "Claude proposed: (kind)". It sets no `ai_usage_feature`, so the column keeps its default: no AI
+  usage of the Event is spent (spec call D). The create audit row
+  (`event.ai_assistant_draft_created`) carries `via: 'mcp'`, `clientId` and `clientName` beside
+  `draftType`, `status`, `source` and `conversationId`. The fixed fields come last, so an extra
+  field cannot overwrite them.
+- **T. One draft, one or several actions.** `createDraftFromAction` takes a list (the chat passes
+  one). `draft_match_schedule` saves one action per placement in one draft; the other three save
+  one action. All the actions are of one kind, because a draft type allows one kind (§26.4).
+- **U. The names live in the API; the words live in web-admin.** `readableDraftActions` names
+  every id (§26.4). Claude reads those names and words them itself (spec call F); the page and the
+  chat card word them with `DraftActionsView`. No second wording of a draft exists in the API.
+- **V. The page opens one draft by `?draft=<id>`** (§26.4).
+- **W. The link is the one place an id leaves the MCP server.** It is
+  `https://admin.${DOMAIN}/org/(org slug)/events/(Event id)/ai-assistant?draft=(draft id)`
+  (`draftLink`): the page's route has the Event's id in its path. The controller reads `DOMAIN`
+  once (`config.get`), and the tools read no environment. The tests check the answer for raw ids
+  with `link` removed, and assert `link` itself.
+- **X. Each tool refuses before it saves what Apply would refuse, so a link never leads to a
+  draft Apply refuses at once.** After the gate:
+  - `draft_tournament`: a slug the Event already has, hidden Tournaments included
+    (`tournamentIdBySlug`); a weapon that is not active in the catalogue (`catalogWeaponName`;
+    the draft stores the catalogue's own name); a ruleset the organisation cannot use
+    (`EventsService.usableRulesetVersion`, Create Tournament's own check).
+  - `draft_pools` and `draft_bracket`: the Tournament by slug through the Tournament gate
+    (`readableTournamentIn`); a Tournament that has a Pool phase, or an elimination phase of
+    either type (`existingPhase`, §11quater.1): 'The Tournament "(slug)" already has Pools.
+    Change them in MyClash.' (or "a bracket", "Change it"). `force` is never exposed: a draft never
+    replaces Pools or a bracket, and the fought-bout guard (ruling 284) stays the app's.
+  - `draft_bracket` with a `qualifyCount`: a shape Generate Bracket cannot build (16 fighters in a
+    bracket of 8, a size that is not a power of 2). `buildBracketShape`
+    (`phases/bracket-shape.ts`) is the builder Generate Bracket calls, and its 400 becomes
+    "MyClash cannot build this bracket: (the builder's words)." Without `qualifyCount` nothing
+    is checked here: the count is the Tournament's registrations at Apply.
+  - `draft_match_schedule`: each Match by its round code (call O, `match-by-code.ts`; the
+    Tournament's bouts are read once); each piste by its name in the Event, case- and accent-blind
+    (`liceNames`), where an unknown name refuses and lists the Event's pistes, and a name two
+    pistes share refuses; each `start` as `YYYY-MM-DD HH:MM` on the Event's wall clock
+    (`eventZone`, `zonedToUtcIso`), stored as the UTC instant; the same Match placed twice. Then
+    every placement together goes to the placement owner with `checkOnly`
+    (`MatchPlacementService.placeMatches`, which writes nothing). A piste two bouts would hold at
+    once, in the draft or on the board, refuses: "A piste in this draft is busy at that time: …".
+    The owner's own 409 names a Match by id, so the tool never forwards it.
+
+  Not checked before the save: Generate Pools' "N Pools for M fighters" (the roster can change
+  before Apply), and a draft that goes stale between its save and Apply (below).
+
+- **Y. The create tool takes a name and a slug.** No slug owner exists to derive one from the
+  name. Claude sends the slug, checked by Create Tournament's own rule
+  (`createTournamentSchema.shape.slug`), not by the door's looser `slug` (`mcp-answer.ts:55`):
+  Apply calls the service without the DTO's pipe, so the door's rule would let a draft save a slug
+  the app refuses. A slug the Event already has refuses by name before the save.
+- **Z. Annotations.** The four tools write a draft row and nothing in the Event (`DRAFT_ANNOTATIONS`):
+  `readOnlyHint: false`, `destructiveHint: false` (nothing changes until Apply),
+  `idempotentHint: false`, `openWorldHint: false`. The tool-list test names the five writing
+  tools (§28.5).
+
+The races, named (`draft-gate.ts:10-16`):
+
+- **The gate vs the save.** The gate and `createDraftFromAction` each ask the admin bar. An admin
+  removed between the two gets the generic failure, not the admin refusal. Accepted.
+- **The save vs Apply.** A draft can go stale before Apply: the slug is taken, Pools are made,
+  the weapon leaves the catalogue, the board fills a piste the draft places a bout on, or the
+  registrations a bracket without `qualifyCount` counts change. Apply asks each again. A busy
+  piste refuses the Apply before any bout moves, and the draft stays `ready`
+  (`assertPlacementsFit`, §26.4). The others fail inside Apply: the page shows the refusal, and
+  the draft stays `failed` and closed (ruling 997).
 
 ### 28.6 Connected apps
 
