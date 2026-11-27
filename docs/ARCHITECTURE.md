@@ -3774,7 +3774,11 @@ complete the bout first, and the End once wrote `time_limit` over their reason. 
 in play carries no result (ruling 331, `noResultColumns`): the clock's reopen and a Start on a
 bout a forfeit ended before it began clear the winner and the end reason, so the next End names
 who leads on the board. `PATCH /status` takes no bout out of completed (ruling 338): it read no
-sheet and put no score back. A voided bout keeps its own.
+sheet and put no score back. A voided bout keeps its own. A bout completed through it names its
+winner, one of its two fighters (ruling 1010, `winner_not_in_bout`), and clears the end reason: a
+result by hand is its winner alone. A level bout the clock ends as a draw stores `time_limit` with
+no winner; a clock End on a best-of bout still in play is refused (`series_not_decided`), since
+its rounds end it.
 A clock action over HTTP goes through `ScoringService.clockAction`: a bout a live record cut
 short (the record found it not completed) reads its sheet again once the clock has put it back
 in play. A bout fought to its end does not, by the board or under an override: a sheet at the

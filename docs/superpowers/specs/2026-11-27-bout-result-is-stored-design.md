@@ -59,7 +59,9 @@ guessing the leader in that moment could crown the wrong fighter (a forfeit wins
 - A level time-out stores `end_reason: 'time_limit'` (`time-limit-result.ts:165`). No CHECK limits the
   column, and `correction-outcome.ts:101-108` already writes it. Its guess at `:80-84` goes.
 - `PATCH /matches/:id/status` (ruling 1010, 2026-11-27): a completion needs a winner who is one of the
-  two fighters, else 400. A draw comes from the clock. The E2E populate test already names one.
+  two fighters, else 400. A draw comes from the clock. The E2E populate test already names one. It
+  clears the end reason: a result by hand is its winner alone, so an old `max_doubles` or
+  `time_limit` cannot override it.
 - A card after a doubles-limit draw (ruling 1009, 2026-11-27): **still a draw.** The limit decided the
   bout; the card moves the board, not the result. No write changes: the stored reason is
   `max_doubles_draw` with no winner, and R3 makes every reader call that a draw, as TF_v1 does today.

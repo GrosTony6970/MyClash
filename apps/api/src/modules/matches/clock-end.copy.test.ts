@@ -45,9 +45,8 @@ describe('the End of a bout that ran out of time follows its copy', () => {
     await clock.clockAction(BOUT, 'end');
 
     const [write] = writesTo(db, 'matches');
-    expect(write?.row).toMatchObject({ status: 'completed' });
+    expect(write?.row).toMatchObject({ status: 'completed', end_reason: 'time_limit' });
     expect(write?.row).not.toHaveProperty('winner_registration_id');
-    expect(write?.row).not.toHaveProperty('end_reason');
   });
 
   it('a Pool bout level at time waits for sudden death: its copy says so, its Tournament now says a draw', async () => {
@@ -61,9 +60,10 @@ describe('the End of a bout that ran out of time follows its copy', () => {
     wroteNothing(db);
   });
 
-  it('a bracket bout of best of three names no winner at time, though its Tournament now fights one round', async () => {
+  it('a bracket bout of best of three is not ended by the clock, though its Tournament now fights one round', async () => {
     // The rounds of a best-of are decided by the round route. Read as one round, the End named
-    // red the winner of the whole bout at 3 - 1.
+    // red the winner of the whole bout at 3 - 1; then it completed it with no winner. It is
+    // refused now: a series ends by its rounds.
     const bout = {
       red_score: 3,
       blue_score: 1,
@@ -76,12 +76,11 @@ describe('the End of a bout that ran out of time follows its copy', () => {
     };
     const { db, clock } = setup(SPENT, bout);
 
-    await clock.clockAction(BOUT, 'end');
-
-    const [write] = writesTo(db, 'matches');
-    expect(write?.row).toMatchObject({ status: 'completed' });
-    expect(write?.row).not.toHaveProperty('winner_registration_id');
-    expect(write?.row).not.toHaveProperty('end_reason');
+    expect(await refusalOf(clock.clockAction(BOUT, 'end'))).toEqual({
+      status: 400,
+      code: 'series_not_decided',
+    });
+    wroteNothing(db);
   });
 });
 

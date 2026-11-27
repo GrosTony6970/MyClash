@@ -91,11 +91,22 @@ describe('a late "End round" of the open round', () => {
 
   it('ends a series it decides at the time of the press, and its clock with it', async () => {
     const won = { round: 1, redScore: 0, blueScore: 10, winnerColor: 'blue', endReason: 'x' };
-    const { db, scoring } = series(
+    const { db, scoring, bouts } = series(
       BLUE_LEADS.map((one) => ({ ...one, round_number: 2 })),
       RUNNING,
       { current_round: 2, rounds_json: [won], blue_round_wins: 1 },
     );
+    // The series is written completed BEFORE its clock is ended, and the clock
+    // reads the bout again: an End of a best-of still in play is refused. The
+    // double keeps its rows as seeded, so the bout's write lands here as the
+    // database would land it.
+    const record = db.writes.push.bind(db.writes);
+    db.writes.push = (...writes) => {
+      for (const write of writes) {
+        if (write.table === 'matches' && write.op === 'update') Object.assign(bouts[0]!, write.row);
+      }
+      return record(...writes);
+    };
 
     await scoring.endRoundOnTime(BOUT, STAFF, endRound('10:01:30', 2));
 

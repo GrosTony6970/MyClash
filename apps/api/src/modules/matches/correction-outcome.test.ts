@@ -101,9 +101,9 @@ describe('correctionOutcome — an over Event', () => {
     expect(correctionOutcome(old)).toEqual({ kind: 'unchanged' });
   });
 
-  it('a bout the clock ended as a draw carries no reason, and still follows', () => {
+  it('a bout the clock ended as a draw stores its reason, and follows a correction', () => {
     const drawn = input({
-      bout: { winnerRegistrationId: null, endReason: null, redScore: 3, blueScore: 3 },
+      bout: { winnerRegistrationId: null, endReason: 'time_limit', redScore: 3, blueScore: 3 },
       score: { redScore: 3, blueScore: 2 },
     });
     expect(correctionOutcome(drawn)).toEqual({
@@ -111,6 +111,16 @@ describe('correctionOutcome — an over Event', () => {
       winnerRegistrationId: 'red',
       endReason: 'time_limit',
     });
+  });
+
+  it('a level bout with no reason is no longer guessed to be the clock’s draw', () => {
+    // The clock stores `time_limit` on a draw it ends: a bout with no reason was
+    // finished some other way, so the score must not take its result back.
+    const noReason = input({
+      bout: { winnerRegistrationId: null, endReason: null, redScore: 3, blueScore: 3 },
+      score: { redScore: 3, blueScore: 2 },
+    });
+    expect(correctionOutcome(noReason)).toEqual({ kind: 'unchanged' });
   });
 
   it('a result recorded by hand with no reason is not a draw the clock ended', () => {

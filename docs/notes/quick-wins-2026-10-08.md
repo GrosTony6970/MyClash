@@ -4317,6 +4317,17 @@ Asked when a clone of TF_v1 could not edit its formula or its tie-breakers: it w
 | Divide by 0 (1007)   | Marc was never hit and had no doubles: 9 / 0. TF_v1 gives him 9; a club formula gave him 0 and ranked him last.                            | **`x / 0 = x` in every formula**, the double-hit penalty formula included.                                                                                       | `packages/rules/src/formula/evaluator.ts`    |
 | Bout score (1008)    | A referee presses "Deep target, 2 points" under a club formula ruleset: the tablet shows +2, the server counted +1 and dropped afterblows. | **The server counts the button's value** and nets an afterblow by the Tournament's afterblow mode, for every club formula ruleset. Points cap keeps its 1 point. | `packages/rulesets/src/formula/ruleset.ts`   |
 
+### Rulings — operator, 2026-11-27: a finished bout's result is what it stored
+
+Asked while closing the gap between TF_v1's score and the W column: on a few paths a bout finished
+with no winner but unequal scores, and the two read it differently. Spec:
+`docs/superpowers/specs/2026-11-27-bout-result-is-stored-design.md`.
+
+| Row              | Story                                                                                                                                    | Ruling                                                                                                                | Files                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Card+draw (1009) | Marc and Léa reach the doubles limit, set to "draw": 0-0. Then Léa gets a card: the board reads 0 to -1, and the bout has no winner.     | **Still a draw.** The limit decided the bout; the card moves the board, not the result.                               | `packages/rules/src/match-format.ts`              |
+| Mark done (1010) | The API's "mark this bout completed" call, used by no screen, could complete a 3-1 bout with no winner, and so with no result or reason. | **It needs a winner who is one of the two fighters**, else a 400 (`winner_not_in_bout`). A draw comes from the clock. | `apps/api/src/modules/matches/matches.service.ts` |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

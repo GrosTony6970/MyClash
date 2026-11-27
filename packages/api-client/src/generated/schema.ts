@@ -11678,7 +11678,7 @@ export interface components {
       /** @enum {string} */
       status: 'completed';
       /** Format: uuid */
-      winnerRegistrationId?: string;
+      winnerRegistrationId: string;
     };
     ScheduleMatchDto: {
       /** Format: uuid */

@@ -232,8 +232,30 @@ export class MatchesService {
     return eventId;
   }
 
+  /**
+   * Mark a bout completed by hand. Ruling 1010: it names its winner, one of the bout's two
+   * fighters (the DTO requires one). A completion with no winner wrote no result and no reason
+   * whatever the score; a draw comes from the clock, which stores why.
+   */
   async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
-    return this.setStatus(matchId, dto.status, dto.winnerRegistrationId);
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('red_registration_id, blue_registration_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+    const sides = [data['red_registration_id'], data['blue_registration_id']];
+    if (!sides.includes(dto.winnerRegistrationId)) {
+      throw new BadRequestException({
+        message: 'The winner of a bout marked completed must be one of its two fighters',
+        code: 'winner_not_in_bout',
+      });
+    }
+    return this.setStatus(matchId, {
+      status: dto.status,
+      winnerRegistrationId: dto.winnerRegistrationId,
+    });
   }
 
   /**
@@ -249,7 +271,7 @@ export class MatchesService {
     // that is owned before the write so a refusal leaves the row alone. There
     // is no transaction, so ordering is the guarantee.
     await this.uncomplete(matchId, 'match status set to voided', context, discardDependents);
-    return this.setStatus(matchId, 'voided');
+    return this.setStatus(matchId, { status: 'voided' });
   }
 
   /**
@@ -265,19 +287,25 @@ export class MatchesService {
    * `voidMatch` had already falsified by routing through it. An unobserved
    * failure there is a bracket that silently did not advance, in front of a
    * caller about to act on the response.
+   *
+   * A RESULT BY HAND IS ITS WINNER ALONE (ruling 1010). The reason a bout ended before is cleared:
+   * a result is its winner and its reason, and an old `max_doubles` read beside a named winner was
+   * still a loss for both, and an old `time_limit` let the next correction decide the bout again
+   * from the board, over the winner named here.
    */
   private async setStatus(
     matchId: string,
-    status: UpdateMatchStatusDto['status'] | 'voided',
-    winnerRegistrationId?: string,
+    result: { status: 'voided' } | { status: 'completed'; winnerRegistrationId: string },
   ) {
+    const { status } = result;
     const updates: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
     };
-    if (status === 'completed') {
+    if (result.status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
+      updates['winner_registration_id'] = result.winnerRegistrationId;
+      updates['end_reason'] = null;
     }
 
     const { data, error } = await this.supabase.service

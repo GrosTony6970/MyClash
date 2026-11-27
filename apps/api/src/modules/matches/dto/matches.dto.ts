@@ -35,7 +35,11 @@ const updateMatchStatusSchema = z
      * at every call. A bout is put in play by the clock (Start, Reopen).
      */
     status: z.enum(['completed']),
-    winnerRegistrationId: z.uuid().optional(),
+    /**
+     * Required (ruling 1010): a bout marked completed by hand names its winner, and the service
+     * checks it is one of the bout's two fighters. A draw comes from the clock.
+     */
+    winnerRegistrationId: z.uuid(),
   })
   .strict();
 export class UpdateMatchStatusDto extends createZodDto(updateMatchStatusSchema) {}
