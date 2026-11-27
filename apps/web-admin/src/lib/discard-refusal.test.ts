@@ -93,6 +93,20 @@ describe('a closed draft (rulings 994, 997)', () => {
   });
 });
 
+describe('a schedule draft that collides at Apply', () => {
+  it('says so in words, not in the API’s sentence, which names a bout by id', () => {
+    expect(applyFailureMessage(refused(409, 'schedule_collision'), t, 'fallback')).toBe(
+      'organizer.aiAssistant.scheduleCollision',
+    );
+    expect(en.organizer.aiAssistant.scheduleCollision).toBe(
+      'A bout in this draft overlaps another bout on its piste. Nothing was moved.',
+    );
+    expect(fr.organizer.aiAssistant.scheduleCollision).toBe(
+      "Un combat de ce brouillon chevauche un autre combat sur sa piste. Rien n'a été déplacé.",
+    );
+  });
+});
+
 describe('foughtBoutsAtStake', () => {
   it('reads the count of the refusal that asks for the discard', () => {
     const failure = refused(409, 'scored_bouts_would_be_discarded', { scoredMatches: 3 });

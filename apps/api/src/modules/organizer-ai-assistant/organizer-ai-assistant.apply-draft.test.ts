@@ -283,22 +283,6 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     expect(assignments.insert).not.toHaveBeenCalled();
   });
 
-  it('applies nothing when the placement owner refuses', async () => {
-    const matches = matchRead('event-1');
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'matches') return matches;
-      if (table !== 'organizer_ai_assistant_drafts') return chain();
-      return scheduleDraft('l-9', '2026-06-01T09:00:00.000Z');
-    });
-    placement.placeMatches.mockRejectedValueOnce(
-      new ConflictException('Piste already busy: this bout overlaps match m-2'),
-    );
-
-    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
-      'Piste already busy',
-    );
-  });
-
   // Apply ran one placement per action: M04 moved for real, M05 collided, and the draft ended
   // failed, "Partially applied 1/2", for good.
   it('refuses a schedule draft whose placements collide before the claim: nothing moves', async () => {

@@ -168,3 +168,33 @@ describe('a proposal closed in another tab (ruling 994)', () => {
     expect(live).not.toContain('Dismiss');
   });
 });
+
+describe('a proposal whose schedule collides at Apply', () => {
+  it('says so in words, never the bout id the API names', async () => {
+    const busy = {
+      ok: false as const,
+      kind: 'http' as const,
+      status: 409,
+      detail: 'Piste already busy: this bout overlaps match 0b9c5a52-1d2e-4f3a-8b4c-5d6e7f8a9b0c',
+      validationErrors: null,
+      code: 'schedule_collision',
+      details: null,
+    };
+    page = await openEventPage(
+      <EventChatPage />,
+      { '/api/v1/events/ev1': { id: 'ev1', name: 'Open 2026', status: 'running' }, ...READS },
+      { 'POST /api/v1/events/ev1/chat/conversations/c-1/proposals/d-1/confirm': refused(busy) },
+    );
+    const confirm = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Confirm & apply',
+    );
+
+    await act(async () => confirm!.click());
+    await page.settle();
+
+    expect(document.body.textContent).toContain(
+      'A bout in this draft overlaps another bout on its piste. Nothing was moved.',
+    );
+    expect(document.body.textContent).not.toContain('0b9c5a52');
+  });
+});

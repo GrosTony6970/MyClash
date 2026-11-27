@@ -1350,6 +1350,8 @@ export const organizer = {
     draftNotFound: "Ce brouillon n'appartient pas à cet événement.",
     draftClosed:
       'Ce brouillon est déjà appliqué, appliqué en partie ou rejeté, peut-être dans un autre onglet. Il ne peut plus changer.',
+    scheduleCollision:
+      "Un combat de ce brouillon chevauche un autre combat sur sa piste. Rien n'a été déplacé.",
     partlyApplied:
       "Appliqué en partie avant l'échec. Il ne peut être ni appliqué à nouveau ni rejeté.",
     applySuccess: 'Brouillon appliqué.',

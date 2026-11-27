@@ -1353,6 +1353,8 @@ export const organizer = {
     draftNotFound: 'This draft is not at this Event.',
     draftClosed:
       'This draft is already applied, partly applied or rejected, perhaps in another tab. It cannot change any more.',
+    scheduleCollision:
+      'A bout in this draft overlaps another bout on its piste. Nothing was moved.',
     partlyApplied: 'Partly applied before it failed. It cannot be applied again or rejected.',
     applySuccess: 'Draft applied.',
     applyError: 'Could not apply draft.',

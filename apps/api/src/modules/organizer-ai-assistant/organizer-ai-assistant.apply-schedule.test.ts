@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   chain,
@@ -116,5 +116,41 @@ describe('OrganizerAIAssistantService.applyDraft, a schedule draft', () => {
       ['event-1', batch],
     ]);
     expect(result).toMatchObject({ status: 'applied' });
+  });
+});
+
+/** The placement owner's 409 names the other bout by its id, and the page showed its sentence. */
+describe('OrganizerAIAssistantService.applyDraft, a schedule draft that collides', () => {
+  beforeEach(resetHarness);
+
+  it.each([
+    ['the check before the claim', 0],
+    ['the write after it', 1],
+  ])('is refused at %s in its own words, with no id', async (_when, call) => {
+    scheduleDraft([['m-1', '14:30']]);
+    const busy = new ConflictException(
+      'Piste already busy: this bout overlaps match 0b9c5a52-1d2e-4f3a-8b4c-5d6e7f8a9b0c',
+    );
+    if (call === 1) placement.placeMatches.mockResolvedValueOnce(undefined);
+    placement.placeMatches.mockRejectedValueOnce(busy);
+
+    const refusal = await service()
+      .applyDraft('event-1', 'draft-1', 'user-1')
+      .catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toEqual({
+      code: 'schedule_collision',
+      message: 'A bout of this draft overlaps another on its piste.',
+    });
+    expect(placement.placeMatches).toHaveBeenCalledTimes(call + 1);
+  });
+
+  it('leaves a refusal that is not a collision as the owner threw it', async () => {
+    scheduleDraft([['m-1', '14:30']]);
+    const unreadable = new BadRequestException('Cannot read the time "noon"');
+    placement.placeMatches.mockRejectedValueOnce(unreadable);
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toBe(unreadable);
   });
 });

@@ -23,7 +23,9 @@ export function discardFailureMessage(
 /**
  * What the assistant says when a draft is not applied. A draft never deletes
  * fought bouts, whoever applies it (ruling 284): the API refuses it with the
- * count, and the assistant sends the reader to the page that shows it.
+ * count, and the assistant sends the reader to the page that shows it. A
+ * schedule draft whose bout overlaps another on its piste is refused with
+ * `schedule_collision`: the placement owner's own sentence names a bout by id.
  */
 export function applyFailureMessage(
   failure: ApiFailure,
@@ -32,6 +34,9 @@ export function applyFailureMessage(
 ): string | null {
   if (failureCode(failure) === 'scored_bouts_would_be_discarded') {
     return t('organizer.aiAssistant.applyFoughtBouts');
+  }
+  if (failureCode(failure) === 'schedule_collision') {
+    return t('organizer.aiAssistant.scheduleCollision');
   }
   return rejectFailureMessage(failure, t, fallback);
 }

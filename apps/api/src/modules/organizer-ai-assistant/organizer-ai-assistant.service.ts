@@ -62,6 +62,17 @@ function applyStarted(draft: Pick<DraftRow, 'applied_at'>): boolean {
   return Boolean(draft.applied_at);
 }
 
+/**
+ * A bout of a schedule draft that overlaps another on its piste, at Apply: a code the page words
+ * in EN and FR, and a sentence with no id.
+ */
+function scheduleCollision(): ConflictException {
+  return new ConflictException({
+    code: 'schedule_collision',
+    message: 'A bout of this draft overlaps another on its piste.',
+  });
+}
+
 /** A `schedule_match` action as the placement owner takes it: the bout, its piste, its time. */
 function schedulePlacement(action: Record<string, unknown>) {
   return {
@@ -453,7 +464,21 @@ export class OrganizerAIAssistantService {
     const placements = draft.proposed_actions_json.map(schedulePlacement);
     const matchIds = placements.map((placement) => placement.matchId);
     await assertMatchesBelongToEvent(this.supabase.service, eventId, matchIds);
-    await this.placement.placeMatches(eventId, placements, { checkOnly: true });
+    await this.placeSchedule(eventId, placements, { checkOnly: true });
+  }
+
+  /**
+   * The placement owner, called for a schedule draft. Its collision 409 names a Match by its id
+   * (`liceCollisionMessage`), and the page would show it: Apply refuses a collision in its own
+   * words instead (`scheduleCollision`). Any other refusal stays as the owner threw it.
+   */
+  private async placeSchedule(...args: Parameters<MatchPlacementService['placeMatches']>) {
+    try {
+      await this.placement.placeMatches(...args);
+    } catch (err) {
+      if (err instanceof ConflictException) throw scheduleCollision();
+      throw err;
+    }
   }
 
   /**
@@ -468,7 +493,7 @@ export class OrganizerAIAssistantService {
    */
   private async applySchedule(eventId: string, draft: DraftRow) {
     const placements = draft.proposed_actions_json.map(schedulePlacement);
-    await this.placement.placeMatches(eventId, placements);
+    await this.placeSchedule(eventId, placements);
     return placements.map(({ matchId }) => ({ kind: 'schedule_match', result: { id: matchId } }));
   }
 

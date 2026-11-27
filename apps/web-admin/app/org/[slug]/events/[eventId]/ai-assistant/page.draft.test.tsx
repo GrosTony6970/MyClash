@@ -267,4 +267,31 @@ describe('Apply and Reject', () => {
     );
     expect(text()).not.toContain('This draft is already applied.');
   });
+
+  it.each([
+    ['en', 'A bout in this draft overlaps another bout on its piste. Nothing was moved.'],
+    [
+      'fr',
+      "Un combat de ce brouillon chevauche un autre combat sur sa piste. Rien n'a été déplacé.",
+    ],
+  ] as const)(
+    'Apply of a schedule that collides says so in words, in %s',
+    async (locale, words) => {
+      const [, SCHEDULE] = EACH_KIND[3]!;
+      // The API's own sentence names the other bout by id; the page must not show it.
+      const busy = httpFailure(409, 'schedule_collision', `overlaps match ${OLDER_DRAFT_ID}`);
+      page = await openEventPage(
+        <EventAIAssistantPage />,
+        reads(draftOf([SCHEDULE], { draftType: 'schedule_grid' })),
+        { [`POST ${DRAFT_READ}/apply`]: refused(busy) },
+        { locale },
+      );
+
+      await act(async () => button(locale === 'en' ? 'Apply' : 'Appliquer')?.click());
+      await page.settle();
+
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(words);
+      expect(text()).not.toMatch(UUID);
+    },
+  );
 });
