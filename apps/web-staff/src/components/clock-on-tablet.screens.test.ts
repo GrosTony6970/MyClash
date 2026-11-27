@@ -144,8 +144,10 @@ describe('"End match" on the tablet', () => {
     expect(view).toMatch(
       /endIsEarly\([^)]*elapsedActiveMs\(clockState, Date\.now\(\)\),\s+series,/,
     );
+    // The gold numeral reads the venue limit too (`decidedSide`): offline it is the
+    // referee's only sign that a venues bout of one round is decided.
     expect(view).toContain(
-      'const capWinnerSide = pointCapWinnerColor(series, matchFormat, edition);',
+      'const capWinnerSide = decidedSide(series, match, matchFormat, edition);',
     );
     expect(rounds).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
     // "End round" carries the winner the cap names too, as "End match" does.

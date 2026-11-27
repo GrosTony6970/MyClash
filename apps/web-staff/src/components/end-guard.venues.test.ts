@@ -11,7 +11,7 @@ import {
   EDITION_2026_10,
   type MatchFormatConfig,
 } from '@myclash/types';
-import { endIsEarly, endRefusedOnPad, limitEnd, pressedOn } from './end-guard';
+import { decidedSide, endIsEarly, endRefusedOnPad, limitEnd, pressedOn } from './end-guard';
 
 const venues = (n: number): MatchFormatConfig => ({
   ...DEFAULT_MATCH_FORMAT_CONFIG,
@@ -64,5 +64,29 @@ describe('"End match" at the venue limit', () => {
     });
     // Level, where a Pool may end level: the board stands, and nobody is named.
     expect(pressedOn(board(2, 2), venues(4), POOL, EDITION_2026_10)).toEqual({ red: 2, blue: 2 });
+  });
+});
+
+/**
+ * The gold numeral: offline, it is the referee's only sign that a bout of one round is decided.
+ * The pad closes no such bout by itself, so hits fought past it reach the server as corrections.
+ */
+describe('the decided side on the pad', () => {
+  const stopping = { ...venues(5), stopWhenDecided: true };
+
+  it('names the leader once the venues left cannot catch them', () => {
+    expect(decidedSide(board(3, 0), POOL, stopping, EDITION_2026_10)).toBe('red');
+    expect(decidedSide(board(0, 3), POOL, stopping, EDITION_2026_10)).toBe('blue');
+  });
+
+  it('names nobody while the round is open', () => {
+    expect(decidedSide(board(2, 0), POOL, stopping, EDITION_2026_10)).toBeNull();
+  });
+
+  it('reads the cap, as before, in a bout that scores points', () => {
+    const points = { ...DEFAULT_MATCH_FORMAT_CONFIG, pointCap: 5 };
+    const atCap = { ...board(5, 2), redVenuesWon: 3, blueVenuesWon: 2 };
+    expect(decidedSide(atCap, POOL, points, EDITION_2026_10)).toBe('red');
+    expect(decidedSide(board(3, 0), POOL, points, EDITION_2026_10)).toBeNull();
   });
 });

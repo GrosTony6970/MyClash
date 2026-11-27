@@ -37,7 +37,7 @@ import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import { pointCapWinnerColor, protestRulesOf } from '@myclash/types';
+import { protestRulesOf } from '@myclash/types';
 import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import { editionOf } from '../lib/bout-edition';
 import type { PadBoutRules } from '../lib/bout-read';
@@ -53,7 +53,7 @@ import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
-import { endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
+import { decidedSide, endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
 import { padRequest } from '../offline/drill-request';
 import { serverNextSequence } from '../lib/sequence-seed';
 
@@ -540,8 +540,9 @@ export function MatchView({
   const limitMs =
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null;
 
-  // Which side (if any) has won by reaching the point cap — drives the gold
-  // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
+  // Which side (if any) has won by reaching the point cap, or in a venues bout
+  // the venue limit (`decidedSide`) — drives the gold score highlight.
+  // Reverse-aware (in reverse scoring, hitting 0 loses).
   // Reads the provisional score on purpose: it only paints a numeral gold, and
   // a referee needs to see the cap coming while the tablet is offline. It
   // cannot end a bout: the result overlay opens on the CLOCK being ended, and
@@ -549,7 +550,7 @@ export function MatchView({
   // side went in a bout that counts down: with both at zero, one has won. Every
   // rule of the end here asks with the edition of the bout's own version.
   const edition = editionOf(match);
-  const capWinnerSide = pointCapWinnerColor(series, matchFormat, edition);
+  const capWinnerSide = decidedSide(series, match, matchFormat, edition);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // The controls' clock buttons. "End match" before the cap or the time is asked

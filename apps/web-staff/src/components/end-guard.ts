@@ -145,9 +145,24 @@ export function pressedOn(
     const wiped = endReason !== 'max_doubles_result_stands';
     return { red: wiped ? 0 : score.redScore, blue: wiped ? 0 : score.blueScore, endReason };
   }
-  const venues = venueLimitEnd(score, bout, matchFormat, edition);
-  const winner = venues ? venues.winnerColor : pointCapWinnerColor(score, matchFormat, edition);
+  const winner = decidedSide(score, bout, matchFormat, edition);
   return { red: score.redScore, blue: score.blueScore, ...(winner ? { winner } : {}) };
+}
+
+/**
+ * The fighter the board has already given the bout or the round to, or nobody: the venue
+ * count's leader at the venue limit, the cap's winner otherwise. The End names this fighter, and
+ * the pad paints their score gold. Offline the gold is the referee's only sign that a bout of one
+ * round is decided: the pad ends no such bout by itself.
+ */
+export function decidedSide(
+  score: EndBoard,
+  bout: BoutPhase,
+  matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
+): 'red' | 'blue' | null {
+  const venues = venueLimitEnd(score, bout, matchFormat, edition);
+  return venues ? venues.winnerColor : pointCapWinnerColor(score, matchFormat, edition);
 }
 
 /** Why the pad does not end a bout: the server's two refusals of an End (`time-limit-result.ts`). */
