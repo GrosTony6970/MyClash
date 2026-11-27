@@ -1,5 +1,6 @@
 import type { Page, Request, Route } from '@playwright/test';
 import { LEA, PUBLIC, signInAsLea } from './me-stub';
+import { CAMERA_JPEG } from './photo-jpegs';
 
 /**
  * Léa's Photos tab in her personal space (slice 6b; `me-photos.spec.ts`,
@@ -79,8 +80,8 @@ const PIXEL = Buffer.from(
   'base64',
 );
 
-// Only the first bytes matter to the page; the API is stubbed.
-export const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);
+// A real camera-shaped JPEG: the phone sends it as it is. The API is stubbed.
+export const JPEG = CAMERA_JPEG;
 
 export type Answer = (route: Route, request: Request) => Promise<void> | void;
 export const json =

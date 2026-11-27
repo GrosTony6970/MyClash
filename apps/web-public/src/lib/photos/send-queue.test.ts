@@ -30,7 +30,7 @@ const http = (status: number, code: string | null): Result =>
 function queue(start: QueueItem[], answers: Result[], during?: (send: number) => void) {
   let items = start;
   let current = fields('first');
-  const calls: Array<{ key: number; name: string }> = [];
+  const calls: Array<{ key: number; name: string; file: File }> = [];
   const onClosed = vi.fn();
   const deps: SendQueueDeps = {
     items: () => items,
@@ -38,8 +38,9 @@ function queue(start: QueueItem[], answers: Result[], during?: (send: number) =>
       items = change(items);
     },
     fields: () => current,
+    prepare: async (file) => ({ ok: true, file }),
     send: async (item, f) => {
-      calls.push({ key: item.key, name: f.name });
+      calls.push({ key: item.key, name: f.name, file: item.file });
       during?.(calls.length);
       return answers.shift() ?? sent;
     },
@@ -104,12 +105,40 @@ describe('the send loop', () => {
       }
     });
     await sendQueued(q.deps);
-    expect(q.calls).toEqual([
+    expect(q.calls.map(({ key, name }) => ({ key, name }))).toEqual([
       { key: 1, name: 'first' },
       { key: 2, name: 'first' },
       { key: 1, name: 'second' },
       { key: 3, name: 'second' },
     ]);
+  });
+
+  it('sends the camera-shaped copy, and keeps it on the photo for a Retry', async () => {
+    const copy = { name: '1.jpg' } as File;
+    const q = queue([waiting(1)], [{ ok: false, kind: 'network' }, sent]);
+    const prepared: File[] = [];
+    q.deps.prepare = async (file) => {
+      prepared.push(file);
+      return { ok: true, file: file === copy ? file : copy };
+    };
+    await sendQueued(q.deps);
+    expect(q.items()[0]!.file).toBe(copy);
+    q.change((list) => retried(list, 1));
+    await sendQueued(q.deps);
+    expect(q.calls.map((c) => c.file)).toEqual([copy, copy]);
+    // The Retry starts from the copy, so the picture is not drawn a second time.
+    expect(prepared[1]).toBe(copy);
+    expect(states(q.items())).toEqual(['sent']);
+  });
+
+  it('a photo the phone cannot convert is refused, unsent, and the next one goes', async () => {
+    const q = queue([waiting(1), waiting(2)], []);
+    q.deps.prepare = async (file) =>
+      file.name === '1.jpg' ? { ok: false, refusal: 'photo_corrupt' } : { ok: true, file };
+    await sendQueued(q.deps);
+    expect(q.calls.map((c) => c.key)).toEqual([2]);
+    expect(states(q.items())).toEqual(['refused', 'sent']);
+    expect(q.items()[0]!.message).toBe(t('publicApp.photoSend.refusal.corrupt'));
   });
 
   it('says each photo sent, once, and never a refused or failed one', async () => {

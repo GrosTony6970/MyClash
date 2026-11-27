@@ -37,8 +37,8 @@ On a phone, **Take a photo** opens the camera and **Choose photos** opens the ga
 computer, only **Choose photos** shows.
 
 **The rules for a photo:** JPEG only, up to 12 MB. An iPhone photo in HEIC is refused, with a tip to
-set the camera to "Most Compatible". Some photos exported from an editing app are refused too: send
-the photo straight from the camera. Each phone, and each account, can send 20 photos an hour. The
+set the camera to "Most Compatible". A camera photo is sent as it is. A picture saved from a website
+or exported from an app is saved again by the phone, as a standard JPEG, before it is sent. Each phone, and each account, can send 20 photos an hour. The
 whole event takes at most 300 photos an hour and 15 GB in all: the Photos page shows both counts.
 The location data in a photo is removed.
 

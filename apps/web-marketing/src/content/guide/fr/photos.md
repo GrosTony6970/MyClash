@@ -38,8 +38,9 @@ Sur un téléphone, **Prendre une photo** ouvre l'appareil photo et **Choisir de
 galerie. Sur un ordinateur, seul **Choisir des photos** est affiché.
 
 **Les règles d'une photo :** JPEG seulement, jusqu'à 12 Mo. Une photo d'iPhone en HEIC est refusée,
-avec le conseil de régler l'appareil photo sur « Le plus compatible ». Certaines photos exportées
-d'une application de retouche sont refusées aussi : envoyez la photo telle que l'appareil l'a prise.
+avec le conseil de régler l'appareil photo sur « Le plus compatible ». Une photo de l'appareil photo
+est envoyée telle quelle. Une image enregistrée depuis un site web ou exportée d'une application est
+d'abord réenregistrée par le téléphone, en JPEG standard, puis envoyée.
 Chaque téléphone, et chaque compte, peut envoyer 20 photos par heure. L'événement entier reçoit au
 plus 300 photos par heure et 15 Go en tout : la page Photos affiche les deux nombres. Les données de
 lieu d'une photo sont retirées.
