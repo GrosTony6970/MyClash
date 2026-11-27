@@ -97,7 +97,7 @@ export const EACH_KIND: Array<[string, ReadableDraftAction, string]> = [
       startsAt: null,
       timezone: 'Europe/Paris',
     },
-    'Put a Match removed since on a piste removed since, at a time that cannot be read',
+    'Put a bout removed since on a piste removed since, at a time that cannot be read',
   ],
   [
     'unsupported',

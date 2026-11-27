@@ -15,7 +15,7 @@ import { formatInZone, localeToBcp47 } from '@myclash/time';
  * A draft's actions in words, one line each (ruling 993): the assistant page and the chat's
  * proposal card both show a draft through this view (ruling 995). The names come from the API
  * (`readable`, call U); the words are here, in EN and FR. A row the Event no longer has reads
- * as "a Match removed since", never as its id. A start shows on the Event's wall clock: each
+ * as "a bout removed since", never as its id. A start shows on the Event's wall clock: each
  * placement carries the Event's zone.
  */
 export function DraftActionsView({ actions }: { actions: ReadableDraftAction[] }) {

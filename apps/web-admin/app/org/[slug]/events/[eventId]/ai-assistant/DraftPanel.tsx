@@ -57,7 +57,7 @@ export function DraftPanel({ draft, busy, isReadOnly, onApply, onReject, t }: Pr
       {!draft.applyStarted && (
         <DraftDecision
           canApply={!busy && draft.status === 'ready' && !isReadOnly}
-          canReject={!busy && !isReadOnly}
+          canReject={!busy && draft.status !== 'rejected' && !isReadOnly}
           onApply={onApply}
           onReject={onReject}
           t={t}

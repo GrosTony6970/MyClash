@@ -1406,7 +1406,7 @@ export const organizer = {
       assign: 'Assign {referee} as {role}',
       missing: {
         tournament: 'a Tournament removed since',
-        match: 'a Match removed since',
+        match: 'a bout removed since',
         piste: 'a piste removed since',
         pool: 'a Pool removed since',
         phase: 'a phase removed since',

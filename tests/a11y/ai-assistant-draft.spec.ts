@@ -56,25 +56,53 @@ const READS: Record<string, unknown> = {
   },
 };
 
-async function stubApi(page: Page) {
+const DRAFT_PATH = `/api/v1/events/${EVENT_ID}/ai-assistant/drafts/${DRAFT_ID}`;
+
+/** The draft's own read answers `draft`: a draft, or a refusal with its status. */
+async function openDraftLink(page: Page, draft: { status: number; json: unknown }) {
   // Anything else the shell asks for answers an empty list, as the schedule board's specs do:
   // an unanswered read stalls the page.
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === DRAFT_PATH) return route.fulfill(draft);
     return route.fulfill({ json: path in READS ? READS[path] : [] });
   });
+  await page.goto(`${ADMIN}/org/${ORG_SLUG}/events/${EVENT_ID}/ai-assistant?draft=${DRAFT_ID}`);
+  await waitForPageMain(page);
 }
 
 test('a draft opened from its link reads in words, axe clean, with no id on the page', async ({
   page,
 }) => {
-  await stubApi(page);
-
-  await page.goto(`${ADMIN}/org/${ORG_SLUG}/events/${EVENT_ID}/ai-assistant?draft=${DRAFT_ID}`);
-  await waitForPageMain(page);
+  await openDraftLink(page, { status: 200, json: DRAFT });
 
   await expect(page.getByText('Make 4 Pools in Longsword Open — clubs kept apart')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled();
   await expectNoCriticalAxeViolations(page);
   expect(await page.locator('body').innerText()).not.toMatch(UUID);
+});
+
+test('a link to no draft at this Event says so aloud, axe clean, with no id', async ({ page }) => {
+  await openDraftLink(page, {
+    status: 404,
+    json: { code: 'not_found', detail: `AI assistant draft ${DRAFT_ID} not found` },
+  });
+
+  // In `main`: Next's own route announcer is an alert too.
+  await expect(page.locator('main').getByRole('alert')).toHaveText(
+    'This draft is not at this Event.',
+  );
+  await expectNoCriticalAxeViolations(page);
+  expect(await page.locator('body').innerText()).not.toMatch(UUID);
+});
+
+test('a partly applied draft says so, axe clean, with no Apply or Reject', async ({ page }) => {
+  await openDraftLink(page, {
+    status: 200,
+    json: { ...DRAFT, status: 'failed', applyStarted: true },
+  });
+
+  await expect(page.getByText('Partly applied before it failed.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveCount(0);
+  await expectNoCriticalAxeViolations(page);
 });

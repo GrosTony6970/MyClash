@@ -125,7 +125,12 @@ describe('a proposal closed in another tab (ruling 994)', () => {
   it.each([
     ['Confirm & apply', 'confirm'],
     ['Dismiss', 'reject'],
-  ])('%s says so in words, not in the API’s English', async (name, decision) => {
+  ])('%s says so in words, and the card shows where it stands', async (name, decision) => {
+    // The other tab applied it: the conversation, read again, says so.
+    let closedElsewhere = false;
+    const applied = structuredClone(CONVERSATION);
+    applied.messages[0]!.proposal.status = 'applied';
+    const conversation = () => (closedElsewhere ? applied : CONVERSATION);
     const closed = {
       ok: false as const,
       kind: 'http' as const,
@@ -137,12 +142,17 @@ describe('a proposal closed in another tab (ruling 994)', () => {
     };
     page = await openEventPage(
       <EventChatPage />,
-      { '/api/v1/events/ev1': { id: 'ev1', name: 'Open 2026', status: 'running' }, ...READS },
+      {
+        '/api/v1/events/ev1': { id: 'ev1', name: 'Open 2026', status: 'running' },
+        ...READS,
+        '/api/v1/events/ev1/chat/conversations/c-1': conversation,
+      },
       {
         [`POST /api/v1/events/ev1/chat/conversations/c-1/proposals/d-1/${decision}`]:
           refused(closed),
       },
     );
+    closedElsewhere = true;
     const button = [...document.body.querySelectorAll('button')].find(
       (b) => b.textContent === name,
     );
@@ -152,5 +162,9 @@ describe('a proposal closed in another tab (ruling 994)', () => {
 
     expect(document.body.textContent).toContain('This draft is already applied, partly applied');
     expect(document.body.textContent).not.toContain('This draft is already applied.');
+    expect(document.body.textContent).toContain('Applied');
+    const live = [...document.body.querySelectorAll('button')].map((b) => b.textContent);
+    expect(live).not.toContain('Confirm & apply');
+    expect(live).not.toContain('Dismiss');
   });
 });

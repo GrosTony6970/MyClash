@@ -7,7 +7,7 @@ import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
-import { apiRequest, failureMessage, responseFailure } from '@myclash/api-client';
+import { apiRequest, failureCode, failureMessage, responseFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { applyFailureMessage, rejectFailureMessage } from '@/lib/discard-refusal';
@@ -279,6 +279,8 @@ export default function EventChatPage() {
         const refusal = decision === 'confirm' ? applyFailureMessage : rejectFailureMessage;
         const message = refusal(r, t, t('organizer.chat.errorSend'));
         if (message) setError(message);
+        // Closed elsewhere: the conversation reads again, so the card shows where it stands.
+        if (failureCode(r) === 'draft_closed') await openConversation(active.id);
         return;
       }
       setActive('conversation' in r.data ? r.data.conversation : r.data);

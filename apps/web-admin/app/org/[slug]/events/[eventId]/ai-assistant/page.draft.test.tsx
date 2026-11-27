@@ -2,7 +2,7 @@ import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { apiRequest } from '@myclash/api-client';
-import { openEventPage, refused, type OpenedPage } from '../archived-page.fixtures';
+import { openEventPage, refused, type, type OpenedPage } from '../archived-page.fixtures';
 import {
   DRAFT_ID,
   DRAFT_READ,
@@ -52,6 +52,33 @@ const reads = (draft: unknown, listed: unknown[] = []) => ({
   [DRAFT_READ]: draft,
 });
 
+const OLDER_READ = `${DRAFTS_READ}/${OLDER_DRAFT_ID}`;
+const NOT_HERE = 'This draft is not at this Event.';
+const NOT_FOUND = httpFailure(404, 'not_found', `AI assistant draft ${DRAFT_ID} not found`);
+const MALFORMED = httpFailure(400, 'bad_request', 'Validation failed (uuid is expected)');
+const [, TOURNAMENT, TOURNAMENT_EN] = EACH_KIND[0]!;
+
+/** An answer the server holds back until `release()`: a slow request. */
+function held<T>(value: T) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  return {
+    answer: async () => {
+      await gate;
+      return value;
+    },
+    release: () => release(),
+  };
+}
+
+/** The address names another draft, as a link or the browser's Back does; the page renders. */
+async function moveAddressTo(id: string) {
+  nav.search = `draft=${id}`;
+  const prompt = document.body.querySelector<HTMLTextAreaElement>('#ai-assistant-prompt')!;
+  await act(async () => type(prompt, `open ${id}`));
+  await page.settle();
+}
+
 const text = () => document.body.textContent ?? '';
 const button = (name: string) =>
   [...document.body.querySelectorAll('button')].find((b) => b.textContent === name);
@@ -89,13 +116,41 @@ describe('the assistant page opens the draft a link names', () => {
     expect(text()).toContain(POOLS_FR);
   });
 
-  it('says the draft is not at this Event, not the API sentence that names the id', async () => {
-    const notFound = httpFailure(404, 'not_found', `AI assistant draft ${DRAFT_ID} not found`);
-    page = await openEventPage(<EventAIAssistantPage />, reads(refused(notFound)));
+  it.each([
+    ['no draft of that id at this Event', NOT_FOUND],
+    ['a malformed id, a link cut short', MALFORMED],
+  ])('says the draft is not at this Event for %s, aloud', async (_case, failure) => {
+    page = await openEventPage(<EventAIAssistantPage />, reads(refused(failure)));
 
-    expect(text()).toContain('This draft is not at this Event.');
-    expect(text()).not.toContain('not found');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(NOT_HERE);
+    expect(text()).not.toContain(failure.detail);
     expect(text()).not.toMatch(UUID);
+  });
+
+  it('drops that sentence when a draft is then picked from the history', async () => {
+    const older = draftOf([POOLS], { id: OLDER_DRAFT_ID });
+    page = await openEventPage(<EventAIAssistantPage />, reads(refused(NOT_FOUND), [older]));
+    expect(text()).toContain(NOT_HERE);
+
+    await act(async () => document.body.querySelector<HTMLButtonElement>('aside button')!.click());
+
+    expect(text()).toContain(POOLS_EN);
+    expect(text()).not.toContain(NOT_HERE);
+  });
+
+  it('a newer address aborts the older read, which then shows nothing', async () => {
+    const slow = held(draftOf([POOLS]));
+    page = await openEventPage(<EventAIAssistantPage />, {
+      ...reads(slow.answer),
+      [OLDER_READ]: draftOf([TOURNAMENT], { id: OLDER_DRAFT_ID }),
+    });
+
+    await moveAddressTo(OLDER_DRAFT_ID);
+    slow.release();
+    await page.settle();
+
+    expect(text()).toContain(TOURNAMENT_EN);
+    expect(text()).not.toContain(POOLS_EN);
   });
 
   it.each(EACH_KIND)('shows a %s action by name, never an id', async (_kind, action, line) => {
@@ -150,6 +205,39 @@ describe('Apply and Reject', () => {
     );
     expect(button('Apply')).toBeUndefined();
     expect(button('Reject')).toBeUndefined();
+  });
+
+  it('a late reread of the draft is dropped when the address moved on meanwhile', async () => {
+    let applied = false;
+    const draft = () =>
+      applied ? draftOf([POOLS], { status: 'applied', applyStarted: true }) : draftOf([POOLS]);
+    const apply = held({ ok: true });
+    page = await openEventPage(
+      <EventAIAssistantPage />,
+      { ...reads(draft), [OLDER_READ]: draftOf([TOURNAMENT], { id: OLDER_DRAFT_ID }) },
+      { [`POST ${DRAFT_READ}/apply`]: apply.answer },
+    );
+
+    await act(async () => button('Apply')?.click());
+    await moveAddressTo(OLDER_DRAFT_ID);
+    expect(text()).toContain(TOURNAMENT_EN);
+    applied = true;
+    apply.release();
+    await page.settle();
+
+    expect(draftReads()).toHaveLength(2);
+    expect(text()).toContain(TOURNAMENT_EN);
+    expect(text()).not.toContain(POOLS_EN);
+  });
+
+  it('a rejected draft cannot be rejected again', async () => {
+    page = await openEventPage(
+      <EventAIAssistantPage />,
+      reads(draftOf([POOLS], { status: 'rejected' })),
+    );
+
+    expect(button('Reject')?.disabled).toBe(true);
+    expect(button('Apply')?.disabled).toBe(true);
   });
 
   it('a draft that failed its check is not partly applied: it can still be rejected', async () => {

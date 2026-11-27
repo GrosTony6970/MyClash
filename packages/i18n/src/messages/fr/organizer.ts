@@ -1347,7 +1347,7 @@ export const organizer = {
     createSuccess: 'Brouillon créé.',
     createError: 'Impossible de créer le brouillon.',
     openError: "Impossible d'ouvrir ce brouillon.",
-    draftNotFound: "Ce brouillon n'est pas à cet événement.",
+    draftNotFound: "Ce brouillon n'appartient pas à cet événement.",
     draftClosed:
       'Ce brouillon est déjà appliqué, appliqué en partie ou rejeté, peut-être dans un autre onglet. Il ne peut plus changer.',
     partlyApplied:
@@ -1404,12 +1404,12 @@ export const organizer = {
       assign: 'Affecter {referee} comme {role}',
       missing: {
         tournament: 'un tournoi supprimé depuis',
-        match: 'un match supprimé depuis',
+        match: 'un combat supprimé depuis',
         piste: 'une piste supprimée depuis',
         pool: 'une poule supprimée depuis',
         phase: 'une phase supprimée depuis',
         referee: "un arbitre qui n'est plus à cet événement",
-        role: 'un rôle d’arbitre supprimé depuis',
+        role: "un rôle d'arbitre supprimé depuis",
       },
     },
   },

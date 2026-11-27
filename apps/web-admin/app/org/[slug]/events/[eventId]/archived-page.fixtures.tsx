@@ -86,7 +86,10 @@ const refusalOf = (answer: unknown): Refusal | null =>
   typeof answer === 'object' && answer !== null && REFUSED in answer
     ? (answer as { [REFUSED]: Refusal })[REFUSED]
     : null;
-/** A read's answer, asked again on each request when it is a function: a draft after its Apply. */
+/**
+ * A read's or a save's answer, asked again on each request when it is a function (a draft after
+ * its Apply). The function may return a promise: the request then waits for it, as a slow one.
+ */
 const answerOf = (answer: unknown): unknown =>
   typeof answer === 'function' ? (answer as () => unknown)() : answer;
 const SERVER_FAULT = {
@@ -245,10 +248,13 @@ function standInServer(
       const save = `${init.method} ${path}`;
       sent.push(save);
       if (!(save in taken)) return REFUSAL;
-      return refusalOf(taken[save]) ?? { ok: true, data: taken[save] };
+      const answer = await answerOf(taken[save]);
+      return refusalOf(answer) ?? { ok: true, data: answer };
     }
     if (path in answers) {
-      const answer = answerOf(answers[path]);
+      const answer = await answerOf(answers[path]);
+      // A read the page gave up on while it waited answers what `apiRequest` answers it.
+      if (init?.signal?.aborted) return { ok: false, kind: 'aborted' };
       const refusal = refusalOf(answer);
       if (refusal) return refusal;
       if (isForbiddenRead(answer)) return { ...REFUSAL, detail: 'Forbidden', code: null };

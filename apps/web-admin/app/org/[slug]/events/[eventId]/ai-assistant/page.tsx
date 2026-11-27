@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { statusLabel } from '@myclash/ui';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
@@ -53,6 +53,8 @@ export default function EventAIAssistantPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The draft the address names, for a read that lands after the address moved on. */
+  const addressedDraft = useRef<string | null>(null);
 
   const selectedNeedsTournament = draftType !== 'tournament_config';
 
@@ -131,6 +133,7 @@ export default function EventAIAssistantPage() {
   // The address names the open draft, so a reload or a link opens it. A newer choice aborts
   // the read of the older one, which would otherwise land last and show the wrong draft.
   useEffect(() => {
+    addressedDraft.current = openDraftId;
     if (!openDraftId) return;
     const controller = new AbortController();
     void readDraft(openDraftId, controller.signal).then(showDraft);
@@ -139,6 +142,9 @@ export default function EventAIAssistantPage() {
   }, [openDraftId]);
 
   function selectDraft(draft: AssistantDraft) {
+    // A word about the draft shown before (a bad link, an Apply) is not about this one.
+    setError(null);
+    setMessage(null);
     setSelectedDraft(draft);
     const next = new URLSearchParams(search.toString());
     next.set('draft', draft.id);
@@ -203,17 +209,19 @@ export default function EventAIAssistantPage() {
   /**
    * Apply or Reject, then the open draft reads again: applied, rejected, partly applied, or
    * closed by another tab, it shows its new state. The history's buttons wait while this runs,
-   * so the read lands on the draft it was asked for.
+   * but the address can still move (a link, the browser's Back): then the address's own read
+   * shows its draft, and this one, landing later, is dropped.
    */
   async function decide(decision: (id: string) => Promise<void>) {
     if (!selectedDraft) return;
+    const id = selectedDraft.id;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await decision(selectedDraft.id);
-      const [read] = await Promise.all([readDraft(selectedDraft.id), refreshDrafts()]);
-      showDraft(read);
+      await decision(id);
+      const [read] = await Promise.all([readDraft(id), refreshDrafts()]);
+      if (addressedDraft.current === id) showDraft(read);
     } finally {
       setBusy(false);
     }
@@ -319,8 +327,16 @@ export default function EventAIAssistantPage() {
             </button>
           </div>
 
-          {message && <p className="text-sm text-success">{message}</p>}
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {message && (
+            <p role="status" className="text-sm text-success">
+              {message}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
 
           {selectedDraft && (
             <DraftPanel
