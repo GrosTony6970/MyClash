@@ -1679,10 +1679,10 @@ export const organizer = {
       'Tied on every configured tiebreak: {fighters}. Which of them qualified was arbitrary — extend the tiebreak chain or run a barrage if that matters.',
     autoPopulateNoPoolsTitle: 'Auto-populate without pool data?',
     autoPopulateNoPoolsBody:
-      'This tournament has no pool phase. The bracket will be seeded from registration order. Continue?',
+      'This tournament has no pool phase. The bracket will be seeded in seed order: the seeded fighters first, lowest seed first, then the others by bib number. Continue?',
     autoPopulateNoPoolsBodyTeam:
       'This tournament has no pool phase. The bracket will be seeded in team seed order: the seeded teams first, then the others in the order they were made. Continue?',
-    autoPopulateNoPoolsConfirm: 'Seed from registrations',
+    autoPopulateNoPoolsConfirm: 'Seed in seed order',
     autoPopulateNoPoolsConfirmTeam: 'Seed in team seed order',
     autoPopulateNoPoolsCancel: 'Cancel',
   },

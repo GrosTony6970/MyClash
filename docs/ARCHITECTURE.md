@@ -463,7 +463,9 @@ What is **not** derivable from the DDL, and so belongs here:
   as a typed wire side (`apps/api/src/modules/matches/bracket-slot-sides.ts`). The final ranking
   keys every entrant by its side key, so a team bracket ranks its teams
   (`packages/types/src/final-ranking-core.ts`). A team's seed sets the bracket order only (ruling
-  982, `apps/api/src/modules/phases/team-bracket-ranking.ts`). A team Tournament refuses three
+  982, `apps/api/src/modules/phases/team-bracket-ranking.ts`). A Fighter's seed does the same since
+  ruling 991: seeded first by seed, then the unseeded, bib then id breaking ties, ranked 1..N
+  (`rankBySeed`, `packages/rules/src/results/r1-ranking.ts`). A team Tournament refuses three
   things when its bracket is generated, each with a named 409. Seeding `by-rating` answers
   `rating_needs_named_members`, because a rating needs named members (slice 1c-2). Seeding
   `by-swiss-rank` answers `team_tournament_not_supported`. A double elimination bracket answers

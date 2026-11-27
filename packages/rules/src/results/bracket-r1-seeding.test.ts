@@ -6,6 +6,7 @@ import {
   parseSeed,
   seedingSourceKind,
 } from './bracket-r1-seeding';
+import { rankBySeed, type SeedableEntrant } from './r1-ranking';
 
 // Standard size-8 seed distribution as the generator emits it:
 // [[1,8],[5,4],[3,6],[7,2]] (seed 1 vs 8, etc.). buildR1SeedingPlan must place
@@ -99,6 +100,45 @@ describe('buildR1SeedingPlan', () => {
   it('yields all-null updates when rankings are empty', () => {
     const plan = buildR1SeedingPlan([], slots8);
     expect(plan.every((p) => p.entrantAId === null && p.entrantBId === null)).toBe(true);
+  });
+});
+
+describe('registration seed → Round 1 plan (ruling 991)', () => {
+  it('gives every Fighter exactly one bracket place, whatever the seeds and bibs', () => {
+    // Two Fighters seeded 3, an unseeded Fighter with bib 42 in a bracket of 8, and two with
+    // neither: the plan keeps one entrant per rank, so each needs a rank of its own in 1..8.
+    const fighters: SeedableEntrant[] = [
+      { id: 'f1', seed: 1, bibNumber: null },
+      { id: 'f2', seed: 3, bibNumber: 10 },
+      { id: 'f3', seed: 3, bibNumber: null },
+      { id: 'f4', seed: 6, bibNumber: null },
+      { id: 'f5', seed: null, bibNumber: 42 },
+      { id: 'f6', seed: null, bibNumber: 2 },
+      { id: 'f7', seed: null, bibNumber: null },
+      { id: 'f8', seed: null, bibNumber: null },
+    ];
+    const slots = [
+      ['s1', 'seed 1', 'seed 8'],
+      ['s2', 'seed 5', 'seed 4'],
+      ['s3', 'seed 3', 'seed 6'],
+      ['s4', 'seed 7', 'seed 2'],
+    ].map(([id, a, b], i) => ({
+      id: id!,
+      position: i + 1,
+      seedA: parseSeed(a),
+      seedB: parseSeed(b),
+    }));
+
+    const plan = buildR1SeedingPlan(rankBySeed(fighters), slots);
+
+    const placed = plan.flatMap((p) => [p.entrantAId, p.entrantBId]);
+    expect([...placed].sort()).toEqual(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8']);
+    expect(plan).toEqual([
+      { slotId: 's1', entrantAId: 'f1', entrantBId: 'f8' },
+      { slotId: 's2', entrantAId: 'f6', entrantBId: 'f4' },
+      { slotId: 's3', entrantAId: 'f3', entrantBId: 'f5' },
+      { slotId: 's4', entrantAId: 'f7', entrantBId: 'f2' },
+    ]);
   });
 });
 

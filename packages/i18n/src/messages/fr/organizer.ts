@@ -1671,7 +1671,7 @@ export const organizer = {
     autoPopulatePoolsNotFinished: 'Les poules ne sont pas encore terminées',
     autoPopulateSuccess: 'Tableau rempli à partir du classement des poules',
     autoPopulateSuccessFromSeed:
-      "Tableau rempli à partir de l'ordre d'inscription (aucune donnée de poule)",
+      "Tableau rempli dans l'ordre des têtes de série (aucune donnée de poule)",
     autoPopulateSuccessFromSeedTeam:
       "Tableau rempli dans l'ordre des têtes de série des équipes (aucune donnée de poule)",
     autoPopulateSuccessFromRating: 'Tableau rempli à partir du classement HEMA',
@@ -1681,10 +1681,10 @@ export const organizer = {
       'À égalité sur tous les départages configurés : {fighters}. Le choix entre eux était arbitraire — allongez la chaîne de départages ou organisez un barrage si cela compte.',
     autoPopulateNoPoolsTitle: 'Remplir le tableau sans données de poule ?',
     autoPopulateNoPoolsBody:
-      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé selon l'ordre d'inscription. Continuer ?",
+      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé dans l'ordre des têtes de série : d'abord les combattants classés, du plus petit numéro de tête de série au plus grand, puis les autres par numéro de dossard. Continuer ?",
     autoPopulateNoPoolsBodyTeam:
       "Ce tournoi n'a pas de phase de poules. Le tableau sera classé dans l'ordre des têtes de série des équipes : d'abord les équipes classées, puis les autres dans leur ordre de création. Continuer ?",
-    autoPopulateNoPoolsConfirm: 'Classer par inscriptions',
+    autoPopulateNoPoolsConfirm: 'Classer par têtes de série',
     autoPopulateNoPoolsConfirmTeam: 'Classer par têtes de série des équipes',
     autoPopulateNoPoolsCancel: 'Annuler',
   },
@@ -1701,7 +1701,7 @@ export const organizer = {
     bracketSummaryPlayIns: '{count} barrages',
     playIns: 'Barrages',
     seedingStrategyLabel: 'Stratégie de tirage',
-    seedingStrategySnake: "Standard — rang de poule, ou ordre d'inscription (recommandé)",
+    seedingStrategySnake: 'Standard — rang de poule, ou ordre des têtes de série (recommandé)',
     seedingStrategySnakeTeam:
       'Standard — rang de poule, ou ordre des têtes de série des équipes (recommandé)',
     seedingStrategyByRating: 'Par classement HEMA',

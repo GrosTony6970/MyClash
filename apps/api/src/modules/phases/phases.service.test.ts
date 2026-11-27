@@ -2970,6 +2970,82 @@ describe('PhasesService', () => {
     });
   });
 
+  // ── populateBracket — registration seed places every Fighter (ruling 991) ──
+
+  describe('populateBracket — registration seed places every Fighter', () => {
+    it('writes both Fighters on a repeated seed into Round 1', async () => {
+      const r1 = (position: number, a: number, b: number): SupabaseRow => ({
+        id: `slot-r1p${position}`,
+        phase_id: 'bracket-phase-1',
+        round: 1,
+        position,
+        source_a_ref: `seed ${a}`,
+        source_b_ref: `seed ${b}`,
+      });
+      const active = { tournament_id: 'tournament-1', status: 'registered' };
+      const { service: svc, supabase } = makeService({
+        // A bracket and no Pool phase: the fill takes the registration seed.
+        phases: {
+          rows: [
+            {
+              id: 'bracket-phase-1',
+              type: 'single_elim',
+              config_json: {},
+              tournament_id: 'tournament-1',
+              tournaments: { ...TF, events: { organization_id: 'org-1' } },
+            },
+          ],
+        },
+        bracket_slots: { rows: [r1(1, 1, 4), r1(2, 3, 2)] },
+        matches: {
+          rows: [
+            { id: 'match-r1p1', bracket_slot_id: 'slot-r1p1', status: 'scheduled' },
+            { id: 'match-r1p2', bracket_slot_id: 'slot-r1p2', status: 'scheduled' },
+          ],
+        },
+        // Two Fighters on seed 2. Ranked by the seed itself, one of them overwrote the other.
+        registrations: {
+          rows: [
+            { id: 'reg-a', seed: 1, bib_number: null, ...active },
+            { id: 'reg-b', seed: 2, bib_number: 5, ...active },
+            { id: 'reg-c', seed: 2, bib_number: 9, ...active },
+            { id: 'reg-d', seed: 4, bib_number: null, ...active },
+          ],
+        },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
+        audit_log: { rows: [] },
+      });
+
+      await svc.populateBracket('tournament-1', {}, 'system');
+
+      expect(selectsFor(supabase.from, 'registrations')).toEqual(['id, seed, bib_number']);
+      const seated = writesTo(supabase, 'bracket_slots').map((write) => [
+        scopedTo(write, 'id'),
+        write.row,
+      ]);
+      expect(seated).toEqual([
+        [
+          'slot-r1p1',
+          {
+            registration_a_id: 'reg-a',
+            team_a_id: null,
+            registration_b_id: 'reg-d',
+            team_b_id: null,
+          },
+        ],
+        [
+          'slot-r1p2',
+          {
+            registration_a_id: 'reg-c',
+            team_a_id: null,
+            registration_b_id: 'reg-b',
+            team_b_id: null,
+          },
+        ],
+      ]);
+    });
+  });
+
   // ── populateBracket — perPool guard + source field ─────────────────────────
 
   describe('populateBracket — pool-gate honesty', () => {

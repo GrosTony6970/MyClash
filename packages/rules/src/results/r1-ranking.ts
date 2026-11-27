@@ -17,6 +17,7 @@
  */
 import { mulberry32 } from '../scheduling/local-search';
 import type { RankedEntrant } from './bracket-r1-seeding';
+import { byCodepoint } from './by-codepoint';
 
 export interface SeedableEntrant {
   id: string;
@@ -30,20 +31,35 @@ export interface SeedableEntrant {
   hemaRatingsId?: string | null;
 }
 
+/** Ascending, with a missing value last. */
+function ascNullLast(a: number | null, b: number | null): number {
+  if (a === b) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a - b;
+}
+
 /**
- * Registration-seed order: rank = the operator-assigned seed, falling back to
- * bib number, falling back to position in the incoming (seed-ordered) list.
+ * Registration-seed order (ruling 991): a Fighter's seed sets the ORDER only,
+ * like a team's (ruling 982, `rankTeamsBySeed`).
  *
- * Note this uses the seed number AS the rank rather than densifying to 1..N —
- * an operator who seeds 1, 2, 5, 8 means those bracket positions. Preserved
- * verbatim from the two call sites this replaces so the default path is
- * behaviour-identical.
+ * The seeded Fighters come first, lowest seed first, then the unseeded. A bib
+ * number only breaks a tie, a missing bib last, and the id breaks the rest, so
+ * the same Fighters always give the same order. The Fighters are ranked 1..N in
+ * that order. Seeds 1, 2, 5, 8 mean "the 4 best", not bracket spots 1, 2, 5, 8.
+ *
+ * The stored seed is never the rank: a seed may repeat or skip numbers, and the
+ * seeding plan keeps one entrant per rank, so a repeated seed would drop a
+ * Fighter and a seed (or bib) above the bracket size would place none.
  */
 export function rankBySeed(regs: SeedableEntrant[]): RankedEntrant[] {
-  return regs.map((reg, idx) => ({
-    rank: reg.seed ?? reg.bibNumber ?? idx + 1,
-    entrantId: reg.id,
-  }));
+  const ordered = [...regs].sort(
+    (a, b) =>
+      ascNullLast(a.seed, b.seed) ||
+      ascNullLast(a.bibNumber, b.bibNumber) ||
+      byCodepoint(a.id, b.id),
+  );
+  return ordered.map((reg, idx) => ({ rank: idx + 1, entrantId: reg.id }));
 }
 
 /**
