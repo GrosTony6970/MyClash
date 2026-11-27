@@ -46,8 +46,20 @@ describe('evaluateFormula', () => {
     expect(evaluateFormula(bin('/', lit(10), lit(2)), scope)).toBe(5);
   });
 
-  it('returns 0 on division by zero (rather than NaN/Infinity)', () => {
-    expect(evaluateFormula(bin('/', lit(5), lit(0)), scope)).toBe(0);
+  it('divides by 1 on division by zero, as TF_v1 does (never NaN/Infinity)', () => {
+    expect(evaluateFormula(bin('/', lit(5), lit(0)), scope)).toBe(5);
+    expect(evaluateFormula(bin('/', lit(0), lit(0)), scope)).toBe(0);
+  });
+
+  it('ranks a fighter never hit by the raw top half, not 0', () => {
+    // (victories × pointsPerVictory + hitsGiven) / (hitsReceived + doublePenalty)
+    const tfShape = bin(
+      '/',
+      bin('+', bin('*', v('victories'), v('pointsPerVictory')), v('hitsGiven')),
+      bin('+', v('hitsReceived'), v('doublePenalty')),
+    );
+    const unbeaten = { ...scope, victories: 3, hitsGiven: 6, hitsReceived: 0, doublePenalty: 0 };
+    expect(evaluateFormula(tfShape, unbeaten)).toBe(3 * unbeaten.pointsPerVictory + 6);
   });
 
   it('evaluates nested expressions: victories * pointsPerVictory - losses * pointsPerLoss', () => {

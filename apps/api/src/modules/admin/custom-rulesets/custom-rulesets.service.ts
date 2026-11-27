@@ -324,7 +324,7 @@ export function validateDoublePenaltyFormula(raw: unknown): DoublePenaltySpec {
   // An authored AST: Zod-validate the shape, then a finite-output dry-run — the
   // same sanity check as before, on OUR AST rather than constructed code (rule
   // #5). FormulaNodeSchema already rejects Infinity literals and evaluateFormula
-  // maps x/0 to 0, so a valid AST is finite by construction; the dry-run guards
+  // maps x/0 to x, so a valid AST is finite by construction; the dry-run guards
   // against a future grammar change silently reintroducing a non-finite path.
   let spec: DoublePenaltySpec;
   try {

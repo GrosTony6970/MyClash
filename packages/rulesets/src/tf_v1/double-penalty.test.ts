@@ -107,9 +107,9 @@ describe('doublePenalty — dual form dispatch', () => {
     expect(doublePenalty(4, overflow)).toBe(federal(4));
   });
 
-  it('yields 0 rather than NaN when an AST divides by zero', () => {
-    // evaluateFormula already maps x/0 to 0; assert the contract holds here so
-    // a house rule like n/(n-1) at n=1 cannot poison the denominator.
+  it('divides by 1 rather than yielding NaN when an AST divides by zero', () => {
+    // evaluateFormula maps x/0 to x; assert the contract holds here so a house
+    // rule like n/(n-1) at n=1 cannot poison the denominator.
     const divByZero: FormulaNode = {
       type: 'binop',
       op: '/',
@@ -121,7 +121,7 @@ describe('doublePenalty — dual form dispatch', () => {
         right: { type: 'literal', value: 1 },
       },
     };
-    expect(doublePenalty(1, divByZero)).toBe(0);
+    expect(doublePenalty(1, divByZero)).toBe(1);
   });
 
   it('narrows keys and ASTs correctly', () => {
