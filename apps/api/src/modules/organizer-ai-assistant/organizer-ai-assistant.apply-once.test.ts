@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
   chain,
@@ -15,11 +15,38 @@ const DRAFTS = 'organizer_ai_assistant_drafts';
 /** The row a write was given, or undefined for a read. */
 const updateOf = (c: Chain) => c.update.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
 
+const POOLS_4 = { kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 };
+
+/** The draft as it was saved: `ready`, holding `actions`. */
+const savedDraft = (actions: Array<Record<string, unknown>>): Record<string, unknown> => ({
+  id: 'draft-1',
+  event_id: 'event-1',
+  draft_type: 'pool_plan',
+  status: 'ready',
+  proposed_actions_json: actions,
+  updated_at: '2026-11-27T09:00:00.000Z',
+  events: { organization_id: 'org-1' },
+});
+
+/** A drafts query; `.is` too, which the edit's conditional write calls. */
+type DraftQuery = Chain & { is: Mock };
+
+/** Does `row` still match every `.eq`, `.in` and `.is` filter of the write `c`? */
+function stillMatches(row: Record<string, unknown>, c: DraftQuery): boolean {
+  const value = (column: unknown) => row[column as string] ?? null;
+  return (
+    c.eq.mock.calls.every(([column, wanted]) => value(column) === wanted) &&
+    c.in.mock.calls.every(([column, wanted]) => (wanted as unknown[]).includes(value(column))) &&
+    c.is.mock.calls.every(([column, wanted]) => value(column) === wanted)
+  );
+}
+
 /**
  * The drafts table as one stateful row, so two Applies race the way they do in the database. A
- * read answers the row as it is now. A write applies only when its `.eq` filters still match the
- * row, and answers `{ id }` when it did, `null` when it matched nothing. A write awaited with no
- * terminal (the failure mark) applies the same way, since the client's builder is thenable.
+ * read answers the row as it is now. A write applies only when its `.eq`, `.in` and `.is`
+ * filters still match the row, and answers the row when it did, `null` when it matched nothing.
+ * A write awaited with no terminal (the failure mark) applies the same way, since the client's
+ * builder is thenable.
  *
  * `afterRead` runs once, after the first read: another tab's write landing between the Apply's
  * read and its claim. `markFails` makes the failure mark answer that database error.
@@ -27,21 +54,18 @@ const updateOf = (c: Chain) => c.update.mock.calls[0]?.[0] as Record<string, unk
 function oneDraft({
   afterRead,
   markFails,
-}: { afterRead?: (row: Record<string, unknown>) => void; markFails?: string } = {}) {
-  const row: Record<string, unknown> = {
-    id: 'draft-1',
-    event_id: 'event-1',
-    draft_type: 'pool_plan',
-    status: 'ready',
-    proposed_actions_json: [{ kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 }],
-    updated_at: '2026-11-27T09:00:00.000Z',
-    events: { organization_id: 'org-1' },
-  };
+  actions = [POOLS_4],
+}: {
+  afterRead?: (row: Record<string, unknown>) => void;
+  markFails?: string;
+  actions?: Array<Record<string, unknown>>;
+} = {}) {
+  const row = savedDraft(actions);
   let pending = afterRead;
   const queries: Chain[] = [];
-  /** Applies `update` when the write's `.eq` filters still match the row; says whether it did. */
-  const write = (c: Chain, update: Record<string, unknown>) => {
-    const matches = c.eq.mock.calls.every(([column, value]) => row[column as string] === value);
+  /** Applies `update` when the write's filters still match the row; says whether it did. */
+  const write = (c: DraftQuery, update: Record<string, unknown>) => {
+    const matches = stillMatches(row, c);
     if (matches) Object.assign(row, update);
     return matches;
   };
@@ -49,11 +73,12 @@ function oneDraft({
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === 'tournaments') return tournaments.from(table);
     if (table !== DRAFTS) return chain();
-    const c = chain();
+    const c = Object.assign(chain(), { is: vi.fn() });
+    c.is.mockReturnValue(c);
     queries.push(c);
     c.maybeSingle.mockImplementation(async () => {
       const update = updateOf(c);
-      if (update) return { data: write(c, update) ? { id: row['id'] } : null, error: null };
+      if (update) return { data: write(c, update) ? { ...row } : null, error: null };
       const read = { ...row };
       pending?.(row);
       pending = undefined;
@@ -157,11 +182,56 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
     expect(row['status']).toBe('ready');
   });
 
-  it("keeps the claim's applied_at when an action fails, so the draft stays closed", async () => {
-    // `applied_at` is what closes a partly applied draft (`closedReason`); a failure write that
-    // cleared it would reopen the draft to an edit back to `ready`.
-    mockGeneratePools.mockRejectedValue(new Error('pool phase exists'));
+  it('opens a draft whose first action failed again: nothing ran, so it can be applied again', async () => {
+    // The claim set `applied_at` before the first action. Kept, it read "Partly applied" and
+    // closed the draft for good, though nothing had run.
+    mockGeneratePools.mockRejectedValueOnce(new Error('pool phase exists'));
     const { row, writes } = oneDraft();
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'pool phase exists',
+    );
+
+    const [, failure] = writes() as [Chain, Chain];
+    expect(failure.update.mock.calls).toEqual([
+      [
+        {
+          status: 'failed',
+          error: 'Partially applied 0/1 action(s) before failing: pool phase exists',
+          updated_at: expect.any(String),
+          applied_at: null,
+          applied_by_user_id: null,
+        },
+      ],
+    ]);
+    expect(failure.eq.mock.calls).toEqual([
+      ['id', 'draft-1'],
+      ['event_id', 'event-1'],
+    ]);
+    expect(row).toMatchObject({ status: 'failed', applied_at: null, applied_by_user_id: null });
+    expect(await service().getDraft('event-1', 'draft-1', 'user-1')).toMatchObject({
+      status: 'failed',
+      applyStarted: false,
+    });
+
+    // The edit makes it `ready` again, and the second Apply runs.
+    await service().updateDraft('event-1', 'draft-1', 'user-1', { proposedActions: [POOLS_4] });
+    expect(row['status']).toBe('ready');
+    mockGeneratePools.mockResolvedValueOnce({ poolCount: 4 });
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).resolves.toMatchObject({
+      status: 'applied',
+    });
+  });
+
+  it("keeps the claim's applied_at when a later action fails, so the draft stays closed", async () => {
+    // `applied_at` is what closes a partly applied draft (`closedReason`, ruling 997): its first
+    // action ran, and an edit back to `ready` and a second Apply would run it again.
+    mockGeneratePools
+      .mockResolvedValueOnce({ poolCount: 4 })
+      .mockRejectedValueOnce(new Error('pool phase exists'));
+    const { row, writes } = oneDraft({
+      actions: [POOLS_4, { ...POOLS_4, poolCount: 2 }],
+    });
 
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
       'pool phase exists',
@@ -178,11 +248,21 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
       [
         {
           status: 'failed',
-          error: 'Partially applied 0/1 action(s) before failing: pool phase exists',
+          error: 'Partially applied 1/2 action(s) before failing: pool phase exists',
           updated_at: expect.any(String),
         },
       ],
     ]);
+    const partly = {
+      response: { code: 'draft_closed', message: expect.stringContaining('partly applied') },
+    };
+    await expect(
+      service().updateDraft('event-1', 'draft-1', 'user-1', { proposedActions: [POOLS_4] }),
+    ).rejects.toMatchObject(partly);
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toMatchObject(
+      partly,
+    );
+    expect(mockGeneratePools).toHaveBeenCalledTimes(2);
   });
 
   it("logs a failure mark the database refused, and still throws the action's error", async () => {

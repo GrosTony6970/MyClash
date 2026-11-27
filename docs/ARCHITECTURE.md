@@ -5066,9 +5066,9 @@ V1 is constrained draft-and-review only. AI returns strict JSON actions for tour
 
 **A draft in words** (rulings 993, 995). Every draft the API answers (the list, `GET …/drafts/:draftId`, a create, an edit, and the chat conversation's proposals) carries `readable` beside the raw `proposedActions`. `readableDraftActions` (`organizer-ai-assistant/readable-draft.ts`) names each id: the Tournament's name, the Match's round code, the Lice's name, the start with the Event's zone, the Pool's number, the phase's type, the referee's and the role's names. It makes one read per kind of id for all the drafts of an answer, each scoped to the Event. An id the Event does not have (a Match deleted since, another Event's Tournament) reads as `{ missing: true }`, never as the id. A value that is not uuid-shaped (a model that passed `"matchId": "LSW-P2-M04"`) is never sent to the database, and reads as missing too: one such value in an `.in()` list fails the whole read (22P02), and the list would answer 500. A failed read throws; it never reads as missing. The type is `ReadableDraftAction` in `@myclash/types`, so the API, web-admin and Claude read one shape. Each draft also answers `applyStarted`: whether an Apply of it started.
 
-**A closed draft stays as it is** (`closedReason`, rulings 994, 997). A draft is closed once it is applied, once it is rejected, or once an Apply of it started (`applied_at` is set: the claim writes it, and nothing clears it). An edit, an Apply or a Reject of a closed draft answers 409 `draft_closed`. A draft whose Apply started and then failed reads `failed`, but its first actions ran: an edit back to `ready` and a second Apply would run them again (the Tournament created twice). So it can be neither edited, applied again, nor rejected (ruling 997). A draft that failed the shape check never ran: it has no `applied_at` and stays open. The edit's write is conditional too (an open status, `applied_at` null): an Apply or a Reject in another tab can land between the edit's read and its write, and the write then matches no row and refuses.
+**A closed draft stays as it is** (`closedReason`, rulings 994, 997). A draft is closed once it is applied, once it is rejected, or once an Apply of it started (`applied_at` is set: the claim writes it, and only the failure mark of an Apply that ran no action clears it). An edit, an Apply or a Reject of a closed draft answers 409 `draft_closed`. A draft whose Apply ran one or more actions and then failed reads `failed`, but its first actions ran: an edit back to `ready` and a second Apply would run them again (the Tournament created twice). So it can be neither edited, applied again, nor rejected (ruling 997). A draft that failed the shape check never ran: it has no `applied_at` and stays open. **A failed Apply that ran nothing leaves the draft open** (`markApplyFailed`): when the first action fails (a slug taken since the save), the failure mark writes `failed` and clears `applied_at` and `applied_by_user_id`, matching the draft's id and Event. Nothing ran, so the draft can be edited back to `ready` and applied again. A schedule draft is written in one call, so any failure of it counts as no action run, and it reopens too: a second run puts the same bouts on the same places. The edit's write is conditional too (an open status, `applied_at` null): an Apply or a Reject in another tab can land between the edit's read and its write, and the write then matches no row and refuses.
 
-**A draft applies once** (`claimDraft`, ruling 996). Marie presses Apply in two tabs a second apart, and both reads find the draft `ready`. So Apply claims the draft before it runs any action, in one conditional update: `status: 'applied'`, `applied_at` and `applied_by_user_id`, on the row that still reads `status = 'ready'` AND still has the `updated_at` this Apply read. Only one Apply finds that row; the other answers 409 `draft_closed` and runs nothing. An edit between the read and the claim (4 Pools made 6) empties the claim the same way, so Apply never runs actions older than the row. The window, named: from the claim until the last action ends, the row reads `applied` while its actions run. A failed action turns it `failed` ("Partially applied n/m action(s) before failing: …"); a crash leaves it `applied`. It stays closed either way.
+**A draft applies once** (`claimDraft`, ruling 996). Marie presses Apply in two tabs a second apart, and both reads find the draft `ready`. So Apply claims the draft before it runs any action, in one conditional update: `status: 'applied'`, `applied_at` and `applied_by_user_id`, on the row that still reads `status = 'ready'` AND still has the `updated_at` this Apply read. Only one Apply finds that row; the other answers 409 `draft_closed` and runs nothing. An edit between the read and the claim (4 Pools made 6) empties the claim the same way, so Apply never runs actions older than the row. The window, named: from the claim until the last action ends, the row reads `applied` while its actions run. A failed action turns it `failed` ("Partially applied n/m action(s) before failing: …"): closed when n is 1 or more, open again when n is 0. A crash leaves it `applied`, closed.
 
 **A schedule draft is checked whole, then written whole** (`assertPlacementsFit`, `applySchedule`). Before the claim, Apply checks every Match is at this Event, then gives every placement to the placement owner with `checkOnly` (`placeMatches`, which writes nothing). Two bouts of one draft on one Lice at one time, or a bout on a Lice the board has filled since, refuse the Apply: nothing moves, and the draft stays `ready`. After the claim, Apply writes every placement in ONE `placeMatches` call, as the schedule board writes a batch. One call per action refused a shift the check had passed: Marie moves M01 14:00→14:30, M02 14:30→15:00 and M03 15:00→15:30 on one Lice, and M01 alone met M02, still at 14:30. The owner leaves the batch's own bouts out by their old place, so the shift and a swap pass. The one call is not atomic: the owner writes row by row (`allSettled`). After its check passes, a row fails only on a database error, and the owner's refusal then says "k/N placements applied". The board can still change between the check and the write; the write's own check then refuses before any bout moves. A collision, at the check or at the write, refuses with 409 `schedule_collision` and "A bout of this draft overlaps another on its piste." (`placeSchedule`): the owner's own 409 names a Match by its id, and the page would show it. Any other refusal of the owner stays as it is.
 
@@ -5781,7 +5781,7 @@ answers `{ draft, link, status }`: `draft` is the draft's actions by name (`read
 changes nothing in the Event, Claude tells the person what the draft does and gives them the
 link, and the tools are for the organisation's admins (`DRAFT_NEXT`).
 
-**The gate, in order** (`draftGate`, `draft-gate.ts:77-97`):
+**The gate, in order** (`draftGate`, `draft-gate.ts:78-98`):
 
 1. Maintenance (`maintenanceRefusal`), before any read.
 2. The Event by slug, through the public Event gate (`readableEventBySlug`). An Event the person
@@ -5794,7 +5794,7 @@ link, and the tools are for the organisation's admins (`DRAFT_NEXT`).
    change now."
 
 Then each tool asks what Apply would refuse (call X) and calls `saveDraft`
-(`draft-gate.ts:112-135`):
+(`draft-gate.ts:113-136`):
 
 1. No `DOMAIN` → the tool throws (the generic failure) before it saves: a draft whose link cannot
    be built would be saved and never shown.
@@ -5867,7 +5867,7 @@ The calls made (the operator may overrule):
   `idempotentHint: false`, `openWorldHint: false`. The tool-list test names the five writing
   tools (§28.5).
 
-The races, named (`draft-gate.ts:10-16`):
+The races, named (`draft-gate.ts:10-17`):
 
 - **The gate vs the save.** The gate and `createDraftFromAction` each ask the admin bar. An admin
   removed between the two gets the generic failure, not the admin refusal. Accepted.
@@ -5875,8 +5875,9 @@ The races, named (`draft-gate.ts:10-16`):
   the weapon leaves the catalogue, the board fills a piste the draft places a bout on, or the
   registrations a bracket without `qualifyCount` counts change. Apply asks each again. A busy
   piste refuses the Apply before any bout moves, and the draft stays `ready`
-  (`assertPlacementsFit`, §26.4). The others fail inside Apply: the page shows the refusal, and
-  the draft stays `failed` and closed (ruling 997).
+  (`assertPlacementsFit`, §26.4). The others fail inside Apply. The page shows the refusal once,
+  as Apply answers it, and never the draft's stored `error`. The draft reads `failed`: open again
+  when no action ran, closed when one ran (ruling 997, `markApplyFailed`).
 
 ### 28.6 Connected apps
 
