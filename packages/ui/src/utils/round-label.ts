@@ -80,3 +80,13 @@ export function roundColumnLabel(
   const plural = PLURAL_KEYS[descriptor.key];
   return t(plural ?? descriptor.key, descriptor.params);
 }
+
+/**
+ * The heading of a group of bracket or Swiss bouts: the schedule's round blocks, the
+ * planning sidebar, the CSV's group column, the bracket Referees tab. A group with no
+ * round — bouts made by hand — is named by its phase, "Bracket", never a raw code and
+ * never an English word.
+ */
+export function roundGroupName(token: string | null | undefined, t: RoundTranslator): string {
+  return roundColumnLabel(token, t) ?? t('common.round.phaseBracket');
+}

@@ -285,6 +285,7 @@ export {
   boutName,
   roundLabel,
   roundColumnLabel,
+  roundGroupName,
   type BoutNameParts,
   type RoundTranslator,
 } from './utils/round-label';

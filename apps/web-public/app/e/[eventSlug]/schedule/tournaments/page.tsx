@@ -7,6 +7,7 @@
 
 import type { Metadata } from 'next';
 import { createTranslator, getMessages } from '@myclash/i18n';
+import { roundGroupName } from '@myclash/ui';
 import { getServerApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader } from '../../_components/EventHeader';
@@ -32,7 +33,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
   const tr = createTranslator(getMessages(locale));
   const [event, schedule] = await Promise.all([
     eventOrNotFound(eventSlug),
-    loadTournamentSchedule(eventSlug, apiUrl),
+    loadTournamentSchedule(eventSlug, apiUrl, (token) => roundGroupName(token, tr)),
   ]);
 
   return (

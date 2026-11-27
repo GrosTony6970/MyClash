@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTranslator, messages } from '@myclash/i18n';
-import { boutName } from './round-label';
+import { boutName, roundGroupName } from './round-label';
 
 const en = createTranslator(messages.en);
 const fr = createTranslator(messages.fr);
@@ -34,5 +34,19 @@ describe('boutName', () => {
 
   it('names the Tournament alone when nothing else is known', () => {
     expect(boutName({ ...open, phaseType: null }, en)).toBe('Longsword Open');
+  });
+});
+
+/** A French organiser read "Round of 16" on the planning board and the public schedule. */
+describe('roundGroupName', () => {
+  it("names a group of bouts by its round, in the reader's language", () => {
+    expect(roundGroupName('R16', fr)).toBe('Tableau de 16');
+    expect(roundGroupName('QF', fr)).toBe('Quarts de finale');
+    expect(roundGroupName('S2', en)).toBe('Swiss Round 2');
+  });
+
+  it('names a group with no round by its phase, never a raw code', () => {
+    expect(roundGroupName(null, fr)).toBe('Tableau');
+    expect(roundGroupName('ZZ9', en)).toBe('Bracket');
   });
 });

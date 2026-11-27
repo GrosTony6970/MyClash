@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildScheduleBlocks, type BlockMatchInput } from './schedule-blocks';
 
+/** The caller names a round; here, a marker that shows the token reached it. */
+const build = (matches: BlockMatchInput[]) =>
+  buildScheduleBlocks(matches, (token) => `round:${token}`);
+
 /** A test bout length. Every input carries its own; the builder has no default. */
 const BOUT_MINUTES = 5;
 
@@ -45,7 +49,7 @@ function qfMatch(id: string, startIso: string, liceId: string, n: number): Block
 
 describe('buildScheduleBlocks', () => {
   it('groups a pool’s matches on a lice into one block, sorted', () => {
-    const blocks = buildScheduleBlocks([
+    const blocks = build([
       poolMatch('b', '2027-06-21T09:03:00.000Z', 'lice-1', 2),
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
     ]);
@@ -76,13 +80,13 @@ describe('buildScheduleBlocks', () => {
         i + 1,
       ),
     );
-    const blk = buildScheduleBlocks(matches)[0]!;
+    const blk = build(matches)[0]!;
     expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
     expect(blk.endIso).toBe('2027-06-21T10:50:00.000Z');
   });
 
   it('ends a block at its matches’ own lengths', () => {
-    const blk = buildScheduleBlocks([
+    const blk = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 8 }),
       poolMatch('b', '2027-06-21T09:08:00.000Z', 'lice-1', 2, { durationMinutes: 8 }),
     ])[0]!;
@@ -91,7 +95,7 @@ describe('buildScheduleBlocks', () => {
   });
 
   it('a single-match block spans exactly its own bout', () => {
-    const blk = buildScheduleBlocks([
+    const blk = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 8 }),
     ])[0]!;
     expect(blk.endIso).toBe('2027-06-21T09:08:00.000Z');
@@ -101,16 +105,14 @@ describe('buildScheduleBlocks', () => {
     // The median-gap and 5-minute fallbacks are gone. A builder that grew one
     // back would draw this block instead of throwing.
     expect(() =>
-      buildScheduleBlocks([
-        poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 0 }),
-      ]),
+      build([poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 0 })]),
     ).toThrow(RangeError);
   });
 
   it('ends at the latest END when a longer bout comes earlier (the hull, ADR-017)', () => {
     // 09:00 for 30 min, then 09:05 for 5 min. The last START ends at 09:10, but
     // the run is on the Lice until 09:30.
-    const blk = buildScheduleBlocks([
+    const blk = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 30 }),
       poolMatch('b', '2027-06-21T09:05:00.000Z', 'lice-1', 2, { durationMinutes: 5 }),
     ])[0]!;
@@ -118,20 +120,20 @@ describe('buildScheduleBlocks', () => {
     expect(blk.endIso).toBe('2027-06-21T09:30:00.000Z');
   });
 
-  it('labels bracket rounds from the round code (single lice)', () => {
-    const blocks = buildScheduleBlocks([qfMatch('q1', '2027-06-21T14:00:00.000Z', 'lice-2', 1)]);
+  it('names a bracket round through the caller, from its token (single lice)', () => {
+    const blocks = build([qfMatch('q1', '2027-06-21T14:00:00.000Z', 'lice-2', 1)]);
     expect(blocks[0]!.kind).toBe('bracket');
-    expect(blocks[0]!.label).toBe('Quarter-finals');
+    expect(blocks[0]!.label).toBe('round:QF');
     expect(blocks[0]!.liceIds).toEqual(['lice-2']);
   });
 
   it('excludes unscheduled matches (no lice or no time)', () => {
-    expect(buildScheduleBlocks([poolMatch('a', null, 'lice-1')])).toHaveLength(0);
-    expect(buildScheduleBlocks([poolMatch('a', '2027-06-21T09:00:00.000Z', null)])).toHaveLength(0);
+    expect(build([poolMatch('a', null, 'lice-1')])).toHaveLength(0);
+    expect(build([poolMatch('a', '2027-06-21T09:00:00.000Z', null)])).toHaveLength(0);
   });
 
   it('a pool fanned across two lices is ONE block spanning both', () => {
-    const blocks = buildScheduleBlocks([
+    const blocks = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
       poolMatch('b', '2027-06-21T09:00:00.000Z', 'lice-2', 2),
     ]);
@@ -140,7 +142,7 @@ describe('buildScheduleBlocks', () => {
   });
 
   it('a bracket round fanned across three lices is ONE block, liceIds length 3', () => {
-    const blocks = buildScheduleBlocks([
+    const blocks = build([
       qfMatch('q1', '2027-06-21T14:00:00.000Z', 'lice-1', 1),
       qfMatch('q2', '2027-06-21T14:00:00.000Z', 'lice-2', 2),
       qfMatch('q3', '2027-06-21T14:00:00.000Z', 'lice-3', 3),
@@ -152,7 +154,7 @@ describe('buildScheduleBlocks', () => {
   });
 
   it('two different pools on the same lice at different times stay two blocks', () => {
-    const blocks = buildScheduleBlocks([
+    const blocks = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, {
         poolId: 'pool-1',
         poolName: 'Pool 1',
@@ -168,23 +170,21 @@ describe('buildScheduleBlocks', () => {
   });
 
   it('carries durationMinutes + liceId onto each block match', () => {
-    const blk = buildScheduleBlocks([
+    const blk = build([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 7 }),
     ])[0]!;
     expect(blk.matches[0]).toMatchObject({ id: 'a', liceId: 'lice-1', durationMinutes: 7 });
   });
 
   it('carries an optional tournamentSlug onto the block (null when omitted)', () => {
-    const withSlug = buildScheduleBlocks([
+    const withSlug = build([
       {
         ...poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
         tournamentSlug: 'longsword-open',
       },
     ])[0]!;
     expect(withSlug.tournamentSlug).toBe('longsword-open');
-    const withoutSlug = buildScheduleBlocks([
-      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
-    ])[0]!;
+    const withoutSlug = build([poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1)])[0]!;
     expect(withoutSlug.tournamentSlug).toBeNull();
   });
 });

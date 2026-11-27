@@ -10,7 +10,14 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { ConfirmDialog, CsvExportMenu, accentClassFor, statusLabel, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  CsvExportMenu,
+  accentClassFor,
+  roundGroupName,
+  statusLabel,
+  useToast,
+} from '@myclash/ui';
 import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent, type CsvFormat } from '@myclash/types';
@@ -363,8 +370,9 @@ export function ScheduleGrid({
           durationMinutes: m.durationMinutes,
           status: m.status,
         })),
+        (token) => roundGroupName(token, t),
       ),
-    [scheduledOnActiveDay],
+    [scheduledOnActiveDay, t],
   );
 
   /**
@@ -972,7 +980,7 @@ export function ScheduleGrid({
       if (!existing) {
         byRound.set(key, {
           key,
-          label: round.label,
+          label: roundGroupName(round.token, t),
           order: round.order,
           tournamentName: m.tournamentName,
           matchIds: [m.id],
@@ -982,10 +990,10 @@ export function ScheduleGrid({
       }
     }
     return Array.from(byRound.values()).sort((a, b) => {
-      const t = `${a.tournamentName ?? ''}`.localeCompare(`${b.tournamentName ?? ''}`);
-      return t !== 0 ? t : a.order - b.order;
+      const byName = `${a.tournamentName ?? ''}`.localeCompare(`${b.tournamentName ?? ''}`);
+      return byName !== 0 ? byName : a.order - b.order;
     });
-  }, [unscheduled]);
+  }, [unscheduled, t]);
 
   // Match ids hidden behind a bracket-round block — a round only earns
   // a block when ALL its matches (across the whole schedule, by the
@@ -1407,6 +1415,7 @@ export function ScheduleGrid({
         red: t('organizer.schedulePage.grid.printColRed'),
         blue: t('organizer.schedulePage.grid.printColBlue'),
         status: t('organizer.schedulePage.grid.printColStatus'),
+        roundName: (token) => roundGroupName(token, t),
       },
       format,
     );
@@ -1511,7 +1520,8 @@ export function ScheduleGrid({
     }
     return computeHeaderRuns(items).map((run) => {
       const first = metaById.get(run.matchIds[0]!)!;
-      const label = first.poolName ?? parseBracketRound(first.roundCode)?.label ?? '';
+      const round = parseBracketRound(first.roundCode);
+      const label = first.poolName ?? (round ? roundGroupName(round.token, t) : '');
       return {
         key: `${run.key}@${run.liceIndex}:${run.startSlot}`,
         label,
@@ -1525,7 +1535,7 @@ export function ScheduleGrid({
         rests: run.rests,
       };
     });
-  }, [scheduledOnActiveDay, visibleLices, activeDay, isoToSlotTz, isoToAxisMinutesTz]);
+  }, [scheduledOnActiveDay, visibleLices, activeDay, isoToSlotTz, isoToAxisMinutesTz, t]);
 
   // Reserve-space layout: distinct slots where a run header begins. Every
   // content item at/after such a slot shifts down POOL_HEADER_SPAN rows per

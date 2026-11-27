@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CSV_EXCEL_FR, CSV_STANDARD } from '@myclash/types';
+import { createTranslator, messages } from '@myclash/i18n';
+import { roundGroupName } from '@myclash/ui';
 import { scheduleToCsv, type CsvMatch } from './schedule-csv';
 
 function m(over: Partial<CsvMatch>): CsvMatch {
@@ -38,7 +40,35 @@ const LABELS = {
   red: 'Red',
   blue: 'Blue',
   status: 'Status',
+  roundName: (token: string) => `round:${token}`,
 };
+
+/**
+ * A French organiser exported the schedule and read "Round of 16" in the group column.
+ * Every round a code can carry is named in French, by the same words as the board.
+ */
+describe('the group column of a bracket or Swiss bout', () => {
+  const frT = createTranslator(messages.fr);
+  const groupOf = (roundCode: string) => {
+    const labels = { ...LABELS, roundName: (token: string) => roundGroupName(token, frT) };
+    const csv = scheduleToCsv([m({ roundCode, poolName: null })], lices, TZ, labels, CSV_STANDARD);
+    return linesOf(csv)[1]!.split(',')[5];
+  };
+
+  it('names the round in French', () => {
+    expect(groupOf('LSW-B-R16-M1')).toBe('Tableau de 16');
+    expect(groupOf('LSW-B-QF-M2')).toBe('Quarts de finale');
+  });
+
+  it('names every round a code can carry, never by the Bracket fallback', () => {
+    const tokens = ['PI', 'R32', 'SF', 'F', 'B4', 'WBF', 'WBSF', 'WBQF', 'WBR16', 'WBB3'];
+    const codes = [...tokens.map((tk) => `LSW-B-${tk}-M1`), 'LSW-B-LB2-M1', 'LSW-B-GF-M1'];
+    for (const code of [...codes, 'LSW-B-GFR-M1', 'LSW-S3-M1']) {
+      expect(groupOf(code), code).not.toBe('Tableau');
+      expect(groupOf(code), code).not.toBe('');
+    }
+  });
+});
 
 describe('scheduleToCsv', () => {
   it('starts with the byte-order mark, so a spreadsheet reads accents as written', () => {

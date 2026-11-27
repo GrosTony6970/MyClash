@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { slotRoleName } from '@/lib/referee-role-name';
-import { fuzzyMatch, nameOrUnknown, roundColumnLabel } from '@myclash/ui';
+import { fuzzyMatch, nameOrUnknown, roundGroupName } from '@myclash/ui';
 import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
 import {
@@ -172,8 +172,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
       {sections.map((section) => (
         <BracketMatchSection
           key={section.token ?? ''}
-          // A bout made by hand holds no round: it is named by its phase, as boutName does.
-          title={roundColumnLabel(section.token, t) ?? t('common.round.phaseBracket')}
+          // A bout made by hand holds no round: roundGroupName names it by its phase.
+          title={roundGroupName(section.token, t)}
           pools={section.pools}
           isReadOnly={isReadOnly || board.locked}
           busy={busy}

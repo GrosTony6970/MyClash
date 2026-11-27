@@ -69,22 +69,34 @@ export interface ScheduleBlock {
   matches: ScheduleBlockMatch[];
 }
 
-export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[] {
+/**
+ * `roundName` names a bracket or Swiss round from its token ("R16" → "Tableau de 16"),
+ * in the reader's language. Required: this package holds no words, and a default here
+ * once put English on French schedules.
+ */
+export function buildScheduleBlocks(
+  matches: BlockMatchInput[],
+  roundName: (token: string) => string,
+): ScheduleBlock[] {
   // Group scheduled matches by RUN: pool → pool id, bracket → round token,
   // else the match's own id (a standalone block). The lice is NOT part of the
   // key, so a run fanned across several lices is ONE block spanning them.
-  const groups = new Map<string, { kind: ScheduleBlock['kind']; matches: BlockMatchInput[] }>();
+  const groups = new Map<
+    string,
+    { kind: ScheduleBlock['kind']; token: string | null; matches: BlockMatchInput[] }
+  >();
   for (const m of matches) {
     if (!m.liceId || !m.scheduledAt) continue;
     let runKey: string;
     let kind: ScheduleBlock['kind'];
+    let token: string | null = null;
     if (m.poolId) {
       runKey = `pool:${m.poolId}`;
       kind = 'pool';
     } else {
-      const round = parseBracketRound(m.roundCode);
-      if (round) {
-        runKey = `round:${m.tournamentName ?? ''}|${round.token}`;
+      token = parseBracketRound(m.roundCode)?.token ?? null;
+      if (token) {
+        runKey = `round:${m.tournamentName ?? ''}|${token}`;
         kind = 'bracket';
       } else {
         runKey = `solo:${m.id}`;
@@ -92,14 +104,14 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       }
     }
     const groupKey = `${runKey}|${kind}`;
-    const g = groups.get(groupKey) ?? { kind, matches: [] };
+    const g = groups.get(groupKey) ?? { kind, token, matches: [] };
     g.matches.push(m);
     groups.set(groupKey, g);
   }
 
   const blocks: ScheduleBlock[] = [];
   for (const [groupKey, group] of groups) {
-    const { kind } = group;
+    const { kind, token } = group;
     const sorted = [...group.matches].sort((a, b) =>
       a.scheduledAt! < b.scheduledAt! ? -1 : a.scheduledAt! > b.scheduledAt! ? 1 : 0,
     );
@@ -112,8 +124,8 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
     const label =
       kind === 'pool'
         ? (first.poolName ?? 'Pool')
-        : kind === 'bracket'
-          ? (parseBracketRound(first.roundCode)?.label ?? 'Bracket')
+        : token
+          ? roundName(token)
           : (first.roundCode ?? first.id);
 
     // Distinct lices this run occupies, ordered for a deterministic span.
