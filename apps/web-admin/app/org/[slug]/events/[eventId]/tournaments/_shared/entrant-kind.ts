@@ -1,6 +1,3 @@
-import type { ApiFailure } from '@myclash/api-client';
-import { conflictReason } from '@/lib/named-refusal';
-
 /**
  * A Tournament's kind of entrant (`tournaments.entrant_kind`, migration 0281): individual Fighters
  * or teams. What the creator's Step 1 and the settings Basics tab read of it, and what their saves
@@ -50,13 +47,3 @@ export const numberOrNull = (text: string): number | null => (text ? Number(text
 
 /** A number as its field's text: none is blank. */
 export const textOf = (value: number | null): string => (value == null ? '' : String(value));
-
-/**
- * The sentence for a save refused because the Tournament gained an entrant since the page read it:
- * its kind is fixed now (409, `details.reason: entrant_kind_settled`). Null for any other refusal.
- */
-export function kindSettledRefusal(r: ApiFailure, t: (key: string) => string): string | null {
-  return conflictReason(r) === 'entrant_kind_settled'
-    ? t('organizer.tournaments.kind.settled')
-    : null;
-}

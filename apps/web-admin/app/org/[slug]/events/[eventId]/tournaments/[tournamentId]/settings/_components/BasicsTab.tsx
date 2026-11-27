@@ -9,12 +9,7 @@ import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 import { CapacityFields } from '../../../_shared/CapacityFields';
 import { EntrantKindField } from '../../../_shared/EntrantKindField';
-import {
-  kindSettledRefusal,
-  numberOrNull,
-  textOf,
-  type EntrantKind,
-} from '../../../_shared/entrant-kind';
+import { numberOrNull, textOf, type EntrantKind } from '../../../_shared/entrant-kind';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
@@ -162,7 +157,6 @@ export function BasicsTab({
           // A switch to team under a live League link (ruling 981), a change of kind once the
           // Tournament has Pools or a bracket (ruling 989) and a kind settled by an entrant: said.
           const message =
-            kindSettledRefusal(r, t) ??
             kindRefusal(r, t) ??
             rulesChangeRefusal(r, t) ??
             failureMessage(r, t, t('admin.common.saveFailed'));

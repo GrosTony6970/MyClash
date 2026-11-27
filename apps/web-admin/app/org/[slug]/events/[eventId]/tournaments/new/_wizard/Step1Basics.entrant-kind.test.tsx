@@ -259,4 +259,41 @@ describe('the kind of entrant in Step 1 of the wizard', () => {
     );
     expect(context.refetchEvents).not.toHaveBeenCalled();
   });
+
+  /** The save's 409, as the API's error filter puts a kind trigger's refusal on the wire. */
+  const refusedWith = (reason: string) =>
+    ({
+      ok: false,
+      kind: 'http',
+      status: 409,
+      detail: 'An English sentence from the API.',
+      code: 'CONFLICT',
+      details: { reason },
+      validationErrors: null,
+    }) as Awaited<ReturnType<typeof apiRequest>>;
+
+  it('a draft whose Pools were drawn elsewhere says to delete them first (ruling 989)', async () => {
+    refusal = refusedWith('kind_locked_by_phase');
+    await openStep('t1');
+    await pick('individual');
+    await next();
+    expect(document.body.textContent).toContain(
+      'Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket.',
+    );
+    expect(document.body.textContent).not.toContain('Update failed');
+    expect(context.refetchEvents).not.toHaveBeenCalled();
+  });
+
+  it('a draft linked to a League elsewhere says to remove the link first (ruling 981)', async () => {
+    draft = { ...TEAM_DRAFT, entrant_kind: 'individual', team_default_size: null };
+    refusal = refusedWith('league_link_blocks_team');
+    await openStep('t1');
+    await pick('team');
+    await next();
+    expect(document.body.textContent).toContain(
+      'Remove the League link first: League points belong to persons.',
+    );
+    expect(document.body.textContent).not.toContain('Update failed');
+    expect(context.refetchEvents).not.toHaveBeenCalled();
+  });
 });

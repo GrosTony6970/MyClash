@@ -18,7 +18,7 @@ import { TournamentForfeitRules } from '../../_shared/TournamentForfeitRules';
 import { useForfeitForm } from '../../_shared/useForfeitForm';
 import { CapacityFields } from '../../_shared/CapacityFields';
 import { EntrantKindField } from '../../_shared/EntrantKindField';
-import { kindSettledRefusal } from '../../_shared/entrant-kind';
+import { kindRefusal } from '@/lib/named-refusal';
 import { useEntrantKind } from '../../_shared/useEntrantKind';
 
 const apiUrl = getPublicApiUrl();
@@ -180,7 +180,7 @@ export function Step1Basics({
         if (!r.ok) {
           const message = locked
             ? null
-            : (kindSettledRefusal(r, t) ??
+            : (kindRefusal(r, t) ??
               rulesChangeRefusal(r, t) ??
               failureMessage(r, t, t('admin.common.updateFailed')));
           if (message) toast.error(message);

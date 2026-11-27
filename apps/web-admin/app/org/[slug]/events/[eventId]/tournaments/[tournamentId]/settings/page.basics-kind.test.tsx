@@ -158,6 +158,18 @@ describe('the kind of entrant in the settings Basics tab', () => {
     );
   });
 
+  // A Fighter registered in another tab after the page read the empty Tournament.
+  it('a switch of a Tournament that gained an entrant since it was read says its kind is fixed now', async () => {
+    opened = await openTab('basics');
+    refusePatch('entrant_kind_settled');
+    await act(async () => radio('team').click());
+    await save();
+
+    expect(document.body.textContent).toContain(
+      'This tournament has entrants now, so its kind cannot change.',
+    );
+  });
+
   it('a Tournament that holds entrants shows its kind fixed, says why, and sends no kind', async () => {
     opened = await openTab('basics', { row: { ...TEAM, entrant_count: 5 } });
     expect(radio('team').disabled).toBe(true);

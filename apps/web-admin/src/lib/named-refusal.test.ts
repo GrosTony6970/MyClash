@@ -40,6 +40,17 @@ describe('the League refusals of a team Tournament', () => {
   });
 });
 
+describe('the kind of a Tournament that holds an entrant', () => {
+  it('a change of kind once the Tournament has entrants says its kind is fixed now', () => {
+    expect(kindRefusal(conflict('entrant_kind_settled'), en)).toBe(
+      'This tournament has entrants now, so its kind cannot change.',
+    );
+    expect(kindRefusal(conflict('entrant_kind_settled'), fr)).toBe(
+      'Ce tournoi a maintenant des participants : son type ne peut plus changer.',
+    );
+  });
+});
+
 describe('the kind of a Tournament with a phase (ruling 989)', () => {
   it('a change of kind once the Tournament has Pools or a bracket says to delete them first', () => {
     expect(kindRefusal(conflict('kind_locked_by_phase'), en)).toBe(
