@@ -377,7 +377,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament, a double elimination phase and a switch to team at once leave no double elimination on a team Tournament.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament, a phase and a switch to team at once leave no phase on a Tournament that changed kind, a double elimination phase and a switch to team at once leave no double elimination on a team Tournament.`,
     );
   }
 } catch (error) {
