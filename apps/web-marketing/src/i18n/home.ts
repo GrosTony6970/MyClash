@@ -10,7 +10,8 @@
  * offline scoring (the differentiator, which appeared only in a meta tag), hid
  * Swiss behind "et plus encore", and said nothing about leagues, workshops,
  * referee compensation, HEMA Ratings export or fighter accounts — and, until
- * a later pass, Event photos or FightBook.
+ * a later pass, Event photos, FightBook, team Tournaments or the Claude
+ * connector.
  */
 import type { Locale } from './ui';
 
@@ -109,6 +110,10 @@ const fr: HomeCopy = {
       text: 'Poules, élimination directe, double élimination et rondes suisses. Tirages, têtes de série et reclassements sont calculés par le moteur de règles — jamais saisis à la main dans un tableur.',
     },
     {
+      title: 'Tournois par équipes',
+      text: "Faites s'affronter des équipes plutôt que des combattants seuls : poules, élimination directe, classement des équipes et classement final. La tablette de score enregistre chaque côté, même hors ligne.",
+    },
+    {
       title: 'Résultats en direct, sur tous les écrans',
       text: 'Combattants et spectateurs suivent les combats depuis leur téléphone, sans rien installer. Les écrans de la salle affichent la piste en cours, le programme et les classements, mis à jour en temps réel.',
     },
@@ -135,6 +140,10 @@ const fr: HomeCopy = {
     {
       title: 'FightBook : trouvez un partenaire de sparring',
       text: "Avant l'événement ou entre deux combats, proposez un sparring amical à un autre combattant. La réponse reste privée : oui, ou « pas cette fois ». Voyez qui est disponible maintenant, lancez un appel ouvert, ou scannez un QR pour enregistrer un sparring. FightBook reste désactivé tant que vous ne l'activez pas.",
+    },
+    {
+      title: 'Posez vos questions à Claude',
+      text: "Ajoutez MyClash comme connecteur à votre propre compte Claude et connectez-vous avec votre compte MyClash. Combattants, arbitres et instructeurs demandent leur programme, leurs combats et leurs statistiques ; les organisateurs interrogent classements, programme et arbitres, et peuvent changer l'arbitre d'un combat après l'avoir confirmé dans la conversation. Les règles d'arbitrage s'appliquent toujours, et vous pouvez déconnecter Claude à tout moment.",
     },
     {
       title: 'Vos données restent les vôtres',
@@ -230,6 +239,10 @@ const en: HomeCopy = {
       text: 'Pools, single elimination, double elimination and Swiss rounds. Draws, seeding and re-seeding are computed by the ruleset engine — never typed into a spreadsheet by hand.',
     },
     {
+      title: 'Team tournaments',
+      text: 'Run a tournament where teams, not single fighters, face each other: pools, single elimination, team standings and a final ranking. The scoring pad records each side, offline too.',
+    },
+    {
       title: 'Live results on every screen',
       text: 'Fighters and spectators follow bouts from their phones with nothing to install. Venue screens show the current piste, the programme and the standings, updated in real time.',
     },
@@ -256,6 +269,10 @@ const en: HomeCopy = {
     {
       title: 'FightBook: find a sparring partner',
       text: 'Before the Event or between bouts, ask another fighter for a friendly sparring session. The answer stays private: yes, or "not this time". See who is free for sparring now, post an open call, or scan a QR code to log a sparring session. FightBook stays off until you switch it on.',
+    },
+    {
+      title: 'Ask Claude about your event',
+      text: "Add MyClash as a connector to your own Claude account and sign in with MyClash. Fighters, referees and instructors ask for their schedule, bouts and statistics; organisers query standings, the programme and referees, and can change a bout's referee once they confirm it in the chat. The referee rules always apply, and you can disconnect Claude at any time.",
     },
     {
       title: 'Your data stays yours',
@@ -329,6 +346,8 @@ export const FEATURE_ICON_PATHS: readonly (readonly string[])[] = [
   ],
   // brackets
   ['M3 10h18M3 6h18M3 14h10M3 18h6'],
+  // team tournaments
+  ['M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9'],
   // live screens
   ['M8 21h8m-4-4v4M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
   // league trophy
@@ -354,6 +373,10 @@ export const FEATURE_ICON_PATHS: readonly (readonly string[])[] = [
   // fightbook
   [
     'M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z',
+  ],
+  // claude connector
+  [
+    'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
   ],
   // data ownership
   [

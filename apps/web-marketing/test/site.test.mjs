@@ -174,6 +174,24 @@ test('page content is in the HTML, not injected by script', () => {
   }
 });
 
+test('every feature card draws its icon', () => {
+  /*
+   * Icons are matched to cards by index (`FEATURE_ICON_PATHS[i] ?? []` in
+   * Home.astro), so a card inserted into the copy without its icon renders an
+   * empty <svg> in silence, and every icon after it shifts one card along.
+   */
+  for (const route of ['/', '/en']) {
+    const html = pages.get(route);
+    const icons = [
+      ...html.matchAll(/<div class="feature-card__icon"[^>]*>([\s\S]*?)<\/div>/gu),
+    ].map((m) => m[1]);
+    assert.ok(icons.length >= 6, `${route} has ${icons.length} feature icons`);
+    icons.forEach((svg, i) => {
+      assert.match(svg, /<path\b/u, `${route}: feature card ${i + 1} draws no icon`);
+    });
+  }
+});
+
 test('the stats band ships empty and is filled from the API, never prefilled', () => {
   /*
    * The three figures here were 120 / 45 / 3 000, hardcoded and untrue. Server
