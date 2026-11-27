@@ -384,9 +384,9 @@ export class PublicScheduleService {
             (m['status'] as string) === 'completed'
               ? deriveMatchOutcome(
                   {
-                    winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
-                    redRegistrationId: redReg,
-                    blueRegistrationId: blueReg,
+                    winnerSideId: (m['winner_registration_id'] as string | null) ?? null,
+                    redSideId: redReg,
+                    blueSideId: blueReg,
                     redScore: (m['red_score'] as number) ?? 0,
                     blueScore: (m['blue_score'] as number) ?? 0,
                     endReason: (m['end_reason'] as string | null) ?? null,

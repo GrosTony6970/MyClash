@@ -53,6 +53,7 @@ export function cardAgainstRed(points: number, round?: number): Penalty {
   return {
     id: `c${next++}`,
     registration_id: 'red',
+    team_id: null,
     card: 'red',
     source: 'direct',
     score_delta: -points,
@@ -113,8 +114,8 @@ export function bout(over: Partial<PadSeriesArgs> = {}): PadSeriesArgs {
     matchNumberLabel: 'L1-P1-M1',
     matchFormat: FORMAT,
     server: ROUND_1,
-    redRegistrationId: 'red',
-    blueRegistrationId: 'blue',
+    redSideId: 'red',
+    blueSideId: 'blue',
     exchanges: [],
     penalties: [],
     queued: [],

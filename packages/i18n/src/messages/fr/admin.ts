@@ -273,6 +273,7 @@ export const admin = {
     selectedCount: 'Sélectionnés ({count}) :',
     noGroupOption: '— aucun groupe —',
     cancelButton: 'Annuler',
+    linkRefused: "{name} n'a pas été lié : {reason}",
   },
   adminMisc: {
     superAdminNoOrg: 'Super-admin — ne peut pas appartenir à une organisation.',
@@ -403,6 +404,7 @@ export const admin = {
   },
   orgPools: {
     fighterCount: '{count} combattants',
+    teamCount: '{count} équipes',
   },
   orgRefBracket: {
     availabilityAll: 'tout',
@@ -644,7 +646,7 @@ export const admin = {
     requestFailed: 'Échec de la requête',
     resetScheduleFailed: 'Échec de la réinitialisation du programme',
     serverRejectedDeletion: 'Le serveur a refusé la suppression',
-    sideNoRegistrationYet: "Ce côté n'a pas encore d'inscription.",
+    sideNoEntrantYet: "Ce côté n'a pas encore de combattant ni d'équipe.",
     signupFailed: "Échec de l'inscription",
     slugMinLength: 'Le slug doit comporter au moins 3 caractères',
     someGroupsNotScheduled: "Certains groupes sélectionnés n'ont pas pu être programmés.",
@@ -1297,7 +1299,7 @@ export const admin = {
       penaltyVersioning:
         "Publier prend un instantané que les tournois peuvent fixer. Revenir en arrière restaure un instantané plus ancien sur le règlement - rien n'est supprimé, et la publication suivante prend le numéro de version suivant. Dès qu'un tournoi ou un événement référence ce règlement, le retour arrière devient impossible ; dupliquez-le à la place.",
       seedingStrategy:
-        "Serpentin répartit les vainqueurs de poule. Par classement et Aléatoire ignorent complètement les résultats de poule - ils ordonnent à partir de données sans rapport avec le déroulement des poules - et Aléatoire enregistre la graine utilisée, ce qui permet de rejouer le même tirage. Par rang de poule est le strict : il REFUSE de s'exécuter sans phase de poules terminée plutôt que de retomber silencieusement sur l'ordre d'inscription.",
+        "Serpentin répartit les vainqueurs de poule. Par classement et Aléatoire ignorent complètement les résultats de poule - ils ordonnent à partir de données sans rapport avec le déroulement des poules - et Aléatoire enregistre la graine utilisée, ce qui permet de rejouer le même tirage. Par rang de poule est le strict : il REFUSE de s'exécuter sans phase de poules terminée plutôt que de retomber silencieusement sur l'ordre des têtes de série.",
       compensationTiers:
         "Les paliers convertissent les jetons gagnés par un arbitre sur l'événement en ce qu'il touche réellement. Le premier palier dont la plage contient son total l'emporte, et un total qui tombe dans un TROU entre deux paliers ne donne rien du tout - seul le paiement minimum de l'événement, si vous en fixez un, le rattrape. Ce minimum est appliqué après le plafond, donc il est respecté même s'il le dépasse.",
     },

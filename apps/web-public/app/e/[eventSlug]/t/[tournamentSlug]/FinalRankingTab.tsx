@@ -22,12 +22,13 @@ import {
   computeFinalRanking,
   rankingBracketShape,
   roundGroupName,
+  TeamChip,
   type FinalRankingEntry,
   type PoolEntry,
-  type RankingSlot,
 } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { SelfRowFocus } from './SelfRowFocus';
+import type { PoolStandingsRow, SwissStandingsWireRow } from '@myclash/types/pool-standings';
 import type { BracketSlot } from './page';
 import type { TournamentPhaseType } from './tournament-data';
 
@@ -62,13 +63,6 @@ function YouChip({ label }: { label: string }) {
       {label}
     </span>
   );
-}
-
-interface OverallStandingsRow {
-  registrationId: string;
-  displayName: string;
-  club: { name: string; abbreviation: string | null } | null;
-  stats: Record<string, number | string>;
 }
 
 export function FinalRankingTab({
@@ -106,15 +100,20 @@ export function FinalRankingTab({
     void fetch(endpoint, { cache: 'no-store', signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        const rows = (data as { rows?: OverallStandingsRow[] } | null)?.rows ?? [];
+        const rows =
+          (data as { rows?: Array<PoolStandingsRow | SwissStandingsWireRow> } | null)?.rows ?? [];
         setPoolEntries(
           rows.map((row) => {
             const raw = row.stats?.['score'];
             const n = typeof raw === 'number' ? raw : Number(raw);
+            // A Swiss row has no kind: Swiss has no team path, every row is a Fighter.
+            const pool = 'kind' in row ? row : null;
             return {
-              registrationId: row.registrationId,
+              entrantId: row.entrantId,
+              kind: pool?.kind ?? 'individual',
               fighterName: row.displayName,
               clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+              colour: pool?.colour ?? null,
               poolScore: Number.isFinite(n) ? n : null,
             };
           }),
@@ -135,25 +134,10 @@ export function FinalRankingTab({
     );
   }
 
-  const rankingSlots: RankingSlot[] = bracketSlots.map((s) => ({
-    id: s.id,
-    round: s.round,
-    position: s.position,
-    status: s.status,
-    redRegistrationId: s.redRegistrationId ?? null,
-    blueRegistrationId: s.blueRegistrationId ?? null,
-    redFighterName: s.redFighterName,
-    blueFighterName: s.blueFighterName,
-    redClubAbbrev: s.redClubAbbrev ?? null,
-    blueClubAbbrev: s.blueClubAbbrev ?? null,
-    redScore: s.redScore,
-    blueScore: s.blueScore,
-    winnerRegistrationId: s.winnerRegistrationId ?? null,
-  }));
-
-  const maxRound = rankingSlots.reduce((m, s) => Math.max(m, s.round), 0);
+  // The slots as the public bracket read sends them: the side ids come from the wire.
+  const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
   const ranking = computeFinalRanking(
-    rankingSlots,
+    bracketSlots,
     poolEntries,
     null,
     rankingBracketShape({
@@ -174,6 +158,9 @@ export function FinalRankingTab({
     );
   }
 
+  // A team Tournament ranks teams only: its column says so, and a team has no club pill.
+  const ranksTeams = ranking.some((entry) => entry.kind === 'team');
+
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       {/* Personal space: scroll the viewer's own row into view on landing. */}
@@ -184,7 +171,11 @@ export function FinalRankingTab({
             <th className="w-16 px-4 py-2 text-center">
               {t('publicApp.tournament.finalRanking.colRank')}
             </th>
-            <th className="px-4 py-2">{t('publicApp.tournament.finalRanking.colFighter')}</th>
+            <th className="px-4 py-2">
+              {ranksTeams
+                ? t('publicApp.tournament.finalRanking.colTeam')
+                : t('publicApp.tournament.finalRanking.colFighter')}
+            </th>
             <th className="px-4 py-2">{t('publicApp.tournament.finalRanking.colResult')}</th>
             <th className="px-4 py-2 text-right">
               {t('publicApp.tournament.finalRanking.colPoolScore')}
@@ -194,11 +185,10 @@ export function FinalRankingTab({
         <tbody>
           {ranking.map((entry) => {
             const poolScoreText = entry.poolScore != null ? entry.poolScore.toFixed(2) : '—';
-            const isYou =
-              !!highlightRegistrationId && entry.registrationId === highlightRegistrationId;
+            const isYou = !!highlightRegistrationId && entry.entrantId === highlightRegistrationId;
             return (
               <tr
-                key={entry.registrationId}
+                key={entry.entrantId}
                 data-self-row={isYou ? '' : undefined}
                 className={[
                   'border-b border-border last:border-0 hover:bg-background',
@@ -213,6 +203,7 @@ export function FinalRankingTab({
                 </td>
                 <td className="px-4 py-2">
                   <span className={isYou ? 'font-bold text-accent' : 'font-medium text-foreground'}>
+                    <TeamChip colour={entry.colour} />
                     {entry.fighterName}
                   </span>
                   {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}

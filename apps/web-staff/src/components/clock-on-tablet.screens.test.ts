@@ -193,12 +193,11 @@ describe('"End match" on the tablet', () => {
     // Not confirmed: the winner the End was pressed on, where the board names
     // none (both at zero in a bout that counts down). Never for a series.
     expect(view).toContain('const ownWinner = seriesDecided ? undefined : ownResult.winner;');
-    expect(view).toMatch(
-      /const ownWinnerId =\s+ownWinner === 'red'\s+\? match\.redRegistrationId\s+: ownWinner === 'blue'\s+\? match\.blueRegistrationId\s+: null;/,
-    );
+    // The winner's side key, the tablet's own or the server's: `result-winner.test.ts`.
     expect(view).toContain(
-      'winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}',
+      'const sideIds = resultSides(match, { unconfirmed, winner: ownWinner });',
     );
+    expect(view).toContain('winnerSideId={sideIds.winnerSideId}');
     expect(hook).toContain(
       'setRows((before) => ({ presses, held, endScore: endScoreOf(presses, before.endScore) }));',
     );
@@ -222,14 +221,23 @@ describe('"End match" on the tablet', () => {
     // so it keeps the server's reason: with the tablet's it would put the
     // wiped board on the last hit the server holds.
     expect(view).toContain('endReason={match.endReason}\n          resultReason={resultReason}');
-    expect(overlay).toContain('resultReason={props.resultReason}');
+    // The headline takes the screen's props whole and reads `resultReason`, never `endReason`.
+    expect(overlay).toContain('<ResultHeadline {...props} />');
+    const headline = overlay.slice(
+      overlay.indexOf('function ResultHeadline('),
+      overlay.indexOf('function BoutReview('),
+    );
+    expect(headline).toContain("| 'resultReason'");
+    expect(headline).not.toContain('endReason');
     expect(overlay).not.toContain('endReason={props.endReason}');
     // A bout nobody won is a loss for both or a draw: the reason says which.
     expect(overlay).toContain('<NoWinner resultReason={resultReason} />');
     expect(overlay).toContain("if (isDoubleLoss('completed', resultReason)) {");
-    // A loss for both names nobody, also with a card on its wiped board.
-    expect(overlay).toContain("const lossForBoth = isDoubleLoss('completed', resultReason);");
-    expect(overlay).toContain('const winner = lossForBoth ? null : resolved;');
+    // A loss for both names nobody, also with a card on its wiped board (`resultWinner`).
+    expect(read('components', 'result-winner.ts')).toContain(
+      "if (isDoubleLoss('completed', args.resultReason)) return null;",
+    );
+    expect(overlay).toMatch(/const winner = resultWinner\(\{\s+resultReason,/);
     expect(overlay).toMatch(
       /data-testid="match-result-double-loss"[^>]*>\s+\{t\('scoring\.liveMatch\.doubleLoss'\)\}/,
     );
@@ -243,8 +251,8 @@ describe('what needs the network while presses wait', () => {
     expect(view).toContain(
       'pressesWaiting={padClock.pressesWaiting > 0 || padClock.heldPresses.length > 0}',
     );
-    expect(controls).toContain(
-      "disabled={clockLoading || (primary.action === 'reopen' && pressesWaiting)}",
+    expect(controls).toMatch(
+      /disabled=\{\s*clockLoading \|\|\s*\(primary\.action === 'reopen' && pressesWaiting\) \|\|/,
     );
     expect(controls).toContain('disabled={clockLoading || pressesWaiting}');
   });

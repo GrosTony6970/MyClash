@@ -54,11 +54,15 @@ export interface BoutRow {
   id: string;
   match_number_label: string | null;
   status: string;
-  red_registration_id: string;
-  blue_registration_id: string;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   red_score: number | null;
   blue_score: number | null;
   winner_registration_id: string | null;
+  /** The recorded winner when a team won: exactly one of the two winner columns is set. */
+  winner_team_id: string | null;
   locked_at: string | null;
   lice_id: string | null;
   end_reason: string | null;
@@ -80,6 +84,9 @@ export interface BoutSummary {
   blueName: string;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip (a colour token); null for a Fighter's side (call 6). */
+  redColour?: string | null;
+  blueColour?: string | null;
   weapon: string;
   tournamentId: string;
   tournamentName?: string | null;
@@ -134,16 +141,21 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     status: raw.status,
     redRegistrationId: raw.red_registration_id,
     blueRegistrationId: raw.blue_registration_id,
+    redTeamId: raw.red_team_id,
+    blueTeamId: raw.blue_team_id,
     redScore: raw.red_score ?? 0,
     blueScore: raw.blue_score ?? 0,
     // GET /matches/:id is a select('*'), so this has always been on the wire:
     // the client simply dropped it, and the end-of-match overlay announced
     // whoever had more points.
     winnerRegistrationId: raw.winner_registration_id ?? null,
+    winnerTeamId: raw.winner_team_id ?? null,
     redFighterName: summary?.redName ?? '',
     blueFighterName: summary?.blueName ?? '',
     redClub: summary?.redClub ?? null,
     blueClub: summary?.blueClub ?? null,
+    redColour: summary?.redColour ?? null,
+    blueColour: summary?.blueColour ?? null,
     weapon: summary?.weapon ?? '',
     tournamentId: summary?.tournamentId,
     tournamentName: summary?.tournamentName ?? null,

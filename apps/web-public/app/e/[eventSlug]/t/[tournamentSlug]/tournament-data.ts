@@ -10,11 +10,16 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
+import type { BracketSlotWire } from '@myclash/types/bracket-side';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
-export interface StandingRow {
-  registrationId: string;
+/** One row of a Pool's standings: a Fighter or a team (its chip's data, as the API sends it). */
+export interface StandingRow extends Pick<PoolStandingsRow, 'colour' | 'logoUrl'> {
+  /** The entrant's side key: a Registration id, or a team id in a team Tournament's Pools. */
+  entrantId: string;
+  /** The Fighter's name, or the team's. */
   fighterName: string;
   clubName: string | null;
   wins: number;
@@ -38,30 +43,12 @@ export interface Pool {
   startAt?: string | null;
 }
 
-export interface BracketSlot {
-  id: string;
-  round: number;
-  position: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redClubAbbrev?: string | null;
-  blueClubAbbrev?: string | null;
-  redScore: number | null;
-  blueScore: number | null;
-  /** Recorded match winner — authoritative over score comparison (a forfeit
-   *  can complete a match with the lower-scored fighter winning). */
-  winnerRegistrationId?: string | null;
-  status: string;
-  matchId: string | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-  /** Assigned piste ("lice") name — rendered as a pill beside the match code,
-   *  mirroring the admin bracket. Null when no piste is assigned. */
-  liceName?: string | null;
-  /** Referees assigned to this bracket match (scope_type='match'). Rendered on
-   *  the card when the bracket's fold/unfold toggle is on. */
-  referees?: PoolReferee[];
-}
+/**
+ * One bracket slot, as the public bracket read declares it (`getPublishedBracket`): each side
+ * keyed by `sideKey` and typed (kind, name, a team's colour), the recorded winner by
+ * `winnerSideId` — authoritative over the scores, since a forfeit can award the lower score.
+ */
+export type BracketSlot = BracketSlotWire;
 
 export interface Tournament {
   id: string;
@@ -78,6 +65,9 @@ export interface Tournament {
   /** Every audited change of the scoring rules, newest first; empty when there was none. The
    *  API always sends the list (a failed read of it is logged and sent empty). */
   rulesetRepins: RulesChangeNotice[];
+  /** Fighters or teams (`tournaments.entrant_kind`): what the pages name the entrants, even in a
+   *  Pool that seats nobody yet. The API always sends it. */
+  entrantKind: 'individual' | 'team';
 }
 
 export interface TournamentData {
@@ -146,21 +136,31 @@ export interface PodiumShape {
 // now the shared one in @myclash/types, which says the same thing.
 function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
   if (!s) return null;
-  return resolveMatchWinner(s);
+  return resolveMatchWinner({
+    status: s.status,
+    winnerSideId: s.winnerSideId,
+    redSideId: s.redSideId,
+    blueSideId: s.blueSideId,
+    redScore: s.redScore,
+    blueScore: s.blueScore,
+  });
+}
+
+/** A podium place: the name, and a team's colour (a Fighter's is null, so no chip is drawn). */
+function podiumPlace(s: BracketSlot, side: 'red' | 'blue') {
+  const name = side === 'red' ? s.redFighterName : s.blueFighterName;
+  const colour = (side === 'red' ? s.red : s.blue)?.colour ?? null;
+  return name ? { fighterName: name, colour } : null;
 }
 
 function winnerName(s: BracketSlot | null) {
   const side = winnerSide(s);
-  if (!side) return null;
-  const name = side === 'red' ? s!.redFighterName : s!.blueFighterName;
-  return name ? { fighterName: name } : null;
+  return side ? podiumPlace(s!, side) : null;
 }
 
 function loserName(s: BracketSlot | null) {
   const side = winnerSide(s);
-  if (!side) return null;
-  const name = side === 'red' ? s!.blueFighterName : s!.redFighterName;
-  return name ? { fighterName: name } : null;
+  return side ? podiumPlace(s!, side === 'red' ? 'blue' : 'red') : null;
 }
 
 /** Which slots decide each podium place, and how to read them. */
@@ -248,6 +248,35 @@ export function derivePodium(
   };
 }
 
+/**
+ * How many entrants the Pools seat. Whether they are teams is the Tournament's own
+ * `entrantKind`, never guessed from the seats: a Pool that seats nobody has none to look at.
+ */
+export function poolEntrantCount(pools: Pool[]): number {
+  return pools.reduce((n, pool) => n + (pool.members?.length ?? pool.standings.length), 0);
+}
+
+/**
+ * "N teams" or "N fighters", singular or plural. `t()` has no plurals, so the key pair is chosen
+ * here: English takes the singular for 1, French for 0 and 1.
+ */
+export function entrantCountLabel(
+  t: (key: string, values?: Record<string, string | number>) => string,
+  locale: string,
+  count: number,
+  teams: boolean,
+): string {
+  const singular = count === 1 || (locale === 'fr' && count === 0);
+  if (teams) {
+    return singular
+      ? t('publicApp.tournament.teamCountSingular', { count })
+      : t('publicApp.tournament.teamCountPlural', { count });
+  }
+  return singular
+    ? t('publicApp.tournament.fighterCountSingular', { count })
+    : t('publicApp.tournament.fighterCountPlural', { count });
+}
+
 /** Tournament brand colour token → hex for the legacy stripe/title paint. */
 export function colorTokenToHex(token: string | null | undefined): string {
   switch (token) {
@@ -284,24 +313,8 @@ export function colorTokenToHex(token: string | null | undefined): string {
 
 // ── Pool standings (live) ────────────────────────────────────────────────────
 
-/**
- * A row as the API returns it from `tournaments/:id/pool-standings`.
- *
- * `stats` is ruleset-driven: the active ruleset decides which keys exist
- * (Generic_PointsCap declares none of the extended ones), so every read must
- * tolerate a missing key rather than assume the shape.
- */
-export interface ApiStandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
-}
-
 export interface ApiPoolStandings {
-  pools?: Array<{ poolId: string; poolName: string; rows: ApiStandingsRow[] }>;
+  pools?: Array<{ poolId: string; poolName: string; rows: PoolStandingsRow[] }>;
 }
 
 function statNum(stats: Record<string, number | string>, key: string): number {
@@ -317,10 +330,12 @@ function statNum(stats: Record<string, number | string>, key: string): number {
  * `seed` has no equivalent on the API row and is unused by the table — it is
  * only in the type. Kept at 0 rather than faked.
  */
-export function toStandingRow(row: ApiStandingsRow): StandingRow {
+export function toStandingRow(row: PoolStandingsRow): StandingRow {
   return {
-    registrationId: row.registrationId,
+    entrantId: row.entrantId,
     fighterName: row.displayName,
+    colour: row.colour,
+    logoUrl: row.logoUrl,
     clubName: row.club?.name ?? null,
     wins: statNum(row.stats, 'W'),
     losses: statNum(row.stats, 'L'),

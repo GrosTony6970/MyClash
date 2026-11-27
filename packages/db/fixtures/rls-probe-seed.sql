@@ -15,6 +15,11 @@
 --   - a draft Tournament under the PUBLISHED Event, with a phase, a bout and a registration: the
 --     Event's status alone let anon read that Tournament's row until 0203. And a published
 --     Tournament under the draft Event: a public row needs BOTH statuses.
+--   - a published and a draft team Tournament under the published Event, each with a team and a
+--     slot (0281): the draft one's team and slot are hidden. They catch a rule that does not go
+--     through the Tournament at all (`using (true …)`). They cannot catch a rule that skips the
+--     Tournament's status: the `tournaments` read rule hides the draft row from its subquery
+--     anyway, so the status clauses of the team rules are defence in depth.
 --   - a referee assigned to a piste of the published Event and to a Pool and a bout of its published
 --     Tournament (public), to a piste of the draft Event, and to a Pool and a bout of the draft
 --     Tournament (hidden): the Event's status alone let anon read those last two until 0204.
@@ -111,6 +116,24 @@ SET CONSTRAINTS match_forfeits_forfeiting_registration_id_fkey,
   match_forfeits_winner_registration_id_fkey IMMEDIATE;
 SET CONSTRAINTS match_forfeits_forfeiting_registration_id_fkey,
   match_forfeits_winner_registration_id_fkey DEFERRED;
+-- Two team Tournaments of the published Event, one published and one draft, each with a team and a
+-- slot (0281). The published team's slot is its captain. The Tournaments above hold
+-- Registrations, so they take no Team.
+INSERT INTO tournaments (id, event_id, slug, name, status, entrant_kind) VALUES
+  ('77777777-0000-4000-8000-00000000007a', 'eeeeeeee-0000-4000-8000-00000000000a', 'teams', 'Teams',
+   'published', 'team'),
+  ('77777777-0000-4000-8000-00000000007c', 'eeeeeeee-0000-4000-8000-00000000000a', 'teams-draft',
+   'Teams draft', 'draft', 'team');
+INSERT INTO teams (id, tournament_id, name, slug, size) VALUES
+  ('7ea00000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000007a', 'Probe team',
+   'probe-team', 3),
+  ('7ea00000-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000007c', 'Probe team',
+   'probe-team', 3);
+INSERT INTO team_slots (id, team_id, tournament_id, position, person_id, is_captain) VALUES
+  ('75100000-0000-4000-8000-00000000000a', '7ea00000-0000-4000-8000-00000000000a',
+   '77777777-0000-4000-8000-00000000007a', 1, 'bbbbbbbb-0000-4000-8000-00000000000a', true),
+  ('75100000-0000-4000-8000-00000000000c', '7ea00000-0000-4000-8000-00000000000c',
+   '77777777-0000-4000-8000-00000000007c', 1, 'bbbbbbbb-0000-4000-8000-00000000000a', false);
 INSERT INTO pools (id, phase_id, name) VALUES
   ('90010000-0000-4000-8000-00000000000a', '99999999-0000-4000-8000-00000000000a', 'A'),
   ('90010000-0000-4000-8000-00000000000c', '99999999-0000-4000-8000-00000000000c', 'A');

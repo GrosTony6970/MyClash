@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureCode, type ApiFailure } from '@myclash/api-client';
 import { useToast, type ConfirmOptions } from '@myclash/ui';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
+import { conflictReason } from '@/lib/named-refusal';
 
 /** The organiser's hand on an entry (`entry_status`), as the roster read hands it over. */
 export type EntryStatus = 'registered' | 'checked_in' | 'withdrawn' | 'waitlist';
@@ -28,7 +29,7 @@ function refusalOf(
   t: (key: string, vars?: Record<string, string>) => string,
   tournament: string,
 ): string | null {
-  if (failure.kind === 'http' && failure.details?.['reason'] === 'tournament_full') {
+  if (conflictReason(failure) === 'tournament_full') {
     return t('organizer.persons.withdraw.full', { tournament });
   }
   if (failureCode(failure) === 'entry_status_changed')

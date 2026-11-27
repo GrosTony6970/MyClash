@@ -50,7 +50,8 @@ interface PenaltyScope {
 interface UsePenaltiesResult {
   ruleset: PenaltyRuleset | null;
   /**
-   * Prior offences per registration, straight from `/penalty-scope`, or null
+   * Prior offences per side key (a Registration or a team; a team's of this
+   * Match only, ruling 976), straight from `/penalty-scope`, or null
    * when that read has not landed.
    *
    * NULL IS LOAD-BEARING and must reach the caller as null. `resolveCard` below
@@ -69,11 +70,6 @@ interface UsePenaltiesResult {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  /**
-   * Filter helper: count of active penalties for a registration matching
-   * the given card colour. Used by the per-side card counter chips.
-   */
-  countFor: (registrationId: string, card: PenaltyCard) => number;
 }
 
 const ALL_CARDS: PenaltyCard[] = ['yellow', 'red', 'black'];
@@ -174,9 +170,6 @@ export function usePenalties(
     return ALL_CARDS.filter((c) => seen.has(c));
   })();
 
-  const countFor = (registrationId: string, card: PenaltyCard) =>
-    active.filter((p) => p.registration_id === registrationId && p.card === card).length;
-
   return {
     ruleset,
     priors: scope?.priors ?? null,
@@ -186,6 +179,5 @@ export function usePenalties(
     loading,
     error,
     refresh,
-    countFor,
   };
 }

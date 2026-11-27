@@ -15,6 +15,7 @@ import { common } from './common.js';
 import { navigation } from './navigation.js';
 import { offline } from './offline.js';
 import { scoring } from './scoring.js';
+import { pad } from './pad.js';
 import { auth } from './auth.js';
 import { legal } from './legal.js';
 import { admin } from './admin.js';
@@ -33,6 +34,7 @@ export const fr = {
   navigation,
   offline,
   scoring,
+  pad,
   auth,
   legal,
   admin,

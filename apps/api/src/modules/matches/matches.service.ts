@@ -18,11 +18,14 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { withBoutRules } from './bout-answer';
 import { assertBoutTakes } from './bout-not-started';
+import { assertBothSides, sidesOf } from './bout-sides';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { scoredAtServer } from './late-press';
 import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
+import { assertIndividualPhase } from './manual-bout-kind';
+import { statusWinnerColumns } from './status-winner';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
 import { nextSequence } from './timeline-sequence';
@@ -149,6 +152,7 @@ export class MatchesService {
   }
 
   async createMatch(dto: CreateMatchDto) {
+    await assertIndividualPhase(this.supabase.service, dto.phaseId);
     // A new bout goes through the same door as a moved one. It used to write
     // `lice_id` and `scheduled_at` with no occupancy check at all, so a bout
     // could be created straight onto a busy strip — `checkOnly` because there
@@ -233,7 +237,7 @@ export class MatchesService {
   }
 
   async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
-    return this.setStatus(matchId, dto.status, dto.winnerRegistrationId);
+    return this.setStatus(matchId, dto.status, dto.winnerSideId);
   }
 
   /**
@@ -269,7 +273,7 @@ export class MatchesService {
   private async setStatus(
     matchId: string,
     status: UpdateMatchStatusDto['status'] | 'voided',
-    winnerRegistrationId?: string,
+    winnerSideId?: string,
   ) {
     const updates: Record<string, unknown> = {
       status,
@@ -277,7 +281,13 @@ export class MatchesService {
     };
     if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
+      // No winner sent: the stored winner stays. `winnerColumns` with none would clear both.
+      if (winnerSideId !== undefined) {
+        Object.assign(
+          updates,
+          await statusWinnerColumns(this.supabase.service, matchId, winnerSideId),
+        );
+      }
     }
 
     const { data, error } = await this.supabase.service
@@ -697,7 +707,10 @@ export class MatchesService {
   private async openRoundOf(matchId: string, occurredAt: string): Promise<number> {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('status, current_round, awaiting_round_advance')
+      .select(
+        'status, current_round, awaiting_round_advance, ' +
+          'red_registration_id, blue_registration_id, red_team_id, blue_team_id',
+      )
       .eq('id', matchId)
       .maybeSingle();
     if (error) throw new Error(`Could not read bout ${matchId}: ${error.message}`);
@@ -705,10 +718,16 @@ export class MatchesService {
       status?: string | null;
       current_round?: number | null;
       awaiting_round_advance?: boolean | null;
+      red_registration_id?: string | null;
+      blue_registration_id?: string | null;
+      red_team_id?: string | null;
+      blue_team_id?: string | null;
     } | null;
+    // A bout waiting for a Fighter takes no hit (`assertBothSides`). With no row there are no
+    // sides to judge: the insert's foreign key refuses the hit.
     await assertBoutTakes(
       this.supabase.service,
-      { id: matchId, status: bout?.status },
+      { id: matchId, status: bout?.status, sides: bout ? sidesOf(bout) : 'not-judged' },
       { occurredAt },
     );
     if (bout?.awaiting_round_advance) throw scoringAwaitsRoundAdvance();
@@ -951,10 +970,16 @@ export class MatchesService {
   async swapFighterColor(matchId: string, context?: MatchActor) {
     const match = await this.getLockableMatch(matchId);
     await this.assertMatchUnlocked(matchId, context, match);
+    // A bout waiting for a Fighter swaps nobody (operator, 2026-11-24).
+    assertBothSides(sidesOf(match));
     await this.scoring.assertNoRecordHolds(matchId);
+    // Each side moves whole, a Registration or a team (0282). Cards and protests name their side,
+    // not its colour, so they follow it.
     const updates = {
       red_registration_id: match.blue_registration_id,
       blue_registration_id: match.red_registration_id,
+      red_team_id: match.blue_team_id,
+      blue_team_id: match.red_team_id,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await this.supabase.service
@@ -1256,7 +1281,9 @@ export class MatchesService {
   private async getLockableMatch(matchId: string): Promise<Record<string, unknown>> {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('id, red_registration_id, blue_registration_id, side_order, locked_at')
+      .select(
+        'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, side_order, locked_at',
+      )
       .eq('id', matchId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);

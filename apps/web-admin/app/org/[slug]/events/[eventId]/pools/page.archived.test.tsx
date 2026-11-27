@@ -35,12 +35,21 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const member = (registrationId: string, personName: string, seed: number) => ({
+/** A Fighter's seat as the API sends it (`poolSeatOf`). */
+const seat = (registrationId: string, personName: string) => ({
+  sideId: registrationId,
+  kind: 'individual',
   registrationId,
+  name: personName,
   personName,
   clubLabel: null,
-  seed,
+  colour: null,
+  logoUrl: null,
   hemaWeightedRating: null,
+});
+const member = (registrationId: string, personName: string, seed: number) => ({
+  ...seat(registrationId, personName),
+  seed,
 });
 
 const READS = {
@@ -52,9 +61,7 @@ const READS = {
       { id: 'p2', name: 'Pool B', members: [member('r3', 'Cy', 3), member('r4', 'Dee', 4)] },
     ],
   },
-  '/api/v1/tournaments/t1/unassigned-fighters': [
-    { registrationId: 'r5', personName: 'Eve', clubLabel: null, hemaWeightedRating: null },
-  ],
+  '/api/v1/tournaments/t1/unassigned-fighters': [seat('r5', 'Eve')],
   '/api/v1/tournaments/t1/conflict-check': { conflicts: [] },
 };
 

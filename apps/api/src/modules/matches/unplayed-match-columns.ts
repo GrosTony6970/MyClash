@@ -55,6 +55,7 @@ export function unplayedMatchColumns(
     red_score: 0,
     blue_score: 0,
     winner_registration_id: null,
+    winner_team_id: null,
     started_at: null,
     ended_at: null,
     end_reason: null,

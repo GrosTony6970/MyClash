@@ -52,7 +52,7 @@ const SEED = {
       {
         ...{ id: 't1', event_id: EVENT, slug: 'sabre', name: 'Sabre', status: 'published' },
         ...{ weapon: 'sabre', ruleset_code: 'TF_v1', ruleset_version: '1.1.0' },
-        ...{ logo_url: null, color: null, scoring_config_json: null },
+        ...{ logo_url: null, color: null, scoring_config_json: null, entrant_kind: 'individual' },
       },
     ],
   },

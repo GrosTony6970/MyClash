@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { BracketSideWire } from '@myclash/types/bracket-side';
 import { derivePodium, type BracketSlot } from './tournament-data';
 
 /** A completed bout the red fighter won on points. Positions start at 1, as generated. */
@@ -9,13 +10,68 @@ function bout(round: number, position: number, red: string, blue: string): Brack
     position,
     redFighterName: red,
     blueFighterName: blue,
+    redClubAbbrev: null,
+    blueClubAbbrev: null,
     redScore: 5,
     blueScore: 2,
     winnerRegistrationId: null,
+    redSideId: `reg-${red}`,
+    blueSideId: `reg-${blue}`,
+    winnerSideId: null,
+    red: fighter(`reg-${red}`, red),
+    blue: fighter(`reg-${blue}`, blue),
     status: 'completed',
     matchId: null,
+    redRegistrationId: `reg-${red}`,
+    blueRegistrationId: `reg-${blue}`,
+    source_a_ref: null,
+    source_b_ref: null,
+    liceName: null,
+    referees: [],
   };
 }
+
+/**
+ * Anna (red) leads the final 5 to 2. Bea (blue) is behind on points, but Anna forfeits with an
+ * injury and the score stands, so the record names Bea the winner. The public podium crowns Bea.
+ * The podium once passed the whole slot to the winner helper; when the helper's keys were renamed
+ * to side names, that call still compiled, found no recorded winner, and crowned the higher score.
+ */
+const fighter = (registrationId: string, name: string): BracketSideWire => ({
+  sideId: registrationId,
+  kind: 'individual',
+  registrationId,
+  teamId: null,
+  name,
+  clubAbbrev: null,
+  colour: null,
+});
+
+const final: BracketSlot = {
+  id: 'slot-final',
+  round: 1,
+  position: 1,
+  redFighterName: 'Anna',
+  blueFighterName: 'Bea',
+  redClubAbbrev: null,
+  blueClubAbbrev: null,
+  redScore: 5,
+  blueScore: 2,
+  winnerRegistrationId: 'reg-bea',
+  redSideId: 'reg-anna',
+  blueSideId: 'reg-bea',
+  winnerSideId: 'reg-bea',
+  red: fighter('reg-anna', 'Anna'),
+  blue: fighter('reg-bea', 'Bea'),
+  status: 'completed',
+  matchId: 'match-final',
+  redRegistrationId: 'reg-anna',
+  blueRegistrationId: 'reg-bea',
+  source_a_ref: null,
+  source_b_ref: null,
+  liceName: null,
+  referees: [],
+};
 
 describe('derivePodium', () => {
   it('reads a single-elimination podium from the Final and the bronze match', () => {
@@ -27,10 +83,17 @@ describe('derivePodium', () => {
     ];
 
     expect(derivePodium(slots, { phaseType: 'single_elim' })).toEqual({
-      gold: { fighterName: 'Anna' },
-      silver: { fighterName: 'Eve' },
-      bronze: { fighterName: 'Cleo' },
-      fourth: { fighterName: 'Gus' },
+      gold: { fighterName: 'Anna', colour: null },
+      silver: { fighterName: 'Eve', colour: null },
+      bronze: { fighterName: 'Cleo', colour: null },
+      fourth: { fighterName: 'Gus', colour: null },
     });
+  });
+
+  it('crowns the forfeit winner of a final won on the lower score', () => {
+    const podium = derivePodium([final]);
+
+    expect(podium?.gold).toEqual({ fighterName: 'Bea', colour: null });
+    expect(podium?.silver).toEqual({ fighterName: 'Anna', colour: null });
   });
 });

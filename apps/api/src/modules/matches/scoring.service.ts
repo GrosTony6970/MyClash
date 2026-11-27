@@ -17,7 +17,7 @@ import { LeagueRescoreService } from './league-rescore.service';
 import {
   evaluateRound,
   getEffectiveBestOf,
-  getPointCapWinnerRegistrationId,
+  getPointCapWinnerSideId,
   isDoubleLossBout,
   leadingColor,
   pendingLevelStep,
@@ -35,6 +35,7 @@ import type {
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
+import { sideKey } from '@myclash/types/side-key';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
@@ -67,6 +68,8 @@ import {
   type ScoreChange,
   type ScoreRows,
 } from './correction-preflight';
+import { winnerColumns, type SideColumns } from './winner-columns';
+import { sidesOf } from './bout-sides';
 
 export type { ClosedRound };
 
@@ -102,7 +105,7 @@ interface LoadedBout extends ScoreRows {
 interface SingleFightScore {
   score: MatchScore;
   decision: MatchEndDecision;
-  winnerRegistrationId: string | null;
+  winnerSideId: string | null;
 }
 
 /**
@@ -113,13 +116,16 @@ interface SingleFightScore {
  * constant, the schema gate cannot read it, so `bout-columns.schema.test.ts` does.
  */
 export const MATCH_ROW_SELECT =
-  'id, red_registration_id, blue_registration_id, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
+  'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, status, winner_registration_id, winner_team_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
   BOUT_RULES;
 
 /** The bout a round end or a round advance decides, with its copy. Exported as the one above. */
 export const ROUND_CONTEXT_SELECT =
-  'id, red_registration_id, blue_registration_id, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
+  'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, status, winner_registration_id, winner_team_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
   BOUT_RULES;
+
+/** A side's id column of a `matches` row: an id, or null while the side is not that kind. */
+type Id = string | null;
 
 /** Map a `matches` row, its copy embedded (`BOUT_RULES`), to the ruleset's own type. */
 function rulesetMatch(
@@ -128,10 +134,13 @@ function rulesetMatch(
 ): RulesetMatch {
   // The engine of the bout's copy, the pair the pad is told to decide with (`withBoutRules`).
   const engine = boutEngineOf(m);
+  // A side not known yet stays null, as before: `assertBothSides` (Task 7a) refuses Start, hits,
+  // cards and swap on such a bout, and a card void still recomputes it. Never `''`.
+  const { red: redSideId, blue: blueSideId } = sidesOf(m);
   return {
     id: m['id'] as string,
-    redRegistrationId: m['red_registration_id'] as string,
-    blueRegistrationId: m['blue_registration_id'] as string,
+    redSideId: redSideId as string,
+    blueSideId: blueSideId as string,
     rulesetCode: engine.code,
     rulesetVersion: engine.version,
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
@@ -141,12 +150,13 @@ function rulesetMatch(
 }
 
 function storedBout(m: Record<string, unknown>): CorrectionInput['bout'] {
+  const { red: redSideId, blue: blueSideId } = sidesOf(m);
   return {
     status: m['status'] as string,
-    winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
+    winnerSideId: sideKey(m['winner_registration_id'] as Id, m['winner_team_id'] as Id),
     endReason: (m['end_reason'] as string | null) ?? null,
-    redRegistrationId: (m['red_registration_id'] as string | null) ?? null,
-    blueRegistrationId: (m['blue_registration_id'] as string | null) ?? null,
+    redSideId,
+    blueSideId,
     redScore: Number(m['red_score'] ?? 0),
     blueScore: Number(m['blue_score'] ?? 0),
   };
@@ -229,7 +239,7 @@ export class ScoringService {
       // At the time of the hit that decided it, when a tablet sent it late: a clock that never
       // ran has no End to stop at that time, and the row kept the queue's arrival.
       matchUpdates['ended_at'] = endedAtOf(causedAt, m);
-      matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
+      Object.assign(matchUpdates, winnerColumns(m as SideColumns, scored.winnerSideId));
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
       matchUpdates['end_reason'] = decision.reason;
@@ -251,7 +261,7 @@ export class ScoringService {
       );
     }
     if (outcome.kind === 'redecide') {
-      matchUpdates['winner_registration_id'] = outcome.winnerRegistrationId;
+      Object.assign(matchUpdates, winnerColumns(m as SideColumns, outcome.winnerSideId));
       matchUpdates['end_reason'] = outcome.endReason;
     }
     if (outcome.kind === 'refuse') {
@@ -472,7 +482,7 @@ export class ScoringService {
 
     const { data: penaltyRows, error: penaltiesError } = await this.supabase.service
       .from('match_penalties')
-      .select('id, score_delta, registration_id, round_number')
+      .select('id, score_delta, registration_id, team_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
     // An unread sheet is not an empty one: scored as 0-0 it would write a wrong
@@ -529,7 +539,7 @@ export class ScoringService {
     return {
       score,
       decision,
-      winnerRegistrationId: this.endWinnerRegistrationId(
+      winnerSideId: this.endWinnerSideId(
         decision.reason,
         match,
         score,
@@ -600,7 +610,7 @@ export class ScoringService {
           ? {
               isOver: true,
               reason: decision.reason,
-              winnerRegistrationId: scored.winnerRegistrationId,
+              winnerSideId: scored.winnerSideId,
             }
           : { isOver: false },
       staysFinished: context.staysFinished,
@@ -625,8 +635,10 @@ export class ScoringService {
     let { redScore, blueScore } = score;
     for (const row of penaltyRows) {
       const delta = (row['score_delta'] as number | null) ?? 0;
-      if (row['registration_id'] === match.redRegistrationId) redScore += delta;
-      if (row['registration_id'] === match.blueRegistrationId) blueScore += delta;
+      // A card names a Fighter or a team (ADR-022): placed by its side key, never by Registration.
+      const side = sideKey(row['registration_id'] as Id, row['team_id'] as Id);
+      if (side === match.redSideId) redScore += delta;
+      if (side === match.blueSideId) blueScore += delta;
     }
     return { ...score, redScore, blueScore };
   }
@@ -641,7 +653,7 @@ export class ScoringService {
    * `max_doubles` and `max_doubles_draw` both wipe the board, so neither has a
    * winner to name; a plain `max_doubles` is a loss for both.
    */
-  private endWinnerRegistrationId(
+  private endWinnerSideId(
     reason: MatchEndDecision['reason'],
     match: RulesetMatch,
     score: MatchScore,
@@ -649,12 +661,12 @@ export class ScoringService {
     edition: DecisionEdition,
   ): string | null {
     if (reason === 'first_to_points') {
-      return getPointCapWinnerRegistrationId(match, score, matchFormat, edition);
+      return getPointCapWinnerSideId(match, score, matchFormat, edition);
     }
     if (reason === 'max_doubles_result_stands') {
       const leader = leadingColor(score);
       if (leader === null) return null;
-      return leader === 'red' ? match.redRegistrationId : match.blueRegistrationId;
+      return leader === 'red' ? match.redSideId : match.blueSideId;
     }
     return null;
   }
@@ -808,6 +820,7 @@ export class ScoringService {
    */
   private buildRoundClosure(
     match: RulesetMatch,
+    row: SideColumns,
     closedRounds: ClosedRound[],
     currentRound: number,
     openRed: number,
@@ -837,12 +850,13 @@ export class ScoringService {
         // A DRAWN series writes no winner, exactly as a single bout at the
         // ceiling does. Only reachable where the organiser allowed a drawn
         // round — the ceiling in a pool, or a phase chain containing a `draw`.
-        updates['winner_registration_id'] =
+        const winner =
           series.winnerColor === 'red'
-            ? match.redRegistrationId
+            ? match.redSideId
             : series.winnerColor === 'blue'
-              ? match.blueRegistrationId
+              ? match.blueSideId
               : null;
+        Object.assign(updates, winnerColumns(row, winner));
         updates['end_reason'] = this.seriesEndReason(newClosed, series.roundsSpent, endReason);
       }
     } else {
@@ -961,6 +975,7 @@ export class ScoringService {
     if (!currentAlreadyClosed && ev.autoOver) {
       const closure = this.buildRoundClosure(
         match,
+        args.matchRow as SideColumns,
         closedRounds,
         currentRound,
         openRed,
@@ -1124,6 +1139,7 @@ export class ScoringService {
 
     const closure = this.buildRoundClosure(
       ctx.match,
+      ctx.matchRow as SideColumns,
       closedRounds,
       currentRound,
       redScore,
@@ -1297,7 +1313,7 @@ export class ScoringService {
       .order('sequence', { ascending: true });
     const { data: penaltyRows } = await this.supabase.service
       .from('match_penalties')
-      .select('score_delta, registration_id, round_number')
+      .select('score_delta, registration_id, team_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
 

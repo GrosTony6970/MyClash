@@ -54,6 +54,10 @@ export interface ReadinessTournamentSnapshot {
   rulesetCode: string | null;
   /** Registrations excluding waitlist / withdrawn / disqualified. */
   activeFighterCount: number;
+  /** `tournaments.entrant_kind`: a team Tournament's entrants are its teams. */
+  entrantKind: 'individual' | 'team';
+  /** The Tournament's teams (none for an individual one). A team has no status. */
+  teamCount: number;
   hasPoolPhase: boolean;
   hasSwissPhase: boolean;
   hasElimPhase: boolean;
@@ -114,7 +118,14 @@ export interface ReadinessReport {
 /** Raw rows as the service reads them, before they mean anything. */
 export interface ReadinessRows {
   liceCount: number;
-  tournaments: Array<{ id: string; name: string; ruleset_code: string | null }>;
+  tournaments: Array<{
+    id: string;
+    name: string;
+    ruleset_code: string | null;
+    entrant_kind: 'individual' | 'team';
+  }>;
+  /** The teams of the event's team Tournaments. */
+  teams: Array<{ tournament_id: string }>;
   /**
    * `person_id` is what makes roster quality answerable without a second query
    * — the service has always fetched it, the type simply did not say so.
@@ -252,13 +263,7 @@ function tournamentChecks(tournament: ReadinessTournamentSnapshot): ReadinessChe
       level: tournament.rulesetCode?.trim() ? 'info' : 'warn',
       values: { ruleset: tournament.rulesetCode?.trim() ?? '' },
     }),
-    at({
-      key: 'fighters',
-      // Below 2, nothing can be generated at all: bracket generation rejects
-      // it outright and Berger pool scheduling throws.
-      level: tournament.activeFighterCount < 2 ? 'critical' : 'ok',
-      values: { count: tournament.activeFighterCount },
-    }),
+    entrantsCheck(tournament, at),
   ];
 
   if (!hasFormat) {
@@ -280,6 +285,20 @@ function tournamentChecks(tournament: ReadinessTournamentSnapshot): ReadinessChe
 }
 
 type AtTournament = (check: Omit<ReadinessCheck, 'tournamentId'>) => ReadinessCheck;
+
+/**
+ * Below 2 entrants, nothing can be generated at all: bracket generation rejects it outright and
+ * Berger pool scheduling throws. A team Tournament's entrants are its teams.
+ */
+function entrantsCheck(tournament: ReadinessTournamentSnapshot, at: AtTournament): ReadinessCheck {
+  const team = tournament.entrantKind === 'team';
+  const count = team ? tournament.teamCount : tournament.activeFighterCount;
+  return at({
+    key: team ? 'teams' : 'fighters',
+    level: count < 2 ? 'critical' : 'ok',
+    values: { count },
+  });
+}
 
 function poolsCheck(tournament: ReadinessTournamentSnapshot, at: AtTournament): ReadinessCheck {
   // No pool phase but an elim phase exists: the tournament goes straight to

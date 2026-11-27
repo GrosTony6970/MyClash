@@ -14,6 +14,7 @@ const HELP_KEY_BASE = 'organizer.pools.standings.help';
 const STANDINGS_COLUMN_HELP: Record<string, string> = {
   rank: `${HELP_KEY_BASE}.rank`,
   fighter: `${HELP_KEY_BASE}.fighter`,
+  team: `${HELP_KEY_BASE}.team`,
   score: `${HELP_KEY_BASE}.score`,
   W: `${HELP_KEY_BASE}.W`,
   L: `${HELP_KEY_BASE}.L`,

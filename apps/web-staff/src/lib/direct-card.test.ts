@@ -27,13 +27,15 @@ const t = (key: string, values?: Record<string, string | number>) =>
 const CARD = {
   matchId: 'm1',
   sequence: 4,
-  registrationId: 'reg-blue',
+  side: { kind: 'registration', id: 'reg-blue' },
   clockTimeMs: 61_000,
   bout: BOUT,
   cardedColor: 'blue',
   directCard: 'red',
   reason: 'Late on the piste',
 } as const;
+/** The card as its row keeps it: the side as its one field. */
+const { side: _side, ...CARD_ROW } = { ...CARD, registrationId: 'reg-blue' };
 
 beforeEach(async () => {
   await db.outbox.clear();
@@ -83,7 +85,9 @@ describe('a direct card given from the drawer', () => {
 
     const rows = await getAllPending();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: 'penalty', attempts: 0, ...CARD });
+    expect(rows[0]).toMatchObject({ kind: 'penalty', attempts: 0, ...CARD_ROW });
+    expect(rows[0]).not.toHaveProperty('teamId');
+    expect(rows[0]).not.toHaveProperty('side');
     expect(rows[0]?.clientUuid).toMatch(/^[0-9a-f-]{36}$/);
     expect(rows[0]).not.toHaveProperty('rulesetEntryId');
     expect(rows[0]).not.toHaveProperty('cardName');
@@ -240,7 +244,10 @@ describe('the screens', () => {
     const panel = read('components', 'DirectCardPanel.tsx');
     for (const field of [
       'sequence: props.nextSequence,',
-      "registrationId: fighter === 'red' ? props.redRegistrationId : props.blueRegistrationId,",
+      // The corner's side, a Fighter or a team (`sideOf`, `bout-sides.test.ts`).
+      'const side = sideOf(props.sides, draft.fighter);',
+      'await giveDirectCard(directCardRow(props, card, side), {',
+      '    side,\n',
       'clockTimeMs: props.clockTimeMs,',
       'bout: props.bout,',
       'cardedColor: fighter,',
@@ -251,10 +258,26 @@ describe('the screens', () => {
     }
   });
 
+  // A card of the list goes to the column's side, a Fighter or a team (`sideOf`). The browser
+  // story is `tests/a11y/pad-offline-drill.spec.ts` (a team bout's card, offline).
+  it('the column queues a card of the list on its own side', () => {
+    const column = read('components', 'ScoringColumn.tsx');
+    expect(column).toContain('if (boutSide === null) {');
+    expect(column).toContain('        side: boutSide,\n');
+    const view = read('components', 'MatchView.tsx');
+    expect(view).toContain("const redSide = sideOf(match, 'red');");
+    expect(view).toContain("const blueSide = sideOf(match, 'blue');");
+    expect(view).toContain('boutSide={redSide}');
+    expect(view).toContain('boutSide={blueSide}');
+  });
+
   it('the card buttons are live with no connection', () => {
     const panel = read('components', 'DirectCardPanel.tsx');
     expect(panel).toContain('disabled={disabled || busy || reason.trim().length === 0}');
-    expect(read('components', 'MatchCorrectionsDrawer.tsx')).toContain('disabled={busy || locked}');
+    // A bout waiting for a Fighter greys them (operator, 2026-11-24): that needs no network either.
+    expect(read('components', 'MatchCorrectionsDrawer.tsx')).toContain(
+      'disabled={busy || locked || sideMissing}',
+    );
   });
 
   it('the panel says so with no connection (ruling 315), and a fault in the reader’s language', () => {

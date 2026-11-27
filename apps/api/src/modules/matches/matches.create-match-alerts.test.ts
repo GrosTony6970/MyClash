@@ -23,7 +23,9 @@ function makeService(matches: TableSeed) {
   // stamped, and after the write stamped again, for the ruleset in force then (R3).
   const [seed, { stamp_match_rules: stamp }] = withStampedRules({
     matches,
-    phases: { rows: [{ id: 'phase-1', tournament_id: 't-1' }] },
+    phases: {
+      rows: [{ id: 'phase-1', tournament_id: 't-1', tournaments: { entrant_kind: 'individual' } }],
+    },
     tournaments: { rows: [{ id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' }] },
   });
   /** The writes of bouts that had landed at each stamp of the Tournament's rules. */

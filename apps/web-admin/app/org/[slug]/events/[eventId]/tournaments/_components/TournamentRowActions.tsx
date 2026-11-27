@@ -6,6 +6,7 @@ import { Button, Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 import { RequestDeletionModal } from '../../../_components/RequestDeletionModal';
 import { statusChangeQuestion } from '../_lib/status-change-question';
 
@@ -50,6 +51,7 @@ export function TournamentRowActions({
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
+  const { refetchEvents } = useOrganizerSelectedEvent();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [requestDeletion, setRequestDeletion] = useState(false);
 
@@ -88,6 +90,8 @@ export function TournamentRowActions({
         return;
       }
       await onChanged(t('organizer.tournaments.deleted'));
+      // The menu's Teams entry follows the Event's team Tournaments: the last one may be gone.
+      void refetchEvents();
     } finally {
       onBusyChange(false);
       // Closed on failure too: the page's error banner sits behind the dialog, so

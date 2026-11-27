@@ -394,20 +394,20 @@ export function isDoubleLossBout(endReason: string | null | undefined): boolean 
  * the scores would invent someone.
  *
  * Extracted from `resolveMatchWinner`, which keeps the status guard and its
- * eight display call sites and now delegates the rule here — so the crown on a
+ * nine display call sites and now delegates the rule here — so the crown on a
  * scoreboard and the W in a standings table cannot drift apart.
  */
 export function winnerColorFrom(bout: {
-  winnerRegistrationId?: string | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
+  winnerSideId?: string | null;
+  redSideId?: string | null;
+  blueSideId?: string | null;
   redScore?: number | null;
   blueScore?: number | null;
 }): 'red' | 'blue' | null {
-  const winner = bout.winnerRegistrationId ?? null;
+  const winner = bout.winnerSideId ?? null;
   if (winner !== null) {
-    if (winner === bout.redRegistrationId) return 'red';
-    if (winner === bout.blueRegistrationId) return 'blue';
+    if (winner === bout.redSideId) return 'red';
+    if (winner === bout.blueSideId) return 'blue';
     return null;
   }
   return leadingColor({ redScore: bout.redScore ?? 0, blueScore: bout.blueScore ?? 0 });
@@ -431,9 +431,9 @@ export type BoutOutcome = 'win' | 'loss' | 'draw';
  * has to say `null` out loud.
  */
 export function boutOutcomes(bout: {
-  winnerRegistrationId?: string | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
+  winnerSideId?: string | null;
+  redSideId?: string | null;
+  blueSideId?: string | null;
   redScore?: number | null;
   blueScore?: number | null;
   endReason: string | null;
@@ -553,7 +553,7 @@ export function capLeader(
 
 /**
  * Which side reached the point cap, as a colour (mirrors
- * {@link getPointCapWinnerRegistrationId} without needing the registration ids).
+ * {@link getPointCapWinnerSideId} without needing the side ids).
  */
 export function pointCapWinnerColor(
   score: CapScore,
@@ -837,18 +837,18 @@ export function isPointCapReached(score: MatchScore, config: MatchFormatConfig):
   return score.redScore >= config.pointCap || score.blueScore >= config.pointCap;
 }
 
-export function getPointCapWinnerRegistrationId(
+export function getPointCapWinnerSideId(
   match: Match,
   score: CapScore,
   config: MatchFormatConfig,
   edition: DecisionEdition,
 ): string | null {
-  // The registration-id shape of {@link pointCapWinnerColor}, delegating so the
+  // The side-id shape of {@link pointCapWinnerColor}, delegating so the
   // two cannot answer differently — which they would have done the moment both
   // fighters could sit over the cap at once.
   const color = pointCapWinnerColor(score, config, edition);
   if (color === null) return null;
-  return color === 'red' ? match.redRegistrationId : match.blueRegistrationId;
+  return color === 'red' ? match.redSideId : match.blueSideId;
 }
 
 /** A round's automatic end condition, evaluated from that round's exchanges. */

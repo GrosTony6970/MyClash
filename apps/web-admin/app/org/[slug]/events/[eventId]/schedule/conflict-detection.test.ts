@@ -15,8 +15,8 @@ function buildMatch(over: Partial<ScheduleMatchForConflict>): ScheduleMatchForCo
     liceId: 'lice-1',
     scheduledAt: '2026-05-29T10:30:00.000Z',
     durationMinutes: 10,
-    redRegistrationId: 'reg-red',
-    blueRegistrationId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     redFighterName: 'Red Fighter',
     blueFighterName: 'Blue Fighter',
     ...over,
@@ -32,13 +32,13 @@ describe('detectConflicts', () => {
     // never the registration UUID.
     const matchA = buildMatch({
       matchNumberLabel: '2',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: null,
       blueFighterName: null,
     });
     const matchB = buildMatch({
       matchNumberLabel: 'L1-PA-M2',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: 'Alice Smith',
       blueFighterName: 'Bob Jones',
     });
@@ -52,12 +52,12 @@ describe('detectConflicts', () => {
   it('resolves the fighter name from the same match when present (happy path)', () => {
     const matchA = buildMatch({
       matchNumberLabel: 'L1-PA-M1',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: 'Alice Smith',
     });
     const matchB = buildMatch({
       matchNumberLabel: 'L1-PA-M2',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: 'Alice Smith',
     });
 
@@ -75,13 +75,13 @@ describe('detectConflicts', () => {
     // UUID. The conflict still surfaces so the operator sees it.
     const matchA = buildMatch({
       matchNumberLabel: 'L1-PA-M1',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: null,
       blueFighterName: null,
     });
     const matchB = buildMatch({
       matchNumberLabel: 'L1-PA-M2',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
       redFighterName: null,
       blueFighterName: null,
     });
@@ -102,12 +102,12 @@ describe('detectConflicts', () => {
     const matchA = buildMatch({
       matchNumberLabel: 'L1-PA-M1',
       scheduledAt: '2026-05-29T15:45:00.000Z',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
     });
     const matchB = buildMatch({
       matchNumberLabel: 'L1-PA-M2',
       scheduledAt: '2026-05-29T15:45:00.000Z',
-      redRegistrationId: 'reg-shared',
+      redSideId: 'reg-shared',
     });
 
     const conflicts = detectConflicts([matchA, matchB], TZ, UNKNOWN);
@@ -132,8 +132,8 @@ describe('detectConflicts', () => {
     const at = '2026-05-29T07:00:00.000Z';
     const conflicts = detectConflicts(
       [
-        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redRegistrationId: 'reg-shared' }),
-        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redSideId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redSideId: 'reg-shared' }),
       ],
       'Europe/Paris',
       UNKNOWN,
@@ -150,8 +150,8 @@ describe('detectConflicts', () => {
   it('names a bout by the code its card shows, not the bare number', () => {
     const conflicts = detectConflicts(
       [
-        buildMatch({ matchNumberLabel: '2', roundCode: 'LSW-B-QF-M2', redRegistrationId: 'reg-x' }),
-        buildMatch({ matchNumberLabel: '5', roundCode: 'SSW-P1-M5', redRegistrationId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: '2', roundCode: 'LSW-B-QF-M2', redSideId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: '5', roundCode: 'SSW-P1-M5', redSideId: 'reg-x' }),
       ],
       TZ,
       UNKNOWN,
@@ -164,8 +164,8 @@ describe('detectConflicts', () => {
   it('falls back to the bare number when a bout carries no round code', () => {
     const conflicts = detectConflicts(
       [
-        buildMatch({ matchNumberLabel: 'L1-PA-M1', redRegistrationId: 'reg-x' }),
-        buildMatch({ matchNumberLabel: 'L1-PA-M2', redRegistrationId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M1', redSideId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M2', redSideId: 'reg-x' }),
       ],
       TZ,
       UNKNOWN,
@@ -183,15 +183,15 @@ describe('detectConflicts', () => {
   it('carries the ids of the two bouts, so the grid tints those cards and no others', () => {
     const conflicts = detectConflicts(
       [
-        buildMatch({ id: 'longsword-2', matchNumberLabel: '2', redRegistrationId: 'reg-x' }),
-        buildMatch({ id: 'longsword-7', matchNumberLabel: '7', redRegistrationId: 'reg-x' }),
+        buildMatch({ id: 'longsword-2', matchNumberLabel: '2', redSideId: 'reg-x' }),
+        buildMatch({ id: 'longsword-7', matchNumberLabel: '7', redSideId: 'reg-x' }),
         // Same visible label as the first, different tournament, no shared
         // fighter — it must not be dragged into the conflict by its label.
         buildMatch({
           id: 'sidesword-2',
           matchNumberLabel: '2',
-          redRegistrationId: 'reg-other-a',
-          blueRegistrationId: 'reg-other-b',
+          redSideId: 'reg-other-a',
+          blueSideId: 'reg-other-b',
         }),
       ],
       TZ,
@@ -214,8 +214,8 @@ describe('detectConflicts', () => {
   it('ignores a voided bout, which is not happening and cannot double-book anyone', () => {
     const conflicts = detectConflicts(
       [
-        buildMatch({ matchNumberLabel: 'L1-PA-M1', redRegistrationId: 'reg-x' }),
-        buildMatch({ matchNumberLabel: 'L1-PA-M2', redRegistrationId: 'reg-x', status: 'voided' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M1', redSideId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M2', redSideId: 'reg-x', status: 'voided' }),
       ],
       TZ,
       UNKNOWN,
@@ -232,12 +232,12 @@ describe('detectConflicts', () => {
       [
         buildMatch({
           matchNumberLabel: 'L1-PA-M1',
-          redRegistrationId: 'reg-x',
+          redSideId: 'reg-x',
           status: 'completed',
         }),
         buildMatch({
           matchNumberLabel: 'L1-PA-M2',
-          redRegistrationId: 'reg-x',
+          redSideId: 'reg-x',
           status: 'completed',
         }),
       ],
@@ -252,13 +252,82 @@ describe('detectConflicts', () => {
     const at = '2026-05-29T07:00:00.000Z';
     const conflicts = detectConflicts(
       [
-        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redRegistrationId: 'reg-shared' }),
-        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redSideId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redSideId: 'reg-shared' }),
       ],
       'America/New_York',
       UNKNOWN,
     );
 
     expect(conflicts[0]?.time).toBe('03:00');
+  });
+});
+
+/**
+ * The schedule answer names each side by its side key (`ScheduleGridMatch.redSideId`,
+ * apps/api/src/modules/schedule/schedule-grid-match.ts). The board read `redRegistrationId`, which
+ * the answer no longer sends, so every double-booking went unmarked, for individual Tournaments
+ * too. These rows are the answer as it arrives, parsed from JSON, not typed by hand.
+ */
+describe('detectConflicts over the schedule answer', () => {
+  const wire = (over: Record<string, unknown>) =>
+    JSON.parse(
+      JSON.stringify({
+        id: `w-${++idSeq}`,
+        matchNumberLabel: 'M?',
+        roundCode: 'LSW-P1-M1',
+        status: 'scheduled',
+        liceId: 'lice-1',
+        scheduledAt: '2026-05-29T10:30:00.000Z',
+        startedAt: null,
+        endedAt: null,
+        redFighterName: 'Red Fighter',
+        blueFighterName: 'Blue Fighter',
+        redSideId: 'reg-red',
+        blueSideId: 'reg-blue',
+        tournamentName: 'Longsword',
+        tournamentColor: null,
+        tournamentSlug: 'longsword',
+        durationMinutes: 10,
+        plannedDurationOverrideMinutes: null,
+        phaseType: 'pool',
+        poolId: null,
+        poolName: null,
+        poolRestMinutes: null,
+        ...over,
+      }),
+    ) as ScheduleMatchForConflict;
+
+  it('still marks a Fighter booked in two bouts at once', () => {
+    const conflicts = detectConflicts(
+      [
+        wire({ redSideId: 'reg-anna', redFighterName: 'Anna Roux' }),
+        wire({ blueSideId: 'reg-anna', blueFighterName: 'Anna Roux', liceId: 'lice-2' }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.personName).toBe('Anna Roux');
+  });
+
+  it('marks a team booked in two bouts at once, by its team name', () => {
+    const conflicts = detectConflicts(
+      [
+        wire({ redSideId: 'team-lyon', redFighterName: 'Lyon Blades' }),
+        wire({ redSideId: 'team-lyon', redFighterName: 'Lyon Blades', liceId: 'lice-2' }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.personName).toBe('Lyon Blades');
+  });
+
+  it('marks no clash between two bouts whose sides are not known yet', () => {
+    const placeholder = { redSideId: null, blueSideId: null };
+    expect(
+      detectConflicts([wire(placeholder), wire({ ...placeholder, liceId: 'lice-2' })], TZ, UNKNOWN),
+    ).toEqual([]);
   });
 });

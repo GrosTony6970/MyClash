@@ -5,8 +5,32 @@ import {
   matchCatalogWeapon,
   parseWeaponsCell,
   replaceFighterWeaponsFromCell,
+  slugify,
   unknownWeaponNames,
 } from './weapon-import.util';
+
+describe('slugify', () => {
+  it.each([
+    ['Épée Française', 'epee-francaise'],
+    ['  Les  Lames   du Nord ', 'les-lames-du-nord'],
+    ['---Team---', 'team'],
+    ['-a-', 'a'],
+    ['----', ''],
+    ['!!!', ''],
+    ['', ''],
+    ['Rapier & Dagger', 'rapier-dagger'],
+    ['x'.repeat(60), 'x'.repeat(50)],
+  ])('slugs %j to %j', (name, slug) => {
+    expect(slugify(name)).toBe(slug);
+  });
+
+  it('slugs a very long run of dashes in linear time', () => {
+    const started = performance.now();
+    expect(slugify(`${'-'.repeat(100_000)}x`)).toBe('x');
+    expect(slugify(`x${'-'.repeat(100_000)}`)).toBe('x');
+    expect(performance.now() - started).toBeLessThan(50);
+  });
+});
 
 describe('parseWeaponsCell', () => {
   it('keeps the first 20 entries of a longer cell, the first still the favourite', () => {

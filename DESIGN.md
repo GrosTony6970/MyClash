@@ -466,7 +466,7 @@ Build from `@myclash/ui`. What each component is _for_ — the class lists live 
 - **`AdminPageHeader`** — the signature: eyebrow in small-caps accent, FoilMark hairline beneath, H1 in Fraunces, subtitle in Geist.
 - **`Modal` / `ConfirmDialog` / `PromptDialog`** — portal, focus trap, Escape. Never `window.confirm`.
 - **`EmptyState`** — every zero-state. Carries the FoilMark.
-- **`MatchScoreboard` / `TVScoreboard`** — the corners come from the tournament's configured `sideColors` via `sideColorsFor()`. Not yours to restyle, and not yours to hardcode.
+- **`TVScoreboard`** — the corners come from the tournament's configured `sideColors` via `sideColorsFor()`. Not yours to restyle, and not yours to hardcode.
 
 The list above is the signature, not the inventory. The barrel (`packages/ui/src/index.ts`) also exports, and a new screen should reach for these before writing its own:
 

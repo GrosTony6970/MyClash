@@ -41,6 +41,7 @@ import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { FighterStatusService } from '../matches/fighter-status.service';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
+import { isSideOfBout, namedSideOf, sideKindsOf, type BoutSideKinds } from '../matches/named-side';
 import { cardChangeLocked, tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
@@ -51,7 +52,16 @@ import {
   loadPenaltyRulesetRow,
   tournamentCardRulesetId,
 } from './card-rules-pin';
-import { cardAndForfeitRules } from './forfeit-rules-in-force';
+import {
+  boutCardSides,
+  cardSideColumn,
+  cardSideColumns,
+  ladderScopeOf,
+  savedCardSide,
+  type CardSide,
+} from './card-side';
+import { cardAndForfeitRules, teamForfeitRules } from './forfeit-rules-in-force';
+import { forfeitForTeamBlackCard, replayTeamBlackCard, type TeamCardDeps } from './team-black-card';
 import {
   answerPayload,
   reviewChanged,
@@ -925,12 +935,17 @@ export class PenaltiesService {
     }
 
     const existing = await this.savedCardOf(matchId, dto.clientUuid);
-    if (existing) return this.replayAnswer(existing, context);
+    if (existing) return this.replayAnswer(existing, context, scoredAtServer(dto));
     // Every refusal AFTER the replay answer, in a hit's order: a card the server holds is not
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     this.assertMatchNotLocked(match, context);
-    await assertBoutTakes(this.supabase.service, match, dto);
+    const sides = { red: match.redSideId, blue: match.blueSideId };
+    await assertBoutTakes(
+      this.supabase.service,
+      { id: match.id, status: match.status, sides },
+      dto,
+    );
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting
@@ -940,14 +955,20 @@ export class PenaltiesService {
     // probe above still answers a card the server holds after the round closed.
     if (match.awaitingRoundAdvance) throw scoringAwaitsRoundAdvance();
 
-    if (![match.redRegistrationId, match.blueRegistrationId].includes(dto.registrationId)) {
-      throw new BadRequestException('Penalty registration must belong to the current match');
+    // Judged by side key and kind (ADR-022): a team bout's Registration columns are both null.
+    const side = namedSideOf(dto, 'card');
+    if (!isSideOfBout(match, side)) {
+      throw new BadRequestException(
+        side.kind === 'team'
+          ? 'The penalised team must be a side of the current match'
+          : 'Penalty registration must belong to the current match',
+      );
     }
 
     const sanction =
       dto.directCard !== undefined
         ? computeDirectPenaltySanction(dto.directCard)
-        : await this.computeRulesetPenalty(match, dto);
+        : await this.computeRulesetPenalty(match, dto, side);
 
     // Load the active penalty ruleset row once so we can read its card-cost
     // columns and forfeit-scope settings. computePenaltySanction returns a
@@ -968,7 +989,7 @@ export class PenaltiesService {
     const scoreDelta = activePenaltyRuleset
       ? this.cardScoreDelta(activePenaltyRuleset, sanction.card)
       : sanction.scoreDelta;
-    const reach = sanction.causesMatchForfeit ? await this.blackCardReach(match) : null;
+    const reach = sanction.causesMatchForfeit ? await this.blackCardReach(match, side) : null;
 
     // For non-black cards `causes_match_forfeit` stays as the sanction said
     // (false). For black cards we'll override based on the resolved scope
@@ -977,7 +998,7 @@ export class PenaltiesService {
       client_uuid: dto.clientUuid,
       match_id: match.id,
       tournament_id: match.tournamentId,
-      registration_id: dto.registrationId,
+      ...cardSideColumns(side),
       ruleset_id: dto.directCard ? null : match.penaltyRulesetId,
       ruleset_entry_id: dto.rulesetEntryId ?? null,
       sequence: dto.sequence,
@@ -1018,7 +1039,7 @@ export class PenaltiesService {
     if (error) {
       if (error.message.includes('unique') || error.message.includes('duplicate')) {
         const raceExisting = await this.savedCardOf(matchId, dto.clientUuid);
-        if (raceExisting) return this.replayAnswer(raceExisting, context);
+        if (raceExisting) return this.replayAnswer(raceExisting, context, scoredAtServer(dto));
       }
       throw new BadRequestException(error.message);
     }
@@ -1028,46 +1049,70 @@ export class PenaltiesService {
     const causedAt = scoredAtServer(dto);
     await this.scoring?.recomputeMatchScore(matchId, causedAt);
 
-    // `reach` is read exactly when the card forfeits.
-    if (reach) {
-      const { blackCount, scope } = await this.blackCardScope(match, dto.registrationId, reach);
-
-      // A card given on a bout already over ends nothing: that bout is decided. What the card
-      // does to the Fighter is the settle's below, and their other Pool bouts follow (ruling 57).
-      if (scope !== 'none' && match.status !== 'completed') {
-        await this.forfeitsOrThrow().createForfeit(
-          matchId,
-          {
-            forfeitingRegistrationId: dto.registrationId,
-            reason: blackCount >= 2 ? 'black_card_2' : 'black_card_1',
-            canContinue: true,
-            note: dto.reason ?? 'Black card',
-          },
-          context,
-          causedAt,
-          { rules: reach.forfeitRules, cardEffect: scope },
-        );
-      }
-
-      // A 2nd card that disqualifies opens no "second black card" review: there is nothing left
-      // to ask (ruling 86).
-      await this.syncReviewUnlessDisqualifying(
-        match.tournamentId,
-        dto.registrationId,
-        String((data as Row)['id']),
-        reach,
-      );
-      // The card is a cause: what it does to the Fighter is the status settle's to work out.
-      await this.settleCardOf(match.tournamentId, dto.registrationId, reach, context);
+    // `reach` is read exactly when the card forfeits. A team's black card loses this Match only
+    // (ruling 972): no Tournament count, no review, no settle, as a team has no status.
+    const note = dto.reason ?? 'Black card';
+    if (reach && side.kind === 'team') {
+      const card = { teamId: side.id, note, rules: reach.forfeitRules };
+      await forfeitForTeamBlackCard(this.teamCardDeps(), match, card, context ?? {}, causedAt);
+    } else if (reach) {
+      const card = { registrationId: side.id, id: String((data as Row)['id']), note };
+      await this.fighterBlackCard(match, card, reach, context, causedAt);
     }
 
     return data;
+  }
+
+  /**
+   * What a Fighter's black card does: its forfeit, as far as the Tournament's rules say it
+   * reaches, its "second black card" review, and its Fighter's status settle.
+   */
+  private async fighterBlackCard(
+    match: MatchContext,
+    card: { registrationId: string; id: string; note: string },
+    reach: BlackCardReach,
+    context?: PenaltyActor,
+    causedAt?: string,
+  ): Promise<void> {
+    const { blackCount, scope } = await this.blackCardScope(match, card.registrationId, reach);
+
+    // A card given on a bout already over ends nothing: that bout is decided. What the card
+    // does to the Fighter is the settle's below, and their other Pool bouts follow (ruling 57).
+    if (scope !== 'none' && match.status !== 'completed') {
+      await this.forfeitsOrThrow().createForfeit(
+        match.id,
+        {
+          forfeitingRegistrationId: card.registrationId,
+          reason: blackCount >= 2 ? 'black_card_2' : 'black_card_1',
+          canContinue: true,
+          note: card.note,
+        },
+        context,
+        causedAt,
+        { rules: reach.forfeitRules, cardEffect: scope },
+      );
+    }
+
+    // A 2nd card that disqualifies opens no "second black card" review: there is nothing left
+    // to ask (ruling 86).
+    await this.syncReviewUnlessDisqualifying(
+      match.tournamentId,
+      card.registrationId,
+      card.id,
+      reach,
+    );
+    // The card is a cause: what it does to the Fighter is the status settle's to work out.
+    await this.settleCardOf(match.tournamentId, card.registrationId, reach, context);
   }
 
   /** A black card's forfeit is the forfeits service's: Nest always provides it. */
   private forfeitsOrThrow(): MatchForfeitsService {
     if (!this.forfeits) throw new Error('A black card forfeit needs the MatchForfeitsService');
     return this.forfeits;
+  }
+
+  private teamCardDeps(): TeamCardDeps {
+    return { db: this.supabase.service, forfeits: this.forfeitsOrThrow() };
   }
 
   private settleCardOf(
@@ -1172,10 +1217,11 @@ export class PenaltiesService {
 
   /**
    * A black card is a cause of its Fighter's status; a yellow or a red one is none. Its take-back
-   * may have put its bout back: the other Fighter on it, when out, forfeits it.
+   * may have put its bout back: the other Fighter on it, when out, forfeits it. A team has no
+   * status: its card's take-back hands the bout back through the forfeit's void (call 13).
    */
   private async settleIfBlack(card: Row, context?: PenaltyActor): Promise<void> {
-    if (card['card'] !== 'black') return;
+    if (card['card'] !== 'black' || savedCardSide(card).kind === 'team') return;
     await this.fighterStatus.settle({
       registrationId: card['registration_id'] as string,
       tournamentId: card['tournament_id'] as string,
@@ -1267,7 +1313,11 @@ export class PenaltiesService {
    * that do not parse, then leave no card saved with no forfeit, which the tablet's resend would
    * not repair (it sends the card again on a server error).
    */
-  private async blackCardReach(match: MatchContext): Promise<BlackCardReach> {
+  private async blackCardReach(match: MatchContext, side: CardSide): Promise<BlackCardReach> {
+    // A team's are its penalty ruleset's own, never the Tournament's stored changes (call 1).
+    if (side.kind === 'team') {
+      return { forfeitRules: await teamForfeitRules(this.supabase.service, match.tournamentId) };
+    }
     return cardAndForfeitRules(this.supabase.service, match.tournamentId);
   }
 
@@ -1287,13 +1337,13 @@ export class PenaltiesService {
     await syncSecondBlackCardReview(this.supabase.service, tournamentId, registrationId, cardId);
   }
 
-  private async computeRulesetPenalty(match: MatchContext, dto: CreatePenaltyDto) {
+  private async computeRulesetPenalty(match: MatchContext, dto: CreatePenaltyDto, side: CardSide) {
     if (!match.penaltyRulesetId) {
       throw new BadRequestException('No penalty ruleset is attached to this tournament or event');
     }
     const entry = await this.getRulesetEntry(dto.rulesetEntryId!);
-    const previous = await this.getExistingPenaltiesForScope(match, dto.registrationId);
-    return computePenaltySanction(entry, previous, dto.registrationId);
+    const previous = await this.getExistingPenaltiesForScope(match, side);
+    return computePenaltySanction(entry, previous, side.id);
   }
 
   /**
@@ -1317,16 +1367,18 @@ export class PenaltiesService {
   }> {
     const match = await this.getMatchContext(matchId);
     const ruleset = match.penaltyRulesetId ? await this.getRuleset(match.penaltyRulesetId) : null;
-    const accumulationScope =
+    const listScope =
       ((ruleset as Row | null)?.['accumulation_scope'] as string | undefined) ?? 'match';
+    const sides = boutCardSides(match);
+    // The scope the priors below are read under, by the ladder's own rule: a team bout's is this
+    // Match whatever the list says (ruling 976). A bout with no side known yet answers the list's.
+    const accumulationScope = sides.reduce((scope, side) => ladderScopeOf(scope, side), listScope);
 
-    const registrationIds = [match.redRegistrationId, match.blueRegistrationId].filter(
-      (id): id is string => Boolean(id),
-    );
+    // Keyed by side: a team's priors under its team id (ruling 976).
     const priors: Record<string, ExistingPenaltyForSanction[]> = {};
-    for (const registrationId of registrationIds) {
-      priors[registrationId] = match.penaltyRulesetId
-        ? await this.getExistingPenaltiesForScope(match, registrationId)
+    for (const side of sides) {
+      priors[side.id] = match.penaltyRulesetId
+        ? await this.getExistingPenaltiesForScope(match, side)
         : [];
     }
     return { accumulationScope, priors };
@@ -1334,14 +1386,15 @@ export class PenaltiesService {
 
   private async getExistingPenaltiesForScope(
     match: MatchContext,
-    registrationId: string,
+    side: CardSide,
   ): Promise<ExistingPenaltyForSanction[]> {
     const ruleset = await this.getRuleset(match.penaltyRulesetId!);
-    const accumulationScope = (ruleset as Row)['accumulation_scope'] as string;
+    // A team's count starts fresh every Match, whatever the list says (ruling 976).
+    const accumulationScope = ladderScopeOf((ruleset as Row)['accumulation_scope'] as string, side);
     let q = this.supabase.service
       .from('match_penalties')
       .select('*')
-      .eq('registration_id', registrationId)
+      .eq(cardSideColumn(side), side.id)
       .eq('source', 'ruleset')
       .eq('voided', false);
 
@@ -1356,7 +1409,8 @@ export class PenaltiesService {
     return (data ?? []).map((row) => {
       const penalty = row as Row;
       return {
-        registrationId: penalty['registration_id'] as string,
+        // The read above is scoped to this side.
+        sideId: side.id,
         groupNumber: penalty['group_number'] as number | undefined,
         card: penalty['card'] as PenaltyCard,
         source: penalty['source'] as 'ruleset' | 'direct',
@@ -1387,7 +1441,7 @@ export class PenaltiesService {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance, ' +
+        'id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, phase_id, locked_at, current_round, awaiting_round_advance, ' +
           BOUT_CARD_PIN,
       )
       .eq('id', matchId)
@@ -1425,8 +1479,7 @@ export class PenaltiesService {
     return {
       id: match['id'] as string,
       lockedAt: (match['locked_at'] as string | null) ?? null,
-      redRegistrationId: match['red_registration_id'] as string,
-      blueRegistrationId: match['blue_registration_id'] as string,
+      ...sideKindsOf(match),
       tournamentId: tournament['id'] as string,
       eventId: tournament['event_id'] as string,
       organizationId: event['organization_id'] as string,
@@ -1541,21 +1594,28 @@ export class PenaltiesService {
    * Fighter's status, which the settle works out again: the first send wrote the card, then
    * failed with a 500, or was refused on a bout already over, and the tablet sends it again by
    * itself. Both are safe to repeat.
+   *
+   * A team's black card has neither: its resend finishes the team's forfeit of the Match
+   * (`replayTeamBlackCard`), whose first send may have stopped after the card. `causedAt` is the
+   * resend's time of the card, where the clock ends.
    */
-  private async replayAnswer(stored: Row, context?: PenaltyActor): Promise<Row> {
-    if (stored['card'] === 'black' && stored['voided'] !== true) {
-      const registrationId = String(stored['registration_id']);
-      const tournamentId = String(stored['tournament_id']);
-      const match = await this.getMatchContext(String(stored['match_id']));
-      const reach = await this.blackCardReach(match);
-      await this.syncReviewUnlessDisqualifying(
-        tournamentId,
-        registrationId,
-        String(stored['id']),
-        reach,
-      );
-      await this.settleCardOf(tournamentId, registrationId, reach, context);
+  private async replayAnswer(stored: Row, context?: PenaltyActor, causedAt?: string): Promise<Row> {
+    if (stored['card'] !== 'black' || stored['voided'] === true) return stored;
+    const side = savedCardSide(stored);
+    const match = await this.getMatchContext(String(stored['match_id']));
+    if (side.kind === 'team') {
+      const card = {
+        teamId: side.id,
+        note: (stored['reason'] as string | null) ?? 'Black card',
+        savedAt: stored['recorded_at'] as string,
+      };
+      await replayTeamBlackCard(this.teamCardDeps(), match, card, context ?? {}, causedAt);
+      return stored;
     }
+    const tournamentId = String(stored['tournament_id']);
+    const reach = await this.blackCardReach(match, side);
+    await this.syncReviewUnlessDisqualifying(tournamentId, side.id, String(stored['id']), reach);
+    await this.settleCardOf(tournamentId, side.id, reach, context);
     return stored;
   }
 
@@ -1942,13 +2002,15 @@ export function bumpPenaltyVersion(version: string): string {
   return `${trimmed}.1`;
 }
 
-interface MatchContext {
+/**
+ * The bout a card is taken on. Its sides (`BoutSideKinds`): each side's one key (`sideKey`), null
+ * while the side waits for a Fighter, and its team (0282), null on a bout of individuals.
+ */
+interface MatchContext extends BoutSideKinds {
   id: string;
   /** Null on a row read with no status: `assertBoutTakes` judges `scheduled` only. */
   status: string | null;
   lockedAt: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
   tournamentId: string;
   eventId: string;
   organizationId: string;

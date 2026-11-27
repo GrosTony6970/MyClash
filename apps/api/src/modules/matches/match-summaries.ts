@@ -1,6 +1,6 @@
 /**
- * The header summary of a bout: names, clubs, Pool, round code, piste, referees,
- * and the state of its rounds.
+ * The header summary of a bout: names, clubs, a team side's colour and logo, Pool,
+ * round code, piste, referees, and the state of its rounds.
  *
  * ONE builder for one bout and for many. `GET /matches/:id/summary` asks it for
  * one id; the pad's read of a whole piste asks it for every bout of the piste
@@ -29,13 +29,18 @@ import {
 
 type Row = Record<string, unknown>;
 
+/** The view names a team side by its team, with its colour and no club (0284). */
 const VIEW_SELECT =
-  'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type';
+  'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type, red_team_color, blue_team_color';
 
-/** `lice_id` is on the bout's row, not on the view; so is its copy of its rules (its format). */
+/**
+ * `lice_id` is on the bout's row, not on the view; so is its copy of its rules (its format), and
+ * so are its team sides, whose logos the view does not carry.
+ */
 const ROUND_SELECT =
   'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, ' +
-  'match_rules(ruleset_config)';
+  'match_rules(ruleset_config), ' +
+  'red_team:teams!matches_red_team_id_fkey(logo_url), blue_team:teams!matches_blue_team_id_fkey(logo_url)';
 
 /** Ids per read: a longer `in.(…)` list makes an address some proxies refuse. */
 const IDS_PER_READ = 100;
@@ -57,6 +62,9 @@ interface ViewRow {
   event_id: string;
   phase_id: string | null;
   phase_type: string | null;
+  /** The team's colour name on a team side; null on a Fighter's side. */
+  red_team_color: string | null;
+  blue_team_color: string | null;
 }
 
 /** What the other tables say, keyed by their id. */
@@ -145,8 +153,8 @@ function bestOfFor(row: ViewRow, matchFormat: ReturnType<typeof normalizeMatchFo
   return getEffectiveBestOf(
     {
       id: row.match_id,
-      redRegistrationId: '',
-      blueRegistrationId: '',
+      redSideId: '',
+      blueSideId: '',
       rulesetCode: 'TF_v1',
       rulesetVersion: '1.0.0',
       status: 'running',
@@ -215,6 +223,7 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
     redClub: row.red_club ?? null,
     blueName: row.blue_name ?? '',
     blueClub: row.blue_club ?? null,
+    ...teamLooksOf(row, bout),
     // The venue's wall clock, for the public match view's times.
     eventTimezone: (event?.['timezone'] as string | null | undefined) ?? 'Europe/Paris',
     // The Event's results are frozen: the pad's protest button goes off (the server refuses too).
@@ -260,6 +269,23 @@ export function boutMatchFormat(
     logger.error(`Bout ${matchId} has a match format that does not read`, err);
     return null;
   }
+}
+
+/**
+ * A team side's colour chip and logo (call 6): the colour from the view, the logo from the bout's
+ * team embed. A Fighter's side has neither.
+ */
+function teamLooksOf(row: ViewRow, bout: Row | undefined) {
+  return {
+    redColour: row.red_team_color ?? null,
+    blueColour: row.blue_team_color ?? null,
+    redLogoUrl: teamLogoOf(bout, 'red_team'),
+    blueLogoUrl: teamLogoOf(bout, 'blue_team'),
+  };
+}
+
+function teamLogoOf(bout: Row | undefined, side: 'red_team' | 'blue_team'): string | null {
+  return (asRow(bout?.[side])?.['logo_url'] as string | null | undefined) ?? null;
 }
 
 /** Where the bout stands in its rounds, from its own row. */

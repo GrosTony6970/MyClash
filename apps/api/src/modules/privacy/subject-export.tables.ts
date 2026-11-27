@@ -90,6 +90,8 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'events.csv',
   },
+  // A seat or a reserve place on a team of a team Tournament (0281).
+  team_slots: { reaches: [{ column: 'person_id', reach: 'person' }], file: 'events.csv' },
   event_gear_checks: {
     // A judgement recorded about the subject's own equipment, including a
     // free-text reason someone else wrote about them. Art. 15 covers opinions

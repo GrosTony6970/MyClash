@@ -25,7 +25,7 @@ const OVERALL = {
   rows: [
     {
       rank: 1,
-      registrationId: 'r-1',
+      entrantId: 'r-1',
       displayName: 'Géraldine Roux',
       club: { id: 'c-1', name: 'Lyon Escrime', abbreviation: 'LYE' },
       status: 'in_progress',
@@ -61,7 +61,7 @@ beforeEach(async () => {
   await act(async () => {
     root.render(
       <I18nProvider locale="fr">
-        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" />
+        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" teams={false} />
       </I18nProvider>,
     );
   });

@@ -46,21 +46,35 @@ const isChosen = (forfeit: ArchiveRow) =>
   isLive(forfeit) && forfeit['auto_created'] !== true && COUNTED.has(String(forfeit['reason']));
 const isRoot = (forfeit: ArchiveRow) => forfeit['parent_forfeit_id'] == null;
 const madeAt = (row: ArchiveRow) => String(row['created_at'] ?? '');
-const fighterOf = (forfeit: ArchiveRow) => String(forfeit['forfeiting_registration_id']);
+/** The Fighter a forfeit names; a team's names none, and a team has no status (decision 7). */
+const fighterOf = (forfeit: ArchiveRow): string | null => {
+  const id = forfeit['forfeiting_registration_id'];
+  return typeof id === 'string' ? id : null;
+};
 
 function byFighter(forfeits: ArchiveRow[]): Map<string, ArchiveRow[]> {
   const out = new Map<string, ArchiveRow[]>();
   for (const forfeit of forfeits) {
-    out.set(fighterOf(forfeit), [...(out.get(fighterOf(forfeit)) ?? []), forfeit]);
+    const fighter = fighterOf(forfeit);
+    if (fighter !== null) out.set(fighter, [...(out.get(fighter) ?? []), forfeit]);
   }
   return out;
 }
 
+/**
+ * The live black cards of a Fighter, as `[registration id, card]`. A team's card names no
+ * Registration (0282) and puts no Fighter out: it is left out, never keyed as "null".
+ */
+const fighterBlackCards = (data: Tables): [string, ArchiveRow][] =>
+  data.matchPenalties.flatMap((card) => {
+    const id = card['registration_id'];
+    const live = card['card'] === 'black' && card['voided'] !== true;
+    return live && typeof id === 'string' ? [[id, card] as [string, ArchiveRow]] : [];
+  });
+
 /** The Fighters of `data` a live black card or a confirmed review could have put out. */
 function otherCauses(data: Tables): Set<string> {
-  const cards = data.matchPenalties
-    .filter((card) => card['card'] === 'black' && card['voided'] !== true)
-    .map((card) => String(card['registration_id']));
+  const cards = fighterBlackCards(data).map(([id]) => id);
   const reviews = data.tournamentPenaltyReviews
     .filter((review) => review['status'] === 'confirmed')
     .map((review) => String(review['registration_id']));
@@ -74,15 +88,19 @@ function otherCauses(data: Tables): Set<string> {
  */
 function handCardForfeits(data: Tables): (forfeit: ArchiveRow) => boolean {
   const carded = new Set(
-    data.matchPenalties
-      .filter((card) => card['card'] === 'black' && card['voided'] !== true)
-      .map((card) => `${String(card['registration_id'])}@${String(card['match_id'])}`),
+    fighterBlackCards(data).map(([id, card]) => `${id}@${String(card['match_id'])}`),
   );
-  return (forfeit) =>
-    isLive(forfeit) &&
-    forfeit['auto_created'] !== true &&
-    isBlackCardReason(String(forfeit['reason'])) &&
-    !carded.has(`${fighterOf(forfeit)}@${String(forfeit['match_id'])}`);
+  return (forfeit) => {
+    // A team's forfeit is no Fighter's: no key is built for it.
+    const fighter = fighterOf(forfeit);
+    return (
+      fighter !== null &&
+      isLive(forfeit) &&
+      forfeit['auto_created'] !== true &&
+      isBlackCardReason(String(forfeit['reason'])) &&
+      !carded.has(`${fighter}@${String(forfeit['match_id'])}`)
+    );
+  };
 }
 
 function forfeitOutcomes(data: Tables): ArchiveRow[] {
@@ -92,13 +110,15 @@ function forfeitOutcomes(data: Tables): ArchiveRow[] {
   const explained = otherCauses(data);
   const status = new Map(data.registrations.map((row) => [String(row['id']), row['status']]));
   const outcomeOf = (forfeit: ArchiveRow): string | null => {
-    if (!mayCause(forfeit)) return null;
-    const own = candidates.get(fighterOf(forfeit)) ?? [];
+    const fighter = fighterOf(forfeit);
+    // A team's forfeit is the cause of no status: it stores no outcome.
+    if (fighter === null || !mayCause(forfeit)) return null;
+    const own = candidates.get(fighter) ?? [];
     const latest = [...own].sort((a, b) => madeAt(b).localeCompare(madeAt(a)))[0];
     const disqualifiedByIt =
-      status.get(fighterOf(forfeit)) === 'disqualified' &&
+      status.get(fighter) === 'disqualified' &&
       latest === forfeit &&
-      !explained.has(fighterOf(forfeit)) &&
+      !explained.has(fighter) &&
       own.filter((one) => isChosen(one) && isRoot(one)).length < 2;
     if (disqualifiedByIt) return 'disqualified';
     const withdrew = isChosen(forfeit) && isRoot(forfeit) && forfeit['can_continue'] === false;

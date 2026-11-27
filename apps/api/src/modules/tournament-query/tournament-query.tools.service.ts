@@ -4,6 +4,7 @@ import { matchSummaries } from '../matches/match-summaries';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { poolTableRows } from '../pool-standings/pool-table-rows';
 import { isDoubleLossBout } from '@myclash/rulesets';
+import { sideKey } from '@myclash/types/side-key';
 import { unknownFighterInEnglish, unknownRefereeInEnglish } from '../../common/unknown-name';
 import type {
   MatchStatus,
@@ -55,6 +56,10 @@ type MatchRow = {
   red_score?: number | null;
   blue_score?: number | null;
   winner_registration_id?: string | null;
+  /** A team side (0284): the bout's Registration columns are null on that side. */
+  red_team_id?: string | null;
+  blue_team_id?: string | null;
+  winner_team_id?: string | null;
   /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST (0193). */
   end_reason?: string | null;
   status: string;
@@ -531,12 +536,7 @@ export class TournamentQueryToolsService {
         Match: match.bracket_position ?? match.match_number_label ?? '',
         Fighters: `${match.red_name ?? 'TBD'} vs ${match.blue_name ?? 'TBD'}`,
         Status: match.status,
-        Winner:
-          match.winner_registration_id === match.red_registration_id
-            ? (match.red_name ?? '')
-            : match.winner_registration_id === match.blue_registration_id
-              ? (match.blue_name ?? '')
-              : '',
+        Winner: winnerName(match),
       })),
       'get_bracket_status',
       args,
@@ -845,6 +845,21 @@ function severalFighters(
     toolName,
     args,
   );
+}
+
+/**
+ * The name of the side that won the bout, or '' while no winner is recorded. Sides are compared by
+ * `sideKey`: on a team bout every Registration column is null, and null === null named the red
+ * team winner of every bout.
+ */
+function winnerName(match: MatchRow): string {
+  const winner = sideKey(match.winner_registration_id, match.winner_team_id);
+  if (winner === null) return '';
+  if (winner === sideKey(match.red_registration_id, match.red_team_id)) return match.red_name ?? '';
+  if (winner === sideKey(match.blue_registration_id, match.blue_team_id)) {
+    return match.blue_name ?? '';
+  }
+  return '';
 }
 
 function zeroStats() {

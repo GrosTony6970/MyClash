@@ -125,8 +125,17 @@ export function notInRow(column: string, value: unknown): (row: SupabaseRow) => 
         `an array without its brackets, and PostgREST refuses the request.`,
     );
   }
-  const excluded = inList(`${column}.not.in.${value}`, value);
+  const excluded = notInValues(column, value);
   return (row) => (row[column] ?? null) !== null && !excluded.includes(String(row[column]));
+}
+
+/**
+ * The values of a `not.in` list. A double-quoted value is its text, as PostgREST reads it: the
+ * Tournament completion spells its list `("completed","voided")`. Only a simple one is read (no
+ * comma, quote or backslash inside); any other quoted value throws in `inList`.
+ */
+function notInValues(column: string, value: string): string[] {
+  return inList(`${column}.not.in.${value}`, value.replace(/"([^"\\,]*)"/g, '$1'));
 }
 
 /**

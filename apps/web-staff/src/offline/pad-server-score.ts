@@ -51,8 +51,8 @@ export function serverScore(args: PadSeriesArgs): ServerRounds | null {
   const earned = provisionalDeltas({
     exchanges: listed,
     penalties: [],
-    redRegistrationId: args.redRegistrationId,
-    blueRegistrationId: args.blueRegistrationId,
+    redSideId: args.redSideId,
+    blueSideId: args.blueSideId,
   });
   const bothOut = earned.red >= matchFormat.pointCap && earned.blue >= matchFormat.pointCap;
   const limit = getEffectiveMaxDoubles({ phaseType: args.phaseType }, matchFormat);

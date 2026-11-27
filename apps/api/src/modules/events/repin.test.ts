@@ -73,9 +73,6 @@ describe('repinTournamentRuleset: one audited write', () => {
       to_version: '1.1.0',
       justification: REASON,
       ranking_compatible: false,
-      placings_before: [
-        { rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } },
-      ],
       config_before: { rulesetConfig: { winBonus: 3 }, scoringConfig: null, forfeitRules: null },
       config_after: {
         rulesetConfig: next['ruleset_config'],
@@ -83,6 +80,11 @@ describe('repinTournamentRuleset: one audited write', () => {
         forfeitRules: null,
       },
     });
+    // A standings row is named by its entrant: a team id in a team Tournament, never under
+    // `registrationId`.
+    expect(audit['placings_before']).toEqual([
+      { rank: 1, entrantId: 'r1', displayName: 'Alice', stats: { score: 5 } },
+    ]);
     const changes = audit['changes'] as Array<{ path: string; locked: boolean }>;
     expect(changes.map((change) => change.path)).toContain('engine');
     expect(changes.every((change) => change.locked)).toBe(true);

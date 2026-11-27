@@ -49,8 +49,9 @@ export function MatchEventFeed({
         protests,
         redName,
         blueName,
-        redRegId: match.redRegistrationId,
-        blueRegId: match.blueRegistrationId,
+        // Side keys: a team card or protest names its team, and is placed on that team's side.
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         t,
         config,
       }),
@@ -60,8 +61,8 @@ export function MatchEventFeed({
       protests,
       redName,
       blueName,
-      match.redRegistrationId,
-      match.blueRegistrationId,
+      match.redSideId,
+      match.blueSideId,
       config,
       t,
     ],
@@ -74,8 +75,8 @@ export function MatchEventFeed({
       buildBoutFlow({
         exchanges,
         penalties,
-        redRegId: match.redRegistrationId,
-        blueRegId: match.blueRegistrationId,
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         matchFormat: summary.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
         phaseType: summary.phaseType,
         endReason: match.endReason,
@@ -97,6 +98,8 @@ export function MatchEventFeed({
         config={config}
         redName={redName}
         blueName={blueName}
+        redColour={summary.redColour}
+        blueColour={summary.blueColour}
         surface="light"
         scale="page"
         highlightNumber={highlight}
@@ -114,6 +117,8 @@ export function MatchEventFeed({
         ariaLabel={header}
         highlightNumber={highlight}
         onHighlightChange={setHighlight}
+        redColour={summary.redColour}
+        blueColour={summary.blueColour}
         t={t}
       />
 

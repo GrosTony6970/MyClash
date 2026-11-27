@@ -1,4 +1,5 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { kindRefusal } from './named-refusal';
 
 /**
  * What the API answers a door that would delete fought bouts.
@@ -8,6 +9,10 @@ import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-clien
  * them, only the organisation's owner passes (ruling 279), and the API refuses
  * an admin with the code `discard_requires_owner`. Its own sentence is English,
  * so these screens ask here first and fall back to `failureMessage`.
+ *
+ * A generation is also refused for the Tournament's kind of entrant (a team
+ * Tournament takes no double elimination; a field or a seat of the other kind): said in
+ * the reader's language too (`kindRefusal`).
  */
 export function discardFailureMessage(
   failure: ApiFailure,
@@ -17,7 +22,7 @@ export function discardFailureMessage(
   if (failureCode(failure) === 'discard_requires_owner') {
     return t('admin.common.discardRequiresOwner');
   }
-  return failureMessage(failure, t, fallback);
+  return kindRefusal(failure, t) ?? failureMessage(failure, t, fallback);
 }
 
 /**

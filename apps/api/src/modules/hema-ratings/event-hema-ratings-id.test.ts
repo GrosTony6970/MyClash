@@ -69,6 +69,7 @@ function makeService(seed: Record<string, TableSeed>) {
 
 const LONGSWORD: SupabaseRow = {
   id: 'tournament-1',
+  entrant_kind: 'individual',
   weapon: 'longsword',
   event_id: 'event-1',
   events: { organization_id: 'org-1' },
@@ -81,7 +82,7 @@ describe("the Pool readers rate a fighter by the roster row's id first", () => {
     const member = (registrationId: string, person: SupabaseRow) => ({
       registration_id: registrationId,
       seed: 1,
-      registrations: { persons: { ...NAMED, ...person } },
+      registrations: { id: registrationId, persons: { ...NAMED, ...person } },
     });
     const { service, supabase } = makeService({
       phases: {
@@ -187,6 +188,7 @@ describe("bracket seeding by rating rates a fighter by the roster row's id first
             tournament_id: 'tournament-1',
             tournaments: {
               event_id: 'event-1',
+              entrant_kind: 'individual',
               events: { organization_id: 'org-1' },
               ruleset_code: 'TF_v1',
               ruleset_version: '1.1.0',
@@ -226,7 +228,12 @@ describe("bracket seeding by rating rates a fighter by the roster row's id first
     await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' });
 
     const [filled] = writesTo(supabase, 'bracket_slots');
-    expect(filled?.row).toEqual({ registration_a_id: 'r2', registration_b_id: 'r1' });
+    expect(filled?.row).toEqual({
+      registration_a_id: 'r2',
+      team_a_id: null,
+      registration_b_id: 'r1',
+      team_b_id: null,
+    });
   });
 });
 

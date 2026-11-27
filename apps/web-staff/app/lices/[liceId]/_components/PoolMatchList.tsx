@@ -2,38 +2,27 @@
 
 import type * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { sideColorsFor } from '@myclash/ui';
-import { resolveMatchWinner, type TournamentScoringConfig } from '@myclash/types';
+import { sideColorsFor, TournamentColorDot } from '@myclash/ui';
+import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 import type { PoolMatchRow } from '../../../../src/components/tournament-context-types';
+import { poolRowWinner } from '../../../../src/lib/pool-row-winner';
 import { MatchStatusPill } from './MatchStatusPill';
 
-/** The RECORDED winner, never the higher score — a forfeit or a
- *  `referee_decision` override can award the bout to the fighter behind on
- *  points, and this list is the piste operator's copy of the organiser's
- *  Matches tab, so the two have to agree. */
-function winnerSide(match: PoolMatchRow): 'red' | 'blue' | null {
-  return resolveMatchWinner({
-    status: match.status,
-    winnerRegistrationId: match.winner_registration_id,
-    redRegistrationId: match.red_registration_id,
-    blueRegistrationId: match.blue_registration_id,
-    redScore: match.red_score,
-    blueScore: match.blue_score,
-  });
-}
-
-/** Name + the organiser's corner colour + the club, as one cell. */
+/** Name + the organiser's corner colour + a team's colour chip + the club, as one cell. */
 function FighterCell({
   name,
   club,
   color,
+  teamColour,
   isWinner,
 }: {
   name: string;
   club: string | null;
   color: string;
+  /** A team side's colour chip (call 6: name and chip, no logo, on a tight list). */
+  teamColour: string | null;
   isWinner: boolean;
 }) {
   return (
@@ -48,6 +37,7 @@ function FighterCell({
           style={{ backgroundColor: color }}
           aria-hidden="true"
         />
+        <TournamentColorDot color={teamColour} size="md" />
         <span className={isWinner ? 'font-bold text-foreground' : 'font-medium'}>
           {name || '—'}
         </span>
@@ -159,7 +149,7 @@ function MatchRow({
   sideColors: { red: string; blue: string };
 }) {
   const router = useRouter();
-  const winner = winnerSide(match);
+  const winner = poolRowWinner(match);
   const played = match.status === 'completed';
   const open = mine ? () => router.push(`/matches/${match.id}`) : undefined;
 
@@ -180,6 +170,7 @@ function MatchRow({
         name={match.red_name}
         club={match.red_club_abbrev}
         color={sideColors.red}
+        teamColour={match.red_team_color}
         isWinner={winner === 'red'}
       />
       <ScoreCell score={match.red_score} played={played} isWinner={winner === 'red'} />
@@ -188,6 +179,7 @@ function MatchRow({
         name={match.blue_name}
         club={match.blue_club_abbrev}
         color={sideColors.blue}
+        teamColour={match.blue_team_color}
         isWinner={winner === 'blue'}
       />
       <QuietCell>{match.lice_name ?? '—'}</QuietCell>

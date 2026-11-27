@@ -13,14 +13,22 @@
  * Server component — fed by the SSR fetch on the tournament page.
  */
 
-import { SkillBadge, tintTextClassFor, statusLabel } from '@myclash/ui';
+import { SkillBadge, TournamentColorDot, tintTextClassFor, statusLabel } from '@myclash/ui';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
+import type { SideSeat } from '@myclash/types/pool-standings';
 import { groupPoolsByStart } from './pool-sections';
+import { entrantCountLabel } from './tournament-data';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 
-export interface PoolMember {
-  registrationId: string;
+/**
+ * One seat of a public Pool (`publicPoolMember`): a Fighter or a team. `sideId` keys it; a team's
+ * seat has no Registration, so `registrationId` is null there and only marks the reader's own row.
+ */
+export interface PoolMember extends Pick<
+  SideSeat,
+  'sideId' | 'registrationId' | 'colour' | 'logoUrl'
+> {
   fighterName: string;
   clubName: string | null;
   clubAbbreviation: string | null;
@@ -84,6 +92,11 @@ interface Props {
    * original 1/2-column layout.
    */
   wide?: boolean;
+  /**
+   * Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`): each card
+   * counts teams, then. Never guessed from the seats: a Pool that seats nobody has none to read.
+   */
+  teams: boolean;
   /** Active UI locale — drives the section date/time + labels. */
   locale: Locale;
 }
@@ -118,6 +131,7 @@ export function PoolsCompositionView({
   ringPoolIds,
   refereeRowKeys,
   wide = false,
+  teams,
   locale,
 }: Props) {
   const t = createTranslator(getMessages(locale));
@@ -191,7 +205,7 @@ export function PoolsCompositionView({
                         </span>
                       )}
                       <span className="whitespace-nowrap text-xs uppercase tracking-wider text-muted">
-                        {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
+                        {entrantCountLabel(t, locale, pool.members.length, teams)}
                       </span>
                     </span>
                   </header>
@@ -209,7 +223,7 @@ export function PoolsCompositionView({
                             m.registrationId === highlightRegistrationId;
                           return (
                             <li
-                              key={m.registrationId}
+                              key={m.sideId}
                               className={[
                                 'flex items-center justify-between gap-3 py-1.5 text-sm',
                                 isYou ? 'rounded bg-accent/5' : '',
@@ -226,6 +240,8 @@ export function PoolsCompositionView({
                                 >
                                   {m.seed ?? '—'}
                                 </span>
+                                {/* A team's colour chip by its name (call 6); a Fighter has none. */}
+                                <TournamentColorDot color={m.colour} size="em" />
                                 <span
                                   className={[
                                     'truncate font-medium',

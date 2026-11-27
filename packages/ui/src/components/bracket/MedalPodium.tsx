@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { TeamChip } from '../team-chip';
 import type { PodiumData, PodiumFighter } from './types';
 
 export interface MedalPodiumProps {
@@ -147,6 +148,7 @@ function Step({
             isTbd ? 'italic text-slate-500' : 'text-slate-900',
           ].join(' ')}
         >
+          <TeamChip colour={fighter?.colour ?? null} />
           {fighterName}
         </span>
       </div>
@@ -198,6 +200,7 @@ function Ribbon({
           isTbd ? 'italic text-slate-500' : 'text-slate-900',
         ].join(' ')}
       >
+        <TeamChip colour={fighter?.colour ?? null} />
         {fighterName}
       </span>
       {fighter?.clubAbbrev && (

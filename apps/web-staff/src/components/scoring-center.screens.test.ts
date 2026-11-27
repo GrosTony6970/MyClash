@@ -52,3 +52,82 @@ describe('the corrections drawer', () => {
     expect(timelineArgs(drawer)).toContain('protests: activeProtests,');
   });
 });
+
+/**
+ * A team's colour chip on the pad's history and flow legend (call 6): the wiring only. The chip
+ * itself is held in `@myclash/ui` (`team-chip.render.test.tsx`).
+ */
+describe("a team bout's chip on the pad", () => {
+  const view = read('MatchView.tsx');
+  /** The JSX element that opens with `open`, up to its closing `/>`. */
+  const element = (source: string, open: string) => {
+    const start = source.indexOf(open);
+    expect(start).toBeGreaterThan(0);
+    return source.slice(start, source.indexOf('/>', start));
+  };
+  const coloursOfSides = ['redColour={redColour}', 'blueColour={blueColour}'];
+
+  it('hands the bout’s team colours to the centre and to the end-of-Match screen', () => {
+    for (const open of ['<ScoringCenterControls', '<MatchResultOverlay']) {
+      expect(element(view, open)).toContain('redColour={match.redColour ?? null}');
+      expect(element(view, open)).toContain('blueColour={match.blueColour ?? null}');
+    }
+  });
+
+  it('puts the winning team’s chip before its name in the result headline', () => {
+    const headline = result.slice(
+      result.indexOf('function ResultHeadline('),
+      result.indexOf('function BoutReview('),
+    );
+    expect(headline).toContain(
+      "const winnerColour = winner === 'red' ? redColour : winner === 'blue' ? blueColour : null;",
+    );
+    expect(headline).toMatch(/<TeamChip colour=\{winnerColour\} \/>\s*\{winnerName\}/);
+    // The headline takes the screen's props whole, the colours among them.
+    expect(result).toContain('<ResultHeadline {...props} />');
+    expect(headline).toMatch(/\| 'redColour'\s*\| 'blueColour'/);
+  });
+
+  it('hands them on to the history and the flow chart', () => {
+    for (const [source, open] of [
+      [centre, '<MatchTimeline'],
+      [result, '<MatchTimeline'],
+      [result, '<BoutFlowChart'],
+    ] as const) {
+      for (const prop of coloursOfSides) expect(element(source, open)).toContain(prop);
+    }
+  });
+});
+
+/**
+ * A bout waiting for a Fighter (operator, 2026-11-24): the wiring only. The decision is
+ * `sideMissing` (`lib/bout-sides.test.ts`); the behaviour is the browser story
+ * `tests/a11y/pad-bout-waits-for-fighter.spec.ts`.
+ */
+describe('a bout waiting for a Fighter', () => {
+  const view = read('MatchView.tsx');
+
+  it('is asked once, of the bout on screen', () => {
+    expect(view).toContain('const waitingForFighter = sideMissing(match);');
+  });
+
+  it('refuses a Start at the one door of the clock, forced or not', () => {
+    const door = view.slice(view.indexOf('const onClockAction = useCallback('));
+    const refusal = "if (action === 'start' && waitingForFighter) {";
+    expect(door.indexOf(refusal)).toBeGreaterThan(0);
+    expect(door.indexOf(refusal)).toBeLessThan(door.indexOf('!force &&'));
+  });
+
+  it('takes no hit or card, greys Start, and says why', () => {
+    expect(view).toMatch(/!series\.awaitingStart &&\s+!waitingForFighter;/);
+    expect(view).toContain('startBlocked={waitingForFighter}');
+    expect(centre).toContain("(primary.action === 'start' && startBlocked)");
+    expect(view).toContain("{t('pad.match.waitingForFighter')}");
+  });
+
+  it('greys the colour swap and the direct card of the drawer', () => {
+    expect(view).toContain('sideMissing={waitingForFighter}');
+    expect(drawer).toContain('disabled={disabled || sideMissing}');
+    expect(drawer).toContain('disabled={busy || locked || sideMissing}');
+  });
+});

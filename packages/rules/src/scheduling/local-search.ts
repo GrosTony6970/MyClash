@@ -38,11 +38,11 @@ export function computeCost(
   poolCount: number,
   settings: PoolAssignmentSettings,
 ): number {
-  const fighterMap = new Map(fighters.map((f) => [f.registrationId, f]));
+  const fighterMap = new Map(fighters.map((f) => [f.entrantId, f]));
   const pools: Fighter[][] = Array.from({ length: poolCount }, () => []);
 
   for (const a of assignments) {
-    const f = fighterMap.get(a.registrationId);
+    const f = fighterMap.get(a.entrantId);
     if (f) pools[a.poolIndex]?.push(f);
   }
 
@@ -167,11 +167,11 @@ export function buildCostReport(
   poolCount: number,
   settings: PoolAssignmentSettings,
 ): CostReport {
-  const fighterMap = new Map(fighters.map((f) => [f.registrationId, f]));
+  const fighterMap = new Map(fighters.map((f) => [f.entrantId, f]));
   const pools: Fighter[][] = Array.from({ length: poolCount }, () => []);
 
   for (const a of assignments) {
-    const f = fighterMap.get(a.registrationId);
+    const f = fighterMap.get(a.entrantId);
     if (f) pools[a.poolIndex]?.push(f);
   }
 
@@ -193,7 +193,7 @@ export function buildCostReport(
         for (let i = 0; i < clubFighters.length; i++) {
           for (let j = i + 1; j < clubFighters.length; j++) {
             count++;
-            pairs.push([clubFighters[i]!.registrationId, clubFighters[j]!.registrationId]);
+            pairs.push([clubFighters[i]!.entrantId, clubFighters[j]!.entrantId]);
           }
         }
       }

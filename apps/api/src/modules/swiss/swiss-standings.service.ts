@@ -23,6 +23,7 @@ import {
   type SwissOutcome,
   type SwissResultRecord,
 } from '@myclash/rules/results';
+import type { SwissStandingsWireRow } from '@myclash/types/pool-standings';
 
 export interface SwissStandingsRow extends StandingsRow {
   /** Decision 11: a withdrawal keeps its row, ranked on what it played. */
@@ -40,7 +41,7 @@ export interface SwissStandingsResponse {
   roundsCompleted: number;
   roundCount: number;
   finalized: SwissConfig['finalized'];
-  rows: SwissStandingsRow[];
+  rows: SwissStandingsWireRow[];
 }
 
 /**
@@ -206,18 +207,18 @@ export class SwissStandingsService {
     const opponentKeys = opponentTiebreaks(records);
 
     return baseRows.map((row) => {
-      const keys = opponentKeys.get(row.registrationId);
-      const withdrawn = withdrawnAt.get(row.registrationId) ?? null;
+      const keys = opponentKeys.get(row.entrantId);
+      const withdrawn = withdrawnAt.get(row.entrantId) ?? null;
       return {
         ...row,
         stats: {
           ...row.stats,
-          swissPts: byId.get(row.registrationId)?.swissPts ?? 0,
+          swissPts: byId.get(row.entrantId)?.swissPts ?? 0,
           buchholz: keys?.buchholz ?? 0,
           buchholzCut1: keys?.buchholzCut1 ?? 0,
           sonnebornBerger: keys?.sonnebornBerger ?? 0,
           opponentWinPct: keys?.opponentWinPct ?? 0,
-          byes: byeCount.get(row.registrationId) ?? 0,
+          byes: byeCount.get(row.entrantId) ?? 0,
           // Filled by the third pass, and only when the chain uses it.
           headToHead: 0,
         },
@@ -250,9 +251,9 @@ export class SwissStandingsService {
     const blocks: string[][] = [];
     for (const row of upTo) {
       if (row.decidingTiebreak === null && blocks.length > 0) {
-        blocks[blocks.length - 1]!.push(row.registrationId);
+        blocks[blocks.length - 1]!.push(row.entrantId);
       } else {
-        blocks.push([row.registrationId]);
+        blocks.push([row.entrantId]);
       }
     }
 
@@ -266,7 +267,7 @@ export class SwissStandingsService {
     return applyRanking(
       rows.map((row) => ({
         ...row,
-        stats: { ...row.stats, headToHead: resolved.get(row.registrationId) ?? 0 },
+        stats: { ...row.stats, headToHead: resolved.get(row.entrantId) ?? 0 },
       })),
       chain,
     ) as SwissStandingsRow[];

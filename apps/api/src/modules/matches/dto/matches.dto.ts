@@ -35,7 +35,11 @@ const updateMatchStatusSchema = z
      * at every call. A bout is put in play by the clock (Start, Reopen).
      */
     status: z.enum(['completed']),
-    winnerRegistrationId: z.uuid().optional(),
+    /**
+     * The winner's side key (`sideKey`): a Fighter's Registration id, or a team's id (call 8). A
+     * key that is neither side of the bout is refused 400. None sent: the stored winner stays.
+     */
+    winnerSideId: z.uuid().optional(),
   })
   .strict();
 export class UpdateMatchStatusDto extends createZodDto(updateMatchStatusSchema) {}
@@ -130,13 +134,16 @@ export class ResetMatchDto extends createZodDto(resetMatchSchema) {}
  * enum was duplicated here and drifted out of sight of the engine that owns
  * it. One owner, imported.
  *
- * `forfeitingRegistrationId` reads as "the side recorded as losing" on the
- * override path. Nobody forfeited, but the column, the winner derivation and
- * the void path are all shared, so the shape is too.
+ * The forfeiting side is exactly one of `forfeitingRegistrationId` (a Fighter)
+ * and `forfeitingTeamId` (a team, ADR-022): a field named Registration never
+ * carries a team id (call 23). On the override path it reads as "the side
+ * recorded as losing". Nobody forfeited, but the column, the winner derivation
+ * and the void path are all shared, so the shape is too.
  */
 const createMatchForfeitSchema = z
   .object({
-    forfeitingRegistrationId: z.uuid(),
+    forfeitingRegistrationId: z.uuid().optional(),
+    forfeitingTeamId: z.uuid().optional(),
     reason: ForfeitReasonSchema,
     canContinue: z.boolean().optional(),
     note: z.string().optional(),
@@ -156,6 +163,21 @@ const createMatchForfeitSchema = z
   .superRefine((value, ctx) => {
     const override = isOverrideReason(value.reason);
 
+    if ((value.forfeitingRegistrationId === undefined) === (value.forfeitingTeamId === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['forfeitingTeamId'],
+        message: 'Send exactly one of forfeitingRegistrationId and forfeitingTeamId',
+      });
+    }
+    // A team has no status: "can the Fighter continue?" is not asked of a team (call 4).
+    if (value.forfeitingTeamId !== undefined && value.canContinue !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['canContinue'],
+        message: 'canContinue is not accepted for a team forfeit',
+      });
+    }
     if (override && !value.explicitScores) {
       ctx.addIssue({
         code: 'custom',

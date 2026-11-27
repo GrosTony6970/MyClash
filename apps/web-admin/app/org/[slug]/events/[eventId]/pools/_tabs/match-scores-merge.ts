@@ -21,6 +21,8 @@ export interface MatchScoreUpdate {
    *  fighter behind on points, so merging scores alone would leave a corrected
    *  row showing the previous winner until a full reload. */
   winner_registration_id: string | null;
+  /** The winner of a team bout (0282); a team bout's Registration winner is always null. */
+  winner_team_id: string | null;
 }
 
 // Minimal shape the helper reads. Callers pass their richer Match
@@ -33,6 +35,7 @@ export interface MergeableMatch {
   red_score: number | null;
   blue_score: number | null;
   winner_registration_id: string | null;
+  winner_team_id: string | null;
 }
 
 export interface MergeablePool<M extends MergeableMatch = MergeableMatch> {
@@ -44,7 +47,7 @@ export interface MergeablePool<M extends MergeableMatch = MergeableMatch> {
 /**
  * Merge `updates` into `pools` row-by-row. A row is rewritten **only
  * if** at least one of `status / red_score / blue_score /
- * winner_registration_id` differs from its current value; otherwise the
+ * winner_registration_id / winner_team_id` differs from its current value; otherwise the
  * same object reference is returned.
  *
  * `updates.find` is O(n) per row, fine for the small (≤ ~32) match
@@ -65,7 +68,8 @@ export function mergeScores<M extends MergeableMatch>(
         u.status !== m.status ||
         u.red_score !== m.red_score ||
         u.blue_score !== m.blue_score ||
-        u.winner_registration_id !== m.winner_registration_id;
+        u.winner_registration_id !== m.winner_registration_id ||
+        u.winner_team_id !== m.winner_team_id;
       if (!changed) return m;
       mutated = true;
       return {
@@ -74,6 +78,7 @@ export function mergeScores<M extends MergeableMatch>(
         red_score: u.red_score,
         blue_score: u.blue_score,
         winner_registration_id: u.winner_registration_id,
+        winner_team_id: u.winner_team_id,
       };
     });
     return mutated ? { ...pool, matches: nextMatches } : pool;

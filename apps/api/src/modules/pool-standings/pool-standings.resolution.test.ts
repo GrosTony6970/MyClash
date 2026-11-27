@@ -176,14 +176,14 @@ describe('ruleset resolution', () => {
     const result = (await service.getPoolStandings('t-1', 'overall')) as {
       rulesetCode: string;
       columns: Array<{ key: string }>;
-      rows: Array<{ registrationId: string; rank: number; stats: Record<string, number> }>;
+      rows: Array<{ entrantId: string; rank: number; stats: Record<string, number> }>;
     };
 
     expect(result.rulesetCode).toBe('ORG_CUSTOM');
     expect(result.columns.map((c) => c.key)).toContain('score');
 
-    const r1 = result.rows.find((r) => r.registrationId === 'reg-1')!;
-    const r2 = result.rows.find((r) => r.registrationId === 'reg-2')!;
+    const r1 = result.rows.find((r) => r.entrantId === 'reg-1')!;
+    const r2 = result.rows.find((r) => r.entrantId === 'reg-2')!;
 
     // 10 and 0, not TF_v1's 5 and 1.
     expect(r1.stats['score']).toBe(10);
@@ -324,10 +324,10 @@ describe('ruleset resolution', () => {
     );
 
     const result = (await service.getPoolStandings('t-1', 'overall')) as {
-      rows: Array<{ registrationId: string; stats: Record<string, number> }>;
+      rows: Array<{ entrantId: string; stats: Record<string, number> }>;
     };
 
-    const r1 = result.rows.find((r) => r.registrationId === 'reg-1')!;
+    const r1 = result.rows.find((r) => r.entrantId === 'reg-1')!;
     expect(r1.stats['score']).toBe(12);
   });
 });

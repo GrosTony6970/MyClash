@@ -145,7 +145,7 @@ describe('a card on a bout is priced by the card rules its copy pins', () => {
     expect(card?.row).toMatchObject({ card: 'yellow', score_delta: -1, ruleset_id: 'cards-a' });
     // A mock ignores the projection: the copy's pin is read only if the read asks for it.
     expect(selectsFor(db.from, 'matches')[0]).toBe(
-      'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance, match_rules(penalty_ruleset_id)',
+      'id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, phase_id, locked_at, current_round, awaiting_round_advance, match_rules(penalty_ruleset_id)',
     );
   });
 

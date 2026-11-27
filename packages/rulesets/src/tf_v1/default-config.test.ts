@@ -11,8 +11,8 @@ import type { Exchange, Match, ScoredMatch } from '../types';
 
 const MATCH: Match = {
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'TF_v1',
   rulesetVersion: '1.0.0',
   status: 'running',
@@ -56,16 +56,16 @@ describe('TF_v1 with no config', () => {
   it('scores a pool with the default config', () => {
     const bout: ScoredMatch = {
       id: 'm1',
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
-      winnerRegistrationId: 'reg-red',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
+      winnerSideId: 'reg-red',
       endReason: null,
       redScore: 2,
       blueScore: 1,
       exchanges: EXCHANGES,
     };
     const pool = {
-      registrationIds: ['reg-red', 'reg-blue'],
+      entrantIds: ['reg-red', 'reg-blue'],
       completedMatches: [bout],
       afterblowMode: 'full' as const,
     };

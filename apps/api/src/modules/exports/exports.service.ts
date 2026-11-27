@@ -29,6 +29,7 @@ import {
   toSubmissionMatch,
   type Row,
 } from './hema-ratings-rows';
+import { storedKind } from '../events/tournament-kind';
 import { SupabaseService } from '../supabase/supabase.service';
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ export class ExportsService {
     const [event, tournaments] = await Promise.all([
       this.fetchOne('events', (q) => q.select('slug, event_kind').eq('id', eventId).maybeSingle()),
       this.fetchMany('tournaments', (q) =>
-        q.select('id, name, sort_order').eq('event_id', eventId).order('sort_order'),
+        q.select('id, name, sort_order, entrant_kind').eq('event_id', eventId).order('sort_order'),
       ),
     ]);
 
@@ -84,18 +85,28 @@ export class ExportsService {
     }
 
     const slug = (event?.['slug'] as string | undefined) ?? eventId;
-    const tournamentIds = tournaments.map((t) => t['id'] as string);
+    // The file takes one person against one person: a team Tournament is left out before its
+    // bouts are read, and named in the warnings.
+    const isTeam = (t: Row) => storedKind(t['entrant_kind']) === 'team';
+    // `name` is selected and NOT NULL.
+    const teamTournaments = tournaments.filter(isTeam).map((t) => t['name'] as string);
+    const individual = tournaments.filter((t) => !isTeam(t));
+    const tournamentIds = individual.map((t) => t['id'] as string);
     if (tournamentIds.length === 0) {
-      return { slug, result: buildSubmission({ clubs: [], fighters: [], tournaments: [] }) };
+      return {
+        slug,
+        result: buildSubmission({ clubs: [], fighters: [], tournaments: [], teamTournaments }),
+      };
     }
 
-    const input = await this.collectSubmissionInput(tournaments, tournamentIds);
+    const input = await this.collectSubmissionInput(individual, tournamentIds, teamTournaments);
     return { slug, result: buildSubmission(input) };
   }
 
   private async collectSubmissionInput(
     tournaments: Row[],
     tournamentIds: string[],
+    teamTournaments: string[],
   ): Promise<SubmissionInput> {
     const [matchRows, forfeitedMatchIds] = await this.fetchMatches(tournamentIds);
 
@@ -122,7 +133,7 @@ export class ExportsService {
       matches: matchesByTournament.get(t['id'] as string) ?? [],
     }));
 
-    return { clubs, fighters, tournaments: submissionTournaments };
+    return { clubs, fighters, tournaments: submissionTournaments, teamTournaments };
   }
 
   /**

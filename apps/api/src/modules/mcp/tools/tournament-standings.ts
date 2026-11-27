@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { createTranslator, messages } from '@myclash/i18n';
 import { bracketToken, extractBronzeMatch, roundTokenLabel } from '@myclash/types';
+import type { BracketSlotWire } from '@myclash/types/bracket-side';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import type { McpRefusal } from './mcp-answer';
 import { poolTableRows, type PoolTables } from '../../pool-standings/pool-table-rows';
@@ -47,18 +48,20 @@ interface PublicStandings {
   swissPhaseId?: string | null;
   swissRoundCount: number;
   swissRoundsCompleted: number;
-  bracketSlots: {
-    round: number;
-    position: number;
-    redFighterName: string | null;
-    blueFighterName: string | null;
-    redScore: number | null;
-    blueScore: number | null;
-    winnerRegistrationId: string | null;
-    redRegistrationId: string | null;
-    blueRegistrationId: string | null;
-    status: string;
-  }[];
+  /** The bracket read's own slot type, so a field renamed on the wire breaks this read. */
+  bracketSlots: Pick<
+    BracketSlotWire,
+    | 'round'
+    | 'position'
+    | 'redFighterName'
+    | 'blueFighterName'
+    | 'redScore'
+    | 'blueScore'
+    | 'winnerSideId'
+    | 'redSideId'
+    | 'blueSideId'
+    | 'status'
+  >[];
 }
 
 const english = createTranslator(messages.en);
@@ -92,13 +95,14 @@ function toBracket(s: PublicStandings): TournamentStandingsAnswer['bracket'] {
     fights: slots
       .sort((a, b) => a.position - b.position)
       .map((slot) => {
-        const won = slot.winnerRegistrationId;
+        // By side key: a team bout records its winner as a team, never as a Registration.
+        const won = slot.winnerSideId;
         const winner =
           won === null
             ? null
-            : won === slot.redRegistrationId
+            : won === slot.redSideId
               ? slot.redFighterName
-              : won === slot.blueRegistrationId
+              : won === slot.blueSideId
                 ? slot.blueFighterName
                 : null;
         const scored = slot.redScore !== null || slot.blueScore !== null;

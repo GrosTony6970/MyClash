@@ -47,6 +47,7 @@
     "src/modules/exports/hema-ratings.fixtures.ts",
     "src/modules/staff/live-board.fixtures.ts",
     "src/modules/swiss/swiss.fixtures.ts",
+    "src/modules/protests/protests.fixtures.ts",
     "src/modules/notifications/event-handlers/notification-events.fixtures.ts",
     // The one "no raw id in a tool's output" check every MCP tool test runs. It imports vitest.
     "src/modules/mcp/tools/no-raw-ids.test-helper.ts",
@@ -150,6 +151,15 @@
     // The QR world (FightBook slice 5, Task 6), shared by the QR's three test files. It imports
     // vitest.
     "src/modules/fightbook/spar-qr.fixtures.ts",
+    // The team forfeit world (team Tournaments 1b-2), shared by the team forfeit tests and the
+    // team card tests. It imports vitest.
+    "src/modules/matches/match-forfeits.team.fixtures.ts",
+    // The team card world (team Tournaments 1b-2), shared by the team card tests. It imports
+    // vitest.
+    "src/modules/penalties/penalties.team-card.fixtures.ts",
+    // The HEMA Ratings export's Supabase double and seeded rows, shared by its two test files
+    // when the team Tournament tests were split out. It imports the service, not vitest.
+    "src/modules/exports/exports.service.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

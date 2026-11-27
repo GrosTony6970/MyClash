@@ -390,7 +390,7 @@ describe('drain — penalties', () => {
       clientUuid: uuid,
       matchId,
       sequence: seq,
-      registrationId: 'reg-1',
+      side: { kind: 'registration', id: 'reg-1' },
       occurredAt: '2026-05-21T10:00:00.000Z',
       directCard: 'yellow',
       reason: 'Excessive force',

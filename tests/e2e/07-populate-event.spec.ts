@@ -1012,7 +1012,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
 
   // ── Play every pool match: clean hits, afterblows, cards ───────────────────────
   // Scores are derived from exchanges; the API never infers the winner, so we
-  // set winnerRegistrationId explicitly and keep the winner clearly ahead on
+  // set winnerSideId explicitly and keep the winner clearly ahead on
   // clean hits (5–2) regardless of how the ruleset nets the afterblow. A black
   // card forfeits the match (opponent wins) and a 2nd black card for a fighter
   // would DQ them tournament-wide — so black cards go to distinct fighters only
@@ -1163,7 +1163,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
         exchangesPosted++;
       }
       await patch(`matches/${m.id}/status`, {
-        data: { status: 'completed', winnerRegistrationId: wReg },
+        data: { status: 'completed', winnerSideId: wReg },
       });
       await clockEnd(m.id);
       played++;
@@ -1191,7 +1191,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     // Random winner side + margin so pools aren't a wall of identical 5–2s. The
     // lead always comes from CLEAN hits (loserPts < winnerPts), so it survives any
     // net-zero afterblow, and doubles/cards never favour the loser — the explicit
-    // winnerRegistrationId therefore always agrees with the score.
+    // winnerSideId therefore always agrees with the score.
     const winnerColor: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
     const loserColor = winnerColor === 'red' ? 'blue' : 'red';
     const winnerReg = winnerColor === 'red' ? red : blue;
@@ -1295,7 +1295,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     }
 
     await patch(`matches/${m.id}/status`, {
-      data: { status: 'completed', winnerRegistrationId: winnerReg },
+      data: { status: 'completed', winnerSideId: winnerReg },
     });
     await clockEnd(m.id);
     played++;
@@ -1555,7 +1555,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({
     }
 
     await patch(`matches/${mid}/status`, {
-      data: { status: 'completed', winnerRegistrationId: winnerReg },
+      data: { status: 'completed', winnerSideId: winnerReg },
     });
     await clockEnd(mid);
     return { winnerName };

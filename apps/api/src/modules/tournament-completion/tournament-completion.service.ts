@@ -133,14 +133,16 @@ export class TournamentCompletionService {
     if (brackets.length === 0) return false;
     if ((await this.unfinishedBouts(tournamentId)) > 0) return false;
 
-    // A bracket bout fought with no winner (both fighters out on doubles): no champion yet.
+    // A bracket bout fought with no winner (both fighters out on doubles): no champion yet. The
+    // winner is a Registration or a team (0282): a bout with either winner column is decided.
     const { count, error: winnerError } = await this.db()
       .from('matches')
       .select('id, phases!inner(tournament_id, type)', { count: 'exact', head: true })
       .eq('phases.tournament_id', tournamentId)
       .in('phases.type', [...ELIMINATION_PHASES])
       .eq('status', 'completed')
-      .is('winner_registration_id', null);
+      .is('winner_registration_id', null)
+      .is('winner_team_id', null);
     if (winnerError) throw new Error(`winner count failed: ${winnerError.message}`);
     if ((count ?? 1) > 0) return false;
 
@@ -216,6 +218,8 @@ interface BracketPhase {
  * A double elimination's grand final won by the losers' side owes a reset, and the reset bout is
  * made only after the grand final's result is written (`BracketAdvanceService`). In that gap, or
  * when the advance failed, the bracket has no bout left yet no champion either.
+ *
+ * It reads its sides by Registration: a double elimination refuses a team Tournament.
  */
 async function resetOwed(db: Db, phase: BracketPhase): Promise<boolean> {
   const config = phase.config_json ?? {};

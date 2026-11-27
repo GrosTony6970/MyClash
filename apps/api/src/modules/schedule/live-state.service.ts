@@ -9,6 +9,12 @@ import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
+import {
+  boutSideLabels,
+  sideNamesAndColours,
+  TEAM_SIDE_EMBEDS,
+  type BoutSideEmbeds,
+} from '../matches/bout-side-labels';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -27,8 +33,12 @@ export interface LiveMatch {
   id: string;
   /** The bout's code (`LSW-P4-M1`), never its stored label (`L1-PD-M01`). */
   roundCode: string;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name, for its chip (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   scheduledAt: string | null;
   status: string;
   tournamentName: string | null;
@@ -80,14 +90,6 @@ function eventNotFound(slug: string): NotFoundException {
 function unknownBoard(ref: string): LiveStateResponse {
   if (!UUID_RE.test(ref)) throw eventNotFound(ref);
   return { currentBlock: null, nextBlock: null, lices: [], timezone: DEFAULT_EVENT_TIMEZONE };
-}
-
-function composeName(
-  p: { given_name?: string | null; family_name?: string | null } | null | undefined,
-): string | null {
-  if (!p) return null;
-  const composed = `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim();
-  return composed || null;
 }
 
 /** The shape every PostgREST read returns, narrowed to what `orThrow` needs. */
@@ -242,6 +244,7 @@ export class LiveStateService {
         'id,status,scheduled_at,match_number_label,lice_id,red_score,blue_score,' +
           'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
           'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
+          `${TEAM_SIDE_EMBEDS},` +
           // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
           'phases!inner(config_json,tournaments!inner(id,name,status,weapon)),' +
           ROUND_CODE_EMBEDS,
@@ -274,21 +277,11 @@ export class LiveStateService {
   }
 
   private mapLiveMatch(m: Record<string, unknown>): LiveMatch {
-    // `persons` carries given_name + family_name (no display_name);
-    // compose the visible name here. See staff.service.ts formatPersonName
-    // for the canonical comment on this constraint.
-    const red = m['red'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
-    const blue = m['blue'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
     const phases = m['phases'] as { tournaments?: { name?: string } } | null;
     return {
       id: m['id'] as string,
       roundCode: roundCodeFromMatchRow(m),
-      redFighterName: composeName(red?.persons),
-      blueFighterName: composeName(blue?.persons),
+      ...sideNamesAndColours(boutSideLabels(m as BoutSideEmbeds<never>)),
       scheduledAt: (m['scheduled_at'] as string | null) ?? null,
       status: (m['status'] as string) ?? 'scheduled',
       tournamentName: phases?.tournaments?.name ?? null,

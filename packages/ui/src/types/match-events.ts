@@ -134,7 +134,12 @@ export interface Penalty {
    */
   client_uuid?: string | null;
   sequence: number;
-  registration_id: string;
+  /**
+   * The card's side: its Fighter's Registration, or its team (`team_id`). Exactly one of the two is
+   * set (`match_penalties_one_side`, 0282). The row's side key is `registration_id ?? team_id`.
+   */
+  registration_id: string | null;
+  team_id: string | null;
   card: PenaltyCard;
   source: 'ruleset' | 'direct';
   short_name: string | null;
@@ -181,8 +186,12 @@ export interface MatchProtest {
   /** The idempotency key the pad sends; the dedupe key against its outbox. */
   client_uuid: string;
   match_id: string;
-  /** The fighter who protested. */
-  registration_id: string;
+  /**
+   * Who protested: the Fighter's Registration, or the team (`team_id`). Exactly one of the two is
+   * set (`match_protests_one_side`, 0282). The row's side key is `registration_id ?? team_id`.
+   */
+  registration_id: string | null;
+  team_id: string | null;
   /**
    * The pad's one counter of the Match, shared with its hits and its cards
    * (`UNIQUE(match_id, sequence)` on each table) — a tie-break only, never a number shown.
@@ -228,8 +237,20 @@ export interface DisplayMatch {
   roundCode?: string | null;
   redScore: number;
   blueScore: number;
+  /** Each side's key (`sideKey`): its Registration id or its team id; null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** The winner's side key; null for no winner (a double loss, a tie, not decided yet). */
+  winnerSideId: string | null;
+  /** The Fighter's or the team's name; null while the side is not known. */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** A team side's colour name (`TOURNAMENT_COLORS`) for its chip; null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
+  /** A team side's logo, shown where a Fighter's photo is; null on a Fighter's side. */
+  redLogoUrl: string | null;
+  blueLogoUrl: string | null;
   /** Fighter photos for the scoreboard avatar — resolved server-side from
    *  the global identity (global_persons.photo_url). Null when the fighter
    *  has no photo or isn't linked to a global person. */
@@ -241,9 +262,6 @@ export interface DisplayMatch {
    *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
    *  winner). Null on manual clock-end / forfeit / legacy rows. */
   endReason?: string | null;
-  /** Winner's registration id when the ruleset declared one (point cap).
-   *  Null for a double loss / tie / not-yet-decided. */
-  winnerRegistrationId?: string | null;
   lice?: { name?: string } | null;
   event?: { name?: string } | null;
   tournament?: { name?: string; weapon?: string } | null;
@@ -267,8 +285,6 @@ export interface DisplayMatch {
   totalFightsInPool?: number | null;
   redClub?: { name: string; logoUrl: string | null } | null;
   blueClub?: { name: string; logoUrl: string | null } | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
   /** External-display redesign: next match on this lice (for the
    *  corner NEXT tile, and what a TV screen is told when its bout is
    *  over). Public surfaces can rely on this without a second
@@ -280,6 +296,8 @@ export interface DisplayMatch {
     roundCode: string | null;
     redFighterName: string | null;
     blueFighterName: string | null;
+    redColour: string | null;
+    blueColour: string | null;
   } | null;
 }
 

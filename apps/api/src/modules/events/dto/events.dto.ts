@@ -324,6 +324,10 @@ const tournamentLockConfigSchema = z
   })
   .strict();
 
+/** `tournaments.entrant_kind` and `team_default_size` (0281: 1 to 10, null for none). */
+const entrantKindSchema = z.enum(['individual', 'team']);
+const teamDefaultSizeSchema = z.number().int().min(1).max(10).nullish();
+
 const createTournamentSchema = z
   .object({
     name: z.string().min(2).max(200),
@@ -353,6 +357,9 @@ const createTournamentSchema = z
      */
     maxParticipants: z.number().min(1).nullish(),
     maxWaitlist: z.number().min(0).nullish(),
+    /** Individual Fighters or teams; individual when omitted (`tournament-kind.ts`). */
+    entrantKind: entrantKindSchema.optional(),
+    teamDefaultSize: teamDefaultSizeSchema,
   })
   .strict();
 export class CreateTournamentDto extends createZodDto(createTournamentSchema) {}
@@ -395,6 +402,9 @@ const updateTournamentSchema = z
     maxParticipants: z.number().min(1).nullish(),
     // Slice 4: max waitlist size. Null = no cap.
     maxWaitlist: z.number().min(0).nullish(),
+    /** A change of kind: refused 409 once the Tournament holds an entrant (`tournament-kind.ts`). */
+    entrantKind: entrantKindSchema.optional(),
+    teamDefaultSize: teamDefaultSizeSchema,
     /** The audited form of a rules save: sent again by the dialog the lock opened. */
     audit: settingsAuditSchema.optional(),
   })

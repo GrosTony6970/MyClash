@@ -16,7 +16,7 @@
  * organiser picked (operator, 2026-10-15).
  */
 import { CSV_STANDARD, csvRow, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
-import { unknownFighterInEnglish } from '../../common/unknown-name';
+import { boutSideKey, sideName, winnerSideKey, type SideNames } from './archive-report-sides';
 import type { ArchiveRow, ArchiveTables, TournamentArchiveReports } from './archive.types';
 
 /** One CSV report: its header, then a row per line. */
@@ -75,12 +75,17 @@ export function buildTournamentReportRows(
   // sibling tables in the same archive snapshot, so this stays consistent
   // with the data being exported even if the live DB drifts later.
   const roundCodes = computeRoundCodes(tournament, matches, tables);
+  const names: SideNames = {
+    registrations,
+    persons: tables.persons,
+    teams: tables.teams.filter((row) => row['tournament_id'] === tournamentId),
+  };
 
   return {
     matches: matchesRows(matches, roundCodes),
     exchanges: exchangesRows(exchanges),
-    results: resultsRows(matches, registrations, tables.persons, roundCodes),
-    rankings: rankingsRows(matches, registrations, tables.persons),
+    results: resultsRows(matches, names, roundCodes),
+    rankings: rankingsRows(matches, names),
   };
 }
 
@@ -203,9 +208,12 @@ function matchesRows(matches: ArchiveRow[], roundCodes: Map<string, string>): Re
       'status',
       'red_registration_id',
       'blue_registration_id',
+      'red_team_id',
+      'blue_team_id',
       'red_score',
       'blue_score',
       'winner_registration_id',
+      'winner_team_id',
       'end_reason',
     ],
     ...matches.map((match) => [
@@ -215,9 +223,12 @@ function matchesRows(matches: ArchiveRow[], roundCodes: Map<string, string>): Re
       match['status'],
       match['red_registration_id'],
       match['blue_registration_id'],
+      match['red_team_id'],
+      match['blue_team_id'],
       match['red_score'],
       match['blue_score'],
       match['winner_registration_id'],
+      match['winner_team_id'],
       // Without it a 0-0 double loss is indistinguishable in the archive from
       // a genuine draw, and the fact is gone for good once the event is.
       match['end_reason'],
@@ -252,8 +263,7 @@ function exchangesRows(exchanges: ArchiveRow[]): ReportRows {
 
 function resultsRows(
   matches: ArchiveRow[],
-  registrations: ArchiveRow[],
-  persons: ArchiveRow[],
+  names: SideNames,
   roundCodes: Map<string, string>,
 ): ReportRows {
   // Human-readable report an organiser opens in Excel, so the columns are
@@ -275,11 +285,11 @@ function resultsRows(
     ...matches.map((match) => [
       roundCodes.get(match['id'] as string) ?? '',
       String(match['match_number_label'] ?? ''),
-      registrationName(match['red_registration_id'], registrations, persons),
-      registrationName(match['blue_registration_id'], registrations, persons),
+      sideName(match['red_registration_id'], match['red_team_id'], names),
+      sideName(match['blue_registration_id'], match['blue_team_id'], names),
       match['red_score'],
       match['blue_score'],
-      registrationName(match['winner_registration_id'], registrations, persons),
+      sideName(match['winner_registration_id'], match['winner_team_id'], names),
       // The winner cell is empty for every bout the engine gave no winner —
       // a time-out, a genuine draw and a double loss all read the same
       // without this. The organiser opens this one in Excel.
@@ -290,18 +300,18 @@ function resultsRows(
 
 const NO_SCORE = Object.freeze({ wins: 0, pointsFor: 0, pointsAgainst: 0 });
 
-function rankingsRows(
-  matches: ArchiveRow[],
-  registrations: ArchiveRow[],
-  persons: ArchiveRow[],
-): ReportRows {
+function rankingsRows(matches: ArchiveRow[], names: SideNames): ReportRows {
+  // The entrants are the sides the Tournament's bouts are fought by: its teams when it has any (a
+  // team Tournament's bouts hold no Registration), its Registrations otherwise.
+  const byTeam = names.teams.length > 0;
+  const entrants = byTeam ? names.teams : names.registrations;
   const points = new Map<string, { wins: number; pointsFor: number; pointsAgainst: number }>();
-  for (const registration of registrations) {
-    points.set(registration['id'] as string, { wins: 0, pointsFor: 0, pointsAgainst: 0 });
+  for (const entrant of entrants) {
+    points.set(entrant['id'] as string, { wins: 0, pointsFor: 0, pointsAgainst: 0 });
   }
   for (const match of matches.filter((row) => row['status'] === 'completed')) {
-    const redId = match['red_registration_id'] as string | undefined;
-    const blueId = match['blue_registration_id'] as string | undefined;
+    const redId = boutSideKey(match, 'red');
+    const blueId = boutSideKey(match, 'blue');
     if (!redId || !blueId) continue;
     const red = points.get(redId);
     const blue = points.get(blueId);
@@ -312,10 +322,11 @@ function rankingsRows(
     red.pointsAgainst += blueScore;
     blue.pointsFor += blueScore;
     blue.pointsAgainst += redScore;
-    if (match['winner_registration_id'] === redId) red.wins += 1;
-    if (match['winner_registration_id'] === blueId) blue.wins += 1;
+    const winnerId = winnerSideKey(match);
+    if (winnerId === redId) red.wins += 1;
+    if (winnerId === blueId) blue.wins += 1;
   }
-  const ranked = [...registrations].sort((a, b) => {
+  const ranked = [...entrants].sort((a, b) => {
     const left = points.get(a['id'] as string) ?? NO_SCORE;
     const right = points.get(b['id'] as string) ?? NO_SCORE;
     return (
@@ -326,36 +337,17 @@ function rankingsRows(
   });
   return [
     ['rank', 'name', 'wins', 'points_for', 'points_against'],
-    ...ranked.map((registration, index) => {
-      const score = points.get(registration['id'] as string) ?? NO_SCORE;
+    ...ranked.map((entrant, index) => {
+      const score = points.get(entrant['id'] as string) ?? NO_SCORE;
       return [
         index + 1,
-        registrationName(registration['id'], registrations, persons),
+        byTeam ? sideName(null, entrant['id'], names) : sideName(entrant['id'], null, names),
         score.wins,
         score.pointsFor,
         score.pointsAgainst,
       ];
     }),
   ];
-}
-
-/**
- * The fighter's name, or "Unknown fighter (bib 12)" when the archive holds no name for them:
- * never the registration id (operator ruling, X2, 2026-10-15). The machine-readable CSVs of the
- * same archive keep the ids, so a row can still be looked up there.
- */
-function registrationName(
-  registrationId: unknown,
-  registrations: ArchiveRow[],
-  persons: ArchiveRow[],
-): string {
-  if (typeof registrationId !== 'string') return '';
-  const registration = registrations.find((row) => row['id'] === registrationId);
-  const person = persons.find((row) => row['id'] === registration?.['person_id']);
-  const name = `${(person?.['given_name'] as string | null) ?? ''} ${(person?.['family_name'] as string | null) ?? ''}`;
-  if (name.trim()) return name.trim();
-  const bib = registration?.['bib_number'];
-  return unknownFighterInEnglish(typeof bib === 'number' ? bib : null);
 }
 
 function ids(rows: ArchiveRow[]): string[] {

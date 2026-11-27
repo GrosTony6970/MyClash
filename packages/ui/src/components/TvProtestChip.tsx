@@ -5,9 +5,10 @@ import { liveProtestsOf, protestAtLimit, protestChipText } from '../utils/protes
 import { HandMark } from './hand-mark';
 
 /**
- * A fighter's protests, beside the card chips on the TV scoreboard: the count,
- * or `count/limit` with a Tournament limit, in the warning colour from the
- * limit on. Voided protests and the other fighter's are not counted.
+ * A side's protests (a Fighter's or a team's), beside the card chips on the TV
+ * scoreboard: the count, or `count/limit` with a Tournament limit, in the
+ * warning colour from the limit on. Voided protests and the other side's are
+ * not counted; `sideId` is the side key (`liveProtestsOf`).
  *
  * At the limit the chip sets `data-theme="dark"`: the stage sets no scope, so a
  * bare `text-warning` would be the light page's amber on near-black. The dark
@@ -17,18 +18,18 @@ import { HandMark } from './hand-mark';
  */
 export function TvProtestChip({
   protests,
-  registrationId,
+  sideId,
   limit,
   fighterName,
   t,
 }: {
   protests: MatchProtest[];
-  registrationId: string;
+  sideId: string;
   limit: number | null;
   fighterName: string;
   t: (key: string, params?: Record<string, string>) => string;
 }): React.ReactElement {
-  const count = liveProtestsOf(protests, registrationId).length;
+  const count = liveProtestsOf(protests, sideId).length;
   const atLimit = protestAtLimit(count, limit);
   // Like the card chips, the chip fades at zero; the warning wins over the fade.
   const tone = atLimit

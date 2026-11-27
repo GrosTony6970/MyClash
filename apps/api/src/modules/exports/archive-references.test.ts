@@ -81,6 +81,22 @@ describe('danglingReferences', () => {
     expect(found).toEqual([{ table: 'registrations', column: 'person_id', id: 'p-ghost' }]);
   });
 
+  it('finds a roster person a team slot names and the archive does not contain', () => {
+    const found = danglingReferences(
+      archive('tournament', 'structure', {
+        persons: [{ id: 'p-1' }],
+        teams: [{ id: 'tm-1' }],
+        teamSlots: [
+          { id: 'ts-1', team_id: 'tm-1', person_id: 'p-1' },
+          { id: 'ts-2', team_id: 'tm-1', person_id: 'p-ghost' },
+          { id: 'ts-3', team_id: 'tm-1', person_id: null },
+        ],
+      }),
+    );
+
+    expect(found).toEqual([{ table: 'team_slots', column: 'person_id', id: 'p-ghost' }]);
+  });
+
   it('leaves a global person alone wherever person_id names one', () => {
     const found = danglingReferences(
       archive('event', 'scoring', {

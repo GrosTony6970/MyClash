@@ -46,7 +46,7 @@ interface PoolWithMatches {
 /** One row of `GET /tournaments/:id/pool-standings`. */
 export interface StandingsRow {
   rank: number;
-  registrationId: string;
+  entrantId: string;
   displayName: string;
 }
 
@@ -202,8 +202,8 @@ export async function poolDecider(
   const pools = await readPoolStandings(api, tournament.id);
   const pool = pools.find((p) => p.rows.length >= 2);
   expect(pool, 'no pool has two ranked fighters to decide between').toBeTruthy();
-  const leaderId = pool!.rows[0]!.registrationId;
-  const runnerUpId = pool!.rows[1]!.registrationId;
+  const leaderId = pool!.rows[0]!.entrantId;
+  const runnerUpId = pool!.rows[1]!.entrantId;
 
   const bout = (await readPoolMatches(api, tournament.id)).find(
     (m) =>
@@ -219,7 +219,7 @@ export async function poolDecider(
 
 /** Where `registrationId` sits in these standings, or -1. */
 export const rankOf = (rows: StandingsRow[], registrationId: string): number =>
-  rows.findIndex((row) => row.registrationId === registrationId);
+  rows.findIndex((row) => row.entrantId === registrationId);
 
 /**
  * Put a completed bout back in play.

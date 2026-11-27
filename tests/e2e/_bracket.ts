@@ -154,9 +154,9 @@ export interface BracketTournament {
  * Create a tournament and register `fighters` into it, seeded 1..N in order.
  *
  * Creates NO pools on purpose: with no pool phase, `populateBracket` takes the
- * registration-seed path (`rankBySeed`), so rank K == the seed we set here ==
- * the bracket side labelled `seed K`. That is what makes the draw — and so the
- * expected champion — deterministic.
+ * registration-seed path (`rankBySeed`). It seeds 1..N, so seed order = rank:
+ * rank K == the seed we set here == the bracket side labelled `seed K`. That is
+ * what makes the draw — and so the expected champion — deterministic.
  */
 export async function createBracketTournament(
   api: Api,

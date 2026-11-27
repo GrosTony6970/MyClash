@@ -2,9 +2,11 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule, Exchange, Ruleset } from '@myclash/rulesets';
 import { afterblowModeInForce } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import { computeStandingsRows } from './compute-rows';
 import { applyRanking, type StandingsRow } from '@myclash/rules/results';
-import type { PoolWithMembers } from './pool-rows';
+import { sideKey } from '@myclash/types/side-key';
+import { withSideOf, type CompletedBout, type PoolWithMembers } from './pool-rows';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases the DI metadata Nest needs to
 // resolve the provider (see modules/matches/di-wiring.regression.test.ts).
@@ -38,7 +40,7 @@ export type PoolStandingsResponse =
       rulesetVersion: string;
       ruleset: RulesetDerivationMeta;
       columns: StandingsColumn[];
-      rows: StandingsRow[];
+      rows: PoolStandingsRow[];
     }
   | {
       rulesetCode: string;
@@ -49,7 +51,7 @@ export type PoolStandingsResponse =
         poolId: string;
         poolName: string;
         status: 'in_progress' | 'completed';
-        rows: StandingsRow[];
+        rows: PoolStandingsRow[];
       }>;
     };
 
@@ -137,11 +139,13 @@ export class PoolStandingsService {
         // `persons` has no `display_name` column — that lives on
         // `global_persons`. Compose the visible name from given+family
         // in computeRows below.
-        'id, name, pool_members(registration_id, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))))',
+        // A seat holds a Registration or a team (0282).
+        'id, name, pool_members(registration_id, team_id, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))), teams(id, name, color, logo_url))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
     const poolRows = (pools ?? []) as unknown as PoolWithMembers[];
+    const withSide = withSideOf(poolRows);
 
     // 4. Matches in this phase.
     // NOTE: do NOT select a column that doesn't exist on `matches` (there is no
@@ -152,21 +156,11 @@ export class PoolStandingsService {
     const { data: matches, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score, winner_registration_id, end_reason',
+        'id, pool_id, status, red_registration_id, blue_registration_id, red_team_id, blue_team_id, red_score, blue_score, winner_registration_id, winner_team_id, end_reason',
       )
       .eq('phase_id', phaseId);
     if (matchesError) throw new BadRequestException(matchesError.message);
-    const matchRows = (matches ?? []) as Array<{
-      id: string;
-      pool_id: string;
-      status: string;
-      red_registration_id: string;
-      blue_registration_id: string;
-      red_score: number | null;
-      blue_score: number | null;
-      winner_registration_id: string | null;
-      end_reason: string | null;
-    }>;
+    const matchRows = (matches ?? []) as Array<CompletedBout & { pool_id: string; status: string }>;
 
     // 4b. Exchanges + forfeits for completed matches — the source for the
     // ruleset's score formula and the hits/doubles/forfeit columns. The
@@ -207,7 +201,7 @@ export class PoolStandingsService {
 
       const { data: ffRows, error: ffErr } = await this.supabase.service
         .from('match_forfeits')
-        .select('forfeiting_registration_id')
+        .select('forfeiting_registration_id, forfeiting_team_id')
         .in('match_id', completedMatchIds)
         // match_forfeits also holds result OVERRIDES, which are not forfeits:
         // counting one would deduct an F from a fighter whose result was
@@ -215,11 +209,15 @@ export class PoolStandingsService {
         .in('reason', FORFEIT_REASONS)
         .is('voided_at', null);
       if (ffErr) throw new BadRequestException(ffErr.message);
-      for (const r of (ffRows ?? []) as Array<{ forfeiting_registration_id: string }>) {
-        forfeitCountByReg.set(
-          r.forfeiting_registration_id,
-          (forfeitCountByReg.get(r.forfeiting_registration_id) ?? 0) + 1,
-        );
+      for (const r of (ffRows ?? []) as Array<{
+        forfeiting_registration_id: string | null;
+        forfeiting_team_id: string | null;
+      }>) {
+        // The side that forfeited: a Registration or a team, exactly one
+        // (`match_forfeits_forfeiting_one_kind`, 0282).
+        const side = sideKey(r.forfeiting_registration_id, r.forfeiting_team_id);
+        if (side === null) throw new Error('A forfeit names neither a Registration nor a team');
+        forfeitCountByReg.set(side, (forfeitCountByReg.get(side) ?? 0) + 1);
       }
     }
 
@@ -242,7 +240,7 @@ export class PoolStandingsService {
         ruleset,
         runtimeConfig,
         afterblowMode,
-      );
+      ).map(withSide);
       return { poolId: pool.id, poolName: pool.name, status: poolStatus, rows };
     });
 
@@ -252,21 +250,13 @@ export class PoolStandingsService {
 
     // 6. Overall: flatten + re-rank globally.
     const allRows = perPool.flatMap((p) => p.rows);
-    const ranked = applyRanking(allRows, rankingChain);
+    const ranked = applyRanking(allRows, rankingChain).map(withSide);
     return { rulesetCode, rulesetVersion, ruleset: rulesetMeta, columns, rows: ranked };
   }
 
   private computeRows(
     pool: PoolWithMembers,
-    completedMatches: Array<{
-      id: string;
-      red_registration_id: string;
-      blue_registration_id: string;
-      red_score: number | null;
-      blue_score: number | null;
-      winner_registration_id: string | null;
-      end_reason: string | null;
-    }>,
+    completedMatches: CompletedBout[],
     columns: StandingsColumn[],
     rankingChain: RankingRule[],
     poolStatus: 'in_progress' | 'completed',

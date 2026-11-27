@@ -6,6 +6,8 @@
  * staff-scoped routes. The generated OpenAPI client carries the paths but no
  * response schemas — those services return plain objects, not DTO classes.
  */
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 /** A referee on a pool's default crew (`scope_type='pool'`). */
 export interface PoolReferee {
@@ -44,10 +46,18 @@ export interface PoolMatchRow {
   red_score: number | null;
   blue_score: number | null;
   /** The recorded winner — what the list bolds. Authoritative over the two
-   *  scores, which a forfeit or an override can invert. */
+   *  scores, which a forfeit or an override can invert. A team bout's winner is
+   *  `winner_team_id`: exactly one of the two is set. */
   winner_registration_id: string | null;
+  winner_team_id: string | null;
+  /** Each side is a Registration or a team (0282): exactly one of the two per side. */
   red_registration_id: string | null;
   blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
+  /** A team side's colour chip (a colour token); null for a Fighter's side. */
+  red_team_color: string | null;
+  blue_team_color: string | null;
   status: string;
   match_number_label: string | null;
   roundCode: string;
@@ -62,16 +72,6 @@ export interface StandingsColumn {
   decimals?: number;
 }
 
-export interface StandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: string;
-  /** Keyed by `StandingsColumn.key`. Shape varies with the ruleset. */
-  stats: Record<string, number | string>;
-}
-
 /**
  * `GET /tournaments/:id/pool-standings?mode=by-pool`.
  *
@@ -84,7 +84,7 @@ export interface PoolStandingsPayload {
     poolId: string;
     poolName: string;
     status: string;
-    rows: StandingsRow[];
+    rows: PoolStandingsRow[];
   }>;
 }
 
@@ -96,31 +96,10 @@ export interface TournamentBracketPayload {
   wbRounds?: number | null;
   lbRounds?: number | null;
   bronzeSlotId?: string | null;
-  slots: Array<{
-    id: string;
-    round: number;
-    position: number;
-    redFighterName: string | null;
-    blueFighterName: string | null;
-    redScore: number | null;
-    blueScore: number | null;
-    /** Recorded winner — what the card bolds. Authoritative over the scores,
-     *  which a forfeit or a `referee_decision` override can invert. */
-    winnerRegistrationId?: string | null;
-    redRegistrationId?: string | null;
-    blueRegistrationId?: string | null;
-    status: string;
-    matchId: string | null;
-    liceId?: string | null;
-    /** Piste name for the card's pill. Null when the bout has no lice yet. */
-    liceName?: string | null;
-    /** `BracketReferee` from @myclash/ui — rendered under the card. */
-    referees?: Array<{
-      role: string | null;
-      roleLabel?: string | null;
-      displayName: string;
-      status: string;
-      skillColor: string;
-    }>;
-  }>;
+  /**
+   * The slots as the bracket read declares them (`getTournamentBracket`, served through the staff
+   * route): side ids, typed sides, and `winnerSideId`, the recorded winner the card bolds —
+   * authoritative over the scores, which a forfeit or a `referee_decision` override can invert.
+   */
+  slots: TournamentBracketSlotWire[];
 }

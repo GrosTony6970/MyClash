@@ -29,6 +29,7 @@
  *   registration (`assignments.service.ts`) leaves it named in a Swiss round's
  *   `pairing_meta_json.ranked`.
  */
+import { collectRulesOf } from './archive.table-spec';
 import type { ArchiveRow, IdMapName } from './archive.table-spec';
 import {
   ARCHIVE_TABLES,
@@ -60,6 +61,7 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
  */
 const ROSTER_REFERENCES = new Map<string, ReadonlyArray<ArchiveScope>>([
   ['registrations.person_id', ['event', 'tournament']],
+  ['team_slots.person_id', ['event', 'tournament']],
 ]);
 
 /**
@@ -81,9 +83,10 @@ function carriedIds(archive: Checked): Map<IdMapName, Set<string>> {
   const carried = new Map<IdMapName, Set<string>>();
   for (const table of INSERT_ORDER) {
     const map = idMapNameForTable(table);
-    const rule = collectRuleFor(table, archive.scope);
-    if (!map || rule === 'omit') continue;
-    if (rule.include === 'scoring' && archive.include !== 'scoring') continue;
+    const rules = collectRulesOf(collectRuleFor(table, archive.scope));
+    // The rules of one list share one `include` (archive.tables.test.ts), so the first speaks for all.
+    if (!map || rules.length === 0) continue;
+    if (rules[0]!.include === 'scoring' && archive.include !== 'scoring') continue;
     carried.set(map, new Set(stringsIn(rowsIn(archive, table), 'id')));
   }
   return carried;

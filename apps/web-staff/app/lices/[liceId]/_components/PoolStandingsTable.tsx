@@ -2,10 +2,8 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { standingsColumnLabel } from '@myclash/ui';
-import type {
-  StandingsColumn,
-  StandingsRow,
-} from '../../../../src/components/tournament-context-types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
+import type { StandingsColumn } from '../../../../src/components/tournament-context-types';
 
 /**
  * Format one cell against its column definition.
@@ -35,7 +33,7 @@ export function PoolStandingsTable({
   rows,
 }: {
   columns: StandingsColumn[];
-  rows: StandingsRow[];
+  rows: PoolStandingsRow[];
 }) {
   const { t } = useI18n();
   if (rows.length === 0) {
@@ -60,7 +58,7 @@ export function PoolStandingsTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.registrationId} className="border-b border-border/60 last:border-0">
+            <tr key={row.entrantId} className="border-b border-border/60 last:border-0">
               <td className="px-2 py-1.5 font-mono tabular-nums text-muted">{row.rank}</td>
               <td className="px-2 py-1.5">
                 <span className="font-semibold">{row.displayName}</span>

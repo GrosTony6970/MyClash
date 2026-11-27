@@ -8,7 +8,9 @@ import type {
   StandingsColumn,
 } from '@myclash/rulesets';
 import { applyRanking, type StandingsRow } from '@myclash/rules/results';
-import type { PoolWithMembers } from './pool-rows';
+import { sideKey } from '@myclash/types/side-key';
+import { sideLabel } from '../matches/side-label';
+import { boutSideKeys, seatKey, type CompletedBout, type StandingsMember } from './pool-rows';
 import { poolScoresByRegistration } from './ruleset-scores';
 
 /**
@@ -29,20 +31,11 @@ import { poolScoresByRegistration } from './ruleset-scores';
 /** The standings column each outcome lands in. */
 const COLUMN_FOR: Record<BoutOutcome, string> = { win: 'W', loss: 'L', draw: 'D' };
 
-export type StandingsMember = PoolWithMembers['pool_members'][number];
+export type { StandingsMember } from './pool-rows';
 
 export interface ComputeRowsInput {
   members: StandingsMember[];
-  completedMatches: Array<{
-    id: string;
-    red_registration_id: string;
-    blue_registration_id: string;
-    red_score: number | null;
-    blue_score: number | null;
-    winner_registration_id: string | null;
-    /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST. */
-    end_reason: string | null;
-  }>;
+  completedMatches: CompletedBout[];
   columns: StandingsColumn[];
   rankingChain: RankingRule[];
   status: 'in_progress' | 'completed';
@@ -94,14 +87,16 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     for (const col of columns) {
       empty[col.key] = 0;
     }
-    statsByReg.set(member.registration_id, empty);
-    aggByReg.set(member.registration_id, { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 });
+    statsByReg.set(seatKey(member), empty);
+    aggByReg.set(seatKey(member), { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 });
   }
 
   for (const m of completedMatches) {
-    const red = statsByReg.get(m.red_registration_id);
-    const blue = statsByReg.get(m.blue_registration_id);
-    if (!red || !blue) continue;
+    const sides = boutSideKeys(m);
+    const red = sides && statsByReg.get(sides.redSideId);
+    const blue = sides && statsByReg.get(sides.blueSideId);
+    if (!sides || !red || !blue) continue;
+    const winnerSideId = sideKey(m.winner_registration_id, m.winner_team_id);
     const rs = m.red_score ?? 0;
     const bs = m.blue_score ?? 0;
 
@@ -116,9 +111,9 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     // live score while naming the OPPONENT as winner, so the fighter who
     // forfeited was credited with the W in the table they are ranked on.
     const outcome = boutOutcomes({
-      winnerRegistrationId: m.winner_registration_id,
-      redRegistrationId: m.red_registration_id,
-      blueRegistrationId: m.blue_registration_id,
+      winnerSideId,
+      redSideId: sides.redSideId,
+      blueSideId: sides.blueSideId,
       redScore: rs,
       blueScore: bs,
       endReason: m.end_reason,
@@ -131,15 +126,15 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     // formula needs. `computeAggregates` asks for the one field it reads, so
     // this is a plain object rather than a row cast into a domain type.
     const matchExchanges = exchangesByMatch.get(m.id) ?? [];
-    const rulesetMatch = { redRegistrationId: m.red_registration_id };
-    for (const regId of [m.red_registration_id, m.blue_registration_id]) {
-      const acc = aggByReg.get(regId);
+    const rulesetMatch = { redSideId: sides.redSideId };
+    for (const entrantId of [sides.redSideId, sides.blueSideId]) {
+      const acc = aggByReg.get(entrantId);
       if (!acc) continue;
       const a = computeAggregates(
-        regId,
+        entrantId,
         rulesetMatch,
         matchExchanges,
-        m.winner_registration_id === regId,
+        winnerSideId === entrantId,
         afterblowMode,
       );
       acc.wins += a.wins;
@@ -191,15 +186,14 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
   }
 
   const rows: StandingsRow[] = members.map((member) => {
-    const person = member.registrations.persons;
-    const displayName = `${person.given_name} ${person.family_name}`.trim();
+    const label = sideLabel(member.registrations, member.teams ?? null);
     return {
       rank: 0,
-      registrationId: member.registration_id,
-      displayName,
-      club: person.clubs,
+      entrantId: seatKey(member),
+      displayName: label.name,
+      club: label.club,
       status,
-      stats: statsByReg.get(member.registration_id) ?? {},
+      stats: statsByReg.get(seatKey(member)) ?? {},
     };
   });
 

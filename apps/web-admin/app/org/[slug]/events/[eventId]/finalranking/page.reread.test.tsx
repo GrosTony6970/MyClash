@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
+import type { BracketSideWire, TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import FinalRankingPage from './page';
 
@@ -44,27 +45,56 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
+const fighter = (registrationId: string, name: string): BracketSideWire => ({
+  sideId: registrationId,
+  kind: 'individual',
+  registrationId,
+  teamId: null,
+  name,
+  clubAbbrev: null,
+  colour: null,
+});
+
+/** The final, as the bracket read sends it. */
+const FINAL: TournamentBracketSlotWire = {
+  id: 's1',
+  round: 1,
+  position: 1,
+  roundCode: 'LSW-B-F-M1',
+  redFighterName: 'Ada',
+  blueFighterName: 'Grace',
+  redClubAbbrev: null,
+  blueClubAbbrev: null,
+  redRegistrationId: 'r1',
+  blueRegistrationId: 'r2',
+  winnerRegistrationId: 'r1',
+  redSideId: 'r1',
+  blueSideId: 'r2',
+  winnerSideId: 'r1',
+  red: fighter('r1', 'Ada'),
+  blue: fighter('r2', 'Grace'),
+  redScore: 5,
+  blueScore: 3,
+  status: 'completed',
+  matchId: 'm1',
+  scheduledAt: null,
+  liceId: null,
+  liceName: null,
+  referees: [],
+  source_a_type: null,
+  source_a_ref: null,
+  source_b_type: null,
+  source_b_ref: null,
+  registration_a_id: 'r1',
+  registration_b_id: 'r2',
+};
+
 /** A decided two-fighter bracket: Ada beat Grace in the final. */
 const BRACKET = {
   phaseId: 'ph1',
   phaseType: 'single_elim',
   bronzeSlotId: null,
-  slots: [
-    {
-      id: 's1',
-      round: 1,
-      position: 1,
-      redFighterName: 'Ada',
-      blueFighterName: 'Grace',
-      redRegistrationId: 'r1',
-      blueRegistrationId: 'r2',
-      winnerRegistrationId: 'r1',
-      redScore: 5,
-      blueScore: 3,
-      status: 'completed',
-      matchId: 'm1',
-    },
-  ],
+  slots: [FINAL],
 };
 const STANDINGS = { rows: [] };
 const DOWN = { ok: false, kind: 'network' } as const;

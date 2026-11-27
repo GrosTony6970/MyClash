@@ -185,6 +185,24 @@ describe('the reviews of an archive made before 0240', () => {
   });
 });
 
+describe('a team forfeit in the archive', () => {
+  it('stores no outcome: a team has no status, whatever its row says', () => {
+    const data = filled({
+      registrations: [reg('ana', 'withdrawn')],
+      matchForfeits: [
+        forfeit('team', {
+          forfeiting_registration_id: null,
+          forfeiting_team_id: 'lyon-blades',
+          can_continue: false,
+        }),
+      ],
+    });
+    expect(outcomes(data)).toEqual({ team: null });
+    // Ana's spell out is not the team's: the organiser's hand, out since the restore.
+    expect(fighter(data)).toMatchObject({ entry_status: 'withdrawn', out_since: RESTORED_AT });
+  });
+});
+
 describe('an archive made since 0240', () => {
   it('keeps every row that carries its columns as it is', () => {
     const own = {

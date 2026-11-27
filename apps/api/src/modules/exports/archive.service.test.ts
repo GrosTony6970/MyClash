@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { danglingReferences } from './archive-references';
 import { makeService } from './archive.fixtures';
 import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables';
@@ -339,8 +339,24 @@ describe('ArchiveService', () => {
     workshops: [{ id: 'w-1', event_id: 'event-1', title: 'Drills', venue_id: 'venue-1' }],
     persons: [
       { id: 'p-1', event_id: 'event-1', given_name: 'A', family_name: 'B', email: 'a@b.c' },
+      // On a team and on no Registration: a tournament archive finds them through their slot.
+      { id: 'p-3', event_id: 'event-1', given_name: 'E', family_name: 'F', email: 'e@f.g' },
     ],
     registrations: [{ id: 'r-1', tournament_id: 't-1', person_id: 'p-1' }],
+    // A team with a named seat and an empty one (0281). The database keeps a team out of a
+    // Tournament with Registrations; this double does not, and the archive does not ask.
+    teams: [{ id: 'tm-1', tournament_id: 't-1', name: 'Team', slug: 'team', size: 3 }],
+    team_slots: [
+      {
+        id: 'ts-1',
+        team_id: 'tm-1',
+        tournament_id: 't-1',
+        position: 1,
+        person_id: 'p-3',
+        is_captain: true,
+      },
+      { id: 'ts-2', team_id: 'tm-1', tournament_id: 't-1', position: 2, person_id: null },
+    ],
     phases: [
       {
         id: 'ph-1',
@@ -506,6 +522,66 @@ describe('ArchiveService', () => {
     ],
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
   });
+
+  /**
+   * An organiser corrected the team Match, won by the second team, for the first: both snapshots
+   * name a winner by team.
+   */
+  const TEAM_FORFEIT = {
+    id: 'mf-team',
+    match_id: 'm-team',
+    tournament_id: 't-1',
+    forfeiting_team_id: 'tm-2',
+    winner_team_id: 'tm-1',
+    reason: 'admin_correction',
+    score_policy: 'explicit',
+    can_continue: true,
+    fighter_outcome: null,
+    previous_match_state: { status: 'completed', winner_team_id: 'tm-2' },
+    resulting_match_state: { status: 'completed', winner_team_id: 'tm-1' },
+  };
+
+  /**
+   * `scopedRows()` with a team bout (0282): a second team, a team in a Pool, a team Match won by
+   * the first team, its correction, and a protest the second team filed. Kept apart so the tests
+   * that expect the one bout of `scopedRows()` still find exactly one.
+   */
+  const teamSideRows = () => {
+    const rows = scopedRows();
+    return {
+      ...rows,
+      teams: [
+        ...rows.teams,
+        { id: 'tm-2', tournament_id: 't-1', name: 'Rivals', slug: 'rivals', size: 3 },
+      ],
+      pools: [{ id: 'pool-1', phase_id: 'ph-1' }],
+      pool_members: [{ id: 'pm-team', pool_id: 'pool-1', team_id: 'tm-1' }],
+      matches: [
+        ...rows.matches,
+        {
+          id: 'm-team',
+          phase_id: 'ph-1',
+          status: 'completed',
+          red_team_id: 'tm-1',
+          blue_team_id: 'tm-2',
+          winner_team_id: 'tm-1',
+          match_rules_id: 'mr-now',
+        },
+      ],
+      match_forfeits: [...rows.match_forfeits, TEAM_FORFEIT],
+      match_protests: [
+        {
+          id: 'mpr-team',
+          client_uuid: 'cu-protest',
+          match_id: 'm-team',
+          tournament_id: 't-1',
+          team_id: 'tm-2',
+          sequence: 1,
+          occurred_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    };
+  };
 
   it('captures the newly-wired scoped tables in an event archive', async () => {
     const { service } = makeService(scopedRows());
@@ -782,11 +858,11 @@ describe('ArchiveService', () => {
    * collected as `[]`.
    *
    * Bounded by the fixture, deliberately: it can only speak for the tables
-   * `scopedRows()` provides, which is why the registry's own suite asserts the
+   * `teamSideRows()` provides, which is why the registry's own suite asserts the
    * shape of the rules rather than their effect.
    */
   it('carries every fixture table the registry says an event archive collects', async () => {
-    const rows = scopedRows();
+    const rows = teamSideRows();
     const { service } = makeService(rows);
 
     const archive = await service.generateEventArchive('event-1', 'user-1', {
@@ -823,11 +899,11 @@ describe('ArchiveService', () => {
    * declared?" It walks to any depth and needs nothing declared.
    *
    * Its limit is the mirror image, and worth stating rather than implying: it
-   * only sees shapes `scopedRows()` contains. A JSON key the fixture never
+   * only sees shapes `teamSideRows()` contains. A JSON key the fixture never
    * carries is invisible here too. Neither test is a guarantee on its own.
    */
   it('leaves no source id anywhere in a restored copy', async () => {
-    const rows = scopedRows();
+    const rows = teamSideRows();
     const sourceIds = new Set<string>();
     for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
       for (const row of table) {
@@ -885,6 +961,30 @@ describe('ArchiveService', () => {
     expect(inserted.event_venues?.[0]?.venue_id, 'an org-level venue passes through').toBe(
       'venue-1',
     );
+  });
+
+  it('remaps a team winner in both snapshots of a team forfeit', async () => {
+    const { service, inserted } = makeService(teamSideRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'scoring',
+    });
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const teamId = (source: string) =>
+      inserted.teams?.find((team) => team['slug'] === source)?.['id'] as string;
+    const forfeit = inserted.match_forfeits?.find((row) => row['reason'] === 'admin_correction');
+    expect(teamId('team')).not.toBe('tm-1');
+    expect(forfeit?.['previous_match_state']).toEqual({
+      status: 'completed',
+      winner_team_id: teamId('rivals'),
+    });
+    expect(forfeit?.['resulting_match_state']).toEqual({
+      status: 'completed',
+      winner_team_id: teamId('team'),
+    });
   });
 
   /**
@@ -967,6 +1067,35 @@ describe('ArchiveService', () => {
       'every child must point at the tournament that was actually inserted',
     ).toBe(insertedTournamentId);
     expect(inserted.phases?.[0]?.tournament_id).toBe(insertedTournamentId);
+  });
+
+  // An archive of a team Tournament made before 0289 can hold a double elimination phase.
+  it('answers a kind trigger refusing a restored phase as the named 409', async () => {
+    const { service } = makeService(scopedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    const db = (service as unknown as { supabase: { service: { from: Mock } } }).supabase.service;
+    const read = db.from.getMockImplementation()!;
+    db.from.mockImplementation((table: string) => {
+      const chain = read(table);
+      if (table !== 'phases') return chain;
+      const error = { code: '23514', message: 'phase_fits_entrant_kind: t-1 is a team tournament' };
+      chain.insert = vi.fn(() => ({ select: () => Promise.resolve({ data: null, error }) }));
+      return chain;
+    });
+
+    const refusal = await service
+      .restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetEventId: 'event-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      })
+      .catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
+    });
   });
 
   it('refuses to restore a Tournament into an archived Event (ruling 222)', async () => {
@@ -1214,8 +1343,9 @@ describe('ArchiveService', () => {
   });
 
   /**
-   * A tournament archive carries only the persons its registrations name: `p-2`
-   * is on the Event's roster and does not fight, so the file does not hold them.
+   * A tournament archive carries only the persons its registrations and team slots
+   * name: `p-2` is on the Event's roster and does not fight, so the file does not
+   * hold them. `p-3` holds a team seat and no Registration, so the file holds them.
    * (A bout carries no referee since 0209: duties are referee_assignments rows.)
    */
   const rosterRows = () => {

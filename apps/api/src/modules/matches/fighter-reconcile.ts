@@ -21,6 +21,7 @@ import { causeOf, liveForfeitsOf, rowsOf, type Cause, type Fighter } from './fig
 import { swissPhasesOver } from './fighter-swiss';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { stampForfeitVoided, type ForfeitVoidActor } from './forfeit-void';
+import type { SideColumns } from './winner-columns';
 
 /**
  * A Fighter's Pool and Swiss bouts follow their status (slice B, B2; rulings 57, 78, 105, 109,
@@ -141,6 +142,15 @@ export async function takeOut(
   return taken;
 }
 
+/**
+ * The side columns of one of the Fighter's bouts, for `completeMatch`. The cast hides two missing
+ * columns ON PURPOSE: `unfoughtBoutsOf` selects no `red_team_id` / `blue_team_id`, because it reads
+ * the bouts by Registration, and a bout that holds a Registration holds no team (0282). So
+ * `winnerColumns` answers `winner_team_id: undefined`, which the update leaves out, and the column
+ * stays null. Do not "fix" it with `?? null`: an individual bout's `winner_team_id` is null already.
+ */
+const registrationSides = (bout: Row): SideColumns => bout as SideColumns;
+
 /** One bout forfeited by the Fighter's cause. False when another record already holds it. */
 async function forfeitBout(
   deps: BoutDeps,
@@ -153,6 +163,8 @@ async function forfeitBout(
   // 'pool' for a Swiss bout too: the forfeit rules read a Pool and a Swiss bout alike
   // (`isPoolOrSwissPhase`; ruling 72, a Swiss bout can be a forfeit draw).
   const policy = forfeitOutcomeOf(rules, cause.reason, 'pool');
+  // One Fighter's bouts, read by Registration (`unfoughtBoutsOf`), never a team's (decision 7):
+  // the Fighter's Registration id is their side key, and the winner's.
   const winnerRegistrationId = winnerOf(bout, fighter.id, policy);
   const scores = resolveScores(bout, fighter.id, policy);
   const { data, error } = await insertForfeit(deps.db, {
@@ -176,7 +188,12 @@ async function forfeitBout(
     throw new Error(`Bout ${String(bout['id'])} was not forfeited: ${error?.message ?? 'no row'}`);
   }
   const endReason = forfeitEndReason(cause.reason);
-  await completeMatch(deps, bout['id'] as string, { winnerRegistrationId, scores, endReason });
+  await completeMatch(deps, bout['id'] as string, {
+    winnerSideId: winnerRegistrationId,
+    sides: registrationSides(bout),
+    scores,
+    endReason,
+  });
   await stampResultingState(deps.db, data['id'] as string, bout['id'] as string);
   return true;
 }
@@ -201,7 +218,8 @@ async function finishHeldBout(deps: BoutDeps, fighter: Fighter, bout: Row): Prom
   const own = Number(held['forfeiting_score']);
   const other = Number(held['opponent_score']);
   await completeMatch(deps, bout['id'] as string, {
-    winnerRegistrationId: (held['winner_registration_id'] as string | null) ?? null,
+    winnerSideId: (held['winner_registration_id'] as string | null) ?? null,
+    sides: registrationSides(bout),
     scores: { redScore: redForfeits ? own : other, blueScore: redForfeits ? other : own },
     endReason: forfeitEndReason(held['reason'] as string),
   });

@@ -43,8 +43,8 @@ export interface Exchange {
 
 export interface Match {
   id: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  redSideId: string;
+  blueSideId: string;
   rulesetCode: string;
   rulesetVersion: string;
   status: 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
@@ -67,7 +67,7 @@ export interface Match {
  * filtered, so the field existed to be re-checked and never to be false.
  *
  * ── A disagreement this type used to carry ─────────────────────────────────
- * TF_v1 and Generic_PointsCap read `winnerRegistrationId` to count a win, while
+ * TF_v1 and Generic_PointsCap read `winnerSideId` to count a win, while
  * the formula ruleset called the bout by a score it RE-DERIVED from `exchanges`
  * — so the two disagreed about every bout awarded against the points. This
  * paragraph used to say that was real and unfixed. It is fixed: every scorer
@@ -82,9 +82,9 @@ export interface Match {
  */
 export interface ScoredMatch {
   id: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
-  winnerRegistrationId: string | null;
+  redSideId: string;
+  blueSideId: string;
+  winnerSideId: string | null;
   /**
    * `matches.end_reason` — 'max_doubles' means BOTH fighters LOST.
    *

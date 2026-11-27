@@ -12,6 +12,8 @@
  *    once the bouts have times (`groupByPiste`); this order is what the pool
  *    and bracket sections keep, and the fallback when nothing is scheduled.
  */
+import type { BracketRefereeWire, TournamentBracketSlotWire } from '@myclash/types/bracket-side';
+import { sideKey } from '@myclash/types/side-key';
 import type { PrintBracketRound, PrintMatch, PrintPool } from './print-types';
 
 export interface ApiPoolMatch {
@@ -21,8 +23,11 @@ export interface ApiPoolMatch {
   blue_name: string;
   red_club_abbrev: string | null;
   blue_club_abbrev: string | null;
-  red_registration_id: string;
-  blue_registration_id: string;
+  /** A side is a Registration or a team (0284): the other is null, and the name is the team's. */
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
   lice_id: string | null;
   /** UTC ISO instant, or null when the bout has not been placed. */
   scheduled_at: string | null;
@@ -36,19 +41,23 @@ export interface ApiPoolWithMatches {
   matches: ApiPoolMatch[];
 }
 
-export interface ApiBracketSlot {
-  round: number;
-  position: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redClubAbbrev?: string | null;
-  blueClubAbbrev?: string | null;
-  liceId?: string | null;
-  scheduledAt?: string | null;
-  roundCode?: string | null;
-  /** The bout's referees, as the bracket read resolves them (`displayName`, never an id). */
-  referees?: Array<{ displayName: string | null }>;
-}
+/**
+ * A bracket slot, as far as the pack reads it. Typed from the bracket read's own slot, so a field
+ * dropped or renamed on the API is a compile error here. The referees carry `displayName`, never
+ * an id.
+ */
+export type ApiBracketSlot = Pick<
+  TournamentBracketSlotWire,
+  | 'round'
+  | 'position'
+  | 'roundCode'
+  | 'redFighterName'
+  | 'blueFighterName'
+  | 'redClubAbbrev'
+  | 'blueClubAbbrev'
+  | 'liceId'
+  | 'scheduledAt'
+> & { referees: Array<Pick<BracketRefereeWire, 'displayName'>> };
 
 /** `GET tournaments/:id/bracket`, as far as the pack reads it. */
 export interface ApiBracket {
@@ -106,17 +115,31 @@ export function poolsToPrint(
  * The pool roster, derived from its bouts.
  *
  * `pools-with-matches` does not project the member list, and a round-robin
- * names every fighter at least once — so first-appearance order over the bouts
- * is the roster. Deduped by name because that is the only identity the payload
- * carries on both sides of a bout.
+ * names every entrant at least once — so first-appearance order over the bouts
+ * is the roster. Deduped by side key (`sideKey`): a Fighter's Registration or a
+ * team, so two Fighters who share a name are both listed. A side not known yet
+ * is nobody.
  */
 function rosterOf(pool: ApiPoolWithMatches): Array<{ name: string; club: string | null }> {
-  const seen = new Map<string, string | null>();
+  const seen = new Map<string, { name: string; club: string | null }>();
   for (const match of pool.matches) {
-    if (!seen.has(match.red_name)) seen.set(match.red_name, match.red_club_abbrev);
-    if (!seen.has(match.blue_name)) seen.set(match.blue_name, match.blue_club_abbrev);
+    const sides = [
+      [
+        sideKey(match.red_registration_id, match.red_team_id),
+        match.red_name,
+        match.red_club_abbrev,
+      ],
+      [
+        sideKey(match.blue_registration_id, match.blue_team_id),
+        match.blue_name,
+        match.blue_club_abbrev,
+      ],
+    ] as const;
+    for (const [key, name, club] of sides) {
+      if (key && !seen.has(key)) seen.set(key, { name, club });
+    }
   }
-  return [...seen.entries()].map(([name, club]) => ({ name, club }));
+  return [...seen.values()];
 }
 
 export function bracketToPrint(
@@ -130,17 +153,16 @@ export function bracketToPrint(
   for (const slot of [...slots].sort(sortBySlot)) {
     const bucket = byRound.get(slot.round) ?? [];
     bucket.push({
-      roundCode: slot.roundCode ?? `R${slot.round}-${slot.position}`,
+      // The bout code the API builds (`buildRoundCode`), the same one the bracket screen shows.
+      roundCode: slot.roundCode,
       redName: slot.redFighterName ?? EMPTY_SIDE,
       blueName: slot.blueFighterName ?? EMPTY_SIDE,
-      redClub: slot.redClubAbbrev ?? null,
-      blueClub: slot.blueClubAbbrev ?? null,
+      redClub: slot.redClubAbbrev,
+      blueClub: slot.blueClubAbbrev,
       liceName: liceNameOf(slot.liceId, lices),
-      scheduledAt: slot.scheduledAt ?? null,
+      scheduledAt: slot.scheduledAt,
       // As the pool sheets do: a blank name prints "Unknown referee", never an id.
-      referees: (slot.referees ?? []).map(
-        (referee) => referee.displayName?.trim() || unknownReferee,
-      ),
+      referees: slot.referees.map((referee) => referee.displayName.trim() || unknownReferee),
     });
     byRound.set(slot.round, bucket);
   }

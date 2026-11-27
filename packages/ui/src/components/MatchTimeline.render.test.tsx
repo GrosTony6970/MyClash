@@ -45,6 +45,7 @@ const events = buildUnifiedTimeline({
       client_uuid: 'uuid-protest-1',
       match_id: 'match-1',
       registration_id: 'reg-blue',
+      team_id: null,
       sequence: 1,
       round_number: 1,
       clock_time_ms: 9_000,
@@ -54,8 +55,8 @@ const events = buildUnifiedTimeline({
   ],
   redName: 'Ana Red',
   blueName: 'Bo Blue',
-  redRegId: 'reg-red',
-  blueRegId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   t: say,
   config: DEFAULT_SCORING_CONFIG,
 });
@@ -63,7 +64,13 @@ const events = buildUnifiedTimeline({
 /** The `<li>` of each row, newest first. */
 function rows(highlightNumber: number | null): string[] {
   const html = renderToStaticMarkup(
-    <MatchTimeline events={events} highlightNumber={highlightNumber} t={say} />,
+    <MatchTimeline
+      events={events}
+      highlightNumber={highlightNumber}
+      redColour={null}
+      blueColour={null}
+      t={say}
+    />,
   );
   return html.split('<li').slice(1);
 }

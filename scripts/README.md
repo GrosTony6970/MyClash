@@ -24,7 +24,7 @@ emits the spec from a built `apps/api/dist`, and `pnpm openapi:client` is the sa
 
 ## The gate harness
 
-Twenty-six of the `.mjs` files are `check-*.mjs` CI gates, and **twenty-one of them run through
+Twenty-seven of the `.mjs` files are `check-*.mjs` CI gates, and **twenty-two of them run through
 `defineGate`** in [`lib/gate.mjs`](lib/gate.mjs), which owns reporting, exit codes and
 anti-vacuity. The five that do not are `check-bundle-budgets.mjs`, `check-edge-tls.mjs`,
 `check-infra-review.mjs`, `check-performance-review.mjs` and `check-service-db-users.mjs`. Two

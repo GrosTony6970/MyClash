@@ -109,6 +109,7 @@ jobs:
           E2E_PROTESTS: '1' # 43 — ~1 min
           E2E_WORKSHOP_JOIN: '1' # 46 — skips without the fighter accounts below
           E2E_FIGHTBOOK: '1' # 47 — same; its safety flag alerts the E2E org's admins
+          E2E_TEAM_TOURNAMENT: '1' # 49
           # 46 and 47 sign in as two personal accounts with claimed fighter
           # profiles. Absent these, both SKIP and name what is missing.
           E2E_FIGHTER_A_EMAIL: ${{ secrets.E2E_FIGHTER_A_EMAIL }}

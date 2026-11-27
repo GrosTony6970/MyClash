@@ -85,10 +85,14 @@ describe('readBout', () => {
         redScore: 3,
         blueScore: 2,
         winnerRegistrationId: null,
+        winnerTeamId: null,
         redFighterName: 'Ana Red',
         blueFighterName: 'Bo Blue',
         redClub: 'Club A',
         blueClub: null,
+        // A Fighter's side has no colour chip.
+        redColour: null,
+        blueColour: null,
         weapon: 'longsword',
         tournamentId: 'tournament-1',
         tournamentName: 'Longsword Open',
@@ -111,6 +115,36 @@ describe('readBout', () => {
         // The bout's own rules (ruling K), as the server sent them.
         rules: ROW.rules,
       },
+    });
+  });
+
+  // Lyon Blades beat Paris Rapiers: the row names the teams, and the team that won.
+  it('reads a team bout’s sides and its winner team', async () => {
+    const team = {
+      ...ROW,
+      red_registration_id: null,
+      blue_registration_id: null,
+      red_team_id: 'team-lyon',
+      blue_team_id: 'team-paris',
+      winner_team_id: 'team-lyon',
+    };
+    const summary = { ...SUMMARY, redColour: 'green', blueColour: 'purple' };
+    const { fetchFn } = answering(
+      () => json(team),
+      () => json(summary),
+    );
+
+    const read = await readBout('https://api.test', 'bout-1', fetchFn);
+
+    expect(read.kind === 'bout' && read.match).toMatchObject({
+      redRegistrationId: null,
+      redTeamId: 'team-lyon',
+      blueTeamId: 'team-paris',
+      winnerRegistrationId: null,
+      winnerTeamId: 'team-lyon',
+      // Each team's colour chip, from the summary (call 6).
+      redColour: 'green',
+      blueColour: 'purple',
     });
   });
 

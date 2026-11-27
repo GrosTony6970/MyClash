@@ -7,7 +7,6 @@ export const scoring = {
   scoreboard: {
     loading: 'Chargement du tableau de score...',
     loadError: 'Impossible de charger les données du tableau de score ({status}).',
-    retry: 'Réessayer',
     swapSides: '⇄ Inverser les côtés',
     fullscreen: 'Plein écran',
     exitFullscreen: 'Quitter le plein écran',
@@ -593,7 +592,6 @@ export const scoring = {
     disabled: 'Direct désactivé',
   },
   liveMatch: {
-    penaltyCards: 'Cartons',
     red: 'Combattant 1',
     blue: 'Combattant 2',
     noExchanges: 'Aucun échange pour le moment.',
@@ -606,7 +604,6 @@ export const scoring = {
     doubleLoss: 'Double défaite',
     doubleLossSubtitle: 'Les deux combattants perdent - limite de doubles atteinte',
     blackCard: 'Carton noir',
-    displayTitle: 'Affichage externe',
     upNext: 'À suivre',
     versus: 'contre',
     waitingForMatch: 'En attente du prochain assaut...',
@@ -641,6 +638,7 @@ export const scoring = {
   forfeits: {
     title: 'Forfait',
     fighter: 'Combattant',
+    team: 'Équipe',
     reason: 'Motif',
     canContinue: 'Le combattant peut continuer le tournoi',
     note: 'Note optionnelle',

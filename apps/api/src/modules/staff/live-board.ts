@@ -1,7 +1,9 @@
 // apps/api/src/modules/staff/live-board.ts
 
+import { boutSideLabels, sideNamesAndColours } from '../matches/bout-side-labels';
 import { roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
+import type { RegistrationEmbed, TeamEmbed } from '../matches/side-label';
 import type { RefereeAssignmentRow, ResolvedReferee } from '../matches/resolve-match-referees';
 import type { MatchLengthInput } from '../schedule/match-lengths';
 import { plannedLengthOf } from '../schedule/planned-length';
@@ -55,8 +57,11 @@ export interface RawBoardMatch {
     config_json?: Record<string, unknown> | null;
     tournaments?: { name?: string; weapon?: string } | null;
   } | null;
-  red: { persons?: { given_name?: string; family_name?: string } | null } | null;
-  blue: { persons?: { given_name?: string; family_name?: string } | null } | null;
+  red: RegistrationEmbed<never> | null;
+  blue: RegistrationEmbed<never> | null;
+  /** A team side (`TEAM_SIDE_EMBEDS`); a side is a Registration or a team, never both. */
+  red_team?: TeamEmbed | null;
+  blue_team?: TeamEmbed | null;
 }
 
 /**
@@ -147,13 +152,6 @@ export function boardLengthInput(row: RawBoardMatch): MatchLengthInput {
   };
 }
 
-function fighterName(side: RawBoardMatch['red']): string | null {
-  const p = side?.persons;
-  if (!p) return null;
-  const name = [p.given_name, p.family_name].filter(Boolean).join(' ').trim();
-  return name.length ? name : null;
-}
-
 export function mapBoardMatch(
   row: RawBoardMatch,
   plannedDurationMinutes: number,
@@ -161,8 +159,7 @@ export function mapBoardMatch(
 ): BoardMatch {
   return {
     id: row.id,
-    redFighterName: fighterName(row.red),
-    blueFighterName: fighterName(row.blue),
+    ...sideNamesAndColours(boutSideLabels(row)),
     redScore: row.red_score,
     blueScore: row.blue_score,
     status: row.status,

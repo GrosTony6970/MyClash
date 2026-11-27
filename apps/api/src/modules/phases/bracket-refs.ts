@@ -41,25 +41,25 @@ export function buildSelfRef(
 }
 
 /**
- * The registration that LOST, given the winner and the two sides.
+ * The side that LOST, given the winner and the two sides, each a side key (`sideKey`): a
+ * Registration or a team.
  *
  * Returns null when the winner matches neither side, which means the caller
  * handed over an incomplete pairing — advancing a guess there would put the
  * WRONG fighter into the losers bracket. The previous form returned `red`
- * whenever the winner wasn't red, so a null `red_registration_id` silently
+ * whenever the winner wasn't red, so a null red side silently
  * produced a null loser and every downstream `loser of {ref}` stalled forever.
  *
  * Callers must therefore source the pairing from the bracket SLOT, which is
  * authoritative, rather than the matches row, which can legitimately lag it.
  */
-export function resolveLoser(match: {
-  winner_registration_id: string;
-  red_registration_id: string | null;
-  blue_registration_id: string | null;
-}): string | null {
-  const winner = match.winner_registration_id;
-  if (winner === match.red_registration_id) return match.blue_registration_id;
-  if (winner === match.blue_registration_id) return match.red_registration_id;
+export function resolveLoser(
+  winner: string,
+  red: string | null,
+  blue: string | null,
+): string | null {
+  if (winner === red) return blue;
+  if (winner === blue) return red;
   return null;
 }
 

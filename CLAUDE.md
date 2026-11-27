@@ -35,11 +35,13 @@ This file is the agent contract. It holds the rules that cannot be inferred from
    (AGPL). `.env.example` is the canonical key list.
 8. **Nobody referees while they are somewhere else.** No one may be assigned to referee their own
    Match, or while they fight, referee elsewhere, or teach a Workshop at an overlapping time, or
-   outside the availability they declared. These rules have no setting and no override. The soft
-   rules each have their own per-Event switch: refereeing one's own Pool or Swiss phase at another
-   time, holding two roles in one Pool, refereeing while attending a Workshop, refereeing while a
-   Pool or Swiss phase one fights in is running or a bracket one is still in, rest between duties,
-   and the daily bout cap. The capacity warning ("not enough
+   outside the availability they declared. These rules have no setting and no override. They
+   protect a person MyClash can name: a Fighter in a Team slot with no name, or whose Person is
+   linked to no Global Person, is outside them, and the screens that assign referees must say so
+   (ADR-016, 2026-11-13). The soft rules each have their own per-Event switch: refereeing one's own
+   Pool or Swiss phase at another time, holding two roles in one Pool, refereeing while attending a
+   Workshop, refereeing while a Pool or Swiss phase one fights in is running or a bracket one is
+   still in, rest between duties, and the daily bout cap. The capacity warning ("not enough
    referees") never blocks. Safety and integrity invariant — see
    `docs/decisions/ADR-016-referee-rules-one-checker.md`.
 9. **One slice = one commit**, scoped to a single concern. Don't bundle unrelated changes.
@@ -149,7 +151,7 @@ record; there is no task queue to pick from.
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-eight
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-nine
 further steps, and shared packages must be built in the right order or a local pass means nothing.
 
 Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from

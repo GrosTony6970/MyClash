@@ -9,10 +9,10 @@ function input(over: Over = {}): CorrectionInput {
   return {
     bout: {
       status: 'completed',
-      winnerRegistrationId: 'red',
+      winnerSideId: 'red',
       endReason: 'time_limit',
-      redRegistrationId: 'red',
-      blueRegistrationId: 'blue',
+      redSideId: 'red',
+      blueSideId: 'blue',
       redScore: 5,
       blueScore: 4,
       ...bout,
@@ -29,14 +29,14 @@ function input(over: Over = {}): CorrectionInput {
 const capReached = (winner: string | null, reason = 'first_to_points') => ({
   isOver: true as const,
   reason,
-  winnerRegistrationId: winner,
+  winnerSideId: winner,
 });
 
 describe('correctionOutcome — an over Event', () => {
   it('the winner follows the score, and the bout stays finished (ruling 225)', () => {
     expect(correctionOutcome(input())).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'blue',
+      winnerSideId: 'blue',
       endReason: 'time_limit',
     });
   });
@@ -54,7 +54,7 @@ describe('correctionOutcome — an over Event', () => {
     });
     expect(correctionOutcome(fell)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'blue',
+      winnerSideId: 'blue',
       endReason: 'time_limit',
     });
   });
@@ -75,19 +75,19 @@ describe('correctionOutcome — an over Event', () => {
     });
     expect(correctionOutcome(other)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'blue',
+      winnerSideId: 'blue',
       endReason: 'first_to_points',
     });
   });
 
   it('a voided double under a double loss gives the bout back to its leader', () => {
     const doubleLoss = input({
-      bout: { winnerRegistrationId: null, endReason: 'max_doubles', redScore: 0, blueScore: 0 },
+      bout: { winnerSideId: null, endReason: 'max_doubles', redScore: 0, blueScore: 0 },
       score: { redScore: 2, blueScore: 1 },
     });
     expect(correctionOutcome(doubleLoss)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'red',
+      winnerSideId: 'red',
       endReason: 'time_limit',
     });
   });
@@ -95,7 +95,7 @@ describe('correctionOutcome — an over Event', () => {
   it('reads a winner-less bout from before the clock named winners off its board', () => {
     // 5-4 with no stored winner already reads as a win for Red, so 5-3 changes nothing.
     const old = input({
-      bout: { winnerRegistrationId: null },
+      bout: { winnerSideId: null },
       score: { redScore: 5, blueScore: 3 },
     });
     expect(correctionOutcome(old)).toEqual({ kind: 'unchanged' });
@@ -103,18 +103,18 @@ describe('correctionOutcome — an over Event', () => {
 
   it('a bout the clock ended as a draw carries no reason, and still follows', () => {
     const drawn = input({
-      bout: { winnerRegistrationId: null, endReason: null, redScore: 3, blueScore: 3 },
+      bout: { winnerSideId: null, endReason: null, redScore: 3, blueScore: 3 },
       score: { redScore: 3, blueScore: 2 },
     });
     expect(correctionOutcome(drawn)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'red',
+      winnerSideId: 'red',
       endReason: 'time_limit',
     });
   });
 
   it('a result recorded by hand with no reason is not a draw the clock ended', () => {
-    const byHand = input({ bout: { winnerRegistrationId: 'red', endReason: null } });
+    const byHand = input({ bout: { winnerSideId: 'red', endReason: null } });
     expect(correctionOutcome(byHand)).toEqual({ kind: 'unchanged' });
   });
 
@@ -141,7 +141,7 @@ describe('correctionOutcome — an over Event', () => {
     const level = input({ score: { redScore: 4, blueScore: 4 }, drawAllowed: true });
     expect(correctionOutcome(level)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: null,
+      winnerSideId: null,
       endReason: 'time_limit',
     });
   });
@@ -160,7 +160,7 @@ describe('correctionOutcome — an over Event', () => {
     });
     expect(correctionOutcome(ceiling)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: null,
+      winnerSideId: null,
       endReason: 'max_doubles_draw',
     });
   });
@@ -217,7 +217,7 @@ describe('correctionOutcome — a running Event', () => {
     });
     expect(correctionOutcome(other)).toEqual({
       kind: 'redecide',
-      winnerRegistrationId: 'blue',
+      winnerSideId: 'blue',
       endReason: 'first_to_points',
     });
   });

@@ -86,7 +86,7 @@ Registration     ← that person entered in ONE tournament       (registrations.
       ▲
       │ matches.red_registration_id / blue_registration_id
       │
-Match            ← the two sides of a fight are Registrations, not Persons
+Match            ← the two sides of a fight are Registrations or Teams, never Persons
 ```
 
 A person registers once per **event**, then holds a registration per **tournament** inside it.
@@ -103,7 +103,7 @@ A person registers once per **event**, then holds a registration per **tournamen
 | **Pool**             | A round-robin group of fighters within a pool phase.                                                                                                      | "Pool A: 6 fighters"                |
 | **Bracket**          | The slot tree of an elimination phase. Not a table — `bracket_slots` rows.                                                                                | Top 16 single-elim                  |
 | **Swiss round**      | One pairing round of a swiss phase.                                                                                                                       | "Round 3 of 5"                      |
-| **Match**            | A single fight between two registrations. Always belongs to a phase.                                                                                      | "Pool A · Match 7"                  |
+| **Match**            | A single fight between two sides. Always belongs to a phase.                                                                                              | "Pool A · Match 7"                  |
 | **Exchange**         | The atomic scoring unit.                                                                                                                                  | "Clean hit, fighter A, head"        |
 | **Card**             | A penalty given to a fighter in a Match, from the penalty list of the ruleset. An entry of the Match, in `match_penalties`.                               | "Yellow card, blue, round 1"        |
 | **Protest**          | One record that a fighter disputed the referee's call. An entry of the Match, in `match_protests`. Counted per fighter; never part of the score.          | "Red protests, 1 of 2"              |
@@ -119,6 +119,13 @@ A person registers once per **event**, then holds a registration per **tournamen
 | **Global Person**    | One human, across every event. The cross-event identity.                                                                                                  | Jean Dupont, everywhere             |
 | **Person**           | That human at **one** event. Scoped by `event_id`.                                                                                                        | Jean Dupont at FAL 2026             |
 | **Registration**     | A person entered in **one** tournament.                                                                                                                   | Jean Dupont in the Longsword Open   |
+| **Team**             | A named group entered in one team Tournament. Has a size and numbered slots.                                                                              | "Lyon A", 3 slots                   |
+| **Slot**             | One numbered place in a Team. Holds a Person of the Event, or nobody.                                                                                     | "Fighter 2" of Lyon A               |
+| **Side**             | One of the two parties of a Match: a Registration or a Team.                                                                                              | Red side, blue side                 |
+| **Line-up**          | Which slot of each team is on the piste at a given moment.                                                                                                | Slot 1 of red, slot 3 of blue       |
+| **Captain**          | The one named slot of a Team marked as its captain. A mark, not a role with powers.                                                                       | Slot 1 of Lyon A                    |
+| **Reserve**          | A named Person attached to a Team with no slot number, who can take a number during a Match.                                                              | A 4th Fighter of a team of 3        |
+| **Leg**              | A stretch of a relay Match between two line-up changes.                                                                                                   | "Leg 2: 0:30 to 1:00"               |
 
 **The UI says "bout" and "piste".** On screen, in English, a Match is a "bout" and a Lice is a
 "piste". They are the same two things. Code, tables and docs say Match and Lice.
@@ -140,15 +147,15 @@ FightBook is the part of the public app where fighters find a sparring partner. 
 
 ## Roles
 
-| Role                    | Scope                                                       |
-| ----------------------- | ----------------------------------------------------------- |
-| Event organizer         | Owns the event                                              |
-| Instructor              | Teaches a workshop inside an event                          |
-| Scorekeeper             | Records exchanges in matches inside a tournament            |
-| Referee                 | Officiates matches inside a tournament                      |
-| Workshop attendee       | Enrolled in a workshop session                              |
-| **Fighter**             | Competes in a tournament — holds a Registration. See below. |
-| Spectator / accompanist | Anyone (anonymous, guest, claimed)                          |
+| Role                    | Scope                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| Event organizer         | Owns the event                                                                   |
+| Instructor              | Teaches a workshop inside an event                                               |
+| Scorekeeper             | Records exchanges in matches inside a tournament                                 |
+| Referee                 | Officiates matches inside a tournament                                           |
+| Workshop attendee       | Enrolled in a workshop session                                                   |
+| **Fighter**             | Competes in a tournament — holds a Registration, or a slot in a Team. See below. |
+| Spectator / accompanist | Anyone (anonymous, guest, claimed)                                               |
 
 **Fighter is the canonical word for the competing role.** "Competitor" is its formal synonym and
 means exactly the same thing — use _Fighter_ in code, UI and docs. There is deliberately **no**
@@ -196,7 +203,7 @@ Whether a person may referee a Pool or Match is answered at one of three levels:
 - DB tables: `events`, `tournaments`, `phases`, `pools`, `bracket_slots`, `swiss_rounds`, `matches`,
   `exchanges`, `match_penalties`, `match_protests`, `registrations`, `persons`, `global_persons`,
   `workshops`, `workshop_sessions`, `workshop_instructors`, `venues`, `venue_areas`, `venue_lices`,
-  `lices`, `leagues`, `event_photos`, `spar_requests`.
+  `lices`, `leagues`, `event_photos`, `spar_requests`, `teams`, `team_slots`.
 - API routes: `/api/v1/events/:id`, `/api/v1/events/:id/tournaments`, `/api/v1/tournaments/:id`,
   `/api/v1/events/:id/workshops`, `/api/v1/events/:id/persons`.
 - App URLs:

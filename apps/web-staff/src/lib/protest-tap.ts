@@ -14,15 +14,18 @@ import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock
 import type { BoutNames } from '../offline/db';
 import { queueProtest } from '../offline/protest-queue';
 import type { SyncEngine } from '../offline/sync';
+import { sideOf, type BoutSides } from './bout-sides';
 
 export interface ProtestTapArgs {
-  match: Pick<MatchInfo, 'id' | 'redRegistrationId' | 'blueRegistrationId'>;
+  match: Pick<MatchInfo, 'id'> & BoutSides;
   nextSequence: number;
   submit: { bout: BoutNames; round: number };
   /** The clock's time NOW, called at the tap (`clockAtTap`): the button is live while it runs. */
   clockTimeMs: () => number | null;
   syncEngine?: SyncEngine | null;
   onRecorded: () => void;
+  /** A tap of a corner with no Fighter yet: the screen says why nothing was written. */
+  onNoFighter: () => void;
 }
 
 /**
@@ -62,6 +65,14 @@ export function protestTap(
 ): (corner: 'red' | 'blue') => Promise<string | null> {
   const { match, nextSequence, submit, clockTimeMs, syncEngine, onRecorded } = args;
   return async (corner) => {
+    // The corner's side, a Fighter or a team: a team protests as one (call 3).
+    const side = sideOf(match, corner);
+    // A corner with no Fighter yet (a bracket slot to fill) has nobody to protest for: the
+    // screen says so, and nothing is written.
+    if (side === null) {
+      args.onNoFighter();
+      return null;
+    }
     if (inFlight.has(corner)) return null;
     inFlight.add(corner);
     let written: string;
@@ -69,7 +80,7 @@ export function protestTap(
       written = await queueProtest({
         matchId: match.id,
         sequence: nextSequence,
-        registrationId: corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
+        side,
         clockTimeMs: clockTimeMs(),
         round: submit.round,
         bout: submit.bout,

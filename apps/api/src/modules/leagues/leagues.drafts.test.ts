@@ -42,7 +42,7 @@ function contributions(row: unknown) {
   const placement = {
     getTournamentPlacements: vi
       .fn()
-      .mockResolvedValue({ decided: false, byRegistrationId: new Map(), ordered: [] }),
+      .mockResolvedValue({ decided: false, byEntrantId: new Map(), ordered: [] }),
   };
   const noReads = {
     service: {
@@ -112,7 +112,7 @@ describe('a draft Tournament feeds no league until it is published (ruling 178)'
       const placement = {
         getTournamentPlacements: vi
           .fn()
-          .mockResolvedValue({ decided: false, byRegistrationId: new Map(), ordered: [] }),
+          .mockResolvedValue({ decided: false, byEntrantId: new Map(), ordered: [] }),
       };
       const scoring = {
         resolveConfig: vi.fn(async () => config),

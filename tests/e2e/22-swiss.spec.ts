@@ -134,10 +134,10 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     const { swissPts, buchholz } = expectedBuchholz(result.swiss, DEFAULT_POINTS);
     for (const row of standings.rows) {
       expect(stat(row, 'swissPts'), `${row.displayName} points`).toBe(
-        swissPts.get(row.registrationId) ?? 0,
+        swissPts.get(row.entrantId) ?? 0,
       );
       expect(stat(row, 'buchholz'), `${row.displayName} Buchholz`).toBe(
-        buchholz.get(row.registrationId) ?? 0,
+        buchholz.get(row.entrantId) ?? 0,
       );
     }
 
@@ -152,7 +152,7 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     // possible score. Asserted as "holds the max", NOT "is rank 1": with a random
     // draw another fighter can legitimately go unbeaten too, and failing on that
     // would make this spec flaky for a correct outcome.
-    const seedOne = standings.rows.find((row) => seeds.get(row.registrationId) === 1);
+    const seedOne = standings.rows.find((row) => seeds.get(row.entrantId) === 1);
     expect(seedOne, 'seed 1 is missing from the standings').toBeTruthy();
     expect(stat(seedOne!, 'swissPts')).toBe(ROUNDS * DEFAULT_POINTS.win);
     expect(stat(standings.rows[0]!, 'swissPts')).toBe(ROUNDS * DEFAULT_POINTS.win);
@@ -296,7 +296,7 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     );
 
     const standings = await readSwissStandings(api, tournament.id);
-    const leaverRow = standings.rows.find((row) => row.registrationId === leaver);
+    const leaverRow = standings.rows.find((row) => row.entrantId === leaver);
     expect(
       leaverRow,
       'a withdrawal keeps its row — deleting it would rewrite every opponent record',
@@ -312,7 +312,7 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     // Decision 11: the bout was fought, so their opponent keeps the win AND the
     // Buchholz contribution. The second half is what a naive "remove the
     // fighter" implementation silently gets wrong.
-    const opponentRow = standings.rows.find((row) => row.registrationId === opponent)!;
+    const opponentRow = standings.rows.find((row) => row.entrantId === opponent)!;
     expect(stat(opponentRow, 'swissPts')).toBeGreaterThanOrEqual(DEFAULT_POINTS.win);
     const { buchholz } = expectedBuchholz(await readSwiss(api, tournament.id), DEFAULT_POINTS);
     expect(stat(opponentRow, 'buchholz')).toBe(buchholz.get(opponent) ?? 0);
@@ -360,7 +360,7 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     expect(finalised.finalized?.atRound).toBe(ROUNDS);
 
     const standings = await readSwissStandings(api, tournament.id);
-    const cut = standings.rows.slice(0, 8).map((row) => row.registrationId);
+    const cut = standings.rows.slice(0, 8).map((row) => row.entrantId);
 
     // No `sourcePhaseId` on the body: `GenerateBracketDto` is `.strict()` and has
     // no such field, so sending one 400s. `rankFromSwiss` finds the Swiss phase

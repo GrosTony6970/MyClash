@@ -25,6 +25,7 @@ import { DEFAULT_EVENT_TIMEZONE, addDays } from '@myclash/time';
 import { eachDay, initialDay } from '@myclash/schedule-core';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import {
   lockRefusal,
   type LockRefusedDuty,
@@ -166,12 +167,9 @@ interface AssignmentBoardPool {
    * bracket/finals card, every bout of the (round × piste) for a Swiss card.
    */
   matchIds?: string[];
-  members: Array<{
-    registrationId: string;
-    personId: string;
-    personName: string;
-    clubLabel: string | null;
-  }>;
+  /** True on a team Pool: rule 8 cannot check its unnamed Fighters, and its card says so. */
+  uncheckedFighters?: true;
+  members: AssignmentBoardMember[];
   roleSlots: AssignmentBoardRoleSlot[];
 }
 

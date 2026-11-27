@@ -5,6 +5,7 @@ import {
   mockSupabase as sharedMockSupabase,
   selectsFor,
 } from '../../common/testing/supabase-chain';
+import type { BracketSideWire, BracketSlotWire } from '@myclash/types/bracket-side';
 import { EventStatsService } from './event-stats.service';
 
 // ── Supabase mock: a universal thenable chain, keyed by table name so tests are
@@ -58,6 +59,7 @@ function makeService(opts: {
   orgs?: ReturnType<typeof makeOrgs>;
   overviewByTournament?: Record<string, ReturnType<typeof overview>>;
   standingsHeaderByTournament?: Record<string, Record<string, unknown>>;
+  bracketSlotsByTournament?: Record<string, BracketSlotWire[]>;
   uniqueCounts?: { uniqueFighters: number; uniqueReferees: number };
   targetRowsByTournament?: Record<string, unknown[]>;
 }) {
@@ -65,7 +67,8 @@ function makeService(opts: {
   const events = {
     getPublicTournamentStandings: vi.fn(async (_slug: string, tSlug: string) => ({
       tournament: opts.standingsHeaderByTournament?.[tSlug] ?? {},
-      bracketSlots: [],
+      bracketSlots: opts.bracketSlotsByTournament?.[tSlug] ?? [],
+      phaseType: 'single_elim',
     })),
     getEventUniqueParticipantCounts: vi.fn(
       async () => opts.uniqueCounts ?? { uniqueFighters: 0, uniqueReferees: 0 },
@@ -189,6 +192,66 @@ describe('EventStatsService', () => {
       completedMatchCount: 8,
       completionPercent: 80,
     });
+  });
+
+  it("names a team bracket's podium by team, the final won on a forfeit with the lower score", async () => {
+    // Lyon Blades led the final 5-3 and forfeited: Rome Guard is the recorded winner. A team side
+    // has no Registration, so only the side keys of the public bracket read can rank it.
+    const team = (sideId: string, name: string): BracketSideWire => ({
+      sideId,
+      kind: 'team',
+      registrationId: null,
+      teamId: sideId,
+      name,
+      clubAbbrev: null,
+      colour: 'green',
+    });
+    const final: BracketSlotWire = {
+      id: 's-final',
+      round: 1,
+      position: 1,
+      status: 'completed',
+      matchId: 'm-final',
+      redFighterName: 'Lyon Blades',
+      blueFighterName: 'Rome Guard',
+      redClubAbbrev: null,
+      blueClubAbbrev: null,
+      redScore: 5,
+      blueScore: 3,
+      redRegistrationId: null,
+      blueRegistrationId: null,
+      winnerRegistrationId: null,
+      redSideId: 'team-lyon',
+      blueSideId: 'team-rome',
+      winnerSideId: 'team-rome',
+      red: team('team-lyon', 'Lyon Blades'),
+      blue: team('team-rome', 'Rome Guard'),
+      source_a_ref: 'seed 1',
+      source_b_ref: 'seed 2',
+      liceName: null,
+      referees: [],
+    };
+    setupTables({
+      events: {
+        data: { id: 'e1', organization_id: 'org-1', slug: 'evt', name: 'Evt' },
+        error: null,
+      },
+      tournaments: {
+        data: [
+          { id: 't1', slug: 't1s', name: 'Teams', weapon: null, color: null, status: 'completed' },
+        ],
+        error: null,
+      },
+      referee_assignments: { data: [], error: null },
+    });
+    const { service } = makeService({ bracketSlotsByTournament: { t1s: [final] } });
+
+    const res = await service.getEventStatistics('e1', 'user-1');
+
+    expect(res.tournaments[0]?.podium).toEqual([
+      { place: 1, fighterName: 'Rome Guard', club: null },
+      { place: 2, fighterName: 'Lyon Blades', club: null },
+    ]);
   });
 
   it('rejects a caller lacking the org role (403 propagates from assertOrgRole)', async () => {

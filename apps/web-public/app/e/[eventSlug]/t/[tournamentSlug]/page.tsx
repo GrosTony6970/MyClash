@@ -36,6 +36,8 @@ import {
   bracketPhaseType,
   derivePodium,
   colorTokenToHex,
+  entrantCountLabel,
+  poolEntrantCount,
   type TournamentData,
 } from './tournament-data';
 import { SwissRoundsView } from './SwissRoundsView';
@@ -54,17 +56,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getServerApiUrl();
   const t = await getServerT();
+  const locale = await resolveServerLocale();
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
   // No name to give (not found, or the read failed): the address, as the Event's layout does.
   if (outcome.kind !== 'ok') return { title: tournamentSlug };
   const { data } = outcome;
-  const fighterCount = data.pools.reduce(
-    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
-    0,
-  );
+  const teams = data.tournament.entrantKind === 'team';
+  const counted = entrantCountLabel(t, locale, poolEntrantCount(data.pools), teams);
   return {
     title: data.tournament.name,
-    description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
+    description: `${counted} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
   };
 }
 
@@ -179,10 +180,8 @@ export default async function TournamentPage({ params }: Props) {
     bronzeMatch,
   });
   const podiumDecided = !!(podium?.gold && podium.silver);
-  const fighterCount = pools.reduce(
-    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
-    0,
-  );
+  const entrantCount = poolEntrantCount(pools);
+  const teams = tournament.entrantKind === 'team';
   const tournamentColor = (tournament as { color?: string | null }).color ?? null;
   const accentColor = colorTokenToHex(tournamentColor);
 
@@ -291,8 +290,7 @@ export default async function TournamentPage({ params }: Props) {
           <p className="mt-0.5 text-sm text-muted">
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetLabel ?? tournament.rulesetCode}
-            {fighterCount > 0 &&
-              ` · ${t('publicApp.tournament.fighterCount', { count: fighterCount })}`}
+            {entrantCount > 0 && ` · ${entrantCountLabel(t, locale, entrantCount, teams)}`}
           </p>
         </div>
         {shareable && <ShareButton path={`/e/${eventSlug}/t/${tournamentSlug}`} />}
@@ -343,6 +341,7 @@ export default async function TournamentPage({ params }: Props) {
                 }))}
                 accentColor={accentColor}
                 colorToken={tournamentColor}
+                teams={teams}
                 locale={locale}
               />
             ),
@@ -356,6 +355,7 @@ export default async function TournamentPage({ params }: Props) {
                 eventSlug={eventSlug}
                 tournamentSlug={tournamentSlug}
                 colorToken={tournamentColor}
+                teams={teams}
               />
             ),
           },
@@ -369,6 +369,7 @@ export default async function TournamentPage({ params }: Props) {
                 pools={pools}
                 bracketSize={bracketSize}
                 colorToken={tournamentColor}
+                teams={teams}
               />
             ),
           },
@@ -402,6 +403,7 @@ export default async function TournamentPage({ params }: Props) {
                   podium={podium}
                   podiumDecided={podiumDecided}
                   sideColors={tournament.sideColors}
+                  teams={teams}
                 />
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">

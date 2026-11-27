@@ -400,6 +400,84 @@ What is **not** derivable from the DDL, and so belongs here:
   sequence that `postgres` or `supabase_admin` makes in `public` starts closed. For the functions
   those two make, PUBLIC's default stays only in `realtime`, for Realtime's own functions (ruling
   838). A read rule that calls a NEW helper grants it to `anon` by name.
+- **A side of a Match is a Registration or a Team** (ADR-022). `tournaments.entrant_kind` is
+  `individual` (the default) or `team`, and `tournaments.team_default_size` pre-fills the size of a
+  new team. The kind changes only while the Tournament holds no entrant (its read's
+  `entrant_count`) and has no phase (ruling 989, migration 0288; the settings page reads no phase,
+  so the save's refusal says it). The database refuses the rest and the API answers 409
+  `entrant_kind_settled`, `kind_locked_by_phase` or `entrant_kind_mismatch`
+  (`common/entrant-kind-refusal.ts`). A phase's insert holds its Tournament FOR SHARE, so a change
+  of kind running beside it waits and then sees it (0288's race). The same insert refuses a double
+  elimination or Swiss phase on a team Tournament, so a switch to team that lands after the API's
+  own check still keeps one out; the API answers 409 `team_tournament_not_supported` (0289,
+  `phase_fits_entrant_kind`, rulings 996 and 1007). A team Tournament has no
+  waitlist and takes no forfeit rules (ruling 972); a save checks both against the kind in force
+  (`events/tournament-kind.ts`). `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
+  team's numbered Slots. A team's optional `logo_url` (0283) is stored as a Tournament's logo; an
+  Event archive carries the file, a Tournament archive keeps the link (ruling 975). The teams
+  module (`modules/teams/`, routes `tournaments/:tournamentId/teams/…`) lists, creates, saves,
+  deletes and gives a logo to a team; it holds every team id to the Tournament of the URL (404
+  otherwise), slugs the name (`-2` on a collision, `team-N` for a name too short), counts teams
+  against `max_participants`, and answers 409 `tournament_full`, `team_name_taken`,
+  `team_size_locked` (a bout of the team has started) and `team_in_bouts` (a delete while a bout
+  names the team). `team_slots` holds both its numbered Slots, each with an optional Person
+  of the Event, and its Reserves, each with a Person and no number. The database bounds `size`
+  only; the API checks a team's Slots against it in slice 1b. Ten columns beside the
+  Registration links give each its team twin: the Pool seat, the two bracket slots, the two sides
+  and the winner of a Match, a card, the forfeiting side and the winning side of a forfeit, and a protest, with a check "a
+  Registration or a Team, never both". The Registration links keep their names, because they hold
+  Registrations. Code that compares sides compares one side key that is never empty, not the two
+  columns; the readers that do not yet are listed in `scripts/side-readers-ledger.json` (gate
+  `quality:side-readers`).
+- **A team Match runs as one unit** (slice 1b-2). A card, a protest and a forfeit name exactly
+  one side, a Registration or a team. On the wire they send one of `registrationId` / `teamId`,
+  and a forfeit one of `forfeitingRegistrationId` / `forfeitingTeamId`. The DTOs refuse both and
+  neither (`apps/api/src/modules/penalties/dto/penalties.dto.ts`,
+  `apps/api/src/modules/protests/dto/protests.dto.ts`,
+  `apps/api/src/modules/matches/dto/matches.dto.ts`). Each door reads the side its body names,
+  and judges it a side of this bout by key and kind, through one owner
+  (`apps/api/src/modules/matches/named-side.ts`). The row keeps the side in the column of
+  its kind (`apps/api/src/modules/penalties/card-side.ts`,
+  `apps/api/src/modules/matches/forfeit-side.ts`). A team black card ends this Match only
+  (ruling 972). It runs the team forfeit (`apps/api/src/modules/penalties/team-black-card.ts`)
+  under the penalty ruleset's own forfeit rules (`teamForfeitRules`,
+  `apps/api/src/modules/penalties/forfeit-rules-in-force.ts`). It adds to no Tournament count,
+  opens no review and sets no Fighter status. A team's card count starts fresh every Match
+  (ruling 976, `ladderScopeOf` in `card-side.ts`). A team has no status to settle, so a team
+  forfeit hands its bout to the completion owner itself, and its take-back puts the bout back
+  (`apps/api/src/modules/matches/match-forfeits.service.ts`). Every winner the engine or a forfeit
+  decides is written on the bout through `winnerColumns`
+  (`apps/api/src/modules/matches/winner-columns.ts`): a Fighter wins into
+  `winner_registration_id`, a team into `winner_team_id`. A take-back restores the snapshot's two
+  winner columns as they were (`restoreMatchState`, `apps/api/src/modules/matches/fighter-bouts.ts`).
+  The status reconcile's automatic forfeit record names its winner Registration itself, as it only
+  forfeits a Fighter (`apps/api/src/modules/matches/fighter-reconcile.ts`). The pad queues a card
+  or a protest by side (`QueuedSide`, `apps/web-staff/src/offline/queued-side.ts`). The queued row
+  gains a `teamId` that is not indexed, so the Dexie version does not change. The TV (its
+  scoreboard and its card between bouts), the public bout page, the pad's header and its tiles,
+  the pad's result headline and piste cards, and the live board line put a team's colour chip
+  before its name (`TeamChip`, `packages/ui/src/components/team-chip.tsx`); tight lists (Pool
+  lists, standings) draw the chip (`TournamentColorDot`) themselves. The TV and the
+  public bout page show a team's logo where a Fighter's photo sits.
+- **A team Tournament finishes in a bracket** (slice 1c-1). It runs its Pools, then a single
+  elimination bracket, and ends with a champion, a podium and a final ranking of teams. A bracket
+  writer names both columns of a side and puts the entrant in the column of the Tournament's kind
+  (`seatColumns`, `apps/api/src/modules/phases/seat-columns.ts`). The bracket reads send each side
+  as a typed wire side (`apps/api/src/modules/matches/bracket-slot-sides.ts`). The final ranking
+  keys every entrant by its side key, so a team bracket ranks its teams
+  (`packages/types/src/final-ranking-core.ts`). A team's seed sets the bracket order only (ruling
+  982, `apps/api/src/modules/phases/team-bracket-ranking.ts`). A Fighter's seed does the same since
+  ruling 991: seeded first by seed, then the unseeded, bib then id breaking ties, ranked 1..N
+  (`rankBySeed`, `packages/rules/src/results/r1-ranking.ts`). A team Tournament refuses three
+  things when its bracket is generated, each with a named 409. Seeding `by-rating` answers
+  `rating_needs_named_members`, because a rating needs named members (slice 1c-2). Seeding
+  `by-swiss-rank` answers `team_tournament_not_supported`. A double elimination bracket answers
+  `team_tournament_not_supported` too (`apps/api/src/common/entrant-kind-refusal.ts`). A League
+  takes individual Tournaments only (rulings 729, 981). Migration `0287` refuses a live League
+  link to a team Tournament (`league_link_individual_only`). It also refuses the switch to team
+  while a live link exists (`league_link_blocks_team`). The League doors refuse first, with the
+  same named 409 (`team_tournament_league`). The HEMA Ratings export leaves a team Tournament out
+  and names it in its answer (`apps/api/src/modules/exports/exports.service.ts`).
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
@@ -743,7 +821,7 @@ export interface Ruleset {
 
   /** This ruleset's `score` for each fighter, over a set of finished bouts */
   scorePoolFighters(input: {
-    registrationIds: string[];
+    entrantIds: string[];
     completedMatches: ScoredMatch[];
     afterblowMode: AfterblowMode;
     config: unknown;
@@ -1209,7 +1287,15 @@ separate from `status` and means the season is **frozen**.
 ### 8bis.2 How a result becomes a standing
 
 1. A Tournament is **linked** to a League. The link starts `requested`, and only
-   an `approved` link counts.
+   an `approved` link counts. A League takes individual Tournaments only: League
+   points belong to persons (rulings 729, 981). The request, the direct link and
+   the approval refuse a team Tournament with 409 `team_tournament_league` before
+   they write; the bulk link of an Event skips its team Tournaments and answers
+   them as `skipped`, and one that turns team while the loop runs (the 409
+   `team_tournament_league`, the door's or 0287's) is skipped, and the rest are
+   linked. The database refuses a live link to a team Tournament, and a
+   switch to team under a live link (409 `league_link_blocks_team`), in migration
+   0287 (`common/entrant-kind-refusal.ts` names both).
 2. When the Tournament is decided, its final ranking produces one
    **contribution** per Fighter: a place, a `resultKind`, and the double-hit
    count. `resultKind` is what separates a real bronze from a semi-final loss
@@ -2372,6 +2458,22 @@ balances skill by HEMA Ratings; the request can turn either off. The search make
 The cost report is stored on the phase and returned with the Pools; no screen shows it. There is
 no `/pool-populator` page and no live cost recomputation on drag.
 
+**Pools of teams** (team Tournaments, ruling 971; `apps/api/src/modules/phases/team-pool-draw.ts`).
+A team has no club and no rating, so there is no local search. The request names a
+`teamSpread`. By `seed`, the teams are dealt in a snake in seed order. By `random`, they are
+shuffled with `mulberry32(drawSeed)` and then dealt in a snake. The request may send the draw seed
+as `seed`. When it sends none, the server draws one (`crypto.randomInt`). The phase's
+`config_json` stores the spread and the draw seed, so the same seed gives the same draw again.
+A field the Tournament's kind refuses is a 400 with `code` `entrant_kind_field` and the `field`:
+`teamSpread` on an individual Tournament; on a team Tournament no `teamSpread`, a club or skill
+switch (`enforceSchoolSeparation`, `enforceSkillBalance`), or a `seed` with a spread by seed.
+
+**Seating by hand.** `POST pools/:poolId/members` takes exactly one of `{ registrationId }` (an
+individual Tournament's Pool) or `{ teamId }` (a team Tournament's Pool). The other kind is a 409
+with `details.reason` `entrant_kind_mismatch`. `DELETE pools/:poolId/members/:entrantId` takes the
+seat back by its side key: the Registration id, or the team id. The screens say each refusal in
+the reader's language (`apps/web-admin/src/lib/named-refusal.ts`).
+
 See `berger.ts` for the round construction and the pool match labels.
 
 ### 11quater.2 Referee Assignment
@@ -2442,6 +2544,19 @@ every reader works the duty's window out from the Matches it covers (migration 0
 
 - Manual override is always available — the admin can drag any qualified user into any cell; the system recomputes warnings live.
 
+**A team Pool's Fighters are not checked** (CLAUDE.md rule 8; ADR-016, 2026-11-13; design
+decision 11). In slice 1b-1 a team's slots have no names, so the checker cannot see who fights
+for the team. The board marks such a unit with `uncheckedFighters: true`: a Pool with a seat
+that has no Registration (`assignment-board.service.ts`). The screens that assign referees then
+show the notice "MyClash cannot check these Fighters" (`UncheckedFightersNotice`, one owner of its
+words): the referee board's card of that Pool, the Pools page of a team Tournament (once, above
+its tabs, not on Standings), and the AI assistant's referee draft that names a team Pool or a
+bout of a team Tournament, on the assistant page and on the chat's proposal card, whose Confirm
+applies it. The draft carries the same flag (`organizer-ai-assistant/unchecked-fighters.ts`). The
+model writes the draft's ids, so that read is scoped to the drafts' Event: another Event's Pool or
+bout finds no row and gives no flag. The notice blocks nothing and is not a fourth level beside
+Impossible, Discouraged and Fine.
+
 ### 11quater.3 Iteration loop
 
 The auto-assign is **one-click + always overridable**. The expected workflow:
@@ -2502,17 +2617,32 @@ Slot references stored in `bracket_slots.source_a_ref` / `source_b_ref`:
 
 ```
 PATCH /api/v1/bracket-slots/:slotId   [org admin+, on the slot's own Event]
-Body: { registrationAId?: string | null, registrationBId?: string | null }
+Body: { registrationAId?, teamAId?, registrationBId?, teamBId? }   (each string | null)
 ```
 
-A registration named in the body must be entered in the slot's own tournament; one from another
-tournament and an unknown id get the same 400.
+Each side (`a`, `b`) is named by at most one field: a Registration on an individual Tournament, a
+team on a team Tournament (call 4 of slice 1c-1). Both fields of one side → 400. Per side:
 
-Setting a value to `null` cancels the assignment and voids the downstream match if it hasn't started. This gives organisers full control on top of automatic advancement.
+- **left out**: the side is unchanged;
+- **an id**: the entrant goes into the column of its kind and the other column is cleared
+  (`seatColumns`), so a side never holds both kinds (`*_one_kind`, 0282);
+- **`null`**: both columns of the side are cleared.
+
+A side of the other kind than the Tournament's is refused 409 `entrant_kind_mismatch`. A
+Registration must be entered in the slot's own Tournament and a team must be one of its teams; an
+entrant of another Tournament and an unknown id get the same 400. The database does not tie a
+slot's team to its Tournament, so this API check is the guard.
+
+The slot's own bout follows the slot (`syncMatchToSlot`): its sides are rewritten, a cleared side
+written as null, and the row is never deleted or voided (it may carry a piste and a time). A bout
+already under way refuses the edit 409 before the slot is written. Nothing downstream changes.
+
+A team Tournament takes single elimination only: double elimination is refused 409
+`team_tournament_not_supported` at generation, fill and reseed, whoever the actor (call 2).
 
 ### 11sexies.6 Bye handling
 
-Bye slots (`source_b_type = 'bye'`) get their `registration_a_id` from `populateBracket`, which seeds round 1 (the generator leaves every slot empty). `advanceByeSlots(phaseId)` runs at the end of `populateBracket`, not at bracket generation. It propagates seeded fighters into their downstream slots so round-2 matches can form as soon as the other seed completes.
+Bye slots (`source_b_type = 'bye'`) get their side `a` from `populateBracket`, which seeds round 1 (the generator leaves every slot empty): `registration_a_id` on an individual Tournament, `team_a_id` on a team Tournament. `advanceByeSlots(phaseId)` runs at the end of `populateBracket`, not at bracket generation. It reads the seeded side as one key (`sideKey`) and propagates it into its downstream slots, in the columns of the Tournament's kind, so round-2 matches can form as soon as the other seed completes. A team on a bye advances as a Fighter does. A bye slot has no bout.
 
 ---
 
@@ -3737,6 +3867,21 @@ the only coded refusals that function maps. A Tournament restored from an archiv
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 
+A bout waiting for a Fighter (a bracket placeholder, or a side still to come) takes no Start,
+hit, card or colour swap (operator, 2026-11-24, `matches/bout-sides.ts`): each door judges the
+sides of the row it read through `sideKey`, so a team's side is a known side, and refuses with
+the code `bout_side_missing`, a 409 the pad holds with its Retry. A hit, a card (a direct one
+too) and a Start sent late meet it after their replay probe. `assertBoutTakes` takes the sides
+or `'not-judged'`, never nothing: protests say `'not-judged'`, as they are outside the ruling. A
+card void and the side swap are not judged. The pad asks the same of the bout on its screen
+(`lib/bout-sides.ts`): Start, the scoring buttons, the colour swap and the direct card are
+greyed, a protest tap on the empty corner is refused, and the bout says why. The pad derives
+each corner's side, a Registration or a team, with `sideOf` (`lib/bout-sides.ts`): a card, a
+protest and a forfeit go to that side, and a side still to come is null, which matches no card or
+protest row (`isRowOfSide`). The shared timelines and protest chip of `@myclash/ui` hold the
+same rule inline (`rowSide`, `liveProtestsOf`): they ship on every public page, whose page-load
+budget had no room for an import.
+
 A correction moves a finished bout's RESULT with its score (rulings 225 to 230;
 `matches/correction-outcome.ts` is the one owner, asked by the recompute). On an over Event
 nobody can end the bout again, so it stays completed and names its result as the End button
@@ -4689,11 +4834,11 @@ build record.
 
 ### 20.1 The gate harness
 
-CI's Lint job runs `pnpm turbo run lint` plus twenty-eight further steps, each its own verdict.
+CI's Lint job runs `pnpm turbo run lint` plus twenty-nine further steps, each its own verdict.
 `.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
 source of truth when they disagree.
 
-Twenty-one of the twenty-six `scripts/check-*.mjs` gates run through **`defineGate`**
+Twenty-two of the twenty-seven `scripts/check-*.mjs` gates run through **`defineGate`**
 (`scripts/lib/gate.mjs`), which owns reporting, exit codes and anti-vacuity. Two invariants there
 are not obvious and are easy to break:
 
@@ -4900,6 +5045,8 @@ and the batch's own rows — go out 200 ids at a time, and the alert refresh tak
 **Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
 
 **Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. It does **not** touch `workshop_sessions` — workshops moved to their own board, and `generate` returns a hard-coded `workshopSessionsCreated: 0`. The route's own OpenAPI summary still promises workshop sessions.
+
+**Nobody fights twice at once.** `scheduleMatches()` holds a bout back while one of its sides is still in an earlier bout. It keys each side by its side key (`schedulerSides`, `apps/api/src/modules/schedule/match-scheduler.ts`): the Registration id, or the team id of a team side. A side not known yet (a bracket placeholder that waits for a winner) takes the one shared key `UNKNOWN_SIDE`. So two such bouts never run at once, which is what the old shared `"null"` key did.
 
 ### 24.4 Frontend
 

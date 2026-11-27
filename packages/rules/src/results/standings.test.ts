@@ -13,11 +13,11 @@ const CHAIN: RankingRule[] = [
   { key: 'doubles', direction: 'asc' },
 ];
 
-function row(registrationId: string, stats: Record<string, number>): StandingsRow {
+function row(entrantId: string, stats: Record<string, number>): StandingsRow {
   return {
     rank: 0,
-    registrationId,
-    displayName: registrationId,
+    entrantId,
+    displayName: entrantId,
     club: null,
     status: 'completed',
     stats,
@@ -34,10 +34,10 @@ describe('applyRanking — deciding tiebreak', () => {
     ],
     CHAIN,
   );
-  const by = (id: string) => ranked.find((r) => r.registrationId === id)!;
+  const by = (id: string) => ranked.find((r) => r.entrantId === id)!;
 
   it('sorts by the chain and assigns sequential ranks', () => {
-    expect(ranked.map((r) => r.registrationId)).toEqual(['A', 'B', 'C', 'D']);
+    expect(ranked.map((r) => r.entrantId)).toEqual(['A', 'B', 'C', 'D']);
     expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3, 4]);
   });
 
@@ -69,9 +69,9 @@ describe('applyRanking — deciding tiebreak', () => {
 
 describe('the terminal ordering key', () => {
   /** Two fighters level on every declared key, so only the terminal key is left. */
-  const tied = (registrationId: string, displayName: string): StandingsRow => ({
+  const tied = (entrantId: string, displayName: string): StandingsRow => ({
     rank: 0,
-    registrationId,
+    entrantId,
     displayName,
     club: null,
     status: 'completed',
@@ -99,18 +99,15 @@ describe('the terminal ordering key', () => {
     // not a display wobble.
     const ada = tied('f-ada', 'Ada');
     const grace = tied('f-grace', 'Grace');
-    expect(applyRanking([ada, grace], CHAIN).map((r) => r.registrationId)).toEqual(
-      applyRanking([grace, ada], CHAIN).map((r) => r.registrationId),
+    expect(applyRanking([ada, grace], CHAIN).map((r) => r.entrantId)).toEqual(
+      applyRanking([grace, ada], CHAIN).map((r) => r.entrantId),
     );
   });
 
   it('falls through to the registration id when two fighters share a name', () => {
     const first = tied('f-a', 'Alex Martin');
     const second = tied('f-b', 'Alex Martin');
-    expect(applyRanking([second, first], CHAIN).map((r) => r.registrationId)).toEqual([
-      'f-a',
-      'f-b',
-    ]);
+    expect(applyRanking([second, first], CHAIN).map((r) => r.entrantId)).toEqual(['f-a', 'f-b']);
   });
 
   it('never overrides a declared key', () => {

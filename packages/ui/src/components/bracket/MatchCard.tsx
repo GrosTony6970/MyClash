@@ -2,6 +2,8 @@ import * as React from 'react';
 import { resolveMatchWinner } from '@myclash/types';
 import { accentClassFor, accentInkClassFor, tintBgClassFor } from '../../utils/color-token';
 import { SkillBadge } from '../SkillBadge';
+import { TeamChip } from '../team-chip';
+import { isRowOfSide } from '../../utils/exchange-timeline';
 import type { RoundTranslator } from '../../utils/round-label';
 import { statusLabel } from '../../utils/status-label';
 import type { BracketSlotData, ColorToken } from './types';
@@ -95,9 +97,11 @@ export function MatchCard({
     React.useContext(BracketHighlightContext);
   const isOnHighlightedLice = !!highlightLiceId && slot.liceId === highlightLiceId;
   const referees = slot.referees ?? [];
-  const redIsYou = !!highlightRegistrationId && slot.redRegistrationId === highlightRegistrationId;
-  const blueIsYou =
-    !!highlightRegistrationId && slot.blueRegistrationId === highlightRegistrationId;
+  // The "you" mark is a Registration: a team row (no Registration id) is nobody's "you". An empty
+  // highlight is nobody too: two empty ids are not one Fighter.
+  const you = highlightRegistrationId || null;
+  const redIsYou = isRowOfSide({ registration_id: slot.redRegistrationId }, you);
+  const blueIsYou = isRowOfSide({ registration_id: slot.blueRegistrationId }, you);
 
   /**
    * A per-piste bracket is SCOPED to one Lice, not merely annotated with it.
@@ -203,7 +207,8 @@ export function MatchCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <FighterRow
             name={slot.redFighterName}
-            club={slot.redClubAbbrev}
+            club={slot.red?.kind === 'team' ? null : slot.redClubAbbrev}
+            colour={slot.red?.colour ?? null}
             score={slot.redScore}
             highlight={redWins}
             isYou={redIsYou}
@@ -213,7 +218,8 @@ export function MatchCard({
           />
           <FighterRow
             name={slot.blueFighterName}
-            club={slot.blueClubAbbrev}
+            club={slot.blue?.kind === 'team' ? null : slot.blueClubAbbrev}
+            colour={slot.blue?.colour ?? null}
             score={slot.blueScore}
             highlight={blueWins}
             isYou={blueIsYou}
@@ -315,6 +321,7 @@ export function MatchCard({
 function FighterRow({
   name,
   club,
+  colour,
   score,
   highlight,
   isYou = false,
@@ -324,6 +331,8 @@ function FighterRow({
 }: {
   name: string | null;
   club: string | null | undefined;
+  /** A team's colour chip, drawn before its name; null for a Fighter. */
+  colour: string | null;
   score: number | null;
   highlight: boolean;
   isYou?: boolean;
@@ -358,6 +367,7 @@ function FighterRow({
       <span aria-hidden="true" className={`w-[3px] shrink-0 ${stripeClass}`} />
       <div className="flex min-w-0 flex-1 items-center justify-between gap-1 pl-2 pr-2">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {!isTbd && <TeamChip colour={colour} />}
           {/* Name takes priority for the row width (grows, truncates only as a
               last resort); the club yields first — capped + truncating — so a
               long club name no longer squeezes the fighter's name. */}
@@ -409,9 +419,9 @@ function winsThisRow(side: 'red' | 'blue', slot: BracketSlotData): boolean {
   return (
     resolveMatchWinner({
       status: 'completed', // the caller has already established this
-      winnerRegistrationId: slot.winnerRegistrationId,
-      redRegistrationId: slot.redRegistrationId,
-      blueRegistrationId: slot.blueRegistrationId,
+      winnerSideId: slot.winnerSideId,
+      redSideId: slot.redSideId,
+      blueSideId: slot.blueSideId,
       redScore: slot.redScore,
       blueScore: slot.blueScore,
     }) === side

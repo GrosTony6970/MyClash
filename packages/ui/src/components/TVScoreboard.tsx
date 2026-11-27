@@ -16,8 +16,7 @@
  * stays on the endcard.
  *
  * Used by the two public display routes of `apps/web-public` and by the
- * organiser's popup (`apps/web-admin/app/display`). The admin preview
- * surface keeps using `<MatchScoreboard>` (the older single-column layout).
+ * organiser's popup (`apps/web-admin/app/display`).
  */
 
 import * as React from 'react';
@@ -39,13 +38,14 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { FreshnessChip } from './FreshnessChip';
 import type { ClockEvent, ExchangeRow, MatchProtest } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
-import { buildUnifiedTimeline } from '../utils/exchange-timeline';
+import { buildUnifiedTimeline, isRowOfSide } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
 import { boutIsOver } from '../utils/bout-is-over';
 import { statusLabelKey } from '../utils/status-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
+import { TeamChip } from './team-chip';
 import { TvProtestChip } from './TvProtestChip';
 
 export interface TVScoreboardProps {
@@ -264,10 +264,12 @@ export function TVScoreboard({
     <FighterColumn
       key="red"
       name={redName}
+      colour={match.redColour}
       photoUrl={match.redFighterPhotoUrl ?? null}
+      logoUrl={match.redLogoUrl}
       club={match.redClub ?? null}
       score={match.redScore}
-      registrationId={match.redRegistrationId ?? null}
+      sideId={match.redSideId}
       penalties={penalties}
       protests={protests}
       protestLimit={protestLimit}
@@ -279,10 +281,12 @@ export function TVScoreboard({
     <FighterColumn
       key="blue"
       name={blueName}
+      colour={match.blueColour}
       photoUrl={match.blueFighterPhotoUrl ?? null}
+      logoUrl={match.blueLogoUrl}
       club={match.blueClub ?? null}
       score={match.blueScore}
-      registrationId={match.blueRegistrationId ?? null}
+      sideId={match.blueSideId}
       penalties={penalties}
       protests={protests}
       protestLimit={protestLimit}
@@ -376,11 +380,11 @@ function TVHeader({
   // colours so a white-configured side stays legible (no white-on-white).
   const redOnLight = legibleOn(redBorder, 'light');
   const blueOnLight = legibleOn(blueBorder, 'light');
-  // Mirror swaps the "X vs Y" name order to match the swapped body columns.
-  const leftName = mirror ? blueName : redName;
-  const leftColor = mirror ? blueOnLight : redOnLight;
-  const rightName = mirror ? redName : blueName;
-  const rightColor = mirror ? redOnLight : blueOnLight;
+  // Mirror swaps the "X vs Y" name order to match the swapped body columns. A team side carries
+  // its colour chip beside its name (call 6).
+  const red = { name: redName, color: redOnLight, colour: match.redColour };
+  const blue = { name: blueName, color: blueOnLight, colour: match.blueColour };
+  const [left, right] = mirror ? [blue, red] : [red, blue];
 
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
@@ -417,9 +421,9 @@ function TVHeader({
             <p className="text-stage-row font-semibold text-slate-500">{contextLine}</p>
           )}
           <p className="text-stage-club font-bold">
-            <span style={{ color: leftColor }}>{leftName}</span>{' '}
+            <SideName name={left.name} colour={left.colour} color={left.color} />{' '}
             <span className="text-slate-500">{t('scoring.liveMatch.versus')}</span>{' '}
-            <span style={{ color: rightColor }}>{rightName}</span>
+            <SideName name={right.name} colour={right.colour} color={right.color} />
           </p>
         </div>
         <div className="flex min-w-0 justify-end">
@@ -429,10 +433,12 @@ function TVHeader({
                 {t('scoring.liveMatch.upNext')} ▸
               </p>
               <p className="text-stage-subtitle truncate font-semibold">
-                <span style={{ color: redOnLight }}>●</span> {next.redFighterName ?? '—'}
+                <span style={{ color: redOnLight }}>●</span>{' '}
+                <SideName name={next.redFighterName ?? '—'} colour={next.redColour} />
               </p>
               <p className="text-stage-subtitle truncate font-semibold">
-                <span style={{ color: blueOnLight }}>●</span> {next.blueFighterName ?? '—'}
+                <span style={{ color: blueOnLight }}>●</span>{' '}
+                <SideName name={next.blueFighterName ?? '—'} colour={next.blueColour} />
               </p>
             </div>
           )}
@@ -442,14 +448,49 @@ function TVHeader({
   );
 }
 
+/**
+ * A side's name, with its team's colour chip before it (call 6). A Fighter's side has no colour
+ * and shows the name alone. `color` tints the name where the line takes the side colour.
+ *
+ * The chip (`TeamChip`) takes the scope's ink for its edge: on the stage the line sets
+ * `data-theme="dark"`, or a black team's chip would vanish into the near-black.
+ */
+function SideName({
+  name,
+  colour,
+  color,
+}: {
+  name: string;
+  colour: string | null;
+  color?: string;
+}) {
+  return (
+    <span style={color ? { color } : undefined}>
+      <TeamChip colour={colour} />
+      {name}
+    </span>
+  );
+}
+
+/** The verdict's winner: the trophy, then the side's name with its chip, on the stage. */
+function WinnerLine({ winner }: { winner: { name: string; colour: string | null } }) {
+  return (
+    <p data-theme="dark" className="text-stage-name font-bold">
+      🏆 <SideName name={winner.name} colour={winner.colour} />
+    </p>
+  );
+}
+
 // ── Fighter columns ───────────────────────────────────────────────
 
 function FighterColumn({
   name,
+  colour,
   photoUrl,
+  logoUrl,
   club,
   score,
-  registrationId,
+  sideId,
   penalties,
   protests,
   protestLimit,
@@ -457,27 +498,36 @@ function FighterColumn({
   tintHex,
 }: {
   name: string;
+  /** A team side's colour, for its chip; null on a Fighter's side. */
+  colour: string | null;
   photoUrl: string | null;
+  /** A team side's logo, shown where a Fighter's photo is (call 6). */
+  logoUrl: string | null;
   club: { name: string; logoUrl: string | null } | null;
   score: number;
-  registrationId: string | null;
+  /** The side key: a Fighter's Registration id or a team's id; null while not known. */
+  sideId: string | null;
   penalties: Penalty[];
   protests: MatchProtest[];
   protestLimit: number | null;
   t: Translator;
   tintHex: string;
 }) {
-  const myPenalties = penalties.filter((p) => !p.voided && p.registration_id === registrationId);
+  // By side key: a team card names its team and no Registration. A side not known yet is nobody,
+  // so a card is never shown under a side with no key (`null === null` put it under both).
+  const myPenalties = penalties.filter((p) => !p.voided && isRowOfSide(p, sideId));
   const tint = legibleOn(tintHex, 'dark');
   return (
     <div className="flex flex-col items-center justify-start gap-6 pt-6">
       <p className="text-stage-score font-black leading-none tabular-nums" style={{ color: tint }}>
         {score}
       </p>
-      {/* Fighter photo above the name; side-tinted initials when there's no
-          photo so red vs blue stay distinguishable on the projector. */}
-      <FighterAvatar name={name} photoUrl={photoUrl} tint={tint} />
-      <p className="text-stage-name text-center font-bold leading-tight">{name}</p>
+      {/* Fighter photo (or team logo) above the name; side-tinted initials
+          when there's neither, so red vs blue stay distinguishable on the projector. */}
+      <FighterAvatar name={name} photoUrl={photoUrl} logoUrl={logoUrl} tint={tint} />
+      <p data-theme="dark" className="text-stage-name text-center font-bold leading-tight">
+        <SideName name={name} colour={colour} />
+      </p>
       {club && (
         <div className="text-stage-club flex items-center justify-center gap-3 text-gray-300">
           {club.logoUrl && (
@@ -508,10 +558,10 @@ function FighterColumn({
             </span>
           );
         })}
-        {registrationId && (
+        {sideId && (
           <TvProtestChip
             protests={protests}
-            registrationId={registrationId}
+            sideId={sideId}
             limit={protestLimit}
             fighterName={name}
             t={t}
@@ -522,18 +572,37 @@ function FighterColumn({
   );
 }
 
-// Fighter photo for the scoreboard column. Falls back to side-tinted
-// initials (not the red-only packages/ui Avatar, which would mislabel the
-// blue fighter) so both sides stay legible on a projector.
+// Fighter photo for the scoreboard column. A team's logo takes the photo's
+// place, whole (contained, not cropped). It is decorative (`alt=""`), as the
+// photo is: the team's name is the line right under it, and a screen reader
+// would read it twice (WAI H2). Falls back to side-tinted initials (not the
+// red-only packages/ui Avatar, which would mislabel the blue fighter) so both
+// sides stay legible on a projector: a team with no logo shows what a Fighter
+// with no photo shows.
 function FighterAvatar({
   name,
   photoUrl,
+  logoUrl,
   tint,
 }: {
   name: string;
   photoUrl: string | null;
+  logoUrl: string | null;
   tint: string;
 }) {
+  if (logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt=""
+        width={128}
+        height={128}
+        className={`${STAGE_AVATAR} rounded-full border-4 bg-stage-foreground/5 object-contain`}
+        style={{ borderColor: tint }}
+      />
+    );
+  }
   if (photoUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -611,21 +680,27 @@ function CenterColumn({
   const isBlackCard = isEnded && match.endReason === 'black_card';
   const winner = useMemo(() => {
     if (!isEnded) return null;
+    // By side key: a team bout's winner is a team, and a forfeit can crown the side behind on
+    // points. Never the Registration ids: a team side has none.
     const side = resolveMatchWinner({
       status: 'completed',
-      winnerRegistrationId: match.winnerRegistrationId,
-      redRegistrationId: match.redRegistrationId,
-      blueRegistrationId: match.blueRegistrationId,
+      winnerSideId: match.winnerSideId,
+      redSideId: match.redSideId,
+      blueSideId: match.blueSideId,
       redScore: match.redScore,
       blueScore: match.blueScore,
     });
     if (side === null) return null;
-    return { side, name: side === 'red' ? redName : blueName };
+    return side === 'red'
+      ? { side, name: redName, colour: match.redColour }
+      : { side, name: blueName, colour: match.blueColour };
   }, [
     isEnded,
-    match.winnerRegistrationId,
-    match.redRegistrationId,
-    match.blueRegistrationId,
+    match.winnerSideId,
+    match.redSideId,
+    match.blueSideId,
+    match.redColour,
+    match.blueColour,
     match.redScore,
     match.blueScore,
     redName,
@@ -643,8 +718,8 @@ function CenterColumn({
         protests,
         redName,
         blueName,
-        redRegId: match.redRegistrationId ?? '',
-        blueRegId: match.blueRegistrationId ?? '',
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         t,
         config: match.scoringConfig ?? DEFAULT_SCORING_CONFIG,
       }),
@@ -654,8 +729,8 @@ function CenterColumn({
       protests,
       redName,
       blueName,
-      match.redRegistrationId,
-      match.blueRegistrationId,
+      match.redSideId,
+      match.blueSideId,
       match.scoringConfig,
       t,
     ],
@@ -668,8 +743,8 @@ function CenterColumn({
       buildBoutFlow({
         exchanges,
         penalties,
-        redRegId: match.redRegistrationId ?? '',
-        blueRegId: match.blueRegistrationId ?? '',
+        redSideId: match.redSideId,
+        blueSideId: match.blueSideId,
         matchFormat: match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
         phaseType: match.phaseType,
         endReason: match.endReason,
@@ -680,8 +755,8 @@ function CenterColumn({
     [
       exchanges,
       penalties,
-      match.redRegistrationId,
-      match.blueRegistrationId,
+      match.redSideId,
+      match.blueSideId,
       match.matchFormat,
       match.phaseType,
       match.endReason,
@@ -727,14 +802,14 @@ function CenterColumn({
               <p className="text-stage-verdict font-black uppercase tracking-widest text-red-500">
                 {t('scoring.liveMatch.blackCard')}
               </p>
-              {winner && <p className="text-stage-name font-bold">🏆 {winner.name}</p>}
+              {winner && <WinnerLine winner={winner} />}
             </>
           ) : (
             <>
               <p className="text-stage-verdict font-black uppercase tracking-widest text-amber-400">
                 {t('scoring.scoreboard.matchEnded')}
               </p>
-              {winner && <p className="text-stage-name font-bold">🏆 {winner.name}</p>}
+              {winner && <WinnerLine winner={winner} />}
             </>
           )}
           {countdownRemaining !== null && (
@@ -782,6 +857,8 @@ function CenterColumn({
           config={match.scoringConfig}
           redName={redName}
           blueName={blueName}
+          redColour={match.redColour}
+          blueColour={match.blueColour}
           surface="dark"
           scale="tv"
           t={t}
@@ -798,6 +875,8 @@ function CenterColumn({
           events={events}
           scale="tv"
           ariaLabel={t('scoring.lice.eventsHeader')}
+          redColour={match.redColour}
+          blueColour={match.blueColour}
           t={t}
         />
       </div>

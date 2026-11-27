@@ -25,6 +25,7 @@ const T = (slug: string, status: string) => ({
   slug,
   name: `Tournament ${slug}`,
   status,
+  entrant_kind: 'individual',
   weapon: 'longsword',
   ruleset_code: 'TF_v1',
   ruleset_version: '1',

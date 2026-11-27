@@ -176,7 +176,9 @@ describe('the archived-Event lock, API-wide', () => {
     // by its Event: nobody posts an open call at an archived Event.
     // 203: a protest's `POST matches/:id/protests` and `PATCH match-protests/:id/void` (0276),
     // placed by their bout and opted out as a card's are: the count reads the path, not the mark.
-    expect(placed).toHaveLength(203);
+    // 207: a team's `POST`, `PATCH`, `DELETE` and logo `POST` under
+    // `tournaments/:tournamentId/teams` (team Tournaments 1b-1), placed by their Tournament.
+    expect(placed).toHaveLength(207);
     expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });

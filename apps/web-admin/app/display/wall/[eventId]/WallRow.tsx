@@ -2,6 +2,7 @@
 import type { Translator } from '@myclash/next-i18n/client';
 import { DOT, type HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
+import { BoardBoutLine } from '@/lib/live-board/board-bout-line';
 import { statusLabel } from '@myclash/ui';
 import type { AppLocale } from '@myclash/time';
 import type { BoardRow } from '@/lib/live-board/types';
@@ -49,9 +50,7 @@ export function WallRow({ row, state, nowMs, locale, t }: WallRowProps) {
         className="min-w-0 flex-1 truncate text-stage-foreground"
         style={{ fontSize: 'var(--text-stage-row)' }}
       >
-        {cm
-          ? `${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`
-          : t('organizer.live.state.idle')}
+        {cm ? <BoardBoutLine match={cm} dark /> : t('organizer.live.state.idle')}
       </span>
       <span
         className="w-40 shrink-0 truncate text-right tabular-nums text-stage-foreground/60"

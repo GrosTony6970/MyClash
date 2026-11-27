@@ -1,0 +1,260 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { DisplayMatch, MatchProtest, Penalty } from '../types/match-events';
+import { TVScoreboard } from './TVScoreboard';
+
+/**
+ * The TV on a team bout. Each side is a team: its key is the team's id, it has no Registration,
+ * it shows its name with its colour chip, and its logo where a Fighter's photo is (call 6). The
+ * live read is stubbed, so a static render draws the whole board.
+ */
+const live = vi.hoisted(() => ({
+  match: null as unknown,
+  penalties: [] as unknown[],
+  protests: [] as unknown[],
+  exchanges: [] as unknown[],
+  clock: null as unknown,
+}));
+vi.mock('../hooks/useLiveMatch', () => ({
+  useLiveMatch: () => ({
+    match: live.match,
+    penalties: live.penalties,
+    protests: live.protests,
+    exchanges: live.exchanges,
+    clock: live.clock,
+    elapsedMs: 0,
+    loadError: null,
+    connected: true,
+    freshness: { kind: 'live' },
+    refresh: async () => {},
+  }),
+}));
+
+const t = (key: string) => key;
+
+const teamBout: DisplayMatch = {
+  id: 'm1',
+  status: 'running',
+  matchNumberLabel: 'M1',
+  redScore: 0,
+  blueScore: 0,
+  redSideId: 'team-red',
+  blueSideId: 'team-blue',
+  winnerSideId: null,
+  redFighterName: 'Lyon Blades',
+  blueFighterName: 'Paris Rapiers',
+  redColour: 'green',
+  blueColour: 'violet',
+  redLogoUrl: null,
+  blueLogoUrl: 'https://cdn.test/paris.png',
+  startedAt: null,
+  endedAt: null,
+};
+
+function teamCard(id: string, teamId: string): Penalty {
+  return {
+    id,
+    sequence: 1,
+    registration_id: null,
+    team_id: teamId,
+    card: 'yellow',
+    source: 'direct',
+    short_name: null,
+    reason: 'leaves the piste',
+    score_delta: 0,
+    causes_match_forfeit: false,
+    voided: false,
+  };
+}
+
+function teamProtest(id: string, teamId: string): MatchProtest {
+  return {
+    id,
+    client_uuid: id,
+    match_id: 'm1',
+    registration_id: null,
+    team_id: teamId,
+    sequence: 1,
+    round_number: 1,
+    clock_time_ms: 1000,
+    occurred_at: '2027-06-21T10:00:00.000Z',
+    voided: false,
+  };
+}
+
+function render(): string {
+  return renderToStaticMarkup(
+    <TVScoreboard
+      matchId="m1"
+      apiBaseUrl="http://api.test"
+      supabaseClient={{} as SupabaseClient}
+      onBoutOver={() => {}}
+      t={t}
+    />,
+  );
+}
+
+/** The board split at the centre column: the red column before it, the blue one after. */
+function columns(html: string): { red: string; blue: string } {
+  const centre = html.indexOf('scoring.lice.eventsHeader');
+  const header = html.indexOf('</header>');
+  return { red: html.slice(header, centre), blue: html.slice(centre) };
+}
+
+/** The yellow card chip's count in a column. */
+const yellowCount = (column: string) =>
+  /bg-yellow-400 text-yellow-950[^"]*">\s*<span[^>]*><\/span>(\d+)<\/span>/.exec(column)?.[1];
+
+beforeEach(() => {
+  live.match = teamBout;
+  live.penalties = [];
+  live.protests = [];
+  live.exchanges = [];
+  live.clock = { status: 'running', activeMs: 0, runningFrom: null };
+});
+
+describe('TVScoreboard on a team bout', () => {
+  // `null === null`: the team card has no Registration and neither side has one, so the card was
+  // counted under both teams.
+  it('shows a team card under its own team only', () => {
+    live.penalties = [teamCard('p1', 'team-blue')];
+    const { red, blue } = columns(render());
+    expect(yellowCount(red)).toBe('0');
+    expect(yellowCount(blue)).toBe('1');
+  });
+
+  it('counts each team protests on its own chip', () => {
+    live.protests = [
+      teamProtest('a', 'team-red'),
+      teamProtest('b', 'team-red'),
+      teamProtest('c', 'team-blue'),
+    ];
+    const { red, blue } = columns(render());
+    const chip = (column: string) =>
+      /protestsChipTooltip[^>]*>.*?<\/svg>(\d+)<\/span>/s.exec(column)?.[1];
+    expect(chip(red)).toBe('2');
+    expect(chip(blue)).toBe('1');
+  });
+
+  it('shows each team name with its colour chip, and its logo where a photo is', () => {
+    const html = render();
+    const { red, blue } = columns(html);
+    expect(red).toMatch(/bg-green-700[^>]*><\/span><\/span>\sLyon Blades/);
+    expect(blue).toMatch(/bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers/);
+    // The logo is decorative, as the photo is: the team's name is the line under it (WAI H2). A
+    // team with no logo shows the initials, as a Fighter with no photo does.
+    expect(blue).toContain('src="https://cdn.test/paris.png" alt=""');
+    expect(red).not.toContain('<img');
+    expect(red).toContain('>LB</div>');
+    // The header's "X vs Y" line carries the chips too.
+    const header = html.slice(0, html.indexOf('</header>'));
+    expect(header).toMatch(/bg-green-700[^>]*><\/span><\/span>\sLyon Blades/);
+    expect(header).toMatch(/bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers/);
+  });
+
+  it('shows a chip beside each team of the next bout', () => {
+    live.match = {
+      ...teamBout,
+      nextMatchId: 'm2',
+      nextMatch: {
+        id: 'm2',
+        matchNumberLabel: 'M2',
+        roundCode: null,
+        redFighterName: 'Nice Sabres',
+        blueFighterName: 'Lille Foils',
+        redColour: 'gold',
+        blueColour: 'teal',
+      },
+    };
+    const header = render().split('</header>')[0]!;
+    expect(header).toMatch(/bg-amber-400[^>]*><\/span><\/span>\sNice Sabres/);
+    expect(header).toMatch(/bg-teal-700[^>]*><\/span><\/span>\sLille Foils/);
+  });
+
+  // The recorded winner is a side key. A team can win by forfeit on the lower score: the score
+  // fallback would crown the other team.
+  it('crowns the team the bout records as its winner, on the lower score', () => {
+    live.match = {
+      ...teamBout,
+      status: 'completed',
+      redScore: 5,
+      blueScore: 0,
+      winnerSideId: 'team-blue',
+    };
+    live.clock = { status: 'ended', activeMs: 0, runningFrom: null };
+    const html = render();
+    expect(html).toMatch(
+      /🏆 <span><span class="inline-flex"><span[^>]*bg-violet-700[^>]*><\/span><\/span>\sParis Rapiers<\/span>/,
+    );
+    expect(html.match(/🏆/g)).toHaveLength(1);
+  });
+
+  // The history and the flow legend are the shared components: the TV hands them the colours.
+  it("shows each team's chip on its history row and in the flow legend", () => {
+    live.exchanges = [
+      {
+        id: 'hit-1',
+        sequence: 1,
+        type: 'clean',
+        voided: false,
+        occurredAt: '2027-06-21T10:01:00.000Z',
+        scoringSide: 'red',
+        scoreDelta: 1,
+      },
+    ];
+    live.penalties = [{ ...teamCard('p1', 'team-blue'), occurred_at: '2027-06-21T10:02:00.000Z' }];
+    const html = render();
+    const row = (n: number) =>
+      html.split('<li').find((li) => li.includes(`data-event-number="${n}"`));
+    expect(row(1)).toMatch(
+      /data-theme="dark"[^>]*><span[^>]*bg-green-700[^>]*><\/span><\/span> Lyon Blades/,
+    );
+    expect(row(2)).toMatch(/bg-violet-700[^>]*><\/span><\/span> Paris Rapiers/);
+    // The legend: each chip beside its score, with no tooltip on a screen with no pointer (D20).
+    const start = html.indexOf('<p class="inline-flex items-center gap-1');
+    const legend = html.slice(start, html.indexOf('</p>', start));
+    expect(legend).toMatch(/bg-green-700[\s\S]*bg-violet-700/);
+    expect(legend).not.toContain('title=');
+  });
+
+  // The stage is near-black and sets no scope: the dot's edge is the scope's ink, so each stage
+  // line that carries a dot takes the dark scope, or a black team's dot vanishes.
+  it('sets the dark scope on the column names and on the winner line', () => {
+    live.match = { ...teamBout, status: 'completed', winnerSideId: 'team-blue' };
+    live.clock = { status: 'ended', activeMs: 0, runningFrom: null };
+    const html = render();
+    const { red, blue } = columns(html);
+    const nameLine =
+      /<p data-theme="dark" class="text-stage-name text-center[^"]*">(?:(?!<\/p>).)*/s;
+    expect(nameLine.exec(red)?.[0]).toContain('Lyon Blades');
+    expect(nameLine.exec(blue)?.[0]).toContain('Paris Rapiers');
+    expect(html).toMatch(/<p data-theme="dark" class="text-stage-name font-bold">🏆/);
+  });
+});
+
+describe('TVScoreboard on a Fighter bout', () => {
+  // A Fighter's side has no colour: the name stands alone, with no dot and no space before it.
+  it('shows no colour dot anywhere', () => {
+    live.match = {
+      ...teamBout,
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
+      redFighterName: 'Ada Lovelace',
+      blueFighterName: 'Mary Somerville',
+      redColour: null,
+      blueColour: null,
+      redLogoUrl: null,
+      blueLogoUrl: null,
+      status: 'completed',
+      redScore: 5,
+      winnerSideId: 'reg-red',
+    };
+    live.clock = { status: 'ended', activeMs: 0, runningFrom: null };
+    const html = render();
+    expect(html).not.toContain('rounded-full ring-1 ring-inset');
+    expect(html).toContain('<span>Ada Lovelace</span>');
+    expect(html).toMatch(/🏆 <span>Ada Lovelace<\/span>/);
+  });
+});

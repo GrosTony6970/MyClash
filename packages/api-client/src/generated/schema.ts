@@ -3698,7 +3698,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Add or move a registration into a pool (org admin+) */
+    /** Add or move a registration or a team into a pool (org admin+) */
     post: operations['PhasesController_addPoolMember'];
     delete?: never;
     options?: never;
@@ -3706,7 +3706,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/pools/{poolId}/members/{registrationId}': {
+  '/api/v1/pools/{poolId}/members/{entrantId}': {
     parameters: {
       query?: never;
       header?: never;
@@ -3884,7 +3884,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List tournament registrations not yet assigned to any pool (org member) */
+    /** List tournament registrations, or teams, not yet assigned to any pool (org member) */
     get: operations['PhaseReadsController_listUnassignedFighters'];
     put?: never;
     post?: never;
@@ -3941,7 +3941,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Override bracket slot registrations (org admin+) */
+    /** Override bracket slot sides (org admin+) */
     patch: operations['BracketSlotsController_overrideSlot'];
     trace?: never;
   };
@@ -8088,6 +8088,59 @@ export interface paths {
     patch: operations['ProtestsController_voidProtest'];
     trace?: never;
   };
+  '/api/v1/tournaments/{tournamentId}/teams': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the teams of a team Tournament */
+    get: operations['TeamsController_list'];
+    put?: never;
+    /** Create a team (slug from its name; size defaults to the Tournament) */
+    post: operations['TeamsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/teams/{teamId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a team (409 while a bout names it) */
+    delete: operations['TeamsController_remove'];
+    options?: never;
+    head?: never;
+    /** Save a team (size fixed once a bout of the team has started) */
+    patch: operations['TeamsController_update'];
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/teams/{teamId}/logo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload a team logo (PNG, JPEG or WebP, 10 MB) */
+    post: operations['TeamsController_uploadLogo'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/notifications/vapid-public-key': {
     parameters: {
       query?: never;
@@ -11713,7 +11766,7 @@ export interface components {
       /** @enum {string} */
       status: 'completed';
       /** Format: uuid */
-      winnerRegistrationId?: string;
+      winnerSideId?: string;
     };
     ScheduleMatchDto: {
       /** Format: uuid */
@@ -11733,7 +11786,9 @@ export interface components {
     };
     CreateMatchForfeitDto: {
       /** Format: uuid */
-      forfeitingRegistrationId: string;
+      forfeitingRegistrationId?: string;
+      /** Format: uuid */
+      forfeitingTeamId?: string;
       /** @enum {string} */
       reason:
         | 'injury'
@@ -11916,6 +11971,8 @@ export interface components {
       enforceSchoolSeparation?: boolean;
       enforceSkillBalance?: boolean;
       seed?: number;
+      /** @enum {string} */
+      teamSpread?: 'seed' | 'random';
       /** Format: uuid */
       liceId?: string;
       discardScoredResults?: number;
@@ -11925,6 +11982,12 @@ export interface components {
       /** Format: uuid */
       refereeId: string | null;
       confirm?: boolean;
+    };
+    AddPoolMemberDto: {
+      /** Format: uuid */
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
     };
     GenerateBracketDto: {
       /** @enum {string} */
@@ -11962,7 +12025,11 @@ export interface components {
       /** Format: uuid */
       registrationAId?: string | null;
       /** Format: uuid */
+      teamAId?: string | null;
+      /** Format: uuid */
       registrationBId?: string | null;
+      /** Format: uuid */
+      teamBId?: string | null;
     };
     UpsertQualificationDto: {
       /** Format: uuid */
@@ -12390,6 +12457,9 @@ export interface components {
       color?: string;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+      /** @enum {string} */
+      entrantKind?: 'individual' | 'team';
+      teamDefaultSize?: number | null;
     };
     UpdateTournamentDto: {
       name?: string;
@@ -12525,6 +12595,9 @@ export interface components {
       color?: string | null;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+      /** @enum {string} */
+      entrantKind?: 'individual' | 'team';
+      teamDefaultSize?: number | null;
       audit?: {
         justification: string;
         confirm: string;
@@ -13060,7 +13133,9 @@ export interface components {
       clientUuid: string;
       sequence: number;
       /** Format: uuid */
-      registrationId: string;
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
       /** Format: uuid */
       rulesetEntryId?: string;
       /** @enum {string} */
@@ -13085,7 +13160,9 @@ export interface components {
       clientUuid: string;
       sequence: number;
       /** Format: uuid */
-      registrationId: string;
+      registrationId?: string;
+      /** Format: uuid */
+      teamId?: string;
       /** Format: date-time */
       occurredAt: string;
       /** Format: date-time */
@@ -13094,6 +13171,19 @@ export interface components {
     };
     VoidProtestDto: {
       reason?: string;
+    };
+    CreateTeamDto: {
+      name: string;
+      size?: number;
+      color?: string | null;
+      seed?: number | null;
+    };
+    UpdateTeamDto: {
+      name?: string;
+      size?: number;
+      color?: string | null;
+      seed?: number | null;
+      logoUrl?: null;
     };
     SubscribeDto: {
       /** Format: uri */
@@ -19055,7 +19145,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddPoolMemberDto'];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -19071,7 +19165,7 @@ export interface operations {
       header?: never;
       path: {
         poolId: string;
-        registrationId: string;
+        entrantId: string;
       };
       cookie?: never;
     };
@@ -25666,6 +25760,119 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTeamDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_remove: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateTeamDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TeamsController_uploadLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+        teamId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

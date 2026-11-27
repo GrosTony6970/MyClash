@@ -21,29 +21,40 @@
  */
 
 import { useState } from 'react';
-import { BoutFlowChart, MatchTimeline, buildBoutFlow, buildUnifiedTimeline } from '@myclash/ui';
+import {
+  BoutFlowChart,
+  MatchTimeline,
+  TeamChip,
+  buildBoutFlow,
+  buildUnifiedTimeline,
+} from '@myclash/ui';
 import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 import { sideStyle } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
-import { protestRulesOf, resolveMatchWinner } from '@myclash/types';
+import { protestRulesOf } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 import { isDoubleLoss } from './is-double-loss';
 import { CornerDot } from './CornerDot';
 import { ProtestPair } from './ProtestButton';
+import { resultWinner } from './result-winner';
 
 export interface MatchResultOverlayProps {
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Each side's key, a Fighter's Registration or a team (`resultSides`). */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** A team side's colour, for its chip in the bout review (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   redScore: number;
   blueScore: number;
-  /** The recorded winner. The overlay ANNOUNCES the result to the hall, so it
+  /** The recorded winner's side key. The overlay ANNOUNCES the result to the hall, so it
    *  reads the record rather than comparing the two numbers — a forfeit or a
    *  `referee_decision` override can put the winner on the lower score. */
-  winnerRegistrationId: string | null;
+  winnerSideId: string | null;
   /**
    * A decided best-of series: its closed rounds, in order. The score above is
    * then the ROUNDS WON, and the points of each round are said in a small line
@@ -107,9 +118,11 @@ function ResultHeadline({
   blueName,
   redScore,
   blueScore,
-  redRegistrationId,
-  blueRegistrationId,
-  winnerRegistrationId,
+  redSideId,
+  blueSideId,
+  winnerSideId,
+  redColour,
+  blueColour,
   rounds,
   resultReason,
   scoringConfig,
@@ -120,26 +133,25 @@ function ResultHeadline({
   | 'blueName'
   | 'redScore'
   | 'blueScore'
-  | 'redRegistrationId'
-  | 'blueRegistrationId'
-  | 'winnerRegistrationId'
+  | 'redSideId'
+  | 'blueSideId'
+  | 'winnerSideId'
+  | 'redColour'
+  | 'blueColour'
   | 'rounds'
   | 'scoringConfig'
 >) {
   const { t } = useI18n();
-  // A loss for both names nobody, whatever the board reads: a card on a wiped
-  // board leaves 0 and -1, and its leader is not a winner.
-  const lossForBoth = isDoubleLoss('completed', resultReason);
-  const resolved = resolveMatchWinner({
-    status: 'completed', // the overlay only renders once the clock has ended
-    winnerRegistrationId,
-    redRegistrationId,
-    blueRegistrationId,
+  const winner = resultWinner({
+    resultReason,
+    winnerSideId,
+    redSideId,
+    blueSideId,
     redScore,
     blueScore,
   });
-  const winner = lossForBoth ? null : resolved;
   const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
+  const winnerColour = winner === 'red' ? redColour : winner === 'blue' ? blueColour : null;
 
   return (
     <>
@@ -164,6 +176,8 @@ function ResultHeadline({
               className="h-4 w-4 motion-safe:animate-pulse"
             />
           )}
+          {/* A winning team's colour chip before its name (call 6); none for a Fighter. */}
+          <TeamChip colour={winnerColour} />
           {winnerName}
         </p>
       ) : (
@@ -198,8 +212,10 @@ function ResultHeadline({
 function BoutReview({
   redName,
   blueName,
-  redRegistrationId,
-  blueRegistrationId,
+  redSideId,
+  blueSideId,
+  redColour,
+  blueColour,
   endReason,
   bestOf,
   currentRound,
@@ -229,8 +245,8 @@ function BoutReview({
     protests: activeProtests,
     redName,
     blueName,
-    redRegId: redRegistrationId,
-    blueRegId: blueRegistrationId,
+    redSideId,
+    blueSideId,
     t,
     config: scoringConfig,
   });
@@ -238,8 +254,8 @@ function BoutReview({
   const flow = buildBoutFlow({
     exchanges,
     penalties,
-    redRegId: redRegistrationId,
-    blueRegId: blueRegistrationId,
+    redSideId,
+    blueSideId,
     matchFormat,
     phaseType,
     endReason,
@@ -257,6 +273,8 @@ function BoutReview({
         config={scoringConfig}
         redName={redName}
         blueName={blueName}
+        redColour={redColour}
+        blueColour={blueColour}
         surface={padScope}
         scale="compact"
         highlightNumber={highlight}
@@ -269,6 +287,8 @@ function BoutReview({
         ariaLabel={t('scoring.lice.eventsHeader')}
         highlightNumber={highlight}
         onHighlightChange={setHighlight}
+        redColour={redColour}
+        blueColour={blueColour}
         t={t}
       />
     </div>
@@ -298,8 +318,8 @@ function ResultProtests(
     MatchResultOverlayProps,
     | 'redName'
     | 'blueName'
-    | 'redRegistrationId'
-    | 'blueRegistrationId'
+    | 'redSideId'
+    | 'blueSideId'
     | 'scoring'
     | 'scoringConfig'
     | 'protestLive'
@@ -312,9 +332,7 @@ function ResultProtests(
         redName={props.redName}
         blueName={props.blueName}
         count={(corner) =>
-          props.scoring.protestCountFor(
-            corner === 'red' ? props.redRegistrationId : props.blueRegistrationId,
-          )
+          props.scoring.protestCountFor(corner === 'red' ? props.redSideId : props.blueSideId)
         }
         limit={protestRulesOf(props.scoringConfig.display).limit}
         live={props.protestLive}
@@ -332,7 +350,7 @@ function ResultProtests(
  */
 export function MatchResultOverlay(props: MatchResultOverlayProps) {
   const { t } = useI18n();
-  const { redName, blueName, redScore, blueScore, scoringConfig, nextMatchHref, onClose } = props;
+  const { nextMatchHref, onClose } = props;
 
   return (
     <div
@@ -343,18 +361,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
       className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4"
     >
       <div className="w-full max-w-3xl rounded-xl border border-gold/60 bg-surface p-6 text-center shadow-2xl">
-        <ResultHeadline
-          redName={redName}
-          blueName={blueName}
-          redScore={redScore}
-          blueScore={blueScore}
-          redRegistrationId={props.redRegistrationId}
-          blueRegistrationId={props.blueRegistrationId}
-          winnerRegistrationId={props.winnerRegistrationId}
-          rounds={props.rounds}
-          resultReason={props.resultReason}
-          scoringConfig={scoringConfig}
-        />
+        <ResultHeadline {...props} />
         {props.unconfirmed && <NotConfirmed />}
         <ResultProtests {...props} />
         <BoutReview {...props} />

@@ -9,8 +9,6 @@
  * This logic used to live in three divergent copies:
  *   - `apps/web-staff/src/components/scoreboard-clock.ts` — correct except it
  *     billed a Swiss bout at the BRACKET limit.
- *   - `packages/ui/src/components/MatchScoreboard.tsx` — hardcoded
- *     `timeLimitsSeconds.bracket`, so pool and finals showed the wrong limit.
  *   - `packages/ui/src/components/TVScoreboard.tsx` — no countdown at all; the
  *     public projector always counted up, whatever the organiser configured.
  *

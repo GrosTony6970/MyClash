@@ -10,6 +10,9 @@ export interface NextMatchInfo {
   blueName: string;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip (a colour token, call 6); null or absent on a Fighter's side. */
+  redColour?: string | null;
+  blueColour?: string | null;
 }
 
 interface UseNextMatchResult {

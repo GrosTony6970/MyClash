@@ -6,8 +6,8 @@ import { applyRanking } from '@myclash/rules/results';
 
 const BASE_MATCH: Match = {
   id: 'm1',
-  redRegistrationId: 'reg-red',
-  blueRegistrationId: 'reg-blue',
+  redSideId: 'reg-red',
+  blueSideId: 'reg-blue',
   rulesetCode: 'Generic_PointsCap',
   rulesetVersion: '1.0.0',
   status: 'running',
@@ -171,9 +171,9 @@ describe('Generic_PointsCap', () => {
   describe('scorePoolFighters', () => {
     const bout: ScoredMatch = {
       id: 'm1',
-      redRegistrationId: 'r1',
-      blueRegistrationId: 'r2',
-      winnerRegistrationId: 'r1',
+      redSideId: 'r1',
+      blueSideId: 'r2',
+      winnerSideId: 'r1',
       endReason: null,
       // The recorded winner decides; the board agrees with it here.
       redScore: 2,
@@ -187,7 +187,7 @@ describe('Generic_PointsCap', () => {
 
     const scores = () =>
       Generic_PointsCap.scorePoolFighters({
-        registrationIds: ['r1', 'r2'],
+        entrantIds: ['r1', 'r2'],
         completedMatches: [bout],
         afterblowMode: 'full',
         config: {},
@@ -203,7 +203,7 @@ describe('Generic_PointsCap', () => {
       // A fighter with no bouts must still appear, or the standings table drops
       // a row rather than showing a zero.
       const withBye = Generic_PointsCap.scorePoolFighters({
-        registrationIds: ['r1', 'r2', 'r3'],
+        entrantIds: ['r1', 'r2', 'r3'],
         completedMatches: [bout],
         afterblowMode: 'full',
         config: {},
@@ -220,15 +220,16 @@ describe('Generic_PointsCap', () => {
         { id: 'r1', W: 1, diff: 3 },
       ].map((r) => ({
         rank: 0,
-        registrationId: r.id,
+        entrantId: r.id,
         displayName: r.id,
         club: null,
         status: 'completed' as const,
         stats: { W: r.W, diff: r.diff, ptsScored: 0 },
       }));
-      expect(
-        applyRanking(rows, Generic_PointsCap.rankingChain).map((r) => r.registrationId),
-      ).toEqual(['r1', 'r2']);
+      expect(applyRanking(rows, Generic_PointsCap.rankingChain).map((r) => r.entrantId)).toEqual([
+        'r1',
+        'r2',
+      ]);
     });
   });
 });

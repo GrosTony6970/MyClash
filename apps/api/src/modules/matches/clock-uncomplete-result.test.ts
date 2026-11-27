@@ -75,6 +75,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
     expect(rowWrite(db)).toEqual({
       status: 'paused',
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
       ended_at: null,
       locked_at: null,
@@ -104,6 +105,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       status: 'running',
       started_at: expect.any(String),
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
       ended_at: null,
       back_in_play_at: MARK,
@@ -127,6 +129,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
     expect(rowWrite(db)).toEqual({
       status: 'running',
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
       ended_at: null,
       back_in_play_at: MARK,
@@ -142,6 +145,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
     expect(rowWrite(db)).toEqual({
       status: 'paused',
       winner_registration_id: null,
+      winner_team_id: null,
       end_reason: null,
       ended_at: null,
       back_in_play_at: MARK,

@@ -253,13 +253,13 @@ describe('PoolStandingsService', () => {
     const result = (await service.getPoolStandings('t-1', 'by-pool')) as {
       pools: Array<{
         status: string;
-        rows: Array<{ registrationId: string; stats: Record<string, number> }>;
+        rows: Array<{ entrantId: string; stats: Record<string, number> }>;
       }>;
     };
 
     expect(result.pools).toHaveLength(1);
     expect(result.pools[0]!.status).toBe('completed');
-    const winner = result.pools[0]!.rows.find((r) => r.registrationId === 'reg-1')!;
+    const winner = result.pools[0]!.rows.find((r) => r.entrantId === 'reg-1')!;
     expect(winner.stats['W']).toBe(1);
     expect(winner.stats['ptsScored']).toBe(5);
     expect(winner.stats['ptsConceded']).toBe(2);
@@ -368,12 +368,12 @@ describe('PoolStandingsService', () => {
       const pool = (
         result as {
           pools: Array<{
-            rows: Array<{ rank: number; registrationId: string; stats: Record<string, number> }>;
+            rows: Array<{ rank: number; entrantId: string; stats: Record<string, number> }>;
           }>;
         }
       ).pools[0]!;
-      const r1 = pool.rows.find((r) => r.registrationId === 'reg-1')!;
-      const r2 = pool.rows.find((r) => r.registrationId === 'reg-2')!;
+      const r1 = pool.rows.find((r) => r.entrantId === 'reg-1')!;
+      const r2 = pool.rows.find((r) => r.entrantId === 'reg-2')!;
 
       // reg-1: targetPoints 2, timesHit 1, doubles 1, win → (3+2)/(1+0) = 5
       expect(r1.stats['hitsGiven']).toBe(2);

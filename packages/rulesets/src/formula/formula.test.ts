@@ -65,13 +65,13 @@ describe('createFormulaRuleset', () => {
   function makeMatch(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
     return {
       id,
-      redRegistrationId: red,
-      blueRegistrationId: blue,
+      redSideId: red,
+      blueSideId: blue,
       endReason: null,
       // No winner, so the board decides — and here it says what the exchanges
       // do. Only clean hits and doubles appear below, and a double has no
       // striker, so counting strikers is the whole score.
-      winnerRegistrationId: null,
+      winnerSideId: null,
       redScore: exchanges.filter((e) => e.firstStrikerColor === 'red').length,
       blueScore: exchanges.filter((e) => e.firstStrikerColor === 'blue').length,
       exchanges,
@@ -86,20 +86,20 @@ describe('createFormulaRuleset', () => {
    */
   function rankedIds(ruleset: Ruleset, ids: string[], matches: ScoredMatch[]): string[] {
     const scores = ruleset.scorePoolFighters({
-      registrationIds: ids,
+      entrantIds: ids,
       completedMatches: matches,
       afterblowMode: 'full',
       config: {},
     });
     const rows = ids.map((id) => ({
       rank: 0,
-      registrationId: id,
+      entrantId: id,
       displayName: id,
       club: null,
       status: 'completed' as const,
       stats: { score: scores.get(id) ?? 0 },
     }));
-    return applyRanking(rows, ruleset.rankingChain).map((r) => r.registrationId);
+    return applyRanking(rows, ruleset.rankingChain).map((r) => r.entrantId);
   }
 
   function ex(
@@ -145,7 +145,7 @@ describe('createFormulaRuleset', () => {
     ];
 
     const scores = ruleset.scorePoolFighters({
-      registrationIds: ['A', 'B', 'C'],
+      entrantIds: ['A', 'B', 'C'],
       completedMatches: matches,
       afterblowMode: 'full',
       config: {},
@@ -192,7 +192,7 @@ describe('createFormulaRuleset', () => {
     // the ONLY sorter now. The ruleset's own sort used to shadow this and then
     // be thrown away.
     const scores = ruleset.scorePoolFighters({
-      registrationIds: ['A', 'B', 'C'],
+      entrantIds: ['A', 'B', 'C'],
       completedMatches: matches,
       afterblowMode: 'full',
       config: {},
@@ -205,14 +205,14 @@ describe('createFormulaRuleset', () => {
       { id: 'C', doubles: 0 },
     ].map((r) => ({
       rank: 0,
-      registrationId: r.id,
+      entrantId: r.id,
       displayName: r.id,
       club: null,
       status: 'completed' as const,
       stats: { score: scores.get(r.id) ?? 0, doubles: r.doubles },
     }));
 
-    expect(applyRanking(rows, ruleset.rankingChain).map((r) => r.registrationId)).toEqual([
+    expect(applyRanking(rows, ruleset.rankingChain).map((r) => r.entrantId)).toEqual([
       'A',
       'B',
       'C',
@@ -241,9 +241,9 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
     }));
     return {
       id: 'm1',
-      redRegistrationId: 'A',
-      blueRegistrationId: 'B',
-      winnerRegistrationId: null,
+      redSideId: 'A',
+      blueSideId: 'B',
+      winnerSideId: null,
       endReason: null,
       redScore: 0, // doubles only, so the board is level and nobody won it
       blueScore: 0,
@@ -263,7 +263,7 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
   function scoreForDoubles(config: FormulaConfig, doubles: number): number {
     const ruleset = createFormulaRuleset('custom_dp', '1.0.0', 'DP', config, EDITION_2026_10);
     const scores = ruleset.scorePoolFighters({
-      registrationIds: ['A', 'B'],
+      entrantIds: ['A', 'B'],
       completedMatches: [matchWithDoubles(doubles)],
       afterblowMode: 'full',
       config: {},

@@ -9,6 +9,7 @@
  */
 
 import type { StandingsColumn } from '@myclash/rulesets';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import type { AfterblowLabelRule, FighterExchangeStats } from '../../stats/stats.service';
 
 /** One podium finisher (top of the final ranking). */
@@ -101,13 +102,8 @@ export interface TournamentStatsDetailResponse {
   tournamentId: string;
   standings: {
     columns: StandingsColumn[];
-    rows: Array<{
-      rank: number;
-      registrationId: string;
-      displayName: string;
-      club: { id: string; name: string; abbreviation: string | null } | null;
-      stats: Record<string, number | string>;
-    }>;
+    /** A team row carries its kind, colour and logo, as the pool-standings answer sends it. */
+    rows: PoolStandingsRow[];
   };
   fighters: FighterExchangeStats[];
   /** The ruleset's afterblow valuation, for the blow table's column labels. */

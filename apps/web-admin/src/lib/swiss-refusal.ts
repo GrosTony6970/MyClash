@@ -1,4 +1,5 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { kindRefusal } from './named-refusal';
 
 /** The slice of a translator this needs: a key, and the numbers a sentence carries. */
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -49,11 +50,16 @@ function coverageNumbers(failure: ApiFailure): Record<string, string | number> {
   };
 }
 
-/** What a Swiss tab shows for a failed call: the refusal above, else the usual. */
+/**
+ * What a Swiss tab shows for a failed call: the refusal above, else a refusal of the Tournament's
+ * kind (a team Tournament takes no Swiss phase), else the usual.
+ */
 export function swissFailureMessage(
   failure: ApiFailure,
   t: Translate,
   fallback: string,
 ): string | null {
-  return swissRefusal(failure, t) ?? failureMessage(failure, t, fallback);
+  return (
+    swissRefusal(failure, t) ?? kindRefusal(failure, t) ?? failureMessage(failure, t, fallback)
+  );
 }

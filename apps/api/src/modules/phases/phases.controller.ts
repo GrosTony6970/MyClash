@@ -25,7 +25,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from './phases.service';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
-import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
+import { AddPoolMemberDto, GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import { PopulateBracketDto } from './dto/populate-bracket.dto';
@@ -153,33 +153,45 @@ export class PhasesController {
     );
   }
 
-  /** POST /api/v1/pools/:poolId/members */
+  /**
+   * POST /api/v1/pools/:poolId/members
+   *
+   * A Registration into an individual Tournament's Pool, or a team into a team Tournament's
+   * (exactly one, `AddPoolMemberDto`); the other kind is a 409.
+   */
   @Post('pools/:poolId/members')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Add or move a registration into a pool (org admin+)' })
+  @ApiOperation({ summary: 'Add or move a registration or a team into a pool (org admin+)' })
   @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
   async addPoolMember(
     @Param('poolId', ParseUUIDPipe) poolId: string,
-    @Body() dto: { registrationId: string },
+    @Body() dto: AddPoolMemberDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
-    return this.phases.addPoolMember(poolId, dto.registrationId, userId);
+    if (dto.teamId !== undefined) return this.phases.addPoolTeam(poolId, dto.teamId, userId);
+    // The schema takes exactly one of the two.
+    return this.phases.addPoolMember(poolId, dto.registrationId!, userId);
   }
 
-  /** DELETE /api/v1/pools/:poolId/members/:registrationId */
-  @Delete('pools/:poolId/members/:registrationId')
+  /**
+   * DELETE /api/v1/pools/:poolId/members/:entrantId
+   *
+   * The entrant is the seat's side key: a Registration id in an individual Tournament, a team id
+   * in a team Tournament. The service reads it by the Tournament's kind.
+   */
+  @Delete('pools/:poolId/members/:entrantId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove a member from a pool back to unassigned (org admin+)' })
   @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
-  @ApiParam({ name: 'registrationId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'entrantId', type: 'string', format: 'uuid' })
   async removePoolMember(
     @Param('poolId', ParseUUIDPipe) poolId: string,
-    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Param('entrantId', ParseUUIDPipe) entrantId: string,
     @Req() req: FastifyRequest,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
-    return this.phases.removePoolMember(poolId, registrationId, userId);
+    return this.phases.removePoolMember(poolId, entrantId, userId);
   }
 
   /** DELETE /api/v1/pools/:poolId */

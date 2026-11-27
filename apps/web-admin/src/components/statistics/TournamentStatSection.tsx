@@ -249,7 +249,7 @@ function StandingsTable({ detail, t }: { detail: TournamentDetail; t: Translate 
           </thead>
           <tbody>
             {view.map((r) => (
-              <tr key={r.registrationId} className="border-t border-border">
+              <tr key={r.entrantId} className="border-t border-border">
                 <td className="px-3 py-2 text-muted">{r.rank}</td>
                 <td className="px-3 py-2">
                   <span className="font-medium text-foreground">{r.displayName}</span>

@@ -213,6 +213,7 @@ describe('pendingRowsForMatch', () => {
       client_uuid: 'card-uuid',
       sequence: 1,
       registration_id: 'reg-red',
+      team_id: null,
       card: 'yellow',
       source: 'ruleset',
       short_name: null,
@@ -245,6 +246,7 @@ describe('pendingRowsForMatch', () => {
           client_uuid: 'someone-elses',
           sequence: 1,
           registration_id: 'reg-blue',
+          team_id: null,
           card: 'yellow',
           source: 'ruleset',
           short_name: null,
@@ -320,9 +322,7 @@ describe('pricing a queued card', () => {
     const { penalties } = priced(
       [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
       {
-        'reg-red': [
-          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-        ],
+        'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
         'reg-blue': [],
       },
     );
@@ -419,6 +419,7 @@ describe('pricing a queued card', () => {
           client_uuid: 'card-1',
           sequence: first.sequence,
           registration_id: 'reg-red',
+          team_id: null,
           card: 'yellow',
           source: 'ruleset',
           short_name: null,
@@ -431,9 +432,7 @@ describe('pricing a queued card', () => {
       pricing: {
         ruleset: RULESET,
         priors: {
-          'reg-red': [
-            { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-          ],
+          'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
           'reg-blue': [],
         },
       },
@@ -457,6 +456,7 @@ describe('card counts', () => {
     client_uuid: 'server-card',
     sequence: 1,
     registration_id: 'reg-red',
+    team_id: null,
     card: 'yellow',
     source: 'ruleset',
     short_name: null,
@@ -480,7 +480,7 @@ describe('card counts', () => {
       cardCountFor({
         server: [serverCard({ card: 'yellow' })],
         pending: penalties,
-        registrationId: 'reg-red',
+        sideId: 'reg-red',
         card: 'yellow',
       }),
     ).toBe(2);
@@ -491,7 +491,7 @@ describe('card counts', () => {
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
     ]);
     expect(
-      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-blue', card: 'yellow' }),
+      cardCountFor({ server: [], pending: penalties, sideId: 'reg-blue', card: 'yellow' }),
     ).toBe(0);
   });
 
@@ -500,14 +500,12 @@ describe('card counts', () => {
     const { penalties } = priced(
       [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
       {
-        'reg-red': [
-          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
-        ],
+        'reg-red': [{ sideId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' }],
         'reg-blue': [],
       },
     );
     const chip = (card: PenaltyCard) =>
-      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-red', card });
+      cardCountFor({ server: [], pending: penalties, sideId: 'reg-red', card });
     expect({ yellow: chip('yellow'), red: chip('red') }).toEqual({ yellow: 0, red: 1 });
   });
 
@@ -516,7 +514,7 @@ describe('card counts', () => {
       cardCountFor({
         server: [serverCard({ voided: true })],
         pending: [],
-        registrationId: 'reg-red',
+        sideId: 'reg-red',
         card: 'yellow',
       }),
     ).toBe(0);
@@ -531,9 +529,10 @@ describe('card counts', () => {
     const { penalties, unpricedCardUuids } = priced([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
     ]);
-    expect(
-      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId: 'reg-red' }),
-    ).toEqual({ priced: 1, unpriced: 0 });
+    expect(queuedCardsFor({ pending: penalties, unpricedCardUuids, sideId: 'reg-red' })).toEqual({
+      priced: 1,
+      unpriced: 0,
+    });
   });
 
   it('splits priced from unpriced for the fighter they are against', () => {
@@ -542,8 +541,8 @@ describe('card counts', () => {
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-gone' }),
       queued({ kind: 'penalty', registrationId: 'reg-blue', rulesetEntryId: 'entry-red' }),
     ]);
-    const forSide = (registrationId: string) =>
-      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId });
+    const forSide = (sideId: string) =>
+      queuedCardsFor({ pending: penalties, unpricedCardUuids, sideId });
     expect(forSide('reg-red')).toEqual({ priced: 1, unpriced: 1 });
     // The count this replaced was the whole match's, so blue used to be told
     // about red's unpriced card.
@@ -556,8 +555,8 @@ describe('provisionalDeltas', () => {
     provisionalDeltas({
       exchanges: [],
       penalties: [],
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
       ...over,
     });
 
@@ -623,6 +622,7 @@ describe('provisionalDeltas', () => {
             id: 'p1',
             sequence: 1,
             registration_id: 'reg-red',
+            team_id: null,
             card: 'red',
             source: 'ruleset',
             short_name: null,
@@ -634,6 +634,33 @@ describe('provisionalDeltas', () => {
         ],
       }),
     ).toEqual({ red: 0, blue: 0 });
+  });
+
+  /**
+   * A final waits for its blue Fighter: blue has no Registration. A card row that carries none
+   * (the wire allows it, whatever the type says) is nobody's: `null === null` must not land it
+   * on blue, nor count it under blue's numeral.
+   */
+  it('a side with no Fighter takes no card, and a card with no Fighter is nobody’s', () => {
+    const nobodys = {
+      id: 'p1',
+      client_uuid: 'card-nobody',
+      sequence: 1,
+      registration_id: null,
+      team_id: null,
+      card: 'yellow',
+      source: 'ruleset',
+      short_name: null,
+      reason: null,
+      score_delta: -1,
+      causes_match_forfeit: false,
+      voided: false,
+    } satisfies Penalty;
+    const card = { pending: [nobodys], sideId: null };
+
+    expect(deltas({ penalties: [nobodys], blueSideId: null })).toEqual({ red: 0, blue: 0 });
+    expect(cardCountFor({ ...card, server: [], card: 'yellow' })).toBe(0);
+    expect(queuedCardsFor({ ...card, unpricedCardUuids: [] })).toEqual({ priced: 0, unpriced: 0 });
   });
 });
 
@@ -654,6 +681,7 @@ describe('protests', () => {
     client_uuid: 'server-uuid',
     match_id: 'm-1',
     registration_id: 'reg-red',
+    team_id: null,
     sequence: 1,
     round_number: 1,
     clock_time_ms: null,
@@ -675,6 +703,7 @@ describe('protests', () => {
         client_uuid: 'p-1',
         match_id: 'm-1',
         registration_id: 'reg-red',
+        team_id: null,
         sequence: entry.sequence,
         round_number: 2,
         clock_time_ms: 61_000,
@@ -686,8 +715,8 @@ describe('protests', () => {
     const deltas = provisionalDeltas({
       exchanges: out.exchanges,
       penalties: out.penalties,
-      redRegistrationId: 'reg-red',
-      blueRegistrationId: 'reg-blue',
+      redSideId: 'reg-red',
+      blueSideId: 'reg-blue',
     });
     expect(deltas).toEqual({ red: 0, blue: 0 });
   });
@@ -702,13 +731,13 @@ describe('protests', () => {
       serverProtests: server,
     });
 
-    expect(protestCountFor({ server, pending, registrationId: 'reg-red' })).toBe(1);
-    expect(protestCountFor({ server, pending, registrationId: 'reg-blue' })).toBe(1);
+    expect(protestCountFor({ server, pending, sideId: 'reg-red' })).toBe(1);
+    expect(protestCountFor({ server, pending, sideId: 'reg-blue' })).toBe(1);
   });
 
   it('a voided server protest is not counted', () => {
     const server = [serverProtest({ voided: true }), serverProtest({ client_uuid: 'kept' })];
 
-    expect(protestCountFor({ server, pending: [], registrationId: 'reg-red' })).toBe(1);
+    expect(protestCountFor({ server, pending: [], sideId: 'reg-red' })).toBe(1);
   });
 });

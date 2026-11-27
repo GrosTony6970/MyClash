@@ -26,6 +26,8 @@ const mockScoring = {
 const mockMatchAlerts = {
   refresh: vi.fn().mockResolvedValue(undefined),
 };
+/** Both Fighters are on the bout: a bout waiting for one takes no hit (`bout-sides.doors.test.ts`). */
+const BOTH_FIGHTERS = { red_registration_id: 'reg-red', blue_registration_id: 'reg-blue' };
 const mockFrozenResults = {
   assertExchangeCreationAllowed: vi.fn().mockResolvedValue(undefined),
   guardExchangeMutation: vi.fn().mockResolvedValue(null),
@@ -279,6 +281,7 @@ describe('MatchesService', () => {
       rows: [
         {
           id: 'm1',
+          ...BOTH_FIGHTERS,
           current_round: 1,
           awaiting_round_advance: false,
           // The bout's copy of its rules: what `getAfterblowMode` reads.
@@ -714,7 +717,11 @@ describe('MatchesService', () => {
     it('recomputeMatchScore is called after every new exchange insert', async () => {
       const { service: exchangeService } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            { id: 'match-1', ...BOTH_FIGHTERS, current_round: 1, awaiting_round_advance: false },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -736,7 +743,11 @@ describe('MatchesService', () => {
     it('persists clock_time_ms from dto.clockTimeMs on the inserted row', async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            { id: 'match-1', ...BOTH_FIGHTERS, current_round: 1, awaiting_round_advance: false },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -759,7 +770,11 @@ describe('MatchesService', () => {
     it('stamps round_number from the match current_round on the inserted row', async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-r3' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 3, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            { id: 'match-1', ...BOTH_FIGHTERS, current_round: 3, awaiting_round_advance: false },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -777,7 +792,11 @@ describe('MatchesService', () => {
     it('rejects scoring while a round is awaiting advance', async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: { rows: [] },
-        matches: { rows: [{ id: 'match-1', current_round: 2, awaiting_round_advance: true }] },
+        matches: {
+          rows: [
+            { id: 'match-1', ...BOTH_FIGHTERS, current_round: 2, awaiting_round_advance: true },
+          ],
+        },
       });
 
       const refused = exchangeService.createExchange('match-1', {
@@ -1276,6 +1295,7 @@ describe('MatchesService', () => {
             tournament_id: 't-1',
             tournaments: {
               event_id: 'event-1',
+              entrant_kind: 'individual',
               ruleset_code: 'Generic_PointsCap',
               ruleset_version: '1',
               ruleset_content_hash: 'hash-1',
@@ -1308,6 +1328,8 @@ describe('MatchesService', () => {
       );
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
       expect(selectsFor(supabase.from, 'phases')).toEqual([
+        // Its Tournament's kind: a team Tournament is refused first (call 8).
+        'id, tournaments!inner(entrant_kind)',
         'id, tournaments!inner(event_id)',
         // The Tournament whose rules are stamped on the bout.
         'tournament_id',

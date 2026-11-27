@@ -25,7 +25,7 @@
  * `hasBeenFought` reads it, and a bout that was played stays played.
  */
 export function noResultColumns(): Record<string, unknown> {
-  return { winner_registration_id: null, end_reason: null, ended_at: null };
+  return { winner_registration_id: null, winner_team_id: null, end_reason: null, ended_at: null };
 }
 
 /**
@@ -94,6 +94,7 @@ export function popLastClosedRoundColumns(
     current_round: typeof popped?.round === 'number' ? popped.round : fallbackCurrentRound,
     awaiting_round_advance: false,
     winner_registration_id: null,
+    winner_team_id: null,
     end_reason: null,
   };
 }

@@ -32,6 +32,11 @@ export interface EventNavItem {
    * read. Required, for the same reason as `inWorkshops`.
    */
   readonly minRole: OrgRole;
+  /**
+   * Shown only when the Event has a team Tournament ({@link applyTeamTournaments}). Absent on
+   * every entry but Teams: the other pages serve every Event.
+   */
+  readonly teamsOnly?: true;
 }
 
 export interface EventNavGroup {
@@ -66,6 +71,16 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         icon: 'clubs',
         inWorkshops: true,
         minRole: 'scorekeeper',
+      },
+      // A team Tournament's entrants, beside the Persons and Clubs of the individual ones. Its
+      // read takes any member of the club, as the Persons read does.
+      {
+        href: 'teams',
+        labelKey: 'organizer.shell.nav.teams',
+        icon: 'teams',
+        inWorkshops: false,
+        minRole: 'read_only',
+        teamsOnly: true,
       },
       {
         href: 'referees',
@@ -320,6 +335,20 @@ export function applyMemberRole<O extends { readonly minRole: OrgRole }>(
       .filter((g) => g.items.length > 0),
     orgItems: orgItems.filter(opens),
   };
+}
+
+/**
+ * The sidebar of an Event with or without a team Tournament (`hasTeamTournament` on the club's
+ * Event list): without one, the entries marked `teamsOnly` go. Teams sits in People beside
+ * Persons, which needs no higher role, so no group is left empty. Only the menu changes: the Teams
+ * page still opens from a link, and says the Event has no team Tournament.
+ */
+export function applyTeamTournaments(
+  groups: readonly EventNavGroup[],
+  hasTeamTournament: boolean,
+): readonly EventNavGroup[] {
+  if (hasTeamTournament) return groups;
+  return groups.map((g) => ({ ...g, items: g.items.filter((i) => !i.teamsOnly) }));
 }
 
 /**

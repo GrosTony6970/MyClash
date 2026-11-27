@@ -254,9 +254,9 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     // toward `matches` and landed in NEITHER column, quietly inflating the
     // denominator of every win rate on the page.
     const outcome = boutOutcomes({
-      winnerRegistrationId: match.winnerRegistrationId,
-      redRegistrationId: match.redRegistrationId,
-      blueRegistrationId: match.blueRegistrationId,
+      winnerSideId: match.winnerRegistrationId,
+      redSideId: match.redRegistrationId,
+      blueSideId: match.blueRegistrationId,
       redScore: match.redScore,
       blueScore: match.blueScore,
       endReason: match.endReason,
@@ -339,9 +339,9 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       // neither and the match-history strip read it as a win — three answers to
       // one bout, on one profile.
       const outcome = boutOutcomes({
-        winnerRegistrationId: match.winnerRegistrationId,
-        redRegistrationId: match.redRegistrationId,
-        blueRegistrationId: match.blueRegistrationId,
+        winnerSideId: match.winnerRegistrationId,
+        redSideId: match.redRegistrationId,
+        blueSideId: match.blueRegistrationId,
         redScore: match.redScore,
         blueScore: match.blueScore,
         endReason: match.endReason,

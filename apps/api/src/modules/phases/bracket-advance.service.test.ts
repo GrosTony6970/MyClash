@@ -3,12 +3,15 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
 import { singleElimBracket } from '@myclash/rules/scheduling';
-import { supabaseRpc } from '../../common/testing/supabase-chain';
+import { selectsFor, supabaseRpc } from '../../common/testing/supabase-chain';
 import { rulesOf } from './match-rules.fixtures';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
+
+/** A Fighter on a slot side, as the override takes it. */
+const fighter = (id: string) => ({ kind: 'individual' as const, id });
 
 /** The database's stamp of a new bout's rules, for a hand-made double: the copy of t-1. */
 const stampRpc = () =>
@@ -119,31 +122,21 @@ describe('grandFinalEndsBracket', () => {
 
 // ── resolveLoser ──────────────────────────────────────────────────────────────
 
+// Side keys in, a side key out (`sideKey`): a Registration or a team.
 describe('resolveLoser', () => {
-  const rl = (match: {
-    winner_registration_id: string;
-    red_registration_id: string | null;
-    blue_registration_id: string | null;
-  }): string | null => resolveLoser(match);
+  const rl = (match: { winner: string; red: string | null; blue: string | null }): string | null =>
+    resolveLoser(match.winner, match.red, match.blue);
 
   it('returns blue when red wins', () => {
-    expect(
-      rl({
-        winner_registration_id: 'red-id',
-        red_registration_id: 'red-id',
-        blue_registration_id: 'blue-id',
-      }),
-    ).toBe('blue-id');
+    expect(rl({ winner: 'red-id', red: 'red-id', blue: 'blue-id' })).toBe('blue-id');
   });
 
   it('returns red when blue wins', () => {
-    expect(
-      rl({
-        winner_registration_id: 'blue-id',
-        red_registration_id: 'red-id',
-        blue_registration_id: 'blue-id',
-      }),
-    ).toBe('red-id');
+    expect(rl({ winner: 'blue-id', red: 'red-id', blue: 'blue-id' })).toBe('red-id');
+  });
+
+  it('returns the losing team when a team wins', () => {
+    expect(rl({ winner: 'team-b', red: 'team-a', blue: 'team-b' })).toBe('team-a');
   });
 
   /**
@@ -154,23 +147,11 @@ describe('resolveLoser', () => {
    * input unusable instead of quietly wrong; callers must pass the SLOT pairing.
    */
   it('returns null when the winner matches neither side, rather than guessing red', () => {
-    expect(
-      rl({
-        winner_registration_id: 'seed-id',
-        red_registration_id: null,
-        blue_registration_id: 'play-in-winner-id',
-      }),
-    ).toBeNull();
+    expect(rl({ winner: 'seed-id', red: null, blue: 'play-in-winner-id' })).toBeNull();
   });
 
   it('returns null when the losing side itself is unknown', () => {
-    expect(
-      rl({
-        winner_registration_id: 'red-id',
-        red_registration_id: 'red-id',
-        blue_registration_id: null,
-      }),
-    ).toBeNull();
+    expect(rl({ winner: 'red-id', red: 'red-id', blue: null })).toBeNull();
   });
 });
 
@@ -284,6 +265,7 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
                       : {
                           id: 'ph1',
                           type: 'double_elim',
+                          tournaments: { entrant_kind: 'individual' },
                           config_json: {
                             autoAdvance: true,
                             grandFinalReset: true,
@@ -323,7 +305,15 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
 
       // Cleared, never filled — the reset takes BOTH sides from the grand final.
       expect(updates).toEqual([
-        { table: 'bracket_slots', patch: { registration_a_id: null, registration_b_id: null } },
+        {
+          table: 'bracket_slots',
+          patch: {
+            registration_a_id: null,
+            team_a_id: null,
+            registration_b_id: null,
+            team_b_id: null,
+          },
+        },
       ]);
       // One delete: the row's referee_assignments cascade with it (0179).
       expect(calls.filter((c) => c.startsWith('delete('))).toEqual(['delete(matches)']);
@@ -415,6 +405,7 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
                       : {
                           id: 'ph1',
                           type: 'double_elim',
+                          tournaments: { entrant_kind: 'individual' },
                           config_json: {
                             autoAdvance: true,
                             grandFinalReset: true,
@@ -433,8 +424,8 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
       await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
 
       // Side A takes the GF loser, side B the GF winner — both from one call.
-      expect(slotUpdates).toContainEqual({ registration_a_id: 'wb-entrant' });
-      expect(slotUpdates).toContainEqual({ registration_b_id: 'lb-entrant' });
+      expect(slotUpdates).toContainEqual({ registration_a_id: 'wb-entrant', team_a_id: null });
+      expect(slotUpdates).toContainEqual({ registration_b_id: 'lb-entrant', team_b_id: null });
     });
   });
 
@@ -645,15 +636,16 @@ describe('BracketAdvanceService.advanceFromSlot — fails loud', () => {
         string,
         (
           phaseId: string,
+          kind: 'individual' | 'team',
           selfRef: string,
-          winnerRegId: string,
-          loserRegId: string | null,
+          winner: string,
+          loser: string | null,
         ) => Promise<void>
       >
     )['advanceFromSlot']!.bind(service);
 
     await expect(
-      advanceFromSlot('phase-1', 'R1P1', 'reg-winner', 'reg-loser'),
+      advanceFromSlot('phase-1', 'individual', 'R1P1', 'reg-winner', 'reg-loser'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
@@ -683,6 +675,8 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
     source_b_ref: 'winner of R1P2',
     registration_a_id: null,
     registration_b_id: null,
+    team_a_id: null,
+    team_b_id: null,
   };
 
   /** Table-dispatched, and records the FILTERS each write was scoped by. */
@@ -746,9 +740,10 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
         string,
         (
           phaseId: string,
+          kind: 'individual' | 'team',
           selfRef: string,
-          winnerRegId: string,
-          loserRegId: string | null,
+          winner: string,
+          loser: string | null,
         ) => Promise<void>
       >
     )['advanceFromSlot']!.bind(service);
@@ -762,12 +757,14 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
     });
     const service = new BracketAdvanceService(mock.mockSupabase as never);
 
-    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+    await advanceFrom(service)('phase-1', 'individual', 'R1P1', 'reg-winner', 'reg-loser');
 
     expect(mock.matchUpdates).toHaveLength(1);
     expect(mock.matchUpdates[0]!.patch).toEqual({
       red_registration_id: 'reg-winner',
+      red_team_id: null,
       blue_registration_id: null,
+      blue_team_id: null,
     });
     expect(mock.matchUpdates[0]!.filters).toContainEqual(['id', 'm-ds']);
     expect(mock.matchInserts).toEqual([]);
@@ -782,13 +779,30 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
     });
     const service = new BracketAdvanceService(mock.mockSupabase as never);
 
-    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+    await advanceFrom(service)('phase-1', 'individual', 'R1P1', 'reg-winner', 'reg-loser');
 
     expect(mock.matchUpdates).toEqual([]);
     expect(mock.matchInserts).toEqual([]);
     // The SLOT is still written: it stays authoritative for who belongs here,
     // and it is what a later reset reconciles the match against.
-    expect(mock.slotUpdates).toContainEqual({ registration_a_id: 'reg-winner' });
+    expect(mock.slotUpdates).toContainEqual({ registration_a_id: 'reg-winner', team_a_id: null });
+  });
+
+  // The sync writes both columns of each side from the slot it is handed: a read that drops
+  // the team columns hands it a team slot with no teams, and the bout keeps a stale team id.
+  // The double ignores the projection, so the select string is asserted whole.
+  it('reads each downstream slot with both kinds of side', async () => {
+    const mock = makeAdvanceMock({
+      existingMatch: { id: 'm-ds', status: 'scheduled', started_at: null },
+    });
+    const service = new BracketAdvanceService(mock.mockSupabase as never);
+
+    await advanceFrom(service)('phase-1', 'individual', 'R1P1', 'reg-winner', 'reg-loser');
+
+    expect(selectsFor(mock.mockSupabase.service.from as never, 'bracket_slots')).toEqual([
+      'id, round, position, phase_id, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id, team_a_id, team_b_id',
+      'id',
+    ]);
   });
 
   it('stamps match_number_label when it creates the row', async () => {
@@ -801,7 +815,7 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
     });
     const service = new BracketAdvanceService(mock.mockSupabase as never);
 
-    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+    await advanceFrom(service)('phase-1', 'individual', 'R1P1', 'reg-winner', 'reg-loser');
 
     expect(mock.matchInserts).toHaveLength(1);
     expect(mock.matchInserts[0]).toMatchObject({
@@ -882,7 +896,11 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     source_b_type: 'winner_of',
     registration_a_id: null,
     registration_b_id: 'reg-b',
+    team_a_id: null,
+    team_b_id: null,
   };
+  /** A side is a Registration or a team (0282): the row names both columns of each side. */
+  const NO_TEAMS = { red_team_id: null, blue_team_id: null };
 
   it('writes BOTH sides when one is cleared and the other set', async () => {
     // The clear+set PATCH. Pre-fix `overrideSlot` returned after blanking both.
@@ -892,11 +910,11 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     );
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await service.overrideSlot('slot-1', null, 'reg-b');
+    await service.overrideSlot('slot-1', null, fighter('reg-b'));
 
     expect(updates).toContainEqual({
       table: 'matches',
-      patch: { red_registration_id: null, blue_registration_id: 'reg-b' },
+      patch: { red_registration_id: null, blue_registration_id: 'reg-b', ...NO_TEAMS },
     });
   });
 
@@ -909,27 +927,45 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     );
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+    await service.overrideSlot('slot-1', fighter('reg-a'), fighter('reg-b'));
 
     expect(updates).toContainEqual({
       table: 'matches',
-      patch: { red_registration_id: 'reg-a', blue_registration_id: 'reg-b' },
+      patch: { red_registration_id: 'reg-a', blue_registration_id: 'reg-b', ...NO_TEAMS },
     });
+  });
+
+  // `loadSlot` feeds the sync: without the team columns a team slot reaches it with no teams.
+  it('reads the slot back with both kinds of side', async () => {
+    const { mockSupabase } = makeMock({ id: 'm-1', status: 'scheduled', started_at: null }, SLOT);
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', null, fighter('reg-b'));
+
+    expect(selectsFor(mockSupabase.service.from as never, 'bracket_slots')).toEqual([
+      'id, registration_a_id, registration_b_id, team_a_id, team_b_id',
+      'id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id, team_a_id, team_b_id',
+    ]);
   });
 
   it('never writes lice_id or scheduled_at', async () => {
     // The row can carry an operator-placed schedule; blanking a side must be an
-    // UPDATE of the two registration columns and nothing else.
+    // UPDATE of the side columns and nothing else.
     const { updates, mockSupabase } = makeMock(
       { id: 'm-1', status: 'scheduled', started_at: null },
       SLOT,
     );
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await service.overrideSlot('slot-1', null, 'reg-b');
+    await service.overrideSlot('slot-1', null, fighter('reg-b'));
 
     const matchPatch = updates.find((u) => u.table === 'matches')?.patch ?? {};
-    expect(Object.keys(matchPatch).sort()).toEqual(['blue_registration_id', 'red_registration_id']);
+    expect(Object.keys(matchPatch).sort()).toEqual([
+      'blue_registration_id',
+      'blue_team_id',
+      'red_registration_id',
+      'red_team_id',
+    ]);
   });
 
   it('refuses to rewrite a bout that has already started', async () => {
@@ -940,9 +976,9 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     );
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await expect(service.overrideSlot('slot-1', 'reg-a', 'reg-b')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.overrideSlot('slot-1', fighter('reg-a'), fighter('reg-b')),
+    ).rejects.toBeInstanceOf(ConflictException);
     // And the slot itself is untouched — the check runs BEFORE the slot write,
     // so a refusal cannot leave slot and match disagreeing the other way.
     expect(updates).toEqual([]);
@@ -955,7 +991,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     });
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+    await service.overrideSlot('slot-1', fighter('reg-a'), fighter('reg-b'));
 
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({
@@ -982,7 +1018,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
     });
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+    await service.overrideSlot('slot-1', fighter('reg-a'), fighter('reg-b'));
 
     expect(inserts).toEqual([]);
     expect(updates.filter((u) => u.table === 'matches')).toEqual([]);
@@ -1025,9 +1061,9 @@ describe('BracketAdvanceService.overrideSlot — fails loud', () => {
     const mockSupabase = makeOverrideMock({ data: null, error: null });
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await expect(service.overrideSlot('missing-slot-id', 'reg-a', 'reg-b')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.overrideSlot('missing-slot-id', fighter('reg-a'), fighter('reg-b')),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('throws BadRequestException with the supabase message on error', async () => {
@@ -1037,11 +1073,11 @@ describe('BracketAdvanceService.overrideSlot — fails loud', () => {
     });
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    await expect(service.overrideSlot('slot-1', 'orphan-reg-a', 'reg-b')).rejects.toThrow(
-      /violates foreign key constraint/,
-    );
-    await expect(service.overrideSlot('slot-1', 'orphan-reg-a', 'reg-b')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.overrideSlot('slot-1', fighter('orphan-reg-a'), fighter('reg-b')),
+    ).rejects.toThrow(/violates foreign key constraint/);
+    await expect(
+      service.overrideSlot('slot-1', fighter('orphan-reg-a'), fighter('reg-b')),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

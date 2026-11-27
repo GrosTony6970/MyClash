@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import { storedKind } from '../events/tournament-kind';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { buildSelfRef, type PhaseConfig } from './bracket-refs';
+import { clearedSeat } from './seat-columns';
 
 /**
  * "What depends on this match?", answered once.
@@ -114,18 +116,19 @@ export async function clearDownstreamOf(supabase: Client, matchId: string): Prom
   await clearFedSides(supabase, downstream);
 }
 
-/** Null every side of these slots that this match's winner/loser refs feed. */
+/**
+ * Null every side of these slots that this match's winner/loser refs feed: both columns of the
+ * side, so a team side is emptied as a Registration side is.
+ */
 async function clearFedSides(supabase: Client, downstream: Downstream): Promise<void> {
   const { winnerRef, loserRef, slots } = downstream;
+  const isFed = (ref: string | null) => ref === winnerRef || ref === loserRef;
 
   for (const slot of slots) {
-    const patch: Record<string, null> = {};
-    if (slot.source_a_ref === winnerRef || slot.source_a_ref === loserRef) {
-      patch['registration_a_id'] = null;
-    }
-    if (slot.source_b_ref === winnerRef || slot.source_b_ref === loserRef) {
-      patch['registration_b_id'] = null;
-    }
+    const patch = {
+      ...(isFed(slot.source_a_ref) ? clearedSeat('a') : {}),
+      ...(isFed(slot.source_b_ref) ? clearedSeat('b') : {}),
+    };
     if (Object.keys(patch).length === 0) continue;
 
     const { error } = await supabase.from('bracket_slots').update(patch).eq('id', slot.id);
@@ -209,11 +212,12 @@ async function deleteUnplayedSlotMatch(supabase: Client, slotId: string): Promis
 
 // ── Loaders ─────────────────────────────────────────────────────────────────
 
+/** A bracket bout with its winner and its sides: each a Registration or a team (0282). */
 export async function loadMatch(supabase: Client, matchId: string) {
   const { data } = await supabase
     .from('matches')
     .select(
-      'id, bracket_slot_id, winner_registration_id, red_registration_id, blue_registration_id',
+      'id, bracket_slot_id, winner_registration_id, winner_team_id, red_registration_id, red_team_id, blue_registration_id, blue_team_id',
     )
     .eq('id', matchId)
     .maybeSingle();
@@ -221,15 +225,20 @@ export async function loadMatch(supabase: Client, matchId: string) {
     id: string;
     bracket_slot_id: string | null;
     winner_registration_id: string | null;
-    red_registration_id: string;
-    blue_registration_id: string;
+    winner_team_id: string | null;
+    red_registration_id: string | null;
+    red_team_id: string | null;
+    blue_registration_id: string | null;
+    blue_team_id: string | null;
   } | null;
 }
 
 export async function loadSlot(supabase: Client, slotId: string) {
   const { data } = await supabase
     .from('bracket_slots')
-    .select('id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id')
+    .select(
+      'id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id, team_a_id, team_b_id',
+    )
     .eq('id', slotId)
     .maybeSingle();
   return data as {
@@ -240,14 +249,31 @@ export async function loadSlot(supabase: Client, slotId: string) {
     source_b_type: string;
     registration_a_id: string | null;
     registration_b_id: string | null;
+    team_a_id: string | null;
+    team_b_id: string | null;
   } | null;
 }
 
+/** A bracket phase, with its Tournament's kind for the writers (`kindOfPhase`). */
 export async function loadPhase(supabase: Client, phaseId: string) {
   const { data } = await supabase
     .from('phases')
-    .select('id, type, config_json')
+    .select('id, type, config_json, tournaments!inner(entrant_kind)')
     .eq('id', phaseId)
     .maybeSingle();
-  return data as { id: string; type: unknown; config_json: unknown } | null;
+  return data as {
+    id: string;
+    type: unknown;
+    config_json: unknown;
+    tournaments?: { entrant_kind?: unknown } | null;
+  } | null;
+}
+
+/**
+ * The kind of the phase's Tournament: an advance writes each side into the columns of that kind
+ * (`seatColumns`). Throws when the read did not carry it (`storedKind`): it must not pass for an
+ * individual Tournament, which would write a team into the Registration columns.
+ */
+export function kindOfPhase(phase: { tournaments?: { entrant_kind?: unknown } | null }) {
+  return storedKind(phase.tournaments?.entrant_kind);
 }

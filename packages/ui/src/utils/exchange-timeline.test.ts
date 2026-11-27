@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
-import { buildUnifiedTimeline, exchangeOptionLabel, orderedWithNumbers } from './exchange-timeline';
+import {
+  buildUnifiedTimeline,
+  exchangeOptionLabel,
+  orderedWithNumbers,
+  rowSide,
+} from './exchange-timeline';
 import type { ExchangeRow, MatchProtest, Penalty } from '../types/match-events';
 
 function row<E extends object>(seq: number, occurredAt: string, extra: E = {} as E) {
@@ -112,6 +117,7 @@ describe('buildUnifiedTimeline', () => {
   function pen(over: Partial<Penalty> & Pick<Penalty, 'id' | 'sequence'>): Penalty {
     return {
       registration_id: 'reg-red',
+      team_id: null,
       card: 'yellow',
       source: 'ruleset',
       short_name: 'Sortie de lice',
@@ -131,6 +137,7 @@ describe('buildUnifiedTimeline', () => {
       client_uuid: `uuid-${over.id}`,
       match_id: 'match-1',
       registration_id: 'reg-blue',
+      team_id: null,
       round_number: 1,
       clock_time_ms: 12_000,
       voided: false,
@@ -142,8 +149,8 @@ describe('buildUnifiedTimeline', () => {
     protests: [] as MatchProtest[],
     redName: 'Red Fighter',
     blueName: 'Blue Fighter',
-    redRegId: 'reg-red',
-    blueRegId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     t,
     config: DEFAULT_SCORING_CONFIG,
   };
@@ -359,5 +366,23 @@ describe('exchangeOptionLabel', () => {
         delta: '+1',
       }),
     ).toBe('#2 · Jane · clean +1');
+  });
+});
+
+describe('rowSide', () => {
+  const fighter = (id: string | null | undefined) => ({ registration_id: id, team_id: null });
+
+  it('names the side whose Registration the row carries', () => {
+    expect(rowSide(fighter('reg-red'), 'reg-red', 'reg-blue')).toBe('red');
+    expect(rowSide(fighter('reg-blue'), 'reg-red', 'reg-blue')).toBe('blue');
+    expect(rowSide(fighter('reg-other'), 'reg-red', 'reg-blue')).toBeNull();
+  });
+
+  // A side waiting for a Fighter has no key: null is nobody, a row with none included.
+  it('gives a row with no side to no side, a side with none included', () => {
+    expect(rowSide(fighter(null), null, 'reg-blue')).toBeNull();
+    expect(rowSide(fighter(undefined), 'reg-red', null)).toBeNull();
+    expect(rowSide(fighter(null), null, null)).toBeNull();
+    expect(rowSide(fighter('reg-blue'), null, 'reg-blue')).toBe('blue');
   });
 });

@@ -14,6 +14,7 @@ import {
   HelpTooltip,
   MedalPodium,
   Modal,
+  TeamChip,
   TournamentColorDot,
   fuzzyMatch,
   nameOrUnknown,
@@ -23,6 +24,7 @@ import {
   type PodiumData,
 } from '@myclash/ui';
 import { resolveMatchWinner } from '@myclash/types';
+import type { TournamentBracketSlotWire } from '@myclash/types/bracket-side';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -30,6 +32,18 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { parseSideColors } from '../pools/_tabs/parse-side-colors';
+import { seatKindOf } from '../pools/pool-seats';
+import {
+  bracketWords,
+  offeredPhaseTypes,
+  offeredStrategies,
+  offeredValue,
+  slotForfeitingSide,
+  slotOverrideBody,
+  strategyLabelKey,
+  type BracketPhaseType,
+  type SeedingStrategy,
+} from './bracket-kind';
 import { diffRoleAssignments } from './diff-role-assignments';
 import { seedingDriftBanner, type SeedingDrift } from './seeding-drift-banner';
 import { countPlayedMatches } from './regenerate-impact';
@@ -47,6 +61,7 @@ import { withTournament } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
+import { kindRefusal } from '@/lib/named-refusal';
 import { FoughtBoutsConfirm, RegenerateConfirm, type FoughtAsk } from './DiscardConfirms';
 import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
 import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
@@ -56,6 +71,7 @@ interface Tournament {
   id: string;
   name: string;
   color?: string | null;
+  entrant_kind?: string | null;
 }
 
 interface BracketResult {
@@ -78,7 +94,8 @@ interface BracketResult {
   seedingStrategy?: string;
   bronzeSlotId?: string | null;
   totalSlots: number;
-  slots: BracketSlotData[];
+  /** The slots as the bracket read declares them. */
+  slots: TournamentBracketSlotWire[];
   /**
    * `true` when every pool of this tournament reports
    * `status === 'completed'`, OR when the tournament has no pool
@@ -111,13 +128,13 @@ interface OverrideModalState {
    *  the Lice + referee controls, which act on the match. */
   matchId: string | null;
   /**
-   * Tri-state values:
+   * Tri-state values, one per side (`slotOverrideBody` names the field by the kind):
    *   - undefined: untouched in this modal session, omitted from the PATCH.
-   *   - null: explicit clear (sends `registrationAId: null`).
-   *   - string: registration UUID to assign.
+   *   - null: explicit clear.
+   *   - string: the Registration or the team to assign.
    */
-  regAId: string | null | undefined;
-  regBId: string | null | undefined;
+  sideAId: string | null | undefined;
+  sideBId: string | null | undefined;
   /** Editable lice, initialised to the match's current lice (null = none). */
   liceId: string | null;
   /** Roles the operator changed: role → person id (null = clear). */
@@ -125,16 +142,17 @@ interface OverrideModalState {
 }
 
 /**
- * Subset of the /tournaments/:id/registrations payload the bracket
- * override modal needs. The endpoint also returns `persons` and
- * `global_persons` embeds; we project just the bits the picker
- * renders so the JSON stays small.
+ * One entrant of the override picker: a Registration of an individual Tournament
+ * (/tournaments/:id/registrations, which also returns `persons` and
+ * `global_persons` embeds; we project just the bits the picker renders), or a
+ * team of a team Tournament (/tournaments/:id/teams).
  */
-interface PickerRegistration {
+interface PickerEntrant {
   id: string;
   displayName: string;
   bibNumber: number | null;
-  seed: number | null;
+  /** A team's colour name; a Fighter has none. */
+  colour: string | null;
 }
 
 interface EventLice {
@@ -176,11 +194,8 @@ interface RefereeSkill {
   color?: string | null;
 }
 
-type SeedingStrategy = 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
-
 const MAX_BRACKET_SIZE = 128;
 const BRACKET_SIZE_OPTIONS = [4, 8, 16, 32, 64, 128];
-const SEEDING_STRATEGIES: SeedingStrategy[] = ['snake', 'by-rating', 'random', 'by-pool-rank'];
 
 // ── R5: tab shell ─────────────────────────────────────────────────────────────
 // The bracket page was historically a flat layout. R5 adds a `Referees`
@@ -231,6 +246,14 @@ export default function BracketPage() {
     eventId,
     tournaments.map((tour) => tour.id),
   );
+  // A team Tournament takes teams: single elimination, no rating seed (call 3 of slice 1c-1).
+  // The choice is made from the list, so the kind is known once a Tournament is chosen.
+  const entrantKind = seatKindOf(
+    tournaments.find((tour) => tour.id === selectedTournament) ?? null,
+  );
+  const words = bracketWords(entrantKind);
+  const strategies = offeredStrategies(entrantKind);
+  const phaseTypes = offeredPhaseTypes(entrantKind);
   const [bracket, setBracket] = useState<BracketResult | null>(null);
   const [bracketPhaseId, setBracketPhaseId] = useState<string | null>(null);
   const [existingBracket, setExistingBracket] = useState(false);
@@ -241,8 +264,11 @@ export default function BracketPage() {
   // Config
   const [qualifyCount, setQualifyCount] = useState<number | ''>('');
   const [bracketSize, setBracketSize] = useState<number | ''>('');
-  const [phaseType, setPhaseType] = useState<'single_elim' | 'double_elim'>('single_elim');
-  const [seedingStrategy, setSeedingStrategy] = useState<SeedingStrategy>('snake');
+  const [pickedPhaseType, setPhaseType] = useState<BracketPhaseType>('single_elim');
+  const [pickedStrategy, setSeedingStrategy] = useState<SeedingStrategy>('snake');
+  // What the generate dialog shows and sends: a hidden option is not sent.
+  const phaseType = offeredValue(pickedPhaseType, phaseTypes);
+  const seedingStrategy = offeredValue(pickedStrategy, strategies);
   // Double-elim podium model. `grandFinalReset` lives in here rather than as a
   // standalone flag because it is only meaningful in gold mode — the API
   // rejects the pairing, so the form has to hold them together.
@@ -285,10 +311,10 @@ export default function BracketPage() {
     const matchId = overrideModal?.matchId;
     if (!matchId || !forfeitSide) return;
     const slot = bracket?.slots.find((s) => s.id === overrideModal.slotId);
-    const forfeitingRegistrationId =
-      forfeitSide === 'red' ? slot?.redRegistrationId : slot?.blueRegistrationId;
-    if (!forfeitingRegistrationId) {
-      setForfeitError(t('admin.common.sideNoRegistrationYet'));
+    // The side's Registration, or its team (`forfeitingTeamId`).
+    const forfeiting = slot ? slotForfeitingSide(slot, forfeitSide) : null;
+    if (!forfeiting) {
+      setForfeitError(t('admin.common.sideNoEntrantYet'));
       return;
     }
     setForfeitBusy(true);
@@ -296,7 +322,7 @@ export default function BracketPage() {
     try {
       const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
         method: 'POST',
-        body: { forfeitingRegistrationId, reason: forfeitReason },
+        body: { ...forfeiting.body, reason: forfeitReason },
       });
       if (!r.ok) {
         // A forfeit is refused by the engine's own rule — the bout is already
@@ -318,7 +344,7 @@ export default function BracketPage() {
    * per selected tournament so opening the modal is instant and we
    * don't double-fetch when a row is reassigned.
    */
-  const [pickerRegistrations, setPickerRegistrations] = useState<PickerRegistration[]>([]);
+  const [pickerEntrants, setPickerEntrants] = useState<PickerEntrant[]>([]);
   // Event lices (drives the lice pill on each fight + the edit-modal dropdown)
   // and the referee assignment board (per-match role slots for the modal).
   const [lices, setLices] = useState<EventLice[]>([]);
@@ -343,7 +369,8 @@ export default function BracketPage() {
 
   // Re-seed modal
   const [reseedOpen, setReseedOpen] = useState(false);
-  const [reseedStrategy, setReseedStrategy] = useState<SeedingStrategy>('snake');
+  const [pickedReseedStrategy, setReseedStrategy] = useState<SeedingStrategy>('snake');
+  const reseedStrategy = offeredValue(pickedReseedStrategy, strategies);
   const [reseedRunning, setReseedRunning] = useState(false);
   const [reseedError, setReseedError] = useState<string | null>(null);
   const [reseedMessage, setReseedMessage] = useState<string | null>(null);
@@ -479,19 +506,37 @@ export default function BracketPage() {
     return () => controller.abort();
   }, [selectedTournament, apiUrl, bracketRefreshKey]);
 
-  // ── Load registrations for the override picker ─────────────────────────────
+  // ── Load the entrants for the override picker ──────────────────────────────
   // Refetched whenever the bracket itself refreshes (manual save, reseed,
   // realtime update) so a freshly-registered fighter appears in the picker
-  // without a page reload.
+  // without a page reload. A team Tournament's picker lists its teams.
   useEffect(() => {
     if (!selectedTournament) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale picker data when no tournament is selected
-      setPickerRegistrations([]);
+      setPickerEntrants([]);
       return;
     }
     const controller = new AbortController();
     // Silent: the override picker keeps whatever it last held, and the save it
     // feeds reports its own refusal.
+    if (entrantKind === 'team') {
+      void apiRequest<Array<{ id: string; name: string; color: string | null }>>(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournament}/teams`,
+        { signal: controller.signal },
+      ).then((r) => {
+        if (!r.ok) return;
+        const teams = r.data.map((team) => ({
+          id: team.id,
+          displayName: team.name,
+          bibNumber: null,
+          colour: team.color,
+        }));
+        teams.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setPickerEntrants(teams);
+      });
+      return () => controller.abort();
+    }
     void apiRequest<
       Array<{
         id: string;
@@ -504,7 +549,7 @@ export default function BracketPage() {
     }).then((r) => {
       if (!r.ok) return;
       const raw = r.data;
-      const mapped: PickerRegistration[] = raw.map((row) => {
+      const mapped: PickerEntrant[] = raw.map((row) => {
         // Blank when nobody typed a name: the row words it (`nameOrUnknown`), never the id.
         const displayName = `${row.persons?.given_name ?? ''} ${
           row.persons?.family_name ?? ''
@@ -513,22 +558,22 @@ export default function BracketPage() {
           id: row.id,
           displayName,
           bibNumber: row.bib_number,
-          seed: row.seed,
+          colour: null,
         };
       });
       mapped.sort((a, b) => a.displayName.localeCompare(b.displayName));
-      setPickerRegistrations(mapped);
+      setPickerEntrants(mapped);
     });
     return () => controller.abort();
-  }, [selectedTournament, apiUrl, bracketRefreshKey]);
+  }, [selectedTournament, entrantKind, apiUrl, bracketRefreshKey]);
 
-  const filteredRegistrations = useMemo(() => {
+  const filteredEntrants = useMemo(() => {
     const q = pickerFilter.trim();
-    if (!q) return pickerRegistrations;
+    if (!q) return pickerEntrants;
     // fuzzyMatch = diacritic-insensitive, same behavior as standings/clubs
     // search ("gaelle" finds "Gaëlle").
-    return pickerRegistrations.filter((r) => fuzzyMatch(q, r.displayName));
-  }, [pickerRegistrations, pickerFilter]);
+    return pickerEntrants.filter((r) => fuzzyMatch(q, r.displayName));
+  }, [pickerEntrants, pickerFilter]);
 
   // Event lices — for the per-fight lice pill + the edit-modal dropdown.
   useEffect(() => {
@@ -595,8 +640,8 @@ export default function BracketPage() {
     : null;
   const canForfeit =
     !!overrideModal?.matchId &&
-    !!editSlot?.redRegistrationId &&
-    !!editSlot?.blueRegistrationId &&
+    !!editSlot?.redSideId &&
+    !!editSlot?.blueSideId &&
     editSlot?.status !== 'completed';
 
   // ── Realtime: update individual match cards in place ───────────────────────
@@ -670,10 +715,10 @@ export default function BracketPage() {
         { method: 'POST', body },
       );
 
-      // NOT a message: a 409 means a bracket already exists, and the screen
-      // offers to overwrite it rather than saying anything. Only for a call
-      // that did not force: a forced one is past that question.
-      if (!force && !r.ok && r.kind === 'http' && r.status === 409) {
+      // NOT a message: a 409 means a bracket exists, and the screen offers to overwrite it. Only
+      // for a call that did not force: a forced one is past that question. A refusal of the
+      // Tournament's kind (a team Tournament takes no double elimination) is no such 409: said below.
+      if (!force && !r.ok && r.kind === 'http' && r.status === 409 && !kindRefusal(r, t)) {
         setShowForceConfirm(true);
         return;
       }
@@ -724,21 +769,25 @@ export default function BracketPage() {
         // first.") and the operator needs to know which one fired. The seam
         // gives the server's reason precedence on every 4xx, so the two
         // fallbacks below are only reached when it attached none.
+        // A strategy the Tournament's kind refuses (a team has no rating yet) is said in the
+        // reader's language, before the API's English sentence.
         setError(
-          failureMessage(
-            r,
-            t,
-            r.kind === 'http' && r.status === 409
-              ? t('organizer.bracket.autoPopulatePoolsNotFinished')
-              : t('admin.common.populateFailed'),
-          ),
+          kindRefusal(r, t) ??
+            failureMessage(
+              r,
+              t,
+              r.kind === 'http' && r.status === 409
+                ? t('organizer.bracket.autoPopulatePoolsNotFinished')
+                : t('admin.common.populateFailed'),
+            ),
         );
         return;
       }
       const result = r.data;
+      // A team's seed order is reported as `registration-seed` too: the kind words it.
       const successKey =
         result.source === 'registration-seed'
-          ? 'organizer.bracket.autoPopulateSuccessFromSeed'
+          ? words.successFromSeed
           : result.source === 'rating'
             ? 'organizer.bracket.autoPopulateSuccessFromRating'
             : result.source === 'random'
@@ -816,8 +865,8 @@ export default function BracketPage() {
     setOverrideModal({
       slotId,
       matchId: slot?.matchId ?? null,
-      regAId: undefined,
-      regBId: undefined,
+      sideAId: undefined,
+      sideBId: undefined,
       liceId: slot?.liceId ?? null,
       roleChanges: {},
     });
@@ -833,17 +882,16 @@ export default function BracketPage() {
     setOverrideError(null);
     setOverrideRefusal(null);
     try {
-      // 1. Fighters (bracket slot) — only when the operator touched a side.
-      if (overrideModal.regAId !== undefined || overrideModal.regBId !== undefined) {
-        const body: Record<string, string | null> = {};
-        if (overrideModal.regAId !== undefined) body['registrationAId'] = overrideModal.regAId;
-        if (overrideModal.regBId !== undefined) body['registrationBId'] = overrideModal.regBId;
+      // 1. Fighters or teams (bracket slot) — only when the operator touched a side.
+      if (overrideModal.sideAId !== undefined || overrideModal.sideBId !== undefined) {
         const r = await apiRequest(apiUrl, `/api/v1/bracket-slots/${overrideModal.slotId}`, {
           method: 'PATCH',
-          body,
+          body: slotOverrideBody(entrantKind, overrideModal.sideAId, overrideModal.sideBId),
         });
         if (!r.ok) {
-          setOverrideError(failureMessage(r, t, t('admin.common.overrideFailed')));
+          setOverrideError(
+            kindRefusal(r, t) ?? failureMessage(r, t, t('admin.common.overrideFailed')),
+          );
           return;
         }
       }
@@ -958,10 +1006,12 @@ export default function BracketPage() {
           r.kind === 'http' && r.status === 501
             ? t('admin.common.strategyNotImplemented')
             : t('admin.common.reseedFailed');
+        // A strategy the Tournament's kind refuses is a 409 too, and not a started Round 1.
         setReseedError(
-          r.kind === 'http' && r.status === 409
-            ? t('organizer.phaseVisibility.reseedBlocked')
-            : failureMessage(r, t, fallback),
+          kindRefusal(r, t) ??
+            (r.kind === 'http' && r.status === 409
+              ? t('organizer.phaseVisibility.reseedBlocked')
+              : failureMessage(r, t, fallback)),
         );
         return;
       }
@@ -1183,11 +1233,13 @@ export default function BracketPage() {
                 </label>
                 <select
                   value={phaseType}
-                  onChange={(e) => setPhaseType(e.target.value as 'single_elim' | 'double_elim')}
+                  onChange={(e) => setPhaseType(e.target.value as BracketPhaseType)}
                   className="border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 >
                   <option value="single_elim">{t('organizer.bracketPage.formatSingle')}</option>
-                  <option value="double_elim">{t('organizer.bracketPage.formatDouble')}</option>
+                  {phaseTypes.includes('double_elim') && (
+                    <option value="double_elim">{t('organizer.bracketPage.formatDouble')}</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -1244,9 +1296,9 @@ export default function BracketPage() {
                   onChange={(e) => setSeedingStrategy(e.target.value as SeedingStrategy)}
                   className="border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 >
-                  {SEEDING_STRATEGIES.map((s) => (
+                  {strategies.map((s) => (
                     <option key={s} value={s}>
-                      {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+                      {t(strategyLabelKey(entrantKind, s))}
                     </option>
                   ))}
                 </select>
@@ -1319,9 +1371,7 @@ export default function BracketPage() {
                 <p className="font-mono text-foreground">{bracket.bracketSize}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">
-                  {t('organizer.phaseVisibility.configFighterCount')}
-                </p>
+                <p className="text-xs text-muted">{t(words.configCount)}</p>
                 <p className="font-mono text-foreground">{bracket.fighterCount}</p>
               </div>
               <div>
@@ -1487,15 +1537,13 @@ export default function BracketPage() {
                 }}
                 className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-foreground font-semibold rounded-lg text-sm"
               >
-                {t('organizer.bracket.autoPopulateNoPoolsConfirm')}
+                {t(words.noPoolsConfirm)}
               </button>
             </>
           }
         >
           <p className="text-4xl mb-3">⚠️</p>
-          <p className="text-foreground-secondary text-sm mb-5">
-            {t('organizer.bracket.autoPopulateNoPoolsBody')}
-          </p>
+          <p className="text-foreground-secondary text-sm mb-5">{t(words.noPoolsBody)}</p>
         </Modal>
 
         <RegenerateConfirm
@@ -1575,17 +1623,15 @@ export default function BracketPage() {
                 <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
               </li>
             </ul>
-            <p className="text-xs text-muted mb-5 text-center">
-              {t('organizer.bracketPage.deleteConfirmHint')}
-            </p>
+            <p className="text-xs text-muted mb-5 text-center">{t(words.deleteConfirmHint)}</p>
           </Modal>
         )}
 
-        {/* Override modal — searchable registration picker. Two panes,
-            one per side (A = red, B = blue). Each pane shows the same
-            filtered list; clicking a row sets that side to the
-            registration id; "Clear" sends an explicit null so the
-            backend wipes the assignment. */}
+        {/* Override modal — searchable picker of the Registrations, or of
+            the teams on a team Tournament. Two panes, one per side
+            (A = red, B = blue). Each pane shows the same filtered list;
+            clicking a row sets that side to the entrant; "Clear" sends an
+            explicit null so the backend wipes the assignment. */}
         {overrideModal && (
           <Modal
             open
@@ -1620,24 +1666,21 @@ export default function BracketPage() {
             }
           >
             <input
-              aria-label={t('organizer.bracket.overrideModal.filterPlaceholder')}
+              aria-label={t(words.filterPlaceholder)}
               type="text"
               value={pickerFilter}
               onChange={(e) => setPickerFilter(e.target.value)}
-              placeholder={t('organizer.bracket.overrideModal.filterPlaceholder')}
+              placeholder={t(words.filterPlaceholder)}
               className="w-full border border-border rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 ring-accent"
             />
             <div className="grid grid-cols-2 gap-3 mb-4">
               {(['A', 'B'] as const).map((side) => {
-                const currentId = side === 'A' ? overrideModal.regAId : overrideModal.regBId;
-                const sideLabel =
-                  side === 'A'
-                    ? t('organizer.bracket.overrideModal.sideA')
-                    : t('organizer.bracket.overrideModal.sideB');
+                const currentId = side === 'A' ? overrideModal.sideAId : overrideModal.sideBId;
+                const sideLabel = side === 'A' ? t(words.sideA) : t(words.sideB);
                 const setSide = (value: string | null) =>
                   setOverrideModal({
                     ...overrideModal,
-                    ...(side === 'A' ? { regAId: value } : { regBId: value }),
+                    ...(side === 'A' ? { sideAId: value } : { sideBId: value }),
                   });
                 return (
                   <div
@@ -1648,12 +1691,10 @@ export default function BracketPage() {
                       {sideLabel}
                     </div>
                     <div className="max-h-48 overflow-y-auto">
-                      {filteredRegistrations.length === 0 ? (
-                        <p className="px-3 py-3 text-xs italic text-muted">
-                          {t('organizer.bracket.overrideModal.empty')}
-                        </p>
+                      {filteredEntrants.length === 0 ? (
+                        <p className="px-3 py-3 text-xs italic text-muted">{t(words.empty)}</p>
                       ) : (
-                        filteredRegistrations.map((reg) => {
+                        filteredEntrants.map((reg) => {
                           const active = currentId === reg.id;
                           return (
                             <button
@@ -1668,6 +1709,7 @@ export default function BracketPage() {
                               ].join(' ')}
                             >
                               <span className="truncate">
+                                <TeamChip colour={reg.colour} />
                                 {nameOrUnknown(reg.displayName, 'fighter', t, reg.bibNumber)}
                               </span>
                               {reg.bibNumber !== null && (
@@ -1789,9 +1831,7 @@ export default function BracketPage() {
                         ].join(' ')}
                       >
                         <span className="font-semibold">
-                          {side === 'red'
-                            ? t('organizer.bracketPage.forfeitRed')
-                            : t('organizer.bracketPage.forfeitBlue')}
+                          {side === 'red' ? t(words.forfeitRed) : t(words.forfeitBlue)}
                         </span>
                         <span className="ml-2 text-foreground-secondary">— {name ?? '?'}</span>
                       </button>
@@ -1885,9 +1925,9 @@ export default function BracketPage() {
             onChange={(e) => setReseedStrategy(e.target.value as SeedingStrategy)}
             className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent mb-4"
           >
-            {SEEDING_STRATEGIES.map((s) => (
+            {strategies.map((s) => (
               <option key={s} value={s}>
-                {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+                {t(strategyLabelKey(entrantKind, s))}
               </option>
             ))}
           </select>
@@ -2014,9 +2054,7 @@ export default function BracketPage() {
             <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground mb-1">
               {t('organizer.bracketPage.emptyTitle')}
             </h3>
-            <p className="text-muted text-sm mb-5 max-w-md mx-auto">
-              {t('organizer.bracketPage.emptyBody')}
-            </p>
+            <p className="text-muted text-sm mb-5 max-w-md mx-auto">{t(words.emptyBody)}</p>
             <button
               onClick={() => void generate(false)}
               disabled={generating || !selectedTournament || isReadOnly}
@@ -2045,51 +2083,42 @@ export default function BracketPage() {
 function podiumSide(slot: BracketSlotData): 'red' | 'blue' | null {
   return resolveMatchWinner({
     status: 'completed', // both callers gate on slot.status === 'completed'
-    winnerRegistrationId: slot.winnerRegistrationId,
-    redRegistrationId: slot.redRegistrationId,
-    blueRegistrationId: slot.blueRegistrationId,
+    winnerSideId: slot.winnerSideId,
+    redSideId: slot.redSideId,
+    blueSideId: slot.blueSideId,
     redScore: slot.redScore,
     blueScore: slot.blueScore,
   });
 }
 
-function sideName(
-  slot: BracketSlotData,
-  side: 'red' | 'blue' | null,
-): { fighterName: string; clubAbbrev?: string | null } | null {
+type PodiumFighter = NonNullable<PodiumData['gold']>;
+
+/** A podium place: the side's name and club, and a team's colour for its chip. */
+function sideName(slot: BracketSlotData, side: 'red' | 'blue' | null): PodiumFighter | null {
   if (side === 'red' && slot.redFighterName) {
-    return { fighterName: slot.redFighterName, clubAbbrev: slot.redClubAbbrev };
+    return {
+      fighterName: slot.redFighterName,
+      clubAbbrev: slot.redClubAbbrev,
+      colour: slot.red?.colour ?? null,
+    };
   }
   if (side === 'blue' && slot.blueFighterName) {
-    return { fighterName: slot.blueFighterName, clubAbbrev: slot.blueClubAbbrev };
+    return {
+      fighterName: slot.blueFighterName,
+      clubAbbrev: slot.blueClubAbbrev,
+      colour: slot.blue?.colour ?? null,
+    };
   }
   return null;
 }
 
-function winnerName(
-  slot: BracketSlotData,
-): { fighterName: string; clubAbbrev?: string | null } | null {
+function winnerName(slot: BracketSlotData): PodiumFighter | null {
   return sideName(slot, podiumSide(slot));
 }
 
-function loserName(
-  slot: BracketSlotData,
-): { fighterName: string; clubAbbrev?: string | null } | null {
+function loserName(slot: BracketSlotData): PodiumFighter | null {
   const winner = podiumSide(slot);
   return sideName(slot, winner === null ? null : winner === 'red' ? 'blue' : 'red');
-}
-
-function strategyKey(s: SeedingStrategy): string {
-  switch (s) {
-    case 'snake':
-      return 'Snake';
-    case 'by-rating':
-      return 'ByRating';
-    case 'random':
-      return 'Random';
-    case 'by-pool-rank':
-      return 'ByPoolRank';
-  }
 }
 
 /** The configuration form takes a podium the server holds, and remembers it as the saved one. */

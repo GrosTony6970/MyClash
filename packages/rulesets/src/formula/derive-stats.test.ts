@@ -43,14 +43,14 @@ describe('deriveFighterStats', () => {
     exchanges: Exchange[],
     redScore: number,
     blueScore: number,
-    winnerRegistrationId: string | null = null,
+    winnerSideId: string | null = null,
   ): ScoredMatch {
     return {
       id,
-      redRegistrationId: red,
-      blueRegistrationId: blue,
+      redSideId: red,
+      blueSideId: blue,
       endReason: null,
-      winnerRegistrationId,
+      winnerSideId,
       redScore,
       blueScore,
       exchanges,
@@ -145,9 +145,9 @@ describe('deriveFighterStats at the doubles ceiling', () => {
   // Red is one clean hit ahead when the second double reaches the ceiling.
   const ceilingBout = (endReason: string | null): ScoredMatch => ({
     id: 'm-md',
-    redRegistrationId: 'A',
-    blueRegistrationId: 'B',
-    winnerRegistrationId: null,
+    redSideId: 'A',
+    blueSideId: 'B',
+    winnerSideId: null,
     endReason,
     // Only the two ZEROING reasons wipe the board. Under `result_stands` — and
     // on an ordinary bout — red's hit stands, which is the difference the test
@@ -208,9 +208,9 @@ describe('deriveFighterStats scores the bout that was fought', () => {
   // the board at 2-0 and names B the winner.
   const forfeited: ScoredMatch = {
     id: 'm-ff',
-    redRegistrationId: 'A',
-    blueRegistrationId: 'B',
-    winnerRegistrationId: 'B',
+    redSideId: 'A',
+    blueSideId: 'B',
+    winnerSideId: 'B',
     endReason: 'forfeit',
     redScore: 2,
     blueScore: 0,
@@ -235,9 +235,9 @@ describe('deriveFighterStats scores the bout that was fought', () => {
     // exchanges still say red landed one. Re-summing them calls it a victory.
     const wiped: ScoredMatch = {
       id: 'm-wiped',
-      redRegistrationId: 'A',
-      blueRegistrationId: 'B',
-      winnerRegistrationId: null,
+      redSideId: 'A',
+      blueSideId: 'B',
+      winnerSideId: null,
       endReason: 'max_doubles_draw',
       redScore: 0,
       blueScore: 0,
@@ -264,9 +264,9 @@ describe('deriveFighterStats scores the bout that was fought', () => {
 describe('deriveFighterStats afterblow netting', () => {
   const afterblowBout = {
     id: 'm1',
-    redRegistrationId: 'A',
-    blueRegistrationId: 'B',
-    winnerRegistrationId: null,
+    redSideId: 'A',
+    blueSideId: 'B',
+    winnerSideId: null,
     endReason: null,
     redScore: 2,
     blueScore: 1,

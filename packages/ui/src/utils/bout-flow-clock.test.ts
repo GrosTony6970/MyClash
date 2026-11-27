@@ -17,8 +17,8 @@ function pauses(clockEvents?: BoutFlowClockEvent[]) {
   return buildBoutFlow({
     exchanges: [],
     penalties: [],
-    redRegId: 'reg-red',
-    blueRegId: 'reg-blue',
+    redSideId: 'reg-red',
+    blueSideId: 'reg-blue',
     matchFormat: DEFAULT_MATCH_FORMAT_CONFIG,
     phaseType: 'pool',
     clockEvents,

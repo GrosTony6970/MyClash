@@ -5,6 +5,7 @@ import { useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '../../lib/api-url';
+import { kindRefusal } from '../../lib/named-refusal';
 
 const apiUrl = getPublicApiUrl();
 
@@ -120,15 +121,18 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
         body,
       });
       if (!r.ok) {
-        const message = failureMessage(
-          r,
-          t,
-          t(
-            status === 'approved'
-              ? 'admin.leagues.requestsPanel.approvedFailed'
-              : 'admin.leagues.requestsPanel.rejectedFailed',
-          ),
-        );
+        // An approval of a link to a team Tournament is refused (rulings 729, 981).
+        const message =
+          kindRefusal(r, t) ??
+          failureMessage(
+            r,
+            t,
+            t(
+              status === 'approved'
+                ? 'admin.leagues.requestsPanel.approvedFailed'
+                : 'admin.leagues.requestsPanel.rejectedFailed',
+            ),
+          );
         if (message) toast.error(message);
         return;
       }

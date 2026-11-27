@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { PickerReason } from '@/lib/referee-reasons';
 import { postAssignment, type AssignAnswer } from './assign-referee';
@@ -78,12 +79,9 @@ export interface AssignmentBoardPool {
   /** Swiss units only: which round, and its id (for the per-round bulk clear). */
   swissRound?: number;
   swissRoundId?: string;
-  members: Array<{
-    registrationId: string;
-    personId: string;
-    personName: string;
-    clubLabel?: string | null;
-  }>;
+  /** True on a team Pool: rule 8 cannot check its unnamed Fighters (the screens say so). */
+  uncheckedFighters?: true;
+  members: AssignmentBoardMember[];
   roleSlots: AssignmentBoardRoleSlot[];
 }
 

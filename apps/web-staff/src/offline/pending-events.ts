@@ -27,7 +27,14 @@ import {
   type PenaltyCard,
   type TournamentScoringConfig,
 } from '@myclash/types';
-import { liveProtestsOf, type ExchangeRow, type MatchProtest, type Penalty } from '@myclash/ui';
+import { sideKey } from '@myclash/types/side-key';
+import {
+  isRowOfSide,
+  liveProtestsOf,
+  type ExchangeRow,
+  type MatchProtest,
+  type Penalty,
+} from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
@@ -86,9 +93,11 @@ function pendingPenaltyRow(entry: OutboxEntry, priced: PricedCard | null): Penal
     // and so a merged timeline keys React on one value across the hand-over.
     client_uuid: entry.clientUuid,
     sequence: entry.sequence,
-    registration_id: entry.registrationId ?? '',
-    // The card this fighter will ACTUALLY get, counting the offences they
-    // already have in the same rule group.
+    // Its one side field: the other is null, never '' (call 10).
+    registration_id: entry.registrationId ?? null,
+    team_id: entry.teamId ?? null,
+    // The card this side will ACTUALLY get, counting the offences it already
+    // has in the same rule group.
     card: priced?.card ?? entry.directCard ?? 'yellow',
     source: priced?.source ?? (entry.directCard ? 'direct' : 'ruleset'),
     group_number: priced?.groupNumber ?? null,
@@ -190,7 +199,7 @@ export function pendingRowsForMatch(args: {
     }
     if (kindOf(entry) === 'penalty') {
       const priced = pricer.price({
-        registrationId: entry.registrationId ?? '',
+        sideId: sideKey(entry.registrationId, entry.teamId),
         rulesetEntryId: entry.rulesetEntryId,
         directCard: entry.directCard,
       });
@@ -230,7 +239,8 @@ function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProte
     id: entry.clientUuid,
     client_uuid: entry.clientUuid,
     match_id: entry.matchId,
-    registration_id: entry.registrationId ?? '',
+    registration_id: entry.registrationId ?? null,
+    team_id: entry.teamId ?? null,
     sequence: entry.sequence,
     round_number: round,
     clock_time_ms: entry.clockTimeMs ?? null,
@@ -241,7 +251,7 @@ function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProte
 }
 
 /**
- * A Fighter's count of protests, server rows PLUS the queue: the protest
+ * A side's count of protests, server rows PLUS the queue: the protest
  * chip's number. The rule of the card chips (`cardCountFor`): a voided server
  * row counts for nothing, and `pending` must already be deduped against
  * `server` (`pendingRowsForMatch` does it), or a protest in the drain window
@@ -250,26 +260,27 @@ function pendingProtestRow(entry: OutboxEntry, round: number | null): MatchProte
 export function protestCountFor(args: {
   server: readonly MatchProtest[];
   pending: readonly MatchProtest[];
-  registrationId: string;
+  sideId: string | null;
 }): number {
   return protestsOf(args).length;
 }
 
 /**
- * The protests the chip counts (`protestCountFor`): the Fighter's live server
+ * The protests the chip counts (`protestCountFor`): the side's live server
  * rows, then the queue's. "Live" is the TV chip's rule too (`liveProtestsOf`).
+ * `sideId` is the side key: a Fighter's Registration or a team.
  */
 export function protestsOf(args: {
   server: readonly MatchProtest[];
   pending: readonly MatchProtest[];
-  registrationId: string;
+  sideId: string | null;
 }): MatchProtest[] {
-  const { server, pending, registrationId } = args;
-  return [...liveProtestsOf(server, registrationId), ...liveProtestsOf(pending, registrationId)];
+  const { server, pending, sideId } = args;
+  return [...liveProtestsOf(server, sideId), ...liveProtestsOf(pending, sideId)];
 }
 
 /**
- * A fighter's count of one card colour, server rows PLUS the queue.
+ * A side's count of one card colour, server rows PLUS the queue.
  *
  * The chip under the club name read the server only, so offline it froze: the
  * referee issued the fighter's second yellow and the counter stayed at one.
@@ -282,18 +293,18 @@ export function protestsOf(args: {
 export function cardCountFor(args: {
   server: readonly Penalty[];
   pending: readonly Penalty[];
-  registrationId: string;
+  sideId: string | null;
   card: PenaltyCard;
 }): number {
-  const { server, pending, registrationId, card } = args;
-  const mine = (p: Penalty) => !p.voided && p.registration_id === registrationId && p.card === card;
+  const { server, pending, sideId, card } = args;
+  const mine = (p: Penalty) => !p.voided && isRowOfSide(p, sideId) && p.card === card;
   return server.filter(mine).length + pending.filter(mine).length;
 }
 
 /**
- * Queued cards against ONE fighter, split by whether the pad could price them.
+ * Queued cards against ONE side, split by whether the pad could price them.
  *
- * Per registration because the caption sits under a single fighter's numeral.
+ * Per side because the caption sits under a single side's numeral.
  * The count this replaced was the whole match's, so a card against blue was
  * announced under red's score too.
  *
@@ -306,11 +317,11 @@ export function cardCountFor(args: {
 export function queuedCardsFor(args: {
   pending: readonly Penalty[];
   unpricedCardUuids: readonly string[];
-  registrationId: string;
+  sideId: string | null;
 }): { priced: number; unpriced: number } {
-  const { pending, unpricedCardUuids, registrationId } = args;
+  const { pending, unpricedCardUuids, sideId } = args;
   const unpriced = new Set(unpricedCardUuids);
-  const mine = pending.filter((p) => p.registration_id === registrationId);
+  const mine = pending.filter((p) => isRowOfSide(p, sideId));
   const notPriced = mine.filter((p) => p.client_uuid && unpriced.has(p.client_uuid)).length;
   return { priced: mine.length - notPriced, unpriced: notPriced };
 }
@@ -324,8 +335,11 @@ export function queuedCardsFor(args: {
  * as a whole one. Taking both lists is what makes that impossible to get wrong
  * by omission.
  *
- * A card's delta lands on the CARDED fighter's own side, negative in the usual
- * case — the same arithmetic `recomputeMatchScore` does server-side.
+ * A card's delta lands on the CARDED side, negative in the usual case — the
+ * same arithmetic `recomputeMatchScore` does server-side. A card is placed by
+ * its side key (`isRowOfSide`): a team's card names no Registration, and a
+ * team side has none, so a Registration test would read `null === null` and
+ * put it under both sides.
  *
  * No round filter here: this adds up the rows it is given. A queue can hold the
  * rows of more than one round since a best-of bout runs with no network (a
@@ -341,10 +355,11 @@ export function queuedCardsFor(args: {
 export function provisionalDeltas(args: {
   exchanges: readonly ExchangeRow[];
   penalties: readonly Penalty[];
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** The bout's side keys (`sideKey`): a Registration id or a team id, null while unknown. */
+  redSideId: string | null;
+  blueSideId: string | null;
 }): { red: number; blue: number } {
-  const { exchanges, penalties, redRegistrationId, blueRegistrationId } = args;
+  const { exchanges, penalties, redSideId, blueSideId } = args;
   let red = 0;
   let blue = 0;
   for (const row of exchanges) {
@@ -360,8 +375,9 @@ export function provisionalDeltas(args: {
   }
   for (const penalty of penalties) {
     if (penalty.voided) continue;
-    if (penalty.registration_id === redRegistrationId) red += penalty.score_delta;
-    if (penalty.registration_id === blueRegistrationId) blue += penalty.score_delta;
+    // A side not known yet takes no card's delta (`isRowOfSide`).
+    if (isRowOfSide(penalty, redSideId)) red += penalty.score_delta;
+    if (isRowOfSide(penalty, blueSideId)) blue += penalty.score_delta;
   }
   return { red, blue };
 }

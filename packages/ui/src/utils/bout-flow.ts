@@ -32,7 +32,7 @@ import {
   type MatchFormatConfig,
   type PhaseType,
 } from '@myclash/types';
-import { ascendingWithNumbers } from './exchange-timeline';
+import { ascendingWithNumbers, rowSide } from './exchange-timeline';
 import { foldPauses, type BoutFlowPause } from './bout-flow-clock';
 import type { ClockEvent, ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
 
@@ -84,8 +84,9 @@ export type BoutFlowClockEvent = ClockEvent;
 export interface BuildBoutFlowArgs {
   exchanges: ExchangeRow[];
   penalties: Penalty[];
-  redRegId: string;
-  blueRegId: string;
+  /** Each side's key: its Registration id or its team id, null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
   matchFormat: MatchFormatConfig;
   /** The bout's phase: the double cap holds in Pools and Swiss only. Unknown reads as none. */
   phaseType: PhaseType | null | undefined;
@@ -162,15 +163,14 @@ function exchangeDrafts(exchanges: ExchangeRow[], inRound: (r?: number | null) =
  */
 function penaltyDrafts(
   penalties: Penalty[],
-  redRegId: string,
-  blueRegId: string,
+  redSideId: string | null,
+  blueSideId: string | null,
   inRound: (round?: number | null) => boolean,
 ) {
   return penalties
     .filter((p) => !p.voided && inRound(p.round_number))
     .map((p): FlowDraft => {
-      const side: 'red' | 'blue' | null =
-        p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
+      const side = rowSide(p, redSideId, blueSideId);
       const delta = p.score_delta ?? 0;
       return {
         occurredAt: p.occurred_at ?? '',
@@ -297,8 +297,8 @@ function resolveAxis(points: BoutFlowPoint[]): 'time' | 'index' {
 export function buildBoutFlow({
   exchanges,
   penalties,
-  redRegId,
-  blueRegId,
+  redSideId,
+  blueSideId,
   matchFormat,
   phaseType,
   endReason,
@@ -319,7 +319,7 @@ export function buildBoutFlow({
 
   const ordered = ascendingWithNumbers([
     ...exchangeDrafts(exchanges, inRound),
-    ...penaltyDrafts(penalties, redRegId, blueRegId, inRound),
+    ...penaltyDrafts(penalties, redSideId, blueSideId, inRound),
   ]);
   const { points, doubles } = accumulate(ordered, matchFormat);
 

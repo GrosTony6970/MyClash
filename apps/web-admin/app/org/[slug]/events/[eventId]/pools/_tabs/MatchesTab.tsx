@@ -11,11 +11,13 @@ import {
   statusPillTone,
   matchStatusSemantic,
   StatusHelp,
+  TournamentColorDot,
 } from '@myclash/ui';
-import { DEFAULT_SCORING_CONFIG, resolveMatchWinner } from '@myclash/types';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
-import { countPoolFighters } from './count-pool-fighters';
+import { countPoolFighters, isTeamPool } from './count-pool-fighters';
+import { poolBoutWinner } from './pool-bout-winner';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
 import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -48,8 +50,14 @@ interface MatchRow {
   id: string;
   pool_id: string;
   round_number: number;
-  red_registration_id: string;
-  blue_registration_id: string;
+  /** A side is a Registration or a team (0284): the other is null, and a team's name is in `red_name`. */
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+  red_team_id: string | null;
+  blue_team_id: string | null;
+  /** A team's colour name (`TOURNAMENT_COLORS`); null for a Fighter. */
+  red_team_color: string | null;
+  blue_team_color: string | null;
   red_name: string;
   red_club_abbrev: string | null;
   blue_name: string;
@@ -59,6 +67,7 @@ interface MatchRow {
   /** The recorded winner — what the table bolds. Authoritative over the two
    *  scores, which a forfeit or an override can invert. */
   winner_registration_id: string | null;
+  winner_team_id: string | null;
   status: string;
   lice_id: string | null;
   match_number_label: string | null;
@@ -406,7 +415,12 @@ export function MatchesTab({
                   {pool.poolName}
                 </h3>
                 <p className="mt-0.5 text-xs text-muted">
-                  {t('admin.orgPools.fighterCount', { count: countPoolFighters(pool.matches) })}
+                  {t(
+                    isTeamPool(pool.matches)
+                      ? 'admin.orgPools.teamCount'
+                      : 'admin.orgPools.fighterCount',
+                    { count: countPoolFighters(pool.matches) },
+                  )}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('organizer.pools.matches.summary', {
@@ -581,14 +595,7 @@ export function MatchesTab({
                         const isCompleted = m.status === 'completed';
                         const redScore = m.red_score ?? 0;
                         const blueScore = m.blue_score ?? 0;
-                        const winnerSide = resolveMatchWinner({
-                          status: m.status,
-                          winnerRegistrationId: m.winner_registration_id,
-                          redRegistrationId: m.red_registration_id,
-                          blueRegistrationId: m.blue_registration_id,
-                          redScore: m.red_score,
-                          blueScore: m.blue_score,
-                        });
+                        const winnerSide = poolBoutWinner(m);
                         const isRedWinner = winnerSide === 'red';
                         const isBlueWinner = winnerSide === 'blue';
                         return (
@@ -627,6 +634,7 @@ export function MatchesTab({
                                   style={{ backgroundColor: sideStyle(sideConfig, 'red').border }}
                                   aria-hidden="true"
                                 />
+                                <TournamentColorDot color={m.red_team_color} />
                                 <span
                                   className={
                                     isRedWinner
@@ -680,6 +688,7 @@ export function MatchesTab({
                                   style={{ backgroundColor: sideStyle(sideConfig, 'blue').border }}
                                   aria-hidden="true"
                                 />
+                                <TournamentColorDot color={m.blue_team_color} />
                                 <span
                                   className={
                                     isBlueWinner

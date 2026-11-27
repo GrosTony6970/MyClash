@@ -157,9 +157,9 @@ export function createFormulaRuleset(
       );
     },
 
-    scorePoolFighters({ registrationIds, completedMatches, afterblowMode }) {
+    scorePoolFighters({ entrantIds, completedMatches, afterblowMode }) {
       return new Map(
-        registrationIds.map((id) => {
+        entrantIds.map((id) => {
           const stats = deriveFighterStats(id, completedMatches, afterblowMode);
           return [id, evaluateFormula(config.scoreFormula, buildFormulaScope(stats, config))];
         }),

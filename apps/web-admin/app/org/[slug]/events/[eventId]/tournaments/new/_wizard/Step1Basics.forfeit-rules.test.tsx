@@ -16,7 +16,7 @@ import { Step1Basics } from './Step1Basics';
  * save only when the form changed them. The step is MOUNTED: its reads start in effects.
  */
 vi.mock('@/components/organizer-event-context', () => ({
-  useOrganizerSelectedEvent: () => ({ orgId: 'org-a' }),
+  useOrganizerSelectedEvent: () => ({ orgId: 'org-a', refetchEvents: async () => {} }),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
 vi.mock('@/hooks/useWeaponOptions', () => ({ useWeaponOptions: () => [] }));

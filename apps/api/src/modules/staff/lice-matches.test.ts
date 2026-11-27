@@ -3,7 +3,6 @@ import {
   LICE_MATCH_SELECT,
   LICE_MATCH_STATUSES,
   compareLiceMatchOrder,
-  formatPersonName,
   mapLiceMatchRow,
 } from './lice-matches';
 
@@ -34,6 +33,21 @@ describe('LICE_MATCH_SELECT', () => {
     for (const column of ['pool_id', 'red_score', 'blue_score', 'scoring_config_json']) {
       expect(LICE_MATCH_SELECT).toContain(column);
     }
+  });
+
+  // The double answers the whole row whatever is selected: only the string proves a team side
+  // is read.
+  it('reads each side as a Registration or a team', () => {
+    expect(LICE_MATCH_SELECT).toEqual(
+      'id,status,scheduled_at,match_number_label,pool_id,red_score,blue_score,' +
+        'red_registration_id,blue_registration_id,side_order,locked_at,' +
+        'phases!inner(type,config_json,tournaments!inner(id,name,weapon,status,scoring_config_json)),' +
+        'pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
+        'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
+        'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
+        'red_team:teams!matches_red_team_id_fkey(id,name,color,logo_url),' +
+        'blue_team:teams!matches_blue_team_id_fkey(id,name,color,logo_url)',
+    );
   });
 });
 
@@ -108,16 +122,42 @@ describe('compareLiceMatchOrder', () => {
   });
 });
 
-describe('formatPersonName', () => {
-  it('composes both halves and tolerates a missing one', () => {
-    expect(formatPersonName({ given_name: 'Ana', family_name: 'Ruiz' })).toBe('Ana Ruiz');
-    expect(formatPersonName({ family_name: 'Ruiz' })).toBe('Ruiz');
-    expect(formatPersonName(null)).toBeNull();
-    expect(formatPersonName({})).toBeNull();
-  });
-});
-
 describe('mapLiceMatchRow', () => {
+  // Call 6: the piste list names a team side by its team, with its colour chip.
+  it('names a team side by its team, with its colour', () => {
+    const team = (id: string, name: string, color: string | null) => ({
+      id,
+      name,
+      color,
+      logo_url: null,
+    });
+    const mapped = mapLiceMatchRow(
+      row({
+        red: null,
+        blue: null,
+        red_team: team('team-lyon', 'Lyon Blades', 'teal'),
+        blue_team: team('team-nantes', 'Nantes Edge', null),
+      }),
+      [],
+    );
+    expect(mapped).toMatchObject({
+      redFighterName: 'Lyon Blades',
+      blueFighterName: 'Nantes Edge',
+      redColour: 'teal',
+      blueColour: null,
+    });
+  });
+
+  // A bracket side not filled yet has no name: null, so the screen writes "Red" in its place.
+  it('gives a side not known yet no name and no colour', () => {
+    const mapped = mapLiceMatchRow(row({ red: null, red_team: null }), []);
+    expect(mapped).toMatchObject({
+      redFighterName: null,
+      redColour: null,
+      blueFighterName: 'Valentin Arrois',
+    });
+  });
+
   it('projects the fields the piste list renders', () => {
     const referee = {
       name: 'Marc Lefevre',

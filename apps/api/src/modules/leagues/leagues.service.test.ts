@@ -350,12 +350,13 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
         }
 
         // tournaments: the new lookup that resolves the tournament's org.
-        // Returns the embedded events row with the org id (or null if no org).
+        // Returns the embedded events row with the org id (or null if no org), and the kind the
+        // approval reads first (an individual Tournament: NOT NULL, so a real row always has it).
         if (table === 'tournaments') {
           const data =
             opts.tournamentOrgId === undefined
               ? null
-              : { events: { organization_id: opts.tournamentOrgId } };
+              : { entrant_kind: 'individual', events: { organization_id: opts.tournamentOrgId } };
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
@@ -1123,10 +1124,12 @@ describe('LeaguesService.addTournamentLink', () => {
             }),
           };
         }
+        // The door reads the Tournament's kind (a League takes individual ones only).
+        const tournament = table === 'tournaments' ? { entrant_kind: 'individual' } : null;
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: tournament, error: null }),
         };
       }),
     };
@@ -1196,12 +1199,23 @@ describe('LeaguesService.addTournamentLink — group resolution', () => {
             }),
           };
         }
+        // Serves the bulk link's list of the Event's Tournaments, and the door's read of one
+        // Tournament's kind.
         if (table === 'tournaments') {
           const chain = {
             select: vi.fn(() => chain),
             eq: vi.fn(() => chain),
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: { entrant_kind: 'individual' }, error: null }),
             then: (resolve: (value: unknown) => unknown) =>
-              resolve({ data: [{ id: 't-1' }, { id: 't-2' }], error: null }),
+              resolve({
+                data: [
+                  { id: 't-1', entrant_kind: 'individual' },
+                  { id: 't-2', entrant_kind: 'individual' },
+                ],
+                error: null,
+              }),
           };
           return chain;
         }
@@ -1466,6 +1480,7 @@ describe('LeaguesService.listOrganizationTournaments', () => {
         id: 't1',
         name: 'Longsword Open',
         weapon: 'longsword',
+        entrant_kind: 'individual',
         event_id: 'e1',
         events: { id: 'e1', name: 'Spring Cup', organization_id: 'org-1' },
       },
@@ -1473,6 +1488,7 @@ describe('LeaguesService.listOrganizationTournaments', () => {
         id: 't2',
         name: 'Rapier',
         weapon: null,
+        entrant_kind: 'team',
         event_id: 'e2',
         events: { id: 'e2', name: 'Autumn Clash', organization_id: 'org-1' },
       },
@@ -1486,15 +1502,27 @@ describe('LeaguesService.listOrganizationTournaments', () => {
 
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
     expect(chainObj.eq).toHaveBeenCalledWith('events.organization_id', 'org-1');
+    // The kind is read: the picker marks a team Tournament and does not offer it to a League.
+    expect(chainObj.select).toHaveBeenCalledWith(
+      'id, name, weapon, entrant_kind, event_id, events!inner(id, name, organization_id)',
+    );
     expect(result).toEqual([
       {
         id: 't1',
         name: 'Longsword Open',
         weapon: 'longsword',
+        entrant_kind: 'individual',
         event_id: 'e1',
         event_name: 'Spring Cup',
       },
-      { id: 't2', name: 'Rapier', weapon: null, event_id: 'e2', event_name: 'Autumn Clash' },
+      {
+        id: 't2',
+        name: 'Rapier',
+        weapon: null,
+        entrant_kind: 'team',
+        event_id: 'e2',
+        event_name: 'Autumn Clash',
+      },
     ]);
   });
 
@@ -1848,7 +1876,7 @@ describe('LeaguesService placement-driven contributions', () => {
       { id: 'reg-c', persons: { global_person_id: 'gp-c', given_name: 'Cy', family_name: 'C' } },
     ];
     const placements = {
-      byRegistrationId: new Map<string, { place: number; resultKind: string }>([
+      byEntrantId: new Map<string, { place: number; resultKind: string }>([
         ['reg-a', { place: 1, resultKind: 'champion' }],
         ['reg-b', { place: 2, resultKind: 'runnerUp' }],
         // reg-c has NO placement → must be skipped.
@@ -1910,7 +1938,7 @@ describe('LeaguesService placement-driven contributions', () => {
     const placement = {
       getTournamentPlacements: vi
         .fn()
-        .mockResolvedValue({ decided: false, byRegistrationId: new Map(), ordered: [] }),
+        .mockResolvedValue({ decided: false, byEntrantId: new Map(), ordered: [] }),
     };
     const scoring = { toTournamentContributions: vi.fn() };
     const service = new LeaguesService(
@@ -2342,7 +2370,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
     const placement = {
       getTournamentPlacements: vi.fn().mockResolvedValue({
         decided: placementDecided,
-        byRegistrationId: new Map([
+        byEntrantId: new Map([
           ['reg-t1', { place: 1, resultKind: 'champion' }],
           ['reg-t2', { place: 1, resultKind: 'champion' }],
         ]),
@@ -2406,7 +2434,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
         const index = Number(tournamentId.slice(1));
         await new Promise((resolve) => setTimeout(resolve, (count - index) * 2));
         inFlight.now -= 1;
-        return { decided: false, byRegistrationId: new Map(), ordered: [] };
+        return { decided: false, byEntrantId: new Map(), ordered: [] };
       }),
     };
     const service = new LeaguesService(
@@ -2713,7 +2741,7 @@ describe('LeaguesService.toContributionInputs — names', () => {
       ],
       new Map(),
       {
-        byRegistrationId: new Map([
+        byEntrantId: new Map([
           ['reg-blank', { place: 1, resultKind: 'placed' }],
           ['reg-gone', { place: 2, resultKind: 'placed' }],
         ]),

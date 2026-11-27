@@ -45,6 +45,7 @@ import { downloadCsv } from '@/lib/csv-file';
 import type { CsvFormat } from '@myclash/types';
 import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
+import type { EntrantKind } from '../tournaments/_shared/entrant-kind';
 
 interface Person {
   id: string;
@@ -297,7 +298,7 @@ export default function ParticipantsPage() {
     void Promise.all([
       apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, init),
       apiRequest<Registration[]>(apiUrl, `/api/v1/events/${eventId}/registrations`, init),
-      apiRequest<Array<Tournament & { max_waitlist?: number | null }>>(
+      apiRequest<Array<Tournament & { max_waitlist?: number | null; entrant_kind: EntrantKind }>>(
         apiUrl,
         `/api/v1/events/${eventId}/tournaments`,
         init,
@@ -309,13 +310,18 @@ export default function ParticipantsPage() {
       if (pRes.ok) setPersons(pRes.data);
       if (rRes.ok) setRegistrations(rRes.data);
       if (tRes.ok) {
+        // A team Tournament takes no Registration (design decision 14; the database refuses one):
+        // its teams are on the Teams page. So the roster's tabs and every Registration picker of
+        // this page leave it out.
         setTournaments(
-          tRes.data.map((tournament) => ({
-            id: tournament.id,
-            name: tournament.name,
-            color: tournament.color ?? null,
-            maxWaitlist: tournament.maxWaitlist ?? tournament.max_waitlist ?? null,
-          })),
+          tRes.data
+            .filter((tournament) => tournament.entrant_kind !== 'team')
+            .map((tournament) => ({
+              id: tournament.id,
+              name: tournament.name,
+              color: tournament.color ?? null,
+              maxWaitlist: tournament.maxWaitlist ?? tournament.max_waitlist ?? null,
+            })),
         );
       }
       // The three lists were tolerant and stay tolerant — the roster draws from

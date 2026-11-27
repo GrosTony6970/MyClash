@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { CsvExportMenu, standingsColumnLabel, statusLabel } from '@myclash/ui';
+import { CsvExportMenu, standingsColumnLabel, statusLabel, TournamentColorDot } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
@@ -11,6 +11,7 @@ import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { downloadCsv } from '@/lib/csv-file';
 import { csvFile, type CsvFormat } from '@myclash/types';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 
 const apiUrl = getPublicApiUrl();
 
@@ -33,20 +34,36 @@ function formatStat(c: StandingsColumn, value: unknown, empty: string): string {
   return String(value);
 }
 
-interface StandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
+/**
+ * The words that name a table's entrants: a team Tournament's are teams, an individual one's
+ * Fighters. Chosen by the Tournament's kind, never guessed from the rows: an empty team Pool has
+ * none, and its file was headed Fighter and Club. A team has no club
+ * (`@myclash/types/bracket-side`), so a team file has no Club column (`csvClub: null`): an
+ * always-empty column says nothing.
+ */
+function entrantWords(teams: boolean) {
+  return teams
+    ? {
+        column: 'organizer.pools.standings.team',
+        csv: 'organizer.csvColumns.team',
+        csvClub: null,
+        search: 'organizer.pools.standings.searchTeam',
+        help: 'team',
+      }
+    : {
+        column: 'organizer.pools.standings.fighter',
+        csv: 'organizer.csvColumns.fighter',
+        csvClub: 'organizer.csvColumns.club',
+        search: 'organizer.pools.standings.searchFighter',
+        help: 'fighter',
+      };
 }
 
 interface OverallResponse {
   rulesetCode: string;
   rulesetVersion: string;
   columns: StandingsColumn[];
-  rows: StandingsRow[];
+  rows: PoolStandingsRow[];
 }
 
 interface ByPoolResponse {
@@ -57,7 +74,7 @@ interface ByPoolResponse {
     poolId: string;
     poolName: string;
     status: 'in_progress' | 'completed';
-    rows: StandingsRow[];
+    rows: PoolStandingsRow[];
   }>;
 }
 
@@ -66,6 +83,8 @@ type Mode = 'overall' | 'by-pool';
 interface StandingsTabProps {
   tournamentId: string;
   poolPhaseId: string;
+  /** Whether the Tournament's entrants are teams (`entrant_kind`): its tables and files say Team. */
+  teams: boolean;
 }
 
 function readHashMode(): Mode {
@@ -75,7 +94,7 @@ function readHashMode(): Mode {
   return 'overall';
 }
 
-export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
+export function StandingsTab({ tournamentId, poolPhaseId, teams }: StandingsTabProps) {
   const { t, locale } = useI18n();
 
   const [mode, setMode] = useState<Mode>('overall');
@@ -158,15 +177,16 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
 
   function exportStandings(
     columns: StandingsColumn[],
-    rows: Array<StandingsRow & { _poolName?: string }>,
+    rows: Array<PoolStandingsRow & { _poolName?: string }>,
     filename: string,
     format: CsvFormat,
     includePool?: boolean,
   ) {
+    const words = entrantWords(teams);
     const header = [
       t('organizer.csvColumns.rank'),
-      t('organizer.csvColumns.fighter'),
-      t('organizer.csvColumns.club'),
+      t(words.csv),
+      ...(words.csvClub ? [t(words.csvClub)] : []),
       ...(includePool ? [t('organizer.csvColumns.pool')] : []),
       ...columns.map((c) => standingsColumnLabel(c, t)),
       t('organizer.csvColumns.status'),
@@ -174,7 +194,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
     const lines = rows.map((row) => [
       row.rank,
       row.displayName,
-      row.club?.name ?? '',
+      ...(words.csvClub ? [row.club?.name ?? ''] : []),
       ...(includePool ? [row._poolName ?? ''] : []),
       ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
       statusLabel('poolState', row.status, t),
@@ -263,6 +283,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             rows={overall.rows}
             cutAfterIndex={bracketSize}
             showFilter
+            teams={teams}
           />
         ))}
 
@@ -304,7 +325,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                   // The table alone is clipped to the corners: the header's export menu opens
                   // below it, and a Pool of one or two rows would cut it off.
                   <div className="overflow-hidden rounded-b-lg">
-                    <StandingsTable columns={byPool.columns} rows={pool.rows} />
+                    <StandingsTable columns={byPool.columns} rows={pool.rows} teams={teams} />
                   </div>
                 )}
               </section>
@@ -320,9 +341,11 @@ function StandingsTable({
   rows,
   cutAfterIndex,
   showFilter,
+  teams,
 }: {
   columns: StandingsColumn[];
-  rows: StandingsRow[];
+  rows: PoolStandingsRow[];
+  teams: boolean;
   /** Draw a qualification cut line after this many fighters (= bracket size).
    *  Only meaningful in the overall ranking; omitted in by-pool mode. */
   cutAfterIndex?: number | null;
@@ -339,6 +362,7 @@ function StandingsTable({
   ];
   const { query, setQuery, view, sortKey, direction, toggle, isDefaultOrder } =
     useStandingsView(rows);
+  const words = entrantWords(teams);
   const sortAscLabel = t('admin.common.sortAscLabel');
   const sortDescLabel = t('admin.common.sortDescLabel');
   // The bracket cut line is index-based, so it only makes sense while the rows
@@ -350,10 +374,10 @@ function StandingsTable({
       {showFilter && (
         <div className="flex items-center gap-2">
           <input
-            aria-label={t('organizer.pools.standings.searchFighter')}
+            aria-label={t(words.search)}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('organizer.pools.standings.searchFighter')}
+            placeholder={t(words.search)}
             className="w-72 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           {query && (
@@ -386,12 +410,12 @@ function StandingsTable({
             </th>
             <th className="px-4 py-2">
               <StandingsHeaderCell
-                label={t('organizer.pools.standings.fighter')}
+                label={t(words.column)}
                 columnKey="fighter"
                 currentKey={sortKey}
                 direction={direction}
                 onToggle={toggle}
-                help={getColumnHelp('fighter', t)}
+                help={getColumnHelp(words.help, t)}
                 align="left"
                 tooltipAnchor="start"
                 ariaSortAsc={sortAscLabel}
@@ -444,7 +468,7 @@ function StandingsTable({
             const isCut = showCut && idx === cutAfterIndex - 1 && idx < view.length - 1;
             return (
               <tr
-                key={row.registrationId}
+                key={row.entrantId}
                 className={`${
                   isCut ? 'border-b-2 border-foreground' : 'border-b border-border'
                 } last:border-0 hover:bg-background`}
@@ -453,6 +477,13 @@ function StandingsTable({
                   {row.rank}
                 </td>
                 <td className="px-4 py-2">
+                  {/* A team's row is named by the team (`sideLabel`) and carries its colour;
+                      a Fighter has none. */}
+                  {row.colour && (
+                    <span className="mr-1.5 inline-flex align-middle">
+                      <TournamentColorDot color={row.colour} />
+                    </span>
+                  )}
                   <span className="font-medium text-foreground">{row.displayName}</span>
                   {row.club && (
                     <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">

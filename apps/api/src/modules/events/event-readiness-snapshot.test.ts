@@ -21,7 +21,10 @@ function readyPerson(
 function baseRows(overrides: Partial<ReadinessRows> = {}): ReadinessRows {
   return {
     liceCount: 1,
-    tournaments: [{ id: 't1', name: 'Longsword', ruleset_code: 'TF_v1' }],
+    tournaments: [
+      { id: 't1', name: 'Longsword', ruleset_code: 'TF_v1', entrant_kind: 'individual' },
+    ],
+    teams: [],
     registrations: [
       { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
       { tournament_id: 't1', person_id: 'per2', status: 'confirmed' },
@@ -117,6 +120,21 @@ describe('buildReadinessSnapshot — active registrations', () => {
   });
 });
 
+describe('buildReadinessSnapshot — teams', () => {
+  it("carries the kind and counts the Tournament's own teams, none of another's", () => {
+    const tournament = onlyTournament(
+      baseRows({
+        tournaments: [
+          { id: 't1', name: 'Team Longsword', ruleset_code: 'TF_v1', entrant_kind: 'team' },
+        ],
+        registrations: [],
+        teams: [{ tournament_id: 't1' }, { tournament_id: 't1' }, { tournament_id: 'other' }],
+      }),
+    );
+    expect(tournament).toMatchObject({ entrantKind: 'team', teamCount: 2, activeFighterCount: 0 });
+  });
+});
+
 describe('buildReadinessSnapshot — pool referee coverage', () => {
   it('counts a pool-scoped assignment', () => {
     expect(onlyTournament(baseRows()).poolsWithoutReferee).toBe(0);
@@ -193,9 +211,10 @@ describe('buildReadinessSnapshot — several tournaments', () => {
     const snapshot = buildReadinessSnapshot({
       liceCount: 2,
       tournaments: [
-        { id: 't1', name: 'Longsword', ruleset_code: 'TF_v1' },
-        { id: 't2', name: 'Rapier', ruleset_code: null },
+        { id: 't1', name: 'Longsword', ruleset_code: 'TF_v1', entrant_kind: 'individual' },
+        { id: 't2', name: 'Rapier', ruleset_code: null, entrant_kind: 'individual' },
       ],
+      teams: [],
       registrations: [
         { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
         { tournament_id: 't1', person_id: 'per2', status: 'confirmed' },

@@ -1,10 +1,17 @@
 # Team Tournaments — design
 
-Status: agreed with the operator on 2026-11-13, in a brainstorm. Nothing is built. The decisions
-in "What the operator decided" are rulings. The items in "My calls" are proposals the operator has
-read and not overturned. The plan of slice 1a is
-`docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`. Reviewed with
-`myclash-plan-review`; the record is at the end.
+Status: agreed with the operator on 2026-11-13, in a brainstorm. Slice 1a (foundations, no screen)
+shipped on branch `feat/team-tournaments`, draft PR #109, in these commits: `f59bdaebe`
+`08fea59fd` `861d90852` `6b5ad6181` `c4515bea3` `929d479db` `13bf4c3c7` `b4c9e7178` `0c1d175e7`
+`bb57b0db1` `28e36690a`, and the commit that deleted its plan. Slice 1b-1 (the organiser builds
+it) is built on the same branch, from `9f9ee1b89` to the commit that closed it. Slice 1b-2 (the
+Match runs) is built on the same branch, from `5231a5c71` to `5c4e954d2`, which closes it. Slice 1c
+is split in two (ruling 979). Slice 1c-1 (the Tournament finishes) is built on the same branch and
+PR, from `79b523ac2` to the commit that wrote this line, which closes it. Slice 1c-2, the team gets
+names, is next. Slices 1c-2 to 8 are not built; what 1a to 1c-1 left them is listed under
+"Slices". The decisions in "What the operator decided" are rulings. The items in "My calls" are
+proposals the operator has read and not overturned. Reviewed with `myclash-plan-review`; the record
+is at the end.
 
 ## Context
 
@@ -54,21 +61,47 @@ as a general option, used rarely.
 
 ## What the operator decided
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Both formats: relay and series of duels.                                                                                                                                                                                                                                                                                                                                                                           |
-| 2   | A team has numbered slots. A name on a slot is optional.                                                                                                                                                                                                                                                                                                                                                           |
-| 2b  | The scorekeeper screen asks who is on the piste **only for a team with at least one named member**. In such a team an unnamed slot shows as "Fighter 2". A team with no names gets no picker; if the Tournament has a swap rule, that side gets one plain "Swap done" button.                                                                                                                                      |
-| 3   | The organiser chooses who swaps: **together** (both leave), **alternating** (one side each time), or **each side on its own** (survivor).                                                                                                                                                                                                                                                                          |
-| 4   | Alternating example, 3 minutes, teams of 3, rule "30 s": red swaps at 0:30, blue at 1:00, red at 1:30, blue at 2:00, red at 2:30.                                                                                                                                                                                                                                                                                  |
-| 5   | Survivor: when every Fighter of a team has taken the set number of points, that team has lost and the Match ends at once.                                                                                                                                                                                                                                                                                          |
-| 6   | Teams are decoupled from Registration. A side of a Match is either a Registration or a Team. Confirmed a second time after the review showed the cost (see Approaches).                                                                                                                                                                                                                                            |
-| 7   | A team that leaves mid-Tournament: the organiser records a forfeit on each remaining Match by hand. No "team is out" status in the first slices. The automatic rules (black card, disqualify after N) do not act on teams.                                                                                                                                                                                         |
-| 8   | A team Tournament ends with a public final ranking of teams. It cannot be linked to a League, and the screen says why: League points belong to persons.                                                                                                                                                                                                                                                            |
-| 9   | A team has a colour, and an optional logo, so it is easy to identify.                                                                                                                                                                                                                                                                                                                                              |
-| 10  | Teams are managed from a "Teams" entry in the **Event** menu, beside Persons and Clubs, shown only when the Event has a team Tournament. A team belongs to one Tournament. No organisation-level menu. The team Tournament itself is created where every Tournament is: Event → Tournaments, same wizard.                                                                                                          |
-| 12  | Seven more features, chosen from a list of twelve: **reserves**, **captain**, **composition rules**, **leg score and swap countdown on TV**, **blind line-up**, **who scored for the team**, **public team page**. Details under "Chosen extras".                                                                                                                                                                  |
-| 11  | **Rule 8 protects named Fighters only.** A Fighter in a slot with no name is unknown to MyClash, so it cannot stop them being booked as referee while they fight. The operator accepts this limit. The Teams screen marks every slot the rule cannot protect, and the referee board shows a notice on any Match of a team with unnamed Fighters. The limit is written into ADR-016 and into rule 8 of `CLAUDE.md`. |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Both formats: relay and series of duels.                                                                                                                                                                                                                                                                                                                                                                                             |
+| 2   | A team has numbered slots. A name on a slot is optional.                                                                                                                                                                                                                                                                                                                                                                             |
+| 2b  | The scorekeeper screen asks who is on the piste **only for a team with at least one named member**. In such a team an unnamed slot shows as "Fighter 2". A team with no names gets no picker; if the Tournament has a swap rule, that side gets one plain "Swap done" button.                                                                                                                                                        |
+| 3   | The organiser chooses who swaps: **together** (both leave), **alternating** (one side each time), or **each side on its own** (survivor).                                                                                                                                                                                                                                                                                            |
+| 4   | Alternating example, 3 minutes, teams of 3, rule "30 s": red swaps at 0:30, blue at 1:00, red at 1:30, blue at 2:00, red at 2:30.                                                                                                                                                                                                                                                                                                    |
+| 5   | Survivor: when every Fighter of a team has taken the set number of points, that team has lost and the Match ends at once.                                                                                                                                                                                                                                                                                                            |
+| 6   | Teams are decoupled from Registration. A side of a Match is either a Registration or a Team. Confirmed a second time after the review showed the cost (see Approaches).                                                                                                                                                                                                                                                              |
+| 7   | A team that leaves mid-Tournament: the organiser records a forfeit on each remaining Match by hand. No "team is out" status in the first slices. The automatic rules (black card, disqualify after N) do not act on teams.                                                                                                                                                                                                           |
+| 8   | A team Tournament ends with a public final ranking of teams. It cannot be linked to a League, and the screen says why: League points belong to persons.                                                                                                                                                                                                                                                                              |
+| 9   | A team has a colour, and an optional logo, so it is easy to identify.                                                                                                                                                                                                                                                                                                                                                                |
+| 10  | Teams are managed from a "Teams" entry in the **Event** menu, beside Persons and Clubs, shown only when the Event has a team Tournament. A team belongs to one Tournament. No organisation-level menu. The team Tournament itself is created where every Tournament is: Event → Tournaments, same wizard.                                                                                                                            |
+| 12  | Seven more features, chosen from a list of twelve: **reserves**, **captain**, **composition rules**, **leg score and swap countdown on TV**, **blind line-up**, **who scored for the team**, **public team page**. Details under "Chosen extras".                                                                                                                                                                                    |
+| 11  | **Rule 8 protects named Fighters only** (ruling 732). A Fighter in a slot with no name is unknown to MyClash, so it cannot stop them being booked as referee while they fight. The operator accepts this limit. The Teams screen marks every slot the rule cannot protect, and the referee board shows a notice on any Match of a team with unnamed Fighters. The limit is written into ADR-016 and into rule 8 of `CLAUDE.md`.      |
+| 13  | **The organiser picks how teams are spread over Pools** (ruling 971): by seed (snake), by random draw, or by the average rating of the named members. A team has no club and no rating of its own. Seed and random draw ship in slice 1b-1. Rating needs named members, so it ships in slice 1c with the names.                                                                                                                      |
+| 14  | **A black card in a team Match costs the team this Match only** (ruling 972). It has no reach into the Pool or the Tournament, it opens no disqualify review, and the forfeit rules do not change that. It is built in slice 1b-2.                                                                                                                                                                                                   |
+| 15  | **Naming members, the captain and the reserves move to slice 1c** (ruling 973), with the member-level referee rule and the privacy paths. Naming a Fighter makes three safety rules owe them (rule 8, hiding drafts, deleting a Person). In slice 1b a team has a name, a size, a colour, a logo and a seed. Its slots are numbered and empty.                                                                                       |
+| 16  | **Slice 1b is built as two plans on one branch and one pull request** (ruling 974): 1b-1, the organiser builds it, then 1b-2, the Match runs.                                                                                                                                                                                                                                                                                        |
+| 17  | **Team logos travel as links in a Tournament archive** (ruling 975); ruling 407 stands. An archive of a whole Event carries them as image files.                                                                                                                                                                                                                                                                                     |
+| 18  | **A team's card count starts fresh every Match** (ruling 976). A yellow or red card on a team never counts toward a card in another Match. The scope of the penalty list does not change that: Match, Phase or Tournament. Nothing follows a team from Match to Match. It is built in slice 1b-2.                                                                                                                                    |
+| 19  | **Slice 1c is split in two on one branch and one pull request** (ruling 979): 1c-1, the Tournament finishes (no names), then 1c-2, the team gets names.                                                                                                                                                                                                                                                                              |
+| 20  | **`MatchScoreboard` is deleted** (ruling 980), in its own commit. It ships in the `@myclash/ui` barrel with no caller, and web-admin has almost no bundle budget left.                                                                                                                                                                                                                                                               |
+| 21  | **A Tournament cannot switch to Team while it has a live League link** (ruling 981). A link is live when it is requested or approved. The refusal says: "Remove the League link first: League points belong to persons." The League link of a team Tournament is refused too (ruling 729).                                                                                                                                           |
+| 22  | **A team's seed sets the order only** (ruling 982). In a bracket the order is the seeded teams in seed order, then the unseeded teams by creation, numbered 1 to N, as in a team Pool. No team drops out, and a gap in the seeds means nothing.                                                                                                                                                                                      |
+| 23  | **A Tournament's kind locks once it has a phase** (ruling 989), not only once it has an entrant: its Pools, a Swiss phase or a bracket. The database refuses the switch (migration 0288). The settings screen says: "Delete the Pools and the bracket first: a tournament keeps its kind once it has Pools or a bracket."                                                                                                            |
+| 24  | **Every Fighter gets a bracket place, ranked by seed order** (ruling 991). With no Pools, the Fighters are ranked 1 to N, like teams: the seeded first, lowest seed first, then the unseeded. A bib number only breaks a tie, and a tie always breaks the same way. Seeds 1, 2, 5, 8 mean "the 4 best", not bracket places 1, 2, 5, 8. Nobody is left out.                                                                           |
+| 25  | **Slice 1c-2 is split in two on one branch and one pull request** (ruling 992): 1c-2a, names safely (slots, captain, reserves, rule 8 by member with one owner of the notice and the bracket included, hidden drafts, delete and force delete, personal export), then 1c-2b, names in use (rating spread, personal schedule and double-booking, check-in and gear, assistant tools, docs, R2, the ledger to 0, the spec to archive). |
+| 26  | **A person booked at the same time in two places gets a warning, for everyone** (ruling 993): a team member as much as a Fighter of two individual Tournaments. It never blocks, and the automatic scheduler does not change. Slice 1c-2b.                                                                                                                                                                                           |
+| 27  | **A reserve fights the whole team Match** (ruling 994), like a seat-holder: they cannot referee elsewhere while it runs. Hard rule 8, no setting. Slice 1c-2a.                                                                                                                                                                                                                                                                       |
+| 28  | **A person who holds a team seat cannot simply be deleted** (ruling 995). A plain delete refuses and names the team. A force delete empties the seat (the seat stays, with no name) and refuses only while a bout of that team is running. Slice 1c-2a.                                                                                                                                                                              |
+| 29  | **The known issues of slice 1c-1 are all fixed** (ruling 996), each its own small fix after the bracket bugs: the database refuses a double elimination or Swiss phase on a team Tournament even in a race, the creator names why a saved draft cannot change kind, the team wording, and the internal tidy-ups.                                                                                                                     |
+| 30  | **A team's rating is the average of its rated, named seat-holders** (ruling 997). Reserves do not count. A team with no rated member goes last. Slice 1c-2b.                                                                                                                                                                                                                                                                         |
+| 31  | **In the assistant and the MCP tools, the team is the entrant** (ruling 998): find, stats, rank and summary work per team; "find fighters" also lists the named members under their team; a team bout gives no personal stats. Slice 1c-2b.                                                                                                                                                                                          |
+| 32  | **A forfeit taken back after a card was saved stops that card's resend** (ruling 999): the tablet does not send the card again and forfeit the bout in silence. The card stays on record, and the organiser decides. Slice 1c-2b.                                                                                                                                                                                                    |
+| 33  | **A person may fight in a team and in an individual Tournament, or in two team Tournaments, of one Event** (ruling 1000). The double-booking warning (ruling 993) catches a clash. Slice 1c-2a.                                                                                                                                                                                                                                      |
+| 34  | **The scoring pad's gear panel shows every named member of both teams** with their gear result, in a compact list (ruling 1001). Slice 1c-2b.                                                                                                                                                                                                                                                                                        |
+| 35  | **Follow cards and alerts stay individual** (ruling 1002), on purpose: following a person does not follow their team. Slice 1c-2b.                                                                                                                                                                                                                                                                                                   |
+| 36  | **A team cannot lose a seat that holds a name** (ruling 1003): the cut is refused with a message that says why. A team has at most 10 seats and reserves together. Slice 1c-2a.                                                                                                                                                                                                                                                      |
+| 37  | **The code keeps two words for a kind** (ruling 1006): a side is `registration` or `team`, a Tournament is `individual` or `team`. Organisers see neither. One comment in the code says why.                                                                                                                                                                                                                                         |
+| 38  | **A single elimination bracket seeded by rating on a team Tournament is left alone** (ruling 1007): the database refuses only a double elimination or Swiss phase.                                                                                                                                                                                                                                                                   |
 
 ```text
 Decision 4, drawn:
@@ -82,7 +115,8 @@ Blue   Xavier       |Yann          |Zoé          |
 Each is a proposal with its reason. Correct any of them.
 
 1. **A Tournament is individual or team, chosen at creation.** It locks once the first entrant
-   exists. Mixing the two would need every screen to handle both in one list.
+   or the first phase exists (the phase since ruling 989, decision 23). Mixing the two would need
+   every screen to handle both in one list.
 2. **Order of work: relay first, duels last.** The request describes relay in detail; duels reuse it.
 3. **After the last slot, the order returns to the first slot** (Anna at 2:30 in decision 4).
 4. **Alternating starts with red.** Matches decision 4. Cheap to turn into a setting later.
@@ -109,6 +143,9 @@ Each is a proposal with its reason. Correct any of them.
     notice of decision 11.
 12. **A card in a team Match goes to the team**, and records which slot was on the piste. Its effect
     stops at that Match (decision 7), so the Tournament-level penalty review gets no team form.
+    Ruling 972 settles the black card (decision 14): the team loses this Match only. The slot part
+    waits for slot stamps in slice 2. Every slot is unnamed until slice 1c, and no column holds a
+    slot yet.
 13. **A team forfeits as a whole**, one Match at a time (decision 7). The "replacement" link on a
     forfeit stays individual-only.
 14. **The organiser cannot add a Registration to a team Tournament, nor a Team to an individual
@@ -164,8 +201,8 @@ The behaviour below is my proposal for each; the operator chose the feature, not
 
 | Extra                       | What it does                                                                                                                                                                   | My calls                                                                                                                                                                                                                                                                                                                                                                                                                              | Slice          |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| **Captain**                 | One slot of a team is marked captain. Shown on the Teams screen, the team page and the TV.                                                                                     | No powers yet. At most one per team. Only a named slot can be captain.                                                                                                                                                                                                                                                                                                                                                                | 1b             |
-| **Reserves**                | A team of 3 can bring a 4th Fighter.                                                                                                                                           | A reserve is always a named Person, attached to the team with no slot number. The team size stays 3. At a halt, "Change fighter" also lists the reserves; a reserve who comes on **takes the number of the Fighter who leaves**, for the rest of that Match. Survivor counts per slot number, so a reserve inherits the points already taken on that number and adds no life.                                                         | data 1b, use 2 |
+| **Captain**                 | One slot of a team is marked captain. Shown on the Teams screen, the team page and the TV.                                                                                     | No powers yet. At most one per team. Only a named slot can be captain.                                                                                                                                                                                                                                                                                                                                                                | 1c             |
+| **Reserves**                | A team of 3 can bring a 4th Fighter.                                                                                                                                           | A reserve is always a named Person, attached to the team with no slot number. The team size stays 3. At a halt, "Change fighter" also lists the reserves; a reserve who comes on **takes the number of the Fighter who leaves**, for the rest of that Match. Survivor counts per slot number, so a reserve inherits the points already taken on that number and adds no life.                                                         | data 1c, use 2 |
 | **Public team page**        | A page for a team inside its Tournament: colour, logo, captain, named members, its Matches and results. Linked from standings, bracket and schedule.                           | Lives at `/e/<event>/t/<tournament>/team/<team-slug>`, so a team gets a slug (no raw id in a URL or on screen). Hidden while the Tournament is a draft, by the same rule as the roster. A member with a public profile links to it.                                                                                                                                                                                                   | 4              |
 | **Who scored for the team** | Inside a team: points scored and points taken per member, and the top scorer. On the team page and at the end of each Match.                                                   | Teams with names only. Worked out on read from the slot stamps on Exchanges; nothing stored. It stays inside the team: a person's own profile and career statistics are still a non-goal.                                                                                                                                                                                                                                             | 4              |
 | **Leg score and countdown** | The TV shows the running total and, under it, the current leg: "Anna 3 – Xavier 1". With a swap rule it also shows "swap in 0:12" and "next: Ben".                             | A leg runs from the last line-up change of either side to now. Leg score: teams with names only. Countdown: every team, for time rules; for exchange and point rules it reads "swap in 2 exchanges" or "swap at 10". "Next" follows the slot order, or the declared order under blind line-up.                                                                                                                                        | 4              |
@@ -235,7 +272,8 @@ key, and why.
 - New tables `teams` (tournament, name, slug, size, seed, colour name, optional logo) and
   `team_slots` (team, position, optional person, captain mark, retired-at). A row with a person and
   no position is a reserve. One person per Tournament at most, and one captain per team at most,
-  both in the database.
+  both in the database. No `team_slots` row is written before slice 1c (ruling 973). Until then a
+  team's size is the truth.
 - New table `match_lineups` (match, side, turn, optional slot row, client id, time, staff account),
   unique on (match, side, turn). **Not** rows in `match_events`: the repair of a lost Start reads
   the last timeline row of any type (`apps/api/src/modules/matches/late-press.ts:235`,
@@ -315,6 +353,9 @@ branch in slice 1c:
 
 The merge of two Global Persons needs nothing: a slot holds an Event Person.
 
+A team logo is a link, not a file. An archive of one Tournament carries the link, and ruling 407
+stands. An archive of a whole Event carries the logo as an image file (decision 17, ruling 975).
+
 ### Routes and access
 
 - Team routes are nested under the Tournament (`tournaments/:id/teams/…`), so the archived-Event
@@ -354,6 +395,9 @@ The creator is the four-step wizard in `tournaments/new/_wizard/`. It stays four
   the teams of each team Tournament: create a team (name, size, colour, optional logo), fill slots
   from the Event's Persons or leave them empty. Empty teams are allowed, so Pools can be built early.
 - Pools and bracket generation take teams. Standings and the final ranking list teams.
+- When the organiser generates Pools of teams, they pick how the teams are spread (decision 13,
+  ruling 971). Slice 1b offers seed (snake) and random draw. Slice 1c adds rating, with named
+  members.
 - Match format tab: the swap rule (three fields), shown on team Tournaments only.
 
 #### Scorekeeper (web-staff)
@@ -388,6 +432,7 @@ The creator is the four-step wizard in `tournaments/new/_wizard/`. It stays four
 #### Referee board
 
 - A named team member cannot be booked to referee during their team's Match (call 11).
+- The notice below ships in slice 1b-1. The block on a named member ships in slice 1c.
 - Any Match of a team that has an unnamed slot, or a member the check cannot see, carries a notice:
   MyClash cannot check these Fighters (decision 11). The notice blocks nothing. It is a note on
   the Match, not a fourth level beside Impossible, Discouraged and Fine (ADR-016).
@@ -412,16 +457,170 @@ Each slice is usable alone and lands as several single-concern commits.
 1. **Teams enter a Tournament**, in three parts.
    - **1a, foundations, no screen changes.** Words in HIERARCHY and ADR-022. The limit of rule 8
      written into ADR-016 and `CLAUDE.md` (decision 11). The side-key rename in
-     the engine packages, as one commit that changes names and no value. The schema (tables, nine
+     the engine packages, as one commit that changes names and no value. The schema (tables, ten
      twins, trigger, policies). `sideKey`, used where the API feeds the engine and where it writes
-     the engine's winner back. The **ledger gate**. Planned in full in
-     `docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`.
+     the engine's winner back. The **ledger gate**. **Shipped** on branch `feat/team-tournaments`
+     (draft PR #109), with a bout waiting for a Fighter refused Start, hits, cards and colour swap
+     (operator, 2026-11-24). Its plan is deleted; what it left for later is in the 1b and 1c
+     lists below.
    - **1b, an organiser can run Pools.** The side resolver. The Tournament creator, the Teams screen with colour and
      logo, Pool generation, standings, team cards and forfeits Match by Match, team names on the
      schedule, the scorekeeper screen, TV and public pages. A team Match is scored as one unit.
-   - **1c, the rest of a Tournament.** Single elimination, final ranking, League link refused, the
-     referee rule with its mark and notice, personal schedule and double-booking check for named members, the four people
-     and privacy paths, HEMA Ratings export skips team Tournaments and says so.
+     This paragraph and the lists below are the whole of 1b, 1b-1 plus 1b-2. The operator split 1b
+     into two plans on the same branch and pull request (ruling 974):
+     - **1b-1, the organiser builds it.** Create a team Tournament, the Teams screen (name, size,
+       colour, logo, seed; slots numbered and empty), Pools of teams spread by seed or random draw
+       (ruling 971), team standings, team names in web-admin's Pool, schedule, overview and referee
+       screens, the scheduler, and the referee notice (decision 11, ruling 732: the notice moves
+       here from 1c; every slot is unnamed in 1b-1, so the member-level check has nobody to
+       protect yet). The pad, TV and public pages do not change behaviour. Bracket, Swiss and
+       double elimination refuse a team Tournament. **Built** on branch `feat/team-tournaments`,
+       from `9f9ee1b89` to the commit that closed it.
+     - **1b-2, the Match runs.** The pad, online and offline, the offline queue, cards (ruling
+       972), forfeits, protests, the time-limit result, colour swap of team ids, TV, public pages,
+       the staff, lice and live-state names, the stats functions, the admin bout page and live
+       board, and the offline specs 06, 08 and 40. **Built** on branch `feat/team-tournaments`,
+       from `5231a5c71` to the commit that closed it.
+     - **Moved from 1b to 1c** (ruling 973): names, the captain mark, the reserves' data, the
+       spread of teams by rating, and the `deletePerson` check of team slots.
+
+     Also owed by 1b, carried over from slice 1a (and, where marked, from 1b-1). Each item names
+     the plan that does it:
+     - (1b-1, done) The side resolver: no reader called it in 1a. Its first callers land in 1b-1.
+       Done in `900e71963`: `apps/api/src/modules/matches/side-label.ts`.
+     - (1b-1, done) The team logo column, with its upload route; the archive's guard refuses a
+       `_url` column nothing carries (`packages/db/migrations/0281_team_tables.sql:13-14`). Done:
+       the column in `0283_team_logo_and_twin_indexes.sql` (`0759f0d48`), the route
+       `POST tournaments/:tournamentId/teams/:teamId/logo` in `teams.controller.ts` (`7063ee8f3`).
+     - (1b-1, done) Standings take the side key. Done in `248077564` and `e58cc1f13`:
+       `apps/api/src/modules/pool-standings/` (`compute-rows.ts`, `pool-rows.ts`,
+       `pool-standings.team.test.ts`).
+     - (1b-2, done) The time-limit result takes the side key, and the clock's read list gains the
+       team columns (`clock.service.ts:157` `BOUT_COLUMNS`, `time-limit-result.ts:139-147`). Done
+       in `1bd1af957`: `time-limit-result.ts` writes the leader through `winnerColumns`, and
+       `BOUT_COLUMNS` in `clock.service.ts` and `level-step.ts` read the team columns.
+     - (1b-1, done) The kind race probed under forced overlap, with the teams routes
+       (`0281_team_tables.sql:147` `entrant_kind_holds`, `scripts/lib/team-tables-probe.mjs`). Done
+       in `0759f0d48` and `7f56dda66`: `scripts/lib/team-kind-race.mjs`, run by
+       `scripts/db-cascade-probe.mjs`.
+     - (1b-1, done) Indexes on the ten twin columns, with their first readers; `db:review` does not
+       warn about them, it reads only `create table` lines (`0282_team_twins.sql:54`). Done in
+       `0759f0d48`: `0283_team_logo_and_twin_indexes.sql`.
+     - (1b-1, done) An index for the team → team_slots delete cascade (`0281_team_tables.sql:100`,
+       `team_slots_team_fkey`). Done in `0759f0d48`: `team_slots_team_id_tournament_id_idx` in
+       `0283_team_logo_and_twin_indexes.sql`.
+     - (1b-2, done) The forfeit snapshot's JSON paths map `winner_registration_id` only; the
+       `winner_team_id` paths come with the forfeit code
+       (`apps/api/src/modules/exports/archive.tables.ts:439-440`). Done in `eafb43e8f`: the two
+       `winner_team_id` paths map to `teams` (`archive.tables.ts:441-442`).
+     - (1b-2, done) The colour swap swaps the Registration ids only (`matches.service.ts:968-969`,
+       `swapFighterColor`). Done in `f6ec032cf`: the swap moves each side whole, Registration and
+       team (`matches.service.ts:978-984`).
+     - (1b-2, done) The forfeit panel would send a null id for a team bout
+       (`ForfeitPanel.tsx:67`). Done in `2fe27ea36`: a team bout sends `forfeitingTeamId`
+       (`apps/web-staff/src/lib/forfeit-body.ts`) and is asked nothing of continuing.
+     - (1b-2, done) The protest tap, ScoringColumn and DirectCardPanel null branches say "waiting
+       for a Fighter" on a team bout (`protest-tap.ts:70`, `ScoringColumn.tsx:194`,
+       `DirectCardPanel.tsx:154`). Done in `56a592cab`: each takes the corner's side from `sideOf`
+       (`apps/web-staff/src/lib/bout-sides.ts`), so a team's side is a known side.
+     - (1b-2, done) TVScoreboard compares a nullable Registration id with `===`
+       (`TVScoreboard.tsx:470`). Done in `c51e63f4a` (`isRowOfSide`, where null is nobody) and
+       `ab2feec74` (the TV places each column's cards with it).
+     - (1b-2, done) The winner writers that write `winner_registration_id` only:
+       `matches.service.ts:281` (`setStatus`), `fighter-reconcile.ts:162`, `fighter-bouts.ts:142`,
+       `:182`, `:268`, `time-limit-result.ts:147`, `match-forfeits.service.ts:239`, and the test
+       harness `double-elim-simulation.harness.ts:133`. Done: each writes through `winnerColumns`,
+       `setStatus` through `status-winner.ts` in `b2501e5a3`, the forfeit writers
+       (`fighter-reconcile.ts`, `fighter-bouts.ts`, `match-forfeits.service.ts`) in `653b62b02`,
+       the time-limit result in `1bd1af957`. The harness (`double-elim-simulation.harness.ts:133`)
+       stays individual-only: double elimination refuses a team Tournament (1b-1), and the
+       side-readers gate does not scan `*.harness.ts`.
+     - (1b-2, done) `MatchContext.redTeamId` / `blueTeamId` are filled and read by nobody
+       (`penalties.service.ts:1437-1438`, `:1964-1965`). Done in `469d8bb89`: the card door judges
+       a card's side against them (`isCardSideOfBout`,
+       `apps/api/src/modules/penalties/card-side.ts`).
+     - (1b-1, done) A cascade probe case: deleting a Team that a bout or a forfeit names is refused
+       (23503) (`scripts/db-cascade-probe.mjs`). Done in `0759f0d48`.
+     - (1b-1, done) "Neither" probe cases for `match_penalties_one_side` and
+       `match_forfeits_forfeiting_one_kind` (`scripts/lib/team-tables-probe.mjs`). Done in
+       `0759f0d48`: "a card for neither" and "a forfeit by neither".
+     - (1b-2, done) The offline specs `tests/e2e/06-offline-sync.spec.ts`,
+       `08-offline-custom-ruleset.spec.ts` and `40-offline-bout.spec.ts`, skipped for 1a (operator,
+       2026-11-24, ruling 961). They run once, at the end of 1b-2, on a test stack. Done: 40 gains
+       a team bout in `eb409bd9c`, 06 a queued team card in `eaf8ebe94`, and 08 is unchanged. The
+       pad's offline drill carries a team bout's cards in `77d6c9460`. The specs ran on a local
+       isolated stack (ruling 977), on 2026-11-26: 06 2/2, 08 1/1, 40 2/2, with the team cases.
+     - (1b-1 and 1b-2, done) The `not-yet 1b` lines of `scripts/side-readers-ledger.json` (gate
+       `quality:side-readers`). Each plan clears the lines of the files it visits. 1b-1 cleared 21
+       lines: the ledger held 121 `not-yet` lines when 1b-1 began (85 marked 1b, 36 marked 1c) and
+       100 when it closed (64 marked 1b, 36 marked 1c). 1b-2 cleared the 64 lines marked 1b: it
+       visited 62, and moved 2 to 1c (the public bracket, listed under 1c). The ledger holds 38
+       `not-yet` lines now, all marked 1c.
+     - (1b-2, from 1b-1, done) The web-admin Pool seat and board seat shapes move to
+       `@myclash/types`, beside `PoolStandingsRow`. Three hand copies today:
+       `apps/web-admin/app/org/[slug]/events/[eventId]/pools/pool-seats.ts:13-28`,
+       `referees/page.tsx:166-181` and `referees/_components/useAssignmentBoard.ts:78-93`. Done in
+       `391fc280f`: `PoolSeat` and `AssignmentBoardMember` in
+       `packages/types/src/pool-standings.ts`.
+     - (1b-2, from 1b-1, done) `apps/web-admin/src/components/statistics/types.ts:110` copies the
+       event-stats answer by hand. Done in `ddf658810`: the statistics standings row is the shared
+       `PoolStandingsRow`.
+
+   - **1c, the rest of a Tournament, in two parts** (ruling 979). Both are built on the same branch
+     and the same pull request. The ledger's 38 `not-yet` lines split 25 for 1c-1 and 13 for 1c-2.
+
+     **1c-1, the Tournament finishes (BUILT on branch `feat/team-tournaments`, from `79b523ac2` to
+     the commit that wrote this line).** It needs no names; teams stay unnamed (ruling 973). A team
+     Tournament runs its Pools, then a single elimination bracket, and ends with a champion, a final
+     ranking and a podium. It held these items, all done:
+     - Done: single elimination for teams, final ranking and podium (admin and public). A team's
+       seed sets the bracket order only (ruling 982). Commits `b6c41ad57`, `2219d3d88`, `a5eeb2c55`,
+       `7880fccda`, `952fba30a`, `508dc3a86`, `e9d49ec07`, `2feae364c`, `af113ed78`, `72e87dc1c`.
+     - Done: the League link refused for a team Tournament, and the switch to Team refused while a
+       League link is live (rulings 729 and 981). Migration 0287 in `1d2cdaf6d`; the doors in
+       `096bcf5ab` and `631a23366`.
+     - Done: a Tournament's kind locks once it has a phase (ruling 989, decision 23). Migration
+       0288 in `b1bbab719`; the named 409 and the settings sentence in `cf21544ab`.
+     - Done: HEMA Ratings export skips team Tournaments and says so (`76661b984`). The archive
+       reports name a team side (`b60af582d`).
+     - Done: `clearDependentPairing` clears both columns of a side, so an emptied team bout keeps
+       its team ids (`2219d3d88`).
+     - Done (from 1b-1): `generateBracket` checks the Tournament's kind for every caller, the
+       `'system'` default included (`a5eeb2c55`).
+     - Done (from 1b-1): the AI assistant's `generate_pools` takes a team spread (`1f7c4d459`).
+     - Done (from 1b-2): the public bracket, its podium and its forfeit read and send a side
+       (`952fba30a`, `72e87dc1c`, `2feae364c`).
+     - Done (from 1b-2): the EN toast `admin.common.missingRegistrationId` reads "Missing
+       registration for this side".
+     - Done (from 1b-2): `MatchScoreboard` is deleted (ruling 980, `fa3337fdf`).
+     - Done (from 1b-2): the lice and pad screens use `TeamChip` (`f99e74e73`).
+     - Done (from 1b-2): `teamCount` and `fighterCount` have a plural form, and the public Pool
+       heading finds a team (`72e87dc1c`).
+     - Done (from 1b-2): the two owners of "the side this body names" are one, `named-side.ts`
+       (`39689ecd3`).
+     - Done (from 1b-2, parked): R1, the scope filters of the black-card repair now have a test
+       (`9349df9c8`). R3, the TV and the pad draw a team with `TeamChip` (`f99e74e73`).
+     - Done: the 25 `not-yet` lines of `scripts/side-readers-ledger.json` that sat in the files
+       above. 13 `not-yet` lines are left, all tagged `1c: (1c-2)`.
+
+     **1c-2, the team gets names.** Naming a Fighter makes three safety rules owe them (rule 8,
+     hiding drafts, deleting a Person), so these items go together. It holds:
+     - Names on slots, the captain mark and the reserves' data (ruling 973).
+     - The spread of teams by rating (ruling 971). Rating needs named members.
+     - The member-level referee rule, with its mark on the Teams screen (the notice ships in 1b-1).
+     - Personal schedule and the double-booking check for named members.
+     - Check-in and gear for named members.
+     - The four people and privacy paths.
+     - `deletePerson` checks Registrations only: a Person who holds a team slot fails at commit with
+       a raw foreign-key error (`apps/api/src/modules/persons/persons.service.ts:267-282`).
+     - (From 1b-1) The AI assistant's Tournament queries read sides by Registration
+       (`apps/api/src/modules/tournament-query/tournament-query.tools.service.ts`). They find
+       Fighters, so they need names.
+     - (From 1b-2, parked) R2: card 2 is given on a bout that card 1 already forfeited, and its
+       answer is lost. The organiser takes back card 1's forfeit. Then card 2's resend forfeits
+       again, because card 1's forfeit is older than card 2. The case is rare and the re-forfeit is
+       silent.
+     - The 13 other `not-yet` lines of `scripts/side-readers-ledger.json`.
 2. **Who is on, for teams with names.** "Who starts?", "Change fighter", slot stamps on Exchanges,
    `match_lineups`, the new offline queue kind, the kept line-up, Fighter on piste on TV and public
    pages. A team with no names is untouched by this slice.
@@ -446,8 +645,8 @@ Each slice is usable alone and lands as several single-concern commits.
 8. Later, each on request: a real "team is out" status with the automatic rules, Swiss and double
    elimination, personal statistics, bout alerts for members, captain sign-up and captain powers.
 
-The captain mark and the reserves' data land in slice 1b with the Teams screen; a reserve coming on
-lands in slice 2.
+The captain mark and the reserves' data land in slice 1c, with the names (ruling 973); a reserve
+coming on lands in slice 2.
 
 ### Size estimate, in commits
 
@@ -470,7 +669,10 @@ fixes and the follow-up fixes, which were about a third of those totals.
 | 7 composition rules     | 20 to 40                   | Not designed yet; depends on which rules.                    |
 | **Everything**          | **about 250** (210 to 300) |                                                              |
 
-The first point where the feature can be tried at a live test event is the end of 1b, after about
+The 1b row is now two plans, 1b-1 and 1b-2 (ruling 974). Slice 1c also carries names, the captain
+and the reserves (ruling 973). The numbers in this table are not re-estimated.
+
+The first point where the feature can be tried at a live test event is the end of 1b-2, after about
 60 commits.
 
 ### The ledger test (slice 1a)
@@ -599,9 +801,16 @@ It answers "has every place that reads a Match side been visited?".
 
 ## Next
 
-1. The plan of slice 1a is `docs/superpowers/plans/2026-11-13-team-tournaments-slice1a.md`.
-2. Each later slice gets its own plan and its own review before it is built.
-3. No code before the operator says so.
+1. Slice 1a shipped on branch `feat/team-tournaments` (draft PR #109); its commits are named in
+   the status line at the top, and its carry-over is listed under 1b and 1c in "Slices".
+2. Slice 1b-1 is built on the same branch; what it left is listed under 1b-2 and 1c in "Slices".
+3. Slice 1b-2, the Match runs, is built on the same branch; what it left is listed under 1c in
+   "Slices". Slice 1b is finished.
+4. Slice 1c is split in two (ruling 979). Slice 1c-1, the Tournament finishes, is built on the
+   same branch and the same pull request #109; what it left is listed under 1c-2 in "Slices".
+   Next: slice 1c-2, the team gets names. It gets its own plan and its own review before it is
+   built. This design stays in `specs/` while slice 1c-2 is not built.
+5. No code before the operator says so.
 
 ## Review record
 

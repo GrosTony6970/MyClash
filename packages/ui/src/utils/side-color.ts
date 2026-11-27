@@ -333,7 +333,7 @@ export function sideColorsFor(
  * endpoints send `{ red, blue }` and nothing else.
  *
  * Delegating rather than re-deriving is the point: a second copy of
- * "token → hex → clamp" is how `MatchScoreboard` ended up with a hex map that
+ * "token → hex → clamp" is how a second scoreboard ended up with a hex map that
  * disagreed with this one.
  */
 export function sideColorsForTokens(

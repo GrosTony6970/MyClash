@@ -72,11 +72,14 @@ export interface LevelDeps {
   clock: Pick<ClockService, 'getClockState'>;
 }
 
-/** The Event's status and the two marks are for a step sent late. */
+/**
+ * The Event's status and the two marks are for a step sent late. The sides and the winner are read
+ * by both kinds, a Registration or a team (0282), for `isLevelBout`.
+ */
 const BOUT_COLUMNS =
   'id, status, locked_at, current_round, red_registration_id, blue_registration_id, ' +
-  'winner_registration_id, red_score, blue_score, match_number_label, ' +
-  'awaiting_round_advance, back_in_play_at, ' +
+  'red_team_id, blue_team_id, winner_registration_id, winner_team_id, red_score, blue_score, ' +
+  'match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(events(status))), ' +
   BOUT_RULES;
 

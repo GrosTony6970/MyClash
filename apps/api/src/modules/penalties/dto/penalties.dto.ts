@@ -19,14 +19,17 @@ const penaltyRulesetEntrySchema = z.object({
 /**
  * Record a match penalty card. Either `rulesetEntryId` (a configured penalty
  * entry) or `directCard` (a manual referee card) must be provided; `reason` is
- * required when a manual `directCard` is given. Exported for unit testing of
- * this conditional logic.
+ * required when a manual `directCard` is given. The card names exactly one
+ * side: `registrationId` (a Fighter) or `teamId` (a team, ADR-022); a field
+ * named Registration never carries a team id (call 23). Exported for unit
+ * testing of this conditional logic.
  */
 export const createPenaltySchema = z
   .object({
     clientUuid: z.uuid(),
     sequence: z.number().int().min(1),
-    registrationId: z.uuid(),
+    registrationId: z.uuid().optional(),
+    teamId: z.uuid().optional(),
     rulesetEntryId: z.uuid().optional(),
     directCard: cardSchema.optional(),
     occurredAt: z.iso.datetime(),
@@ -52,6 +55,10 @@ export const createPenaltySchema = z
     reason: z.string().max(500).optional(),
   })
   .strict()
+  .refine((d) => (d.registrationId === undefined) !== (d.teamId === undefined), {
+    message: 'Send exactly one of registrationId and teamId',
+    path: ['teamId'],
+  })
   .refine((d) => Boolean(d.rulesetEntryId) || Boolean(d.directCard), {
     message: 'Either rulesetEntryId or directCard is required',
     path: ['rulesetEntryId'],

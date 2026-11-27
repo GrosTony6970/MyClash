@@ -77,15 +77,13 @@ export type {
 
 export { TournamentColorDot } from './components/TournamentColorDot';
 export type { TournamentColorDotProps } from './components/TournamentColorDot';
+export { TeamChip } from './components/team-chip';
 
 export { SkillBadge } from './components/SkillBadge';
 export type { SkillBadgeProps } from './components/SkillBadge';
 
 export { EventKindBadge } from './components/EventKindBadge';
 export type { EventKindBadgeProps } from './components/EventKindBadge';
-
-export { MatchScoreboard } from './components/MatchScoreboard';
-export type { MatchScoreboardProps } from './components/MatchScoreboard';
 
 export { TVScoreboard } from './components/TVScoreboard';
 export type { TVScoreboardProps } from './components/TVScoreboard';
@@ -260,6 +258,7 @@ export {
   ascendingWithNumbers,
   orderedWithNumbers,
   exchangeOptionLabel,
+  isRowOfSide,
   NO_EXCHANGE_REASONS,
   NO_EXCHANGE_REASON_KEYS,
 } from './utils/exchange-timeline';

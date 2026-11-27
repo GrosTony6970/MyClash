@@ -10,6 +10,7 @@
 import { canSendAgain } from './can-send-again';
 import { db, isTap, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
 import { tabletTime } from './press-age';
+import { sideFields, type QueuedSide } from './queued-side';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -31,17 +32,28 @@ import { tabletTime } from './press-age';
  * right behind "Start round 2", before the screen has drawn round 2. So the
  * round written is the larger of the screen's and the round the bout's newest
  * queued "Start round" opens, read in the same transaction.
+ *
+ * A card's or a protest's side comes as one `QueuedSide`: one field is written (`sideFields`).
  */
-export async function enqueue(
-  entry: Omit<
-    OutboxEntry,
-    'id' | 'createdAt' | 'attempts' | 'lastError' | 'pressedPerf' | 'pressOrigin'
-  >,
-): Promise<number> {
+export async function enqueue({
+  side,
+  ...entry
+}: Omit<
+  OutboxEntry,
+  | 'id'
+  | 'createdAt'
+  | 'attempts'
+  | 'lastError'
+  | 'pressedPerf'
+  | 'pressOrigin'
+  | 'registrationId'
+  | 'teamId'
+> & { side?: QueuedSide }): Promise<number> {
   const at = tabletTime();
   return db.transaction('rw', db.outbox, db.synced, async () =>
     db.outbox.add({
       ...entry,
+      ...(side ? sideFields(side) : {}),
       ...(entry.round === undefined ? {} : { round: await openRoundFor(entry) }),
       pressedPerf: at.page,
       pressOrigin: at.origin,
@@ -61,9 +73,11 @@ async function openRoundFor(entry: { matchId: string; round?: number }): Promise
   return Math.max(entry.round ?? 0, ...opened);
 }
 
-/** A card's row in the queue: what every card carries, around what this one is. */
+/** A card's row in the queue: what every card carries, around its side (`QueuedSide`). */
 export function queueCard(
-  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'>,
+  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'> & {
+    side: QueuedSide;
+  },
 ): Promise<number> {
   return enqueue({
     kind: 'penalty',

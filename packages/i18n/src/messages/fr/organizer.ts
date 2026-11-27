@@ -284,6 +284,59 @@ export const organizer = {
       eventOverview: 'Vue événement',
       tournaments: 'Tournois',
       clubs: 'Clubs',
+      teams: 'Équipes',
+    },
+  },
+  teams: {
+    title: 'Équipes',
+    subtitle:
+      'Les équipes de chaque tournoi par équipes. Dans cette version, une équipe ne nomme pas ses membres : ses places sont numérotées.',
+    noTeamTournament: "Cet événement n'a pas de tournoi par équipes.",
+    noTeamTournamentHint: 'Créez un tournoi et choisissez Équipes comme participants.',
+    tournamentTabs: 'Tournois par équipes',
+    loadError: 'Impossible de charger les équipes.',
+    empty: "Aucune équipe pour l'instant.",
+    emptyHint: 'Ajoutez la première équipe de ce tournoi.',
+    add: 'Ajouter une équipe',
+    colColor: 'Couleur',
+    colLogo: 'Logo',
+    colName: 'Nom',
+    colSize: 'Taille',
+    colSeed: 'Tête de série',
+    colActions: 'Actions',
+    createTitle: 'Nouvelle équipe',
+    editTitle: 'Modifier {name}',
+    name: 'Nom',
+    size: "Taille de l'équipe",
+    sizeHint: 'De 1 à 10 combattants.',
+    color: 'Couleur',
+    colorNone: 'Pas de couleur',
+    seed: 'Tête de série',
+    seedHint: 'Facultatif. Un tirage par tête de série répartit les équipes dans cet ordre.',
+    seats: 'Places',
+    seat: 'Combattant {n}',
+    seatsHelp: 'Nommer qui combat à chaque place viendra dans une prochaine version.',
+    logo: 'Logo',
+    logoHelp: "Facultatif. PNG, JPEG ou WebP, jusqu'à 10 Mo.",
+    logoAlt: 'Logo de {name}',
+    created: 'Équipe créée.',
+    saved: 'Équipe enregistrée.',
+    deleted: 'Équipe supprimée.',
+    saveError: "Impossible d'enregistrer l'équipe.",
+    deleteError: "Impossible de supprimer l'équipe.",
+    deleteTitle: 'Supprimer {name} ?',
+    deleteBody:
+      'Une équipe dans une poule sans combat quitte sa poule. Cette action est irréversible.',
+    deleteYes: "Supprimer l'équipe",
+    refusal: {
+      tournamentFull: "Ce tournoi a atteint son nombre maximum d'équipes.",
+      nameTaken: 'Une autre équipe de ce tournoi porte ce nom.',
+      sizeLocked: 'Un combat de cette équipe a commencé : sa taille ne peut plus changer.',
+      inBouts:
+        "Un combat ou le tableau nomme cette équipe. Retirez d'abord l'équipe de sa poule et du tableau.",
+      kindMismatch: 'Ce tournoi accueille des combattants individuels, pas des équipes.',
+      sizeRequired:
+        "Ce tournoi n'a pas de taille d'équipe par défaut : donnez une taille à l'équipe.",
     },
   },
   penaltyReviews: {
@@ -617,6 +670,11 @@ export const organizer = {
         critical:
           '{count} combattant(s) inscrits. Il en faut au moins 2 pour générer les poules et le tableau.',
       },
+      teams: {
+        label: 'Équipes',
+        ok: '{count} équipe(s) créées.',
+        critical: '{count} équipe(s) créées. Il en faut au moins 2 pour générer les poules.',
+      },
       format: {
         label: 'Format',
         warn: "Ni poules ni tableau générés - ce tournoi n'a pas encore de format.",
@@ -694,6 +752,30 @@ export const organizer = {
       'Un tournoi est une compétition au sein de cet événement - épée longue, messer, sabre, etc. Ajoutez-en un pour commencer à gérer les poules, le tableau et les inscriptions.',
     loadError: 'Échec du chargement des tournois.',
     loading: 'Chargement des tournois...',
+    kind: {
+      legend: 'Participants',
+      individual: 'Combattants individuels',
+      team: 'Équipes',
+      fixed: 'Ce tournoi a déjà des participants : son type ne peut plus changer.',
+      settled: 'Ce tournoi a maintenant des participants : son type ne peut plus changer.',
+      teamDefaultSize: "Taille d'équipe par défaut",
+      forfeitNotForTeams: "Les règles de forfait automatiques ne s'appliquent pas aux équipes.",
+      maxTeams: 'Équipes max.',
+      badge: 'Équipe',
+      teamNotSupported:
+        "La double élimination et la phase suisse ne prennent pas encore d'équipes.",
+      ratingNeedsNamedMembers:
+        'Une équipe est classée par ses membres nommés : un tableau par équipes ne peut pas encore être tiré au classement.',
+      mismatch:
+        "Ce tournoi accueille l'autre type de participant : un tournoi par équipes accueille des équipes, un tournoi individuel des combattants.",
+      fieldRefused:
+        'Ces réglages ne conviennent pas au type de participant de ce tournoi. Rechargez la page et réessayez.',
+      leagueIndividualOnly: 'Les points de ligue appartiennent aux personnes.',
+      leagueBlocksTeam:
+        "Retirez d'abord le lien à la ligue : les points de ligue appartiennent aux personnes.",
+      lockedByPhase:
+        "Supprimez d'abord les poules et le tableau : un tournoi garde son type dès qu'il a des poules ou un tableau.",
+    },
     wizard: {
       eyebrow: 'Nouveau tournoi',
       title: 'Créer un tournoi',
@@ -835,7 +917,7 @@ export const organizer = {
         'Les pénalités épinglées apparaissent en accès rapide sur le tableau de score.',
       quickPenaltiesEmpty: 'Aucune entrée de barème de pénalités pour ce tournoi.',
       protestLimit: 'Limite de réclamations',
-      protestLimitHelp: 'Par combattant, par match. Vide : pas de limite.',
+      protestLimitHelp: 'Par combattant ou équipe, par match. Vide : pas de limite.',
       protestOfferPenalty: 'Pénalité proposée au-delà de la limite',
       protestLimitInvalid: 'Un nombre entier, 0 ou plus.',
       protestOfferNone: 'Aucune',
@@ -1052,7 +1134,8 @@ export const organizer = {
       seatsTaken: 'Places prises',
       workshopWaitlists: "Listes d'attente",
       tournament: 'Tournoi',
-      registered: 'Combattants',
+      registered: 'Inscrits',
+      teamCount: '{count} équipe(s)',
       assignedReferees: 'Arbitres affectés',
       status: 'Statut',
       noTournaments: 'Aucun tournoi pour le moment.',
@@ -1573,10 +1656,14 @@ export const organizer = {
     overrideModal: {
       title: 'Modifier le slot',
       filterPlaceholder: 'Filtrer les combattants par nom…',
+      filterPlaceholderTeam: 'Filtrer les équipes par nom…',
       sideA: 'Côté A (combattant 1)',
       sideB: 'Côté B (combattant 2)',
+      sideATeam: 'Côté A (équipe 1)',
+      sideBTeam: 'Côté B (équipe 2)',
       clear: 'Vider ce côté',
       empty: 'Aucun combattant inscrit.',
+      emptyTeam: 'Aucune équipe dans ce tournoi.',
       liceLabel: 'Lice',
       liceNone: 'Non assignée',
       refereeNone: 'Non assigné',
@@ -1588,7 +1675,9 @@ export const organizer = {
     autoPopulatePoolsNotFinished: 'Les poules ne sont pas encore terminées',
     autoPopulateSuccess: 'Tableau rempli à partir du classement des poules',
     autoPopulateSuccessFromSeed:
-      "Tableau rempli à partir de l'ordre d'inscription (aucune donnée de poule)",
+      "Tableau rempli dans l'ordre des têtes de série (aucune donnée de poule)",
+    autoPopulateSuccessFromSeedTeam:
+      "Tableau rempli dans l'ordre des têtes de série des équipes (aucune donnée de poule)",
     autoPopulateSuccessFromRating: 'Tableau rempli à partir du classement HEMA',
     autoPopulateSuccessFromRandom: 'Tableau rempli par tirage aléatoire',
     autoPopulateSuccessFromSwiss: 'Tableau rempli depuis le classement suisse',
@@ -1596,8 +1685,11 @@ export const organizer = {
       'À égalité sur tous les départages configurés : {fighters}. Le choix entre eux était arbitraire — allongez la chaîne de départages ou organisez un barrage si cela compte.',
     autoPopulateNoPoolsTitle: 'Remplir le tableau sans données de poule ?',
     autoPopulateNoPoolsBody:
-      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé selon l'ordre d'inscription. Continuer ?",
-    autoPopulateNoPoolsConfirm: 'Classer par inscriptions',
+      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé dans l'ordre des têtes de série : d'abord les combattants classés, du plus petit numéro de tête de série au plus grand, puis les autres par numéro de dossard. Continuer ?",
+    autoPopulateNoPoolsBodyTeam:
+      "Ce tournoi n'a pas de phase de poules. Le tableau sera classé dans l'ordre des têtes de série des équipes : d'abord les équipes classées, puis les autres dans leur ordre de création. Continuer ?",
+    autoPopulateNoPoolsConfirm: 'Classer par têtes de série',
+    autoPopulateNoPoolsConfirmTeam: 'Classer par têtes de série des équipes',
     autoPopulateNoPoolsCancel: 'Annuler',
   },
   phaseVisibility: {
@@ -1613,7 +1705,9 @@ export const organizer = {
     bracketSummaryPlayIns: '{count} barrages',
     playIns: 'Barrages',
     seedingStrategyLabel: 'Stratégie de tirage',
-    seedingStrategySnake: "Standard — rang de poule, ou ordre d'inscription (recommandé)",
+    seedingStrategySnake: 'Standard — rang de poule, ou ordre des têtes de série (recommandé)',
+    seedingStrategySnakeTeam:
+      'Standard — rang de poule, ou ordre des têtes de série des équipes (recommandé)',
     seedingStrategyByRating: 'Par classement HEMA',
     seedingStrategyRandom: 'Tirage aléatoire',
     seedingStrategyByPoolRank: 'Par rang de poule (poules terminées requises)',
@@ -1626,6 +1720,7 @@ export const organizer = {
     configCardTitle: 'Configuration',
     configBracketSize: 'Taille du tableau',
     configFighterCount: 'Combattants',
+    configTeamCount: 'Équipes',
     configPhaseType: 'Type de phase',
     configGrandFinalResetHint:
       "Si activé, le vainqueur du tableau bas doit battre celui du haut deux fois pour s'imposer.",
@@ -2481,12 +2576,15 @@ export const organizer = {
     title: 'Classement final',
     subtitle:
       'Placement au tableau — les combattants éliminés au même tour sont départagés par leur score de poule.',
+    subtitleTeam:
+      'Placement au tableau — les équipes éliminées au même tour sont départagées par leur score de poule.',
     printPdf: 'Imprimer / PDF',
     loading: 'Chargement…',
     noBracket: 'Aucun tableau pour ce tournoi pour le moment.',
     emptyRanking: 'Le classement final apparaît une fois les matchs du tableau joués.',
     colRank: 'Rang',
     colFighter: 'Combattant',
+    colTeam: 'Équipe',
     colResult: 'Résultat',
     colPoolScore: 'Score de poule',
     resultChampion: 'Champion',
@@ -2678,6 +2776,8 @@ export const organizer = {
     deleteRowCascaded: 'en cascade',
     deleteConfirmHint:
       'Vous pourrez recréer le tableau plus tard à partir des combattants inscrits.',
+    deleteConfirmHintTeam:
+      'Vous pourrez recréer le tableau plus tard à partir des équipes du tournoi.',
     deleting: 'Suppression…',
     cancel: 'Annuler',
     save: 'Enregistrer',
@@ -2685,12 +2785,15 @@ export const organizer = {
     forfeitTitle: 'Enregistrer un forfait',
     forfeitRed: 'Forfait du combattant 1',
     forfeitBlue: 'Forfait du combattant 2',
+    forfeitRedTeam: "Forfait de l'équipe 1",
+    forfeitBlueTeam: "Forfait de l'équipe 2",
     forfeitReasonVoluntary: 'Volontaire',
     forfeitReasonInjury: 'Blessure',
     forfeitReasonBlackCard1: 'Carton noir (simple)',
     forfeitReasonBlackCard2: 'Carton noir (double)',
     forfeitReasonConduct: 'Faute de comportement',
     forfeitReasonGroup: 'Forfait — un combattant a cessé de combattre',
+    forfeitReasonGroupTeam: 'Forfait — une équipe a cessé de combattre',
     overrideTitle: 'Corriger le résultat',
     overrideReasonGroup: 'Correction — le résultat enregistré était faux',
     overrideReasonRefereeDecision: 'Décision de l’arbitre',
@@ -2741,6 +2844,8 @@ export const organizer = {
     emptyTitle: 'Aucun tableau créé pour le moment',
     emptyBody:
       'Configurez le tableau ci-dessus (format, taille, tirage), puis cliquez sur Générer pour figer les rencontres des combattants inscrits.',
+    emptyBodyTeam:
+      'Configurez le tableau ci-dessus (format, taille, tirage), puis cliquez sur Générer pour figer les rencontres des équipes du tournoi.',
     refereesLoading: 'Chargement des arbitres...',
     refereesLoadFailed: 'Impossible de charger les affectations.',
     refereesAssignFailed: "Impossible d'enregistrer l'affectation.",
@@ -2785,10 +2890,13 @@ export const organizer = {
       renameTitle: 'Renommer la poule',
       fightersCountSingular: '{count} combattant',
       fightersCountPlural: '{count} combattants',
+      teamsCountSingular: '{count} équipe',
+      teamsCountPlural: '{count} équipes',
       deletePoolTitle: 'Supprimer cette poule',
       hemaRatingTitle: 'Note pondérée HEMA',
       moveToUnassignedTitle: 'Déplacer vers les non-assignés',
       dropFightersHere: 'Déposez des combattants ici.',
+      dropTeamsHere: 'Déposez des équipes ici.',
       emptyPools: 'Aucune poule générée pour le moment. Configurez puis cliquez sur Générer.',
       configTitle: 'Configuration des poules',
       sizingLabel: 'Répartition',
@@ -2799,11 +2907,16 @@ export const organizer = {
       modePoolCountTitle:
         'Choisissez le nombre exact de poules. Les combattants sont répartis équitablement.',
       fightersPerPool: 'Combattants par poule',
+      teamsPerPool: 'Équipes par poule',
       numberOfPools: 'Nombre de poules',
       previewEmptySingular: 'Générera {count} poule vide — ajoutez des combattants plus tard.',
       previewEmptyPlural: 'Générera {count} poules vides — ajoutez des combattants plus tard.',
+      previewEmptyTeamsSingular: 'Générera {count} poule vide — ajoutez des équipes plus tard.',
+      previewEmptyTeamsPlural: 'Générera {count} poules vides — ajoutez des équipes plus tard.',
       previewPoolsSingular: 'Générera {count} poule de ~{avg} combattants ({total} au total).',
       previewPoolsPlural: 'Générera {count} poules de ~{avg} combattants ({total} au total).',
+      previewTeamPoolsSingular: 'Générera {count} poule de ~{avg} équipes ({total} au total).',
+      previewTeamPoolsPlural: 'Générera {count} poules de ~{avg} équipes ({total} au total).',
       generating: 'Génération…',
       regenerate: 'Régénérer',
       generateEmpty: 'Générer des poules vides',
@@ -2814,6 +2927,8 @@ export const organizer = {
       unassignedTitle: 'Non assignés',
       unassignedEmpty:
         'Tous les combattants inscrits sont dans une poule. Glissez un combattant ici pour le retirer de sa poule.',
+      unassignedTeamsEmpty:
+        'Toutes les équipes sont dans une poule. Glissez une équipe ici pour la retirer de sa poule.',
       deletePoolConfirmTitle: 'Supprimer la poule',
       deletePoolFallbackDesc: 'Supprimer cette poule ? Ses matchs seront supprimés.',
       deletePoolDesc:
@@ -2826,7 +2941,12 @@ export const organizer = {
       constraints: 'Contraintes',
       schoolSeparation: 'Séparation par club',
       skillBalance: 'Équilibrage du niveau',
+      teamSpread: 'Répartir les équipes',
+      teamSpreadSeed: 'Par tête de série',
+      teamSpreadRandom: 'Tirage au sort',
       help: {
+        teamSpread:
+          'Par tête de série : les équipes sont distribuées dans les poules dans l’ordre des têtes de série, en aller-retour. Tirage au sort : les équipes sont tirées au hasard.',
         schoolSeparation:
           'Les combattants du même club sont placés dans des poules différentes autant que possible.',
         skillBalance:
@@ -2858,6 +2978,7 @@ export const organizer = {
       byPool: 'Par poule',
       rank: 'Rang',
       fighter: 'Combattant',
+      team: 'Équipe',
       status: 'Statut',
       exportCsv: 'Exporter CSV',
       exportPool: 'Exporter cette poule',
@@ -2866,9 +2987,11 @@ export const organizer = {
         'Aucun combat terminé. Le classement apparaîtra à mesure que les arbitres valident les combats.',
       emptyPool: "Aucun combat terminé dans cette poule pour l'instant.",
       searchFighter: 'Filtrer par nom de combattant',
+      searchTeam: "Filtrer par nom d'équipe",
       help: {
         rank: 'Classement final, déterminé par le score et ses départages.',
         fighter: 'Le combattant et son club.',
+        team: "L'équipe.",
         score:
           "Le score de classement qui ordonne ce tableau ; plus il est élevé, mieux c'est. Défini par le règlement.",
         W: 'Matchs gagnés.',
@@ -3069,6 +3192,8 @@ export const organizer = {
       tournament_name_missing_material: 'Noms de tournoi sans matériau (Acier / Nylon / Bois)',
       tournament_no_matches: 'Tournois sans match soumissible — ils sont écartés',
       matches_excluded: 'Matchs écartés (forfaits et walk-overs), comme HEMA Ratings le demande',
+      tournament_team_skipped:
+        'Tournois par équipes écartés — le fichier HEMA Ratings oppose une personne à une autre',
     },
   },
   archive: {
@@ -3156,6 +3281,8 @@ export const organizer = {
       eventRefereeTournaments: 'Disponibilités des arbitres par tournoi',
       eventRefereeDays: 'Disponibilités des arbitres par jour',
       registrations: 'Inscriptions',
+      teams: 'Équipes',
+      teamSlots: 'Places des équipes',
       phases: 'Phases',
       pools: 'Poules',
       poolMembers: 'Membres des poules',
@@ -3515,6 +3642,9 @@ export const organizer = {
     tournamentFilterAll: 'Tous',
     refereesSection: 'Arbitres',
     fightersSection: 'Combattants',
+    teamsSection: 'Équipes',
+    uncheckedFighters:
+      'MyClash ne peut pas vérifier ces combattants : cette équipe a des combattants sans nom',
     previewAutoAssign: 'Lancer le calcul',
     previewingState: 'Calcul…',
     previewFailed: "Impossible de calculer la proposition d'affectation.",
@@ -3570,6 +3700,7 @@ export const organizer = {
   csvColumns: {
     rank: 'Rang',
     fighter: 'Combattant',
+    team: 'Équipe',
     club: 'Club',
     pool: 'Poule',
     status: 'Statut',

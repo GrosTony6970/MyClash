@@ -3131,7 +3131,7 @@ describe('scheduleGroup', () => {
     // The double answers whatever the projection asks for; the columns a length
     // is resolved from are only proved by the string sent.
     expect(groupChain.select).toHaveBeenCalledWith(
-      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
+      'id, red_registration_id, blue_registration_id, red_team_id, blue_team_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
     );
     expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual(
       group.map((m) => ({ id: m.id, phaseId: 'phase-1', plannedDurationOverrideMinutes: null })),

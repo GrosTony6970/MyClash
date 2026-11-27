@@ -29,42 +29,39 @@ import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
 import { RegenerateConfirms } from './RegenerateConfirms';
+import { TeamSpreadChoice } from './TeamSpreadChoice';
 import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
 import { RefereeVerdictBanner } from '@/components/RefereeVerdictBanner';
+import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
+import { kindRefusal } from '@/lib/named-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { withTournament } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
+import {
+  generateBody,
+  seatBody,
+  seatKindOf,
+  seatWords,
+  type PoolMemberSeat,
+  type TeamSpread,
+} from './pool-seats';
+import type { PoolSeat } from '@myclash/types/pool-standings';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface PoolMember {
-  registrationId: string;
-  personName: string;
-  clubLabel: string | null;
-  seed: number;
-  hemaWeightedRating: number | null;
-}
 
 interface Pool {
   id: string;
   name: string;
-  members: PoolMember[];
+  members: PoolMemberSeat[];
 }
 
 interface PoolsResponse {
   phaseId: string | null;
   pools: Pool[];
-}
-
-interface UnassignedFighter {
-  registrationId: string;
-  personName: string;
-  clubLabel: string | null;
-  hemaWeightedRating: number | null;
 }
 
 const UNASSIGNED_DROP_ID = '__unassigned__';
@@ -118,7 +115,7 @@ export default function PoolsPage() {
   const { isReadOnly } = useEventStatus(eventId);
 
   const [tournaments, setTournaments] = useState<
-    Array<{ id: string; name: string; color?: string | null }>
+    Array<{ id: string; name: string; color?: string | null; entrant_kind?: string | null }>
   >([]);
   const [selectedTournament, setSelectedTournament] = useTournamentChoice(
     eventId,
@@ -128,6 +125,10 @@ export default function PoolsPage() {
   // breadcrumb + picker so the tournament name follows the operator
   // across every subtab without threading a new prop.
   const selectedTournamentObj = tournaments.find((t) => t.id === selectedTournament) ?? null;
+  // A team Tournament seats teams. Until the list lands the page reads individual, and a
+  // generation sent then is refused by the API with its own sentence (`entrant_kind_field`).
+  const seatKind = seatKindOf(selectedTournamentObj);
+  const words = seatWords(seatKind);
   const [pools, setPools] = useState<Pool[] | null>(null);
   const [poolPhaseId, setPoolPhaseId] = useState<string | null>(null);
   // Kept per Tournament, so a check that answers after a switch stays with its own.
@@ -143,6 +144,7 @@ export default function PoolsPage() {
   const [targetSize, setTargetSize] = useState(8);
   const [schoolSep, setSchoolSep] = useState(true);
   const [skillBalance, setSkillBalance] = useState(true);
+  const [teamSpread, setTeamSpread] = useState<TeamSpread>('seed');
 
   // UI state
   const [generating, setGenerating] = useState(false);
@@ -175,15 +177,15 @@ export default function PoolsPage() {
     window.location.hash = `#${key}`;
   }
 
-  // Drag state. fromPoolId === UNASSIGNED_DROP_ID means the fighter is dragged
+  // Drag state. fromPoolId === UNASSIGNED_DROP_ID means the entrant is dragged
   // from the unassigned bucket (no source pool delete needed).
   const [dragging, setDragging] = useState<{
-    memberId: string;
+    seat: PoolSeat;
     fromPoolId: string;
   } | null>(null);
 
   // Unassigned bucket + member editing state
-  const [unassigned, setUnassigned] = useState<UnassignedFighter[]>([]);
+  const [unassigned, setUnassigned] = useState<PoolSeat[]>([]);
   const [editBusy, setEditBusy] = useState(false);
   const [lockBanner, setLockBanner] = useState<string | null>(null);
   const [renamingPoolId, setRenamingPoolId] = useState<string | null>(null);
@@ -213,11 +215,9 @@ export default function PoolsPage() {
       apiRequest<Pool[] | PoolsResponse>(apiUrl, `/api/v1/tournaments/${tournamentId}/pools`, {
         signal,
       }),
-      apiRequest<UnassignedFighter[]>(
-        apiUrl,
-        `/api/v1/tournaments/${tournamentId}/unassigned-fighters`,
-        { signal },
-      ),
+      apiRequest<PoolSeat[]>(apiUrl, `/api/v1/tournaments/${tournamentId}/unassigned-fighters`, {
+        signal,
+      }),
     ]);
 
     if (poolsRes.ok) {
@@ -254,7 +254,10 @@ export default function PoolsPage() {
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadPools sets state only after the awaited request resolves
+    // The last Tournament's Pools are not this one's: kept, its teams or Fighters would stand
+    // in for this one's until (or, on a failed read, after) the load lands.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the per-Tournament view on a switch, before the fetch below
+    setPools(null);
     void loadPools(selectedTournament, controller.signal);
     // Checked whenever a Tournament's pools load, not only after an edit here:
     // a referee set on a Match or a bout moved on the grid makes a clash without
@@ -274,12 +277,15 @@ export default function PoolsPage() {
    * Fought bouts would go: the second confirm names how many, and its yes sends
    * that count (rulings 280, 288). Else a 409 of an UNFORCED call means Pools already
    * exist, and the page offers to overwrite them. A forced call's other 409 is
-   * said: asked again, it would be refused again, for ever.
+   * said: asked again, it would be refused again, for ever. So is a refusal of the
+   * Tournament's kind, forced or not.
    */
   function asksToConfirm(refusal: ApiFailure, force: boolean): boolean {
     const fought = foughtBoutsAtStake(refusal);
+    const poolsExist =
+      refusal.kind === 'http' && refusal.status === 409 && !kindRefusal(refusal, t);
     if (fought !== null) setFoughtAtStake(fought);
-    else if (!force && refusal.kind === 'http' && refusal.status === 409) setShowForceConfirm(true);
+    else if (!force && poolsExist) setShowForceConfirm(true);
     else return false;
     return true;
   }
@@ -292,13 +298,15 @@ export default function PoolsPage() {
     setFoughtAtStake(null);
 
     try {
-      const body: Record<string, unknown> = {
-        enforceSchoolSeparation: schoolSep,
-        enforceSkillBalance: skillBalance,
-      };
-      if (mode === 'poolCount') body['poolCount'] = poolCount;
-      else body['targetSize'] = targetSize;
-      if (discard > 0) body['discardScoredResults'] = discard;
+      const body = generateBody(seatKind, {
+        mode,
+        poolCount,
+        targetSize,
+        schoolSeparation: schoolSep,
+        skillBalance,
+        teamSpread,
+        discard,
+      });
 
       // The response body is deliberately unread: the GET endpoint below is
       // the source of truth for the full Pool[] shape (members included), and
@@ -445,6 +453,12 @@ export default function PoolsPage() {
       setLockBanner(null);
       return true;
     }
+    // A seat of the other kind of entrant is a mistake, not a locked Pool.
+    const refusedKind = kindRefusal(r, t);
+    if (refusedKind) {
+      setError(refusedKind);
+      return false;
+    }
     if (r.kind === 'http' && r.status === 409) {
       setLockBanner(failureMessage(r, t, t('admin.common.poolLockedScoringStarted')));
       return false;
@@ -453,12 +467,12 @@ export default function PoolsPage() {
     return false;
   }
 
-  async function moveMemberToPool(registrationId: string, toPoolId: string) {
+  async function moveMemberToPool(seat: PoolSeat, toPoolId: string) {
     setEditBusy(true);
     try {
       const r = await apiRequest(apiUrl, `/api/v1/pools/${toPoolId}/members`, {
         method: 'POST',
-        body: { registrationId },
+        body: seatBody(seat),
       });
       const ok = handlePoolEditResult(r);
       if (ok) {
@@ -470,10 +484,11 @@ export default function PoolsPage() {
     }
   }
 
-  async function removeMemberFromPool(fromPoolId: string, registrationId: string) {
+  /** A seat leaves its Pool by its side key: the team id or the Registration id. */
+  async function removeMemberFromPool(fromPoolId: string, seat: PoolSeat) {
     setEditBusy(true);
     try {
-      const r = await apiRequest(apiUrl, `/api/v1/pools/${fromPoolId}/members/${registrationId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${fromPoolId}/members/${seat.sideId}`, {
         method: 'DELETE',
       });
       const ok = handlePoolEditResult(r);
@@ -488,18 +503,18 @@ export default function PoolsPage() {
 
   async function handleDrop(toPoolId: string) {
     if (!dragging || isReadOnly) return;
-    const { memberId, fromPoolId } = dragging;
+    const { seat, fromPoolId } = dragging;
     setDragging(null);
     if (fromPoolId === toPoolId) return;
-    await moveMemberToPool(memberId, toPoolId);
+    await moveMemberToPool(seat, toPoolId);
   }
 
   async function handleDropOnUnassigned() {
     if (!dragging || isReadOnly) return;
-    const { memberId, fromPoolId } = dragging;
+    const { seat, fromPoolId } = dragging;
     setDragging(null);
     if (fromPoolId === UNASSIGNED_DROP_ID) return;
-    await removeMemberFromPool(fromPoolId, memberId);
+    await removeMemberFromPool(fromPoolId, seat);
   }
 
   async function startRename(pool: Pool) {
@@ -635,6 +650,18 @@ export default function PoolsPage() {
         </div>
       )}
 
+      {/* Rule 8 cannot check a team's unnamed Fighters (ADR-016, 2026-11-13). Said once for the
+          page, so the tabs that assign referees (Referees, per Pool; Matches, per bout) and the
+          one that shows the referee verdicts all carry it. A note: it blocks nothing.
+          It follows the Tournament's kind, not the loaded Pools: the tabs below read their own
+          data and can staff a team Pool while the Pools load, or after their read failed. A
+          team Tournament seats only teams; with no Tournament list there is no Tournament. */}
+      {activeTab !== 'standings' && seatKind === 'team' && (
+        <div className="mb-4">
+          <UncheckedFightersNotice />
+        </div>
+      )}
+
       {activeTab === 'configure' && (
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Left column: banners + pool grid ────────────────────────────── */}
@@ -755,13 +782,9 @@ export default function PoolsPage() {
                           </button>
                         )}
                         <span className="text-xs text-muted">
-                          {pool.members.length === 1
-                            ? t('organizer.pools.page.fightersCountSingular', {
-                                count: pool.members.length,
-                              })
-                            : t('organizer.pools.page.fightersCountPlural', {
-                                count: pool.members.length,
-                              })}
+                          {t(pool.members.length === 1 ? words.countOne : words.countMany, {
+                            count: pool.members.length,
+                          })}
                         </span>
                       </div>
                       <RowActionButton
@@ -782,16 +805,15 @@ export default function PoolsPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {pool.members.map((m) => (
                         <div
-                          key={m.registrationId}
+                          key={m.sideId}
                           draggable={!isReadOnly}
-                          onDragStart={() =>
-                            setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
-                          }
+                          onDragStart={() => setDragging({ seat: m, fromPoolId: pool.id })}
                           onDragEnd={() => setDragging(null)}
                           className="group inline-flex items-center gap-1.5 max-w-full bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border transition-colors"
                         >
+                          <TournamentColorDot color={m.colour} />
                           <span className="font-medium text-foreground truncate max-w-[12rem]">
-                            {nameOrUnknown(m.personName, 'fighter', t)}
+                            {nameOrUnknown(m.name, 'fighter', t)}
                           </span>
                           {m.clubLabel && (
                             <span className="text-muted text-xs truncate max-w-[8rem]">
@@ -812,7 +834,7 @@ export default function PoolsPage() {
                           <button
                             type="button"
                             disabled={editBusy || isReadOnly}
-                            onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
+                            onClick={() => void removeMemberFromPool(pool.id, m)}
                             title={t('organizer.pools.page.moveToUnassignedTitle')}
                             className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
                           >
@@ -821,9 +843,7 @@ export default function PoolsPage() {
                         </div>
                       ))}
                       {pool.members.length === 0 && (
-                        <p className="text-xs text-muted italic">
-                          {t('organizer.pools.page.dropFightersHere')}
-                        </p>
+                        <p className="text-xs text-muted italic">{t(words.dropHere)}</p>
                       )}
                     </div>
                   </div>
@@ -883,7 +903,7 @@ export default function PoolsPage() {
               <div>
                 <p className="text-xs font-medium text-foreground-secondary mb-2">
                   {mode === 'targetSize'
-                    ? t('organizer.pools.page.fightersPerPool')
+                    ? t(words.perPool)
                     : t('organizer.pools.page.numberOfPools')}
                 </p>
                 <div className="flex items-center gap-2">
@@ -923,20 +943,16 @@ export default function PoolsPage() {
                         ? Math.max(1, poolCount)
                         : Math.max(1, Math.ceil((fighters || 1) / Math.max(1, targetSize)));
                     if (fighters === 0) {
-                      return t(
-                        count > 1
-                          ? 'organizer.pools.page.previewEmptyPlural'
-                          : 'organizer.pools.page.previewEmptySingular',
-                        { count },
-                      );
+                      return t(count > 1 ? words.previewEmptyMany : words.previewEmptyOne, {
+                        count,
+                      });
                     }
                     const avg = Math.round(fighters / count);
-                    return t(
-                      count > 1
-                        ? 'organizer.pools.page.previewPoolsPlural'
-                        : 'organizer.pools.page.previewPoolsSingular',
-                      { count, avg, total: fighters },
-                    );
+                    return t(count > 1 ? words.previewMany : words.previewOne, {
+                      count,
+                      avg,
+                      total: fighters,
+                    });
                   })()}
                 </p>
               )}
@@ -948,29 +964,36 @@ export default function PoolsPage() {
                 {t('organizer.pools.configure.constraints')}
               </h3>
 
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.schoolSeparation')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.schoolSeparation')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={schoolSep}
-                  onChange={(e) => setSchoolSep(e.target.checked)}
-                />
-              </label>
+              {/* A team has no club and no rating: its Pools are spread by seed or drawn. */}
+              {seatKind === 'team' ? (
+                <TeamSpreadChoice value={teamSpread} onChange={setTeamSpread} />
+              ) : (
+                <>
+                  <label className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center">
+                      {t('organizer.pools.configure.schoolSeparation')}
+                      <HelpTooltip text={t('organizer.pools.configure.help.schoolSeparation')} />
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={schoolSep}
+                      onChange={(e) => setSchoolSep(e.target.checked)}
+                    />
+                  </label>
 
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.skillBalance')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.skillBalance')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={skillBalance}
-                  onChange={(e) => setSkillBalance(e.target.checked)}
-                />
-              </label>
+                  <label className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center">
+                      {t('organizer.pools.configure.skillBalance')}
+                      <HelpTooltip text={t('organizer.pools.configure.help.skillBalance')} />
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={skillBalance}
+                      onChange={(e) => setSkillBalance(e.target.checked)}
+                    />
+                  </label>
+                </>
+              )}
             </div>
 
             {/* Lifecycle actions */}
@@ -1038,27 +1061,21 @@ export default function PoolsPage() {
                   <span className="text-xs text-muted">{unassigned.length}</span>
                 </div>
                 {unassigned.length === 0 ? (
-                  <p className="text-xs text-muted italic">
-                    {t('organizer.pools.page.unassignedEmpty')}
-                  </p>
+                  <p className="text-xs text-muted italic">{t(words.unassignedEmpty)}</p>
                 ) : (
                   <div className="flex max-h-[40vh] flex-col gap-1.5 overflow-y-auto">
                     {unassigned.map((u) => (
                       <div
-                        key={u.registrationId}
+                        key={u.sideId}
                         draggable={!isReadOnly}
-                        onDragStart={() =>
-                          setDragging({
-                            memberId: u.registrationId,
-                            fromPoolId: UNASSIGNED_DROP_ID,
-                          })
-                        }
+                        onDragStart={() => setDragging({ seat: u, fromPoolId: UNASSIGNED_DROP_ID })}
                         onDragEnd={() => setDragging(null)}
                         className="flex items-center justify-between gap-2 bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border"
                       >
-                        <div className="min-w-0 flex-1 truncate">
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                          <TournamentColorDot color={u.colour} />
                           <span className="font-medium text-foreground">
-                            {nameOrUnknown(u.personName, 'fighter', t)}
+                            {nameOrUnknown(u.name, 'fighter', t)}
                           </span>
                           {u.clubLabel && (
                             <span className="text-muted text-xs ml-1.5">{u.clubLabel}</span>
@@ -1093,7 +1110,11 @@ export default function PoolsPage() {
       )}
 
       {activeTab === 'standings' && poolPhaseId && (
-        <StandingsTab tournamentId={selectedTournament} poolPhaseId={poolPhaseId} />
+        <StandingsTab
+          tournamentId={selectedTournament}
+          poolPhaseId={poolPhaseId}
+          teams={seatKind === 'team'}
+        />
       )}
 
       {activeTab === 'referees' && selectedTournament && (

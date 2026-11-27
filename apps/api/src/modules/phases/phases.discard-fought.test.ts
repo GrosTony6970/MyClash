@@ -44,7 +44,7 @@ function letIn(userId: string) {
 }
 
 /** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
-const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0', entrant_kind: 'individual' };
 const PHASE_ORG = { event_id: 'event-1', events: { organization_id: 'org-1' }, ...TF };
 
 /** Two fighters of the Tournament, enough for a bracket. */

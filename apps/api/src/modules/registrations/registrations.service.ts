@@ -14,6 +14,7 @@ import {
   type SettleInput,
 } from '../matches/fighter-status.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
 import {
   REGISTRATION_STATUS_TRANSITIONS,
   type CreateRegistrationDto,
@@ -180,7 +181,8 @@ export class RegistrationsService {
       if (error.message.includes('unique')) {
         throw new BadRequestException('This person is already registered in this tournament');
       }
-      throw new BadRequestException(error.message);
+      // A team Tournament takes no Registration (the kind trigger, 0281).
+      throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     }
     return { ...(data as Record<string, unknown>), mintedIdentity };
   }
@@ -273,7 +275,7 @@ export class RegistrationsService {
           'This person is already registered or on the waitlist for this tournament',
         );
       }
-      throw new BadRequestException(error.message);
+      throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     }
     return { ...(data as Record<string, unknown>), mintedIdentity };
   }

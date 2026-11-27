@@ -106,6 +106,8 @@ const FIX_ROUTE: Record<string, string> = {
   tournaments: 'tournaments',
   pistes: 'schedule',
   fighters: 'persons',
+  // A team Tournament's entrants are its teams, made on the Teams page.
+  teams: 'teams',
   format: 'pools',
   pools: 'pools',
   poolReferees: 'referees',

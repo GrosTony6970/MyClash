@@ -30,6 +30,7 @@ import {
   type StoredRefereeReason,
 } from '@myclash/rulesets/scheduling/referee-checker';
 import { DEFAULT_EVENT_TIMEZONE, zonedDay } from '@myclash/time';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { priorAssignmentsFromRows } from './prior-assignments';
 import {
   availabilityOf,
@@ -37,6 +38,7 @@ import {
   type DeclaredAvailability,
 } from './referee-availability';
 import { resolveMatchLengths } from '../schedule/match-lengths';
+import { sideLabel, type TeamEmbed } from '../matches/side-label';
 import {
   detectConcurrencyShortage,
   formatRoundCode,
@@ -152,18 +154,18 @@ export interface AssignmentBoardPool {
   swissRound?: number;
   /** Swiss-only: `swiss_rounds.id`, so the frontend can target the round's clear path. */
   swissRoundId?: string;
-  members: Array<{
-    registrationId: string;
-    /**
-     * Resolved to `persons.global_person_id` (the same id-space the
-     * referee candidate side uses, sourced from `event_referees`).
-     * Projecting the event-scoped `persons.id` here would cross two
-     * unrelated UUID spaces and silently never match the candidates.
-     */
-    personId: string;
-    personName: string;
-    clubLabel: string | null;
-  }>;
+  /**
+   * True on a team Pool. A team's slots have no names in slice 1b-1, so rule 8 cannot check its
+   * Fighters (ADR-016, 2026-11-13; design decision 11): the screens that assign referees say so.
+   * Absent on every other unit; bracket and Swiss refuse a team Tournament in 1b-1.
+   */
+  uncheckedFighters?: true;
+  /**
+   * Each `personId` is resolved to `persons.global_person_id` (the same id-space the referee
+   * candidate side uses, sourced from `event_referees`). Projecting the event-scoped `persons.id`
+   * here would cross two unrelated UUID spaces and silently never match the candidates.
+   */
+  members: AssignmentBoardMember[];
   matches: Array<{
     id: string;
     scheduledAt: string | null;
@@ -414,7 +416,10 @@ interface RegistrationPersonRow {
 }
 
 interface PoolMemberRow {
-  registration_id: string;
+  registration_id: string | null;
+  /** A team Pool's seat (0282): a team, with no Person. */
+  team_id?: string | null;
+  teams?: TeamEmbed | TeamEmbed[] | null;
   registrations?:
     | {
         id: string;
@@ -1201,6 +1206,9 @@ export class AssignmentBoardService {
     // pool membership wins regardless of registration status.
     for (const pool of allPools) {
       for (const member of pool.members) {
+        // A team's seat names no Person: rule 8 cannot check a team's Fighters in 1b-1, and the
+        // unit says so instead (`uncheckedFighters`, the notice of the screens that assign).
+        if (member.registrationId === null) continue;
         const existing = fighterRegistrationIdsByPerson.get(member.personId) ?? [];
         if (!existing.includes(member.registrationId)) {
           existing.push(member.registrationId);
@@ -1548,11 +1556,16 @@ export class AssignmentBoardService {
     for (const row of (data ?? []) as unknown as RegistrationPersonRow[]) {
       const person = this.firstRelation(row.persons);
       const club = this.firstRelation(person?.clubs);
+      // Swiss has no team path: a Swiss member is a Fighter.
       out.set(row.id, {
+        sideId: row.id,
+        kind: 'individual',
         registrationId: row.id,
         personId: person?.global_person_id ?? '',
         personName: this.formatName(person),
         clubLabel: club?.name ?? null,
+        colour: null,
+        logoUrl: null,
       });
     }
     return out;
@@ -1607,7 +1620,7 @@ export class AssignmentBoardService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+        'id, phase_id, name, sort_order, pool_members(registration_id, team_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name))), teams(id, name, color, logo_url)), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
       )
       .in('phase_id', phaseIds)
       .order('sort_order', { ascending: true });
@@ -1618,6 +1631,7 @@ export class AssignmentBoardService {
       const phaseTournamentId = phaseToTournament.get(pool.phase_id);
       const tournament = phaseTournamentId ? tournamentById.get(phaseTournamentId) : undefined;
       const liceId = matches.find((m) => m.lice_id)?.lice_id ?? null;
+      const members = (pool.pool_members ?? []).map((member) => this.boardSeat(pool.id, member));
 
       return {
         id: pool.id,
@@ -1625,25 +1639,8 @@ export class AssignmentBoardService {
         tournamentId: tournament?.id ?? '',
         tournamentName: tournament?.name ?? '',
         liceId,
-        members: (pool.pool_members ?? []).map((member) => {
-          const registration = this.firstRelation(member.registrations);
-          const person = this.firstRelation(registration?.persons);
-          const club = this.firstRelation(person?.clubs);
-          return {
-            registrationId: member.registration_id,
-            // The fighter-as-own-referee guards (engine filter,
-            // applyManual, and the persistAssignments chokepoint) all
-            // compare `member.personId` against the referee
-            // candidate's `personId`, which is sourced from
-            // `event_referees.person_id` — a `global_persons.id`.
-            // Projecting the event-scoped `persons.id` here would
-            // mean the comparison crosses two unrelated UUID spaces
-            // and silently never matches (the Denis-Allaume bug).
-            personId: person?.global_person_id ?? '',
-            personName: this.formatName(person),
-            clubLabel: club?.name ?? null,
-          };
-        }),
+        ...(members.some((m) => m.registrationId === null) ? { uncheckedFighters: true } : {}),
+        members,
         matches: matches.map((match) => ({
           id: match.id,
           scheduledAt: match.scheduled_at,
@@ -1656,6 +1653,40 @@ export class AssignmentBoardService {
         roleSlots: [],
       };
     });
+  }
+
+  /** One seat of a Pool as the board lists it: a Fighter, or a team with no Person. */
+  private boardSeat(poolId: string, member: PoolMemberRow): AssignmentBoardPool['members'][number] {
+    const registration = this.firstRelation(member.registrations);
+    const person = this.firstRelation(registration?.persons);
+    const label = sideLabel(
+      registration && {
+        id: registration.id,
+        persons: person && { ...person, clubs: this.firstRelation(person.clubs) },
+      },
+      this.firstRelation(member.teams),
+    );
+    // A seat holds a Registration or a team (`pool_members_one_entrant`, 0282).
+    if (label.id === null) throw new Error(`A seat of Pool ${poolId} names no entrant`);
+    return {
+      sideId: label.id,
+      kind: label.kind,
+      registrationId: member.registration_id,
+      // The fighter-as-own-referee guards (engine filter,
+      // applyManual, and the persistAssignments chokepoint) all
+      // compare `member.personId` against the referee
+      // candidate's `personId`, which is sourced from
+      // `event_referees.person_id` — a `global_persons.id`.
+      // Projecting the event-scoped `persons.id` here would
+      // mean the comparison crosses two unrelated UUID spaces
+      // and silently never matches (the Denis-Allaume bug).
+      // A team's seat has no Person.
+      personId: person?.global_person_id ?? '',
+      personName: label.name,
+      clubLabel: label.club?.name ?? null,
+      colour: label.colour,
+      logoUrl: label.logoUrl,
+    };
   }
 
   private async listCandidates(eventId: string): Promise<AssignmentBoardCandidate[]> {

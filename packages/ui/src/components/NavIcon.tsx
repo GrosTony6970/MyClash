@@ -88,6 +88,7 @@ export const NAV_ICON_NAMES = [
   // Event hub
   'eventOverview',
   'persons',
+  'teams',
   'referees',
   'staff',
   'startOfDay',
@@ -150,6 +151,8 @@ export const NAV_ICON_GLYPHS: Record<NavIconName, GlyphName> = {
   venues: 'map-pin',
   eventOverview: 'layout-dashboard',
   persons: 'users',
+  // A team's banner: its colour and its name are what an organiser tells teams apart by.
+  teams: 'flag',
   referees: 'gavel',
   staff: 'briefcase',
   startOfDay: 'list-checks',

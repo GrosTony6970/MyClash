@@ -12,6 +12,7 @@
 
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { CsvExportMenu, standingsColumnLabel } from '@myclash/ui';
+import type { SwissStandingsWireRow } from '@myclash/types/pool-standings';
 import { useCallback, useEffect, useState } from 'react';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
@@ -29,25 +30,13 @@ interface StandingsColumn {
   decimals?: number;
 }
 
-interface SwissRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
-  withdrawn: boolean;
-  withdrawnAtRound: number | null;
-  decidingTiebreak?: string | null;
-}
-
 interface SwissStandings {
   columns: StandingsColumn[];
   rankBy: 'swissPts' | 'rulesetScore';
   tiebreakChain: string[];
   roundsCompleted: number;
   roundCount: number;
-  rows: SwissRow[];
+  rows: SwissStandingsWireRow[];
 }
 
 export function StandingsTab({ tournamentId }: { tournamentId: string }) {
@@ -121,7 +110,13 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
   );
 }
 
-function SwissTable({ columns, rows }: { columns: StandingsColumn[]; rows: SwissRow[] }) {
+function SwissTable({
+  columns,
+  rows,
+}: {
+  columns: StandingsColumn[];
+  rows: SwissStandingsWireRow[];
+}) {
   const { t } = useI18n();
 
   const { query, setQuery, view, sortKey, direction, toggle } = useStandingsView(rows);
@@ -196,7 +191,7 @@ function SwissTable({ columns, rows }: { columns: StandingsColumn[]; rows: Swiss
           </thead>
           <tbody>
             {view.map((row) => (
-              <tr key={row.registrationId} className="border-b border-border last:border-0">
+              <tr key={row.entrantId} className="border-b border-border last:border-0">
                 <td className="px-4 py-2 text-center font-semibold">{row.rank}</td>
                 <td className="px-4 py-2">
                   <span className="font-medium text-foreground">{row.displayName}</span>

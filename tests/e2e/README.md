@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`48` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`49` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -124,6 +124,7 @@ the pass/fail record.
 | `46` | workshop join            | `E2E_CLEANUP`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`, `E2E_WORKSHOP_JOIN`                                                                   |
 | `47` | fightbook                | `E2E_CLEANUP`, `E2E_FIGHTBOOK`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_FIGHTER_B_EMAIL`, `E2E_FIGHTER_B_PASSWORD`, `E2E_PUBLIC_URL`                                                                       |
 | `48` | mcp connector            | `E2E_API_URL`, `E2E_FIGHTER_A_EMAIL`, `E2E_FIGHTER_A_PASSWORD`, `E2E_PUBLIC_URL`                                                                                                                                         |
+| `49` | team tournament          | `E2E_CLEANUP`, `E2E_PUBLIC_URL`, `E2E_TEAM_TOURNAMENT`                                                                                                                                                                   |
 
 </div>
 
@@ -1403,6 +1404,24 @@ through every surface that reads it, on a real Match of its own published
   bracket and Swiss bouts.
 - Written from the code, not yet seen passing: read its first run as a first run.
 
+## A team Tournament to its champion (opt-in)
+
+`E2E_TEAM_TOURNAMENT=1 pnpm test:e2e:prod tests/e2e/49-team-tournament.spec.ts` plays a team
+Tournament of four made-up teams (`_team.ts`) on a published `club` Event of its own. Every bout
+is scored through the API, the lower seed winning:
+
+| step    | what it proves                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| Pool    | one Pool, six bouts, each completed with a winner team; the standings rank the teams 1-4         |
+| bracket | single elimination of four, seeded from the Pool: semi-finals 1-4 and 2-3, no Registration on it |
+| play    | the semi-finals, the final and the bronze bout complete; seed 1 is champion, seed 3 takes bronze |
+| done    | the Tournament completes by itself once its bracket has a champion                               |
+| public  | the public final ranking (`#finalranking`) lists the four teams in seed order, the gold on row 1 |
+| League  | linking the team Tournament to a League is 409 `team_tournament_league`, and no link is written  |
+
+- The League is deleted at the end. The Event is hard-deleted with `E2E_CLEANUP=1`, else
+  flipped to `test` kind, as `15` does.
+
 ## The organiser guide's screenshots (by hand)
 
 `tests/guide/screenshots.spec.ts` is not part of this suite. It has its own config,
@@ -1478,6 +1497,7 @@ E2E_CLEANUP=1 pnpm guide:screenshots
 | 46  | Join an Event from a Workshop page      | `46-workshop-join.spec.ts`          | opt-in (`E2E_WORKSHOP_JOIN=1`) + the fighter accounts |
 | 47  | FightBook between two fighters          | `47-fightbook.spec.ts`              | opt-in (`E2E_FIGHTBOOK=1`) + the fighter accounts     |
 | 48  | Connect Claude, then disconnect it      | `48-mcp-connector.spec.ts`          | needs fighter A; skips without it                     |
+| 49  | A team Tournament to its champion       | `49-team-tournament.spec.ts`        | opt-in (`E2E_TEAM_TOURNAMENT=1`); see above           |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The prod workflow

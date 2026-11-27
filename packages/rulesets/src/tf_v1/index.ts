@@ -71,25 +71,25 @@ const TF_V1_SHARED = {
   },
 
   scorePoolFighters({
-    registrationIds,
+    entrantIds,
     completedMatches,
     afterblowMode,
     config,
   }: ScorePoolFightersInput) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
     const totals = new Map<string, FighterAggregates>(
-      registrationIds.map((id) => [id, { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 }]),
+      entrantIds.map((id) => [id, { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 }]),
     );
 
     for (const match of completedMatches) {
-      for (const regId of [match.redRegistrationId, match.blueRegistrationId]) {
+      for (const regId of [match.redSideId, match.blueSideId]) {
         const running = totals.get(regId);
         if (!running) continue;
         const bout = computeAggregates(
           regId,
           match,
           match.exchanges,
-          match.winnerRegistrationId === regId,
+          match.winnerSideId === regId,
           afterblowMode,
         );
         running.wins += bout.wins;

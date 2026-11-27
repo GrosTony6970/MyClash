@@ -25,6 +25,7 @@ import { noExchangeRewrite } from '../lib/no-exchange-rewrite';
 import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, exchangeOptionLabel, useDialogLayer } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
+import { sideIdOf, type BoutSides } from '../lib/bout-sides';
 import type { BoutNames } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
@@ -42,6 +43,8 @@ interface MatchCorrectionsDrawerProps {
   apiUrl: string;
   online: boolean;
   locked: boolean;
+  /** The bout waits for a Fighter: no colour swap and no direct card (`sideMissing`). */
+  sideMissing: boolean;
   onDone: () => void;
   /** Display-anchored time adjust: the operator's add/subtract acts on the
    *  clock THEY see. Countdown inverts elapsed-vs-display, and a clock that
@@ -54,8 +57,8 @@ interface MatchCorrectionsDrawerProps {
   // numbered timeline the centre history shows, so the `#`s match.
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** The bout's two sides, a Fighter or a team each (`sideOf`). */
+  sides: BoutSides;
   config: TournamentScoringConfig;
   /**
    * The match's events, read once by `MatchView`.
@@ -89,14 +92,14 @@ export function MatchCorrectionsDrawer({
   apiUrl,
   online,
   locked,
+  sideMissing,
   onDone,
   timerMode,
   elapsedMs,
   limitMs,
   redName,
   blueName,
-  redRegistrationId,
-  blueRegistrationId,
+  sides,
   config,
   scoring,
   forfeitDisabled,
@@ -122,6 +125,9 @@ export function MatchCorrectionsDrawer({
   // to void or edit.
   const { activeExchanges, activePenalties, activeProtests, ruleSetCards } = scoring;
   const [cardDraft, setCardDraft] = useState(NO_DIRECT_CARD_DRAFT);
+  // The side keys the history places each row by: a team's card names no Registration.
+  const redSideId = sideIdOf(sides, 'red');
+  const blueSideId = sideIdOf(sides, 'blue');
 
   // The same numbered timeline as the centre history; the picker only offers
   // the exchange rows (its void/edit action is exchange-only), but their `#`
@@ -134,8 +140,8 @@ export function MatchCorrectionsDrawer({
         protests: activeProtests,
         redName,
         blueName,
-        redRegId: redRegistrationId,
-        blueRegId: blueRegistrationId,
+        redSideId,
+        blueSideId,
         t,
         config,
       }).filter((ev) => ev.kind === 'exchange'),
@@ -145,8 +151,8 @@ export function MatchCorrectionsDrawer({
       activeProtests,
       redName,
       blueName,
-      redRegistrationId,
-      blueRegistrationId,
+      redSideId,
+      blueSideId,
       t,
       config,
     ],
@@ -248,7 +254,7 @@ export function MatchCorrectionsDrawer({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              disabled={disabled}
+              disabled={disabled || sideMissing}
               onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-color`)}
               className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
             >
@@ -377,8 +383,7 @@ export function MatchCorrectionsDrawer({
             <ForfeitPanel
               matchId={matchId}
               apiUrl={apiUrl}
-              redRegistrationId={redRegistrationId}
-              blueRegistrationId={blueRegistrationId}
+              sides={sides}
               redName={redName}
               blueName={blueName}
               disabled={forfeitDisabled}
@@ -393,8 +398,7 @@ export function MatchCorrectionsDrawer({
             draft={cardDraft}
             onDraft={setCardDraft}
             matchId={matchId}
-            redRegistrationId={redRegistrationId}
-            blueRegistrationId={blueRegistrationId}
+            sides={sides}
             redName={redName}
             blueName={blueName}
             ruleSetCards={ruleSetCards}
@@ -404,7 +408,7 @@ export function MatchCorrectionsDrawer({
             round={round}
             syncEngine={syncEngine}
             online={online}
-            disabled={busy || locked}
+            disabled={busy || locked || sideMissing}
             onClose={onClose}
             onRecorded={onCardQueued}
           />

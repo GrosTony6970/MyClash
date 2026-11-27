@@ -70,7 +70,7 @@ function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): M
  * different ways.
  */
 export function deriveFighterStats(
-  registrationId: string,
+  entrantId: string,
   completedMatches: ScoredMatch[],
   afterblowMode: AfterblowMode,
 ): DerivedFighterStats {
@@ -84,8 +84,8 @@ export function deriveFighterStats(
   };
 
   for (const match of completedMatches) {
-    const isRed = match.redRegistrationId === registrationId;
-    const isBlue = match.blueRegistrationId === registrationId;
+    const isRed = match.redSideId === entrantId;
+    const isBlue = match.blueSideId === entrantId;
     if (!isRed && !isBlue) continue;
 
     const exchanges = match.exchanges;
@@ -99,9 +99,9 @@ export function deriveFighterStats(
 
     // W / D / L, from the bout that was actually fought — see the docblock.
     const outcome = boutOutcomes({
-      winnerRegistrationId: match.winnerRegistrationId,
-      redRegistrationId: match.redRegistrationId,
-      blueRegistrationId: match.blueRegistrationId,
+      winnerSideId: match.winnerSideId,
+      redSideId: match.redSideId,
+      blueSideId: match.blueSideId,
       redScore: match.redScore,
       blueScore: match.blueScore,
       endReason: match.endReason,

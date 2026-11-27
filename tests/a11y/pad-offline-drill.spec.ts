@@ -14,7 +14,7 @@
  * `offline/drill-census.test.ts`.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { openBout, primary, redHit, status } from './pad-clock-stub';
+import { comeBackOnline, openBout, primary, redHit, status, TEAM_BOUT } from './pad-clock-stub';
 
 const DRILL_KEY = 'myclash.staff.offlineDrill.v1';
 const NO_CONNECTION = 'No connection. This needs the network — try again once you are back online.';
@@ -98,6 +98,94 @@ test('a drill holds every press of the bout on the tablet, and its end sends the
   await expect(banner(page)).toHaveCount(0);
   await expect(bar(page)).toHaveAttribute('data-pending', '0');
   await expect(bar(page)).toHaveAttribute('data-sync', 'online');
+});
+
+/** A penalty list of one entry, a yellow card at its first offence. */
+const PENALTY_LIST = {
+  id: 'cards-1',
+  name: 'Cards',
+  accumulation_scope: 'match',
+  yellow_card_points: 0,
+  red_card_points: 1,
+  black_card_points: 0,
+  penalty_ruleset_entries: [
+    {
+      id: 'entry-1',
+      group_number: 1,
+      ref_number: '1',
+      short_name: 'Leaving the ring',
+      description: 'Left the ring',
+      sanctions: ['yellow'],
+    },
+  ],
+};
+
+/** The team bout after this one on the piste, as `GET /matches/:id/neighbors` gives it. */
+const NEXT_TEAMS = {
+  id: 'match-2',
+  matchNumberLabel: 'L1-P1-M2',
+  roundCode: 'L1-P1-M2',
+  redFighterName: 'Nice Foils',
+  blueFighterName: 'Metz Sabres',
+  redClub: null,
+  blueClub: null,
+  redColour: 'orange',
+  blueColour: 'yellow',
+};
+
+/**
+ * Lyon Blades fight Paris Rapiers on a team Pool's piste, and the hall's wifi drops. The
+ * scorekeeper starts the Match, cards Lyon from the penalty list and Paris from the corrections
+ * drawer, and the network comes back. Each card reaches the server on its team: a team has no
+ * Registration, and a card that named one was refused, or never queued.
+ */
+test('a team bout: cards given with no network reach the server on their teams', async ({
+  page,
+}) => {
+  const stub = await openBout(page, {
+    ...TEAM_BOUT,
+    penaltyRuleset: PENALTY_LIST,
+    neighbors: { previous: null, next: NEXT_TEAMS },
+  });
+  // Each team's colour chip beside its name in the header (green and purple).
+  await expect(page.locator('header .bg-green-700')).toHaveCount(1);
+  await expect(page.locator('header .bg-purple-700')).toHaveCount(1);
+  // And on the "next" tile: Nice Foils (orange) against Metz Sabres (yellow).
+  const nextTile = page.getByRole('link', { name: /Nice Foils/ });
+  await expect(nextTile.locator('.bg-orange-600')).toHaveCount(1);
+  await expect(nextTile.locator('.bg-yellow-400')).toHaveCount(1);
+  const redColumn = page.locator('[data-testid="scoring-column"][data-side="red"]');
+  await expect(redColumn.getByTestId('penalty-entry-button')).toHaveCount(1);
+
+  stub.network = 'down';
+  await primary(page).click();
+  await expect(status(page)).toHaveAttribute('data-status', 'running');
+  await primary(page).click();
+  await expect(status(page)).toHaveAttribute('data-status', 'halted');
+
+  // A card of the list for Lyon: a yellow is given at the tap.
+  await redColumn.getByTestId('penalty-entry-button').click();
+  await expect(redColumn.getByTestId('provisional-score')).toHaveAttribute(
+    'data-queued-cards',
+    '1',
+  );
+  // A direct card for Paris, from the drawer: it goes through the queue with no network too.
+  await page.getByTestId('open-corrections').click();
+  const reason = page.getByTestId('direct-card-reason');
+  await reason.locator('xpath=ancestor::div[1]').locator('select').selectOption('blue');
+  await reason.fill('Struck after the halt');
+  await page.locator('[data-testid="direct-card-button"][data-card="yellow"]').click();
+  await expect(bar(page)).toHaveAttribute('data-pending', '4');
+  expect(stub.cards).toEqual([]);
+
+  await comeBackOnline(page, stub);
+
+  await expect.poll(() => stub.cards.length).toBe(2);
+  const [lyon, paris] = stub.cards;
+  expect(lyon).toMatchObject({ teamId: 'team-lyon', rulesetEntryId: 'entry-1' });
+  expect(paris).toMatchObject({ teamId: 'team-paris', directCard: 'yellow' });
+  for (const card of stub.cards) expect(card).not.toHaveProperty('registrationId');
+  await expect(bar(page)).toHaveAttribute('data-pending', '0');
 });
 
 test('wifi with no internet: one unsent hit reads as offline, and goes by itself when the server answers', async ({

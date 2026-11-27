@@ -12,10 +12,12 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { PenaltyCard } from '../hooks/usePenalties';
+import { sideOf, type BoutSides } from '../lib/bout-sides';
 import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
 import { giveDirectCard } from '../lib/direct-card';
 import type { BoutNames } from '../offline/db';
+import type { QueuedSide } from '../offline/queued-side';
 import type { SyncEngine } from '../offline/sync';
 
 const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
@@ -45,8 +47,8 @@ export interface DirectCardPanelProps {
   draft: DirectCardDraft;
   onDraft: (draft: DirectCardDraft) => void;
   matchId: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** The bout's two sides: the card goes to the side of the corner picked (`sideOf`). */
+  sides: BoutSides;
   redName: string;
   blueName: string;
   ruleSetCards: readonly PenaltyCard[];
@@ -69,14 +71,19 @@ export interface DirectCardPanelProps {
 function CardFields({
   draft,
   onDraft,
+  sides,
   redName,
   blueName,
   t,
-}: Pick<DirectCardPanelProps, 'draft' | 'onDraft' | 'redName' | 'blueName'> & { t: Translate }) {
+}: Pick<DirectCardPanelProps, 'draft' | 'onDraft' | 'sides' | 'redName' | 'blueName'> & {
+  t: Translate;
+}) {
+  // On a team bout the card goes to a team (call 5), and the picker says so.
+  const team = sideOf(sides, draft.fighter)?.kind === 'team';
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-        {t('scoring.forfeits.fighter')}
+        {t(team ? 'scoring.forfeits.team' : 'scoring.forfeits.fighter')}
         <select
           value={draft.fighter}
           onChange={(e) => onDraft({ ...draft, fighter: e.target.value as Corner })}
@@ -148,10 +155,17 @@ function useDirectCard(props: DirectCardPanelProps, t: Translate) {
   const [error, setError] = useState<string | null>(null);
 
   async function give(card: PenaltyCard) {
+    // The corner's side, a Fighter or a team (call 5: a team's card names the team).
+    const side = sideOf(props.sides, draft.fighter);
+    // A corner with no Fighter yet: the card has nobody to go to. The server refuses it too.
+    if (side === null) {
+      setError(t('pad.corrections.boutSideMissing'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await giveDirectCard(directCardRow(props, card), {
+      await giveDirectCard(directCardRow(props, card, side), {
         notKept: () => setError(t('scoring.corrections.actionFailed')),
         close: () => {
           onDraft({ ...draft, reason: '' });
@@ -182,7 +196,14 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
       </p>
       {!online && <p className="mb-2 text-xs text-muted">{t('scoring.lice.directCardOffline')}</p>}
       {error && <p className="mb-2 text-xs text-danger">{error}</p>}
-      <CardFields draft={draft} onDraft={onDraft} redName={redName} blueName={blueName} t={t} />
+      <CardFields
+        draft={draft}
+        onDraft={onDraft}
+        sides={props.sides}
+        redName={redName}
+        blueName={blueName}
+        t={t}
+      />
       <CardChips
         cards={props.ruleSetCards}
         disabled={disabled || busy || reason.trim().length === 0}
@@ -211,12 +232,12 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
 }
 
 /** The card as the queue keeps it: the model is a card of the list (`ScoringColumn`). */
-function directCardRow(props: DirectCardPanelProps, card: PenaltyCard) {
+function directCardRow(props: DirectCardPanelProps, card: PenaltyCard, side: QueuedSide) {
   const { fighter, reason } = props.draft;
   return {
     matchId: props.matchId,
     sequence: props.nextSequence,
-    registrationId: fighter === 'red' ? props.redRegistrationId : props.blueRegistrationId,
+    side,
     clockTimeMs: props.clockTimeMs,
     bout: props.bout,
     round: props.round,

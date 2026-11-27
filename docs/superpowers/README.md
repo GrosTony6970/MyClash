@@ -26,10 +26,10 @@ the git history.
 ## Active
 
 - [`specs/2026-11-13-team-tournaments-design.md`](specs/2026-11-13-team-tournaments-design.md)
-  — team Tournaments, agreed with the operator on 2026-11-13. **Nothing is
-  built.**
-- [`plans/2026-11-13-team-tournaments-slice1a.md`](plans/2026-11-13-team-tournaments-slice1a.md)
-  — the plan of its first slice (foundations). Not executed.
+  — team Tournaments, agreed with the operator on 2026-11-13. Slice 1a
+  (foundations, no screen) shipped on branch `feat/team-tournaments` (draft PR
+  #109) and its plan is deleted; slices 1b to 8 are not built. The spec stays
+  here until its last slice ships.
 
 ## Archived
 

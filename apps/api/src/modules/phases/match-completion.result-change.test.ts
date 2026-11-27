@@ -18,6 +18,13 @@ vi.mock('./bracket-dependents', async (original) => ({
 
 const dependents = vi.mocked(dependentClosure);
 const bout = (hasBeenFought: boolean) => ({ matchId: 'later', hasBeenFought }) as never;
+/** A bout with no side: both columns of each side cleared, a Registration's and a team's. */
+const EMPTY_BOUT = {
+  red_registration_id: null,
+  red_team_id: null,
+  blue_registration_id: null,
+  blue_team_id: null,
+};
 
 function setup(over: { eventOver?: boolean; roundsAhead?: unknown[] } = {}) {
   const frozenResults = { isEventOver: vi.fn().mockResolvedValue(over.eventOver ?? false) };
@@ -119,10 +126,7 @@ describe('MatchCompletionService.onResultChanged', () => {
 
     expect(bracketAdvance.findDownstreamMatchIds).toHaveBeenCalledWith('m1');
     const cleared = writesTo(db, 'matches');
-    expect(cleared.map((write) => write.row)).toEqual([
-      { red_registration_id: null, blue_registration_id: null },
-      { red_registration_id: null, blue_registration_id: null },
-    ]);
+    expect(cleared.map((write) => write.row)).toEqual([EMPTY_BOUT, EMPTY_BOUT]);
     expect(cleared.map((write) => scopedTo(write, 'id'))).toEqual(['semi-final', 'losers-round']);
   });
 

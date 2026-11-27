@@ -123,7 +123,7 @@ describe('a protest is an entry the undo takes back', () => {
       clientUuid: uuid(minute),
       matchId: 'm1',
       sequence,
-      registrationId: 'reg-red',
+      side: { kind: 'registration', id: 'reg-red' },
       cardedColor: 'red',
       occurredAt: at(minute),
     });
@@ -157,7 +157,7 @@ describe('a protest is an entry the undo takes back', () => {
       clientUuid: uuid(55),
       matchId: 'm1',
       sequence: 6,
-      registrationId: 'reg-red',
+      side: { kind: 'registration', id: 'reg-red' },
       directCard: 'yellow',
       occurredAt: at(5),
     });
@@ -184,7 +184,12 @@ describe('the newest entry waits on the tablet only', () => {
   });
 
   it('a card goes the same way', async () => {
-    await queueCard({ matchId: 'm1', sequence: 7, registrationId: 'reg-red', directCard: 'red' });
+    await queueCard({
+      matchId: 'm1',
+      sequence: 7,
+      side: { kind: 'registration', id: 'reg-red' },
+      directCard: 'red',
+    });
     server({ hits: [[held('ex-5', 5)]] });
 
     await expect(undo()).resolves.toMatchObject({ kind: 'voided' });

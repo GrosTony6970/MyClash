@@ -14,6 +14,10 @@ import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { assertTournamentsBelongToEvent } from '../events/in-event';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
+import {
+  draftsOfTeamFighters,
+  type DraftTargets,
+} from '../organizer-ai-assistant/unchecked-fighters';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ORGANIZER_CHAT_TOOLS, isWriteTool } from './organizer-chat.tools';
 import { OrganizerChatToolsService } from './organizer-chat.tools.service';
@@ -450,7 +454,9 @@ export class OrganizerChatService {
     const draftIds = messages
       .map((m) => m.proposed_draft_id)
       .filter((v): v is string => typeof v === 'string');
-    const drafts = draftIds.length ? await this.loadDrafts(draftIds) : new Map();
+    const drafts = draftIds.length
+      ? await this.loadDrafts(conversation.event_id, draftIds)
+      : new Map();
 
     return {
       id: conversation.id,
@@ -470,14 +476,24 @@ export class OrganizerChatService {
     };
   }
 
-  private async loadDrafts(ids: string[]) {
+  private async loadDrafts(eventId: string, ids: string[]) {
     const { data } = await this.supabase.service
       .from('organizer_ai_assistant_drafts')
       .select('id, draft_type, status, summary, proposed_actions_json, validation_state')
       .in('id', ids);
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // The card's Confirm applies the draft: a referee draft of a team Pool or bout says that
+    // rule 8 cannot check its Fighters, as on the assistant page (`uncheckedFighters`). Only the
+    // chat's own Event is read: a model-written id of another Event's Pool finds nothing.
+    const unchecked = await draftsOfTeamFighters(
+      this.supabase.service,
+      eventId,
+      rows as unknown as DraftTargets[],
+    );
     const map = new Map<string, unknown>();
-    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const row of rows) {
       map.set(String(row['id']), {
+        ...(unchecked.has(String(row['id'])) ? { uncheckedFighters: true as const } : {}),
         id: row['id'],
         draftType: row['draft_type'],
         status: row['status'],

@@ -63,8 +63,8 @@ describe('penalty rulesets', () => {
     };
 
     const sanction = computePenaltySanction(entry, [
-      { registrationId: 'fighter-1', groupNumber: 3, card: 'yellow', source: 'ruleset' },
-      { registrationId: 'fighter-1', groupNumber: 2, card: 'yellow', source: 'ruleset' },
+      { sideId: 'fighter-1', groupNumber: 3, card: 'yellow', source: 'ruleset' },
+      { sideId: 'fighter-1', groupNumber: 2, card: 'yellow', source: 'ruleset' },
     ]);
 
     expect(sanction.card).toBe('red');
@@ -81,7 +81,7 @@ describe('penalty rulesets', () => {
     };
 
     const sanction = computePenaltySanction(entry, [
-      { registrationId: 'fighter-1', card: 'red', source: 'direct' },
+      { sideId: 'fighter-1', card: 'red', source: 'direct' },
     ]);
 
     expect(sanction.card).toBe('yellow');

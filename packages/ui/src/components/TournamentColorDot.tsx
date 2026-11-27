@@ -4,8 +4,12 @@ import { accentClassFor, type ColorToken } from '../utils/color-token';
 export interface TournamentColorDotProps {
   /** ColorToken string (e.g. "red", "amber"). Renders nothing when null/empty. */
   color?: ColorToken | string | null;
-  /** Visual size. Defaults to 'sm' (8px). 'md' is 10px. */
-  size?: 'sm' | 'md';
+  /**
+   * Visual size. Defaults to 'sm' (8px). 'md' is 10px. 'em' follows the text beside it: the
+   * stage's fluid type runs from a phone-sized window to a hall projector, and a fixed 10px dot
+   * vanishes beside a name set at several rem.
+   */
+  size?: 'sm' | 'md' | 'em';
   /** Optional tooltip / accessible label. */
   title?: string;
 }
@@ -13,6 +17,7 @@ export interface TournamentColorDotProps {
 const SIZE_MAP: Record<NonNullable<TournamentColorDotProps['size']>, string> = {
   sm: 'h-2 w-2',
   md: 'h-2.5 w-2.5',
+  em: 'h-[0.6em] w-[0.6em]',
 };
 
 /**

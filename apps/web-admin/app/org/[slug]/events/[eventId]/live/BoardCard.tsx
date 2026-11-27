@@ -5,6 +5,7 @@ import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { healthCellText } from '@/lib/live-board/health-cell';
+import { BoardBoutLine } from '@/lib/live-board/board-bout-line';
 import { TabletsWarning } from './TabletsWarning';
 import { statusLabel } from '@myclash/ui';
 import type { BoardRow } from '@/lib/live-board/types';
@@ -75,7 +76,7 @@ export function BoardCard({
           href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
           className="truncate text-foreground hover:underline"
         >
-          {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
+          <BoardBoutLine match={cm} />
         </Link>
       ) : (
         <span className="text-muted">{t('organizer.live.state.idle')}</span>

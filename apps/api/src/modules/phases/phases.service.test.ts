@@ -25,7 +25,7 @@ vi.mock('./match-ruleset', async (importOriginal) => ({
 }));
 
 /** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
-const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0', entrant_kind: 'individual' };
 
 /** How many bouts the door has inserted so far. */
 const boutsInserted = (supabase: ReturnType<typeof mockSupabase>): number =>
@@ -141,17 +141,22 @@ describe('PhasesService.generateBracket — authorization', () => {
 
   it('lets the system actor through, as the auto-advance paths rely on', async () => {
     // 'system' is the default and the sentinel populateBracket already uses.
-    // No `tournaments` seed: the org lookup lives inside the actor branch, so
-    // the system path must never reach it — and would throw if it did.
+    // The org check lives inside the actor branch, so the system path never
+    // makes it. Its one Tournament read is the kind: checked for every caller,
+    // and passed to the count.
     const { service, supabase } = makeService({
       phases: { rows: [] },
+      tournaments: { rows: TOURNAMENTS },
       registrations: { rows: [] },
     });
 
     await service.generateBracket('t-1', { phaseType: 'single_elim' } as never).catch(() => {});
 
     expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
-    expect(queriedTables(supabase.from)).toEqual(['phases', 'registrations']);
+    expect(queriedTables(supabase.from)).toEqual(['tournaments', 'phases', 'registrations']);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual([
+      'id, entrant_kind, events!inner(organization_id)',
+    ]);
   });
 });
 
@@ -394,6 +399,7 @@ describe('PhasesService', () => {
           tournaments: {
             event_id: 'event-1',
             weapon: null,
+            entrant_kind: 'individual',
             events: { organization_id: 'org-1' },
           },
         },
@@ -846,6 +852,7 @@ describe('PhasesService', () => {
         phases: {
           rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'single_elim' }],
         },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
       });
 
       await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
@@ -856,6 +863,7 @@ describe('PhasesService', () => {
     it('throws BadRequestException when fewer than 2 fighters qualify', async () => {
       const { service } = makeService({
         phases: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
         registrations: { rows: qualifiers(1) },
       });
 
@@ -868,7 +876,10 @@ describe('PhasesService', () => {
     });
 
     it('throws BadRequestException when generated bracket would exceed 128 slots', async () => {
-      const { service } = makeService({ phases: { rows: [] } });
+      const { service } = makeService({
+        phases: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
+      });
 
       await expect(
         service.generateBracket('tournament-1', { qualifyCount: 256 }, false),
@@ -1736,7 +1747,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['redFighterName']).toBe('Alice Smith');
       expect(found['redClubAbbrev']).toBe('Lyon AMHE');
     });
@@ -1777,7 +1788,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slots = result!.slots as Array<Record<string, unknown>>;
+      const slots = result!.slots;
 
       expect(slots.find((s) => s['id'] === 's-1')?.['scheduledAt']).toBe(
         '2026-06-06T09:05:00.000Z',
@@ -1813,7 +1824,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['matchId']).toBe('match-1');
       expect(found['status']).toBe('completed');
       expect(found['redScore']).toBe(5);
@@ -1841,7 +1852,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      expect((result!.slots[0] as Record<string, unknown>)['liceId']).toBe('lice-42');
+      expect(result!.slots[0]!.liceId).toBe('lice-42');
     });
 
     it("empty slot returns null-shaped fields (not undefined) so MatchCard renders '-'", async () => {
@@ -1865,7 +1876,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['redFighterName']).toBeNull();
       expect(found['blueFighterName']).toBeNull();
       expect(found['redScore']).toBeNull();
@@ -1960,7 +1971,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['liceName']).toBe('Lice 2');
       expect(found['referees']).toEqual([
         {
@@ -1980,7 +1991,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const found = result!.slots[0] as Record<string, unknown>;
+      const found = result!.slots[0]!;
       expect(found['liceName']).toBeNull();
       expect(found['referees']).toEqual([]);
     });
@@ -2675,6 +2686,7 @@ describe('PhasesService', () => {
         red_score: null,
         blue_score: null,
         winner_registration_id: null,
+        winner_team_id: null,
         phases: { tournament_id: 'tournament-1' },
         'phases.tournament_id': 'tournament-1',
         ...over,
@@ -2712,6 +2724,7 @@ describe('PhasesService', () => {
           red_score: 5,
           blue_score: 3,
           winner_registration_id: 'reg-blue',
+          winner_team_id: null,
         },
         {
           id: 'm-2',
@@ -2719,13 +2732,14 @@ describe('PhasesService', () => {
           red_score: null,
           blue_score: null,
           winner_registration_id: null,
+          winner_team_id: null,
         },
       ]);
       // The SELECT must NOT include privileged fields like the crew
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
       expect(selectsFor(supabase.from, 'matches')).toEqual([
-        'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
+        'id, status, red_score, blue_score, winner_registration_id, winner_team_id, phases!inner(tournament_id)',
       ]);
     });
   });
@@ -2747,6 +2761,7 @@ describe('PhasesService', () => {
         tournaments: {
           event_id: 'event-1',
           weapon: 'longsword',
+          entrant_kind: 'individual',
           tournament_id: 'tournament-1',
           events: { organization_id: organizationId },
         },
@@ -2944,11 +2959,90 @@ describe('PhasesService', () => {
       const writes = writesTo(supabase, 'matches');
       // The whole point: the known side reaches the matches row even though the
       // other side is still null. Previously this list was empty.
-      expect(writes.map((write) => write.row)).toContainEqual({ red_registration_id: 'reg-1' });
+      expect(writes.map((write) => write.row)).toContainEqual({
+        red_registration_id: 'reg-1',
+        red_team_id: null,
+      });
       // On THIS slot's bout, not whichever row the lookup happened to find.
       expect(scopedTo(writes[0], 'id')).toBe('match-r1p1');
       // And no phantom row is inserted for a slot that cannot be played yet.
       expect(writes.filter((write) => write.op === 'insert')).toEqual([]);
+    });
+  });
+
+  // ── populateBracket — registration seed places every Fighter (ruling 991) ──
+
+  describe('populateBracket — registration seed places every Fighter', () => {
+    it('writes both Fighters on a repeated seed into Round 1', async () => {
+      const r1 = (position: number, a: number, b: number): SupabaseRow => ({
+        id: `slot-r1p${position}`,
+        phase_id: 'bracket-phase-1',
+        round: 1,
+        position,
+        source_a_ref: `seed ${a}`,
+        source_b_ref: `seed ${b}`,
+      });
+      const active = { tournament_id: 'tournament-1', status: 'registered' };
+      const { service: svc, supabase } = makeService({
+        // A bracket and no Pool phase: the fill takes the registration seed.
+        phases: {
+          rows: [
+            {
+              id: 'bracket-phase-1',
+              type: 'single_elim',
+              config_json: {},
+              tournament_id: 'tournament-1',
+              tournaments: { ...TF, events: { organization_id: 'org-1' } },
+            },
+          ],
+        },
+        bracket_slots: { rows: [r1(1, 1, 4), r1(2, 3, 2)] },
+        matches: {
+          rows: [
+            { id: 'match-r1p1', bracket_slot_id: 'slot-r1p1', status: 'scheduled' },
+            { id: 'match-r1p2', bracket_slot_id: 'slot-r1p2', status: 'scheduled' },
+          ],
+        },
+        // Two Fighters on seed 2. Ranked by the seed itself, one of them overwrote the other.
+        registrations: {
+          rows: [
+            { id: 'reg-a', seed: 1, bib_number: null, ...active },
+            { id: 'reg-b', seed: 2, bib_number: 5, ...active },
+            { id: 'reg-c', seed: 2, bib_number: 9, ...active },
+            { id: 'reg-d', seed: 4, bib_number: null, ...active },
+          ],
+        },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
+        audit_log: { rows: [] },
+      });
+
+      await svc.populateBracket('tournament-1', {}, 'system');
+
+      expect(selectsFor(supabase.from, 'registrations')).toEqual(['id, seed, bib_number']);
+      const seated = writesTo(supabase, 'bracket_slots').map((write) => [
+        scopedTo(write, 'id'),
+        write.row,
+      ]);
+      expect(seated).toEqual([
+        [
+          'slot-r1p1',
+          {
+            registration_a_id: 'reg-a',
+            team_a_id: null,
+            registration_b_id: 'reg-d',
+            team_b_id: null,
+          },
+        ],
+        [
+          'slot-r1p2',
+          {
+            registration_a_id: 'reg-c',
+            team_a_id: null,
+            registration_b_id: 'reg-b',
+            team_b_id: null,
+          },
+        ],
+      ]);
     });
   });
 
@@ -3056,20 +3150,20 @@ describe('PhasesService', () => {
               poolId: 'p1',
               poolName: 'Pool 1',
               status: 'completed',
-              rows: [{ rank: 1, registrationId: 'r1' }],
+              rows: [{ rank: 1, entrantId: 'r1' }],
             },
             {
               poolId: 'p2',
               poolName: 'Pool 2',
               status: 'completed',
-              rows: [{ rank: 1, registrationId: 'r2' }],
+              rows: [{ rank: 1, entrantId: 'r2' }],
             },
           ],
         },
         {
           rows: [
-            { rank: 1, registrationId: 'r1' },
-            { rank: 2, registrationId: 'r2' },
+            { rank: 1, entrantId: 'r1' },
+            { rank: 2, entrantId: 'r2' },
           ],
         },
       );
@@ -3138,9 +3232,31 @@ describe('PhasesService', () => {
 
     /** The registration under test, plus an active one it must not be mistaken for. */
     const registrations = (status: string): SupabaseRow[] => [
-      { id: 'reg-other', status: 'registered' },
-      { id: 'reg-1', status },
+      { id: 'reg-other', status: 'registered', tournament_id: 'tournament-1' },
+      { id: 'reg-1', status, tournament_id: 'tournament-1' },
     ];
+
+    it("refuses a Registration of another Tournament and writes nothing to the Pool's members", async () => {
+      const { service: svc, supabase } = makeService({
+        // reg-1 is a Fighter of Tournament 9; the Pool is of Tournament 1.
+        registrations: {
+          rows: [{ id: 'reg-1', status: 'registered', tournament_id: 'tournament-9' }],
+        },
+        pool_members: { rows: [] },
+      });
+      stubPoolAuth(svc);
+
+      await expect(svc.addPoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
+        'Registration reg-1 not found',
+      );
+
+      expect(selectsFor(supabase.from, 'registrations')).toEqual(['id, status']);
+      expect(filtersFor(supabase.from, 'registrations', 'eq')).toEqual([
+        ['id', 'reg-1'],
+        ['tournament_id', 'tournament-1'],
+      ]);
+      expect(writesTo(supabase, 'pool_members')).toEqual([]);
+    });
 
     it('rejects adding a waitlisted registration to a pool', async () => {
       const { service: svc } = makeService({
@@ -3233,21 +3349,21 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       poolId: 'p1',
       poolName: 'Pool 1',
       status: 'completed',
-      rows: [{ rank: 1, registrationId: 'r1' }],
+      rows: [{ rank: 1, entrantId: 'r1' }],
     },
   ];
   const OVERALL_ROWS = [
-    { rank: 1, registrationId: 'r1' },
-    { rank: 2, registrationId: 'r2' },
-    { rank: 3, registrationId: 'r3' },
-    { rank: 4, registrationId: 'r4' },
+    { rank: 1, entrantId: 'r1' },
+    { rank: 2, entrantId: 'r2' },
+    { rank: 3, entrantId: 'r3' },
+    { rank: 4, entrantId: 'r4' },
   ];
 
   function buildService(input: {
     strategy?: string;
     poolPhaseExists?: boolean;
     perPool?: unknown[];
-    overallRows?: Array<{ rank: number; registrationId: string }>;
+    overallRows?: Array<{ rank: number; entrantId: string }>;
     slots: SupabaseRow[];
     matches?: SupabaseRow[];
     swiss?: {
@@ -3255,7 +3371,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       roundCount: number;
       roundsCompleted: number;
       finalized?: boolean;
-      rows: Array<{ rank: number; registrationId: string; displayName: string }>;
+      rows: Array<{ rank: number; entrantId: string; displayName: string }>;
     };
   }) {
     // Another tournament's pool phase is always present: the gate reads
@@ -3419,7 +3535,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
           registration_b_id: 'r7',
         },
       ],
-      overallRows: [{ rank: 1, registrationId: 'r1' }],
+      overallRows: [{ rank: 1, entrantId: 'r1' }],
     });
 
     const result = await service.getTournamentBracket('tournament-1');
@@ -3455,10 +3571,10 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
         roundCount: 4,
         roundsCompleted: 4,
         rows: [
-          { rank: 1, registrationId: 'r1', displayName: 'One' },
-          { rank: 2, registrationId: 'r2', displayName: 'Two' },
-          { rank: 3, registrationId: 'r3', displayName: 'Three' },
-          { rank: 4, registrationId: 'r4', displayName: 'Four' },
+          { rank: 1, entrantId: 'r1', displayName: 'One' },
+          { rank: 2, entrantId: 'r2', displayName: 'Two' },
+          { rank: 3, entrantId: 'r3', displayName: 'Three' },
+          { rank: 4, entrantId: 'r4', displayName: 'Four' },
         ],
       },
     });

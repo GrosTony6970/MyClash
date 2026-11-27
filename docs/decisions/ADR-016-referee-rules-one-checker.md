@@ -197,3 +197,18 @@ referees. That is a known gap with its own ticket, and it is not part of this de
 - **Call the levels "Blocked" and "Warning".** Rejected: the picker's "blocked" list already means
   greyed out, and "warning" already names the slate notice and the engine's scoring notes. "Locked"
   is also taken: it is the board's freeze button.
+
+## 2026-11-13 — the rule's reach for Teams
+
+Team Tournaments put a Team on each side of a Match (ADR-022). The rule reaches them like this.
+
+**Rule 8 protects named Fighters only.** A Fighter in a slot with no name is unknown to MyClash, so
+it cannot stop them being booked as referee while they fight. The operator accepts this limit. The
+Teams screen marks every slot the rule cannot protect, and the referee board shows a notice on any
+Match of a team with unnamed Fighters. The limit is written into ADR-016 and into rule 8 of
+`CLAUDE.md`.
+
+Every named member of both teams is fighting for the whole team Match. The reach is the same as for
+an individual Fighter today: the checker knows a person by their Global Person, so a member whose
+Person is not linked to one is as invisible as an unnamed slot. Both cases get the mark and the
+notice above.

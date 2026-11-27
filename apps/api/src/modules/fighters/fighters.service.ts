@@ -1061,9 +1061,9 @@ export class FightersService {
 
       const outcome = deriveMatchOutcome(
         {
-          winnerRegistrationId: winnerRegId,
-          redRegistrationId: redId,
-          blueRegistrationId: blueId,
+          winnerSideId: winnerRegId,
+          redSideId: redId,
+          blueSideId: blueId,
           redScore: Number(match['red_score'] ?? 0),
           blueScore: Number(match['blue_score'] ?? 0),
           endReason: (match['end_reason'] as string | null) ?? null,
@@ -1177,7 +1177,7 @@ export class FightersService {
       if (!byRegistrationId) {
         try {
           const result = await this.placement.getTournamentPlacements(registration.tournamentId);
-          byRegistrationId = result.byRegistrationId;
+          byRegistrationId = result.byEntrantId;
         } catch {
           // A single tournament's bracket/standings failing must never break the
           // whole career dashboard — skip and move on.
@@ -1185,6 +1185,8 @@ export class FightersService {
         }
         byTournament.set(registration.tournamentId, byRegistrationId);
       }
+      // Keyed by side: a Registration id is the side key of a Fighter. No Registration is ever in
+      // a team Tournament (0281 `entrant_kind_holds`), so a career never meets a team placement.
       const placement = byRegistrationId.get(registration.id);
       if (placement) placements.set(registration.id, placement);
     }

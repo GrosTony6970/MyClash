@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeFinalRanking, type RankingSlot } from './final-ranking';
-import { POOL, mk, resetSlotIds } from './final-ranking-test-helpers';
+import { POOL, mk, poolEntry, resetSlotIds } from './final-ranking-test-helpers';
 
 /**
  * Double-elimination podium options and repechage cutoffs — the Slice 2
@@ -53,15 +53,15 @@ const NO_BRONZE_SHAPE = { ...BRONZE_SHAPE, lbRounds: 2, bronzeMatch: false };
 describe('bronze mode', () => {
   it('reads gold and silver off the WINNERS-BRACKET final, not a grand final', () => {
     const ranking = computeFinalRanking(buildBronze(), POOL, null, BRONZE_SHAPE);
-    expect(ranking[0]?.registrationId).toBe('a');
+    expect(ranking[0]?.entrantId).toBe('a');
     expect(ranking[0]?.resultKind).toBe('champion');
-    expect(ranking[1]?.registrationId).toBe('e');
+    expect(ranking[1]?.entrantId).toBe('e');
     expect(ranking[1]?.resultKind).toBe('runnerUp');
   });
 
   it('awards 3rd to the bronze match WINNER and 4th to its loser', () => {
     const ranking = computeFinalRanking(buildBronze(), POOL, null, BRONZE_SHAPE);
-    expect(ranking.map((e) => e.registrationId)).toEqual([
+    expect(ranking.map((e) => e.entrantId)).toEqual([
       'a', // won the WB final
       'e', // lost the WB final — silver outright, never drops
       'c', // won the bronze match
@@ -79,7 +79,7 @@ describe('bronze mode', () => {
     // The WB-final loser takes silver directly, so `e` must be placed even
     // though they appear in no losers-bracket slot at all.
     const ranking = computeFinalRanking(buildBronze(), POOL, null, BRONZE_SHAPE);
-    const e = ranking.find((x) => x.registrationId === 'e');
+    const e = ranking.find((x) => x.entrantId === 'e');
     expect(e?.place).toBe(2);
     expect(e?.bracketSection).toBeUndefined();
   });
@@ -92,8 +92,8 @@ describe('bronze mode', () => {
   it('still ranks 1st/2nd when the bronze match has not been played yet', () => {
     const slots = buildBronze(false);
     const ranking = computeFinalRanking(slots, POOL, null, BRONZE_SHAPE);
-    expect(ranking[0]?.registrationId).toBe('a');
-    expect(ranking[1]?.registrationId).toBe('e');
+    expect(ranking[0]?.entrantId).toBe('a');
+    expect(ranking[1]?.entrantId).toBe('e');
   });
 });
 
@@ -107,7 +107,7 @@ describe('bronze mode with bronzeMatch: false', () => {
    */
   it('ranks the two surviving repechage fighters 3rd/4th by pool score', () => {
     const ranking = computeFinalRanking(buildBronze(false), POOL, null, NO_BRONZE_SHAPE);
-    expect(ranking.map((e) => e.registrationId)).toEqual([
+    expect(ranking.map((e) => e.entrantId)).toEqual([
       'a',
       'e',
       'g', // survived the repechage, pool 8
@@ -131,8 +131,8 @@ describe('bronze mode with bronzeMatch: false', () => {
     // b and f LOST the last repechage round; they must land 5th/6th, below
     // the survivors, not be mistaken for them.
     const ranking = computeFinalRanking(buildBronze(false), POOL, null, NO_BRONZE_SHAPE);
-    expect(ranking.find((e) => e.registrationId === 'f')?.place).toBe(5);
-    expect(ranking.find((e) => e.registrationId === 'b')?.place).toBe(6);
+    expect(ranking.find((e) => e.entrantId === 'f')?.place).toBe(5);
+    expect(ranking.find((e) => e.entrantId === 'b')?.place).toBe(6);
   });
 });
 
@@ -181,7 +181,7 @@ describe('repechage cutoff', () => {
    */
   it('eliminates pre-cutoff winners-bracket losers on a single loss', () => {
     const ranking = computeFinalRanking(buildCutoff(), POOL, null, CUTOFF_SHAPE);
-    expect(ranking.map((e) => e.registrationId)).toEqual([
+    expect(ranking.map((e) => e.entrantId)).toEqual([
       'a', // won the grand final
       'e', // lost the WB final, won the repechage, lost the GF
       'c', // lost the repechage final
@@ -196,7 +196,7 @@ describe('repechage cutoff', () => {
   it('marks pre-cutoff exits as winners-bracket, with the absolute WB round', () => {
     const ranking = computeFinalRanking(buildCutoff(), POOL, null, CUTOFF_SHAPE);
     for (const reg of ['f', 'h', 'b', 'd']) {
-      const entry = ranking.find((e) => e.registrationId === reg)!;
+      const entry = ranking.find((e) => e.entrantId === reg)!;
       expect(entry.bracketSection).toBe('WB');
       expect(entry.eliminationRound).toBe(1);
     }
@@ -207,7 +207,7 @@ describe('repechage cutoff', () => {
     // nothing after WB R1 — reaching the cutoff depth is worth more than a
     // good pool score.
     const ranking = computeFinalRanking(buildCutoff(), POOL, null, CUTOFF_SHAPE);
-    const placeOf = (reg: string) => ranking.find((e) => e.registrationId === reg)!.place;
+    const placeOf = (reg: string) => ranking.find((e) => e.entrantId === reg)!.place;
     const deepest = Math.max(...['c', 'g'].map(placeOf));
     const shallowest = Math.min(...['f', 'h', 'b', 'd'].map(placeOf));
     expect(deepest).toBeLessThan(shallowest);
@@ -225,13 +225,10 @@ describe('repechage cutoff', () => {
 
   it('puts play-in losers below even the pre-cutoff winners-bracket losers', () => {
     const slots = [...buildCutoff(), mk(0, 1, 'a', 5, 'x', 1)];
-    const pool = [
-      ...POOL,
-      { registrationId: 'x', fighterName: 'X', clubAbbrev: null, poolScore: 9.5 },
-    ];
+    const pool = [...POOL, poolEntry('x', 9.5)];
     const ranking = computeFinalRanking(slots, pool, null, CUTOFF_SHAPE);
     // x has the second-best pool score in the field and still finishes last.
-    expect(ranking[ranking.length - 1]?.registrationId).toBe('x');
+    expect(ranking[ranking.length - 1]?.entrantId).toBe('x');
     expect(ranking[ranking.length - 1]?.bracketSection).toBe('PLAYIN');
   });
 });

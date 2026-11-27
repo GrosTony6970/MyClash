@@ -52,6 +52,7 @@ import {
   type PressAction,
 } from './late-press';
 import { matchLocked } from './match-locked';
+import { assertBothSides, sidesOf } from './bout-sides';
 import { scoredBeforeReset } from './hit-before-reset';
 import { pressedBeforeReopen } from './press-before-reopen';
 import { nextSequence, takeBackRow } from './timeline-sequence';
@@ -149,15 +150,15 @@ interface ClockStep {
 
 // The scores and the bout's match format (its copy of its rules) are here so `end` can NAME
 // the winner of a bout that ran out of time — see `timeLimitResult`.
-// `status` is there because a bout already completed is not decided
-// again, and `winner_registration_id` because the decision reads the
-// LADDER, not the scores. The Event's status is for a press sent late, and the bout's copies of
-// its rules for a Start that names the copy its pad showed (`startCopyOf`).
+// `status` is there because a bout already completed is not decided again, and both winner
+// columns because the decision reads the LADDER, not the scores: a team wins into `winner_team_id`
+// (0282). The Event's status is for a press sent late, and the bout's copies of its rules for a
+// Start that names the copy its pad showed (`startCopyOf`).
 export const BOUT_COLUMNS =
   'id, status, locked_at, started_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
-  'red_registration_id, blue_registration_id, winner_registration_id, ' +
-  'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
-  'phases(type, tournaments(events(status))), ' +
+  'red_registration_id, blue_registration_id, red_team_id, blue_team_id, winner_registration_id, ' +
+  'winner_team_id, red_score, blue_score, match_number_label, awaiting_round_advance, ' +
+  'back_in_play_at, phases(type, tournaments(events(status))), ' +
   BOUT_RULES;
 
 /** Postgres: a unique key refused the row. */
@@ -249,12 +250,17 @@ export class ClockService {
       .maybeSingle();
 
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
+    // The bout's row as the rules below read it: one cast, here.
+    const row = match as unknown as Record<string, unknown>;
     // Before every other rule: the caller learns the bout was won, never a transition error.
     const completed = (match as { status?: string }).status === 'completed';
     if (completed && action !== 'end' && actor?.keepsCompleted) throw boutCompleted();
     if ((match as { locked_at?: string | null }).locked_at && !actor?.canOverrideLocked) {
       throw matchLocked();
     }
+    // A bout waiting for a Fighter takes no Start (operator, 2026-11-24). This door answers no
+    // press the server holds, so nothing saved is refused here.
+    if (action === 'start') assertBothSides(sidesOf(row));
 
     // Get current state
     const current = await this.getClockState(matchId);
@@ -295,11 +301,7 @@ export class ClockService {
     // looking at. See `endRefusal` for what a refusal says.
     const ending =
       action === 'end'
-        ? timeLimitResult(
-            match as unknown as Record<string, unknown>,
-            current.levelResolutionSteps,
-            current.totalActiveMs,
-          )
+        ? timeLimitResult(row, current.levelResolutionSteps, current.totalActiveMs)
         : null;
     if (ending && 'refuse' in ending) throw endRefusal(ending.refuse);
 
@@ -325,7 +327,7 @@ export class ClockService {
     const at = causedAt
       ? await placedInTimeline(this.supabase.service, matchId, Date.parse(causedAt))
       : undefined;
-    return this.record(matchId, match as unknown as Record<string, unknown>, current, {
+    return this.record(matchId, row, current, {
       action,
       reason,
       actor,

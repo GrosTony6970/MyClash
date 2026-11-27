@@ -49,6 +49,8 @@ export function BoardRowTimeline({ matchId, t }: { matchId: string; t: T }) {
         scale="page"
         emptyLabel={t('organizer.live.detail.timelineEmpty')}
         ariaLabel={t('organizer.live.detail.timeline')}
+        redColour={match?.redColour ?? null}
+        blueColour={match?.blueColour ?? null}
         t={t}
       />
     </div>
@@ -82,10 +84,10 @@ function useTimelineEvents(
         protests,
         redName,
         blueName,
-        // Optional on DisplayMatch. Without them penalties render with no side
-        // rather than failing — a sideless card beats an empty panel.
-        redRegId: match?.redRegistrationId ?? '',
-        blueRegId: match?.blueRegistrationId ?? '',
+        // Each side's key: a Fighter's Registration or a team. Null before the
+        // bout loads or while a side is to come: a card then shows no side.
+        redSideId: match?.redSideId ?? null,
+        blueSideId: match?.blueSideId ?? null,
         t,
         config,
       }),

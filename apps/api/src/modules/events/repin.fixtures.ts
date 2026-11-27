@@ -80,7 +80,7 @@ export function harness(opts: { row?: Row; isSuperAdmin?: boolean; offered?: str
   );
   const registry = createRulesetRegistry();
   const rulesHash = new RulesetHashService(db as never, registry);
-  const standings = [{ rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } }];
+  const standings = [{ rank: 1, entrantId: 'r1', displayName: 'Alice', stats: { score: 5 } }];
   const poolStandings = { getPoolStandings: vi.fn().mockResolvedValue({ rows: standings }) };
   const selectableRulesets = {
     offeredVersion: vi.fn().mockResolvedValue(opts.offered === undefined ? '1.0.0' : opts.offered),

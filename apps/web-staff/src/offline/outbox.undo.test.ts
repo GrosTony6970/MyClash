@@ -64,7 +64,7 @@ describe('takeOffTablet', () => {
     const id = await queueCard({
       matchId: 'match-1',
       sequence: 1,
-      registrationId: 'reg-red',
+      side: { kind: 'registration', id: 'reg-red' },
       directCard: 'red',
     });
 

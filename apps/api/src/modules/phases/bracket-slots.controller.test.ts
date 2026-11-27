@@ -59,9 +59,9 @@ beforeEach(() => {
     },
     tournaments: {
       rows: [
-        { id: TOURNAMENT_B, event_id: EVENT_B },
-        { id: TOURNAMENT_A, event_id: EVENT_A },
-        { id: TOURNAMENT_A2, event_id: EVENT_A },
+        { id: TOURNAMENT_B, event_id: EVENT_B, entrant_kind: 'individual' },
+        { id: TOURNAMENT_A, event_id: EVENT_A, entrant_kind: 'individual' },
+        { id: TOURNAMENT_A2, event_id: EVENT_A, entrant_kind: 'individual' },
       ],
     },
     phases: {
@@ -166,7 +166,11 @@ describe('BracketSlotsController authorization', () => {
 
   it('lets an admin of the Event through, with the ids it was sent', async () => {
     await controller.overrideSlot(SLOT_A, SWAP, req('u-admin-a'));
-    expect(overrideSlot).toHaveBeenCalledWith(SLOT_A, ANNA, CLARA);
+    expect(overrideSlot).toHaveBeenCalledWith(
+      SLOT_A,
+      { kind: 'individual', id: ANNA },
+      { kind: 'individual', id: CLARA },
+    );
   });
 
   it('lets an admin empty a side, and leave the other as it is', async () => {
@@ -212,7 +216,7 @@ describe('BracketSlotsController authorization', () => {
     // alone would stay green with a column dropped from a read.
     expect(selectsFor(db.from, 'bracket_slots')).toEqual(['phase_id']);
     expect(selectsFor(db.from, 'phases')).toEqual(['tournament_id']);
-    expect(selectsFor(db.from, 'tournaments')).toEqual(['event_id']);
+    expect(selectsFor(db.from, 'tournaments')).toEqual(['event_id', 'entrant_kind']);
     expect(selectsFor(db.from, 'registrations')).toEqual(['id']);
   });
 });

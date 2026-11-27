@@ -22,6 +22,8 @@ const view = (id: string, over: Record<string, unknown>) => ({
   event_id: 'event-1',
   phase_id: 'phase-pool',
   phase_type: 'pool',
+  red_team_color: null,
+  blue_team_color: null,
   ...over,
 });
 

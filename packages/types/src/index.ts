@@ -41,6 +41,8 @@ export * from './referee-capacity';
 export * from './workshop-instructor-busy';
 export * from './workshop-texts';
 export * from './round-code';
+// Not `./side-key`: the root barrel ships to every page of every app, and only the API and the
+// scoring pad call `sideKey` (`@myclash/types/side-key`).
 export * from './rules-change';
 export * from './forfeit-rules-change';
 export * from './tournament-name';

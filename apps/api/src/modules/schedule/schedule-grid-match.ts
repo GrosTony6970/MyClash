@@ -18,8 +18,13 @@ export interface ScheduleGridMatch {
   endedAt: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /**
+   * Each side's key (`sideKey`): a Registration id, or a team id in a team Tournament (ADR-022);
+   * null while a side is not known yet (a bracket placeholder). It was `redRegistrationId`, with
+   * `''` for a side not known.
+   */
+  redSideId: string | null;
+  blueSideId: string | null;
   tournamentName: string | null;
   /** Tournament identity colour (ColorToken string). Lets the grid
    *  tint every match card by its parent tournament so the schedule

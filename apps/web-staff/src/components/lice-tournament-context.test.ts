@@ -11,6 +11,8 @@ const match = (over: Partial<LiceMatch> = {}): LiceMatch => ({
   roundCode: 'SDW-P1-M1',
   redFighterName: 'Red',
   blueFighterName: 'Blue',
+  redColour: null,
+  blueColour: null,
   redScore: 0,
   blueScore: 0,
   tournamentId: 't1',

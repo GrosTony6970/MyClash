@@ -109,6 +109,8 @@ describe('syncMatchToSlot — a new bout of the slot', () => {
       source_b_type: 'seed',
       registration_a_id: 'r-a',
       registration_b_id: 'r-b',
+      team_a_id: null,
+      team_b_id: null,
     };
 
     await syncMatchToSlot(supabase.service as never, slot, { onStarted: 'skip' });
@@ -127,5 +129,64 @@ describe('syncMatchToSlot — a new bout of the slot', () => {
       ['stamp_match_rules', { p_tournament_id: 't-1' }],
     ]);
     expect(boutsInAtStamp).toEqual([0, 1]);
+  });
+});
+
+describe('syncMatchToSlot — a slot of teams', () => {
+  // A team bout's Registration ids are null: the sides are known by their team ids, and the bout
+  // names both columns of each side as the slot holds them.
+  const TEAM_SLOT = {
+    id: 'slot-1',
+    phase_id: 'ph-1',
+    position: 2,
+    source_b_type: 'seed',
+    registration_a_id: null,
+    registration_b_id: null,
+    team_a_id: 'team-a',
+    team_b_id: 'team-b',
+  };
+  const TEAM_SIDES = {
+    red_registration_id: null,
+    red_team_id: 'team-a',
+    blue_registration_id: null,
+    blue_team_id: 'team-b',
+  };
+  const seeded = (matches: SupabaseRow[]) =>
+    mockSupabase(
+      ...withStampedRules({
+        matches: { rows: matches },
+        phases: { rows: [{ id: 'ph-1', tournament_id: 't-1' }] },
+        tournaments: { rows: [{ id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1' }] },
+      }),
+    );
+
+  it('creates the bout once both teams are known', async () => {
+    const supabase = seeded([]);
+    await syncMatchToSlot(supabase.service as never, TEAM_SLOT, { onStarted: 'skip' });
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['insert']);
+    expect(writes[0]?.row).toMatchObject({ bracket_slot_id: 'slot-1', ...TEAM_SIDES });
+  });
+
+  it('rewrites the existing bout with the teams', async () => {
+    const supabase = seeded([
+      { id: 'm-1', bracket_slot_id: 'slot-1', status: 'scheduled', started_at: null },
+    ]);
+    await syncMatchToSlot(supabase.service as never, TEAM_SLOT, { onStarted: 'skip' });
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['update']);
+    expect(writes[0]?.row).toEqual(TEAM_SIDES);
+  });
+
+  it('makes no bout while a team is still to come', async () => {
+    const supabase = seeded([]);
+    await syncMatchToSlot(
+      supabase.service as never,
+      { ...TEAM_SLOT, team_b_id: null },
+      { onStarted: 'skip' },
+    );
+    expect(writesTo(supabase, 'matches')).toEqual([]);
   });
 });

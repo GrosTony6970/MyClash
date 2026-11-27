@@ -6,6 +6,7 @@ import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
+import { resultSides } from './result-winner';
 import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useLevelStep } from '../hooks/useLevelStep';
@@ -21,6 +22,7 @@ import { entryLine, roundStaysClosed } from '../lib/undone-line';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
+import { sideMissing, sideOf } from '../lib/bout-sides';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
 import type { PressedOn } from '../offline/db';
@@ -57,18 +59,27 @@ export interface MatchInfo {
   /** Round code computed server-side (e.g. LSW-P1-M3). Empty for older matches. */
   roundCode?: string;
   status: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Null while the side is not known yet, or while it is a team (`redTeamId`). */
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
+  /** A team's side (0282). None on a copy the tablet kept before the bout read carried it. */
+  redTeamId?: string | null;
+  blueTeamId?: string | null;
   redScore: number;
   blueScore: number;
   /** The RECORDED winner. Authoritative over the two scores — a forfeit or a
    *  `referee_decision` override can award the bout to the fighter behind on
    *  points, and the end-of-match overlay announces it to the hall. */
   winnerRegistrationId?: string | null;
+  /** The recorded winner when a team won (0282). None on a copy kept before the read carried it. */
+  winnerTeamId?: string | null;
   redFighterName?: string;
   blueFighterName?: string;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip, beside its name (call 6). Null for a Fighter's side. */
+  redColour?: string | null;
+  blueColour?: string | null;
   weapon?: string;
   tournamentId?: string;
   /** Header context line (Tournament · Phase · Piste) — from GET /matches/:id/summary. */
@@ -424,15 +435,29 @@ export function MatchView({
     [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t],
   );
 
+  // A bout waiting for a Fighter takes no Start, hit, card or colour swap (operator,
+  // 2026-11-24). Asked of the bout on screen, the server's or the tablet's copy: a copy kept
+  // while a side was empty refuses Start until a read online brings the Fighter.
+  const waitingForFighter = sideMissing(match);
+  // Each corner's side, a Fighter or a team (`sideOf`): its cards, protests and counts go to it.
+  const redSide = sideOf(match, 'red');
+  const blueSide = sideOf(match, 'blue');
+
   // Clock state machine. Start/Resume at zero remaining / inside the
   // soft-clock zone is challenged first (per the ruleset the clock should not
-  // restart) — the modal proceeds with `force`.
+  // restart) — the modal proceeds with `force`. A Start of a bout waiting for a
+  // Fighter is refused here, forced or not: the button, the Space key and the
+  // resume warning all come through this one door.
   const onClockAction = useCallback(
     async (
       action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock',
       force = false,
       endScore?: PressedOn,
     ) => {
+      if (action === 'start' && waitingForFighter) {
+        setClockError(t('pad.corrections.boutSideMissing'));
+        return;
+      }
       if (
         !force &&
         (action === 'start' || action === 'resume') &&
@@ -451,6 +476,7 @@ export function MatchView({
       else await pressClock(action, endScore);
     },
     [
+      waitingForFighter,
       match.phaseType,
       match.matchNumberLabel,
       matchFormat,
@@ -458,6 +484,8 @@ export function MatchView({
       inSuddenDeath,
       askServerClock,
       pressClock,
+      setClockError,
+      t,
     ],
   );
 
@@ -512,7 +540,8 @@ export function MatchView({
   const scoringEnabled =
     (boutStatus === 'running' || boutStatus === 'paused') &&
     !match.lockedAt &&
-    !series.awaitingStart;
+    !series.awaitingStart &&
+    !waitingForFighter;
   const clockRunning = boutClock?.status === 'running';
   const canScore = scoringEnabled && !clockRunning;
   // The protest button is live longer than card entry: paused, between rounds, after the end.
@@ -598,12 +627,8 @@ export function MatchView({
   // server's. A decided series says its rounds, never its last round's reason.
   const ownReason = seriesDecided ? null : (ownResult.endReason ?? null);
   const resultReason = unconfirmed ? ownReason : (match.endReason ?? null);
-  const ownWinnerId =
-    ownWinner === 'red'
-      ? match.redRegistrationId
-      : ownWinner === 'blue'
-        ? match.blueRegistrationId
-        : null;
+  // The two side keys and the winner's, a Fighter or a team: the server's, or the tablet's own.
+  const sideIds = resultSides(match, { unconfirmed, winner: ownWinner });
   // A series decided on this tablet is said by its rounds won (operator,
   // 2026-10-10): the last round's score alone names no winner of the bout.
   // A decided series is said by its ROUNDS WON, not confirmed and confirmed
@@ -743,14 +768,13 @@ export function MatchView({
     clockTimeMs: () => clockAtTap(clockState),
     syncEngine,
     onRecorded: moveSequenceOn,
+    onNoFighter: () => setClockError(t('pad.corrections.boutSideMissing')),
   });
   const protestPair: ProtestPairProps = {
     redName,
     blueName,
     count: (corner) =>
-      scoring.protestCountFor(
-        corner === 'red' ? match.redRegistrationId : match.blueRegistrationId,
-      ),
+      scoring.protestCountFor(corner === 'red' ? sideIds.redSideId : sideIds.blueSideId),
     limit: protestRulesOf(scoringConfig.display).limit,
     live: protestLive,
     onTap: (corner) =>
@@ -768,6 +792,8 @@ export function MatchView({
         liceName={match.liceName ?? null}
         redName={redName}
         blueName={blueName}
+        redColour={match.redColour ?? null}
+        blueColour={match.blueColour ?? null}
         config={scoringConfig}
         liceId={match.liceId ?? null}
         backHref={backHref}
@@ -794,6 +820,17 @@ export function MatchView({
           >
             ↻ {unlockBusy ? t('scoring.match.reopening') : t('scoring.match.reopen')}
           </button>
+        </div>
+      )}
+
+      {/* A side is still to come: the bout takes nothing until both Fighters are on it. */}
+      {waitingForFighter && (
+        <div
+          role="status"
+          data-testid="bout-waiting-for-fighter"
+          className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-center text-sm font-bold text-warning"
+        >
+          {t('pad.match.waitingForFighter')}
         </div>
       )}
 
@@ -849,7 +886,7 @@ export function MatchView({
           onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
-          registrationId={match.redRegistrationId}
+          boutSide={redSide}
           fighterName={redName}
           club={match.redClub ?? null}
           score={redScore}
@@ -879,9 +916,12 @@ export function MatchView({
           config={scoringConfig}
           redName={redName}
           blueName={blueName}
-          redRegistrationId={match.redRegistrationId}
-          blueRegistrationId={match.blueRegistrationId}
+          redSideId={sideIds.redSideId}
+          blueSideId={sideIds.blueSideId}
+          redColour={match.redColour ?? null}
+          blueColour={match.blueColour ?? null}
           canScore={canScore}
+          startBlocked={waitingForFighter}
           clockState={boutClock}
           clockLoading={clockLoading}
           clockError={clockError}
@@ -910,7 +950,7 @@ export function MatchView({
           onProtestTap={tapProtest}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
-          registrationId={match.blueRegistrationId}
+          boutSide={blueSide}
           fighterName={blueName}
           club={match.blueClub ?? null}
           score={blueScore}
@@ -938,13 +978,13 @@ export function MatchView({
         apiUrl={apiUrl}
         online={networkStatus === 'online'}
         locked={Boolean(match.lockedAt)}
+        sideMissing={waitingForFighter}
         timerMode={matchFormat.timerMode}
         elapsedMs={clockState?.activeMs ?? 0}
         limitMs={limitMs}
         redName={redName}
         blueName={blueName}
-        redRegistrationId={match.redRegistrationId}
-        blueRegistrationId={match.blueRegistrationId}
+        sides={match}
         nextSequence={nextSequence}
         clockTimeMs={clockTimeMs}
         syncEngine={syncEngine}
@@ -1024,13 +1064,15 @@ export function MatchView({
         <MatchResultOverlay
           redName={redName}
           blueName={blueName}
-          redRegistrationId={match.redRegistrationId}
-          blueRegistrationId={match.blueRegistrationId}
+          redSideId={sideIds.redSideId}
+          blueSideId={sideIds.blueSideId}
+          redColour={match.redColour ?? null}
+          blueColour={match.blueColour ?? null}
           unconfirmed={unconfirmed}
           redScore={shownResult.red}
           blueScore={shownResult.blue}
           rounds={seriesDecided ? series.closed : undefined}
-          winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}
+          winnerSideId={sideIds.winnerSideId}
           endReason={match.endReason}
           resultReason={resultReason}
           bestOf={bestOf}

@@ -20,9 +20,13 @@ interface NeighborTile {
   blueFighterName?: string | null;
   redClub?: string | null;
   blueClub?: string | null;
+  /** A team side's colour chip (`staff.service.ts` `NeighborTile`); null on a Fighter's side. */
+  redColour?: string | null;
+  blueColour?: string | null;
 }
 
-function toInfo(tile: NeighborTile | null | undefined): NextMatchInfo | null {
+/** One tile of `GET /matches/:id/neighbors` as the header shows it. Exported for its test. */
+export function toInfo(tile: NeighborTile | null | undefined): NextMatchInfo | null {
   if (!tile?.id) return null;
   return {
     id: tile.id,
@@ -32,6 +36,8 @@ function toInfo(tile: NeighborTile | null | undefined): NextMatchInfo | null {
     blueName: tile.blueFighterName ?? '',
     redClub: tile.redClub ?? null,
     blueClub: tile.blueClub ?? null,
+    redColour: tile.redColour ?? null,
+    blueColour: tile.blueColour ?? null,
   };
 }
 

@@ -129,13 +129,13 @@ describe('double-elim simulation — podium options', () => {
         // Every fighter who entered the bracket gets exactly one unique place.
         expect(ranking.length).toBe(n);
         expect(ranking.map((e) => e.place)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
-        expect(new Set(ranking.map((e) => e.registrationId)).size).toBe(n);
+        expect(new Set(ranking.map((e) => e.entrantId)).size).toBe(n);
       });
 
       it.each(FIELDS)('crowns the top seed at %i', (n) => {
         // The better seed always wins, so seed 1 must take the title in every
         // configuration — including bronze mode, where the WB final decides it.
-        expect(rankSimulation(simulate(n, opts))[0]?.registrationId).toBe('F1');
+        expect(rankSimulation(simulate(n, opts))[0]?.entrantId).toBe('F1');
       });
     });
   }
@@ -171,13 +171,12 @@ describe('bronze mode end to end', () => {
   it('gives silver to the WB-final loser without them playing again', () => {
     const result = simulate(16, { secondChanceTarget: 'bronze' });
     const ranking = rankSimulation(result);
-    const silver = ranking[1]!.registrationId;
+    const silver = ranking[1]!.entrantId;
     // The runner-up appears in the winners bracket and nowhere in the losers
     // bracket: they took silver outright rather than dropping.
     const lbAppearances = result.rankingSlots.filter(
       (s) =>
-        s.round > result.bracket.wbRounds &&
-        (s.redRegistrationId === silver || s.blueRegistrationId === silver),
+        s.round > result.bracket.wbRounds && (s.redSideId === silver || s.blueSideId === silver),
     );
     expect(lbAppearances).toEqual([]);
   });
@@ -190,7 +189,7 @@ describe('bronze mode end to end', () => {
     expect(bronzeSlot[0]!.status).toBe('completed');
 
     const ranking = rankSimulation(result);
-    expect(ranking[2]!.registrationId).toBe(bronzeSlot[0]!.winnerRegistrationId);
+    expect(ranking[2]!.entrantId).toBe(bronzeSlot[0]!.winnerSideId);
     expect(ranking[2]!.resultKind).toBe('third');
     expect(ranking[3]!.resultKind).toBe('fourth');
   });
@@ -200,15 +199,13 @@ describe('bronze mode end to end', () => {
     const lastRound = result.bracket.wbRounds + result.bracket.lbRounds;
     const survivors = result.rankingSlots
       .filter((s) => s.round === lastRound)
-      .map((s) => s.winnerRegistrationId);
+      .map((s) => s.winnerSideId);
     expect(survivors.length).toBe(2);
 
     const ranking = rankSimulation(result);
     // 3rd and 4th are exactly the two unbeaten-in-the-repechage fighters, and
     // they are distinct places — never a shared bronze.
-    expect([ranking[2]!.registrationId, ranking[3]!.registrationId].sort()).toEqual(
-      [...survivors].sort(),
-    );
+    expect([ranking[2]!.entrantId, ranking[3]!.entrantId].sort()).toEqual([...survivors].sort());
     expect(ranking[2]!.place).toBe(3);
     expect(ranking[3]!.place).toBe(4);
   });
@@ -256,12 +253,12 @@ describe('repechage cutoff end to end', () => {
 
     // The runner-up is the repechage survivor, so they must actually appear in
     // a losers-bracket slot — otherwise the seventh entrant is unaccounted for.
-    const runnerUp = ranking[1]!.registrationId;
+    const runnerUp = ranking[1]!.entrantId;
     const inLosersBracket = result.rankingSlots.some(
       (s) =>
         s.round > result.bracket.wbRounds &&
         s.round <= result.bracket.wbRounds + result.bracket.lbRounds &&
-        (s.redRegistrationId === runnerUp || s.blueRegistrationId === runnerUp),
+        (s.redSideId === runnerUp || s.blueSideId === runnerUp),
     );
     expect(inLosersBracket).toBe(true);
   });

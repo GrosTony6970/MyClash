@@ -68,6 +68,8 @@ function apiPool(overrides: Partial<ApiPoolWithMatches> = {}): ApiPoolWithMatche
         blue_club_abbrev: null,
         red_registration_id: 'r1',
         blue_registration_id: 'r2',
+        red_team_id: null,
+        blue_team_id: null,
         lice_id: 'lice-1',
         scheduled_at: '2026-06-06T14:30:00.000Z',
         roundCode: 'LSW-P1-M1',
@@ -82,6 +84,8 @@ function apiPool(overrides: Partial<ApiPoolWithMatches> = {}): ApiPoolWithMatche
         blue_club_abbrev: 'PAR',
         red_registration_id: 'r1',
         blue_registration_id: 'r3',
+        red_team_id: null,
+        blue_team_id: null,
         lice_id: null,
         scheduled_at: null,
         roundCode: 'LSW-P1-M2',
@@ -99,6 +103,47 @@ describe('poolsToPrint', () => {
       { name: 'Jean Dupont', club: 'LYA' },
       { name: 'Marie Martin', club: null },
       { name: 'Luc Bernard', club: 'PAR' },
+    ]);
+  });
+
+  it('lists two Fighters who share a name as two, by their side keys', () => {
+    const pool = apiPool();
+    pool.matches[1]!.blue_name = 'Jean Dupont';
+    const [printed] = poolsToPrint([pool], LICES, LABELS.unknownReferee);
+    expect(printed?.fighters.map((f) => f.name)).toEqual([
+      'Jean Dupont',
+      'Marie Martin',
+      'Jean Dupont',
+    ]);
+  });
+
+  it("lists a team Pool's teams once each, by team id (its Registration sides are null)", () => {
+    const teamBout = (id: string, red: [string, string], blue: [string, string]) => ({
+      ...apiPool().matches[0]!,
+      id,
+      red_registration_id: null,
+      blue_registration_id: null,
+      red_team_id: red[0],
+      red_name: red[1],
+      red_club_abbrev: null,
+      blue_team_id: blue[0],
+      blue_name: blue[1],
+    });
+    const lyon: [string, string] = ['team-lyon', 'Lyon Blades'];
+    const paris: [string, string] = ['team-paris', 'Paris Rapiers'];
+    const metz: [string, string] = ['team-metz', 'Metz Sabres'];
+    const pool = apiPool({
+      matches: [
+        teamBout('m1', lyon, paris),
+        teamBout('m2', lyon, metz),
+        teamBout('m3', paris, metz),
+      ],
+    });
+    const [printed] = poolsToPrint([pool], LICES, LABELS.unknownReferee);
+    expect(printed?.fighters).toEqual([
+      { name: 'Lyon Blades', club: null },
+      { name: 'Paris Rapiers', club: null },
+      { name: 'Metz Sabres', club: null },
     ]);
   });
 
@@ -139,11 +184,34 @@ describe('poolsToPrint', () => {
 const SINGLE_ELIM_2 = { bracketSize: 2, wbRounds: null, lbRounds: null };
 const SINGLE_ELIM_4 = { bracketSize: 4, wbRounds: null, lbRounds: null };
 
+/** A bracket slot as the bracket read sends it: no club, no piste, no clock, no referee. */
+function bracketSlot(over: Partial<ApiBracketSlot> = {}): ApiBracketSlot {
+  return {
+    round: 1,
+    position: 1,
+    roundCode: 'LSW-B-F-M1',
+    redFighterName: 'A',
+    blueFighterName: 'B',
+    redClubAbbrev: null,
+    blueClubAbbrev: null,
+    liceId: null,
+    scheduledAt: null,
+    referees: [],
+    ...over,
+  };
+}
+
 describe('bracketToPrint', () => {
   const slots: ApiBracketSlot[] = [
-    { round: 2, position: 1, redFighterName: 'A', blueFighterName: null, roundCode: 'F' },
-    { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D', roundCode: 'SF2' },
-    { round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'SF1' },
+    bracketSlot({ round: 2, position: 1, blueFighterName: null, roundCode: 'F' }),
+    bracketSlot({
+      round: 1,
+      position: 2,
+      redFighterName: 'C',
+      blueFighterName: 'D',
+      roundCode: 'SF2',
+    }),
+    bracketSlot({ round: 1, position: 1, roundCode: 'SF1' }),
   ];
 
   it('groups by round, ordered, with slots sorted by position', () => {
@@ -173,14 +241,8 @@ describe('bracketToPrint', () => {
   it('carries a slot’s planned start through, and null when it has none', () => {
     const rounds = bracketToPrint(
       [
-        {
-          round: 1,
-          position: 1,
-          redFighterName: 'A',
-          blueFighterName: 'B',
-          scheduledAt: '2026-06-06T16:00:00.000Z',
-        },
-        { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D' },
+        bracketSlot({ scheduledAt: '2026-06-06T16:00:00.000Z' }),
+        bracketSlot({ position: 2, redFighterName: 'C', blueFighterName: 'D' }),
       ],
       SINGLE_ELIM_2,
       LICES,
@@ -192,30 +254,24 @@ describe('bracketToPrint', () => {
     expect(rounds[0]?.matches[1]?.scheduledAt).toBeNull();
   });
 
-  it('falls back to a positional code when the slot carries none', () => {
+  // The pack printed `R1-3` for every bracket bout: the bracket read sent no code, so the
+  // positional fallback was the only path that ran. A bout prints the code the API built.
+  it('prints the bout code the bracket read sends', () => {
     const rounds = bracketToPrint(
-      [{ round: 1, position: 3, redFighterName: 'X', blueFighterName: 'Y' }],
-      SINGLE_ELIM_2,
+      [bracketSlot({ round: 1, position: 3, roundCode: 'LSW-B-QF-M3' })],
+      { bracketSize: 8, wbRounds: null, lbRounds: null },
       LICES,
-      () => 'Final',
+      () => 'Quarter-final',
       LABELS.unknownReferee,
     );
-    expect(rounds[0]?.matches[0]?.roundCode).toBe('R1-3');
+    expect(rounds[0]?.matches[0]?.roundCode).toBe('LSW-B-QF-M3');
   });
 
   // Ruling 891: the bracket read sends each bout's referees, and the pack printed none, so a
   // bracket scoresheet and its piste row always said "Not assigned".
   it('prints a bracket bout’s referees, and "Unknown referee" for a blank name', () => {
     const rounds = bracketToPrint(
-      [
-        {
-          round: 1,
-          position: 1,
-          redFighterName: 'A',
-          blueFighterName: 'B',
-          referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }],
-        },
-      ],
+      [bracketSlot({ referees: [{ displayName: 'Paul Contrequarte' }, { displayName: '  ' }] })],
       SINGLE_ELIM_2,
       LICES,
       () => 'Final',
@@ -228,7 +284,7 @@ describe('bracketToPrint', () => {
 describe('printPackHtml', () => {
   const pools = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
   const bracketRounds = bracketToPrint(
-    [{ round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'F' }],
+    [bracketSlot({ roundCode: 'F' })],
     SINGLE_ELIM_2,
     LICES,
     () => 'Finale',

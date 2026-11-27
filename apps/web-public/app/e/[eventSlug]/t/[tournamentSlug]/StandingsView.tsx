@@ -19,11 +19,17 @@
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { accentClassFor, accentInkClassFor, standingsColumnLabel } from '@myclash/ui';
+import {
+  TournamentColorDot,
+  accentClassFor,
+  accentInkClassFor,
+  standingsColumnLabel,
+} from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
 import { SelfRowFocus } from './SelfRowFocus';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
 import type { Pool } from './page';
 
 type Mode = 'overall' | 'by-pool';
@@ -47,31 +53,13 @@ function formatStat(c: OverallColumn, value: unknown): string {
   return String(value);
 }
 
-interface DecidingTiebreak {
-  key: string;
-  direction: 'asc' | 'desc';
-  mine: number;
-  theirs: number;
-}
-
-interface OverallRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: string;
-  stats: Record<string, number | string>;
-  /** The chain key that separated this fighter from the one above (C1). */
-  decidingTiebreak?: DecidingTiebreak | null;
-}
-
 interface OverallResponse {
   rulesetCode: string;
   rulesetVersion: string;
   /** Human ruleset name + display score formula, for the derivation panel. */
   ruleset?: { label: string; scoreFormula: string | null; contentFingerprint?: string | null };
   columns: OverallColumn[];
-  rows: OverallRow[];
+  rows: PoolStandingsRow[];
 }
 
 interface Props {
@@ -85,6 +73,11 @@ interface Props {
   bracketSize?: number | null;
   /** Optional tournament brand color token for the active toggle pill. */
   colorToken?: string | null;
+  /**
+   * Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`): every table
+   * heads its name column Team, then. Never guessed from the rows: an empty Pool has none.
+   */
+  teams: boolean;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -115,6 +108,7 @@ export function StandingsView({
   pools,
   bracketSize,
   colorToken,
+  teams,
   highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
@@ -213,6 +207,7 @@ export function StandingsView({
         <OverallTable
           data={overall}
           bracketSize={bracketSize ?? null}
+          teams={teams}
           highlightRegistrationId={highlightRegistrationId}
         />
       ) : (
@@ -224,6 +219,7 @@ export function StandingsView({
               poolName={pool.name}
               initialStandings={pool.standings}
               tournamentId={tournamentId}
+              teams={teams}
               highlightRegistrationId={highlightRegistrationId}
             />
           ))}
@@ -239,7 +235,7 @@ export function StandingsView({
 function derivationSentence(
   t: Translator,
   data: OverallResponse,
-  row: OverallRow,
+  row: PoolStandingsRow,
   idx: number,
 ): string {
   if (idx === 0) return t('publicApp.tournament.standings.derivationLeader');
@@ -259,10 +255,12 @@ function derivationSentence(
 function OverallTable({
   data,
   bracketSize,
+  teams,
   highlightRegistrationId,
 }: {
   data: OverallResponse | null;
   bracketSize: number | null;
+  teams: boolean;
   highlightRegistrationId?: string | null;
 }) {
   const { t } = useI18n();
@@ -306,7 +304,9 @@ function OverallTable({
           <tr>
             <th className="w-12 px-3 py-2 text-center font-semibold">#</th>
             <th className="px-3 py-2 text-left font-semibold">
-              {t('publicApp.tournament.standings.colFighter')}
+              {teams
+                ? t('publicApp.tournament.standings.colTeam')
+                : t('publicApp.tournament.standings.colFighter')}
             </th>
             {orderedColumns.map((c) => (
               <th
@@ -326,11 +326,10 @@ function OverallTable({
           {data.rows.map((row, idx) => {
             const isCut =
               cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < data.rows.length - 1;
-            const isYou =
-              !!highlightRegistrationId && row.registrationId === highlightRegistrationId;
-            const isExpanded = expanded.has(row.registrationId);
+            const isYou = !!highlightRegistrationId && row.entrantId === highlightRegistrationId;
+            const isExpanded = expanded.has(row.entrantId);
             return (
-              <Fragment key={row.registrationId}>
+              <Fragment key={row.entrantId}>
                 <tr
                   data-self-row={isYou ? '' : undefined}
                   className={[
@@ -348,7 +347,7 @@ function OverallTable({
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => toggle(row.registrationId)}
+                      onClick={() => toggle(row.entrantId)}
                       aria-expanded={isExpanded}
                       className="flex w-full items-center gap-1.5 text-left"
                     >
@@ -369,6 +368,8 @@ function OverallTable({
                             isYou ? 'font-bold text-accent' : 'text-foreground',
                           ].join(' ')}
                         >
+                          {/* A team's colour chip by its name (call 6); a Fighter has none. */}
+                          <TournamentColorDot color={row.colour} size="em" />
                           <span className="truncate">{row.displayName}</span>
                           {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                         </span>

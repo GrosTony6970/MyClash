@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { scheduleMatches, type SchedulerMatch, type SchedulerLice } from './match-scheduler';
+import {
+  scheduleMatches,
+  schedulerSides,
+  type SchedulerMatch,
+  type SchedulerLice,
+} from './match-scheduler';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -8,8 +13,8 @@ const START = '2026-04-25T09:00:00.000Z';
 function makeMatches(count: number, fightersPerMatch = 2): SchedulerMatch[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `match-${i + 1}`,
-    redRegistrationId: `fighter-${((i * fightersPerMatch) % 20) + 1}`,
-    blueRegistrationId: `fighter-${((i * fightersPerMatch + 1) % 20) + 2}`,
+    redSideId: `fighter-${((i * fightersPerMatch) % 20) + 1}`,
+    blueSideId: `fighter-${((i * fightersPerMatch + 1) % 20) + 2}`,
     estimatedDurationMinutes: 5,
   }));
 }
@@ -59,8 +64,8 @@ describe('scheduleMatches', () => {
     // with one break in the middle of a Pool's queue. These two bouts are not a
     // Pool's, so no break falls between them however long the rest is set.
     const matches: SchedulerMatch[] = [
-      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
-      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3', estimatedDurationMinutes: 5 },
+      { id: 'm1', redSideId: 'f1', blueSideId: 'f2', estimatedDurationMinutes: 5 },
+      { id: 'm2', redSideId: 'f1', blueSideId: 'f3', estimatedDurationMinutes: 5 },
     ];
 
     const result = scheduleMatches(matches, makeLices(2), {
@@ -78,8 +83,8 @@ describe('scheduleMatches', () => {
     // The floor the rest rule did NOT take with it. Set to zero so nothing else
     // could be holding the second bout back.
     const matches: SchedulerMatch[] = [
-      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
-      { id: 'm2', redRegistrationId: 'f3', blueRegistrationId: 'f1', estimatedDurationMinutes: 5 },
+      { id: 'm1', redSideId: 'f1', blueSideId: 'f2', estimatedDurationMinutes: 5 },
+      { id: 'm2', redSideId: 'f3', blueSideId: 'f1', estimatedDurationMinutes: 5 },
     ];
 
     const result = scheduleMatches(matches, makeLices(2), {
@@ -103,8 +108,8 @@ describe('scheduleMatches', () => {
     // so the no-double-booking floor can never be what moved a bout.
     const matches: SchedulerMatch[] = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
       id: `m${n}`,
-      redRegistrationId: `red${n}`,
-      blueRegistrationId: `blue${n}`,
+      redSideId: `red${n}`,
+      blueSideId: `blue${n}`,
       estimatedDurationMinutes: 5,
       poolId: 'pool-a',
       matchNumberLabel: `M${n}`,
@@ -141,8 +146,8 @@ describe('scheduleMatches', () => {
     // Each match has unique fighters so rest constraints never block scheduling
     const matches: SchedulerMatch[] = Array.from({ length: 28 }, (_, i) => ({
       id: `match-${i + 1}`,
-      redRegistrationId: `fighter-${i * 2 + 1}`,
-      blueRegistrationId: `fighter-${i * 2 + 2}`,
+      redSideId: `fighter-${i * 2 + 1}`,
+      blueSideId: `fighter-${i * 2 + 2}`,
       estimatedDurationMinutes: 5,
     }));
     const lices = makeLices(4);
@@ -226,43 +231,43 @@ describe('scheduleMatches', () => {
         {
           id: 'a1',
           poolId: 'pool-A',
-          redRegistrationId: 'f1',
-          blueRegistrationId: 'f2',
+          redSideId: 'f1',
+          blueSideId: 'f2',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'a2',
           poolId: 'pool-A',
-          redRegistrationId: 'f3',
-          blueRegistrationId: 'f4',
+          redSideId: 'f3',
+          blueSideId: 'f4',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'a3',
           poolId: 'pool-A',
-          redRegistrationId: 'f1',
-          blueRegistrationId: 'f3',
+          redSideId: 'f1',
+          blueSideId: 'f3',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'b1',
           poolId: 'pool-B',
-          redRegistrationId: 'f5',
-          blueRegistrationId: 'f6',
+          redSideId: 'f5',
+          blueSideId: 'f6',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'b2',
           poolId: 'pool-B',
-          redRegistrationId: 'f7',
-          blueRegistrationId: 'f8',
+          redSideId: 'f7',
+          blueSideId: 'f8',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'b3',
           poolId: 'pool-B',
-          redRegistrationId: 'f5',
-          blueRegistrationId: 'f7',
+          redSideId: 'f5',
+          blueSideId: 'f7',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -301,16 +306,16 @@ describe('scheduleMatches', () => {
           id,
           poolId: 'pool-A',
           poolSortOrder: 0,
-          redRegistrationId: `a-f${i * 2 + 1}`,
-          blueRegistrationId: `a-f${i * 2 + 2}`,
+          redSideId: `a-f${i * 2 + 1}`,
+          blueSideId: `a-f${i * 2 + 2}`,
           estimatedDurationMinutes: 5,
         })),
         ...['b1', 'b2', 'b3', 'b4', 'b5'].map((id, i) => ({
           id,
           poolId: 'pool-B',
           poolSortOrder: 1,
-          redRegistrationId: `b-f${i * 2 + 1}`,
-          blueRegistrationId: `b-f${i * 2 + 2}`,
+          redSideId: `b-f${i * 2 + 1}`,
+          blueSideId: `b-f${i * 2 + 2}`,
           estimatedDurationMinutes: 5,
         })),
       ];
@@ -337,32 +342,32 @@ describe('scheduleMatches', () => {
           id: 'p1',
           poolId: 'P1',
           poolSortOrder: 0,
-          redRegistrationId: 'p1a',
-          blueRegistrationId: 'p1b',
+          redSideId: 'p1a',
+          blueSideId: 'p1b',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'p2',
           poolId: 'P2',
           poolSortOrder: 1,
-          redRegistrationId: 'p2a',
-          blueRegistrationId: 'p2b',
+          redSideId: 'p2a',
+          blueSideId: 'p2b',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'p3',
           poolId: 'P3',
           poolSortOrder: 2,
-          redRegistrationId: 'p3a',
-          blueRegistrationId: 'p3b',
+          redSideId: 'p3a',
+          blueSideId: 'p3b',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'p4',
           poolId: 'P4',
           poolSortOrder: 3,
-          redRegistrationId: 'p4a',
-          blueRegistrationId: 'p4b',
+          redSideId: 'p4a',
+          blueSideId: 'p4b',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -397,32 +402,32 @@ describe('scheduleMatches', () => {
           id: 'a',
           poolId: 'P',
           matchNumberLabel: 'M10',
-          redRegistrationId: 'fa',
-          blueRegistrationId: 'fb',
+          redSideId: 'fa',
+          blueSideId: 'fb',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'b',
           poolId: 'P',
           matchNumberLabel: 'M1',
-          redRegistrationId: 'fc',
-          blueRegistrationId: 'fd',
+          redSideId: 'fc',
+          blueSideId: 'fd',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'c',
           poolId: 'P',
           matchNumberLabel: 'M2',
-          redRegistrationId: 'fe',
-          blueRegistrationId: 'ff',
+          redSideId: 'fe',
+          blueSideId: 'ff',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'd',
           poolId: 'P',
           matchNumberLabel: 'M19',
-          redRegistrationId: 'fg',
-          blueRegistrationId: 'fh',
+          redSideId: 'fg',
+          blueSideId: 'fh',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -448,32 +453,32 @@ describe('scheduleMatches', () => {
           id: 'm1',
           poolId: 'P',
           matchNumberLabel: 'M1',
-          redRegistrationId: 'rem',
-          blueRegistrationId: 'ant',
+          redSideId: 'rem',
+          blueSideId: 'ant',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm2',
           poolId: 'P',
           matchNumberLabel: 'M2',
-          redRegistrationId: 'val',
-          blueRegistrationId: 'cha',
+          redSideId: 'val',
+          blueSideId: 'cha',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm3',
           poolId: 'P',
           matchNumberLabel: 'M3',
-          redRegistrationId: 'ale',
-          blueRegistrationId: 'max',
+          redSideId: 'ale',
+          blueSideId: 'max',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm19',
           poolId: 'P',
           matchNumberLabel: 'M19',
-          redRegistrationId: 'max',
-          blueRegistrationId: 'val',
+          redSideId: 'max',
+          blueSideId: 'val',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -498,26 +503,26 @@ describe('scheduleMatches', () => {
       const matches: SchedulerMatch[] = [
         {
           id: 'm1',
-          redRegistrationId: 'f1',
-          blueRegistrationId: 'f2',
+          redSideId: 'f1',
+          blueSideId: 'f2',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm2',
-          redRegistrationId: 'f3',
-          blueRegistrationId: 'f4',
+          redSideId: 'f3',
+          blueSideId: 'f4',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm3',
-          redRegistrationId: 'f5',
-          blueRegistrationId: 'f6',
+          redSideId: 'f5',
+          blueSideId: 'f6',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'm4',
-          redRegistrationId: 'f7',
-          blueRegistrationId: 'f8',
+          redSideId: 'f7',
+          blueSideId: 'f8',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -539,15 +544,15 @@ describe('scheduleMatches', () => {
         {
           id: 'a1',
           poolId: 'pool-A',
-          redRegistrationId: 'f1',
-          blueRegistrationId: 'f2',
+          redSideId: 'f1',
+          blueSideId: 'f2',
           estimatedDurationMinutes: 5,
         },
         {
           id: 'a2',
           poolId: 'pool-A',
-          redRegistrationId: 'f3',
-          blueRegistrationId: 'f4',
+          redSideId: 'f3',
+          blueSideId: 'f4',
           estimatedDurationMinutes: 5,
         },
       ];
@@ -576,8 +581,8 @@ function bracketMatches(size: number): SchedulerMatch[] {
     for (let p = 1; p <= count; p++) {
       out.push({
         id: `R${r}P${p}`,
-        redRegistrationId: `f${f++}`,
-        blueRegistrationId: `f${f++}`,
+        redSideId: `f${f++}`,
+        blueSideId: `f${f++}`,
         estimatedDurationMinutes: 5,
         bracketRound: r,
         bracketPosition: p,
@@ -668,5 +673,67 @@ describe('scheduleMatches — bracket-branch affinity', () => {
         new Date(busyUntil).getTime(),
       );
     }
+  });
+
+  // Pinned before the side key reached the scheduler (team Tournaments, 1b-1). A bracket
+  // placeholder's sides are not known yet (`bracket-placeholder-match.ts`): its null ids share
+  // one busy key, so two placeholder bouts never run at once, even on two free pistes.
+  it('runs two bracket placeholders one after the other: their unknown sides share one key', () => {
+    const placeholder = (id: string): SchedulerMatch => ({
+      id,
+      ...schedulerSides({
+        red_registration_id: null,
+        blue_registration_id: null,
+        red_team_id: null,
+        blue_team_id: null,
+      }),
+      estimatedDurationMinutes: 5,
+    });
+    const result = scheduleMatches([placeholder('qf-1'), placeholder('qf-2')], makeLices(2), {
+      startTime: START,
+      poolAffinity: 'off',
+      midRestMinutes: 0,
+      transitionMinutes: 0,
+    });
+    const at = (id: string) => result.scheduledMatches.find((sm) => sm.matchId === id)?.scheduledAt;
+    expect(at('qf-1')).toBe(START);
+    expect(at('qf-2')).toBe('2026-04-25T09:05:00.000Z');
+  });
+
+  // A team bout's Registration ids are null (0282). Keyed by Registration, Lyon v Paris and
+  // Nantes v Lille would share the unknown key and run one after the other on two free pistes.
+  it('runs two team bouts of four teams side by side on two pistes', () => {
+    const teamBout = (id: string, red: string, blue: string): SchedulerMatch => ({
+      id,
+      ...schedulerSides({
+        red_registration_id: null,
+        blue_registration_id: null,
+        red_team_id: red,
+        blue_team_id: blue,
+      }),
+      estimatedDurationMinutes: 5,
+    });
+    const result = scheduleMatches(
+      [teamBout('m-1', 'team-lyon', 'team-paris'), teamBout('m-2', 'team-nantes', 'team-lille')],
+      makeLices(2),
+      { startTime: START, poolAffinity: 'off', midRestMinutes: 0, transitionMinutes: 0 },
+    );
+    expect(result.scheduledMatches.map((sm) => [sm.matchId, sm.liceId, sm.scheduledAt])).toEqual([
+      ['m-1', 'lice-1', START],
+      ['m-2', 'lice-2', START],
+    ]);
+  });
+
+  it('keys an individual side by its Registration, and refuses a side that names both', () => {
+    const sides = {
+      red_registration_id: 'reg-anna',
+      blue_registration_id: 'reg-ben',
+      red_team_id: null,
+      blue_team_id: null,
+    };
+    expect(schedulerSides(sides)).toEqual({ redSideId: 'reg-anna', blueSideId: 'reg-ben' });
+    expect(() => schedulerSides({ ...sides, red_team_id: 'team-lyon' })).toThrow(
+      'a side is either a Registration or a Team',
+    );
   });
 });

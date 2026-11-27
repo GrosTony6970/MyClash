@@ -101,7 +101,19 @@ describe('buildSubmission', () => {
         matches: [match({ id: 'm1', winnerPersonId: 'p2' })],
       },
     ],
+    teamTournaments: [],
   };
+
+  it('names each team Tournament left out, apart from the excluded matches', () => {
+    const result = buildSubmission({ ...baseInput, teamTournaments: ['Team A', 'Team B'] });
+    expect(result.warnings.find((w) => w.code === 'tournament_team_skipped')).toEqual({
+      code: 'tournament_team_skipped',
+      count: 2,
+      samples: ['Team A', 'Team B'],
+    });
+    expect(result.counts.excludedMatches).toBe(0);
+    expect(result.warnings.some((w) => w.code === 'matches_excluded')).toBe(false);
+  });
 
   it('writes no header row, matching the exporter HEMA Ratings names', () => {
     // HEMA Scorecard's hemaRatings_create*Csv both fopen and go straight into

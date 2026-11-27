@@ -174,8 +174,9 @@ export interface BuildTimelineArgs {
   protests: MatchProtest[];
   redName: string;
   blueName: string;
-  redRegId: string;
-  blueRegId: string;
+  /** Each side's key: its Registration id or its team id, null while not known. */
+  redSideId: string | null;
+  blueSideId: string | null;
   t: (k: string, p?: Record<string, string>) => string;
   config: TournamentScoringConfig;
 }
@@ -186,8 +187,8 @@ export function buildUnifiedTimeline({
   protests,
   redName,
   blueName,
-  redRegId,
-  blueRegId,
+  redSideId,
+  blueSideId,
   t,
   config,
 }: BuildTimelineArgs): UnifiedEvent[] {
@@ -247,8 +248,7 @@ export function buildUnifiedTimeline({
   const penaltyRows: UnifiedEventDraft[] = penalties
     .filter((p) => !p.voided)
     .map((p) => {
-      const side: 'red' | 'blue' | null =
-        p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
+      const side = rowSide(p, redSideId, blueSideId);
       const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
       // A direct card carries no ruleset entry, so it has neither short_name
       // nor reason — name it rather than rendering a blank cell.
@@ -278,8 +278,41 @@ export function buildUnifiedTimeline({
   const numbered: UnifiedEvent[] = ascendingWithNumbers([...exchangeRows, ...penaltyRows]);
   const protestRows = protests
     .filter((p) => !p.voided)
-    .map((p) => protestRow(p, { redName, blueName, redRegId, blueRegId, t, config }));
+    .map((p) => protestRow(p, { redName, blueName, redSideId, blueSideId, t, config }));
   return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
+}
+
+/** A card or a protest row: it names its side by its Fighter's Registration or by its team. */
+export interface SideRow {
+  registration_id?: string | null;
+  team_id?: string | null;
+}
+
+/**
+ * Is this row (a card, a protest) of this side? A row's side key is its Fighter's Registration,
+ * or its team: it names exactly one (0282). A side key is null while the side waits for a
+ * Fighter: null is nobody, so it matches no row, and a row that names no side is nobody's. A
+ * bare `===` read `null === null` as "this side", and put every team card under both Fighters.
+ *
+ * The rule of `sideKey` (`@myclash/types/side-key`), written here and not imported: this file
+ * ships on every page of the public site, and the import cost that page load more than its budget
+ * had left.
+ */
+export function isRowOfSide(row: SideRow, sideId: string | null): boolean {
+  return sideId !== null && (row.registration_id ?? row.team_id ?? null) === sideId;
+}
+
+/**
+ * Whose row this is (a card, a protest): red's, blue's, or neither. `redSideId` and `blueSideId`
+ * are the bout's side keys (a Registration id or a team id), as `isRowOfSide` reads them.
+ */
+export function rowSide(
+  row: SideRow,
+  redSideId: string | null,
+  blueSideId: string | null,
+): 'red' | 'blue' | null {
+  if (isRowOfSide(row, redSideId)) return 'red';
+  return isRowOfSide(row, blueSideId) ? 'blue' : null;
 }
 
 /** A protest as a row: the fighter, the word, an icon. No points and no number. */
@@ -287,8 +320,7 @@ function protestRow(
   p: MatchProtest,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
-  const side: 'red' | 'blue' | null =
-    p.registration_id === a.redRegId ? 'red' : p.registration_id === a.blueRegId ? 'blue' : null;
+  const side = rowSide(p, a.redSideId, a.blueSideId);
   return {
     id: `pro-${p.id}`,
     kind: 'protest',

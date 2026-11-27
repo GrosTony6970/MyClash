@@ -22,6 +22,7 @@ import {
 import { LeaguesController } from '../modules/leagues/leagues.controller';
 import { OrganizationsController } from '../modules/organizations/organizations.controller';
 import { PersonsController } from '../modules/persons/persons.controller';
+import { TeamsController } from '../modules/teams/teams.controller';
 import { WorkshopInstructorDetailsController } from '../modules/workshops/workshop-instructor-details.controller';
 import { WorkshopsController } from '../modules/workshops/workshops.controller';
 import { myPhotoDoor, photoDoor } from '../modules/photos/testing/photo-door';
@@ -45,6 +46,12 @@ type Door = (req: never) => Promise<unknown>;
 const any = anyService;
 const orgsPass = { assertAnyOrgRole: async () => undefined, assertOrgRole: async () => undefined };
 const rosterDb = mockSupabase({ events: { rows: [{ id: EVENT, organization_id: ORG }] } });
+/** A team route checks the caller on its Tournament before the read: a Tournament of EVENT. */
+const TOURNAMENT = '44444444-4444-4444-8444-444444444444';
+const tournamentDb = mockSupabase({
+  events: { rows: [{ id: EVENT, organization_id: ORG }] },
+  tournaments: { rows: [{ id: TOURNAMENT, event_id: EVENT }] },
+});
 
 const events = () => new EventsController(any(), authAs(), any(), any(), any(), any());
 const persons = () =>
@@ -93,6 +100,18 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
     LOGO_10,
     'file',
     (req) => events().uploadTournamentLogo(EVENT, req),
+  ],
+  [
+    'POST tournaments/:tournamentId/teams/:teamId/logo',
+    10 * MIB,
+    LOGO_10,
+    'file',
+    (req) =>
+      new TeamsController(any(), authAs(tournamentDb.service), orgsPass as never).uploadLogo(
+        TOURNAMENT,
+        UPLOAD_ID,
+        req,
+      ),
   ],
   [
     'POST fighters/me/photo',
@@ -182,8 +201,8 @@ const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
 ];
 
 describe('each upload route reads under its own limit', () => {
-  it('names all seventeen routes', () => {
-    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(17);
+  it('names all eighteen routes', () => {
+    expect(new Set(ROUTES.map(([route]) => route)).size).toBe(18);
   });
 
   it.each(ROUTES)(

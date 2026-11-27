@@ -28,6 +28,7 @@ import type {
   ArchiveRow,
   ArchiveTableSpec,
   CollectRule,
+  CollectRules,
   IdMapName,
   JsonIdPath,
   SharedFkColumn,
@@ -107,6 +108,7 @@ export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
   tournament_id: { map: 'tournaments', target: 'tournament' },
   competition_id: { map: 'tournaments' },
   registration_id: { map: 'registrations' },
+  team_id: { map: 'teams' },
   red_registration_id: { map: 'registrations' },
   blue_registration_id: { map: 'registrations' },
   winner_registration_id: { map: 'registrations' },
@@ -114,6 +116,13 @@ export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
   replacement_registration_id: { map: 'registrations' },
   registration_a_id: { map: 'registrations' },
   registration_b_id: { map: 'registrations' },
+  // The Team twin of each side link above (0282).
+  red_team_id: { map: 'teams' },
+  blue_team_id: { map: 'teams' },
+  winner_team_id: { map: 'teams' },
+  forfeiting_team_id: { map: 'teams' },
+  team_a_id: { map: 'teams' },
+  team_b_id: { map: 'teams' },
   // `swiss_rounds.bye_registration_id`. Missed when the Swiss tables were
   // registered, and silently: the FK points at `registrations(id)` and the
   // SOURCE row still exists, so the constraint is satisfied and the restore
@@ -150,7 +159,11 @@ const TABLES = {
     key: 'persons',
     collect: {
       event: EVENT_SCOPED,
-      tournament: { from: 'registrations', local: 'id', parent: 'person_id' },
+      // A team Tournament names its people on its team slots, not on Registrations (0281).
+      tournament: [
+        { from: 'registrations', local: 'id', parent: 'person_id' },
+        { from: 'team_slots', local: 'id', parent: 'person_id' },
+      ],
     },
     // A restored copy is a fresh event: nobody has claimed its people yet, and
     // inheriting a claim would hand the copy's rows to whoever claimed the
@@ -274,6 +287,13 @@ const TABLES = {
     collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
     idMap: 'registrations',
   },
+  // A team Tournament's entrants (0281): a team before its slots, its persons before both.
+  teams: {
+    key: 'teams',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+    idMap: 'teams',
+  },
+  team_slots: { key: 'teamSlots', collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT } },
 
   phases: {
     key: 'phases',
@@ -413,11 +433,13 @@ const TABLES = {
     // Read off fighter-bouts.ts `matchSnapshot`. The two `*_match_state` blobs
     // are the same snapshot shape, so both carry the winner; 0186 added the
     // post-state so a void can tell whether the match still holds the result
-    // the record produced.
+    // the record produced. The winner is a Registration or a team (0282).
     json: [
       { path: 'downstream_match_ids[]', map: 'matches' },
       { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
       { path: 'resulting_match_state.winner_registration_id', map: 'registrations' },
+      { path: 'previous_match_state.winner_team_id', map: 'teams' },
+      { path: 'resulting_match_state.winner_team_id', map: 'teams' },
     ],
     // The status a forfeit found was kept on its row until 0241: an archive made before it
     // carries the column, and an insert naming a column the table no longer has is refused
@@ -528,7 +550,7 @@ export const JSON_ID_PATHS = Object.fromEntries(
 export function collectRuleFor(
   table: ArchiveTableName,
   scope: 'event' | 'tournament',
-): CollectRule | 'omit' {
+): CollectRules | 'omit' {
   return ARCHIVE_TABLES[table]!.collect[scope];
 }
 

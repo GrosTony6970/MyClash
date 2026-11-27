@@ -35,7 +35,7 @@ import type { AfterblowValuation } from '@myclash/types';
 /** What a ruleset needs to score a set of fighters over a set of finished bouts. */
 export interface ScorePoolFightersInput {
   /** Every fighter to return a score for, including those who fought nothing. */
-  registrationIds: string[];
+  entrantIds: string[];
   /** Finished bouts only. Each carries its own exchanges. */
   completedMatches: ScoredMatch[];
   /** The TOURNAMENT's afterblow mode. See `computeMatchScore`. */

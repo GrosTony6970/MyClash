@@ -67,6 +67,7 @@ function rowWrite(db: ReturnType<typeof setup>['db']) {
 const CLOCK_ALONE = {
   status: 'paused',
   winner_registration_id: null,
+  winner_team_id: null,
   end_reason: null,
   ended_at: null,
   locked_at: null,

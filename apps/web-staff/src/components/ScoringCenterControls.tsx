@@ -47,7 +47,7 @@ import { useTimeUpCue } from '../hooks/useTimeUpCue';
 import type { UndoLast } from '../hooks/useUndoLast';
 import { PAD_KEYS } from '../lib/pad-keys';
 import { isDoubleLoss } from './is-double-loss';
-import { blackCardLossRegistrationId } from './black-card-loss';
+import { blackCardLoserName } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
 import { CornerDot } from './CornerDot';
 
@@ -64,9 +64,15 @@ interface ScoringCenterControlsProps {
   config: TournamentScoringConfig;
   redName: string;
   blueName: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
+  /** Each side's key, a Fighter's Registration or a team: the history and the banner place by it. */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** A team side's colour, for its chip on the history rows (call 6); null on a Fighter's side. */
+  redColour: string | null;
+  blueColour: string | null;
   canScore: boolean;
+  /** The bout waits for a Fighter: Start is greyed. `onClockAction` refuses it too, for the keys. */
+  startBlocked: boolean;
   /** Current clock state. */
   clockState: ClockState | null;
   /** Loading + error from the clock action POST. */
@@ -146,9 +152,12 @@ export function ScoringCenterControls({
   config,
   redName,
   blueName,
-  redRegistrationId,
-  blueRegistrationId,
+  redSideId,
+  blueSideId,
+  redColour,
+  blueColour,
   canScore,
+  startBlocked,
   clockState,
   clockLoading,
   clockError,
@@ -240,14 +249,15 @@ export function ScoringCenterControls({
   const doubleLoss = isDoubleLoss(matchStatus, endReason);
 
   // Black card closed the match (per the penalty ruleset). Name the carded
-  // fighter so the banner reads "Black card — {fighter}".
-  const blackCardLoserRegId = blackCardLossRegistrationId(endReason, activePenalties);
-  const blackCardLoserName =
-    blackCardLoserRegId === redRegistrationId
-      ? redName
-      : blackCardLoserRegId === blueRegistrationId
-        ? blueName
-        : null;
+  // side, a Fighter or a team, so the banner reads "Black card — {side}".
+  const blackCardLoser = blackCardLoserName({
+    endReason,
+    penalties: activePenalties,
+    redSideId,
+    blueSideId,
+    redName,
+    blueName,
+  });
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
     if (doubleCount >= maxDoubles) return 'bg-danger/15 text-danger border border-danger';
@@ -268,8 +278,8 @@ export function ScoringCenterControls({
         protests: [...activeProtests, ...pendingProtests],
         redName,
         blueName,
-        redRegId: redRegistrationId,
-        blueRegId: blueRegistrationId,
+        redSideId,
+        blueSideId,
         t,
         config,
       }),
@@ -282,8 +292,8 @@ export function ScoringCenterControls({
       pendingProtests,
       redName,
       blueName,
-      redRegistrationId,
-      blueRegistrationId,
+      redSideId,
+      blueSideId,
       t,
       config,
     ],
@@ -314,14 +324,12 @@ export function ScoringCenterControls({
           ruleset; the carded fighter forfeits, the opponent wins. Page-black
           edged in ink, so it literally reads as a black card against the
           lighter surface it sits on. */}
-      {blackCardLoserName && (
+      {blackCardLoser && (
         <div className="w-full rounded-xl border-2 border-foreground bg-background px-4 py-3 text-center">
           <p className="text-lg font-black uppercase tracking-widest text-foreground">
             {t('scoring.liveMatch.blackCard')}
           </p>
-          <p className="mt-1 text-xs font-semibold text-foreground-secondary">
-            {blackCardLoserName}
-          </p>
+          <p className="mt-1 text-xs font-semibold text-foreground-secondary">{blackCardLoser}</p>
         </div>
       )}
 
@@ -421,7 +429,11 @@ export function ScoringCenterControls({
               // turn, so `data-action` is the only reliable way to say WHICH
               // transition was just taken.
               data-action={primary.action}
-              disabled={clockLoading || (primary.action === 'reopen' && pressesWaiting)}
+              disabled={
+                clockLoading ||
+                (primary.action === 'reopen' && pressesWaiting) ||
+                (primary.action === 'start' && startBlocked)
+              }
               onClick={() => onClockAction(primary.action)}
               className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
             >
@@ -611,7 +623,13 @@ export function ScoringCenterControls({
         <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1.5 text-center">
           {t('scoring.lice.eventsHeader')}
         </p>
-        <MatchTimeline events={events} ariaLabel={t('scoring.lice.eventsHeader')} t={t} />
+        <MatchTimeline
+          events={events}
+          ariaLabel={t('scoring.lice.eventsHeader')}
+          redColour={redColour}
+          blueColour={blueColour}
+          t={t}
+        />
       </div>
 
       {/* The keys of the bout screen: Space, D, U (when idle) */}

@@ -74,6 +74,8 @@ export default function PersonalTournamentPage() {
   if (notFound || !data) return <HubNotFound />;
 
   const { tournament, pools, bracketSlots, bracketSize, bracketRounds } = data;
+  // Every tab names the entrants by the Tournament's kind, never by guessing from the seats.
+  const teams = tournament.entrantKind === 'team';
   // Resolve which pools are "yours" (fight in and/or referee) for the Pool List
   // ring + name highlight + auto-scroll. Empty/null when the viewer has no role
   // in this tournament. The bracket self-focus is driven separately inside
@@ -182,6 +184,7 @@ export default function PersonalTournamentPage() {
                     ringPoolIds={self.ringPoolIds}
                     refereeRowKeys={self.refereeRowKeys}
                     wide
+                    teams={teams}
                     locale={locale}
                   />
                 </>
@@ -196,6 +199,7 @@ export default function PersonalTournamentPage() {
                   eventSlug={eventSlug}
                   tournamentSlug={tournamentSlug}
                   colorToken={tournamentColor}
+                  teams={teams}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),
@@ -210,6 +214,7 @@ export default function PersonalTournamentPage() {
                   pools={pools}
                   bracketSize={bracketSize}
                   colorToken={tournamentColor}
+                  teams={teams}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),
@@ -252,6 +257,7 @@ export default function PersonalTournamentPage() {
                     personalView
                     refereeSelfKeys={refereeSelfKeys}
                     sideColors={tournament.sideColors}
+                    teams={teams}
                   />
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">

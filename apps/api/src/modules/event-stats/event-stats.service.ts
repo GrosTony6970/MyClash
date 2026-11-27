@@ -11,7 +11,7 @@
  */
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { computeFinalRanking, rankingBracketShape, type RankingSlot } from '@myclash/types';
+import { computeFinalRanking, rankingBracketShape } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CLOCK_SKEW_REPORT_MS } from '../events/clock-reconciliation';
 import {
@@ -25,7 +25,8 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { EventsService } from '../events/events.service';
 import { StatsService } from '../stats/stats.service';
 import { aggregateTargetValues, type TargetValueRow } from '../stats/target-value-stats';
-import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+import type { PoolStandingsRow } from '@myclash/types/pool-standings';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import {
   buildRefereeStats,
   declarantMatchIdsOf,
@@ -62,6 +63,9 @@ interface TournamentRow {
 /** How long after the fleet's last report a device counts as having gone quiet. */
 const SILENCE_GRACE_MS = 10 * 60 * 1000;
 
+/** The public standings payload, as `getPublicTournamentStandings` declares it. */
+type PublicStandings = Awaited<ReturnType<EventsService['getPublicTournamentStandings']>>;
+
 /** An organiser this service already proved a member, as the public reads' reader. */
 const asMember = (userId: string) => ({ userId, staff: null });
 
@@ -77,9 +81,11 @@ function roundPct(part: number, whole: number): number {
  * as an undecided bracket and blank the podium), and its 3rd place is the
  * losers-bracket final's loser rather than a bronze-match winner.
  */
-function topThreeFrom(standings: unknown): TournamentStatSummary['podium'] {
-  const bracket = (standings ?? {}) as { bracketSlots?: RankingSlot[]; phaseType?: string | null };
-  return computeFinalRanking(bracket.bracketSlots ?? [], [], null, rankingBracketShape(bracket))
+function topThreeFrom(standings: PublicStandings | null): TournamentStatSummary['podium'] {
+  // A Tournament not published yet sends no bracket and no shape: no podium.
+  if (!standings || !('phaseType' in standings)) return [];
+  // The slots as the public read declares them (`BracketSlotWire`): a team's podium names the team.
+  return computeFinalRanking(standings.bracketSlots, [], null, rankingBracketShape(standings))
     .slice(0, 3)
     .map((e) => ({ place: e.place, fighterName: e.fighterName, club: e.clubAbbrev ?? null }));
 }
@@ -214,12 +220,17 @@ export class EventStatsService {
       tournamentId,
       standings: {
         columns: standings.columns,
-        rows: rows.map((r: StandingsRow) => ({
+        // A team row's chip (kind, colour, logo) and the row's status pass through.
+        rows: rows.map((r: PoolStandingsRow) => ({
           rank: r.rank,
-          registrationId: r.registrationId,
+          entrantId: r.entrantId,
           displayName: r.displayName,
           club: r.club,
+          status: r.status,
           stats: r.stats,
+          kind: r.kind,
+          colour: r.colour,
+          logoUrl: r.logoUrl,
         })),
       },
       fighters: fighterStats.fighters,

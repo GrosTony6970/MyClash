@@ -200,7 +200,7 @@ export class SwissPairingService {
 
     const standings = await this.standings.getSwissStandings(tournamentId);
     const scoreOf = new Map(
-      standings.rows.map((row) => [row.registrationId, Number(row.stats['score'] ?? 0)]),
+      standings.rows.map((row) => [row.entrantId, Number(row.stats['score'] ?? 0)]),
     );
     return players.map((player) => ({
       ...player,

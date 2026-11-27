@@ -1,6 +1,6 @@
-export interface RankedRegistration {
+export interface RankedEntrant {
   rank: number;
-  registrationId: string;
+  entrantId: string;
 }
 
 export interface BracketR1Slot {
@@ -17,13 +17,13 @@ export interface BracketR1Slot {
 
 export interface SlotSeedUpdate {
   slotId: string;
-  registrationAId: string | null;
-  registrationBId: string | null;
+  entrantAId: string | null;
+  entrantBId: string | null;
 }
 
 export interface PoolRanking {
   poolId: string;
-  rows: Array<{ rank: number; registrationId: string }>;
+  rows: Array<{ rank: number; entrantId: string }>;
 }
 
 /**
@@ -53,15 +53,15 @@ export function parseSeed(ref: string | null | undefined): number | null {
  * that side null — a bye for advanceByeSlots to handle.
  */
 export function buildR1SeedingPlan(
-  rankings: RankedRegistration[],
+  rankings: RankedEntrant[],
   slots: BracketR1Slot[],
 ): SlotSeedUpdate[] {
   const byRank = new Map<number, string>();
-  for (const r of rankings) byRank.set(r.rank, r.registrationId);
+  for (const r of rankings) byRank.set(r.rank, r.entrantId);
   return slots.map((slot) => ({
     slotId: slot.id,
-    registrationAId: slot.seedA == null ? null : (byRank.get(slot.seedA) ?? null),
-    registrationBId: slot.seedB == null ? null : (byRank.get(slot.seedB) ?? null),
+    entrantAId: slot.seedA == null ? null : (byRank.get(slot.seedA) ?? null),
+    entrantBId: slot.seedB == null ? null : (byRank.get(slot.seedB) ?? null),
   }));
 }
 
@@ -86,8 +86,8 @@ export function diffR1SeedingPlan(
     id: string;
     seedA: number | null;
     seedB: number | null;
-    registrationAId: string | null;
-    registrationBId: string | null;
+    entrantAId: string | null;
+    entrantBId: string | null;
   }>,
 ): string[] {
   const bySlotId = new Map(slots.map((slot) => [slot.id, slot]));
@@ -95,8 +95,8 @@ export function diffR1SeedingPlan(
   for (const update of plan) {
     const slot = bySlotId.get(update.slotId);
     if (!slot) continue;
-    const aDrifted = slot.seedA != null && slot.registrationAId !== update.registrationAId;
-    const bDrifted = slot.seedB != null && slot.registrationBId !== update.registrationBId;
+    const aDrifted = slot.seedA != null && slot.entrantAId !== update.entrantAId;
+    const bDrifted = slot.seedB != null && slot.entrantBId !== update.entrantBId;
     if (aDrifted || bDrifted) changed.push(update.slotId);
   }
   return changed;
@@ -135,18 +135,15 @@ export function seedingSourceKind(
  * dense — downstream byes are produced when the flat list is
  * shorter than the bracket size.
  */
-export function buildCrossPoolSnakeRanking(
-  pools: PoolRanking[],
-  topN: number,
-): RankedRegistration[] {
-  const out: RankedRegistration[] = [];
+export function buildCrossPoolSnakeRanking(pools: PoolRanking[], topN: number): RankedEntrant[] {
+  const out: RankedEntrant[] = [];
   let nextRank = 1;
   for (let n = 1; n <= topN; n++) {
     const order = n % 2 === 1 ? pools : [...pools].reverse();
     for (const pool of order) {
       const row = pool.rows.find((r) => r.rank === n);
       if (!row) continue;
-      out.push({ rank: nextRank++, registrationId: row.registrationId });
+      out.push({ rank: nextRank++, entrantId: row.entrantId });
     }
   }
   return out;

@@ -22,14 +22,22 @@ export interface ParsedImportWeapon {
   favorite: boolean;
 }
 
+/** `value` without its leading and trailing '-', by index scan (no regex to backtrack on). */
+function trimDashes(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value[start] === '-') start += 1;
+  while (end > start && value[end - 1] === '-') end -= 1;
+  return value.slice(start, end);
+}
+
 export function slugify(name: string): string {
-  return name
+  const dashed = name
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50);
+    .replace(/[^a-z0-9]+/g, '-');
+  return trimDashes(dashed).slice(0, 50);
 }
 
 /** Parse a weapons CSV cell into structured entries (empty when blank). */

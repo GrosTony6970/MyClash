@@ -1,3 +1,4 @@
+import type { BracketSideWire } from '@myclash/types/bracket-side';
 import type { ColorToken } from '../../utils/color-token';
 
 /**
@@ -34,18 +35,22 @@ export interface BracketSlotData {
   blueScore: number | null;
   status: string;
   matchId: string | null;
-  /** Registration ids for the two sides. Required by the inline WO
-   *  (forfeit) flow so the bracket page can post the right
-   *  `forfeitingRegistrationId` without an extra fetch. Optional so
-   *  legacy bracket fetches that didn't project them still type-check. */
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-  /** The RECORDED winner, authoritative over the two scores — a forfeit, a
-   *  walkover or a `referee_decision` override can award the bout to the
-   *  fighter behind on points. The API has always sent it; every consumer
-   *  dropped it on the way into this type, so the card bolded the higher score
-   *  in the one case where that is wrong. */
-  winnerRegistrationId?: string | null;
+  /** Registration ids for the two sides, null on a team side. The inline WO
+   *  (forfeit) flow posts `forfeitingRegistrationId` from them without an
+   *  extra fetch, and the "you" mark compares them. */
+  redRegistrationId: string | null;
+  blueRegistrationId: string | null;
+  /** Side keys (`sideKey`) of the two sides: the Registration id or the team
+   *  id, null while not known. The API builds them; no app maps them. */
+  redSideId: string | null;
+  blueSideId: string | null;
+  /** The RECORDED winner's side key, authoritative over the two scores — a
+   *  forfeit, a walkover or a `referee_decision` override can award the bout to
+   *  the side behind on points. */
+  winnerSideId: string | null;
+  /** Each side as the API sends it: kind, name and a team's colour. */
+  red: BracketSideWire | null;
+  blue: BracketSideWire | null;
   /** Lice currently assigned to this slot's match. Drives the
    *  cross-app click into the scoring app's ScoringPad. Null
    *  when the operator hasn't placed the match on a lice yet —
@@ -81,6 +86,8 @@ export interface BracketConfig {
 export interface PodiumFighter {
   fighterName: string;
   clubAbbrev?: string | null;
+  /** A team's colour name; a Fighter has none. The podium draws its chip before the name. */
+  colour?: string | null;
 }
 
 export interface PodiumData {

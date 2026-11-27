@@ -367,7 +367,7 @@ describe('archive column coverage', () => {
         if (!carried.has(name) && !URL_COLUMNS_NOT_CARRIED.has(name)) unbucketed.push(name);
       }
     }
-    expect(carried.size, 'sanity: the carried list reaches this test').toBe(5);
+    expect(carried.size, 'sanity: the carried list reaches this test').toBe(6);
     expect(
       [...URL_COLUMNS_NOT_CARRIED].filter((name) => carried.has(name)),
       'a link column is carried AND listed as not carried: one of the two lists is wrong',

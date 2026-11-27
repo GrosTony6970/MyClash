@@ -8,14 +8,8 @@ import {
   Optional,
 } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { ensurePublicBucket } from '../../common/storage-bucket';
 import { deleteInstructorPhotosOf } from '../workshops/workshop-instructor-photo';
-import {
-  ALLOWED_EVENT_HERO_MIME_TYPES,
-  ALLOWED_EVENT_LOGO_MIME_TYPES,
-  EVENT_LOGO_BUCKET,
-  EVENT_LOGO_MAX_BYTES,
-} from './event-assets';
+import { storeEventImage } from './event-assets';
 import {
   allowsDirectHardDelete,
   asEventKind,
@@ -67,6 +61,21 @@ import type {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import type { RepinTournamentRulesetDto } from './dto/repin-ruleset.dto';
+import {
+  publicPoolBoutSides,
+  publicPoolMember,
+  type PublicPoolBoutRow,
+  type PublicPoolMemberRow,
+} from './public-pool-sides';
+import { TEAM_SIDE_EMBEDS } from '../matches/bout-side-labels';
+import {
+  bracketSlotSides,
+  SLOT_TEAM_EMBEDS,
+  type EmbeddedSlotSides,
+  type WinnerOfBout,
+} from '../matches/bracket-slot-sides';
+import type { RegistrationEmbed } from '../matches/side-label';
+import type { BracketSlotWire } from '@myclash/types/bracket-side';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { RulesetHashService, type TournamentHashRow } from '../ruleset-hash/ruleset-hash.service';
@@ -113,6 +122,15 @@ import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-r
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
 import { readWorkshopTotals } from './workshop-totals';
+import {
+  assertFitsKind,
+  countTournamentEntrants,
+  kindColumnsOfSave,
+  kindInForce,
+  storedKind,
+  type EntrantKind,
+} from './tournament-kind';
+import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
 import {
   appliedRow,
   assertConfirmedName,
@@ -496,15 +514,22 @@ export class EventsService {
     const eventIds = rows.map((row) => row['id'] as string);
     const tournamentCountByEvent = new Map<string, number>();
     const tournamentToEvent = new Map<string, string>();
+    // Events with a team Tournament: the organiser's menu offers "Teams" for those alone.
+    const eventsWithTeams = new Set<string>();
     if (eventIds.length > 0) {
       const { data: tournRows, error: tournErr } = await this.supabase.service
         .from('tournaments')
-        .select('id, event_id')
+        .select('id, event_id, entrant_kind')
         .in('event_id', eventIds);
       if (tournErr) throw new BadRequestException(tournErr.message);
-      for (const t of (tournRows ?? []) as Array<{ id: string; event_id: string }>) {
+      for (const t of (tournRows ?? []) as Array<{
+        id: string;
+        event_id: string;
+        entrant_kind: string;
+      }>) {
         tournamentCountByEvent.set(t.event_id, (tournamentCountByEvent.get(t.event_id) ?? 0) + 1);
         if (t.id) tournamentToEvent.set(t.id, t.event_id);
+        if (t.entrant_kind === 'team') eventsWithTeams.add(t.event_id);
       }
     }
 
@@ -577,6 +602,7 @@ export class EventsService {
         tournament_count: tournamentCountByEvent.get(evId) ?? 0,
         participant_count: distinctPeopleByEvent.get(evId)?.size ?? 0,
         has_recorded_results: eventsWithResults.has(evId),
+        hasTeamTournament: eventsWithTeams.has(evId),
       };
     });
   }
@@ -974,7 +1000,7 @@ export class EventsService {
 
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, persons, qualificationRows, refereeCounts, phases, workshops] =
+    const [registrations, persons, qualificationRows, refereeCounts, phases, workshops, teams] =
       await Promise.all([
         this.getRegistrationsForTournaments(tournamentIds),
         this.getEventPersons(eventId),
@@ -983,8 +1009,16 @@ export class EventsService {
         this.getPhasesForTournaments(tournamentIds),
         // A Workshops-only club's overview shows these in place of the fighter cards (slice 2.7).
         readWorkshopTotals(this.supabase.service, eventId),
+        this.getTeamsOfTeamTournaments(tournaments),
       ]);
     const globalByPersonId = new Map(persons.map((person) => [person.id, person.global_person_id]));
+    const teamsByTournament = new Map<string, number>();
+    for (const team of teams) {
+      teamsByTournament.set(
+        team.tournament_id,
+        (teamsByTournament.get(team.tournament_id) ?? 0) + 1,
+      );
+    }
 
     const registrationsByTournament = new Map<string, number>();
     const waitlistByTournament = new Map<string, number>();
@@ -1010,7 +1044,11 @@ export class EventsService {
       const capped = values.filter((v): v is number => v != null);
       return capped.length === 0 ? null : capped.reduce((a, b) => a + b, 0);
     };
-    const totalMaxParticipants = sumNullable(tournaments.map((t) => t.max_participants));
+    // Fighters only: a team Tournament's cap counts teams, and the total it is shown against
+    // (`registeredFighters`) counts Fighters.
+    const totalMaxParticipants = sumNullable(
+      tournaments.filter((t) => t.entrant_kind !== 'team').map((t) => t.max_participants),
+    );
     const totalMaxWaitlist = sumNullable(tournaments.map((t) => t.max_waitlist));
     const totalWaitlistedFighters = Array.from(waitlistByTournament.values()).reduce(
       (a, b) => a + b,
@@ -1114,7 +1152,13 @@ export class EventsService {
             : null,
           bracketSize,
           eliminationType: elimPhase ? elimPhase.type : null,
-          fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
+          entrantKind: tournament.entrant_kind,
+          // Counted against `maxParticipants`: active Registrations, or a team Tournament's teams.
+          entrantCount:
+            (tournament.entrant_kind === 'team'
+              ? teamsByTournament
+              : registrationsByTournament
+            ).get(tournament.id) ?? 0,
           waitlistedCount: waitlistByTournament.get(tournament.id) ?? 0,
           maxParticipants: tournament.max_participants ?? null,
           maxWaitlist: tournament.max_waitlist ?? null,
@@ -1155,7 +1199,7 @@ export class EventsService {
   private async loadReadinessRows(eventId: string): Promise<ReadinessRows> {
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, phases, liceCount, persons] = await Promise.all([
+    const [registrations, phases, liceCount, persons, teams] = await Promise.all([
       this.getRegistrationsForTournaments(tournamentIds),
       this.getPhasesForTournaments(tournamentIds),
       this.countEventLices(eventId),
@@ -1163,6 +1207,7 @@ export class EventsService {
       // there are no active registrations, the roster-quality rules omit
       // themselves, and this would be a round trip for an answer nothing reads.
       tournamentIds.length === 0 ? [] : this.getRosterQualityRows(eventId),
+      this.getTeamsOfTeamTournaments(tournaments),
     ]);
 
     // Nothing hangs off an event with no phases, and assignments can only
@@ -1185,8 +1230,10 @@ export class EventsService {
         id: tournament.id,
         name: tournament.name,
         ruleset_code: tournament.ruleset_code,
+        entrant_kind: tournament.entrant_kind,
       })),
       registrations,
+      teams,
       persons,
       phases,
       pools,
@@ -1508,7 +1555,7 @@ export class EventsService {
     const { data: tournamentRow, error: tournamentError } = await this.supabase.service
       .from('tournaments')
       .select(
-        'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json',
+        'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json, entrant_kind',
       )
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
@@ -1542,6 +1589,9 @@ export class EventsService {
       rulesetRepins,
       name: tournament['name'],
       weapon: tournament['weapon'],
+      // Fighters or teams: what the public pages name the entrants, even in a Pool that seats
+      // nobody yet. Read, never guessed from the seats; a read without the column throws.
+      entrantKind: storedKind(tournament['entrant_kind']),
       // The organiser's configured fighter-side colours, so the public bracket
       // paints the same corners the pad and the projector do.
       sideColors: sideColorsFromScoringConfig(tournament['scoring_config_json']),
@@ -1752,16 +1802,17 @@ export class EventsService {
 
     const poolIds = pools.map((p) => p.id);
 
-    // 3. Matches for these pools. Nested joins resolve fighter names
-    //    via registrations → persons → clubs and the lice row for
-    //    color + name. Status / scores come straight off the matches
-    //    table.
+    // 3. Matches for these pools. Nested joins read both kinds of side:
+    //    a Fighter via registrations → persons → clubs, a team via teams
+    //    (name, colour, logo); and the lice row for color + name.
+    //    Status / scores come straight off the matches table.
     const { data: matchesData, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, scheduled_at, match_number_label, red_score, blue_score, winner_registration_id, pool_id, lice_id, ' +
+        'id, status, scheduled_at, match_number_label, red_score, blue_score, winner_registration_id, winner_team_id, pool_id, lice_id, ' +
           'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
           'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
+          `${TEAM_SIDE_EMBEDS}, ` +
           'lices(id, name, color_hex)',
       )
       .in('pool_id', poolIds)
@@ -1769,43 +1820,20 @@ export class EventsService {
       .order('match_number_label', { ascending: true });
     if (matchesError) throw new BadRequestException(matchesError.message);
 
-    type PersonClubEmbed = {
-      given_name: string | null;
-      family_name: string | null;
-      clubs: { name: string | null; abbreviation: string | null } | null;
-    } | null;
-    type SideRel = { id: string; persons: PersonClubEmbed } | null;
     type LiceRel = { id: string; name: string | null; color_hex: string | null } | null;
-    const matchRows = (matchesData ?? []) as unknown as Array<{
-      id: string;
-      status: string | null;
-      scheduled_at: string | null;
-      match_number_label: string | null;
-      red_score: number | null;
-      blue_score: number | null;
-      /** Authoritative over the scores — the public pool table bolds the
-       *  recorded winner, which a forfeit or an override can put on the lower
-       *  score. */
-      winner_registration_id: string | null;
-      pool_id: string | null;
-      lice_id: string | null;
-      red: SideRel;
-      blue: SideRel;
-      lices: LiceRel;
-    }>;
-
-    function nameFrom(side: SideRel): string | null {
-      if (!side?.persons) return null;
-      const given = side.persons.given_name?.trim() ?? '';
-      const family = side.persons.family_name?.trim() ?? '';
-      const composed = `${given} ${family}`.trim();
-      return composed || null;
-    }
-    function clubAbbrevFrom(side: SideRel): string | null {
-      // Prefer the abbreviation; fall back to the full club name so the
-      // public club pill renders even for clubs without an abbreviation.
-      return side?.persons?.clubs?.abbreviation ?? side?.persons?.clubs?.name ?? null;
-    }
+    const matchRows = (matchesData ?? []) as unknown as Array<
+      PublicPoolBoutRow & {
+        id: string;
+        status: string | null;
+        scheduled_at: string | null;
+        match_number_label: string | null;
+        red_score: number | null;
+        blue_score: number | null;
+        pool_id: string | null;
+        lice_id: string | null;
+        lices: LiceRel;
+      }
+    >;
 
     // 4. Group matches by pool + project. Round code uses the same
     //    helper the admin matches list uses, so the public + admin
@@ -1840,15 +1868,9 @@ export class EventsService {
             }),
             status: m.status ?? 'scheduled',
             scheduledAt: m.scheduled_at,
-            redFighterName: nameFrom(m.red),
-            redClubAbbrev: clubAbbrevFrom(m.red),
-            redRegistrationId: m.red?.id ?? null,
+            ...publicPoolBoutSides(m),
             redScore: m.red_score,
-            blueFighterName: nameFrom(m.blue),
-            blueClubAbbrev: clubAbbrevFrom(m.blue),
-            blueRegistrationId: m.blue?.id ?? null,
             blueScore: m.blue_score,
-            winnerRegistrationId: m.winner_registration_id,
             liceName: m.lices?.name ?? null,
             liceColorHex: m.lices?.color_hex ?? null,
           })),
@@ -1948,6 +1970,17 @@ export class EventsService {
     const waitlistCounts = new Map<string, number>();
     for (const row of (waitlistRows ?? []) as Array<{ tournament_id: string }>) {
       waitlistCounts.set(row.tournament_id, (waitlistCounts.get(row.tournament_id) ?? 0) + 1);
+    }
+
+    // A team Tournament's entrants are its teams (`teamCount`, on its row only); no read when the
+    // Event has none, so an individual row is what it always was.
+    const teamCounts = new Map<string, number>();
+    const listed = tournaments.map((t) => ({
+      id: t['id'] as string,
+      entrant_kind: t['entrant_kind'] as EntrantKind,
+    }));
+    for (const row of await this.getTeamsOfTeamTournaments(listed)) {
+      teamCounts.set(row.tournament_id, (teamCounts.get(row.tournament_id) ?? 0) + 1);
     }
 
     // Phases (drives poolCount + bracketSize via config_json.bracketSize).
@@ -2152,6 +2185,7 @@ export class EventsService {
       return {
         ...t,
         registered: registered.get(id) ?? 0,
+        ...(t['entrant_kind'] === 'team' ? { teamCount: teamCounts.get(id) ?? 0 } : {}),
         waitlistCount: waitlistCounts.get(id) ?? 0,
         poolCount: poolCounts.get(id) ?? 0,
         bracketSize,
@@ -2514,7 +2548,9 @@ export class EventsService {
   private async getEventTournaments(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, slug, name, status, color, ruleset_code, max_participants, max_waitlist')
+      .select(
+        'id, slug, name, status, color, ruleset_code, max_participants, max_waitlist, entrant_kind',
+      )
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -2527,7 +2563,22 @@ export class EventsService {
       ruleset_code: string | null;
       max_participants: number | null;
       max_waitlist: number | null;
+      entrant_kind: EntrantKind;
     }>;
+  }
+
+  /** The teams of the team Tournaments among `tournaments`; no read when there is none. */
+  private async getTeamsOfTeamTournaments(
+    tournaments: Array<{ id: string; entrant_kind: EntrantKind }>,
+  ): Promise<Array<{ tournament_id: string }>> {
+    const ids = tournaments.filter((t) => t.entrant_kind === 'team').map((t) => t.id);
+    if (ids.length === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('teams')
+      .select('tournament_id')
+      .in('tournament_id', ids);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ tournament_id: string }>;
   }
 
   private async getRegistrationsForTournaments(tournamentIds: string[]) {
@@ -2728,11 +2779,11 @@ export class EventsService {
   }
 
   private async getPublishedPools(phaseId: string, eventId: string) {
-    // 1. Pools + members (joined via pool_members → registrations → persons → clubs).
+    // 1. Pools + members: a seat holds a Registration (→ persons → clubs) or a team (0282).
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, pool_members(registration_id, seed, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))))',
+        'id, name, pool_members(registration_id, team_id, seed, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))), teams(id, name, color, logo_url))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -2743,19 +2794,7 @@ export class EventsService {
     const poolRows = (data ?? []) as unknown as Array<{
       id: string;
       name: string;
-      pool_members: Array<{
-        registration_id: string;
-        seed: number | null;
-        registrations: {
-          id: string;
-          persons: {
-            id: string;
-            given_name: string | null;
-            family_name: string | null;
-            clubs: { id: string; name: string; abbreviation: string | null } | null;
-          } | null;
-        } | null;
-      }> | null;
+      pool_members: PublicPoolMemberRow[] | null;
     }>;
 
     const poolIds = poolRows.map((p) => p.id);
@@ -2797,26 +2836,12 @@ export class EventsService {
       liceName: scheduleByPool.get(pool.id)?.liceName ?? null,
       liceColorHex: scheduleByPool.get(pool.id)?.liceColorHex ?? null,
       startAt: scheduleByPool.get(pool.id)?.startAt ?? null,
-      members: (pool.pool_members ?? [])
-        .map((m) => {
-          const person = m.registrations?.persons;
-          const given = person?.given_name?.trim() ?? '';
-          const family = person?.family_name?.trim() ?? '';
-          const fighterName = `${given} ${family}`.trim() || '—';
-          return {
-            registrationId: m.registration_id,
-            fighterName,
-            clubName: person?.clubs?.name ?? null,
-            clubAbbreviation: person?.clubs?.abbreviation ?? null,
-            seed: m.seed ?? null,
-          };
-        })
-        .sort((a, b) => {
-          // Members sorted by seed (lowest first), with unseeded last.
-          const aSeed = a.seed ?? Number.POSITIVE_INFINITY;
-          const bSeed = b.seed ?? Number.POSITIVE_INFINITY;
-          return aSeed - bSeed;
-        }),
+      members: (pool.pool_members ?? []).map(publicPoolMember).sort((a, b) => {
+        // Members sorted by seed (lowest first), with unseeded last.
+        const aSeed = a.seed ?? Number.POSITIVE_INFINITY;
+        const bSeed = b.seed ?? Number.POSITIVE_INFINITY;
+        return aSeed - bSeed;
+      }),
       referees: refereesByPool.get(pool.id) ?? [],
       standings: [],
     }));
@@ -2970,22 +2995,21 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('bracket_slots')
       .select(
-        'id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id',
+        `id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id, ${SLOT_TEAM_EMBEDS}`,
       )
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
 
-    type RawSlot = {
+    type RawSlot = EmbeddedSlotSides & {
       id: string;
       round: number;
       position: number;
       source_a_ref: string | null;
       source_b_ref: string | null;
-      registration_a_id: string | null;
-      registration_b_id: string | null;
     };
-    const rawSlots = (data ?? []) as RawSlot[];
+    // A many-to-one embed is one row, not the array the untyped client infers.
+    const rawSlots = (data ?? []) as unknown as RawSlot[];
     const slotIds = rawSlots.map((s) => s.id);
 
     // Enrich slots with the same shape the admin's BracketView consumes —
@@ -2994,12 +3018,11 @@ export class EventsService {
     // embeds for the fighter name + club abbreviation).
     const matchBySlot = new Map<
       string,
-      {
+      WinnerOfBout & {
         id: string;
         status: string;
         red_score: number | null;
         blue_score: number | null;
-        winner_registration_id: string | null;
         match_number_label: string | null;
         liceName: string | null;
       }
@@ -3008,7 +3031,7 @@ export class EventsService {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
         .select(
-          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, match_number_label, lice_id, lices(name)',
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, winner_team_id, match_number_label, lice_id, lices(name)',
         )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as unknown as Array<{
@@ -3018,6 +3041,7 @@ export class EventsService {
         red_score: number | null;
         blue_score: number | null;
         winner_registration_id: string | null;
+        winner_team_id: string | null;
         match_number_label: string | null;
         lices: { name: string | null } | null;
       }>) {
@@ -3027,17 +3051,14 @@ export class EventsService {
           red_score: m.red_score,
           blue_score: m.blue_score,
           winner_registration_id: m.winner_registration_id,
+          winner_team_id: m.winner_team_id,
           match_number_label: m.match_number_label,
           liceName: m.lices?.name ?? null,
         });
       }
     }
 
-    type EmbeddedPerson = {
-      given_name: string | null;
-      family_name: string | null;
-      clubs: { name: string | null; abbreviation: string | null } | null;
-    };
+    type Club = { name: string | null; abbreviation: string | null };
     const regIds = Array.from(
       new Set(
         rawSlots
@@ -3045,23 +3066,14 @@ export class EventsService {
           .filter((v): v is string => Boolean(v)),
       ),
     );
-    const regById = new Map<string, { fighterName: string | null; clubAbbrev: string | null }>();
+    const regById = new Map<string, RegistrationEmbed<Club>>();
     if (regIds.length > 0) {
       const { data: regRows } = await this.supabase.service
         .from('registrations')
         .select('id, persons(given_name, family_name, clubs(name, abbreviation))')
         .in('id', regIds);
-      for (const r of (regRows ?? []) as unknown as Array<{
-        id: string;
-        persons: EmbeddedPerson | null;
-      }>) {
-        const person = r.persons;
-        const club = person?.clubs ?? null;
-        const name = `${person?.given_name ?? ''} ${person?.family_name ?? ''}`.trim();
-        regById.set(r.id, {
-          fighterName: name || null,
-          clubAbbrev: club?.abbreviation ?? club?.name ?? null,
-        });
+      for (const r of (regRows ?? []) as unknown as RegistrationEmbed<Club>[]) {
+        regById.set(r.id, r);
       }
     }
 
@@ -3069,18 +3081,14 @@ export class EventsService {
     const matchIds = Array.from(new Set(Array.from(matchBySlot.values()).map((m) => m.id)));
     const refereesByMatch = await this.getPublishedRefereesByMatch(eventId, matchIds);
 
-    const enrichedSlots = rawSlots.map((s) => {
+    const enrichedSlots = rawSlots.map((s): BracketSlotWire => {
       const match = matchBySlot.get(s.id) ?? null;
-      const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
-      const blue = s.registration_b_id ? (regById.get(s.registration_b_id) ?? null) : null;
       return {
         id: s.id,
         round: s.round,
         position: s.position,
-        redFighterName: red?.fighterName ?? null,
-        blueFighterName: blue?.fighterName ?? null,
-        redClubAbbrev: red?.clubAbbrev ?? null,
-        blueClubAbbrev: blue?.clubAbbrev ?? null,
+        // Names, clubs, side keys and the typed sides (call 6 of 1c-1).
+        ...bracketSlotSides(s, match, regById, (club) => club?.abbreviation ?? club?.name ?? null),
         redScore: match?.red_score ?? null,
         blueScore: match?.blue_score ?? null,
         // Forfeits can complete a match with the lower score winning — the
@@ -3133,6 +3141,8 @@ export class EventsService {
       userId,
       'admin',
     );
+    const entrantKind = dto.entrantKind ?? 'individual';
+    assertFitsKind(entrantKind, dto);
 
     const { data: existing } = await this.supabase.service
       .from('tournaments')
@@ -3215,6 +3225,8 @@ export class EventsService {
         // page's UpdateTournamentDto path.
         max_participants: dto.maxParticipants ?? null,
         max_waitlist: dto.maxWaitlist ?? null,
+        entrant_kind: entrantKind,
+        team_default_size: dto.teamDefaultSize ?? null,
         status: 'draft',
         ruleset_config: rulesetConfig,
         scoring_config_json: scoringConfig,
@@ -3254,6 +3266,7 @@ export class EventsService {
    *
    * `viewer_may_edit` is true when the reader holds admin or higher in the Tournament's club: the
    * role bar of the settings saves, so the settings page closes them for anyone else (ruling 101).
+   * `entrant_count` is what the kind trigger counts: every Registration and every team.
    * The re-pin (owner), an archived Event and the platform read-only mode refuse on their own.
    */
   async getTournamentById(tournamentId: string, userId: string) {
@@ -3300,6 +3313,8 @@ export class EventsService {
       ruleset_is_system: isSystem,
       ruleset_base_code: baseCode,
       viewer_may_edit: roleAtLeast(role, 'admin'),
+      // Above zero, the kind is fixed: the screens say so before a save is refused.
+      entrant_count: await countTournamentEntrants(this.supabase.service, tournamentId),
     };
   }
 
@@ -3335,6 +3350,7 @@ export class EventsService {
 
     const currentJson = current as Record<string, unknown>;
     const eventRow = event as Record<string, unknown>;
+    assertFitsKind(kindInForce(currentJson['entrant_kind'], dto), dto);
     // Does this save move the pair: the ONE answer, asked by the audited form and the switch.
     const currentCode = currentJson['ruleset_code'] as string | undefined;
     const currentVersionRaw = currentJson['ruleset_version'] as string | undefined;
@@ -3392,6 +3408,7 @@ export class EventsService {
     // for no limit, fills in for a hard ceiling.
     if (dto.maxParticipants !== undefined) updates['max_participants'] = dto.maxParticipants;
     if (dto.maxWaitlist !== undefined) updates['max_waitlist'] = dto.maxWaitlist;
+    Object.assign(updates, kindColumnsOfSave(currentJson['entrant_kind'], dto));
 
     // Monotonic: the operator can jump back and re-save an earlier step, and
     // that must not un-complete the later ones. Recorded rather than inferred —
@@ -3671,7 +3688,7 @@ export class EventsService {
     let query = this.supabase.service.from('tournaments').update(updates).eq('id', read['id']);
     if (conditional) query = query.eq('updated_at', read['updated_at']);
     const { data, error } = await query.select('*').maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     if (data) return data as Record<string, unknown>;
     if (conditional) {
       throw new ConflictException({
@@ -4088,6 +4105,8 @@ export class EventsService {
    * Materialise the overall standings (placings + scores) so the audit's
    * before/after survives later match edits. A tournament that cannot yet
    * produce standings records an empty snapshot rather than failing the re-pin.
+   * Each row is named by its entrant (`entrantId`): a Registration, or a team in a team
+   * Tournament's Pools.
    */
   private async snapshotPlacings(tournamentId: string): Promise<Array<Record<string, unknown>>> {
     if (!this.poolStandings) {
@@ -4098,7 +4117,7 @@ export class EventsService {
       const rows = 'rows' in standings ? standings.rows : [];
       return rows.map((r) => ({
         rank: r.rank,
-        registrationId: r.registrationId,
+        entrantId: r.entrantId,
         displayName: r.displayName,
         stats: r.stats,
       }));
@@ -4219,29 +4238,7 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `events/${eventId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (error) throw new BadRequestException(error.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(this.supabase.service.storage, `events/${eventId}`, file);
 
     const { error: updateError } = await this.supabase.service
       .from('events')
@@ -4274,29 +4271,12 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No hero file uploaded.');
-    if (!ALLOWED_EVENT_HERO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Hero upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `events/${eventId}/hero-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (error) throw new BadRequestException(error.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(
+      this.supabase.service.storage,
+      `events/${eventId}`,
+      file,
+      'hero',
+    );
 
     // Upsert themes.hero_image_url. The themes row may or may not
     // exist for a freshly-created event; mirror the existing-row
@@ -4322,15 +4302,6 @@ export class EventsService {
     }
 
     return { url };
-  }
-
-  private async ensureLogoBucket(): Promise<void> {
-    await ensurePublicBucket(
-      this.supabase.service.storage,
-      EVENT_LOGO_BUCKET,
-      EVENT_LOGO_MAX_BYTES,
-      ALLOWED_EVENT_LOGO_MIME_TYPES,
-    );
   }
 
   /**
@@ -4361,29 +4332,11 @@ export class EventsService {
       'admin',
     );
 
-    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureLogoBucket();
-    const extension =
-      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `tournaments/${tournamentId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error: uploadError } = await this.supabase.service.storage
-      .from(EVENT_LOGO_BUCKET)
-      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
-    if (uploadError) throw new BadRequestException(uploadError.message);
-
-    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = await storeEventImage(
+      this.supabase.service.storage,
+      `tournaments/${tournamentId}`,
+      file,
+    );
 
     const { error: updateError } = await this.supabase.service
       .from('tournaments')

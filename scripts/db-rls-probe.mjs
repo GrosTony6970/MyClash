@@ -11,7 +11,7 @@
  *   DATABASE_URL=postgres://… pnpm db:rls-probe
  *
  * It seeds rls-probe-seed.sql and checks, past RLS, that every row a verdict names exists. Then
- * twenty-four checks, the reads as anon (JWT claims with no `sub`) unless a check says otherwise,
+ * twenty-five checks, the reads as anon (JWT claims with no `sub`) unless a check says otherwise,
  * each in a savepoint rolled back after it; the whole run is one transaction, always rolled back,
  * so nothing it wrote survives:
  *   1. every relation anon may SELECT (any column of it) answers without an error — a table whose
@@ -34,7 +34,7 @@
  *      `public_visibility` alone, match the API's bar;
  *   7. `account_emails` (0217) is refused to anon and to a signed-in user on privilege, and answers
  *      the service role for the accounts it asks for, no other (`lib/account-emails-probe.mjs`);
- *      checks 8 to 24 are listed with it in `lib/rls-probe-later-checks.mjs`; check 20 reads the
+ *      checks 8 to 25 are listed with it in `lib/rls-probe-later-checks.mjs`; check 20 reads the
  *      whole catalogue: no relation and no policy of `public` lets a web role write, and a new
  *      table starts closed (0247, `lib/web-write-doors-probe.mjs`); check 21: neither web role
  *      reads a fighter profile, even a listed one, and only the service role calls
@@ -44,7 +44,17 @@
  *      is a read rule and every role it names can run it (0274, `lib/dead-policy-probe.mjs`);
  *      check 24: anon runs only the helpers its read rules need, every one of them needed, and
  *      nothing else of `public` is open to a web role or PUBLIC (0275,
- *      `lib/function-door-probe.mjs`).
+ *      `lib/function-door-probe.mjs`); check 25: a Tournament holds only entrants of its kind and
+ *      keeps its kind once it holds one (0281) or has a phase (0288), and a team Tournament takes
+ *      no double elimination and no Swiss phase (0289, `lib/team-kind-phase-probe.mjs`), a team's
+ *      slots keep their rules (0281), and each side link names a Registration or a Team, never
+ *      both, with a Match and a forfeit of one kind (0282, `lib/team-tables-probe.mjs`), each key
+ *      that names a team has its index (0283, `lib/team-key-indexes-probe.mjs`), and
+ *      `vw_tournament_query_matches` runs as its caller and names a team side (0284,
+ *      `lib/team-view-probe.mjs`), and `fighter_blow_value_stats` leaves a team bout out (0285,
+ *      `lib/team-blow-stats-probe.mjs`), and a League takes individual Tournaments only: no live
+ *      link to a team Tournament, no switch to team under a live link (0287,
+ *      `lib/team-league-probe.mjs`).
  * Since 0274 four of the five helper loops (ruling 111a left them) have no way back; the last,
  * `can_manage_penalty_ruleset` over `penalty_rulesets`, needs an account id under the anon role. No
  * table read as `authenticated` reaches any helper: checks 5, 7, 21 and 22 expect a refusal on
@@ -248,7 +258,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, a roster row says claimed exactly when an account holds it, a ruleset code has one row, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed, no table takes a web write and a new table starts closed, no web role reads a fighter profile, a signed-in reader reads nothing, every rule can run for the role it names, the web roles run only the helpers the read rules need.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, a roster row says claimed exactly when an account holds it, a ruleset code has one row, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed, no table takes a web write and a new table starts closed, no web role reads a fighter profile, a signed-in reader reads nothing, every rule can run for the role it names, the web roles run only the helpers the read rules need, a Tournament holds only entrants of its kind and keeps its kind once it holds one or has a phase, a team Tournament takes no double elimination and no Swiss phase, a team's slots keep their rules, a side is a Registration or a Team, the view of bouts names a team side, the blow value stats leave a team bout out, a League takes individual Tournaments only, an upsert's link included, and a change of kind is refused for its entrants first, then its phases, then its League link.`,
     );
   }
 } catch (error) {

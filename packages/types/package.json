@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./bracket-side": {
+      "types": "./dist/bracket-side.d.ts",
+      "default": "./dist/bracket-side.js"
+    },
     "./effective-rules": {
       "types": "./dist/effective-rules.d.ts",
       "default": "./dist/effective-rules.js"
@@ -18,6 +22,14 @@
       "types": "./dist/forfeit-rules.d.ts",
       "default": "./dist/forfeit-rules.js"
     },
+    "./match-winner": {
+      "types": "./dist/match-winner.d.ts",
+      "default": "./dist/match-winner.js"
+    },
+    "./pool-standings": {
+      "types": "./dist/pool-standings.d.ts",
+      "default": "./dist/pool-standings.js"
+    },
     "./sentry-data-collection": {
       "types": "./dist/sentry-data-collection.d.ts",
       "default": "./dist/sentry-data-collection.js"
@@ -25,6 +37,10 @@
     "./sentry-trace-propagation": {
       "types": "./dist/sentry-trace-propagation.d.ts",
       "default": "./dist/sentry-trace-propagation.js"
+    },
+    "./side-key": {
+      "types": "./dist/side-key.d.ts",
+      "default": "./dist/side-key.js"
     }
   },
   "scripts": {

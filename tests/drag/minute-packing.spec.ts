@@ -262,8 +262,8 @@ test.describe('the board moves bouts by the minute', () => {
       roundCode: `LSW-B-QF-M${i + 1}`,
       phaseType: 'single_elim',
       scheduledAt: new Date(Date.parse(RUN_START) + i * 5 * 60_000).toISOString(),
-      redRegistrationId: `reg-red-qf-${i}`,
-      blueRegistrationId: `reg-blue-qf-${i}`,
+      redSideId: `reg-red-qf-${i}`,
+      blueSideId: `reg-blue-qf-${i}`,
     }));
     const api = await mockApi(page, { schedule: round });
     await page.goto(SCHEDULE_URL);

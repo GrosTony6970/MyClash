@@ -1,0 +1,1002 @@
+{
+  "readers": {
+    "apps/api/src/modules/checkin/checkin.service.ts": {
+      "verdict": "not-yet",
+      "hits": 6,
+      "why": "1c: (1c-2) the check-in desk lists a person's next bouts by Registration (`:304`-`:344`); named members are people of 1c"
+    },
+    "apps/api/src/modules/checkin/gear.service.ts": {
+      "verdict": "not-yet",
+      "hits": 16,
+      "why": "1c: (1c-2) the gear check names the Fighters of a bout by Registration (`:144`-`:152`); named members are people of 1c"
+    },
+    "apps/api/src/modules/events/events.service.ts": {
+      "verdict": "side-key",
+      "hits": 18,
+      "why": "the public bracket (`getPublishedBracket`) reads both kinds of each slot side (`SLOT_TEAM_EMBEDS`) and the bout's two winner columns, and names each side through `bracketSlotSides` (`sideLabel`, keyed with `sideKey`); the Registration ids stay on the wire under their own names, null on a team side. The public Pool bouts read both kinds of each side (`TEAM_SIDE_EMBEDS`), the Pool composition both kinds of seat"
+    },
+    "apps/api/src/modules/events/public-pool-sides.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "names a public Pool bout's sides through `sideLabel` and a public Pool seat through `poolSeatOf`; each side key and the winner's are built with `sideKey`; the Registration ids stay beside them for the public page's own-bout mark (null on a team side)"
+    },
+    "apps/api/src/modules/events/settings-save-lock.ts": {
+      "verdict": "individual-only",
+      "hits": 1,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); the preview names the Fighters a forfeit rules change moves"
+    },
+    "apps/api/src/modules/exports/archive-fighter-status.ts": {
+      "verdict": "individual-only",
+      "hits": 3,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); fills the status causes of an older archive, and leaves a team's forfeit and a team's card out, never keyed as \"null\" (`fighterOf` answers null, `:50`-`:53`; `fighterBlackCards` keeps only a card that names a Registration, `:64`-`:73`)"
+    },
+    "apps/api/src/modules/exports/archive-reports.ts": {
+      "verdict": "side-key",
+      "hits": 9,
+      "why": "the archive reports read both kinds of each side of the snapshot's bouts: the bout CSV carries the team columns, the results name each side and the winner through `sideName` (`sideLabel`), the rankings table is keyed by side with `boutSideKey` and `winnerSideKey` (teams when the Tournament has any)"
+    },
+    "apps/api/src/modules/exports/archive-report-sides.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "keys each side and the winner of a snapshot bout with `sideKey` (a Registration or a team, never both) and names a side through `sideLabel`"
+    },
+    "apps/api/src/modules/exports/archive.tables.ts": {
+      "verdict": "no-side-read",
+      "hits": 9,
+      "why": "a key-name list: each Registration column maps to `registrations` beside its team twin mapped to `teams` (`:110`-`:125`), and the forfeit snapshots map both winners (`:439`-`:442`)"
+    },
+    "apps/api/src/modules/exports/exports.service.ts": {
+      "verdict": "individual-only",
+      "hits": 7,
+      "why": "the file takes one person against one person; team Tournaments skipped and named (`tournament_team_skipped`): their bouts are never read"
+    },
+    "apps/api/src/modules/exports/hema-ratings-rows.ts": {
+      "verdict": "individual-only",
+      "hits": 7,
+      "why": "the HEMA Ratings file takes one person against one person only (non-goal); the export skips team Tournaments in 1c"
+    },
+    "apps/api/src/modules/fighters/fighters.service.ts": {
+      "verdict": "individual-only",
+      "hits": 58,
+      "why": "one person's history and profile; personal statistics and profile history from team Matches are a non-goal"
+    },
+    "apps/api/src/modules/fighters/recent-matches.ts": {
+      "verdict": "individual-only",
+      "hits": 11,
+      "why": "one person's recent bouts; personal statistics and profile history from team Matches are a non-goal"
+    },
+    "apps/api/src/modules/fighters/referee-stats.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `winner_registration_id` in a comment (`:68`); the winner arrives resolved"
+    },
+    "apps/api/src/modules/leagues/leagues.service.ts": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "League points belong to persons (ruling 729): the double hits count both sides by Registration (`doubleHitsByRegistration`); a team Tournament is refused at every League door (`team_tournament_league`) and by 0287, so no approved link to one exists"
+    },
+    "apps/api/src/modules/matches/bout-sides.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "builds each side with `sideKey` from the Registration and team columns (`:22`-`:23`)"
+    },
+    "apps/api/src/modules/matches/bracket-slot-sides.ts": {
+      "verdict": "side-key",
+      "hits": 10,
+      "why": "the sides of a bracket slot for both bracket reads: `SLOT_TEAM_EMBEDS` reads the team of each side beside its Registration column; `slotSideKeys` keys each side once with `sideKey`, and `bracketSlotSides` shares that key between the typed side and the top-level side id, keys the recorded winner with `sideKey` and names each side through `sideLabel` (a name not known is null, never empty)"
+    },
+    "apps/api/src/modules/matches/clock.service.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "`BOUT_COLUMNS` (`:157`-`:162`) reads both kinds of each side and both winner columns, for `timeLimitResult`, which judges them by `sidesOf` and `sideKey`; the clock itself reads no side"
+    },
+    "apps/api/src/modules/matches/correction-outcome.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "takes the side keys scoring builds with `sideKey`; names the Registration column in its header comment only (`:6`)"
+    },
+    "apps/api/src/modules/matches/dto/matches.dto.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the manual completion takes a side key (`winnerSideId`, `:42`); the forfeit body names exactly one of a Registration or a team (`:145`-`:146`, `:166`-`:182`); the create body names sides by Registration (`:10`-`:11`): the manual create refuses a team Tournament (call 8)"
+    },
+    "apps/api/src/modules/matches/fighter-bouts.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the bout half of a forfeit: `winnerOf` and `resolveScores` judge sides by `sidesOf` (`:53`-`:90`), `completeMatch` writes the winner through `winnerColumns` (`:148`); the snapshot, its fresh read, the decision keys and the restore carry `winner_team_id` beside `winner_registration_id`"
+    },
+    "apps/api/src/modules/matches/fighter-cause.ts": {
+      "verdict": "individual-only",
+      "hits": 11,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); reads the causes of one Fighter's status"
+    },
+    "apps/api/src/modules/matches/fighter-reconcile.ts": {
+      "verdict": "individual-only",
+      "hits": 17,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); forfeits and brings back one Fighter's own bouts, read by Registration (`:101`); the Registration id is the winner side key `completeMatch` writes through `winnerColumns` (`:192`, `:221`), with the bout's Registration sides (`registrationSides`, `:145`-`:152`)"
+    },
+    "apps/api/src/modules/matches/fighter-status.service.ts": {
+      "verdict": "individual-only",
+      "hits": 16,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); the design names this file as one that must not gain a team path"
+    },
+    "apps/api/src/modules/matches/follow-rules-change.ts": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); holds back Fighters who share a bout (`:198`)"
+    },
+    "apps/api/src/modules/matches/forfeit-side.ts": {
+      "verdict": "side-key",
+      "hits": 9,
+      "why": "the forfeiting side of a forfeit, a Registration or a team: read from its two fields by `named-side.ts` (`:20`-`:27`), written in the column of its kind with the winner through `winnerColumns` (`:30`-`:36`); the team repair builds both side keys with `sideKey`, and `TEAM_REPAIR_RECORD_COLUMNS` (`:89`) names both kinds of each side column it reads"
+    },
+    "apps/api/src/modules/matches/forfeit-void.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "a forfeit record carries its side, a Registration or a team (`:51`-`:53`, `:83`-`:92`); only a record that names a Registration is asked whether its Fighter is out (`:143`, `:166`-`:169`): a team has no status"
+    },
+    "apps/api/src/modules/matches/level-step.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "`BOUT_COLUMNS` (`:79`-`:84`) reads both kinds of each side and both winner columns, for `isLevelBout`, which judges them by `sidesOf` and `sideKey`"
+    },
+    "apps/api/src/modules/matches/match-forfeits.service.ts": {
+      "verdict": "side-key",
+      "hits": 40,
+      "why": "the forfeit door judges its side with `named-side.ts` (`sidesOf`, `:780`) and writes both sides through `forfeitSideColumns` (`:225`); a re-advance reads the restored winner by `sideKey` (`:732`). The Registration reads left are a Fighter's alone, never reached by a team (call 1): inheritance, escalation, the reserve swap (guarded `:253`) and the status settle"
+    },
+    "apps/api/src/modules/matches/match-summaries.ts": {
+      "verdict": "no-side-read",
+      "hits": 0,
+      "why": "reads no side id: the names, clubs and team colours come from the view (`:33`-`:34`), which names a team side by its team, with no club (0284); a team side's logo from the bout's team embeds (`:40`-`:43`, `:278`-`:289`)",
+      "byHand": true
+    },
+    "apps/api/src/modules/matches/matches.service.ts": {
+      "verdict": "side-key",
+      "hits": 14,
+      "why": "the manual completion writes its winner by side through `status-winner.ts` (`:284`-`:290`); `swapFighterColor` moves each side whole, Registration and team (`:978`-`:984`). The manual create names its sides by Registration (`:195`) and refuses a team Tournament first (`manual-bout-kind.ts`, `:155`, call 8). The hit door and the lock read take both kinds of each side and judge them by `sidesOf` (`:711`-`:729`, `:1285`)"
+    },
+    "apps/api/src/modules/matches/named-side.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "the one owner of the side a forfeit, a card or a protest names: from exactly one of its two fields, a Registration or a team (`:27`-`:35`), judged a side of the bout by its key (`sidesOf`) and its kind (`:46`-`:65`)"
+    },
+    "apps/api/src/modules/matches/reopen-match-columns.ts": {
+      "verdict": "no-side-read",
+      "hits": 2,
+      "why": "clears both winner columns, `winner_registration_id` with `winner_team_id` (`:28`, `:96`); reads no side"
+    },
+    "apps/api/src/modules/matches/status-winner.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the manual completion's winner: reads the four side columns (`:6`-`:7`) and writes the side key through `winnerColumns`, a key that is neither side refused 400 (`:31`-`:35`)"
+    },
+    "apps/api/src/modules/matches/scoring.service.ts": {
+      "verdict": "side-key",
+      "hits": 10,
+      "why": "a card is placed by `sideKey` of its Registration or team column (`:639`); both card reads select `team_id` (`:485`, `:1316`); the mapper and the winner writes read sides by `sideKey` (`:156`)"
+    },
+    "apps/api/src/modules/matches/time-limit-result.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "`boardOf` feeds the engine each side by `sidesOf` and the recorded winner by `sideKey` (`:52`-`:65`); the leader is written through `winnerColumns` (`:151`-`:160`)"
+    },
+    "apps/api/src/modules/matches/unplayed-match-columns.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "clears both winner columns, `winner_registration_id` with `winner_team_id` (`:57`); reads no side"
+    },
+    "apps/api/src/modules/matches/winner-columns.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "writes the engine's winner by side: `sidesOf` (`sideKey`) picks the Registration or the team column"
+    },
+    "apps/api/src/modules/mcp/tools/tournament-query.test-helper.ts": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "the organiser tools' test harness: it declares the columns of the mock `vw_tournament_query_matches` rows of an individual fixture Tournament (`bouts`) and reads no side; the tools service it drives is its own `not-yet` line (1c-2)"
+    },
+    "apps/api/src/modules/me/me-events.service.ts": {
+      "verdict": "not-yet",
+      "hits": 15,
+      "why": "1c: (1c-2) a person's own Events and Pools by Registration (`:1034`-`:1040`); personal schedule of named members is 1c"
+    },
+    "apps/api/src/modules/notifications/event-handlers/swiss-round-context.ts": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/penalties/black-card-undo.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "a black card's side by `savedCardSide`: its other black cards on the bout by the column of its kind (`:58`-`:63`), its forfeit by `forfeiting_team_id` or `forfeiting_registration_id` (`:81`-`:86`); a team card opened no review, so none is dropped (`:146`)"
+    },
+    "apps/api/src/modules/penalties/card-side.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "a card's side, a Registration or a team (call 5): named and judged against the bout by `named-side.ts`, written and read back in the column of its kind; a team's ladder counts this Match only (ruling 976); a team black card forfeits the Match (ruling 972)"
+    },
+    "apps/api/src/modules/penalties/dto/penalties.dto.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "a card body names exactly one of a Registration or a team (`:31`-`:32`, `:58`-`:61`)"
+    },
+    "apps/api/src/modules/penalties/penalties.service.ts": {
+      "verdict": "side-key",
+      "hits": 23,
+      "why": "the card door judges its side with `named-side.ts` (`:959`-`:960`) against the bout's side keys and teams from `sideKindsOf` (`:1482`), writes it in the column of its kind (`:1001`), and keys the pad's priors by side (`:1379`, `:1397`); a team black card forfeits through `team-black-card.ts`. The Registration reads left are a Fighter's alone, never reached by a team (ruling 972): the Tournament count of black cards, the second black card review and the status settle"
+    },
+    "apps/api/src/modules/penalties/second-black-card-review.ts": {
+      "verdict": "individual-only",
+      "hits": 14,
+      "why": "decision 12: a team card stops at its Match, so the Tournament-level penalty review gets no team form"
+    },
+    "apps/api/src/modules/people-context/people-context.service.ts": {
+      "verdict": "not-yet",
+      "hits": 15,
+      "why": "1c: (1c-2) people paths read bout sides by Registration (`:326`-`:354`); the final placement ranks the bracket read by side key (T7)"
+    },
+    "apps/api/src/modules/persons/public-schedule.service.ts": {
+      "verdict": "not-yet",
+      "hits": 9,
+      "why": "1c: (1c-2) a person's schedule reads bout sides by Registration (`:335`-`:389`); personal schedule of named members is 1c"
+    },
+    "apps/api/src/modules/phases/bracket-advance.service.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "a bracket bout advances by side: the winner by `sideKey` (`onMatchCompleted`), the loser by `resolveLoser` over the slot's side keys (`sidesOfSlot`) and the bout's (`sidesOf`); a filled side of either kind is judged by `sidesOfSlot`; every slot write names both columns of a side (`seatColumns` of the phase's kind, `kindOfPhase`; `clearedSeat` for an override's clear); a bye's seeded side is a Registration or a team"
+    },
+    "apps/api/src/modules/phases/bracket-downstream.ts": {
+      "verdict": "side-key",
+      "hits": 11,
+      "why": "the loaders read both columns of each side and of the winner (`loadMatch`, `loadSlot`) and the Tournament's kind (`loadPhase`, `kindOfPhase`); `clearFedSides` clears both columns of a fed side (`clearedSeat`)"
+    },
+    "apps/api/src/modules/phases/bracket-placeholder-match.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "copies both columns of each side from the generated slot (`boutSidesOfSlot`): a Registration or a team, null at generation"
+    },
+    "apps/api/src/modules/phases/bracket-refs.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "`resolveLoser` compares side keys (`sideKey`); `grandFinalEndsBracket` reads side A and the winner by Registration: a grand final is double elimination, which refuses a team Tournament (call 2)"
+    },
+    "apps/api/src/modules/phases/bracket-slots.controller.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the slot override names each side by Registration or by team (`slotSide`, call 4): an entrant goes to the column of its kind (`seatColumns` in `overrideSlot`), `null` clears both columns, a side left out is unchanged; `assertCanFillBracketSlot` refuses a side of the other kind than the Tournament's and an entrant of another Tournament"
+    },
+    "apps/api/src/modules/phases/dto/phases.dto.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the slot override body names each side by `registrationAId` / `teamAId` (b likewise), at most one per side (call 4)"
+    },
+    "apps/api/src/modules/phases/match-completion.service.ts": {
+      "verdict": "side-key",
+      "hits": 0,
+      "byHand": true,
+      "why": "the reopen preview names dependent bracket bouts through the view's `red_name`, `blue_name` (`nameBouts`); view 0284 names a team side by its team. `onResultChanged` clears by side through its callees (`clearDownstreamOf`, `clearDependentPairing`, both through `clearedSeat`)"
+    },
+    "apps/api/src/modules/phases/phases.controller.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "the add body names a Registration or a team (`AddPoolMemberDto`) and hands each to its own service door; remove hands the seat key on; it keys and compares no side"
+    },
+    "apps/api/src/modules/phases/phases.service.ts": {
+      "verdict": "side-key",
+      "hits": 51,
+      "why": "the bracket writers name a side by kind (`seatColumns`); a team bracket is sized and seeded by its teams; a team Tournament takes single elimination only, checked for every caller at generation, fill and reseed (`assertTeamBracket`, call 2). The Pools take teams (`poolEntrantColumns`, `poolSeatOf`). The bracket read (`getTournamentBracket`, also the pad's) reads both kinds of each slot side and the bout's two winner columns, and names each side through `bracketSlotSides` (`sideLabel`, keyed with `sideKey`); its seeding drift (`computeSeedingDrift`) compares the slots by side key (`slotSideKeys`). The Registration ids stay on the wire under their own names, null on a team side"
+    },
+    "apps/api/src/modules/phases/pool-entrant.ts": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "a key-name list: the seat and bout columns of each kind for the Pool writers; it keys and compares no side"
+    },
+    "apps/api/src/modules/phases/seat-columns.ts": {
+      "verdict": "side-key",
+      "hits": 14,
+      "why": "the columns of a bracket side: `seatColumns` puts the entrant in the column of the Tournament's kind and clears the other; `clearedSeat` clears both; `sidesOfSlot` keys a slot's two sides with `sideKey`; `boutSidesOfSlot` copies a slot's two columns per side onto its bout; `EMPTY_SLOT_SIDES` is a generated slot's"
+    },
+    "apps/api/src/modules/pool-standings/compute-rows.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "standings key each seat (`seatKey`) and each side and winner of a bout (`boutSideKeys`, `sideKey`) by side; a team is named by `sideLabel`"
+    },
+    "apps/api/src/modules/pool-standings/pool-rows.ts": {
+      "verdict": "side-key",
+      "hits": 8,
+      "why": "the Pool seat and bout row shapes with their team twins; `seatKey` and `boutSideKeys` build each key with `sideKey`, `withSideOf` names a side with `sideLabel`"
+    },
+    "apps/api/src/modules/pool-standings/pool-standings.service.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "reads the team twins of the seats, bouts, winners and forfeits; a forfeit counts against its side key (`sideKey`)"
+    },
+    "apps/api/src/modules/pool-standings/ruleset-scores.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "hands the ruleset each entrant and each side and winner by side key (`seatKey`, `boutSideKeys`, `sideKey`)"
+    },
+    "apps/api/src/modules/privacy/subject-export.service.ts": {
+      "verdict": "not-yet",
+      "hits": 2,
+      "why": "1c: (1c-2) the personal data export reaches fought bouts through Registrations (`:127`)"
+    },
+    "apps/api/src/modules/privacy/subject-export.tables.ts": {
+      "verdict": "not-yet",
+      "hits": 2,
+      "why": "1c: (1c-2) the personal data export's reach map (`:147`, `:156`)"
+    },
+    "apps/api/src/modules/programme/programme.service.ts": {
+      "verdict": "side-key",
+      "hits": 26,
+      "why": "every scheduler feed (Pool, Swiss, bracket, the re-fan) reads the team twins and hands the scheduler `schedulerSides` (`sideKey`, else `UNKNOWN_SIDE`)"
+    },
+    "apps/api/src/modules/protests/dto/protests.dto.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "a protest body names exactly one of a Registration or a team (`:12`, `:14`, the refine at `:22`)"
+    },
+    "apps/api/src/modules/protests/protests.service.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the protest door judges its side with `named-side.ts` against the bout's side keys and teams from `sideKindsOf` (`:173`), so a side still null on the bout is refused (`:146`-`:156`), and writes it in the column of its kind (`:95`); the two hits are the Registration columns of the bout's read (`:24`)"
+    },
+    "apps/api/src/modules/referees/assignment-board.service.ts": {
+      "verdict": "not-yet",
+      "hits": 48,
+      "why": "1c: (1c-2) the referee rule reads bout sides by Registration (`:173`-`:341`)"
+    },
+    "apps/api/src/modules/referees/board-unit-ends.ts": {
+      "verdict": "not-yet",
+      "hits": 7,
+      "why": "1c: (1c-2) the referee board passes sides by Registration (`:83`-`:89`)"
+    },
+    "apps/api/src/modules/referees/event-commitments.ts": {
+      "verdict": "not-yet",
+      "hits": 7,
+      "why": "1c: (1c-2) the referee rule (`fightersOf`) reads bout sides by Registration (`:152`-`:200`)"
+    },
+    "apps/api/src/modules/referees/swiss-board-units.ts": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/registrations/assignments.service.ts": {
+      "verdict": "not-yet",
+      "hits": 23,
+      "why": "1c: (1c-2) deleting a Person checks bouts and slots by Registration (`:222`-`:261`)"
+    },
+    "apps/api/src/modules/schedule/live-state.service.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the hall board reads both kinds of each side, the Registration embeds and `TEAM_SIDE_EMBEDS` (`:245`-`:247`), and names each through `sideLabel` (`bout-side-labels.ts`), which keys it with `sideKey`; a side not known yet keeps a null name"
+    },
+    "apps/api/src/modules/schedule/match-scheduler.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the scheduler's \"who is busy\" by side key (`schedulerSides`); a side not known yet shares `UNKNOWN_SIDE`, as the null id did"
+    },
+    "apps/api/src/modules/schedule/schedule-grid-match.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "a grid card's type: `redSideId` / `blueSideId` are filled by schedule-grid.service (`sideKey`); a comment names the old field"
+    },
+    "apps/api/src/modules/schedule/schedule-grid.service.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the grid reads the team twins and keys each side with `sideKey`; names come from the view (0284)"
+    },
+    "apps/api/src/modules/staff/lice-matches.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "`LICE_MATCH_SELECT` reads both kinds of each side, the Registration embeds and `TEAM_SIDE_EMBEDS` (`:38`-`:40`), and the piste list names each through `sideLabel` (`bout-side-labels.ts`), which keys it with `sideKey`; the Registration columns (`:35`) feed only the current bout's `redRegistrationId` / `blueRegistrationId` in staff.service"
+    },
+    "apps/api/src/modules/staff/staff.service.ts": {
+      "verdict": "side-key",
+      "hits": 15,
+      "why": "every bout read (the live board `:875`, the neighbour tiles `:1243`, the display `:1527`, the next bout `:1601`, the piste through `LICE_MATCH_SELECT`) reads both kinds of each side and names each through `sideLabel` (`bout-side-labels.ts`); the display keys its sides and its winner with `sideKey` (`displaySides`, `:2041`-`:2043`) and carries no Registration id. The current bout still passes the Registration columns on under their own names (`:1850`-`:1851`): null on a team side, never a side key"
+    },
+    "apps/api/src/modules/swiss/dto/swiss.dto.ts": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-admin-view.service.ts": {
+      "verdict": "individual-only",
+      "hits": 9,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-match-rows.ts": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-override-context.ts": {
+      "verdict": "individual-only",
+      "hits": 8,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-override.service.ts": {
+      "verdict": "individual-only",
+      "hits": 29,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-pairing.service.ts": {
+      "verdict": "individual-only",
+      "hits": 9,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-public-rounds.map.ts": {
+      "verdict": "individual-only",
+      "hits": 16,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-public-rounds.service.ts": {
+      "verdict": "individual-only",
+      "hits": 3,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-seeding.service.ts": {
+      "verdict": "individual-only",
+      "hits": 4,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-snapshot.ts": {
+      "verdict": "individual-only",
+      "hits": 12,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-standings-loader.ts": {
+      "verdict": "individual-only",
+      "hits": 12,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss-standings.service.ts": {
+      "verdict": "individual-only",
+      "hits": 11,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/swiss/swiss.controller.ts": {
+      "verdict": "individual-only",
+      "hits": 4,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/api/src/modules/tournament-completion/tournament-completion.service.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "a completed bracket bout is decided with either winner column (`bracketHasChampion`); `resetOwed` reads the grand final by Registration: double elimination refuses a team Tournament (call 2)"
+    },
+    "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts": {
+      "verdict": "not-yet",
+      "hits": 15,
+      "why": "1c: (1c-2) the assistant's Tournament queries find a Fighter's bouts by Registration (`:268`-`:273`, `:296`-`:310`) and count a Fighter's wins by Registration (`computeStats`, `:696`-`:722`). The bracket table names a bout's winner by side key (`winnerName`, `:855`-`:863`). Their names come from view 0284, which replaced 0193 and names a team side by its team. Not in the design's slice list, put with the rest of a Tournament"
+    },
+    "apps/api/src/workers/alert-still-wanted.ts": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "bout and follow alerts from team Matches are a non-goal (decision 16, non-goals)"
+    },
+    "apps/api/src/workers/follow-notification-scheduler.worker.ts": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "bout and follow alerts from team Matches are a non-goal (decision 16, non-goals)"
+    },
+    "apps/api/src/workers/notification-scheduler.worker.ts": {
+      "verdict": "individual-only",
+      "hits": 8,
+      "why": "bout and follow alerts from team Matches are a non-goal (decision 16, non-goals)"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/bracket-kind.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the bracket page's forfeit names a slot's corner through `forfeitingSide` (`sideKey`) over the side's Registration and team; the slot override names each changed side by `registrationAId` / `registrationBId` or `teamAId` / `teamBId`, by the Tournament's kind"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the forfeit and the override go through `bracket-kind.ts`; the forfeit is offered when both side ids are known, the podium reads the recorded winner by side id and a team's colour; its two hits are the realtime payload's declared Registration columns, which it does not read"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/forfeiting-side.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the bout page's forfeit and override name a corner's side through `sideKey` over the row's four ids: `forfeitingRegistrationId` for a Fighter, `forfeitingTeamId` for a team, null while the side is to come"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "the forfeit and override send the side `forfeitingSide` builds (a Fighter or a team), and ask no \"can continue?\" for a team; the page reads no winner: its one hit is a comment on the winner column's readers (`:244`)"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/page.tsx": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "decision 12: the Tournament-level penalty review gets no team form"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/penalty-reviews-read.ts": {
+      "verdict": "individual-only",
+      "hits": 1,
+      "why": "decision 12: the Tournament-level penalty review gets no team form"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "a Pool bout's sides are a Registration or a team (`MatchRow`); the winner goes through `poolBoutWinner` (side keys), the header count through `countPoolFighters`"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/count-pool-fighters.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "counts a Pool's entrants by `sideKey` over both sides of its bouts: Fighters or teams"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/match-scores-merge.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "merges both winner columns of the score poll (`winner_registration_id`, `winner_team_id`); the winner is read by side key in `poolBoutWinner`"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/pool-bout-winner.ts": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the Pool table's winner: `resolveMatchWinner` fed `sideKey` of each side and of the winner"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/print/build-print-data.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "a printed Pool's roster is deduped by `sideKey` over both sides of its bouts: Fighters or teams"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/conflict-detection.ts": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "the double-booking check compares side keys (`redSideId` / `blueSideId`): a Fighter or a team; a side not known yet is nobody; no side token left, listed by hand",
+      "byHand": true
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/referee-conflict-rows.ts": {
+      "verdict": "not-yet",
+      "hits": 0,
+      "why": "1c: (1c-2) the referee rule's second copy maps a side key to a Person through the Registrations (`fightersOf`); a team side maps to nobody until its members are named; no side token left, listed by hand",
+      "byHand": true
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/schedule-types.ts": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "the schedule bout names its sides `redSideId` / `blueSideId`, the grid answer's side keys (null when not known); no side token left, listed by hand",
+      "byHand": true
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/RoundCard.tsx": {
+      "verdict": "individual-only",
+      "hits": 12,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RoundsTab.tsx": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/useSwissAdmin.ts": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/web-admin/src/components/statistics/types.ts": {
+      "verdict": "individual-only",
+      "hits": 1,
+      "why": "the blow statistics row `FighterStats` is keyed `registrationId` (`:86`): it is the per-Fighter blow table, and personal statistics from team Matches are a non-goal (call 7); the database leaves team bouts out of it (0285, and the Registration join of 0189:188); the standings row is the shared `PoolStandingsRow`, keyed `entrantId`"
+    },
+    "apps/web-admin/src/lib/rules-change-refusal.ts": {
+      "verdict": "individual-only",
+      "hits": 1,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal); names the Fighters a refused forfeit rules change moves (`:61`)"
+    },
+    "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-row.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "`mapMatchRow` builds each side's key and the winner's with `sideKey` from the Registration and team columns of the raw bout row (`:103`-`:105`); null for a side not known, never `''`"
+    },
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/BracketLive.tsx": {
+      "verdict": "side-key",
+      "hits": 6,
+      "why": "the card takes the side ids and typed sides from the wire as they are (`:227`-`:231`); the Registration ids beside them only mark the reader's own slot in the personal space (`:145`-`:146`), and a team has no Registration to mark"
+    },
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView.tsx": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "the public Pool table bolds its winner by the read's side keys (`winnerSideId`, `redSideId`, `blueSideId`, from `publicPoolBoutSides`); the Registration ids beside them only mark the reader's own bouts; the column heads read the Tournament's kind (`teams`), not a bout's side"
+    },
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView.tsx": {
+      "verdict": "individual-only",
+      "hits": 11,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "apps/web-staff/src/components/MatchView.tsx": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "declares the bout's Registration ids beside its team ids (`:63`-`:73`); each corner's side comes from `sideOf`, the side keys and the winner's from `resultSides`"
+    },
+    "apps/web-staff/src/components/black-card-loss.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "the black card's side is its `sideKey` (`:23`), matched to a side key; null is nobody (call 5)"
+    },
+    "apps/web-staff/src/components/result-winner.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the result screen's side keys come from `sideIdOf` (`bout-sides.ts`, `:21`-`:22`) and its winner's side key is built with `sideKey` (`:26`); the tablet's own winner is a side key too"
+    },
+    "apps/web-staff/src/components/tournament-context-types.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "declares the piste's Pool row with its Registration ids beside its team ids and both winner columns (`:51`-`:57`), as the server sends them; the bracket slots are the bracket read's own type (`TournamentBracketSlotWire`): side ids the API builds with `sideKey`, and typed sides"
+    },
+    "apps/web-staff/src/lib/bout-read.ts": {
+      "verdict": "no-side-read",
+      "hits": 9,
+      "why": "maps the bout row's Registration ids beside its team ids, the winner's too (`:57`-`:63`, `:139`-`:149`), as they are; the screen builds its side keys from them"
+    },
+    "apps/web-staff/src/lib/bout-sides.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "`sideOf` answers a corner's side, a Registration or a team, with `sideKey` over its two ids (`:23`-`:27`, call 9); `sideMissing` and `sideIdOf`, the pad's one corner key (the history, the rounds, the result screen), are written on it"
+    },
+    "apps/web-staff/src/lib/forfeit-body.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "a forfeit names exactly one of `forfeitingRegistrationId` or `forfeitingTeamId` from the side's kind (`:36`, call 8); a team is asked nothing of continuing (call 4)"
+    },
+    "apps/web-staff/src/lib/pool-row-winner.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the piste's Pool list bolds the recorded winner, each side and the winner built with `sideKey` (`:18`-`:20`)"
+    },
+    "apps/web-staff/src/offline/db.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "declares a queued card's or protest's two side fields, `registrationId` or `teamId`, neither indexed (`:165`-`:166`, call 10); reads no side"
+    },
+    "apps/web-staff/src/offline/outbox.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "`enqueue` takes a card's or a protest's `QueuedSide` in place of the two side fields and writes exactly one through `sideFields`; reads no side"
+    },
+    "apps/web-staff/src/offline/pending-events.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "a queued card's and protest's row names its one side, the other null, never '' (`:97`-`:98`, `:242`-`:243`, call 10); a card is priced by its `sideKey` (`:202`); the chips, the caption and the provisional score place each row by side key with `isRowOfSide` (`:300`, `:324`, `:379`-`:380`)"
+    },
+    "apps/web-staff/src/offline/queued-side.ts": {
+      "verdict": "side-key",
+      "hits": 7,
+      "why": "a queued card or protest names exactly one of a Registration or a team, from its `QueuedSide` (`sideFields`, `:19`-`:20`, call 9); the send copies that one field (`sideOnWire`, `:27`-`:30`, call 8)"
+    },
+    "apps/web-staff/src/offline/resolve-entry-card.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "a held card's row names its side by Registration or team (`:33`-`:34`); the held priors are matched to a side key with `isRowOfSide` (`:59`), a team's of this Match only (ruling 976)"
+    },
+    "packages/db/migrations/0001_init.sql": {
+      "verdict": "no-side-read",
+      "hits": 7,
+      "why": "declares the side columns and their foreign keys; reads no side"
+    },
+    "packages/db/migrations/0016_penalties.sql": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "declares the card and review tables; reads no side"
+    },
+    "packages/db/migrations/0032_match_forfeits.sql": {
+      "verdict": "no-side-read",
+      "hits": 3,
+      "why": "declares the forfeit table; reads no side"
+    },
+    "packages/db/migrations/0033_tournament_query.sql": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "its view `vw_tournament_query_matches` was replaced by 0193"
+    },
+    "packages/db/migrations/0081_simplify_tournament_views.sql": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "its view `vw_tournament_query_matches` was replaced by 0193"
+    },
+    "packages/db/migrations/0114_directory_groups.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its `compact_fighter_stats` was replaced by 0214"
+    },
+    "packages/db/migrations/0128_fighter_exchange_stats_on_read.sql": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "its `fighter_exchange_stats` was replaced by 0189"
+    },
+    "packages/db/migrations/0129_fighter_exchange_stats_include_test.sql": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "its `fighter_exchange_stats` was replaced by 0189"
+    },
+    "packages/db/migrations/0135_tournament_target_value_stats.sql": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "`tournament_target_value_stats` takes the attacker by Registration and drops a bout with none (`:61`), so a team bout gives no row"
+    },
+    "packages/db/migrations/0136_fighter_exchange_stats_value3.sql": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "its `fighter_exchange_stats` was replaced by 0189"
+    },
+    "packages/db/migrations/0138_compact_fighter_stats_live.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its `compact_fighter_stats` was replaced by 0214"
+    },
+    "packages/db/migrations/0162_event_kind.sql": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "its `compact_fighter_stats` was replaced by 0214"
+    },
+    "packages/db/migrations/0164_swiss_phase.sql": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "its view `vw_tournament_query_matches` was replaced by 0193"
+    },
+    "packages/db/migrations/0186_match_forfeits_resulting_state.sql": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `winner_registration_id` in a column comment (`:34`); reads no side"
+    },
+    "packages/db/migrations/0189_blow_value_stats_any_value.sql": {
+      "verdict": "individual-only",
+      "hits": 18,
+      "why": "blow values replaced by 0285; exchange stats join registrations, `:188`, so a team bout gives no row"
+    },
+    "packages/db/migrations/0192_compact_fighter_stats_double_loss.sql": {
+      "verdict": "individual-only",
+      "hits": 7,
+      "why": "its `compact_fighter_stats` was replaced by 0214"
+    },
+    "packages/db/migrations/0193_tournament_query_matches_end_reason.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its view `vw_tournament_query_matches` was replaced by 0284"
+    },
+    "packages/db/migrations/0214_compact_fighter_stats_public_only.sql": {
+      "verdict": "individual-only",
+      "hits": 5,
+      "why": "`compact_fighter_stats`: one person's career; personal statistics and profile history from team Matches are a non-goal"
+    },
+    "packages/db/migrations/0237_cascade_deletes_check_at_commit.sql": {
+      "verdict": "no-side-read",
+      "hits": 21,
+      "why": "recreates the side foreign keys as deferred; reads no side"
+    },
+    "packages/db/migrations/0238_match_tables_api_only_writes.sql": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `match_penalties.registration_id` in a comment (`:16`); reads no side"
+    },
+    "packages/db/migrations/0239_match_forfeits_draw.sql": {
+      "verdict": "no-side-read",
+      "hits": 8,
+      "why": "lets a draw forfeit name no winner (a CHECK and its check); reads no side"
+    },
+    "packages/db/migrations/0240_fighter_status_settle.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its `settle_fighter_status` was replaced by 0246; decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal)"
+    },
+    "packages/db/migrations/0241_fighter_bouts_follow_status.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its `settle_fighter_status` was replaced by 0246; decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal)"
+    },
+    "packages/db/migrations/0242_forfeit_under_out_status.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "its `settle_fighter_status` was replaced by 0246; decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal)"
+    },
+    "packages/db/migrations/0243_swiss_round_one_locked_step.sql": {
+      "verdict": "individual-only",
+      "hits": 6,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "packages/db/migrations/0244_swiss_pairings_follow_status.sql": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "packages/db/migrations/0246_forfeit_rules_audited_fighters_follow.sql": {
+      "verdict": "individual-only",
+      "hits": 4,
+      "why": "decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal)"
+    },
+    "packages/db/migrations/0276_match_protests.sql": {
+      "verdict": "no-side-read",
+      "hits": 2,
+      "why": "declares the protest table; reads no side"
+    },
+    "packages/db/migrations/0282_team_twins.sql": {
+      "verdict": "no-side-read",
+      "hits": 44,
+      "why": "the team twins: each side is one Registration or one team (CHECKs and their checks); reads no side"
+    },
+    "packages/db/migrations/0284_query_matches_team_sides.sql": {
+      "verdict": "no-side-read",
+      "hits": 5,
+      "why": "a view: projects each side's Registration and team columns and names whichever is set (COALESCE, `:51`-`:52`); it keys and compares no side, its readers key a side with `sideKey`"
+    },
+    "packages/db/migrations/0285_blow_value_stats_leave_team_bouts_out.sql": {
+      "verdict": "individual-only",
+      "hits": 10,
+      "why": "`fighter_blow_value_stats` counts blows by Registration and now reads only bouts with no team on either side (`:58`-`:59`)"
+    },
+    "packages/rules/src/domain.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "a history comment quotes the old cast's `winnerRegistrationId` (`:60`); the fields are side ids"
+    },
+    "packages/rules/src/match-format.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `winner_registration_id` in a comment (`:384`); the engine reads side ids"
+    },
+    "packages/rules/src/results/fighter-career.ts": {
+      "verdict": "individual-only",
+      "hits": 37,
+      "why": "one person's career keeps its own names (design call 23); personal statistics and profile history from team Matches are a non-goal"
+    },
+    "packages/rules/src/results/index.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `pool_members` / `registration_id` in a comment (`:14`); reads no side"
+    },
+    "packages/rules/src/results/standings.ts": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "names `registration_id` in a comment about the embed shape (`:7`); its rows are keyed `entrantId`"
+    },
+    "packages/types/src/bracket-side.ts": {
+      "verdict": "side-key",
+      "hits": 5,
+      "why": "the bracket slot the two bracket reads send: `redSideId`, `blueSideId`, `winnerSideId` and the typed `red` / `blue` sides are side keys the API builds with `sideKey`; the Registration ids beside them keep their meaning, null on a team side"
+    },
+    "packages/types/src/match-winner.ts": {
+      "verdict": "side-key",
+      "hits": 1,
+      "why": "the winner of a bout by side id: `winnerSideId`, `redSideId`, `blueSideId` are required keys, so each of its nine callers names them; the one hit is the doc comment naming `winner_registration_id`"
+    },
+    "packages/ui/src/components/TVScoreboard.tsx": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "the TV reads the payload's side keys: each column's cards by `isRowOfSide` and its protest chip by `redSideId` / `blueSideId` (`:273`, `:290`, `:519`), the winner by `winnerSideId` with no fallback to the Registration (`:688`-`:690`), the timeline and the flow fed the side keys (`:722`-`:723`, `:747`-`:748`); no side token left, listed by hand: the raw-assignment rule scans `apps/` only",
+      "byHand": true
+    },
+    "packages/ui/src/components/TvProtestChip.tsx": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "counts a side's protests by its side key (`sideId`) through `liveProtestsOf` (`:32`); no side token left, listed by hand",
+      "byHand": true
+    },
+    "packages/ui/src/components/bracket/MatchCard.tsx": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "the \"you\" mark reads the Registration through `isRowOfSide` (`:100`-`:108`), so a team row is nobody's; the winner reads the side ids (`:420`-`:431`); a team side draws its chip and no club"
+    },
+    "packages/ui/src/components/bracket/types.ts": {
+      "verdict": "side-key",
+      "hits": 3,
+      "why": "the slot keeps its Registration ids (null on a team) beside its side ids and typed sides (`:38`-`:52`), for the forfeit and the \"you\" mark"
+    },
+    "packages/ui/src/types/match-events.ts": {
+      "verdict": "side-key",
+      "hits": 4,
+      "why": "a card and a protest row name their side by `registration_id` or `team_id` (`:141`-`:142`, `:193`-`:194`), read through `isRowOfSide`; the bout payload carries the side keys (`:241`-`:244`) and no Registration id beside them. The other hit is the scorer's Registration on a hit (`:79`)"
+    },
+    "packages/ui/src/utils/bout-flow.ts": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "a card's points go to the side `rowSide` reads by side key (`:173`); every caller passes side keys (`redSideId` / `blueSideId`, `:88`-`:89`, `:166`-`:167`); no side token left, listed by hand: the raw-assignment rule scans `apps/` only",
+      "byHand": true
+    },
+    "packages/ui/src/utils/exchange-timeline.ts": {
+      "verdict": "side-key",
+      "hits": 2,
+      "why": "`isRowOfSide` reads a row's side key `registration_id ?? team_id` inline (bundle rule) and a side with no key is nobody (`:287`, `:301`-`:303`); `rowSide` places a card or a protest by it. Every caller passes side keys (`redSideId` / `blueSideId`, `:178`-`:179`)"
+    },
+    "packages/ui/src/utils/protest-chip.ts": {
+      "verdict": "side-key",
+      "hits": 0,
+      "why": "`liveProtestsOf` counts a side's protests by side key through `isRowOfSide` (`:19`): a Fighter's or a team's, a side with no key counts none; no side token left, listed by hand",
+      "byHand": true
+    },
+    "scripts/db-cascade-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 8,
+      "why": "a probe's list of foreign-key names (`:104`-`:111`, `:253`)"
+    },
+    "scripts/db-synthetic-fixture.mjs": {
+      "verdict": "individual-only",
+      "hits": 12,
+      "why": "the perf fixture seeds and times individual Tournaments only"
+    },
+    "scripts/e2e-server-api-stub.mjs": {
+      "verdict": "no-side-read",
+      "hits": 4,
+      "why": "stub rows the E2E server returns; reads no side"
+    },
+    "scripts/lib/fighter-status-probe-kit.mjs": {
+      "verdict": "individual-only",
+      "hits": 4,
+      "why": "a probe of the Fighter status (decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal))"
+    },
+    "scripts/lib/fighters-status-under-probe.mjs": {
+      "verdict": "individual-only",
+      "hits": 7,
+      "why": "a probe of the Fighter status (decision 7: a Fighter status and the automatic forfeit rules act on a Registration; a team has no status (non-goal))"
+    },
+    "scripts/lib/forfeit-draw-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 2,
+      "why": "writes one forfeit row to probe the draw CHECK; reads no side"
+    },
+    "scripts/lib/swiss-probe-kit.mjs": {
+      "verdict": "individual-only",
+      "hits": 2,
+      "why": "a Swiss probe; Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "scripts/lib/swiss-probe.mjs": {
+      "verdict": "individual-only",
+      "hits": 4,
+      "why": "a Swiss probe; Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "scripts/lib/swiss-status-probe.mjs": {
+      "verdict": "individual-only",
+      "hits": 12,
+      "why": "a Swiss probe; Swiss is a non-goal: team Tournaments run Pools and single elimination only"
+    },
+    "scripts/lib/team-blow-stats-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 1,
+      "why": "probes the function of 0285: writes a Registration on red of one individual bout (`:64`) and counts the rows the function gives back; keys no side"
+    },
+    "scripts/lib/team-tables-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 12,
+      "why": "probes the twin CHECKs of 0282 with rows that name both kinds; reads no side"
+    },
+    "scripts/lib/team-view-probe.mjs": {
+      "verdict": "no-side-read",
+      "hits": 5,
+      "why": "probes the view of 0284: reads back the columns of a team bout and of an individual bout it wrote, and compares them with what it wrote; keys no side"
+    }
+  },
+  "rawSideAssignments": {
+    "apps/api/src/modules/fighters/fighters.service.ts": {
+      "count": 3,
+      "why": "one person's history: the engine judges that person's own bout, sides by Registration (`:1064`-`:1066`)"
+    },
+    "apps/api/src/modules/fighters/recent-matches.ts": {
+      "count": 3,
+      "why": "one person's history: the engine judges that person's own bout, sides by Registration (`:94`-`:96`)"
+    },
+    "apps/api/src/modules/matches/fighter-reconcile.ts": {
+      "count": 2,
+      "why": "individual-only: the reconcile selects by Registration (`:101`); the Fighter's Registration id is the winner side key it hands `completeMatch` (`:192`, `:221`)"
+    },
+    "apps/api/src/modules/matches/dto/matches.dto.ts": {
+      "count": 1,
+      "why": "the manual completion's wire field: the client sends the winner's side key (`winnerSideId`, `:42`, call 8); `status-winner.ts` judges it against the bout's sides through `winnerColumns`"
+    },
+    "apps/api/src/modules/matches/match-summaries.ts": {
+      "count": 2,
+      "why": "`bestOfFor` asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:156`-`:157`)"
+    },
+    "apps/api/src/modules/matches/named-side.ts": {
+      "count": 2,
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:49`-`:50`)"
+    },
+    "apps/api/src/modules/persons/public-schedule.service.ts": {
+      "count": 3,
+      "why": "1c: a person's schedule judges their own bout by Registration (`:387`-`:389`); personal schedule of named members is 1c"
+    },
+    "apps/api/src/modules/staff/staff.service.ts": {
+      "count": 2,
+      "why": "the round-count call asks the engine only how many rounds a bout has and passes `''` for both sides; that call reads no side (`:1979`-`:1980`)"
+    }
+  }
+}

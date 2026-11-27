@@ -23,12 +23,13 @@
  *   - no key a cascade can trip by trigger order is left: any RESTRICT key, deferrable or not
  *     (Postgres checks RESTRICT at once), and any immediate NO ACTION key, whose child and parent
  *     both die by cascade from one ancestor; and, so an empty scan cannot pass, the same search
- *     without the "immediate" filter finds exactly the nine keys of 0237;
+ *     without the "immediate" filter finds exactly the deferred keys (the nine of 0237,
+ *     `team_slots.person_id` of 0281, and the four Team sides of a Match and a forfeit, 0282);
  *   - each seeded row was written;
  *   - a delete of the Event, the Tournament, the phase and the club succeeds and takes the bouts;
- *   - a delete of a registration a bout names, a person with a registration, the copy a bout holds,
- *     a referee skill slots list and a compensation plan an Event uses is refused (23503) by one of
- *     the keys that protect it;
+ *   - a delete of a registration a bout names, a team a bout names (0282's keys checked at commit),
+ *     a person with a registration, the copy a bout holds, a referee skill slots list and a
+ *     compensation plan an Event uses is refused (23503) by one of the keys that protect it;
  *   - every path that removes a photo row (its delete and the Event delete, by the API's role too;
  *     the club delete; a TRUNCATE, a cascading one too) queues both its image keys and takes its
  *     report (0252), a Tournament delete only untags it, a second report by the same phone adds no
@@ -38,6 +39,15 @@
  *   - a photo sent from an account refuses the auth server's delete of that account, erasure's
  *     delete of it queues both keys first, and a photo has one sender and a name of 40 (a phone)
  *     or 200 (an account) characters at most (0254, `lib/photo-account-probe.mjs`);
+ *   - a team added while its Tournament's kind changes, and a change of kind while a team is added,
+ *     forced to overlap on two connections: the second waits and is refused by the kind trigger
+ *     (0281, `lib/team-kind-race.mjs`); a League link requested while a Tournament switches to
+ *     team, and the switch while a link is requested, the same way: the second waits and is
+ *     refused by the League link trigger (0287); a switch to team while a phase is added, the
+ *     same way: the switch waits and is refused by the phase trigger (0288); a double elimination
+ *     phase added while a Tournament switches to team, the same way: the phase waits and is
+ *     refused by the phase trigger (0289); its Tournaments stay
+ *     committed until the club delete, its League is deleted at the end of the races;
  *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
  */
@@ -54,6 +64,7 @@ import {
   tombstonesAfterClubDelete,
 } from './lib/photo-tombstone-probe.mjs';
 import { photoAccountCases } from './lib/photo-account-probe.mjs';
+import { teamKindRaces } from './lib/team-kind-race.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -73,7 +84,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 78;
+const EXPECTED_CHECKS = 107;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -84,20 +95,30 @@ const COPY = 'ca5c0000-0000-4000-8000-0000000000d1';
 const RED_PERSON = 'ca5c0000-0000-4000-8000-000000000101';
 const RED = 'ca5c0000-0000-4000-8000-000000000201';
 const BOUT = 'ca5c0000-0000-4000-8000-000000000301';
+// The red side and the winner of the team bout, and the winner of its forfeit.
+const TEAM = 'ca5c0000-0000-4000-8000-000000000c11';
 const REFEREE = 'ca5c0000-0000-4000-8000-000000000701';
 const SKILL = 'cascade-probe-skill';
 const PLAN = 'ca5c0000-0000-4000-8000-000000000a01';
 
-/** The nine keys 0237 made deferred. */
+/**
+ * The keys checked at commit, sorted: the nine 0237 made deferred, the team slot's Person (0281),
+ * the Team sides of a Match and of a forfeit (0282).
+ */
 const DEFERRED_KEYS = [
   'event_slot_config_default_skills_skill_id_fkey',
   'match_forfeits_forfeiting_registration_id_fkey',
+  'match_forfeits_forfeiting_team_id_fkey',
   'match_forfeits_winner_registration_id_fkey',
+  'match_forfeits_winner_team_id_fkey',
   'matches_blue_registration_id_fkey',
+  'matches_blue_team_id_fkey',
   'matches_match_rules_id_fkey',
   'matches_red_registration_id_fkey',
+  'matches_red_team_id_fkey',
   'referee_compensation_event_settings_plan_id_fkey',
   'registrations_person_id_fkey',
+  'team_slots_person_id_fkey',
   'tournament_slot_allowed_skills_skill_id_fkey',
 ];
 
@@ -129,6 +150,17 @@ const SEEDED = [
   ['event_slot_config_default_skills', 'skill_id', SKILL],
   ['referee_compensation_plans', 'id', PLAN],
   ['referee_compensation_event_settings', 'plan_id', PLAN],
+  // A team Tournament of the Event, its phase and copy of the rules, a team and a named slot (0281).
+  ['tournaments', 'id', 'ca5c0000-0000-4000-8000-0000000000f2'],
+  ['phases', 'id', 'ca5c0000-0000-4000-8000-0000000000b2'],
+  ['match_rules', 'id', 'ca5c0000-0000-4000-8000-0000000000d2'],
+  ['teams', 'id', 'ca5c0000-0000-4000-8000-000000000c11'],
+  ['team_slots', 'id', 'ca5c0000-0000-4000-8000-000000000c21'],
+  // A second team, a team bout with a winner, its forfeit and a protest (0282).
+  ['teams', 'id', 'ca5c0000-0000-4000-8000-000000000c12'],
+  ['matches', 'id', 'ca5c0000-0000-4000-8000-000000000c31'],
+  ['match_forfeits', 'id', 'ca5c0000-0000-4000-8000-000000000c41'],
+  ['match_protests', 'id', 'ca5c0000-0000-4000-8000-000000000c51'],
   PHOTO_SEEDED,
   REPORT_SEEDED,
 ];
@@ -171,7 +203,7 @@ async function noKeyTrippableByOrder() {
   check('keys a cascade can trip by order', left.length === 0, left.join(', '));
   const all = await trippableKeys(false);
   check(
-    'the search finds the nine keys of 0237 without its timing filter',
+    'the search finds the deferred keys without its timing filter',
     JSON.stringify(all) === JSON.stringify(DEFERRED_KEYS),
     `found ${all.join(', ') || 'none'}`,
   );
@@ -218,43 +250,55 @@ async function deletesSucceed() {
   }
 }
 
+/** Each delete that must be refused (23503), and the keys that may refuse it. */
+const REFUSALS = [
+  [
+    'a registration a bout names',
+    (tx) => tx`DELETE FROM registrations WHERE id = ${RED}`,
+    [
+      'matches_red_registration_id_fkey',
+      'matches_blue_registration_id_fkey',
+      'match_forfeits_winner_registration_id_fkey',
+      'match_forfeits_forfeiting_registration_id_fkey',
+    ],
+  ],
+  [
+    'a person with a registration',
+    (tx) => tx`DELETE FROM persons WHERE id = ${RED_PERSON}`,
+    ['registrations_person_id_fkey'],
+  ],
+  [
+    'a team a bout names',
+    (tx) => tx`DELETE FROM teams WHERE id = ${TEAM}`,
+    [
+      'matches_red_team_id_fkey',
+      'matches_blue_team_id_fkey',
+      'match_forfeits_winner_team_id_fkey',
+      'match_forfeits_forfeiting_team_id_fkey',
+    ],
+  ],
+  [
+    'the copy a bout holds',
+    (tx) => tx`DELETE FROM match_rules WHERE id = ${COPY}`,
+    ['matches_match_rules_id_fkey'],
+  ],
+  [
+    'a referee skill slots list',
+    (tx) => tx`DELETE FROM referee_skills WHERE id = ${SKILL}`,
+    [
+      'tournament_slot_allowed_skills_skill_id_fkey',
+      'event_slot_config_default_skills_skill_id_fkey',
+    ],
+  ],
+  [
+    'a plan an Event uses',
+    (tx) => tx`DELETE FROM referee_compensation_plans WHERE id = ${PLAN}`,
+    ['referee_compensation_event_settings_plan_id_fkey'],
+  ],
+];
+
 async function refusalsHold() {
-  const cases = [
-    [
-      'a registration a bout names',
-      (tx) => tx`DELETE FROM registrations WHERE id = ${RED}`,
-      [
-        'matches_red_registration_id_fkey',
-        'matches_blue_registration_id_fkey',
-        'match_forfeits_winner_registration_id_fkey',
-        'match_forfeits_forfeiting_registration_id_fkey',
-      ],
-    ],
-    [
-      'a person with a registration',
-      (tx) => tx`DELETE FROM persons WHERE id = ${RED_PERSON}`,
-      ['registrations_person_id_fkey'],
-    ],
-    [
-      'the copy a bout holds',
-      (tx) => tx`DELETE FROM match_rules WHERE id = ${COPY}`,
-      ['matches_match_rules_id_fkey'],
-    ],
-    [
-      'a referee skill slots list',
-      (tx) => tx`DELETE FROM referee_skills WHERE id = ${SKILL}`,
-      [
-        'tournament_slot_allowed_skills_skill_id_fkey',
-        'event_slot_config_default_skills_skill_id_fkey',
-      ],
-    ],
-    [
-      'a plan an Event uses',
-      (tx) => tx`DELETE FROM referee_compensation_plans WHERE id = ${PLAN}`,
-      ['referee_compensation_event_settings_plan_id_fkey'],
-    ],
-  ];
-  for (const [what, statement, keys] of cases) {
+  for (const [what, statement, keys] of REFUSALS) {
     const { error } = await tryAndRollBack(statement);
     check(`delete of ${what} refused`, error?.code === '23503', error?.message ?? 'accepted');
     check(
@@ -318,6 +362,7 @@ try {
     await refusalsHold();
     await photoTombstoneCases({ tryAndRollBack, check });
     await photoAccountCases({ tryAndRollBack, check });
+    await teamKindRaces({ databaseUrl, watch: sql, check, event: EVENT });
   } finally {
     await seedDeleted();
     await tombstonesAfterClubDelete(sql, check);
@@ -332,7 +377,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament, a phase and a switch to team at once leave no phase on a Tournament that changed kind, a double elimination phase and a switch to team at once leave no double elimination on a team Tournament.`,
     );
   }
 } catch (error) {

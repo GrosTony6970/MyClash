@@ -223,6 +223,13 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:package-purity
 
+      # A side of a Match is a Registration or a team (0282). Every file that
+      # reads a side is listed with a verdict in scripts/side-readers-ledger.json,
+      # so the team slices cannot forget one; the "not yet" lines may only shrink.
+      - name: Check Match side readers
+        if: '!cancelled()'
+        run: pnpm quality:side-readers
+
       # Every NEXT_PUBLIC_* a web app requires at build time must be declared as
       # a Dockerfile ARG and passed by both compose files. Reviewing this
       # cheaply is the point: the check that already existed lives in

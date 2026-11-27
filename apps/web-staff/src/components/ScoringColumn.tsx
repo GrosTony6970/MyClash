@@ -35,6 +35,7 @@ import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
 import { quickEntriesOf, searchedEntries, sortedEntries } from '../lib/penalty-entries';
 import { queueCard } from '../offline/outbox';
+import type { QueuedSide } from '../offline/queued-side';
 import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
 import { ProtestControl } from './ProtestControl';
@@ -52,7 +53,8 @@ interface ScoringColumnProps {
    * what pushes it out once it is safely on disk.
    */
   syncEngine?: SyncEngine | null;
-  registrationId: string;
+  /** The side this column scores for, a Fighter or a team (`sideOf`); null while still to come. */
+  boutSide: QueuedSide | null;
   fighterName: string;
   club?: string | null;
   score: number;
@@ -127,7 +129,7 @@ export function ScoringColumn({
   onProtestTap,
   nextSequence,
   syncEngine,
-  registrationId,
+  boutSide,
   fighterName,
   club,
   score,
@@ -153,9 +155,11 @@ export function ScoringColumn({
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
   const visibleAfterblows = config.buttons.afterblow.filter((b) => b.visible);
   const { ruleset, ruleSetCards, countFor, resolveCard } = scoring;
+  // The cards, protests and offences of this side are found by its side key.
+  const sideId = boutSide?.id ?? null;
   // Per fighter, not per match: a card against blue used to be announced under
   // red's numeral too, because the count was the whole match's.
-  const queuedCards = scoring.queuedCardsFor(registrationId);
+  const queuedCards = scoring.queuedCardsFor(sideId);
 
   const entries = useMemo(() => sortedEntries(ruleset?.penalty_ruleset_entries ?? []), [ruleset]);
 
@@ -190,13 +194,18 @@ export function ScoringColumn({
    * outbox path was missing.
    */
   async function submitPenalty(payload: ReturnType<typeof listedCard>) {
+    // A column with no Fighter yet: the card has nobody to go to. The server refuses it too.
+    if (boutSide === null) {
+      setPenaltyError(t('pad.corrections.boutSideMissing'));
+      return;
+    }
     setPenaltySubmitting(true);
     setPenaltyError(null);
     try {
       await queueCard({
         matchId,
         sequence: nextSequence,
-        registrationId,
+        side: boutSide,
         clockTimeMs,
         bout: submit.bout,
         round: submit.round,
@@ -231,7 +240,7 @@ export function ScoringColumn({
    * list scrolls, and a scroll that lands as a tap must not disqualify anyone.
    */
   function pickPenalty(entry: PenaltyRulesetEntry) {
-    const card = resolveCard(entry, registrationId);
+    const card = resolveCard(entry, sideId);
     if (cardAsksFirst(card)) setAskedCard({ entry, card });
     else void submitPenalty(listedCard(entry));
   }
@@ -328,7 +337,7 @@ export function ScoringColumn({
           show, the button records. */}
       <div className="flex flex-wrap items-center justify-center gap-2">
         {ruleSetCards.map((card) => {
-          const count = countFor(registrationId, card);
+          const count = countFor(sideId, card);
           return (
             <span
               key={card}
@@ -359,7 +368,7 @@ export function ScoringColumn({
         <ProtestControl
           side={side}
           matchId={matchId}
-          registrationId={registrationId}
+          sideId={sideId}
           fighterName={fighterName}
           disabled={!protestLive || readOnly}
           onProtestTap={onProtestTap}
@@ -491,7 +500,7 @@ export function ScoringColumn({
                 // first-occurrence one. `sanctions[0]` said yellow on a
                 // fighter's second offence in the group while the server issued
                 // red — wrong online as much as offline.
-                const card = resolveCard(entry, registrationId);
+                const card = resolveCard(entry, sideId);
                 return (
                   <button
                     key={entry.id}
@@ -540,7 +549,7 @@ export function ScoringColumn({
                 entry={entry}
                 groupLabel={t('scoring.penalties.group')}
                 disabled={penaltyDisabled}
-                card={resolveCard(entry, registrationId)}
+                card={resolveCard(entry, sideId)}
                 onClick={() => pickPenalty(entry)}
               />
             ))}

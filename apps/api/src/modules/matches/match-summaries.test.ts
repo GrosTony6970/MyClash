@@ -36,6 +36,10 @@ describe('matchSummaries', () => {
       redClub: 'AAA',
       blueName: 'Blue pool',
       blueClub: null,
+      redColour: null,
+      blueColour: null,
+      redLogoUrl: null,
+      blueLogoUrl: null,
       eventTimezone: 'Europe/Lisbon',
       referees: ['Rita Ref'],
       weapon: 'longsword',
@@ -91,6 +95,45 @@ describe('matchSummaries', () => {
       liceName: '',
       phaseType: null,
       referees: [],
+    });
+  });
+
+  // Call 6: a team side shows its colour chip, and its logo where a Fighter's photo is.
+  it("gives a team side its team's colour and logo, and a team with no logo none", async () => {
+    const seed = summarySeed();
+    const supabase = mockSupabase({
+      ...seed,
+      vw_tournament_query_matches: {
+        rows: [
+          {
+            ...(seed.vw_tournament_query_matches as { rows: Record<string, unknown>[] }).rows[0],
+            red_name: 'Lyon Blades',
+            red_club: null,
+            red_team_color: 'teal',
+            blue_team_color: 'amber',
+          },
+        ],
+      },
+      matches: {
+        rows: [
+          {
+            ...(seed.matches as { rows: Record<string, unknown>[] }).rows[0],
+            red_team: { logo_url: 'https://cdn.example/lyon.png' },
+            blue_team: { logo_url: null },
+          },
+        ],
+      },
+    });
+
+    const summaries = await matchSummaries(supabase.service as never, ['pool']);
+
+    expect(summaries.get('pool')).toMatchObject({
+      redName: 'Lyon Blades',
+      redClub: null,
+      redColour: 'teal',
+      blueColour: 'amber',
+      redLogoUrl: 'https://cdn.example/lyon.png',
+      blueLogoUrl: null,
     });
   });
 
@@ -163,10 +206,10 @@ describe('matchSummaries', () => {
     const { from } = await read();
 
     expect(selectsFor(from, 'vw_tournament_query_matches')).toEqual([
-      'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
+      'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type, red_team_color, blue_team_color',
     ]);
     expect(selectsFor(from, 'matches')).toEqual([
-      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, match_rules(ruleset_config)',
+      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, match_rules(ruleset_config), red_team:teams!matches_red_team_id_fkey(logo_url), blue_team:teams!matches_blue_team_id_fkey(logo_url)',
     ]);
     // The format is the bout's copy's: the Tournament's of now is not read.
     expect(selectsFor(from, 'tournaments')).toEqual(['id, weapon, name, scoring_config_json']);

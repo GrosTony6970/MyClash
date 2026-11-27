@@ -121,10 +121,10 @@ describe('standings — a forfeited bout', () => {
     );
 
     const result = (await service.getPoolStandings('t-1', 'overall')) as {
-      rows: Array<{ registrationId: string; stats: Record<string, number> }>;
+      rows: Array<{ entrantId: string; stats: Record<string, number> }>;
     };
-    const r1 = result.rows.find((r) => r.registrationId === 'reg-1')!;
-    const r2 = result.rows.find((r) => r.registrationId === 'reg-2')!;
+    const r1 = result.rows.find((r) => r.entrantId === 'reg-1')!;
+    const r2 = result.rows.find((r) => r.entrantId === 'reg-2')!;
 
     expect(r1.stats['W']).toBe(1);
     expect(r2.stats['L']).toBe(1);

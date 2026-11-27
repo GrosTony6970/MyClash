@@ -21,6 +21,7 @@ import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { useBusyRows } from '../_hooks/useBusyRows';
 import { formatCountOfMax } from '../format-count-of-max';
+import { EntrantCountLink } from '../_components/EntrantCountLink';
 import { pillClassFor } from './_lib/pill-class-for';
 import { statusChangeQuestion } from './_lib/status-change-question';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
@@ -44,6 +45,10 @@ interface Tournament {
   maxWaitlist: number | null;
   /** Count of registered + checked_in registrations — drives the table's Registered column. */
   registered: number;
+  /** A team Tournament wears the "Team" badge. */
+  isTeam: boolean;
+  /** A team Tournament's teams (`teamCount`, sent on its row only): its entrants, not `registered`. */
+  teamCount: number;
   /** Venue each phase runs at (pools / swiss / bracket can differ) — drives the
    *  Venue(s) column. Finals run with the bracket, so they share its venue. */
   phaseVenues: {
@@ -91,6 +96,8 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     maxParticipants: typeof row['max_participants'] === 'number' ? row['max_participants'] : null,
     maxWaitlist: typeof row['max_waitlist'] === 'number' ? row['max_waitlist'] : null,
     registered: typeof row['registered'] === 'number' ? row['registered'] : 0,
+    isTeam: row['entrant_kind'] === 'team',
+    teamCount: typeof row['teamCount'] === 'number' ? row['teamCount'] : 0,
     phaseVenues: {
       pool: parsePhaseVenue((row['phaseVenues'] as Record<string, unknown> | undefined)?.['pool']),
       swiss: parsePhaseVenue(
@@ -309,6 +316,14 @@ export default function EventTournamentsPage() {
                       <TournamentColorDot color={tournament.color} />
                       {tournament.name}
                     </span>
+                    {tournament.isTeam && (
+                      <span
+                        data-testid="team-badge"
+                        className="ml-2 rounded-full border border-border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary"
+                      >
+                        {t('organizer.tournaments.kind.badge')}
+                      </span>
+                    )}
                   </DataTableCell>
                   <DataTableCell className="text-foreground-secondary">
                     {tournament.weapon ?? '-'}
@@ -345,7 +360,20 @@ export default function EventTournamentsPage() {
                     )}
                   </DataTableCell>
                   <DataTableCell className="text-center font-mono text-sm tabular-nums text-foreground-secondary">
-                    {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
+                    {tournament.isTeam ? (
+                      <EntrantCountLink
+                        tournament={{
+                          id: tournament.id,
+                          entrantKind: 'team',
+                          entrantCount: tournament.teamCount,
+                          maxParticipants: tournament.maxParticipants,
+                        }}
+                        base={`/org/${slug}/events/${eventId}`}
+                        className="hover:text-accent hover:underline"
+                      />
+                    ) : (
+                      formatCountOfMax(tournament.registered, tournament.maxParticipants)
+                    )}
                   </DataTableCell>
                   <DataTableCell>
                     <span className="inline-flex items-center">

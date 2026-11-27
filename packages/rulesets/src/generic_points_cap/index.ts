@@ -168,15 +168,15 @@ function matchOver(
  * configured `pointValues.hit` first.
  */
 function scoreFighters({
-  registrationIds,
+  entrantIds,
   completedMatches,
   config,
 }: {
-  registrationIds: string[];
+  entrantIds: string[];
   completedMatches: ScoredMatch[];
   config: GenericPointsCapConfig;
 }): Map<string, number> {
-  const stats = new Map(registrationIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
+  const stats = new Map(entrantIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
 
   for (const match of completedMatches) {
     // No ceiling here, and that is now the RULE rather than an omission: this
@@ -184,16 +184,16 @@ function scoreFighters({
     // false), so there is nothing for pool standings to zero. `phaseType`
     // stays undefined because a finished bout carries no phase.
     const score = computeScore({ phaseType: undefined }, match.exchanges, config);
-    const red = stats.get(match.redRegistrationId);
-    const blue = stats.get(match.blueRegistrationId);
+    const red = stats.get(match.redSideId);
+    const blue = stats.get(match.blueSideId);
 
     if (red) {
-      red.wins += match.winnerRegistrationId === match.redRegistrationId ? 1 : 0;
+      red.wins += match.winnerSideId === match.redSideId ? 1 : 0;
       red.ptsFor += score.redScore;
       red.ptsAgainst += score.blueScore;
     }
     if (blue) {
-      blue.wins += match.winnerRegistrationId === match.blueRegistrationId ? 1 : 0;
+      blue.wins += match.winnerSideId === match.blueSideId ? 1 : 0;
       blue.ptsFor += score.blueScore;
       blue.ptsAgainst += score.redScore;
     }
@@ -241,9 +241,9 @@ const GENERIC_SHARED = {
     );
   },
 
-  scorePoolFighters({ registrationIds, completedMatches, config }: ScorePoolFightersInput) {
+  scorePoolFighters({ entrantIds, completedMatches, config }: ScorePoolFightersInput) {
     return scoreFighters({
-      registrationIds,
+      entrantIds,
       completedMatches,
       config: normalizeGenericPointsCapConfig(config),
     });

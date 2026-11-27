@@ -9,7 +9,7 @@
  */
 
 export interface Fighter {
-  registrationId: string;
+  entrantId: string;
   clubId: string | null;
   /** Skill rating: higher = better. null = unrated (placed last). */
   skillRating: number | null;
@@ -18,7 +18,7 @@ export interface Fighter {
 
 export interface PoolAssignment {
   poolIndex: number; // 0-indexed
-  registrationId: string;
+  entrantId: string;
 }
 
 /**
@@ -61,7 +61,7 @@ export function snakeSeed(fighters: Fighter[], poolCount: number): PoolAssignmen
   let poolIndex = 0;
 
   for (const fighter of sorted) {
-    assignments.push({ poolIndex, registrationId: fighter.registrationId });
+    assignments.push({ poolIndex, entrantId: fighter.entrantId });
 
     poolIndex += direction;
 

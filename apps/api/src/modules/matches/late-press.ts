@@ -3,6 +3,7 @@ import { pressAlreadyTrue } from '@myclash/rules';
 import { isOver } from '../../common/live-status';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { ClockAction, ClockState } from './clock.service';
+import { assertBothSides, sidesOf } from './bout-sides';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 import { matchLocked } from './match-locked';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
@@ -298,6 +299,7 @@ export interface AskedPress {
  *     as it was before somebody corrected it (`press-before-reopen.ts`).
  *   - The rules of every press: the lock, what the clock can do from where it
  *     is, a round that waits for "Start round N+1".
+ *   - A Start of a bout waiting for a Fighter (`assertBothSides`).
  */
 export async function placeLatePress(supabase: Database, asked: AskedPress): Promise<string> {
   const { matchId, match, action } = asked;
@@ -309,6 +311,8 @@ export async function placeLatePress(supabase: Database, asked: AskedPress): Pro
   await assertScoredAfterLastReset(supabase, matchId, new Date(pressedMs).toISOString());
   assertPressedAfterBackInPlay(matchId, match['back_in_play_at'], pressedMs);
   if (match['locked_at'] && !asked.mayPassLock) throw matchLocked();
+  // A bout waiting for a Fighter takes no Start (operator, 2026-11-24).
+  if (action === 'start') assertBothSides(sidesOf(match));
   if (!asked.fits) throw pressOutOfOrder(action, asked.clockStatus);
   if ((action === 'start' || action === 'resume') && match['awaiting_round_advance']) {
     throw roundAwaitsAdvance();

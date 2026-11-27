@@ -23,6 +23,9 @@ function setup() {
       rows: [
         {
           id: 'm1',
+          // Both Fighters are on the bout: a bout waiting for one takes no hit.
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
           current_round: 1,
           awaiting_round_advance: false,
           // The bout's copy: deductive, as the Tournament was when the bout started.

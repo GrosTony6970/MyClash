@@ -67,8 +67,8 @@ here.
   the name holds the OID as text, and an immediate key is checked when its parent's cascade step
   ends: whether an Event delete worked depended on where the OID counter stood. A RESTRICT key is
   checked at once even when deferrable, so it is never the fix. `pnpm db:cascade-probe` refuses
-  any key of the shape, and its positive control lists the nine of 0237: a new, correctly deferred
-  key of the shape is added to that list on purpose. Two consequences: a migration that writes rows
+  any key of the shape, and its positive control lists the nine of 0237 and those added since
+  (0281's team slot, 0282's Team sides of a Match and a forfeit): a new, correctly deferred key of the shape is added to that list on purpose. Two consequences: a migration that writes rows
   of those tables and then ALTERs one runs `SET CONSTRAINTS ALL IMMEDIATE` first (55006 "pending
   trigger events"); and a delete of rows inserted by the SAME transaction is re-checked on every
   update the cascade makes, so test a delete on committed rows.

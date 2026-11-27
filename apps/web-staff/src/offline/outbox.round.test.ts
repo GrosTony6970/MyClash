@@ -60,7 +60,7 @@ describe('the round a hit or a card is queued with', () => {
     const id = await queueCard({
       matchId: 'm1',
       sequence: 1,
-      registrationId: 'reg-1',
+      side: { kind: 'registration', id: 'reg-1' },
       directCard: 'yellow',
       reason: 'late',
       bout: BOUT,

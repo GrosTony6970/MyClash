@@ -25,7 +25,12 @@ const pool = (id: string) => ({
   phases: {
     id: 'phase-1',
     tournament_id: 't-1',
-    tournaments: { event_id: 'event-1', weapon: 'longsword', events: { organization_id: 'org-1' } },
+    tournaments: {
+      event_id: 'event-1',
+      weapon: 'longsword',
+      entrant_kind: 'individual',
+      events: { organization_id: 'org-1' },
+    },
   },
 });
 const member = (registrationId: string, seed: number, poolId = 'pool-1') => ({
@@ -130,7 +135,7 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
 
   it('names both Pools when a Fighter moves from one to the other', async () => {
     const { service, matchAlerts } = makeService({
-      registrations: { rows: [{ id: 'reg-1', status: 'registered' }] },
+      registrations: { rows: [{ id: 'reg-1', status: 'registered', tournament_id: 't-1' }] },
       // reg-1 sits in pool-0 and moves to pool-1, which holds reg-2.
       pool_members: { rows: [member('reg-1', 1, 'pool-0'), member('reg-2', 1)] },
       matches: { rows: [] },

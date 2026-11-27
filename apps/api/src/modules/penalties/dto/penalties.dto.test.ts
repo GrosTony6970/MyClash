@@ -33,6 +33,31 @@ describe('createPenaltySchema', () => {
     expect(createPenaltySchema.safeParse({ ...base, directCard: 'black' }).success).toBe(false);
   });
 
+  it('accepts a card that names a team instead of a Registration', () => {
+    const { registrationId: _fighter, ...noFighter } = base;
+    expect(
+      createPenaltySchema.safeParse({
+        ...noFighter,
+        teamId: '44444444-4444-4444-8444-444444444444',
+        directCard: 'yellow',
+        reason: 'late on guard',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a card that names both a Registration and a team, or neither', () => {
+    const { registrationId: _fighter, ...noFighter } = base;
+    const card = { directCard: 'yellow', reason: 'late on guard' };
+    const both = { ...base, ...card, teamId: '44444444-4444-4444-8444-444444444444' };
+    expect(createPenaltySchema.safeParse(both).error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['teamId'],
+        message: 'Send exactly one of registrationId and teamId',
+      }),
+    ]);
+    expect(createPenaltySchema.safeParse({ ...noFighter, ...card }).success).toBe(false);
+  });
+
   it('rejects unknown fields (strict)', () => {
     expect(
       createPenaltySchema.safeParse({ ...base, directCard: 'red', reason: 'x', sneaky: true })

@@ -269,6 +269,7 @@ export const admin = {
     selectedCount: 'Selected ({count}):',
     noGroupOption: '— no group —',
     cancelButton: 'Cancel',
+    linkRefused: '{name} was not linked: {reason}',
   },
   adminMisc: {
     superAdminNoOrg: 'Super-admin — cannot belong to an organization.',
@@ -397,6 +398,7 @@ export const admin = {
   },
   orgPools: {
     fighterCount: '{count} fighters',
+    teamCount: '{count} teams',
   },
   orgRefBracket: {
     availabilityAll: 'all',
@@ -617,7 +619,7 @@ export const admin = {
     loadTrackedFightersFailed: 'Failed to load tracked fighters',
     lockOperationFailed: 'Lock operation failed',
     logoUploadFailed: 'Logo upload failed',
-    missingRegistrationId: 'Missing registration id for this side',
+    missingRegistrationId: 'Missing registration for this side',
     nameAndSlugRequired: 'Name and slug are required.',
     nameRequired: 'Name is required.',
     networkError: 'Network error',
@@ -634,7 +636,7 @@ export const admin = {
     requestFailed: 'Request failed',
     resetScheduleFailed: 'Failed to reset schedule',
     serverRejectedDeletion: 'Server rejected the deletion',
-    sideNoRegistrationYet: 'This side has no registration id yet.',
+    sideNoEntrantYet: 'This side has no fighter or team yet.',
     signupFailed: 'Signup failed',
     slugMinLength: 'Slug must be at least 3 characters',
     someGroupsNotScheduled: 'Some selected groups could not be scheduled.',
@@ -1297,7 +1299,7 @@ export const admin = {
       penaltyVersioning:
         'Publishing takes a snapshot that tournaments can pin. Rolling back restores an older snapshot onto the ruleset — it does not delete anything, and the next publish gets the next version number. Once any tournament or event references this ruleset it can no longer be rolled back at all; duplicate it instead.',
       seedingStrategy:
-        'Snake spreads pool winners apart. By rating and Random ignore pool results entirely — they order from data that has nothing to do with how the pools went — and Random stores the seed it used, so the same draw can be reproduced. By pool rank is the strict one: it REFUSES to run without a pool phase and finished pools rather than quietly falling back to registration order.',
+        'Snake spreads pool winners apart. By rating and Random ignore pool results entirely — they order from data that has nothing to do with how the pools went — and Random stores the seed it used, so the same draw can be reproduced. By pool rank is the strict one: it REFUSES to run without a pool phase and finished pools rather than quietly falling back to seed order.',
       compensationTiers:
         'Tiers convert the tokens a referee earned across the event into what they are actually paid. The first tier whose range contains their total wins, and a total that falls in a GAP between tiers resolves to nothing at all — only the event’s minimum payout, if you set one, rescues it. The minimum is applied after the cap, so it is honoured even when it exceeds the cap.',
     },

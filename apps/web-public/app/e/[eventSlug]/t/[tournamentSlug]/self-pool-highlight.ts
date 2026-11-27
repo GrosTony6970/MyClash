@@ -20,7 +20,8 @@ interface RefereeAssignmentLike {
 interface PoolLike {
   id: string;
   name: string;
-  members: { registrationId: string }[];
+  /** A team's seat has no Registration: null, and never the viewer's. */
+  members: { registrationId: string | null }[];
 }
 
 export interface SelfPoolHighlightInput {

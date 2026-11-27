@@ -4,19 +4,55 @@
  * registrations and the referee board its override panel offers.
  */
 
-const slot = (id: string, position: number, over: Record<string, unknown> = {}) => ({
+import type { BracketSideWire, TournamentBracketSlotWire } from '@myclash/types/bracket-side';
+
+const fighter = (registrationId: string, name: string): BracketSideWire => ({
+  sideId: registrationId,
+  kind: 'individual',
+  registrationId,
+  teamId: null,
+  name,
+  clubAbbrev: null,
+  colour: null,
+});
+
+/** A slot as the bracket read sends it, between two Fighters or two sides not known yet. */
+const slot = (
+  id: string,
+  position: number,
+  [red, blue]: [BracketSideWire | null, BracketSideWire | null],
+  over: Partial<TournamentBracketSlotWire> = {},
+): TournamentBracketSlotWire => ({
   id,
   round: 1,
   position,
-  redFighterName: 'Ada',
-  blueFighterName: 'Grace',
-  redRegistrationId: 'r1',
-  blueRegistrationId: 'r2',
+  roundCode: `LSW-B-SF-M${position}`,
+  redFighterName: red?.name ?? null,
+  blueFighterName: blue?.name ?? null,
+  redClubAbbrev: null,
+  blueClubAbbrev: null,
+  redRegistrationId: red?.registrationId ?? null,
+  blueRegistrationId: blue?.registrationId ?? null,
+  winnerRegistrationId: null,
+  redSideId: red?.sideId ?? null,
+  blueSideId: blue?.sideId ?? null,
+  winnerSideId: null,
+  red,
+  blue,
   redScore: null,
   blueScore: null,
   status: 'scheduled',
   matchId: `m${position}`,
+  scheduledAt: null,
   liceId: 'L1',
+  liceName: null,
+  referees: [],
+  source_a_type: null,
+  source_a_ref: null,
+  source_b_type: null,
+  source_b_ref: null,
+  registration_a_id: red?.registrationId ?? null,
+  registration_b_id: blue?.registrationId ?? null,
   ...over,
 });
 
@@ -36,23 +72,10 @@ export const UNFOUGHT_BRACKET = {
   hasPoolPhase: true,
   poolsCompleted: true,
   slots: [
-    slot('s1', 1),
-    slot('s2', 2, {
-      redFighterName: 'Cy',
-      blueFighterName: 'Dee',
-      redRegistrationId: 'r3',
-      blueRegistrationId: 'r4',
-    }),
+    slot('s1', 1, [fighter('r1', 'Ada'), fighter('r2', 'Grace')]),
+    slot('s2', 2, [fighter('r3', 'Cy'), fighter('r4', 'Dee')]),
     // The final: nobody is placed in it yet, and it has no bout.
-    slot('s3', 1, {
-      round: 2,
-      redFighterName: null,
-      blueFighterName: null,
-      redRegistrationId: null,
-      blueRegistrationId: null,
-      matchId: null,
-      liceId: null,
-    }),
+    slot('s3', 1, [null, null], { round: 2, matchId: null, liceId: null }),
   ],
 };
 

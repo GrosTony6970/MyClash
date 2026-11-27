@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { sideStyle, statusLabel, tintTextClassFor } from '@myclash/ui';
+import { TournamentColorDot, sideStyle, statusLabel, tintTextClassFor } from '@myclash/ui';
 import {
   DEFAULT_SCORING_CONFIG,
   resolveMatchWinner,
@@ -30,22 +30,31 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
 
+/** One bout of the public Pool read (`publicPoolBoutSides`): a Fighter's or a team's. */
 interface PoolMatch {
   matchId: string;
   roundCode: string;
   status: string;
   scheduledAt: string | null;
+  /** The Fighter's name, or the team's. */
   redFighterName: string | null;
   redClubAbbrev: string | null;
+  /** Marks the reader's own bouts only; null on a team's side. */
   redRegistrationId: string | null;
+  /** The side's key (`sideKey`): the Registration id or the team id; null while not known. */
+  redSideId: string | null;
+  /** A team side's colour name, for its chip; null on a Fighter's side. */
+  redColour: string | null;
   redScore: number | null;
   blueFighterName: string | null;
   blueClubAbbrev: string | null;
   blueRegistrationId: string | null;
+  blueSideId: string | null;
+  blueColour: string | null;
   blueScore: number | null;
-  /** The recorded winner — what the table bolds. Authoritative over the two
+  /** The recorded winner's side key — what the table bolds. Authoritative over the two
    *  scores, which a forfeit or a `referee_decision` override can invert. */
-  winnerRegistrationId: string | null;
+  winnerSideId: string | null;
   liceName: string | null;
   liceColorHex: string | null;
 }
@@ -96,6 +105,8 @@ interface Props {
   tournamentSlug: string;
   /** Optional tournament brand color token for the section title. */
   colorToken?: string | null;
+  /** The Tournament's Pools seat teams: the bout columns say "Team", even before a bout has a side. */
+  teams: boolean;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -110,6 +121,7 @@ export function PoolMatchesView({
   eventSlug,
   tournamentSlug,
   colorToken,
+  teams,
   highlightRegistrationId,
 }: Props) {
   const { t, locale } = useI18n();
@@ -309,7 +321,9 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colRound')}
                     </th>
                     <th className="px-4 py-2">
-                      {t('publicApp.tournament.poolMatches.colFighter1')}
+                      {teams
+                        ? t('publicApp.tournament.poolMatches.colTeam1')
+                        : t('publicApp.tournament.poolMatches.colFighter1')}
                     </th>
                     <th className="w-12 px-2 py-2 text-center">
                       {t('publicApp.tournament.poolMatches.colPts')}
@@ -318,7 +332,9 @@ export function PoolMatchesView({
                       {t('publicApp.tournament.poolMatches.colPts')}
                     </th>
                     <th className="px-4 py-2">
-                      {t('publicApp.tournament.poolMatches.colFighter2')}
+                      {teams
+                        ? t('publicApp.tournament.poolMatches.colTeam2')
+                        : t('publicApp.tournament.poolMatches.colFighter2')}
                     </th>
                     <th className="w-24 px-4 py-2">
                       {t('publicApp.tournament.poolMatches.colStatus')}
@@ -335,7 +351,15 @@ export function PoolMatchesView({
                     const returnTo = `/e/${eventSlug}/t/${tournamentSlug}#poolmatches`;
                     const openMatch = () =>
                       router.push(boutPageHref(eventSlug, m.matchId, returnTo));
-                    const winner = resolveMatchWinner(m);
+                    // By side key: a team bout's sides have no Registration.
+                    const winner = resolveMatchWinner({
+                      status: m.status,
+                      winnerSideId: m.winnerSideId,
+                      redSideId: m.redSideId,
+                      blueSideId: m.blueSideId,
+                      redScore: m.redScore,
+                      blueScore: m.blueScore,
+                    });
                     const redIsYou =
                       !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;
                     const blueIsYou =
@@ -372,6 +396,7 @@ export function PoolMatchesView({
                               style={{ backgroundColor: sideStyle(sideConfig, 'red').border }}
                               aria-hidden="true"
                             />
+                            <TournamentColorDot color={m.redColour} size="em" />
                             <span
                               className={
                                 redIsYou
@@ -412,6 +437,7 @@ export function PoolMatchesView({
                               style={{ backgroundColor: sideStyle(sideConfig, 'blue').border }}
                               aria-hidden="true"
                             />
+                            <TournamentColorDot color={m.blueColour} size="em" />
                             <span
                               className={
                                 blueIsYou

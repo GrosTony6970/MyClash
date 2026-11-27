@@ -58,6 +58,10 @@ async function fetchSummary(matchId: string, login: LoginHeaders): Promise<Match
       // point cap here would have the flow chart draw a ceiling nobody set.
       matchFormat: null,
       scoringConfig: null,
+      redColour: null,
+      blueColour: null,
+      redLogoUrl: null,
+      blueLogoUrl: null,
     };
   }
   return (await res.json()) as MatchSummary;

@@ -16,7 +16,9 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { slotRoleName } from '@/lib/referee-role-name';
 import { nameOrUnknown } from '@myclash/ui';
 import type { RefereeReason, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
+import type { AssignmentBoardMember } from '@myclash/types/pool-standings';
 import { RefereeReasons } from '@/components/RefereeReasons';
+import { UncheckedFightersNotice } from '@/components/UncheckedFightersNotice';
 import { assignmentChipClasses } from './assignment-chip-classes';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
@@ -40,7 +42,12 @@ export interface PoolCardPool<S extends PoolCardRoleSlot> {
   tournamentName: string;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  members: Array<{ registrationId: string; personName: string; clubLabel?: string | null }>;
+  /** True on a team Pool, whose Fighters rule 8 cannot check (the board's `uncheckedFighters`). */
+  uncheckedFighters?: true;
+  /** The board's seats (`AssignmentBoardMember`), as much of them as the card shows. */
+  members: Array<
+    Pick<AssignmentBoardMember, 'sideId' | 'registrationId' | 'personName' | 'clubLabel'>
+  >;
   roleSlots: S[];
 }
 
@@ -62,6 +69,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
   conflictFor,
   onClearPool,
   showLice = true,
+  showUncheckedNotice = true,
 }: {
   pool: PoolCardPool<S>;
   liceName: string | null;
@@ -80,8 +88,14 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
   /** The assignments timeslot grid hides the in-card lice line — the
    *  column header already carries it. */
   showLice?: boolean;
+  /** Say on the card when its team's Fighters cannot be checked (rule 8). On by default, so a
+   *  screen that assigns referees cannot forget it; the Pools page says it once for the whole
+   *  page instead, so its Referees tab turns it off. */
+  showUncheckedNotice?: boolean;
 }) {
   const { locale, t } = useI18n();
+  // A team's seat has no Registration (the board's `boardSeat`).
+  const teamPool = pool.members.some((m) => m.registrationId === null);
   // Most-important role first (slot 1 sits on top, then 2, then 3 …).
   const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
   return (
@@ -127,6 +141,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
           {t('organizer.refereesPage.refereesSection')}
         </p>
+        {showUncheckedNotice && pool.uncheckedFighters && <UncheckedFightersNotice compact />}
         {orderedSlots.map((slot) => {
           const conflict =
             slot.assignment?.personId && conflictFor
@@ -201,14 +216,15 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
       {pool.members.length > 0 && (
         <div className="mt-3 border-t border-border pt-3">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-            {t('organizer.refereesPage.fightersSection')}
+            {t(
+              teamPool
+                ? 'organizer.refereesPage.teamsSection'
+                : 'organizer.refereesPage.fightersSection',
+            )}
           </p>
           <ul className="space-y-1">
             {pool.members.map((m) => (
-              <li
-                key={m.registrationId}
-                className="flex items-center justify-between gap-2 text-sm"
-              >
+              <li key={m.sideId} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-foreground-secondary">
                   {nameOrUnknown(m.personName, 'fighter', t)}
                 </span>

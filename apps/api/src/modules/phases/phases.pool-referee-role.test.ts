@@ -27,6 +27,7 @@ const POOLS: SupabaseRow[] = [
       tournaments: {
         event_id: 'event-1',
         weapon: 'longsword',
+        entrant_kind: 'individual',
         tournament_id: 'tournament-1',
         events: { organization_id: 'org-1' },
       },

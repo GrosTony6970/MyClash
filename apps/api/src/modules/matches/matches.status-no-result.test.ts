@@ -20,6 +20,10 @@ const COMPLETED = {
 const SCHEDULED = {
   id: BOUT,
   status: 'scheduled',
+  red_registration_id: 'red',
+  blue_registration_id: 'blue',
+  red_team_id: null,
+  blue_team_id: null,
   winner_registration_id: null,
   end_reason: null,
   ended_at: null,
@@ -65,12 +69,13 @@ describe('MatchesService.updateStatus: completed is the one status it writes (S9
 
     await service.updateStatus(BOUT, {
       status: 'completed',
-      winnerRegistrationId: 'blue',
+      winnerSideId: 'blue',
     } as never);
 
     expect(writesTo(db, 'matches')[0]?.row).toMatchObject({
       status: 'completed',
       winner_registration_id: 'blue',
+      winner_team_id: null,
     });
     expect(completion.onMatchCompleted.mock.calls).toEqual([[BOUT]]);
   });
