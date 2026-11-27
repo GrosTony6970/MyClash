@@ -62,6 +62,15 @@ function applyStarted(draft: Pick<DraftRow, 'applied_at'>): boolean {
   return Boolean(draft.applied_at);
 }
 
+/** A `schedule_match` action as the placement owner takes it: the bout, its piste, its time. */
+function schedulePlacement(action: Record<string, unknown>) {
+  return {
+    matchId: String(action['matchId']),
+    liceId: String(action['liceId']),
+    scheduledAt: String(action['scheduledAt']),
+  };
+}
+
 interface EventRow {
   id: string;
   organization_id: string;
@@ -374,6 +383,7 @@ export class OrganizerAIAssistantService {
 
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);
     if (!validation.ok) throw new BadRequestException(validation.errors.join('; '));
+    await this.assertPlacementsFit(eventId, draft);
     await this.claimDraft(draft, actorUserId);
 
     // NOTE: applyAction dispatches to separate services (createTournament,
@@ -421,6 +431,25 @@ export class OrganizerAIAssistantService {
     });
 
     return { id: draftId, status: 'applied', appliedResults };
+  }
+
+  /**
+   * A schedule draft's placements, checked together before the claim and any write. Apply runs
+   * one placement per action, so two bouts of one draft on one piste at one time, or a bout on a
+   * piste the board has filled since the draft, moved the first bouts for real and failed on the
+   * next: the draft ended `failed`, partly applied, and could not be applied again. Checked
+   * first, by the placement owner with `checkOnly` (it writes nothing), a collision or another
+   * Event's Match refuses the Apply and the draft stays `ready`, nothing moved.
+   *
+   * The window: the board can still change between this check and the writes. Each placement's
+   * own check then refuses, and the draft ends partly applied, as before.
+   */
+  private async assertPlacementsFit(eventId: string, draft: DraftRow) {
+    if (draft.draft_type !== 'schedule_grid') return;
+    const placements = draft.proposed_actions_json.map(schedulePlacement);
+    const matchIds = placements.map((placement) => placement.matchId);
+    await assertMatchesBelongToEvent(this.supabase.service, eventId, matchIds);
+    await this.placement.placeMatches(eventId, placements, { checkOnly: true });
   }
 
   /**
@@ -532,20 +561,14 @@ export class OrganizerAIAssistantService {
       return { kind, result };
     }
     if (kind === 'schedule_match') {
-      const matchId = String(action['matchId']);
-      await assertMatchesBelongToEvent(this.supabase.service, eventId, [matchId]);
+      const placement = schedulePlacement(action);
+      await assertMatchesBelongToEvent(this.supabase.service, eventId, [placement.matchId]);
       // Through the one placement owner, which checks the Lice, refuses a time
       // it cannot read and refuses a double-booked piste. This door used to
       // write both columns with no occupancy check at all, so the assistant
       // could drop a bout onto a busy strip and report success.
-      await this.placement.placeMatches(eventId, [
-        {
-          matchId,
-          liceId: String(action['liceId']),
-          scheduledAt: String(action['scheduledAt']),
-        },
-      ]);
-      return { kind, result: { id: matchId } };
+      await this.placement.placeMatches(eventId, [placement]);
+      return { kind, result: { id: placement.matchId } };
     }
     if (kind === 'assign_referee')
       return { kind, result: await this.assignReferee(eventId, action) };

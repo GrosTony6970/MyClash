@@ -227,8 +227,11 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     // The Lice check, the occupancy refusal, the write and the alert refresh
     // all live in the placement owner now; this door used to do the write and
     // none of the checking.
-    expect(placement.placeMatches).toHaveBeenCalledWith('event-1', [
-      { matchId: 'm-1', liceId: 'l-1', scheduledAt: '2026-06-01T09:00:00.000Z' },
+    // Checked first with every placement of the draft, writing nothing; then written.
+    const placed = { matchId: 'm-1', liceId: 'l-1', scheduledAt: '2026-06-01T09:00:00.000Z' };
+    expect(placement.placeMatches.mock.calls).toEqual([
+      ['event-1', [placed], { checkOnly: true }],
+      ['event-1', [placed]],
     ]);
     // The double answers whatever the projection names. The Match's Event is
     // resolved through this embed, so the string is the proof of the read.
@@ -294,6 +297,56 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
       'Piste already busy',
     );
+  });
+
+  // Apply ran one placement per action: M04 moved for real, M05 collided, and the draft ended
+  // failed, "Partially applied 1/2", for good.
+  it('refuses a schedule draft whose placements collide before the claim: nothing moves', async () => {
+    const rows = ['m-1', 'm-2'].map((id) => ({
+      id,
+      phases: { tournaments: { event_id: 'event-1' } },
+    }));
+    const matches = Object.assign(Promise.resolve({ data: rows, error: null }), {
+      select: vi.fn(() => matches),
+      in: vi.fn(() => matches),
+    });
+    const at = '2026-06-01T09:00:00.000Z';
+    const actions = [
+      { kind: 'schedule_match', matchId: 'm-1', liceId: 'l-1', scheduledAt: at },
+      { kind: 'schedule_match', matchId: 'm-2', liceId: 'l-1', scheduledAt: at },
+    ];
+    const drafts = chain({
+      data: {
+        id: 'draft-1',
+        event_id: 'event-1',
+        actor_user_id: 'user-1',
+        draft_type: 'schedule_grid',
+        status: 'ready',
+        proposed_actions_json: actions,
+        events: { organization_id: 'org-1' },
+      },
+    });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'matches') return matches;
+      return table === 'organizer_ai_assistant_drafts' ? drafts : chain();
+    });
+    placement.placeMatches.mockRejectedValueOnce(
+      new ConflictException('Piste already busy: this bout overlaps match m-1'),
+    );
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(matches.in).toHaveBeenCalledWith('id', ['m-1', 'm-2']);
+    expect(placement.placeMatches.mock.calls).toEqual([
+      [
+        'event-1',
+        actions.map(({ matchId, liceId, scheduledAt }) => ({ matchId, liceId, scheduledAt })),
+        { checkOnly: true },
+      ],
+    ]);
+    // No claim, no failure mark: the draft is still `ready`.
+    expect(drafts.update).not.toHaveBeenCalled();
   });
 
   it('rejects unsafe draft action shapes before apply', async () => {
