@@ -267,7 +267,9 @@ test.describe('the board moves bouts by the minute', () => {
     }));
     const api = await mockApi(page, { schedule: round });
     await page.goto(SCHEDULE_URL);
-    await page.getByRole('button', { name: 'Edit Quarter-finals', exact: true }).click();
+    // The block is named by the round's column heading in the reader's language
+    // (`roundGroupName`, common.round.columnQuarterFinals), since 6e5adaaf2.
+    await page.getByRole('button', { name: 'Edit Quarter Finals', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('checkbox', { name: 'Piste 2' }).check();
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
