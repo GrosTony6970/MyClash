@@ -8,6 +8,7 @@ import {
   pressesOf,
   resultUnconfirmed,
   tabletResult,
+  tabletWinner,
 } from './pad-clock';
 
 const at = (clock: string) => `2026-10-10T${clock}.000Z`;
@@ -119,6 +120,15 @@ describe('padClock', () => {
       levelResolutionSteps: 1,
     });
     expect(clock?.events).toBe(halted.events);
+  });
+
+  it('a Resume the tablet holds after the clock was Reset starts the total time again', () => {
+    // The server's clock after the referee's Reset: halted at zero, no origin.
+    const reset = server({ status: 'halted', activeMs: 0, startedAt: null });
+
+    const clock = padClock('m1', reset, [press('resume', '10:00:00')], NONE);
+
+    expect(clock).toMatchObject({ status: 'running', startedAt: at('10:00:00') });
   });
 
   it('starts from idle on a bout opened with no network and no copy of its clock', () => {
@@ -253,5 +263,30 @@ describe('the score of a result that is not confirmed', () => {
   it('takes the winner of the screen with the score of the screen', () => {
     const onScreen = { red: 0, blue: 0, winner: 'red' as const };
     expect(tabletResult(null, onScreen)).toEqual(onScreen);
+  });
+});
+
+describe('tabletWinner', () => {
+  // The result screen names a winner from the stored result only: before the
+  // server confirms, the tablet's own result has to name it.
+  it('names whoever leads the score the End was pressed on', () => {
+    expect(tabletWinner({ red: 3, blue: 1 })).toBe('red');
+    expect(tabletWinner({ red: 1, blue: 4 })).toBe('blue');
+  });
+
+  it('keeps the cap’s winner where the board names none (a bout that counts down)', () => {
+    expect(tabletWinner({ red: 0, blue: 0, winner: 'blue' })).toBe('blue');
+  });
+
+  it('names nobody on a level board, or one the doubles limit wiped', () => {
+    expect(tabletWinner({ red: 2, blue: 2 })).toBeUndefined();
+    expect(tabletWinner({ red: 0, blue: 0, endReason: 'max_doubles_draw' })).toBeUndefined();
+    expect(tabletWinner({ red: 0, blue: 0, endReason: 'max_doubles' })).toBeUndefined();
+  });
+
+  it('reads the board the doubles limit keeps when the result stands, as the server does', () => {
+    const stands = { endReason: 'max_doubles_result_stands' as const };
+    expect(tabletWinner({ red: 3, blue: 1, ...stands })).toBe('red');
+    expect(tabletWinner({ red: 2, blue: 2, ...stands })).toBeUndefined();
   });
 });

@@ -154,8 +154,26 @@ export const FormulaNodeSchema: z.ZodType<FormulaNode> = z
   .pipe(FormulaNodeShape)
   .meta(FORMULA_NODE_JSON_SCHEMA) as unknown as z.ZodType<FormulaNode>;
 
+/**
+ * The variables a tie-breaker can use: those with a standings column to rank on
+ * (`TIEBREAK_COLUMN_BY_VARIABLE` in `./ruleset.ts` maps each one). The others
+ * are constants, the same for every fighter, or `pointsReceived`, which has no
+ * column of its own. The schema refuses them, so the API, the import and the
+ * MCP cannot store a tie-breaker that ranking would drop in silence.
+ */
+export const TIEBREAK_VARIABLES = [
+  'victories',
+  'ties',
+  'losses',
+  'doubleHits',
+  'hitsGiven',
+  'hitsReceived',
+] as const satisfies readonly VariableKey[];
+
+export type TiebreakVariable = (typeof TIEBREAK_VARIABLES)[number];
+
 export const TiebreakerSchema: z.ZodType<Tiebreaker> = z.object({
-  variable: VariableSchema,
+  variable: z.enum(TIEBREAK_VARIABLES),
   direction: z.enum(['asc', 'desc']),
 });
 

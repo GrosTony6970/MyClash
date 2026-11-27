@@ -412,8 +412,6 @@ function winsThisRow(side: 'red' | 'blue', slot: BracketSlotData): boolean {
       winnerRegistrationId: slot.winnerRegistrationId,
       redRegistrationId: slot.redRegistrationId,
       blueRegistrationId: slot.blueRegistrationId,
-      redScore: slot.redScore,
-      blueScore: slot.blueScore,
     }) === side
   );
 }

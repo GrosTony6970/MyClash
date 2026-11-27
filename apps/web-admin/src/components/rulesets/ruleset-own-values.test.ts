@@ -80,6 +80,45 @@ describe('an edit and a Reset', () => {
   });
 });
 
+describe('a won-venues field', () => {
+  const LEAVES = [
+    ['venuesPerRoundPool', 'pool'],
+    ['venuesPerRoundBracket', 'bracket'],
+    ['venuesPerRoundFinals', 'finals'],
+  ] as const;
+
+  it.each(LEAVES)('%s shows the engine default when the ruleset stores none', (leaf) => {
+    expect(shownLeaf({}, leaf)).toBe(5);
+    expect(differsFromEngine({}, leaf)).toBe(false);
+  });
+
+  it.each(LEAVES)('%s is an own value when set, badged', (leaf, phase) => {
+    const own = { venuesPerRound: { [phase]: 7 } };
+    expect(shownLeaf(own, leaf)).toBe(7);
+    expect(differsFromEngine(own, leaf)).toBe(true);
+  });
+
+  it.each(LEAVES)('%s shows the engine default for a value the engine refuses', (leaf, phase) => {
+    expect(shownLeaf({ venuesPerRound: { [phase]: 51 } }, leaf)).toBe(5);
+  });
+
+  it('stores the one phase edited beside the others, and empties on the default', () => {
+    expect(withOwn({ venuesPerRound: { pool: 7 } }, 'venuesPerRoundBracket', 9)).toEqual({
+      venuesPerRound: { pool: 7, bracket: 9 },
+    });
+    expect(withOwn({ pointCap: 7, venuesPerRound: { pool: 7 } }, 'venuesPerRoundPool', 5)).toEqual({
+      pointCap: 7,
+    });
+  });
+
+  it('shows the scoring unit and the stop flag as plain leaves', () => {
+    expect(shownLeaf({}, 'scoringUnit')).toBe('points');
+    expect(shownLeaf({ scoringUnit: 'venues' }, 'scoringUnit')).toBe('venues');
+    expect(shownLeaf({}, 'stopWhenDecided')).toBe(true);
+    expect(differsFromEngine({ stopWhenDecided: false }, 'stopWhenDecided')).toBe(true);
+  });
+});
+
 describe('a best-of field', () => {
   const LEAVES = [
     ['bestOfPool', 'pool'],

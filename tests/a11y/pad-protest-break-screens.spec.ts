@@ -101,7 +101,7 @@ test('with no network, a protest that is the only entry of the bout is in the hi
   const line = history(page).locator('li[data-pending="true"]');
   await expect(line).toHaveCount(1);
   await expect(line).toContainText('Ana Red');
-  await expect(line).toContainText('Protest');
+  await expect(line).toContainText('Protest 1');
   await expect(history(page).locator('li')).toHaveCount(1);
   await expect(undoLast(page)).toBeEnabled();
 

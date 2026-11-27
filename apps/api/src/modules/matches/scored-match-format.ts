@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { normalizeMatchFormatConfig } from '@myclash/rulesets';
+import { formatInForce, parseMatchFormatConfig } from '@myclash/rulesets';
 import type { MatchFormatConfig, Ruleset } from '@myclash/rulesets';
 import type { RulesetResolver } from './ruleset-resolver.service';
 
@@ -37,13 +37,32 @@ export async function scoredRuleset(
  * `hasMaxDoubles === false` is the only case that strips. An older ruleset that
  * declares nothing keeps the ceiling, which is what every one of them did
  * before the capability existed.
+ *
+ * The scoring unit goes the same way: a ruleset that does not offer venues
+ * (`hasVenues === false`, `Generic_PointsCap`) is forced to `'points'`, or the
+ * round lifecycle would close best-of rounds on venues over a points score.
+ *
+ * The format is put in force (`formatInForce`: a venues bout counts up) only AFTER those strips:
+ * a ruleset forced to points plays the direction its Tournament stores, as its engine does.
  */
 export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
-  const matchFormat = normalizeMatchFormatConfig(
+  return formatInForce(editedMatchFormat(config, ruleset));
+}
+
+/**
+ * The match format the settings screens edit: the ruleset's strips, and the direction the
+ * Tournament STORES. Shown in force, a venues Tournament that stores a countdown would read
+ * "count up", and once back in points a pick of "count up" would change nothing and send nothing.
+ */
+export function editedMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
+  let matchFormat = parseMatchFormatConfig(
     (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
   );
   if (ruleset.metadata?.hasMaxDoubles === false) {
-    return { ...matchFormat, maxDoubleHits: null };
+    matchFormat = { ...matchFormat, maxDoubleHits: null };
+  }
+  if (ruleset.metadata?.hasVenues === false) {
+    matchFormat = { ...matchFormat, scoringUnit: 'points' };
   }
   return matchFormat;
 }

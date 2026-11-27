@@ -3,6 +3,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   type ExistingPenaltyForSanction,
   type PenaltyCard,
+  type ScoringUnit,
   type TournamentScoringConfig,
 } from '@myclash/types';
 import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
@@ -33,10 +34,15 @@ function queued(over: Partial<OutboxEntry>): OutboxEntry {
   };
 }
 
-const map = (entries: OutboxEntry[], config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG) =>
+const map = (
+  entries: OutboxEntry[],
+  config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG,
+  scoringUnit: ScoringUnit = 'points',
+) =>
   pendingRowsForMatch({
     entries,
     config,
+    scoringUnit,
     serverExchanges: [],
     serverPenalties: [],
     serverProtests: [],
@@ -82,6 +88,7 @@ const priced = (
   pendingRowsForMatch({
     entries,
     config: DEFAULT_SCORING_CONFIG,
+    scoringUnit: 'points',
     serverExchanges: [],
     serverProtests: [],
     serverPenalties: [],
@@ -140,6 +147,48 @@ describe('pendingRowsForMatch', () => {
     expect(row.defenderDelta).toBe(1);
   });
 
+  /**
+   * A venues bout prices a queued hit as the server will (`exchangeDeltas`): a
+   * clean hit is one venue, worth 1, whatever button a stale pad still showed;
+   * an afterblow wins nobody anything, whatever the afterblow mode.
+   */
+  it('prices a queued clean hit at 1 in a venues bout, whatever its button', () => {
+    const row = map([queued({ type: 'clean', firstStrikeValue: 2 })], undefined, 'venues')
+      .exchanges[0]!;
+    expect(row.scoreDelta).toBe(1);
+    expect(row.scoringSide).toBe('red');
+  });
+
+  it('prices a queued afterblow at nothing for either side in a venues bout', () => {
+    const row = map(
+      [queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 })],
+      { ...DEFAULT_SCORING_CONFIG, afterblowMode: 'full' },
+      'venues',
+    ).exchanges[0]!;
+    expect(row.scoreDelta).toBe(0);
+    expect(row.defenderDelta).toBe(0);
+  });
+
+  // A format kept before venues existed carries no unit: its hits price as points did.
+  it('prices a queued hit with no scoring unit as points', () => {
+    // Called directly: `map`'s default would fill the missing unit in.
+    const noUnit = (entry: OutboxEntry) =>
+      pendingRowsForMatch({
+        entries: [entry],
+        config: { ...DEFAULT_SCORING_CONFIG, afterblowMode: 'deductive' },
+        scoringUnit: undefined as unknown as ScoringUnit,
+        serverExchanges: [],
+        serverPenalties: [],
+        serverProtests: [],
+      }).exchanges[0]!;
+    expect(noUnit(queued({ type: 'clean', firstStrikeValue: 2 })).scoreDelta).toBe(2);
+    const afterblow = noUnit(queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 }));
+    expect({ score: afterblow.scoreDelta, defender: afterblow.defenderDelta }).toEqual({
+      score: 1,
+      defender: 0,
+    });
+  });
+
   it('claims no points for a double or a no-exchange', () => {
     const { exchanges } = map([
       queued({ type: 'double', firstStrikerColor: undefined, firstStrikeValue: undefined }),
@@ -187,6 +236,7 @@ describe('pendingRowsForMatch', () => {
     const out = pendingRowsForMatch({
       entries: [entry],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [onServer],
       serverProtests: [],
       serverPenalties: [],
@@ -225,6 +275,7 @@ describe('pendingRowsForMatch', () => {
     const out = pendingRowsForMatch({
       entries: [entry],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       serverPenalties: [onServer],
@@ -237,6 +288,7 @@ describe('pendingRowsForMatch', () => {
     const out = pendingRowsForMatch({
       entries: [queued({ kind: 'penalty', clientUuid: 'mine', registrationId: 'reg-red' })],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       serverPenalties: [
@@ -262,6 +314,7 @@ describe('pendingRowsForMatch', () => {
     const out = pendingRowsForMatch({
       entries: [queued({ clientUuid: 'mine' })],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverProtests: [],
       serverExchanges: [
         {
@@ -410,6 +463,7 @@ describe('pricing a queued card', () => {
     const out = pendingRowsForMatch({
       entries: [first, second],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       // The first card landed; the server counted it and the priors say so.
@@ -697,6 +751,7 @@ describe('protests', () => {
     const { protests: pending } = pendingRowsForMatch({
       entries: [protest({ clientUuid: 'same' }), protest({ registrationId: 'reg-blue' })],
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverPenalties: [],
       serverProtests: server,

@@ -44,6 +44,7 @@ export interface PoolEntry {
  */
 export type { FinalRankingResultKind, SecondChanceTarget } from '@myclash/rules/pad';
 import type { FinalRankingResultKind, SecondChanceTarget } from '@myclash/rules/pad';
+import { winnerColorFrom } from '@myclash/rules';
 
 /**
  * Bracket shape, needed to read a double-elim bracket's round numbering.
@@ -126,16 +127,14 @@ export function winnerLoser(slot: RankingSlot): { winner: Side; loser: Side } | 
     fighterName: slot.blueFighterName,
     clubAbbrev: slot.blueClubAbbrev ?? null,
   };
-  // Recorded winner first: a keep-current forfeit stores the pre-forfeit score
-  // (possibly favouring the forfeiter, or 0-0) with the OPPONENT as winner.
-  if (slot.winnerRegistrationId === red.registrationId) return { winner: red, loser: blue };
-  if (slot.winnerRegistrationId === blue.registrationId) return { winner: blue, loser: red };
-  if (slot.redScore === null || slot.blueScore === null || slot.redScore === slot.blueScore) {
-    return null;
-  }
-  return slot.redScore > slot.blueScore
-    ? { winner: red, loser: blue }
-    : { winner: blue, loser: red };
+  // The recorded winner, never the scores (`winnerColorFrom`, the one owner): a keep-current
+  // forfeit stores the pre-forfeit score (possibly favouring the forfeiter, or 0-0) with the
+  // OPPONENT as winner. No winner, no winner and loser: the score fallback that stood here named
+  // the leader of a bout the doubles limit called a draw (spec 2026-11-27-bout-result-is-stored).
+  const side = winnerColorFrom(slot);
+  if (side === 'red') return { winner: red, loser: blue };
+  if (side === 'blue') return { winner: blue, loser: red };
+  return null;
 }
 
 /** Shared accumulator: assigns place numbers and dedupes by registration. */

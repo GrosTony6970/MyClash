@@ -20,6 +20,7 @@ export const FORMULA_VARIABLE_KEYS = [
   'doubleHits',
   'hitsGiven',
   'hitsReceived',
+  'pointsReceived',
   'pointsPerVictory',
   'pointsPerTie',
   'pointsPerLoss',
@@ -78,8 +79,15 @@ export interface DerivedFighterStats {
   ties: number;
   losses: number;
   doubleHits: number;
+  /** The points this fighter's hits scored, by the value of each target. */
   hitsGiven: number;
+  /**
+   * How many TIMES this fighter was hit: a deep hit counts once. TF_v1's
+   * `timesHit`, and the same number as the `hitsReceived` standings column.
+   */
   hitsReceived: number;
+  /** The points the opponents' hits scored on this fighter, by target value. */
+  pointsReceived: number;
 }
 
 export const MAX_FORMULA_DEPTH = 32;

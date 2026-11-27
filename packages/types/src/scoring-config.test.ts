@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buttonsInForce,
   computeAfterblowDeltas,
   pointCapWinnerColor,
   DEFAULT_MATCH_FORMAT_CONFIG,
+  DEFAULT_SCORING_CONFIG,
   EDITION_2026_10,
   comparePenaltyEntries,
   protestRulesOf,
@@ -141,5 +143,39 @@ describe('protestRulesOf', () => {
         protests: { limit: 2, offerPenaltyRef: '8' },
       }),
     ).toEqual({ limit: 2, offerPenaltyRef: '8' });
+  });
+});
+
+/**
+ * The buttons a bout scores with, derived at read from its stored buttons and
+ * its scoring unit (venues ruling 5): a venues bout gets one "+1" per side.
+ */
+describe('buttonsInForce', () => {
+  const stored = DEFAULT_SCORING_CONFIG.buttons;
+
+  it('gives the stored buttons themselves in points mode', () => {
+    expect(buttonsInForce(stored, 'points')).toBe(stored);
+  });
+
+  it('gives one +1 button, and one 1-1 afterblow, in venues mode', () => {
+    expect(buttonsInForce(stored, 'venues')).toEqual({
+      clean: [{ label: '+1', value: 1, visible: true }],
+      afterblow: [{ label: '1-1', attackerPts: 1, defenderPts: 1, visible: true }],
+    });
+  });
+
+  it('gives no afterblow button in venues mode to a grammar that has none', () => {
+    expect(buttonsInForce({ clean: stored.clean, afterblow: [] }, 'venues')).toEqual({
+      clean: [{ label: '+1', value: 1, visible: true }],
+      afterblow: [],
+    });
+  });
+
+  it('gives no afterblow button in venues mode when the organiser hid every one', () => {
+    const hidden = stored.afterblow.map((button) => ({ ...button, visible: false }));
+    expect(buttonsInForce({ clean: stored.clean, afterblow: hidden }, 'venues')).toEqual({
+      clean: [{ label: '+1', value: 1, visible: true }],
+      afterblow: [],
+    });
   });
 });

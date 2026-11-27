@@ -116,6 +116,23 @@ describe('the server’s own press, placed at the time of what caused it', () =>
     });
   });
 
+  // The saved total follows the pad's TOTAL TIME (operator, 2026-11-27): the
+  // referee's clock Reset starts it again, from the Resume after it. The bout's
+  // `started_at` still says 10:00, so it must not be the origin.
+  it('the total time saved runs from the Resume after a clock Reset, as the pad showed it', async () => {
+    const reset = [...HALTED, row(3, 'reset_clock', '10:05:00'), row(4, 'resume', '10:08:00')];
+    const { db, clock } = setup(reset, DECIDED);
+
+    await clock.clockAction(BOUT, 'end', 'auto: forfeit', OPENS_THE_LOCK, false, CARD_AT);
+
+    expect(writesTo(db, 'matches')[0]?.row).toEqual({
+      status: 'completed',
+      ended_at: CARD_AT,
+      duration_active_ms: 12 * 60_000,
+      duration_total_ms: 12 * 60_000,
+    });
+  });
+
   it('a Halt is written at that time', async () => {
     const { db, clock } = setup(RUNNING);
 

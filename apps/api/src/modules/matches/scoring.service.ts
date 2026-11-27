@@ -230,8 +230,8 @@ export class ScoringService {
       // ran has no End to stop at that time, and the row kept the queue's arrival.
       matchUpdates['ended_at'] = endedAtOf(causedAt, m);
       matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
-      // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
-      // TV distinguish a 0-0 double loss from a genuine tie.
+      // 'first_to_points' | 'time_limit' | 'max_doubles' | 'venue_limit' — lets the
+      // pad + TV distinguish a 0-0 double loss from a genuine tie.
       matchUpdates['end_reason'] = decision.reason;
     }
 
@@ -651,7 +651,8 @@ export class ScoringService {
     if (reason === 'first_to_points') {
       return getPointCapWinnerRegistrationId(match, score, matchFormat, edition);
     }
-    if (reason === 'max_doubles_result_stands') {
+    // A venues bout ends on the venues won: the leader wins, as under a stood max-doubles.
+    if (reason === 'max_doubles_result_stands' || reason === 'venue_limit') {
       const leader = leadingColor(score);
       if (leader === null) return null;
       return leader === 'red' ? match.redRegistrationId : match.blueRegistrationId;

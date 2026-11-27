@@ -118,14 +118,14 @@ describe('the screens that show a booking', () => {
   it('the three schedules mark a waitlist place', () => {
     const mark = String.raw`t\('publicApp\.me\.workshops\.onWaitlist'\)`;
     expect(source('src/components/me/ScheduleView.tsx')).toMatch(
-      new RegExp(String.raw`w\.status === 'waitlisted'\s+\? \{ label: ${mark}, tone: 'pending' \}`),
+      new RegExp(String.raw`w\.waitlisted\s+\? \{ label: ${mark}, tone: 'pending' \}`),
     );
     expect(source('app/me/events/[eventSlug]/page.tsx')).toMatch(
       new RegExp(String.raw`w\.involvement === 'waitlisted' \? \(\s+<span[^>]*>\s+\{${mark}\}`),
     );
     const publicPage = source('app/e/[eventSlug]/my-schedule/page.tsx');
     expect(publicPage).toMatch(
-      new RegExp(String.raw`\{workshop\.status === 'waitlisted' && \(\s+<p[^>]*>\{${mark}\}`),
+      new RegExp(String.raw`\{workshop\.waitlisted && \(\s+<p[^>]*>\{${mark}\}`),
     );
     expect(publicPage).toContain('<WorkshopLines workshop={item.data} />');
   });

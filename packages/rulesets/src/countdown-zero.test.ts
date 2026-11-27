@@ -107,6 +107,8 @@ describe('the two other scorers read the same rule', () => {
     redTimesHit: 0,
     blueTimesHit: 0,
     doubles: 0,
+    redVenuesWon: 0,
+    blueVenuesWon: 0,
     redBelowZero: 2,
     blueBelowZero: 1,
   };

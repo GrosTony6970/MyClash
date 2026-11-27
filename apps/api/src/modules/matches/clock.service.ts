@@ -96,7 +96,11 @@ export interface ClockState {
   runningFrom: string | null;
   /** Computed total active time including current interval (if running) */
   totalActiveMs: number;
-  /** Wall-clock origin: ISO timestamp of the first 'start' event; null until match starts; resets on reset_match */
+  /**
+   * Wall-clock origin of the pad's TOTAL TIME: the first Start, or the first
+   * Resume after a referee's clock Reset. Null until then; a `reset_match` and
+   * the referee's Reset clear it, the zero of a new best-of round does not.
+   */
   startedAt: string | null;
   /**
    * How far down the phase's level-at-time chain this bout has been taken —
@@ -149,13 +153,13 @@ interface ClockStep {
 
 // The scores and the bout's match format (its copy of its rules) are here so `end` can NAME
 // the winner of a bout that ran out of time — see `timeLimitResult`.
-// `status` is there because a bout already completed is not decided
-// again, and `winner_registration_id` because the decision reads the
-// LADDER, not the scores. The Event's status is for a press sent late, and the bout's copies of
-// its rules for a Start that names the copy its pad showed (`startCopyOf`).
+// `status` is there because a bout already completed is not decided again. A bout in play holds
+// no winner (ruling 331), so the decision reads the board alone. The Event's status is for a press
+// sent late, and the bout's copies of its rules for a Start that names the copy its pad showed
+// (`startCopyOf`).
 export const BOUT_COLUMNS =
-  'id, status, locked_at, started_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
-  'red_registration_id, blue_registration_id, winner_registration_id, ' +
+  'id, status, locked_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
+  'red_registration_id, blue_registration_id, ' +
   'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(events(status))), ' +
   BOUT_RULES;
@@ -650,9 +654,11 @@ export class ClockService {
     if (current.status === 'running' && current.runningFrom) {
       finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
     }
-    const matchStartedAt = (match as { started_at?: string | null }).started_at;
-    const durationTotalMs = matchStartedAt
-      ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
+    // From the origin of the pad's TOTAL TIME, not `matches.started_at`: the referee's clock
+    // Reset starts it again, so the saved total is the one the referee saw (operator,
+    // 2026-11-27). Null when the clock was reset and ended with no Resume between: no time ran.
+    const durationTotalMs = current.startedAt
+      ? new Date(now).getTime() - new Date(current.startedAt).getTime()
       : null;
     const write = this.supabase.service
       .from('matches')
@@ -768,39 +774,8 @@ export class ClockService {
 
   // ── Compute clock state from events ──────────────────────────────────────
 
-  computeClockState(
-    matchId: string,
-    rawEvents: Array<{
-      id: string;
-      type: string;
-      reason: string | null;
-      occurred_at: string;
-      adjustment_ms?: number | null;
-    }>,
-  ): ClockState {
-    // Count the level-at-time steps while replaying. They share the timeline
-    // and the query, and a step stays in the clock's rows: the one of extra
-    // time carries the correction that gives the time (`level-step.ts`).
-    // Counting them here rather than in their own read is also what keeps the
-    // ordered six-read queue in `clock-end-result.test.ts` intact.
-    const clockRows: typeof rawEvents = [];
-    let levelResolutionSteps = 0;
-    for (const e of rawEvents) {
-      if (e.type === 'level_resolution') levelResolutionSteps += 1;
-      // Starting the next round of a best-of match puts the chain back to the
-      // top: each round is its OWN bout, so it plays its own extra time and its
-      // own sudden death. Dropped from `clockRows` rather than merely counted,
-      // because `ClockAction` does not carry it and the pad's unified timeline
-      // shows only what moved the clock — the clock is reset separately.
-      if (e.type === 'round_advance') {
-        levelResolutionSteps = 0;
-        continue;
-      }
-      // A reset puts the bout back to unplayed, so the chain starts over too —
-      // the same semantics the clock gets from replaying its own timeline.
-      if (e.type === 'reset_match') levelResolutionSteps = 0;
-      clockRows.push(e);
-    }
+  computeClockState(matchId: string, rawEvents: TimelineRow[]): ClockState {
+    const { clockRows, roundZeros, levelResolutionSteps } = clockTimeline(rawEvents);
 
     const events = clockRows.map((e) => ({
       id: e.id,
@@ -812,7 +787,9 @@ export class ClockService {
 
     // The fold is the shared one: the pad replays the presses it still holds
     // by the same rules.
-    const { status, activeMs, runningFrom, startedAt } = foldClock(events);
+    const { status, activeMs, runningFrom, startedAt } = foldClock(
+      events.map((e) => (roundZeros.has(e.id) ? { ...e, opensRound: true } : e)),
+    );
 
     // Compute total including current running interval
     const totalActiveMs =
@@ -831,6 +808,58 @@ export class ClockService {
       events,
     };
   }
+}
+
+/** A row of the bout's timeline, as `getClockState` reads it. */
+interface TimelineRow {
+  id: string;
+  type: string;
+  reason: string | null;
+  occurred_at: string;
+  adjustment_ms?: number | null;
+}
+
+/**
+ * The rows of the timeline that move the clock, and what the fold needs beside them.
+ *
+ * `levelResolutionSteps`: the level-at-time steps are counted while replaying. They share the
+ * timeline and the query, and a step stays in the clock's rows: the one of extra time carries the
+ * correction that gives the time (`level-step.ts`). Counting them here rather than in their own
+ * read is also what keeps the ordered six-read queue in `clock-end-result.test.ts` intact.
+ *
+ * `roundZeros`: the `reset_clock` rows that put a new round to zero, not the referee's Reset. The
+ * round keeps the bout's total time (`ClockMove.opensRound`, operator 2026-11-27).
+ */
+function clockTimeline(rawEvents: readonly TimelineRow[]) {
+  const clockRows: TimelineRow[] = [];
+  const roundZeros = new Set<string>();
+  let roundOpening = false;
+  let levelResolutionSteps = 0;
+  for (const e of rawEvents) {
+    if (e.type === 'level_resolution') levelResolutionSteps += 1;
+    // Starting the next round of a best-of match puts the chain back to the
+    // top: each round is its OWN bout, so it plays its own extra time and its
+    // own sudden death. Dropped from `clockRows` rather than merely counted,
+    // because `ClockAction` does not carry it and the pad's unified timeline
+    // shows only what moved the clock — the clock is reset separately, by the
+    // `reset_clock` row the advance writes after this one (`round-advance.ts`).
+    if (e.type === 'round_advance') {
+      levelResolutionSteps = 0;
+      roundOpening = true;
+      continue;
+    }
+    if (e.type === 'reset_clock' && roundOpening) roundZeros.add(e.id);
+    // The round's zero is spent by its own reset, or by a press that runs the
+    // clock: a round opened without one must not make a later Reset its own.
+    if (e.type === 'reset_clock' || e.type === 'start' || e.type === 'resume') {
+      roundOpening = false;
+    }
+    // A reset puts the bout back to unplayed, so the chain starts over too —
+    // the same semantics the clock gets from replaying its own timeline.
+    if (e.type === 'reset_match') levelResolutionSteps = 0;
+    clockRows.push(e);
+  }
+  return { clockRows, roundZeros, levelResolutionSteps };
 }
 
 /**

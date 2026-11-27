@@ -38,6 +38,7 @@ describe('the bout’s list and its score', () => {
     const rows = pendingRowsForMatch({
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       serverPenalties: [],

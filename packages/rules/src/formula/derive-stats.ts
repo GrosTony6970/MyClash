@@ -1,54 +1,15 @@
 /**
  * Aggregate per-fighter stats from a set of finished bouts, in the
- * `{ victories, ties, losses, doubleHits, hitsGiven, hitsReceived }` shape the
- * FormulaRuleset evaluates its authored score formula against.
+ * `DerivedFighterStats` shape the FormulaRuleset evaluates its authored score
+ * formula against.
  *
  * Pure function. No DB, no I/O.
  */
-import { computeAfterblowDeltas, type AfterblowMode } from '../afterblow';
-import type { Exchange, ScoredMatch } from '../domain';
+import type { AfterblowMode } from '../afterblow';
+import type { ScoredMatch } from '../domain';
 import { boutOutcomes } from '../match-format';
+import { computeAggregates } from '../tf_v1/score';
 import type { DerivedFighterStats } from './types';
-
-interface MatchOutcome {
-  redScore: number;
-  blueScore: number;
-}
-
-/**
- * Sum the HITS LANDED on each side, from the exchanges alone.
- *
- * Not the bout's score, and no longer used as one. It sees no penalty, no
- * forfeit policy and no doubles-ceiling zeroing, because none of those is an
- * exchange — which is precisely why deciding the RESULT from it was wrong. The
- * bout's stored scores are on `ScoredMatch` for that.
- *
- * Afterblows are netted per the tournament's afterblow mode (deductive
- * subtracts the afterblow from the attacker); exchanges store raw button values.
- */
-function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): MatchOutcome {
-  let red = 0;
-  let blue = 0;
-  for (const ex of exchanges) {
-    if (ex.voided) continue;
-    if (ex.type === 'double' || ex.type === 'no_exchange') continue;
-    const striker = ex.firstStrikerColor;
-    const firstValue = ex.firstStrikeValue ?? 0;
-    const afterValue = ex.afterblowValue ?? 0;
-    const { attackerDelta, defenderDelta } =
-      ex.type === 'afterblow'
-        ? computeAfterblowDeltas(afterblowMode, firstValue, afterValue)
-        : { attackerDelta: firstValue, defenderDelta: 0 };
-    if (striker === 'red') {
-      red += attackerDelta;
-      blue += defenderDelta;
-    } else if (striker === 'blue') {
-      blue += attackerDelta;
-      red += defenderDelta;
-    }
-  }
-  return { redScore: red, blueScore: blue };
-}
 
 /**
  * `completedMatches` carry their own exchanges, so there is no second `Map`
@@ -57,9 +18,17 @@ function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): M
  * number below, and a parameter that defaults to 'full' while the product
  * default is 'deductive' silently scores a bout the wrong way.
  *
- * TWO QUESTIONS, TWO SOURCES. `hitsGiven`/`hitsReceived` are named for HITS and
+ * TWO QUESTIONS, TWO SOURCES. `hitsGiven`, `hitsReceived` and `pointsReceived`
  * come from the exchanges. W/D/L comes from the bout's own result, through
  * `boutOutcomes`.
+ *
+ * All three come from TF_v1's own counter (`computeAggregates`), the one the
+ * standings columns read too, so a club formula, TF_v1 and a tie-breaker see
+ * the same numbers. `hitsGiven` is this fighter's points from the exchanges,
+ * afterblows netted by the mode. `hitsReceived` is a COUNT of times hit.
+ * `pointsReceived` is the opponent's points, which are what those hits were
+ * worth (ruling 2026-11-27). None of them is the bout's score: no penalty, no
+ * forfeit and no doubles-ceiling zeroing is an exchange.
  *
  * It used to compare a score RE-DERIVED from those same exchanges, so anything
  * that decided a bout other than the exchanges was invisible to it: a forfeit,
@@ -81,6 +50,7 @@ export function deriveFighterStats(
     doubleHits: 0,
     hitsGiven: 0,
     hitsReceived: 0,
+    pointsReceived: 0,
   };
 
   for (const match of completedMatches) {
@@ -88,22 +58,21 @@ export function deriveFighterStats(
     const isBlue = match.blueRegistrationId === registrationId;
     if (!isRed && !isBlue) continue;
 
-    const exchanges = match.exchanges;
-    const { redScore, blueScore } = computeRawScore(exchanges, afterblowMode);
-    stats.hitsGiven += isRed ? redScore : blueScore;
-    stats.hitsReceived += isRed ? blueScore : redScore;
-
-    for (const ex of exchanges) {
-      if (!ex.voided && ex.type === 'double') stats.doubleHits += 1;
-    }
+    // TF_v1's own counter, once per side. Its win flag is not read: W/D/L comes
+    // from `boutOutcomes` below.
+    const opponentId = isRed ? match.blueRegistrationId : match.redRegistrationId;
+    const mine = computeAggregates(registrationId, match, match.exchanges, false, afterblowMode);
+    const theirs = computeAggregates(opponentId, match, match.exchanges, false, afterblowMode);
+    stats.hitsGiven += mine.targetPoints;
+    stats.hitsReceived += mine.timesHit;
+    stats.pointsReceived += theirs.targetPoints;
+    stats.doubleHits += mine.doubles;
 
     // W / D / L, from the bout that was actually fought — see the docblock.
     const outcome = boutOutcomes({
       winnerRegistrationId: match.winnerRegistrationId,
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
-      redScore: match.redScore,
-      blueScore: match.blueScore,
       endReason: match.endReason,
     })[isRed ? 'red' : 'blue'];
     if (outcome === 'win') stats.victories += 1;

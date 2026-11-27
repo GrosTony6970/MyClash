@@ -100,6 +100,38 @@ describe('a save of the match format', () => {
     await svc.updateTournament('t1', repair as never, 'u1');
     expect(settings()).toEqual({ matchFormat: normalizeMatchFormatConfig({ maxDoubleHits: 3 }) });
   });
+
+  /**
+   * A venues bout counts up, but that is how the format is READ, not what the organiser set: a
+   * countdown Tournament that tries venues and goes back to points counts down again.
+   */
+  it('keeps the countdown through a points → venues → points round trip', async () => {
+    const countdown = {
+      ...ON_TF_1_0_0,
+      ruleset_config: { matchFormat: { scoringDirection: 'reverse_zero_loses' } },
+    };
+    const toVenues = await save(countdown, {
+      rulesetConfig: { matchFormat: { scoringUnit: 'venues' } },
+    });
+    const inVenues = toVenues.settings()?.['matchFormat'];
+    expect(inVenues).toMatchObject({
+      scoringUnit: 'venues',
+      scoringDirection: 'reverse_zero_loses',
+    });
+    // Read for use, the venues bout counts up.
+    expect(normalizeMatchFormatConfig(inVenues).scoringDirection).toBe('normal');
+
+    const venuesRow = { ...countdown, ruleset_config: toVenues.settings() };
+    const back = await save(venuesRow, {
+      rulesetConfig: { matchFormat: { scoringUnit: 'points' } },
+    });
+    const inPoints = back.settings()?.['matchFormat'];
+    expect(inPoints).toMatchObject({
+      scoringUnit: 'points',
+      scoringDirection: 'reverse_zero_loses',
+    });
+    expect(normalizeMatchFormatConfig(inPoints).scoringDirection).toBe('reverse_zero_loses');
+  });
 });
 
 // Every forfeit rule lives in the penalty ruleset (rulings 63-76). The DTO refuses one sent; the

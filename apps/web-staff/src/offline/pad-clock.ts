@@ -222,3 +222,20 @@ export function endScoreOf(
 export function tabletResult(pressedOn: PressedOn | null, onScreen: PressedOn): PressedOn {
   return pressedOn ?? onScreen;
 }
+
+/**
+ * The winner of a result that is not confirmed: the fighter the cap gave the bout to, else whoever
+ * leads the score the End was pressed on, as the server's clock End names it
+ * (`time-limit-result.ts`). Level, or a board the doubles limit wiped: nobody.
+ *
+ * The tablet says it itself. The result screen used to leave it to `resolveMatchWinner`, which
+ * read the leader from the two numbers when no winner was stored; a finished bout's result is
+ * now its stored winner only (spec 2026-11-27-bout-result-is-stored), so a 3-1 End read "Draw"
+ * until the server answered.
+ */
+export function tabletWinner(result: PressedOn): 'red' | 'blue' | undefined {
+  if (result.winner) return result.winner;
+  if (result.red > result.blue) return 'red';
+  if (result.blue > result.red) return 'blue';
+  return undefined;
+}

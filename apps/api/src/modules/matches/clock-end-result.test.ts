@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClockService } from './clock.service';
-import { timeLimitResult } from './time-limit-result';
+import { isLevelBout, timeLimitResult } from './time-limit-result';
 
 /**
  * What the `end` clock action RECORDS.
@@ -160,24 +160,23 @@ describe('ClockService — what ending the clock records', () => {
     expect(lastUpdate).toMatchObject({ winner_registration_id: 'blue', end_reason: 'time_limit' });
   });
 
-  it('names nobody when the bout is LEVEL at time', async () => {
-    // A genuine draw, which is what a pool table's D column is for. After this
-    // change a null winner on a completed bout means exactly that and nothing
-    // else — which is why every reader downstream can be left alone.
+  it('names nobody when the bout is LEVEL at time, and stores why', async () => {
+    // A genuine draw, which is what a pool table's D column is for. Its result is
+    // written, not left to be guessed: `time_limit` with no winner (spec
+    // 2026-11-27-bout-result-is-stored, R2). It used to store no reason.
     wireEnd(matchRow({ red_score: 2, blue_score: 2 }));
 
     await service.clockAction('m1', 'end');
 
-    expect(lastUpdate).toMatchObject({ status: 'completed' });
+    expect(lastUpdate).toMatchObject({ status: 'completed', end_reason: 'time_limit' });
     expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
-    expect(lastUpdate?.['end_reason']).toBeUndefined();
   });
 
-  it('names nobody on a BEST-OF match, whose rounds are owned elsewhere', async () => {
-    // `ScoringService.endRoundOnTime` closes a ROUND, not the series, and
-    // refuses a tied one so the operator plays a sudden-death point. The pad
-    // routes there and never reaches this branch — the guard is defensive.
-    wireEnd(
+  it('refuses the End of a BEST-OF bout still in play, whose rounds end it', async () => {
+    // `ScoringService.endRoundOnTime` closes a ROUND, not the series, and the
+    // pad routes there. A raw End used to complete the series here with no
+    // winner, on the open round's score.
+    const body = await refusalOf(
       matchRow({
         phases: { type: 'single_elim' },
         match_rules: copyOf({ bestOf: { pool: 1, bracket: 3, finals: 3 } }),
@@ -185,10 +184,8 @@ describe('ClockService — what ending the clock records', () => {
       }),
     );
 
-    await service.clockAction('m1', 'end');
-
-    expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
-    expect(lastUpdate?.['end_reason']).toBeUndefined();
+    expect(body).toMatchObject({ code: 'series_not_decided' });
+    expect(lastUpdate).toBeNull();
   });
 
   it('asks for the columns it decides on', async () => {
@@ -205,8 +202,6 @@ describe('ClockService — what ending the clock records', () => {
       'red_score',
       'blue_score',
       'red_registration_id',
-      // The decided test is the LADDER, not the scores.
-      'winner_registration_id',
       'phases(',
       // The format the bout is decided by: its copy of its rules, not its Tournament's of now.
       'match_rules(ruleset_code, ruleset_version, ruleset_config',
@@ -290,7 +285,7 @@ describe('ClockService — what ending the clock records', () => {
 
     await service.clockAction('m1', 'end');
 
-    expect(lastUpdate).toMatchObject({ status: 'completed' });
+    expect(lastUpdate).toMatchObject({ status: 'completed', end_reason: 'time_limit' });
     expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
   });
 
@@ -385,18 +380,33 @@ describe('timeLimitResult', () => {
     });
   });
 
+  it('reads the board of a bout in play, never a winner left on its row', () => {
+    // A bout in play holds no winner (ruling 331). The End asks who LEADS, from
+    // the score: a stale winner must not decide a time-out the board does not.
+    expect(timeLimitResult(bout({ winner_registration_id: 'blue' }), 0, ELAPSED_ZERO)).toEqual({
+      complete: { winner_registration_id: 'red', end_reason: 'time_limit' },
+    });
+  });
+
+  it('reads a level board with no winner as level, and one that carries a winner as decided', () => {
+    // Both halves are read on their own, never the winner through the score: the
+    // level steps refuse a 0-0 forfeit under a zeroing score policy.
+    expect(isLevelBout(bout({ red_score: 2, blue_score: 2 }))).toBe(true);
+    expect(isLevelBout(bout({ red_score: 0, blue_score: 0, winner_registration_id: 'blue' }))).toBe(
+      false,
+    );
+    expect(isLevelBout(bout({ red_score: 3, blue_score: 1 }))).toBe(false);
+  });
+
   it('follows the phase, not the label, for pool and swiss', () => {
     // Swiss falls back to the pool value when a config predates the format.
+    const seriesOpen = { refuse: { reason: 'series_not_decided' } };
     expect(
       timeLimitResult(withBestOf('pool', { pool: 3, bracket: 1, finals: 1 }), 0, ELAPSED_ZERO),
-    ).toEqual({
-      complete: {},
-    });
+    ).toEqual(seriesOpen);
     expect(
       timeLimitResult(withBestOf('swiss', { pool: 3, bracket: 1, finals: 1 }), 0, ELAPSED_ZERO),
-    ).toEqual({
-      complete: {},
-    });
+    ).toEqual(seriesOpen);
     expect(
       timeLimitResult(withBestOf('pool', { pool: 1, bracket: 3, finals: 3 }), 0, ELAPSED_ZERO),
     ).toMatchObject({ complete: { end_reason: 'time_limit' } });
@@ -409,9 +419,15 @@ describe('timeLimitResult', () => {
     const finalsAreBestOf = { pool: 1, bracket: 1, finals: 3 };
     expect(
       timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'F'), 0, ELAPSED_ZERO),
-    ).toEqual({
-      complete: {},
-    });
+    ).toEqual({ refuse: { reason: 'series_not_decided' } });
+    // Decided by its rounds, the series is completed, and its End passes.
+    expect(
+      timeLimitResult(
+        { ...withBestOf('single_elim', finalsAreBestOf, 'F'), status: 'completed' },
+        0,
+        ELAPSED_ZERO,
+      ),
+    ).toEqual({ complete: {} });
     expect(
       timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'QF1'), 0, ELAPSED_ZERO),
     ).toMatchObject({
@@ -445,7 +461,7 @@ describe('timeLimitResult', () => {
       match_rules: copyOf({ timeLimitsSeconds: perPhase }),
     });
 
-    expect(timeLimitResult(asPool, 0, 60_000)).toEqual({ complete: {} });
+    expect(timeLimitResult(asPool, 0, 60_000)).toEqual({ complete: { end_reason: 'time_limit' } });
     expect(timeLimitResult(asBracket, 0, 60_000)).toEqual({
       refuse: { reason: 'time_not_finished' },
     });
@@ -461,7 +477,7 @@ describe('timeLimitResult', () => {
       match_rules: copyOf({ timeLimitsSeconds: { pool: null } }),
     });
 
-    expect(timeLimitResult(noLimit, 0, 0)).toEqual({ complete: {} });
+    expect(timeLimitResult(noLimit, 0, 0)).toEqual({ complete: { end_reason: 'time_limit' } });
   });
 
   it('does not hold a bout that has a LEADER', () => {

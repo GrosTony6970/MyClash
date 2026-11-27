@@ -345,6 +345,7 @@ describe('newestToUndo and the screen’s list', () => {
     const drawn = pendingRowsForMatch({
       entries,
       config: {} as never,
+      scoringUnit: 'points',
       serverExchanges: live.map((row) => ({ client_uuid: row.clientUuid })) as never,
       serverPenalties: [],
       serverProtests: [],

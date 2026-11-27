@@ -7,7 +7,9 @@ import { PHOTO_HEIF_BRANDS, PHOTO_MAX_BYTES } from '@myclash/types';
  */
 
 export type PhotoKind = 'jpeg' | 'heic' | 'other';
-export type LocalRefusal = 'file_too_large' | 'photo_heic' | 'photo_not_jpeg';
+/** The last two come from the camera-shape step at send time (`camera-jpeg.ts`). */
+export type LocalRefusal =
+  'file_too_large' | 'photo_heic' | 'photo_not_jpeg' | 'photo_corrupt' | 'photo_unsupported_jpeg';
 
 /** How many leading bytes `photoKindOf` reads. */
 export const PHOTO_HEAD_BYTES = 12;

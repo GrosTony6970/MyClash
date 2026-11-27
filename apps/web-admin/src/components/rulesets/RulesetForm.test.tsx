@@ -240,17 +240,31 @@ const KINDS: Array<[string, Partial<RulesetRowLike>, Record<string, boolean>]> =
   [
     'a TF_v1 copy',
     { code: 'custom_tf_v1_fork_abc', base_code: 'TF_v1' },
-    { formula: false, dials: true, targets: true, afterblow: false, maxDoubles: true },
+    {
+      formula: false,
+      dials: true,
+      targets: true,
+      afterblow: false,
+      maxDoubles: true,
+      venues: true,
+    },
   ],
   [
     'Points cap',
     { code: 'Generic_PointsCap' },
-    { formula: false, dials: false, targets: false, afterblow: false, maxDoubles: false },
+    {
+      formula: false,
+      dials: false,
+      targets: false,
+      afterblow: false,
+      maxDoubles: false,
+      venues: false,
+    },
   ],
   [
     'a formula ruleset',
     { code: 'custom_house' },
-    { formula: true, dials: false, targets: true, afterblow: true, maxDoubles: true },
+    { formula: true, dials: false, targets: true, afterblow: true, maxDoubles: true, venues: true },
   ],
 ];
 
@@ -269,6 +283,7 @@ describe.each(KINDS)('the editor of %s', (_name, stored, expected) => {
       targets: target?.disabled === false,
       afterblow: !labelled('This ruleset uses afterblow').disabled,
       maxDoubles: has('Max double hits'),
+      venues: has('Score by'),
     }).toEqual(expected);
   });
 });

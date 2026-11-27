@@ -68,6 +68,12 @@ export interface RefereeWorkloadRow {
   /** Protests on the completed Matches this referee led, voided ones aside. */
   protests: number;
   averageRefereeTimeMs: number;
+  /** Mean time of the Matches held in each role; 0 for a role never held. */
+  averageTimeMsByRole: {
+    arbitre_declarant: number;
+    arbitre_assesseur: number;
+    arbitre_table: number;
+  };
 }
 
 /** Per-weapon point-value stats (deep-target hunters + point distribution). */

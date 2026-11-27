@@ -8,6 +8,7 @@ import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UnknownCaller } from '@/components/me/workshop-booking';
 import { CANCELLED_TEXT } from '@/components/workshops/session-cancelled';
+import { capacityBadge } from '@/components/workshops/WorkshopCard';
 import { loginHref, signupHref } from '@/lib/sign-in-return';
 import { JoinEventPanel } from './JoinEventPanel';
 import type { JoinOffer } from './join-event';
@@ -113,45 +114,55 @@ export function GuestAlertsLine({
   );
 }
 
-/** A session's day, hours and place, and how full it is. */
+const DAY = { weekday: 'short', day: 'numeric', month: 'short' } as const;
+
+/**
+ * A session's day, hours and place, and how full it is: "12/20 enrolled" under the place, and the
+ * seats-left badge of the catalog card on the right.
+ */
 export function SessionWhen({
   session,
   timezone,
   bcp47,
-  enrolled,
+  seats,
   cancelled = false,
 }: {
   session: { startsAt: string | null; endsAt: string | null; locationLabel: string | null };
   timezone: string;
   bcp47: string;
-  /** "12/20 enrolled", or null when the Workshop has no limit. */
-  enrolled: string | null;
+  /** Booked seats and the limit, or null when the Workshop has no limit. */
+  seats: { confirmed: number; capacity: number } | null;
   /** A cancelled session: its time and place struck through (ruling 526). */
   cancelled?: boolean;
 }): ReactNode {
+  const { t } = useI18n();
   const hour = (iso: string) =>
     formatInZone(iso, timezone, { hour: '2-digit', minute: '2-digit' }, bcp47);
   return (
-    <div className={cancelled ? CANCELLED_TEXT : undefined}>
-      {session.startsAt && (
-        <p className={cancelled ? undefined : 'font-medium text-foreground'}>
-          {formatInZone(
-            session.startsAt,
-            timezone,
-            { weekday: 'short', day: 'numeric', month: 'short' },
-            bcp47,
-          )}
-        </p>
+    <div className="flex items-start justify-between gap-3">
+      <div className={cancelled ? CANCELLED_TEXT : undefined}>
+        {session.startsAt && (
+          <p className={cancelled ? undefined : 'font-medium text-foreground'}>
+            {formatInZone(session.startsAt, timezone, DAY, bcp47)}
+          </p>
+        )}
+        {(session.startsAt || session.endsAt || session.locationLabel) && (
+          <p className="text-sm text-muted">
+            {session.startsAt && hour(session.startsAt)}
+            {session.startsAt && session.endsAt && ' – '}
+            {session.endsAt && hour(session.endsAt)}
+            {session.locationLabel && ` · ${session.locationLabel}`}
+          </p>
+        )}
+        {seats && (
+          <p className="text-xs text-muted mt-0.5">
+            {t('publicApp.workshopDetail.enrolledCount', seats)}
+          </p>
+        )}
+      </div>
+      {seats && (
+        <div className="flex-shrink-0">{capacityBadge(seats.confirmed, seats.capacity, t)}</div>
       )}
-      {(session.startsAt || session.endsAt || session.locationLabel) && (
-        <p className="text-sm text-muted">
-          {session.startsAt && hour(session.startsAt)}
-          {session.startsAt && session.endsAt && ' – '}
-          {session.endsAt && hour(session.endsAt)}
-          {session.locationLabel && ` · ${session.locationLabel}`}
-        </p>
-      )}
-      {enrolled && <p className="text-xs text-muted mt-0.5">{enrolled}</p>}
     </div>
   );
 }

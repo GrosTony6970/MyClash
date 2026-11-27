@@ -32,6 +32,10 @@ function variableLabel(t: ReturnType<typeof useI18n>['t'], v: VariableKey): stri
   return t(`admin.rulesets.variables.${v}`);
 }
 
+function variableMeaning(t: ReturnType<typeof useI18n>['t'], v: VariableKey): string {
+  return t(`admin.rulesets.variableMeaning.${v}`);
+}
+
 function tokenLabel(t: ReturnType<typeof useI18n>['t'], token: Token): string {
   switch (token.kind) {
     case 'var':
@@ -214,6 +218,28 @@ export function FormulaEditor({
           <span className="italic text-danger">{t(FORMULA_ERROR_KEY[error!])}</span>
         )}
       </div>
+
+      <VariableMeanings variables={variables} />
+    </div>
+  );
+}
+
+/** One plain sentence per variable the palette offers (ruling 2026-11-27). */
+function VariableMeanings({ variables }: { variables: readonly VariableKey[] }) {
+  const { t } = useI18n();
+  return (
+    <div className="mt-3">
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+        {t('admin.rulesets.variableMeaningsTitle')}
+      </h4>
+      <dl className="space-y-1 text-xs">
+        {variables.map((v) => (
+          <div key={v}>
+            <dt className="inline font-semibold text-foreground">{variableLabel(t, v)}: </dt>
+            <dd className="inline text-foreground-secondary">{variableMeaning(t, v)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

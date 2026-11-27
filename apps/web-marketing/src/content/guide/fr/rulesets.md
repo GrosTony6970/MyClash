@@ -45,7 +45,10 @@ Il faut le rôle **Administrateur** (ou **Propriétaire**) dans votre organisati
    - **Constantes** et **Pénalité de double touche** : les valeurs qu'utilise la formule.
    - **Formule de score** : comment se calcule le score de poule d'un combattant. Vous la
      construisez avec des nombres, les résultats du combattant (victoires, nuls, défaites,
-     doubles, touches données, touches reçues) et les quatre opérations. MyClash la vérifie ; il
+     doubles, touches données, touches reçues, points reçus) et les quatre opérations. Sous la
+     formule, **Ce que veut dire chaque mot** explique chacun : touches reçues compte le nombre de
+     fois où le combattant a été touché, points reçus additionne ce que valaient ces touches. Si le
+     bas d'une division vaut zéro, la formule divise par 1. MyClash vérifie la formule ; il
      n'exécute jamais de code saisi dans un formulaire.
    - **Tie-breakers** : l'ordre qui départage des combattants à égalité de score.
 3. Enregistrez. Le règlement est utilisable tout de suite dans vos tournois.

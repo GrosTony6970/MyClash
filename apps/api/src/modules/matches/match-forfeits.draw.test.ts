@@ -59,8 +59,6 @@ describe('a forfeit that counts as a draw', () => {
           winnerRegistrationId: ended!['winner_registration_id'] as string | null,
           redRegistrationId: 'reg-red',
           blueRegistrationId: 'reg-blue',
-          redScore: ended!['red_score'] as number,
-          blueScore: ended!['blue_score'] as number,
           endReason: ended!['end_reason'] as string,
         }),
       ).toEqual({ red: 'draw', blue: 'draw' });

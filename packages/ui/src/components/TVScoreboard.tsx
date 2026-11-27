@@ -29,6 +29,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   displayClockMs,
   formatClockMs,
+  getEffectiveVenuesPerRound,
   protestRulesOf,
   resolveMatchWinner,
   shouldWarnClock,
@@ -42,6 +43,7 @@ import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
 import { boutIsOver } from '../utils/bout-is-over';
+import { venuesWonInRound } from '../utils/venues-won';
 import { statusLabelKey } from '../utils/status-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
@@ -302,6 +304,7 @@ export function TVScoreboard({
         blueName={blueName}
         redBorder={redStyle.border}
         blueBorder={blueStyle.border}
+        exchanges={exchanges}
         mirror={mirror}
         connectionCue={connectionCue}
         t={t}
@@ -337,12 +340,13 @@ export function TVScoreboard({
 
 // ── Header ────────────────────────────────────────────────────────
 
-function TVHeader({
+export function TVHeader({
   match,
   redName,
   blueName,
   redBorder,
   blueBorder,
+  exchanges,
   mirror = false,
   connectionCue,
   t,
@@ -352,6 +356,7 @@ function TVHeader({
   blueName: string;
   redBorder: string;
   blueBorder: string;
+  exchanges: ExchangeRow[];
   mirror?: boolean;
   connectionCue?: React.ReactNode;
   t: (key: string, values?: Record<string, string | number>) => string;
@@ -411,6 +416,22 @@ function TVHeader({
               <span className="mx-0.5 text-slate-400">–</span>
               <span style={{ color: blueOnLight }}>{match.blueRoundWins ?? 0}</span>
               {match.awaitingRoundAdvance ? ' · ⏸' : ''}
+            </span>
+          )}
+          {match.matchFormat?.scoringUnit === 'venues' && (
+            <span className="rounded-full border-2 border-sky-300 bg-sky-50 px-4 py-1 text-base font-bold tabular-nums text-sky-700">
+              {t('scoring.rounds.venuesCounter', {
+                won: String(venuesWonInRound(exchanges, match.currentRound ?? 1)),
+                total: String(
+                  getEffectiveVenuesPerRound(
+                    {
+                      phaseType: match.phaseType ?? undefined,
+                      matchNumberLabel: match.matchNumberLabel,
+                    },
+                    match.matchFormat,
+                  ),
+                ),
+              })}
             </span>
           )}
           {contextLine && (
@@ -616,8 +637,6 @@ function CenterColumn({
       winnerRegistrationId: match.winnerRegistrationId,
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
-      redScore: match.redScore,
-      blueScore: match.blueScore,
     });
     if (side === null) return null;
     return { side, name: side === 'red' ? redName : blueName };
@@ -626,8 +645,6 @@ function CenterColumn({
     match.winnerRegistrationId,
     match.redRegistrationId,
     match.blueRegistrationId,
-    match.redScore,
-    match.blueScore,
     redName,
     blueName,
   ]);

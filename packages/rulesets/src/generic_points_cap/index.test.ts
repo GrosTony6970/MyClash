@@ -72,6 +72,60 @@ describe('Generic_PointsCap', () => {
       expect(score.blueScore).toBe(0);
       expect(score.doubles).toBe(1);
     });
+
+    it('counts a venue for a clean hit and none for an afterblow, though both score', () => {
+      const exchanges = [
+        makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e2', sequence: 2, type: 'afterblow', afterblowValue: 1 }),
+        makeEx({ id: 'e3', sequence: 3, firstStrikerColor: 'blue', voided: true }),
+      ];
+      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', {});
+      expect(score).toMatchObject({ redScore: 2, redVenuesWon: 1, blueVenuesWon: 0 });
+    });
+
+    it('scores and ends a format stored in venues mode exactly as points', () => {
+      // A hit worth 2, so a price of 1 per venue would show.
+      const stored = (scoringUnit: 'points' | 'venues') => ({
+        matchFormat: { scoringUnit, pointCap: 4 },
+        pointValues: { hit: 2 },
+      });
+      const exchanges = [
+        makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e2', sequence: 2, type: 'afterblow', afterblowValue: 1 }),
+      ];
+      const venues = Generic_PointsCap.computeMatchScore(
+        BASE_MATCH,
+        exchanges,
+        'full',
+        stored('venues'),
+      );
+      const points = Generic_PointsCap.computeMatchScore(
+        BASE_MATCH,
+        exchanges,
+        'full',
+        stored('points'),
+      );
+      expect(venues).toEqual(points);
+      expect(venues).toMatchObject({ redScore: 4, blueScore: 0 });
+      // Red reached the cap of 4: the bout ends on points, for red.
+      expect(Generic_PointsCap.isMatchOver(BASE_MATCH, venues, stored('venues'))).toEqual({
+        isOver: true,
+        reason: 'first_to_points',
+      });
+    });
+
+    it('counts down a format stored in venues mode that counts down', () => {
+      // In points, as it always scores, so its stored direction is the one it plays.
+      const countdown = (scoringUnit: 'points' | 'venues') => ({
+        matchFormat: { scoringUnit, pointCap: 4, scoringDirection: 'reverse_zero_loses' },
+      });
+      const exchanges = [makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' })];
+      const score = (unit: 'points' | 'venues') =>
+        Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', countdown(unit));
+      expect(score('venues')).toEqual(score('points'));
+      // Red hit Blue once: Blue counts down from 4.
+      expect(score('venues')).toMatchObject({ redScore: 4, blueScore: 3 });
+    });
   });
 
   describe('the doubles ceiling, which this ruleset does not have', () => {

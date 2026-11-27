@@ -1,5 +1,6 @@
 import { renewLogin, type ApiResult } from '@myclash/api-client';
 import { sendRetryingBusy } from './busy-retry';
+import type { PreparedPhoto } from './camera-jpeg';
 import { localRefusal, PHOTO_HEAD_BYTES } from './photo-checks';
 import { keepsSending, nextWaiting, withState, type QueueItem } from './photo-queue';
 import { localRefusalView, refusalView, type RefusalEnd } from './photo-refusal';
@@ -23,6 +24,8 @@ export interface SendQueueDeps {
     fields: PhotoFields,
     on: { progress: (fraction: number) => void; busy: () => void },
   ) => Promise<ApiResult<PhotoSent>>;
+  /** The file to send for a photo: itself, or a camera-shaped copy (`toCameraJpeg`). */
+  prepare: (file: File) => Promise<PreparedPhoto>;
   t: Translate;
   onClosed: (message: string) => void;
   /** Said once for each photo the API took: a personal space then reads her photos again. */
@@ -34,7 +37,14 @@ type SendEnd = RefusalEnd | 'sent' | 'aborted';
 async function sendOne(item: QueueItem, deps: SendQueueDeps): Promise<SendEnd> {
   const at = (patch: Partial<QueueItem>) => deps.update((list) => withState(list, item.key, patch));
   at({ state: 'sending', progress: 0, message: null });
-  const result = await deps.send(item, deps.fields(), {
+  const prepared = await deps.prepare(item.file);
+  if (!prepared.ok) {
+    at({ state: 'refused', message: localRefusalView(prepared.refusal, deps.t).message });
+    return 'photo';
+  }
+  // Kept on the photo, so a Retry sends this copy and does not draw the picture again.
+  if (prepared.file !== item.file) at({ file: prepared.file });
+  const result = await deps.send({ ...item, file: prepared.file }, deps.fields(), {
     progress: (progress) => at({ state: 'sending', progress }),
     busy: () => at({ state: 'busy' }),
   });

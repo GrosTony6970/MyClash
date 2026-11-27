@@ -112,7 +112,7 @@ const ZERO_SCOPE: FormulaScope = Object.fromEntries(
  *    hand-written formulas dodge this with their `n <= 1 ? 0` guard.
  *  - **Non-finite → federal.** Same posture as an unknown key below: a
  *    standings page must not 500 (or rank on `NaN`) because of a stored config.
- *    `evaluateFormula` already maps division-by-zero to 0, so this only catches
+ *    `evaluateFormula` already maps division by zero to `x / 0 = x`, so this only catches
  *    overflow to ±Infinity.
  */
 export function evaluateDoublePenaltyAst(ast: FormulaNode, n: number): number {

@@ -54,9 +54,15 @@ export function Step2MatchFormat({
   // The ruleset's own answer: afterblow only where it has one, the doubles ceiling unless it says
   // it has none. A control not shown is never changed, so never sent.
   const grammar = rules.row?.['ruleset_grammar'] as
-    { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+    { hasAfterblow?: boolean; hasMaxDoubles?: boolean; hasVenues?: boolean } | undefined;
   const hasAfterblow = Boolean(grammar?.hasAfterblow);
   const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
+  // Only a ruleset that says it has no venues (Points cap) hides the choice: the server forces points there.
+  const hasVenues = grammar?.hasVenues !== false;
+  // Venues mode counts up from nothing: no point cap, no direction (the server resolves 'normal').
+  const venues = hasVenues && data.scoringUnit === 'venues';
+  const setVenues = (phase: 'pool' | 'bracket' | 'finals', v: number) =>
+    setData({ ...data, venuesPerRound: { ...data.venuesPerRound, [phase]: v } });
   // The best-of read: a select keeps offering it after another pick (a 9 is no standard choice).
   const loaded = rules.rules?.matchFormat.bestOf;
 
@@ -72,14 +78,60 @@ export function Step2MatchFormat({
     <div className="space-y-4">
       {heading}
 
-      <NumberField
-        label={t('organizer.tournaments.settings.pointCap')}
-        hint={t('organizer.tournaments.settings.pointCapHelp')}
-        value={data.pointCap}
-        onChange={(v) => setData({ ...data, pointCap: v })}
-        min={1}
-        max={50}
-      />
+      {hasVenues && (
+        <SelectField
+          label={t('organizer.tournaments.settings.scoringUnitLabel')}
+          value={data.scoringUnit}
+          onChange={(v) => setData({ ...data, scoringUnit: v as MatchFormat['scoringUnit'] })}
+          options={[
+            { value: 'points', label: t('organizer.tournaments.settings.scoringUnitPoints') },
+            { value: 'venues', label: t('organizer.tournaments.settings.scoringUnitVenues') },
+          ]}
+        />
+      )}
+
+      {venues && (
+        <>
+          <NumberField
+            label={t('organizer.tournaments.settings.venuesPerRoundPool')}
+            value={data.venuesPerRound.pool}
+            onChange={(v) => setVenues('pool', v)}
+            min={1}
+            max={50}
+          />
+          <NumberField
+            label={t('organizer.tournaments.settings.venuesPerRoundBracket')}
+            value={data.venuesPerRound.bracket}
+            onChange={(v) => setVenues('bracket', v)}
+            min={1}
+            max={50}
+          />
+          <NumberField
+            label={t('organizer.tournaments.settings.venuesPerRoundFinals')}
+            value={data.venuesPerRound.finals}
+            onChange={(v) => setVenues('finals', v)}
+            min={1}
+            max={50}
+          />
+          <CheckField
+            label={t('organizer.tournaments.settings.stopWhenDecidedLabel')}
+            hint={t('organizer.tournaments.settings.stopWhenDecidedHelp')}
+            checked={data.stopWhenDecided}
+            onChange={(v) => setData({ ...data, stopWhenDecided: v })}
+          />
+        </>
+      )}
+
+      {!venues && (
+        <NumberField
+          label={t('organizer.tournaments.settings.pointCap')}
+          hint={t('organizer.tournaments.settings.pointCapHelp')}
+          value={data.pointCap}
+          onChange={(v) => setData({ ...data, pointCap: v })}
+          min={1}
+          max={50}
+        />
+      )}
 
       <SelectField
         label={t('organizer.tournaments.settings.timerMode')}
@@ -201,21 +253,23 @@ export function Step2MatchFormat({
         />
       )}
 
-      <SelectField
-        label={t('organizer.tournaments.settings.scoringDirection')}
-        hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
-        value={data.scoringDirection}
-        onChange={(v) =>
-          setData({ ...data, scoringDirection: v as MatchFormat['scoringDirection'] })
-        }
-        options={[
-          { value: 'normal', label: t('organizer.tournaments.settings.scoringNormal') },
-          {
-            value: 'reverse_zero_loses',
-            label: t('organizer.tournaments.settings.scoringReverse'),
-          },
-        ]}
-      />
+      {!venues && (
+        <SelectField
+          label={t('organizer.tournaments.settings.scoringDirection')}
+          hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
+          value={data.scoringDirection}
+          onChange={(v) =>
+            setData({ ...data, scoringDirection: v as MatchFormat['scoringDirection'] })
+          }
+          options={[
+            { value: 'normal', label: t('organizer.tournaments.settings.scoringNormal') },
+            {
+              value: 'reverse_zero_loses',
+              label: t('organizer.tournaments.settings.scoringReverse'),
+            },
+          ]}
+        />
+      )}
 
       {rules.needsAudit && <RulesChangeElsewhere tournamentId={tournamentId} tab="match-format" />}
       <div className="flex justify-between mt-6">
@@ -307,6 +361,26 @@ function SelectField({
           </option>
         ))}
       </select>
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+    </label>
+  );
+}
+
+function CheckField({
+  label,
+  checked,
+  onChange,
+  hint,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  hint?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-foreground-secondary mb-1">{label}</span>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </label>
   );

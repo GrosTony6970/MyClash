@@ -19,6 +19,7 @@ describe('evaluateFormula', () => {
     doubleHits: 2,
     hitsGiven: 12,
     hitsReceived: 6,
+    pointsReceived: 8,
     pointsPerVictory: 3,
     pointsPerTie: 1,
     pointsPerLoss: 0,
@@ -46,8 +47,20 @@ describe('evaluateFormula', () => {
     expect(evaluateFormula(bin('/', lit(10), lit(2)), scope)).toBe(5);
   });
 
-  it('returns 0 on division by zero (rather than NaN/Infinity)', () => {
-    expect(evaluateFormula(bin('/', lit(5), lit(0)), scope)).toBe(0);
+  it('divides by 1 on division by zero, as TF_v1 does (never NaN/Infinity)', () => {
+    expect(evaluateFormula(bin('/', lit(5), lit(0)), scope)).toBe(5);
+    expect(evaluateFormula(bin('/', lit(0), lit(0)), scope)).toBe(0);
+  });
+
+  it('ranks a fighter never hit by the raw top half, not 0', () => {
+    // (victories × pointsPerVictory + hitsGiven) / (hitsReceived + doublePenalty)
+    const tfShape = bin(
+      '/',
+      bin('+', bin('*', v('victories'), v('pointsPerVictory')), v('hitsGiven')),
+      bin('+', v('hitsReceived'), v('doublePenalty')),
+    );
+    const unbeaten = { ...scope, victories: 3, hitsGiven: 6, hitsReceived: 0, doublePenalty: 0 };
+    expect(evaluateFormula(tfShape, unbeaten)).toBe(3 * unbeaten.pointsPerVictory + 6);
   });
 
   it('evaluates nested expressions: victories * pointsPerVictory - losses * pointsPerLoss', () => {
@@ -63,17 +76,20 @@ describe('evaluateFormula', () => {
 
 describe('createFormulaRuleset', () => {
   function makeMatch(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
+    // Only clean hits and doubles appear below, and a double has no striker, so
+    // counting strikers is the whole score. The bout stores its leader as the
+    // winner, as the server does when it ends one: the board alone decides nothing.
+    const redScore = exchanges.filter((e) => e.firstStrikerColor === 'red').length;
+    const blueScore = exchanges.filter((e) => e.firstStrikerColor === 'blue').length;
+    const winnerRegistrationId = redScore > blueScore ? red : blueScore > redScore ? blue : null;
     return {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
       endReason: null,
-      // No winner, so the board decides — and here it says what the exchanges
-      // do. Only clean hits and doubles appear below, and a double has no
-      // striker, so counting strikers is the whole score.
-      winnerRegistrationId: null,
-      redScore: exchanges.filter((e) => e.firstStrikerColor === 'red').length,
-      blueScore: exchanges.filter((e) => e.firstStrikerColor === 'blue').length,
+      winnerRegistrationId,
+      redScore,
+      blueScore,
       exchanges,
     };
   }

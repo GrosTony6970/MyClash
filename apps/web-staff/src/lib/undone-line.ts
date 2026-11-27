@@ -47,8 +47,9 @@ interface BoutOnScreen {
 /**
  * The entry an undo took, worded as the bout's list words it, with the number
  * it has there (`exchangeOptionLabel`, the one owner of that line). A protest
- * has no number there, so it is named by its fighter alone. Null when this
- * screen's list does not hold it: another tablet scored it a moment ago.
+ * has no `#N` there, so it is named as its row names it ("Protest 2"), with its
+ * fighter. Null when this screen's list does not hold it: another tablet scored
+ * it a moment ago.
  */
 export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null {
   const { scoring, match, config, t } = bout;
@@ -67,7 +68,7 @@ export function entryLine(entry: UndoneEntry, bout: BoutOnScreen): string | null
   const line = list.find((row) => row.rawId === entry.id || row.rawId === entry.clientUuid);
   if (!line) return null;
   return line.kind === 'protest'
-    ? t('scoring.lice.undoneProtest', { fighter: line.fighterLabel })
+    ? t('scoring.lice.undoneProtest', { protest: line.typeLabel, fighter: line.fighterLabel })
     : exchangeOptionLabel(line);
 }
 

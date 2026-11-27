@@ -144,8 +144,10 @@ describe('"End match" on the tablet', () => {
     expect(view).toMatch(
       /endIsEarly\([^)]*elapsedActiveMs\(clockState, Date\.now\(\)\),\s+series,/,
     );
+    // The gold numeral reads the venue limit too (`decidedSide`): offline it is the
+    // referee's only sign that a venues bout of one round is decided.
     expect(view).toContain(
-      'const capWinnerSide = pointCapWinnerColor(series, matchFormat, edition);',
+      'const capWinnerSide = decidedSide(series, match, matchFormat, edition);',
     );
     expect(rounds).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
     // "End round" carries the winner the cap names too, as "End match" does.
@@ -190,9 +192,12 @@ describe('"End match" on the tablet', () => {
     expect(overlay).toContain(
       "{rounds.map((round) => `${round.redScore} – ${round.blueScore}`).join(' · ')}",
     );
-    // Not confirmed: the winner the End was pressed on, where the board names
-    // none (both at zero in a bout that counts down). Never for a series.
-    expect(view).toContain('const ownWinner = seriesDecided ? undefined : ownResult.winner;');
+    // Not confirmed: the tablet names its own winner — the cap's, else whoever
+    // leads the score the End was pressed on (`tabletWinner`). A series: the
+    // winner its rounds decided, never a guess from the round wins shown as a score.
+    expect(view).toMatch(
+      /const ownWinner = seriesDecided\s+\? \(series\.decided\?\.winnerColor \?\? undefined\)\s+: tabletWinner\(ownResult\);/,
+    );
     expect(view).toMatch(
       /const ownWinnerId =\s+ownWinner === 'red'\s+\? match\.redRegistrationId\s+: ownWinner === 'blue'\s+\? match\.blueRegistrationId\s+: null;/,
     );

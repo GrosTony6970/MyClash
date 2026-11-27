@@ -39,6 +39,9 @@ function config(over: Partial<MatchFormatConfig['levelAtTime']> = {}): MatchForm
       finals: [EXTRA(60), SUDDEN],
       ...over,
     },
+    scoringUnit: 'points',
+    venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+    stopWhenDecided: true,
   };
 }
 

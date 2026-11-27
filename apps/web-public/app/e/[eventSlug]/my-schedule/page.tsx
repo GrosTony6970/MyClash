@@ -28,12 +28,9 @@ import {
   type TimedItem,
 } from '@/components/me/conflicts';
 import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
-import type {
-  PersonSchedule,
-  RefereeSlot,
-  ScheduleMatch,
-  WorkshopEnrollment,
-} from '@/components/me/types';
+import type { PersonSchedule, RefereeSlot, ScheduleMatch } from '@/components/me/types';
+import { scheduleWorkshops, type ScheduleWorkshop } from '@/components/me/schedule-model';
+import { WorkshopRoleChip } from '@/components/me/WorkshopRoleChip';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
 import { isLiveStatus } from '@myclash/types';
 import { sideColorsForTokens } from '@myclash/ui';
@@ -96,7 +93,7 @@ function ResultPill({ outcome }: { outcome: ScheduleMatch['outcome'] }): ReactNo
 type ScheduleItem =
   | { kind: 'match'; data: ScheduleMatch; time: string | null }
   | { kind: 'referee'; data: RefereeSlot; time: string | null }
-  | { kind: 'workshop'; data: WorkshopEnrollment; time: string | null };
+  | { kind: 'workshop'; data: ScheduleWorkshop; time: string | null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,7 +151,7 @@ function dutyName(slot: RefereeSlot): string {
 function itemKey(item: ScheduleItem): string {
   if (item.kind === 'match') return matchKey(item.data);
   if (item.kind === 'referee') return `ref-${item.data.id}`;
-  return `ws-${item.data.workshopId}`;
+  return item.data.key;
 }
 
 /** The page's cards, as the clash check counts the ones it cannot see. A cancelled session will
@@ -241,7 +238,8 @@ export default function MySchedulePage() {
       data: r,
       time: r.scheduledAt ?? r.startsAt,
     })),
-    ...(schedule.workshops ?? []).map((w): ScheduleItem => ({
+    // Taught and booked sessions alike; one taught and booked shows once, as taught.
+    ...scheduleWorkshops(schedule).map((w): ScheduleItem => ({
       kind: 'workshop',
       data: w,
       time: w.sessionStart,
@@ -559,8 +557,9 @@ function ScheduleCard({
   );
 }
 
-/** A Workshop of the schedule: its name, its waitlist mark (ruling 235), its place. */
-function WorkshopLines({ workshop }: { workshop: WorkshopEnrollment }) {
+/** A Workshop of the schedule: its name, whether she teaches or attends it, its waitlist mark
+ *  (ruling 235), its place. */
+function WorkshopLines({ workshop }: { workshop: ScheduleWorkshop }) {
   const { t } = useI18n();
   if (workshop.sessionCancelled) {
     // Struck through and marked, never dropped (ruling 529).
@@ -573,8 +572,11 @@ function WorkshopLines({ workshop }: { workshop: WorkshopEnrollment }) {
   }
   return (
     <>
-      <p className="font-semibold text-warning">{workshop.workshopName}</p>
-      {workshop.status === 'waitlisted' && (
+      <p className="flex items-center gap-2">
+        <span className="font-semibold text-warning">{workshop.workshopName}</span>
+        <WorkshopRoleChip role={workshop.role} />
+      </p>
+      {workshop.waitlisted && (
         <p className="text-warning text-xs mt-0.5">{t('publicApp.me.workshops.onWaitlist')}</p>
       )}
       {workshop.location && <p className="text-warning text-xs mt-0.5">📍 {workshop.location}</p>}

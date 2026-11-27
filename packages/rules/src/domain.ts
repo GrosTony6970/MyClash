@@ -117,6 +117,14 @@ export interface MatchScore {
   blueTimesHit: number;
   doubles: number;
   /**
+   * Venues each side won: its non-voided clean hits with a striker. Counted in
+   * every mode — in points mode they are just the clean hits — and read only by
+   * a round that ends on a number of venues (`roundOutcome`). Counted from the
+   * exchange TYPE, never from a score delta: an afterblow wins nobody a venue.
+   */
+  redVenuesWon: number;
+  blueVenuesWon: number;
+  /**
    * How far under zero a side went, in a bout that counts down
    * (`reverse_zero_loses`) and nowhere else. The board stops at zero; when
    * both sides are at zero these two say who is less far below (`capLeader`).

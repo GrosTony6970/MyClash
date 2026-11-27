@@ -92,18 +92,24 @@ describe('correctionOutcome — an over Event', () => {
     });
   });
 
-  it('reads a winner-less bout from before the clock named winners off its board', () => {
-    // 5-4 with no stored winner already reads as a win for Red, so 5-3 changes nothing.
-    const old = input({
+  it('names the leader when a correction breaks a draw the clock stored', () => {
+    // A `time_limit` bout with no winner is a draw, whatever its board: the
+    // stored result decides, never the score (spec 2026-11-27-bout-result-is-stored).
+    // A correction that puts Red ahead gives Red the bout.
+    const drawn = input({
       bout: { winnerRegistrationId: null },
       score: { redScore: 5, blueScore: 3 },
     });
-    expect(correctionOutcome(old)).toEqual({ kind: 'unchanged' });
+    expect(correctionOutcome(drawn)).toEqual({
+      kind: 'redecide',
+      winnerRegistrationId: 'red',
+      endReason: 'time_limit',
+    });
   });
 
-  it('a bout the clock ended as a draw carries no reason, and still follows', () => {
+  it('a bout the clock ended as a draw stores its reason, and follows a correction', () => {
     const drawn = input({
-      bout: { winnerRegistrationId: null, endReason: null, redScore: 3, blueScore: 3 },
+      bout: { winnerRegistrationId: null, endReason: 'time_limit', redScore: 3, blueScore: 3 },
       score: { redScore: 3, blueScore: 2 },
     });
     expect(correctionOutcome(drawn)).toEqual({
@@ -111,6 +117,16 @@ describe('correctionOutcome — an over Event', () => {
       winnerRegistrationId: 'red',
       endReason: 'time_limit',
     });
+  });
+
+  it('a level bout with no reason is no longer guessed to be the clock’s draw', () => {
+    // The clock stores `time_limit` on a draw it ends: a bout with no reason was
+    // finished some other way, so the score must not take its result back.
+    const noReason = input({
+      bout: { winnerRegistrationId: null, endReason: null, redScore: 3, blueScore: 3 },
+      score: { redScore: 3, blueScore: 2 },
+    });
+    expect(correctionOutcome(noReason)).toEqual({ kind: 'unchanged' });
   });
 
   it('a result recorded by hand with no reason is not a draw the clock ended', () => {

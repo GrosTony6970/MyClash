@@ -153,6 +153,8 @@ describe('the referee board and the schedule grid', () => {
         blueFighterName: null,
         durationMinutes: r.minutes,
       })),
+      // A Pool block names no round; the namer is never asked.
+      (token) => token,
     );
 
     expect(boardUnit!.scheduledEnd).toBe('2026-08-01T09:25:00.000Z');

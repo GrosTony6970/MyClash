@@ -96,6 +96,7 @@ const open = async () => {
   page = await openEventPage(<EventDetailPage />, READS, { [SAVE]: {} });
 };
 const dialog = () => document.body.querySelector<HTMLElement>('[role="dialog"]');
+const headings = () => [...document.body.querySelectorAll('h2')].map((h) => h.textContent);
 const statusMenu = () =>
   document.body.querySelector<HTMLSelectElement>('select[aria-label="Status"]')!;
 const press = async (label: string) => {
@@ -188,9 +189,10 @@ describe("the club's sidebar profile on the Event dashboard", () => {
     },
   };
 
-  it('shows the Tournaments card, the fighter cards and the table to a club that shows everything', async () => {
+  it('shows the fighter cards and the table to a club that shows everything', async () => {
     await openFor('everything');
-    expect(cardLabels()).toContain('Tournaments');
+    // The count sits in the Tournaments heading, not on a card.
+    expect(cardLabels()).not.toContain('Tournaments');
     for (const label of FIGHTER_CARDS) expect(cardLabels()).toContain(label);
     for (const label of WORKSHOP_CARDS) expect(cardLabels()).not.toContain(label);
     expect(document.body.querySelector('table')).not.toBeNull();
@@ -210,6 +212,7 @@ describe("the club's sidebar profile on the Event dashboard", () => {
       ]),
     );
     expect(document.body.querySelector('table')).toBeNull();
+    expect(headings()).not.toContain('Tournaments (1)');
   });
 
   it('shows seats taken alone when a session has no seat limit', async () => {
@@ -232,6 +235,150 @@ describe("the club's sidebar profile on the Event dashboard", () => {
   it('hides the AI question panel from a Workshops-only club (ruling 566)', async () => {
     await openFor('workshops', WITH_AI);
     expect(aiPanel()).toBeNull();
+  });
+});
+
+describe('the Tournaments section of the Event dashboard', () => {
+  const ARCHIVE = 'PATCH /api/v1/tournaments/t-1';
+  const DELETE = 'DELETE /api/v1/tournaments/t-1';
+  const STATS_READ = `/api/v1/events/${EVENT_ID}/dashboard-stats`;
+  /** The labels of the buttons and links in the row's Actions cell. */
+  const actions = () =>
+    [...document.body.querySelectorAll('tbody tr td:last-child :is(a, button)')].map(
+      (el) => el.textContent,
+    );
+  const rowButton = (label: string) => {
+    const button = [...document.body.querySelectorAll<HTMLButtonElement>('tbody button')].find(
+      (b) => b.textContent === label,
+    );
+    if (!button) throw new Error(`no row button "${label}"`);
+    return button;
+  };
+  const statsReads = () =>
+    vi.mocked(apiRequest).mock.calls.filter(([, path]) => path === STATS_READ).length;
+
+  it('comes first, above the Event overview cards, under its own heading', async () => {
+    await open();
+    const all = headings();
+    expect(all.indexOf('Tournaments (1)')).toBeGreaterThanOrEqual(0);
+    expect(all.indexOf('Tournaments (1)')).toBeLessThan(all.indexOf('Event overview'));
+    const create = [...document.body.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Create tournament',
+    );
+    expect(create?.getAttribute('href')).toBe('/org/club/events/ev1/tournaments/new');
+  });
+
+  it('gives each row Edit, Archive and Delete', async () => {
+    await open();
+    expect(actions()).toEqual(['Edit', 'Archive', 'Delete']);
+    const edit = [...document.body.querySelectorAll('tbody a')].find(
+      (a) => a.textContent === 'Edit',
+    );
+    expect(edit?.getAttribute('href')).toBe('/org/club/events/ev1/tournaments/t-1/settings#basics');
+  });
+
+  it('archives after a yes, and reloads the table', async () => {
+    page = await openEventPage(<EventDetailPage />, READS, { [ARCHIVE]: {} });
+    const before = statsReads();
+    await act(async () => rowButton('Archive').click());
+    await page.settle();
+    expect(dialog()?.textContent).toContain('Archive "Longsword"?');
+    expect(page.writes()).toEqual([]);
+    await press('Archive');
+    expect(page.writes()).toEqual([ARCHIVE]);
+    expect(saved()).toEqual({ status: 'archived' });
+    expect(statsReads()).toBeGreaterThan(before);
+  });
+
+  it('deletes after the warning, and reloads the table', async () => {
+    page = await openEventPage(<EventDetailPage />, READS, { [DELETE]: {} });
+    const before = statsReads();
+    await act(async () => rowButton('Delete').click());
+    await page.settle();
+    expect(dialog()?.textContent).toContain('Delete tournament');
+    expect(page.writes()).toEqual([]);
+    await press('Delete permanently');
+    expect(page.writes()).toEqual([DELETE]);
+    expect(statsReads()).toBeGreaterThan(before);
+  });
+
+  it("closes the dialog on a refused delete, so the server's reason shows", async () => {
+    page = await openEventPage(<EventDetailPage />, READS);
+    await act(async () => rowButton('Delete').click());
+    await page.settle();
+    await press('Delete permanently');
+    expect(page.writes()).toEqual([DELETE]);
+    expect(dialog()).toBeNull();
+    expect(document.body.textContent).toContain('This event is archived and read-only.');
+  });
+
+  it('keeps the row asleep until the table has reloaded', async () => {
+    page = await openEventPage(<EventDetailPage />, READS, { [DELETE]: {} });
+    const answer = vi.mocked(apiRequest).getMockImplementation()!;
+    let release = () => undefined as void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) => {
+      if (path === STATS_READ) await held;
+      return answer(base, path, init);
+    });
+    await act(async () => rowButton('Delete').click());
+    await page.settle();
+    await press('Delete permanently');
+    expect(page.writes()).toEqual([DELETE]);
+    // The delete landed, the reload has not: a second press would hit a gone row.
+    expect(rowButton('Delete').disabled).toBe(true);
+    expect(statusMenu().disabled).toBe(true);
+    await act(async () => release());
+    await page.settle();
+    expect(rowButton('Delete').disabled).toBe(false);
+  });
+
+  it('on an archived Event, asks for deletion and offers no new Tournament', async () => {
+    page = await openEventPage(<EventDetailPage />, {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}`]: { ...EVENT, status: 'archived' },
+    });
+    expect(actions()).toEqual(['Edit', 'Archive', 'Request deletion']);
+    const create = [...document.body.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Create tournament',
+    );
+    expect(create).toBeUndefined();
+  });
+});
+
+describe('two Tournament rows saving at once on the Event dashboard', () => {
+  it("one row's finished save leaves the other row asleep", async () => {
+    const statsRead = `/api/v1/events/${EVENT_ID}/dashboard-stats`;
+    const stats = READS[statsRead];
+    const sabre = { ...stats.tournaments[0], id: 't-2', slug: 'sabre', name: 'Sabre' };
+    page = await openEventPage(
+      <EventDetailPage />,
+      { ...READS, [statsRead]: { ...stats, tournaments: [...stats.tournaments, sabre] } },
+      { 'PATCH /api/v1/tournaments/t-1': {}, 'PATCH /api/v1/tournaments/t-2': {} },
+    );
+    const answer = vi.mocked(apiRequest).getMockImplementation()!;
+    let release = () => undefined as void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) => {
+      if (path === '/api/v1/tournaments/t-1' && init?.method === 'PATCH') await held;
+      return answer(base, path, init);
+    });
+    /** The status menu of row `i`. */
+    const menu = (i: number) =>
+      document.body.querySelectorAll<HTMLSelectElement>('select[aria-label="Status"]')[i]!;
+
+    await act(async () => type(menu(0), 'published'));
+    await page.settle();
+    await act(async () => type(menu(1), 'published'));
+    await page.settle();
+    // Sabre's save is done; Longsword's is still out.
+    expect(page.writes()).toEqual(['PATCH /api/v1/tournaments/t-2']);
+    expect(menu(1).disabled).toBe(false);
+    expect(menu(0).disabled).toBe(true);
+
+    await act(async () => release());
+    await page.settle();
+    expect(menu(0).disabled).toBe(false);
   });
 });
 

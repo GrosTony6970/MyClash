@@ -309,6 +309,7 @@ describe('buildUnifiedTimeline', () => {
       expect(label).not.toContain('#');
       expect(label).toBe('00:12 · Blue Fighter · scoring.lice.eventRowProtest');
     });
+    // Its number among its Fighter's protests: `exchange-timeline.protest-number.test.ts`.
   });
 });
 

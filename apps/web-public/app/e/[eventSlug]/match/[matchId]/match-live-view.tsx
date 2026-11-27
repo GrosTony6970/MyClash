@@ -36,8 +36,6 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
     winnerRegistrationId: match.winnerRegistrationId,
     redRegistrationId: match.redRegistrationId,
     blueRegistrationId: match.blueRegistrationId,
-    redScore: match.redScore,
-    blueScore: match.blueScore,
   });
   const winnerName = winner === 'red' ? summary.redName : winner === 'blue' ? summary.blueName : '';
   // The bout's code (`LSW-P4-M1`), never its stored label (`L1-PD-M01`): the

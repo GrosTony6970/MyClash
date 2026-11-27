@@ -36,6 +36,10 @@ function slot(over: Partial<BracketSlotData> = {}): BracketSlotData {
     blueFighterName: 'Jean Biras',
     redScore: 6,
     blueScore: 4,
+    // The card crowns the stored winner, never the higher score.
+    redRegistrationId: 'reg-red',
+    blueRegistrationId: 'reg-blue',
+    winnerRegistrationId: 'reg-red',
     status: 'completed',
     matchId: 'match-1',
     liceId: MINE,

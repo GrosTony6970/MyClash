@@ -36,6 +36,8 @@ export interface CommitmentCardProps {
   refLabel?: string;
   /** Referee skill color token (referee_skills.color), e.g. "orange"/"purple". */
   refColor?: string;
+  /** A Workshop card's role chip, "Instructor" / "Attending" (`WorkshopRoleChip`). */
+  roleChip?: ReactNode;
   href?: string;
 }
 
@@ -95,6 +97,7 @@ export function CommitmentCard({
   sideColors,
   refLabel = 'REF',
   refColor,
+  roleChip,
   href,
 }: CommitmentCardProps): ReactNode {
   const stripe = stripeFor(kind, side, sideColors);
@@ -167,6 +170,7 @@ export function CommitmentCard({
         {kind === 'referee' && (
           <SkillBadge color={refColor ?? 'slate'} label={refLabel} size="sm" />
         )}
+        {roleChip}
         {status && (
           <span
             className={[

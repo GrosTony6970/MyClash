@@ -5,6 +5,7 @@ import {
   expectNoPageIssues,
   stubPublicApi,
 } from './helpers';
+import { CAMERA_JPEG, markerCount, PROGRESSIVE_JPEG, uploadedFile } from './photo-jpegs';
 import { PUBLIC } from './public-pages-stub';
 
 /**
@@ -18,8 +19,8 @@ test.use({ viewport: { width: 390, height: 844 } });
 const TOKEN = 'tok-123';
 const PAGE = `${PUBLIC}/e/photo-event/photos/send`;
 
-// Only the first bytes matter to the page; the API is stubbed.
-const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);
+// A real camera-shaped JPEG: the phone sends it as it is. The API is stubbed.
+const JPEG = CAMERA_JPEG;
 const HEIC = Buffer.concat([
   Buffer.from([0, 0, 0, 0x18]),
   Buffer.from('ftypheic', 'ascii'),
@@ -61,12 +62,13 @@ const send = (page: Page) => page.getByRole('button', { name: 'Send', exact: tru
 test('the server sends the page with nothing that can send', async ({ page }) => {
   const html = await (await page.request.get(PAGE)).text();
   // The page streams: a loading `<main>` comes first, the page's own later in the same HTML.
-  const label = html.indexOf('Take or choose photos');
+  const label = html.indexOf('Choose photos');
   expect(label).toBeGreaterThan(-1);
   const main = html.slice(html.lastIndexOf('<main', label), html.indexOf('</main>', label));
   expect(main).not.toContain('<form');
   const buttons = main.match(/<button[^>]*>/g) ?? [];
-  expect(buttons).toHaveLength(2);
+  // Take a photo, Choose photos, Send.
+  expect(buttons).toHaveLength(3);
   for (const button of buttons) expect(button).toMatch(/\sdisabled=""/);
 });
 
@@ -122,6 +124,87 @@ test('the notice links to the photo section of the privacy policy, in a new tab'
   const link = page.getByRole('link', { name: 'How MyClash handles photos' });
   await expect(link).toHaveAttribute('href', /\/en\/privacypolicy#photos$/);
   await expect(link).toHaveAttribute('target', '_blank');
+});
+
+/**
+ * Android's photo picker has no camera, so a phone gets its own camera button. A computer ignores
+ * `capture` and would open the same file dialog twice: it shows only "Choose photos".
+ */
+test.describe('the camera button', () => {
+  test('a computer shows only Choose photos', async ({ page }) => {
+    await openPage(page, `${PAGE}#${TOKEN}`);
+    await expect(page.getByRole('button', { name: 'Choose photos' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Take a photo' })).toBeHidden();
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ isMobile: true, hasTouch: true });
+
+    test('Take a photo opens the camera, and its shot is queued and sent', async ({ page }) => {
+      const issues = collectPageIssues(page);
+      const { posts } = await openPage(page, `${PAGE}#${TOKEN}`, [
+        answer(201, { id: 'p1', status: 'approved' }),
+      ]);
+      await expect(page.getByRole('button', { name: 'Take a photo' })).toBeEnabled();
+      const camera = page.getByTestId('photo-camera');
+      await expect(camera).toHaveAttribute('capture', 'environment');
+      await expect(camera).not.toHaveAttribute('multiple');
+
+      await camera.setInputFiles({ name: 'shot.jpg', mimeType: 'image/jpeg', buffer: JPEG });
+      await send(page).click();
+      await expect(rows(page)).toContainText('Sent.');
+      expect(posts).toHaveLength(1);
+      expect(posts[0]!.postDataBuffer()!.toString('latin1')).toContain('filename="shot.jpg"');
+      await expectNoCriticalAxeViolations(page);
+      await expectNoPageIssues(issues);
+    });
+  });
+});
+
+/**
+ * The API keeps only the JPEG shape a camera writes (ruling 1004). A camera JPEG goes byte for
+ * byte; a progressive one (a website's, a Google Photos cloud copy) is drawn again on the phone
+ * as one baseline scan, under its own name.
+ */
+test.describe('the camera shape', () => {
+  test('a camera JPEG is sent byte for byte', async ({ page }) => {
+    const { posts } = await openPage(page, `${PAGE}#${TOKEN}`, [
+      answer(201, { id: 'p1', status: 'approved' }),
+    ]);
+    await pick(page, 'a.jpg', CAMERA_JPEG);
+    await send(page).click();
+    await expect(rows(page)).toContainText('Sent.');
+    const file = uploadedFile(posts[0]!.postDataBuffer()!, 'a.jpg');
+    expect(file.equals(CAMERA_JPEG)).toBe(true);
+  });
+
+  test('a progressive JPEG is sent as one baseline scan', async ({ page }) => {
+    const issues = collectPageIssues(page);
+    const { posts } = await openPage(page, `${PAGE}#${TOKEN}`, [
+      answer(201, { id: 'p1', status: 'approved' }),
+    ]);
+    await pick(page, 'm-magazine-1.jfif', PROGRESSIVE_JPEG);
+    await send(page).click();
+    await expect(rows(page)).toContainText('Sent.');
+
+    expect(posts).toHaveLength(1);
+    const file = uploadedFile(posts[0]!.postDataBuffer()!, 'm-magazine-1.jfif');
+    expect([...file.subarray(0, 2)]).toEqual([0xff, 0xd8]);
+    expect(markerCount(file, 0xc2)).toBe(0);
+    expect(markerCount(file, 0xc0)).toBe(1);
+    expect(markerCount(file, 0xda)).toBe(1);
+    await expectNoPageIssues(issues);
+  });
+
+  test('a JPEG the phone cannot decode is refused before a byte is sent', async ({ page }) => {
+    const { posts } = await openPage(page, `${PAGE}#${TOKEN}`);
+    const broken = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);
+    await pick(page, 'broken.jpg', broken);
+    await send(page).click();
+    await expect(rows(page).getByRole('alert')).toContainText('This photo could not be read.');
+    await expect(rows(page).getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    expect(posts).toHaveLength(0);
+  });
 });
 
 test('a busy answer is sent again on its own', async ({ page }) => {

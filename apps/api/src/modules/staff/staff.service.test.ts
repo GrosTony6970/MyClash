@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { selectsFor, type SupabaseRow } from '../../common/testing/supabase-chain';
+import { builtInResolver } from '../matches/built-in-resolver.fixtures';
 import {
   ANON,
   LICE,
@@ -73,12 +74,32 @@ describe('StaffService.getPublicMatchDisplay', () => {
     );
     const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as Display;
 
-    expect(selectsFor(from, 'matches')[0]).toContain(',match_rules(ruleset_config)');
+    expect(selectsFor(from, 'matches')[0]).toContain(
+      ',match_rules(ruleset_code,ruleset_version,ruleset_config)',
+    );
     expect(payload.matchFormat).toEqual(
       normalizeMatchFormatConfig({ pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } }),
     );
     expect(payload.matchFormat?.timeLimitsSeconds.pool).toBe(90);
     expect((payload as unknown as { bestOf: number }).bestOf).toBe(3);
+  });
+
+  it('draws the format the bout is scored with: a points-cap copy that says venues, in points', async () => {
+    // Generic_PointsCap offers no venues: its bouts score in points (`scoredMatchFormat`), so the
+    // TV must not show "Venues 0/5" and drop the cap line.
+    const rows = boutOnCopy({ matchFormat: { scoringUnit: 'venues', pointCap: 7 } });
+    const generic = { ruleset_code: 'Generic_PointsCap', ruleset_version: '1.1.0' };
+    const onGeneric = rows.map((row) => ({
+      ...row,
+      match_rules: { ...(row['match_rules'] as object), ...generic },
+    }));
+    const { service, from } = serviceOn(onGeneric, builtInResolver());
+    const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as Display;
+
+    expect(selectsFor(from, 'matches')[0]).toContain(
+      ',match_rules(ruleset_code,ruleset_version,ruleset_config)',
+    );
+    expect(payload.matchFormat).toMatchObject({ scoringUnit: 'points', pointCap: 7 });
   });
 
   it('draws no format for a copy that does not read, and the scoreboard shows its default', async () => {

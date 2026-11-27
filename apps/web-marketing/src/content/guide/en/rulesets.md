@@ -40,8 +40,11 @@ You need the **Admin** role (or **Owner**) in your organisation.
      (**Full** or **Deductive**).
    - **Constants** and **Double-hit penalty**: the values the formula uses.
    - **Score formula**: how a fighter's pool score is calculated. You build it from numbers, the
-     fighter's results (wins, draws, losses, doubles, hits given, hits received) and the four
-     operations. MyClash checks it; it never runs code typed in a form.
+     fighter's results (wins, draws, losses, doubles, hits given, hits received, points received)
+     and the four operations. Under the formula, **What each word means** explains each one: hits
+     received counts how many times the fighter was hit, points received adds up what those hits
+     were worth. If the bottom of a division is zero, the formula divides by 1. MyClash checks the
+     formula; it never runs code typed in a form.
    - **Tie-breakers**: the order that separates fighters with the same score.
 3. Save. The ruleset is usable in your tournaments straight away.
 

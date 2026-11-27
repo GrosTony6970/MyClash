@@ -408,8 +408,8 @@ export const scoring = {
     eventRowClean: 'Touche propre',
     eventRowDouble: 'Double',
     eventRowNoExchange: 'Aucun échange',
-    eventRowProtest: 'Réclamation',
-    undoneProtest: 'Réclamation de {fighter}',
+    eventRowProtest: 'Réclamation {n}',
+    undoneProtest: '{protest} de {fighter}',
     protestButtonLabel: "Enregistrer une réclamation de {fighter} ({count} jusqu'ici)",
     protestsChipTooltip: 'Réclamations de {fighter}',
     protestOfferTitle: 'Limite de réclamations dépassée',
@@ -562,6 +562,7 @@ export const scoring = {
   },
   rounds: {
     counter: 'Manche {current}/{total}',
+    venuesCounter: 'Venues {won}/{total}',
     label: 'Manche {current}',
     roundComplete: 'Manche {round} terminée',
     seriesTally: 'Manches',

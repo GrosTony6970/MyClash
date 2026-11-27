@@ -8,10 +8,10 @@
  */
 import {
   getEffectiveBestOf,
+  leadingColor,
   normalizeMatchFormatConfig,
   pendingLevelStep,
   timeIsFinished,
-  winnerColorFrom,
 } from '@myclash/rulesets';
 import type { LevelStep, Match, MatchFormatConfig } from '@myclash/rulesets';
 import { asRow, boutRulesOf } from './bout-rules';
@@ -42,29 +42,43 @@ export function matchFormatContext(match: Record<string, unknown>): MatchFormatC
   };
 }
 
-/** Is the bout undecided — no recorded winner and nobody ahead on the board? */
+/**
+ * Who is ahead on the board of a bout still in play, or null when level.
+ *
+ * A LIVE question, asked of the score. A running bout holds no winner (ruling 331 clears it when
+ * a bout goes back in play), so "who won" has no answer yet; asking it through `winnerColorFrom`
+ * only worked while that fell back to the score, which a finished bout's result must not do.
+ */
+function boardLeader(match: Record<string, unknown>): 'red' | 'blue' | null {
+  return leadingColor({
+    redScore: Number(match['red_score'] ?? 0),
+    blueScore: Number(match['blue_score'] ?? 0),
+  });
+}
+
+/**
+ * Is a bout in play level — no recorded winner, and nobody ahead on the board?
+ *
+ * The winner is checked on its own, never through the score: 0-0 with a recorded winner is a
+ * forfeit under a zeroing score policy, decided though it looks level (the level steps refuse it).
+ */
 export function isLevelBout(match: Record<string, unknown>): boolean {
-  return (
-    winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    }) === null
-  );
+  return !match['winner_registration_id'] && boardLeader(match) === null;
 }
 
 /**
  * Why the clock will not stop this bout.
  *
- * Two refusals, and telling them apart is the whole point: a bout still has
- * time to run, or its time is up and the phase says play a remedy. They read
- * the same on a tablet — the End button simply refuses — so each carries its
- * own reason rather than one message trying to cover both.
+ * Telling them apart is the whole point: a bout still has time to run, or its
+ * time is up and the phase says play a remedy. They read the same on a tablet —
+ * the End button simply refuses — so each carries its own reason rather than one
+ * message trying to cover both. `series_not_decided`: a best-of bout ends by its
+ * rounds, never by the clock.
  */
 export type EndRefusal =
-  { reason: 'time_not_finished' } | { reason: 'level'; step: LevelStep | null };
+  | { reason: 'time_not_finished' }
+  | { reason: 'level'; step: LevelStep | null }
+  | { reason: 'series_not_decided' };
 
 /**
  * What ending the clock does to a bout: complete it with these columns, or
@@ -86,7 +100,9 @@ export type EndOnClock = { complete: Record<string, unknown> } | { refuse: EndRe
  * doubles ceiling resolves its own outcome. Every reader downstream already
  * handles a recorded winner, so they all become correct without changing — and
  * afterwards a null winner on a completed bout means exactly one thing: the
- * bout was genuinely LEVEL. That is the case the chain below decides.
+ * bout was genuinely LEVEL. That is the case the chain below decides, and a
+ * level bout completed here says so: `time_limit` with no winner, a draw
+ * (spec 2026-11-27-bout-result-is-stored, R2). It used to store no reason.
  *
  * A BOUT ALREADY COMPLETED IS NOT DECIDED AGAIN. A forfeit, a black card and
  * the points cap complete the bout and THEN end its clock, from inside a `catch`
@@ -95,10 +111,12 @@ export type EndOnClock = { complete: Record<string, unknown> } | { refuse: EndRe
  * over the reason the bout ended with. Since ruling 331 no bout back
  * in play keeps a winner, so the ladder below reads the board.
  *
- * A BEST-OF match is left alone. `ScoringService.endRoundOnTime` owns that path
- * — it closes a ROUND, not the series, and refuses a tied one so the operator
- * plays a sudden-death point. The pad routes there and never reaches this
- * branch, but the guard is not obvious from here, so it is explicit.
+ * A BEST-OF match still in play is REFUSED. `ScoringService.endRoundOnTime` owns
+ * that path — it closes a ROUND, not the series, and refuses a tied one so the
+ * operator plays a sudden-death point. The pad routes there and never reaches
+ * this branch. A raw End used to complete the series here with no winner, on the
+ * open round's score. Once the series is decided the bout is completed, and the
+ * server's own End after the clinch passes through the check above it.
  *
  * Reading the match format needs no `RulesetResolver`: `bestOf`, the phase type
  * and the chain are plain config, and the `hasMaxDoubles` strip that
@@ -124,24 +142,19 @@ export function timeLimitResult(
   levelStepsTaken: number,
   elapsedMs: number,
 ): EndOnClock {
-  const { matchFormat, phaseType, matchNumberLabel } = matchFormatContext(match);
-  const bestOf = getEffectiveBestOf({ phaseType, matchNumberLabel } as Match, matchFormat);
-  if (bestOf > 1) return { complete: {} };
-
   // Already completed: a forfeit, a black card or the points cap ended the bout
   // and its clock is stopped after the fact. The End decides what a LIVE bout is
   // worth, never what a finished one was: naming "the leader" here wrote
-  // `time_limit` over the reason the bout really ended with.
+  // `time_limit` over the reason the bout really ended with. A best-of series
+  // decided by its rounds is completed too, and its End passes here.
   if (match['status'] === 'completed') return { complete: {} };
 
-  if (!isLevelBout(match)) {
-    const leader = winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    });
+  const { matchFormat, phaseType, matchNumberLabel } = matchFormatContext(match);
+  const bestOf = getEffectiveBestOf({ phaseType, matchNumberLabel } as Match, matchFormat);
+  if (bestOf > 1) return { refuse: { reason: 'series_not_decided' } };
+
+  const leader = boardLeader(match);
+  if (leader !== null) {
     return {
       complete: {
         winner_registration_id:
@@ -158,10 +171,11 @@ export function timeLimitResult(
   }
 
   // A `draw` step means the bout may simply complete, which is today's
-  // behaviour and what a pool table's D column is for. Anything else is a
+  // behaviour and what a pool table's D column is for: stored as `time_limit`
+  // with no winner, so the result is written, not guessed. Anything else is a
   // remedy the referee has to play out first, and a spent chain (null) means
   // sudden death is already live.
   const step = pendingLevelStep(matchFormat, phaseType, matchNumberLabel, levelStepsTaken);
-  if (step?.kind === 'draw') return { complete: {} };
+  if (step?.kind === 'draw') return { complete: { end_reason: 'time_limit' } };
   return { refuse: { reason: 'level', step } };
 }

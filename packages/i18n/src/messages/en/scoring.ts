@@ -428,8 +428,8 @@ export const scoring = {
     eventRowClean: 'Clean hit',
     eventRowDouble: 'Double',
     eventRowNoExchange: 'No exchange',
-    eventRowProtest: 'Protest',
-    undoneProtest: 'Protest by {fighter}',
+    eventRowProtest: 'Protest {n}',
+    undoneProtest: '{protest} by {fighter}',
     protestButtonLabel: 'Record a protest by {fighter} ({count} so far)',
     protestsChipTooltip: 'Protests by {fighter}',
     protestOfferTitle: 'Protest limit passed',
@@ -592,6 +592,7 @@ export const scoring = {
   },
   rounds: {
     counter: 'Round {current}/{total}',
+    venuesCounter: 'Venues {won}/{total}',
     label: 'Round {current}',
     roundComplete: 'Round {round} complete',
     seriesTally: 'Rounds',

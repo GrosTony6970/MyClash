@@ -191,6 +191,7 @@ describe('a protest tapped on the pad', () => {
     const { protests: pending } = pendingRowsForMatch({
       entries: waiting,
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverPenalties: [],
       serverProtests: [],

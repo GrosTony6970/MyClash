@@ -12,10 +12,13 @@ const format: MatchFormatConfig = {
   pointCap: 10,
   timeLimitsSeconds: { pool: 90, bracket: 180, finals: 180 },
 };
+// A points bout: no venue limit to reach (`end-guard.venues.test.ts`).
 const score = (redScore: number, blueScore: number, doubles = 0) => ({
   redScore,
   blueScore,
   doubles,
+  redVenuesWon: 0,
+  blueVenuesWon: 0,
 });
 const POOL = { phaseType: 'pool' as const, matchNumberLabel: null };
 

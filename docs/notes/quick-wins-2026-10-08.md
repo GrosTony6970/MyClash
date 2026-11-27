@@ -708,7 +708,9 @@ Named while the countdown was built, and not fixed (each one checked in code by 
 - The server's own comment says a tablet with no network cannot have moved past a round
   (`apps/api/src/modules/penalties/penalties.service.ts:987-991`). That is no longer true.
 - `Generic_PointsCap` and a club's formula ruleset give every hit one fixed value on the server;
-  the tablet adds the value of the button. The tablet predicts, the server decides.
+  the tablet adds the value of the button. The tablet predicts, the server decides. **Fixed for a
+  club's formula ruleset on 2026-11-27**: its server counts the button's value and nets an
+  afterblow by the mode. `Generic_PointsCap` keeps its one fixed value.
 
 **The bouts not yet started take their Tournament's ruleset: `e3316812`** (2026-10-11). When an
 organiser changes a Tournament's ruleset (the Tournament form, the audited change during an
@@ -4293,6 +4295,38 @@ to see in a side panel the corresponding log, a bit like Azure event viewer". Sp
 | Shape (912)      | The panel could slide over the dimmed list, or sit docked beside it like the event viewer; the list already needs about 1100px. | **It slides over, the list dimmed**, built once in the shared UI kit (`Modal`, placement `side`).                                                                  | `packages/ui/src/components/Modal.tsx` |
 | Error text (913) | A failed restart keeps only "failed, exit code 1, not timed out": no error text.                                                | **Not now**: the panel shows what is stored. Keeping a failed action's last output lines is its own slice (the runner returns them; check them for secrets first). | —                                      |
 | No outcome (914) | Most rows (an Event edit) record no outcome: they are written after the change succeeded.                                       | **A dash.** Only system actions get a mark: green Succeeded, red Failed, grey Started. One rule, on the server.                                                    | `audit-outcome.ts`                     |
+
+### Rulings — operator, 2026-11-27: a photo a camera did not write
+
+Asked when the test Event refused `m-magazine-1.jfif` (saved from a website) and a photo picked
+from the Android gallery: the API keeps only the JPEG shape a camera writes (`jpeg-strip.ts`).
+
+| Row            | Story                                                                                                                              | Ruling                                                                                                                                                                    | Files                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Convert (1004) | A spectator sends a picture saved from a website, or a Google Photos cloud copy. Both are often progressive; the API refuses them. | **The phone converts it first**: drawn on a canvas, sent as one baseline scan, re-compressed. A camera JPEG is still sent byte for byte. The API's check does not change. | `apps/web-public/src/lib/photos/camera-jpeg.ts` |
+
+### Rulings — operator, 2026-11-27: a copy of TF_v1 is a formula the club can edit
+
+Asked when a clone of TF_v1 could not edit its formula or its tie-breakers: it was a coded fork
+(ARCHITECTURE §7bis.2), and the formula language could not reproduce TF_v1.
+
+| Row                  | Story                                                                                                                                      | Ruling                                                                                                                                                           | Files                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Copy (1005)          | Léa clones TF_v1 to make "Club TF" and wants to change its formula and its tie-breakers.                                                   | **The copy is a formula ruleset pre-filled to TF_v1**, proven to score the same until edited. TF_v1 and "Customise this format" stay coded.                      | `packages/rulesets/src/tf_v1/as-formula.ts`  |
+| Hits received (1006) | In a formula "Hits received" was points conceded (a deep hit = 2); as a tie-breaker and in the table it was times hit (a deep hit = 1).    | **"Hits received" counts times hit everywhere.** A new "Points received" keeps the old meaning. The editor explains every word.                                  | `packages/rules/src/formula/derive-stats.ts` |
+| Divide by 0 (1007)   | Marc was never hit and had no doubles: 9 / 0. TF_v1 gives him 9; a club formula gave him 0 and ranked him last.                            | **`x / 0 = x` in every formula**, the double-hit penalty formula included.                                                                                       | `packages/rules/src/formula/evaluator.ts`    |
+| Bout score (1008)    | A referee presses "Deep target, 2 points" under a club formula ruleset: the tablet shows +2, the server counted +1 and dropped afterblows. | **The server counts the button's value** and nets an afterblow by the Tournament's afterblow mode, for every club formula ruleset. Points cap keeps its 1 point. | `packages/rulesets/src/formula/ruleset.ts`   |
+
+### Rulings — operator, 2026-11-27: a finished bout's result is what it stored
+
+Asked while closing the gap between TF_v1's score and the W column: on a few paths a bout finished
+with no winner but unequal scores, and the two read it differently. Spec:
+`docs/superpowers/archive/specs/2026-11-27-bout-result-is-stored-design.md`.
+
+| Row              | Story                                                                                                                                    | Ruling                                                                                                                | Files                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Card+draw (1009) | Marc and Léa reach the doubles limit, set to "draw": 0-0. Then Léa gets a card: the board reads 0 to -1, and the bout has no winner.     | **Still a draw.** The limit decided the bout; the card moves the board, not the result.                               | `packages/rules/src/match-format.ts`              |
+| Mark done (1010) | The API's "mark this bout completed" call, used by no screen, could complete a 3-1 bout with no winner, and so with no result or reason. | **It needs a winner who is one of the two fighters**, else a 400 (`winner_not_in_bout`). A draw comes from the clock. | `apps/api/src/modules/matches/matches.service.ts` |
 
 ### Fixed since they were named
 

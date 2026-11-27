@@ -346,6 +346,7 @@ export class EventStatsService {
         // On the completed Matches this referee led, as cards are (ruling 852: organisers only).
         protests: protestsFacedBy(declarantMatchIdsOf(assignments, personId), protests).total,
         averageRefereeTimeMs: s.averageRefereeTimeMs,
+        averageTimeMsByRole: s.averageTimeMsByRole,
       };
     });
 

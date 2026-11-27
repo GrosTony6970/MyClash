@@ -237,7 +237,7 @@ export interface DisplayMatch {
   blueFighterPhotoUrl?: string | null;
   startedAt: string | null;
   endedAt: string | null;
-  /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles'.
+  /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles' | 'venue_limit'.
    *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
    *  winner). Null on manual clock-end / forfeit / legacy rows. */
   endReason?: string | null;

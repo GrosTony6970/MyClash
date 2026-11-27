@@ -122,6 +122,32 @@ describe('the TF_v1 settings in force', () => {
   });
 });
 
+/**
+ * The settings screens edit what the organiser STORED: a venues bout counts up, but that is how
+ * the format is played, not what was set. Shown in force, a countdown Tournament that tries venues
+ * reads "count up" once it goes back to points, and a pick of "count up" then sends nothing.
+ */
+describe('the direction of a venues Tournament that stores a countdown', () => {
+  const STORED = { matchFormat: { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses' } };
+
+  it('is the countdown the organiser stored, beside the venues unit', async () => {
+    const { effectiveRules } = await rulesOf({ ...ON_TF_1_0_0, ruleset_config: STORED });
+    expect(effectiveRules?.matchFormat).toMatchObject({
+      scoringUnit: 'venues',
+      scoringDirection: 'reverse_zero_loses',
+    });
+  });
+
+  it('is the countdown on a ruleset without venues, which plays it in points', async () => {
+    const generic = { ...ON_TF_1_0_0, ruleset_code: 'Generic_PointsCap', ruleset_config: STORED };
+    const { effectiveRules } = await rulesOf(generic);
+    expect(effectiveRules?.matchFormat).toMatchObject({
+      scoringUnit: 'points',
+      scoringDirection: 'reverse_zero_loses',
+    });
+  });
+});
+
 describe('a Tournament whose rules cannot be answered', () => {
   it('still loads its row when the engine refuses its stored settings, and says so', async () => {
     const refused = { ...ON_TF_1_0_0, ruleset_config: { winBonus: -1 } };

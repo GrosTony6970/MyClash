@@ -18,7 +18,7 @@ function setup(exchange: Record<string, unknown>, guard?: Record<string, unknown
       rows: [{ id: 'ex-1', match_id: 'm1', sequence: 3, round_number: 2, ...exchange }],
       returning: { id: 'ex-2' },
     },
-    matches: { rows: [{ id: 'm1', locked_at: null }] },
+    matches: { rows: [{ id: 'm1', locked_at: null, match_rules: { ruleset_config: {} } }] },
     audit_log: { rows: [] },
     match_events: { rows: [] },
   });

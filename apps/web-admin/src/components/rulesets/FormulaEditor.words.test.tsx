@@ -47,6 +47,7 @@ describe('the words of the ruleset editor', () => {
             onChange={() => undefined}
             onValidity={() => undefined}
             hasMaxDoubles
+            hasVenues
           />
         </I18nProvider>,
       ),
@@ -54,6 +55,8 @@ describe('the words of the ruleset editor', () => {
     const options = [...container.querySelectorAll('option')].map((o) => o.textContent);
     const bestOf = ['Manche unique', 'Au meilleur des 3', 'Au meilleur des 5', 'Au meilleur des 7'];
     expect(options).toEqual([
+      'Points (valeur des cibles)',
+      'Venues (1 par venue gagnée)',
       'Compte à rebours',
       'Chronomètre croissant',
       'Normal',
@@ -67,5 +70,27 @@ describe('the words of the ruleset editor', () => {
       expect.arrayContaining(['Manches poules', 'Manches brackets', 'Manches finales']),
     );
     expect(container.textContent).not.toContain('Best of');
+  });
+
+  it('names the venues stop and the engine value its badge and Reset put back', () => {
+    act(() =>
+      root.render(
+        <I18nProvider locale="fr">
+          <RulesetMatchFormatBox
+            own={{ scoringUnit: 'venues', stopWhenDecided: false }}
+            loaded={{}}
+            onChange={() => undefined}
+            onValidity={() => undefined}
+            hasMaxDoubles
+            hasVenues
+          />
+        </I18nProvider>,
+      ),
+    );
+    const labels = [...container.querySelectorAll('label')].map((l) => l.textContent);
+    expect(labels).toContain("Arrêter la manche dès qu'elle est décidée");
+    // The engine stops a decided round: its badge and its Reset say "Oui", not nothing.
+    const titles = [...container.querySelectorAll('[title]')].map((e) => e.getAttribute('title'));
+    expect(titles).toEqual(expect.arrayContaining(['Par défaut : Oui', 'Revenir à Oui']));
   });
 });

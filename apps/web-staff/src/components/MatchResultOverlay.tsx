@@ -130,13 +130,12 @@ function ResultHeadline({
   // A loss for both names nobody, whatever the board reads: a card on a wiped
   // board leaves 0 and -1, and its leader is not a winner.
   const lossForBoth = isDoubleLoss('completed', resultReason);
+  // The stored winner, or the tablet's own while the result is not confirmed (`tabletWinner`).
   const resolved = resolveMatchWinner({
     status: 'completed', // the overlay only renders once the clock has ended
     winnerRegistrationId,
     redRegistrationId,
     blueRegistrationId,
-    redScore,
-    blueScore,
   });
   const winner = lossForBoth ? null : resolved;
   const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;

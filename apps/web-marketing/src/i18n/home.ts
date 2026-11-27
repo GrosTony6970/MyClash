@@ -10,7 +10,8 @@
  * offline scoring (the differentiator, which appeared only in a meta tag), hid
  * Swiss behind "et plus encore", and said nothing about leagues, workshops,
  * referee compensation, HEMA Ratings export or fighter accounts — and, until
- * a later pass, Event photos or FightBook.
+ * a later pass, Event photos, FightBook, team Tournaments or the Claude
+ * connector.
  */
 import type { Locale } from './ui';
 
@@ -78,15 +79,15 @@ export interface HomeCopy {
 const fr: HomeCopy = {
   metaTitle: 'MyClash - Gestionnaire de tournois AMHE',
   metaDescription:
-    'MyClash aide les organisateurs AMHE à gérer inscriptions, scoring offline-first, résultats publics et classements depuis une plateforme open source.',
+    'MyClash aide les organisateurs AMHE à gérer les inscriptions, la saisie des scores hors ligne, les résultats publics et les classements, sur une plateforme libre et gratuite.',
   ogDescription:
-    'Organisez vos événements AMHE, scorez même avec un mauvais wifi et publiez les résultats en temps réel avec MyClash.',
+    'Organisez vos événements AMHE, saisissez les scores même quand le wifi flanche et publiez les résultats en temps réel avec MyClash.',
 
   heroEyebrow: 'Plateforme AMHE — libre et gratuite',
   heroTitleLead: 'Gérez vos tournois',
   heroTitleAccent: 'comme un champion',
   heroSubtitle:
-    "Inscriptions, poules, arbitrage et classements, d'un bout à l'autre de votre événement AMHE. Et un pad de scoring qui continue de fonctionner quand le réseau de la salle vous lâche.",
+    "Inscriptions, poules, arbitrage et classements, d'un bout à l'autre de votre événement AMHE. Et une tablette de score qui continue de fonctionner quand le réseau de la salle vous lâche.",
   heroCtaPrimary: 'Créer mon événement',
   heroCtaSecondary: 'Voir les événements',
   heroScroll: 'Défiler',
@@ -101,12 +102,16 @@ const fr: HomeCopy = {
     "De la création de l'événement au palmarès final, MyClash couvre chaque étape de votre compétition AMHE.",
   features: [
     {
-      title: 'Le scoring marche sans réseau',
-      text: "Le pad d'arbitrage fonctionne hors ligne, de bout en bout : les échanges sont saisis, horodatés et conservés sur la tablette, puis synchronisés dès que la connexion revient. Un gymnase sans wifi n'arrête pas votre compétition.",
+      title: 'Les scores se saisissent sans réseau',
+      text: "Le pad d'arbitrage fonctionne hors ligne, de bout en bout : les échanges sont saisis, horodatés et conservés sur la tablette, puis synchronisés dès que la connexion revient. Un gymnase sans wifi n'arrête pas votre compétition.",
     },
     {
-      title: 'Poules, tableaux, et ronde suisse',
+      title: 'Poules, tableaux et rondes suisses',
       text: 'Poules, élimination directe, double élimination et rondes suisses. Tirages, têtes de série et reclassements sont calculés par le moteur de règles — jamais saisis à la main dans un tableur.',
+    },
+    {
+      title: 'Tournois par équipes',
+      text: "Faites s'affronter des équipes plutôt que des combattants seuls : poules, élimination directe, classement des équipes et classement final. La tablette de score enregistre chaque côté, même hors ligne.",
     },
     {
       title: 'Résultats en direct, sur tous les écrans',
@@ -114,27 +119,31 @@ const fr: HomeCopy = {
     },
     {
       title: 'Ligues et classements de saison',
-      text: 'Reliez plusieurs événements en une ligue : classements individuels et par club, cumulés sur la saison, publiés automatiquement et exportables.',
+      text: 'Reliez plusieurs événements en une ligue : classements individuels et par club, cumulés sur la saison, publiés automatiquement et exportables.',
     },
     {
-      title: 'Arbitres : affectation et indemnisation',
-      text: "Qualifications, disponibilités et affectation aux pistes, avec la garantie qu'un combattant n'arbitre jamais une poule qui recoupe ses propres combats. Les indemnités se calculent depuis un barème par rôle, avec plancher de paiement.",
+      title: 'Arbitres : affectation et indemnisation',
+      text: "Qualifications, disponibilités et affectation aux pistes, avec la garantie qu'un combattant n'arbitre jamais une poule qui recoupe ses propres combats. Les indemnités se calculent depuis un barème par rôle, avec un montant minimum garanti.",
     },
     {
-      title: 'Les ateliers aussi, pas que les tournois',
+      title: 'Les ateliers aussi, pas seulement les tournois',
       text: "Un événement AMHE, ce n'est pas seulement des combats. Programmez vos ateliers, gérez les inscriptions et les instructeurs, et récoltez les retours des participants après coup.",
     },
     {
       title: 'Les photos de votre événement',
-      text: 'Affichez un QR code dans la salle : le public envoie ses photos depuis son téléphone, sans créer de compte, et leurs données cachées sont retirées. Publiez-les aussitôt ou après validation, confiez la modération à un compte photo dédié, et téléchargez-les toutes en un seul zip.',
+      text: 'Affichez un QR code dans la salle : le public envoie ses photos depuis son téléphone, sans créer de compte, et les métadonnées cachées des fichiers sont supprimées. Publiez-les aussitôt ou après validation, confiez la modération à un compte photo dédié, et téléchargez-les toutes en un seul zip.',
     },
     {
       title: 'Comptes combattants et statistiques',
-      text: "Chaque compétiteur dispose d'un profil : palmarès, historique de combats, statistiques par arme, cartons reçus. Les résultats s'exportent au format HEMA Ratings pour alimenter le classement international.",
+      text: "Chaque compétiteur dispose d'un profil : palmarès, historique de combats, statistiques par arme, cartons reçus. Les résultats s'exportent au format HEMA Ratings pour alimenter le classement international.",
     },
     {
-      title: 'FightBook : trouvez un partenaire de sparring',
-      text: "Avant l'événement ou entre deux combats, proposez un sparring amical à un autre combattant. La réponse reste privée : oui, ou « pas cette fois ». Voyez qui est disponible maintenant, lancez un appel ouvert, ou scannez un QR pour enregistrer un sparring. FightBook reste désactivé tant que vous ne l'activez pas.",
+      title: 'FightBook : trouvez un partenaire de sparring',
+      text: "Avant l'événement ou entre deux combats, proposez un sparring amical à un autre combattant. La réponse reste privée : oui, ou « pas cette fois ». Voyez qui est disponible maintenant, lancez un appel ouvert, ou scannez un QR code pour enregistrer un sparring. FightBook reste désactivé tant que vous ne l'activez pas.",
+    },
+    {
+      title: 'Posez vos questions à Claude',
+      text: "Ajoutez MyClash comme connecteur à votre propre compte Claude et connectez-vous avec votre compte MyClash. Combattants, arbitres et instructeurs demandent leur programme, leurs combats et leurs statistiques ; les organisateurs interrogent classements, programme et arbitres, et peuvent changer l'arbitre d'un combat après l'avoir confirmé dans la conversation. Les règles d'arbitrage s'appliquent toujours, et vous pouvez déconnecter Claude à tout moment.",
     },
     {
       title: 'Vos données restent les vôtres',
@@ -156,7 +165,7 @@ const fr: HomeCopy = {
     },
     {
       title: 'Lancez la compétition',
-      text: 'Les arbitres scorent sur tablette, la salle et le public suivent en direct, les classements se publient seuls.',
+      text: 'Les arbitres saisissent les scores sur tablette, la salle et le public suivent en direct, les classements se publient seuls.',
     },
   ],
 
@@ -168,26 +177,26 @@ const fr: HomeCopy = {
   ctaPrimary: 'Créer mon événement',
   ctaSecondary: 'Nous contacter',
 
-  contribTag: 'Open Source & Gratuit',
+  contribTag: 'Libre et gratuit',
   contribTitle: 'Soutenir le projet MyClash',
   contribTagline:
-    'Merci de faire partie de cette communauté. Nous nous engageons à garder MyClash accessible, transparent, et vivant.',
+    'Merci de faire partie de cette communauté. Nous nous engageons à garder MyClash accessible, transparent et vivant.',
   contribBullets: [
-    'MyClash est — et restera — libre et gratuit. Un outil de ce genre doit être accessible à tous, sans péage.',
+    'MyClash est — et restera — libre et gratuit. Un outil de ce genre doit être accessible à tous, sans barrière payante.',
     'Notre code est public parce que nous croyons à la collaboration et à la confiance.',
     "Faire tourner des serveurs et maintenir l'infrastructure représente un coût mensuel.",
-    'Nous ne prenons ni salaire ni bénéfice sur vos dons. Votre soutien garantit que le projet reste rapide, stable et disponible 24h/24.',
+    'Nous ne prenons ni salaire ni bénéfice sur vos dons. Votre soutien garantit que le projet reste rapide, stable et disponible 24 h/24.',
   ],
   contribDonate: 'Faire un don',
   contribBoxTitle: 'Où va votre don',
-  contribHighlightLabel: '100 % de transparence :',
+  contribHighlightLabel: '100 % de transparence :',
   contribHighlightText:
     "chaque centime donné va à l'hébergement et à la maintenance de l'infrastructure. Nous publions nos coûts de fonctionnement.",
   contribHowTitle: 'Comment contribuer',
   contribTypes: [
     {
       badge: 'Ponctuel',
-      text: 'Idéal pour un simple « merci ». Chaque montant compte.',
+      text: 'Idéal pour un simple « merci ». Chaque montant compte.',
     },
     {
       badge: 'Mensuel',
@@ -230,6 +239,10 @@ const en: HomeCopy = {
       text: 'Pools, single elimination, double elimination and Swiss rounds. Draws, seeding and re-seeding are computed by the ruleset engine — never typed into a spreadsheet by hand.',
     },
     {
+      title: 'Team tournaments',
+      text: 'Run a tournament where teams, not single fighters, face each other: pools, single elimination, team standings and a final ranking. The scoring pad records each side, offline too.',
+    },
+    {
       title: 'Live results on every screen',
       text: 'Fighters and spectators follow bouts from their phones with nothing to install. Venue screens show the current piste, the programme and the standings, updated in real time.',
     },
@@ -256,6 +269,10 @@ const en: HomeCopy = {
     {
       title: 'FightBook: find a sparring partner',
       text: 'Before the Event or between bouts, ask another fighter for a friendly sparring session. The answer stays private: yes, or "not this time". See who is free for sparring now, post an open call, or scan a QR code to log a sparring session. FightBook stays off until you switch it on.',
+    },
+    {
+      title: 'Ask Claude about your event',
+      text: "Add MyClash as a connector to your own Claude account and sign in with MyClash. Fighters, referees and instructors ask for their schedule, bouts and statistics; organisers query standings, the programme and referees, and can change a bout's referee once they confirm it in the chat. The referee rules always apply, and you can disconnect Claude at any time.",
     },
     {
       title: 'Your data stays yours',
@@ -329,6 +346,8 @@ export const FEATURE_ICON_PATHS: readonly (readonly string[])[] = [
   ],
   // brackets
   ['M3 10h18M3 6h18M3 14h10M3 18h6'],
+  // team tournaments
+  ['M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9'],
   // live screens
   ['M8 21h8m-4-4v4M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
   // league trophy
@@ -354,6 +373,10 @@ export const FEATURE_ICON_PATHS: readonly (readonly string[])[] = [
   // fightbook
   [
     'M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z',
+  ],
+  // claude connector
+  [
+    'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
   ],
   // data ownership
   [

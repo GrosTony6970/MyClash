@@ -364,5 +364,7 @@ function fromMetadata(metadata: RulesetMetadata | undefined): ResolvedRulesetGra
     // Only a ruleset that says `false` loses the ceiling. Anything silent keeps
     // it, which is what every ruleset did before the capability existed.
     hasMaxDoubles: metadata?.hasMaxDoubles !== false,
+    // Same reading: only a ruleset that says `false` is points-only.
+    hasVenues: metadata?.hasVenues !== false,
   };
 }

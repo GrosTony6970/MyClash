@@ -53,7 +53,15 @@ describe('previewFormulaScoring', () => {
 
   it('honours custom sample stats', () => {
     const { rows } = previewFormulaScoring(LINEAR, [
-      { victories: 1, ties: 0, losses: 0, doubleHits: 0, hitsGiven: 0, hitsReceived: 0 },
+      {
+        victories: 1,
+        ties: 0,
+        losses: 0,
+        doubleHits: 0,
+        hitsGiven: 0,
+        hitsReceived: 0,
+        pointsReceived: 0,
+      },
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.score).toBe(3);
@@ -71,7 +79,15 @@ describe('previewFormulaScoring', () => {
       tiebreakers: [],
     };
     const { rows } = previewFormulaScoring(cfg, [
-      { victories: 5, ties: 0, losses: 0, doubleHits: 0, hitsGiven: 0, hitsReceived: 0 },
+      {
+        victories: 5,
+        ties: 0,
+        losses: 0,
+        doubleHits: 0,
+        hitsGiven: 0,
+        hitsReceived: 0,
+        pointsReceived: 0,
+      },
     ]);
     expect(rows[0]!.score).toBe(3); // 5 - 2
   });

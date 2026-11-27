@@ -1,8 +1,9 @@
 'use client';
 
-import { FORMULA_VARIABLE_KEYS } from '@myclash/rulesets';
+import { TIEBREAK_VARIABLES } from '@myclash/rulesets';
 import type { RankingRule, Tiebreaker, VariableKey } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { rankingKeyLabel } from './ranking-key-label';
 
 interface Props {
   value: Tiebreaker[];
@@ -12,18 +13,13 @@ interface Props {
    *  as a read-only list with a "Read-only" badge instead of the "no
    *  tie-breakers configured" message. Used for is_system rulesets whose
    *  real ranking rules live on the coded `rankingChain` (with keys that
-   *  don't map to the FORMULA_VARIABLE_KEYS whitelist). */
+   *  don't map to the TIEBREAK_VARIABLES list). */
   systemFallback?: RankingRule[];
 }
 
 export function TiebreakersEditor({ value, onChange, disabled, systemFallback }: Props) {
   const { t } = useI18n();
 
-  function formatRankingKey(key: string): string {
-    const i18nKey = `admin.rulesets.rankingKey_${key}`;
-    const translated = t(i18nKey);
-    return translated === i18nKey ? key : translated;
-  }
   function formatDirection(direction: 'asc' | 'desc'): string {
     return direction === 'desc'
       ? t('admin.rulesets.systemPanelDirectionHighest')
@@ -62,7 +58,7 @@ export function TiebreakersEditor({ value, onChange, disabled, systemFallback }:
                 className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2"
               >
                 <span className="w-6 font-mono text-xs text-muted">{idx + 1}.</span>
-                <span className="font-medium text-foreground">{formatRankingKey(rule.key)}</span>
+                <span className="font-medium text-foreground">{rankingKeyLabel(rule.key, t)}</span>
                 <span className="ml-auto rounded bg-background px-2 py-0.5 text-[11px] font-medium text-foreground-secondary">
                   {formatDirection(rule.direction)}
                 </span>
@@ -87,7 +83,7 @@ export function TiebreakersEditor({ value, onChange, disabled, systemFallback }:
                 disabled={disabled}
                 className="rounded-md border border-border px-2 py-1 text-sm"
               >
-                {FORMULA_VARIABLE_KEYS.map((v) => (
+                {TIEBREAK_VARIABLES.map((v) => (
                   <option key={v} value={v}>
                     {t(`admin.rulesets.variables.${v}`)}
                   </option>

@@ -3,6 +3,7 @@ import {
   isOutstanding,
   readinessFixHref,
   readinessLabelKey,
+  readinessMark,
   readinessMessageKey,
   readinessSemantic,
   type ReadinessCheck,
@@ -21,6 +22,40 @@ describe('readinessSemantic', () => {
     ['info', 'ready'],
   ])('maps %s onto the %s tone', (level, expected) => {
     expect(readinessSemantic(level as ReadinessLevel)).toBe(expected);
+  });
+});
+
+describe('readinessMark', () => {
+  const LEVELS: ReadinessLevel[] = ['ok', 'warn', 'critical', 'info'];
+
+  it.each([
+    ['ok', '✓', 'bg-success'],
+    ['warn', '!', 'bg-warning'],
+    ['critical', '✕', 'bg-danger'],
+    ['info', 'i', 'bg-info'],
+  ])('draws %s as %s on the solid %s token', (level, glyph, fill) => {
+    const mark = readinessMark(level as ReadinessLevel);
+    expect(mark.glyph).toBe(glyph);
+    expect(mark.markClassName.split(' ')).toContain(fill);
+  });
+
+  it('gives every level its own glyph, so the level does not rest on colour', () => {
+    expect(new Set(LEVELS.map((level) => readinessMark(level).glyph)).size).toBe(LEVELS.length);
+  });
+
+  it('never paints the mark with the pale chip palette', () => {
+    // The bug: a 10 px dot in `bg-emerald-50 border-emerald-200` read as white, so a cleared
+    // row and a row with work left looked the same.
+    for (const level of LEVELS) {
+      expect(readinessMark(level).markClassName).not.toMatch(/-(50|100|200)\b/);
+    }
+  });
+
+  it('flags only a row with work left', () => {
+    for (const level of LEVELS) {
+      const flagged = readinessMark(level).rowClassName.includes('border-l-4');
+      expect(flagged).toBe(isOutstanding(check({ level })));
+    }
   });
 });
 

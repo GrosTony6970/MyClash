@@ -96,35 +96,50 @@ function TextField(props: {
   );
 }
 
-/** "Take or choose photos": live only once the page is ready to send. */
-function PickButton({ ready, onPick }: { ready: boolean; onPick: (files: File[]) => void }) {
+/**
+ * "Take a photo" and "Choose photos": live only once the page is ready to send. Android's photo
+ * picker, which Chrome opens for an image-only `accept`, has no camera, so the camera has its own
+ * input. It shows on a touch screen only: a computer ignores `capture` and would open the same
+ * file dialog twice.
+ */
+function PickButtons({ ready, onPick }: { ready: boolean; onPick: (files: File[]) => void }) {
   const { t } = useI18n();
+  const camera = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const picked = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = [...(event.target.files ?? [])];
-    event.target.value = '';
-    onPick(files);
-  };
+  const input = {
+    type: 'file',
+    accept: 'image/jpeg',
+    className: 'hidden',
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      const files = [...(event.target.files ?? [])];
+      event.target.value = '';
+      onPick(files);
+    },
+  } as const;
   return (
-    <>
-      <input
-        ref={picker}
-        type="file"
-        accept="image/jpeg"
-        multiple
-        className="hidden"
-        data-testid="photo-picker"
-        onChange={picked}
-      />
+    <div className="flex gap-3">
+      <input ref={camera} {...input} capture="environment" data-testid="photo-camera" />
+      <input ref={picker} {...input} multiple data-testid="photo-picker" />
+      {/* The Button's own `inline-flex` would race a `hidden` on it: the wrapper holds the switch. */}
+      <div className="hidden flex-1 pointer-coarse:block">
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={!ready}
+          onClick={() => camera.current?.click()}
+        >
+          {t('publicApp.photoSend.takePhoto')}
+        </Button>
+      </div>
       <Button
         variant="outline"
-        className="w-full"
+        className="flex-1"
         disabled={!ready}
         onClick={() => picker.current?.click()}
       >
-        {t('publicApp.photoSend.pick')}
+        {t('publicApp.photoSend.choosePhotos')}
       </Button>
-    </>
+    </div>
   );
 }
 
@@ -198,7 +213,7 @@ export function PhotoForm({
   const waiting = queue.items.some((item) => item.state === 'waiting');
   return (
     <div className="mt-6 space-y-4">
-      <PickButton ready={ready} onPick={(files) => void queue.add(files)} />
+      <PickButtons ready={ready} onPick={(files) => void queue.add(files)} />
       <PhotoQueue
         items={queue.items}
         onRetry={(key) => queue.retry(key, fields)}

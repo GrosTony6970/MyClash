@@ -62,26 +62,18 @@ export interface CorrectionInput {
  * card or a spent series awards the bout for a reason the score does not
  * hold, so the score must never take it back, and a reason added later stays
  * out until somebody places it here. A bout with no reason at all is left
- * alone too, except the drawn one `storedReason` names.
+ * alone too. A level bout the clock ended as a draw stores `time_limit`
+ * (`timeLimitResult`); it used to store nothing, and this file guessed it back
+ * from a level board with no winner.
  */
 const DECIDED_ON_THE_BOARD: readonly string[] = [
   'first_to_points',
+  'venue_limit',
   'time_limit',
   'max_doubles',
   'max_doubles_draw',
   'max_doubles_result_stands',
 ];
-
-/**
- * Why the bout ended. A level bout the clock ended as a draw carries NO reason
- * (`timeLimitResult` completes it with nothing), so "no reason, no winner, a
- * level board" is read as that draw: it is the commonest drawn bout there is.
- */
-function storedReason(bout: CorrectionInput['bout']): string | null {
-  if (bout.endReason !== null) return bout.endReason;
-  const drawn = bout.winnerRegistrationId === null && bout.redScore === bout.blueScore;
-  return drawn ? 'time_limit' : null;
-}
 
 export function correctionOutcome(input: CorrectionInput): CorrectionOutcome {
   const { bout, score, engine, staysFinished, laterBoutFought, drawAllowed } = input;
@@ -91,7 +83,7 @@ export function correctionOutcome(input: CorrectionInput): CorrectionOutcome {
   // ends: hand it back. An over Event has nobody to hand it to.
   const backToTheReferee = !staysFinished && !engine.isOver;
 
-  if (!DECIDED_ON_THE_BOARD.includes(storedReason(bout) ?? '')) {
+  if (!DECIDED_ON_THE_BOARD.includes(bout.endReason ?? '')) {
     return backToTheReferee ? { kind: 'reopen' } : { kind: 'unchanged' };
   }
 

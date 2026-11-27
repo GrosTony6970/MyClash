@@ -174,6 +174,42 @@ test('page content is in the HTML, not injected by script', () => {
   }
 });
 
+test('every feature card draws its icon', () => {
+  /*
+   * Icons are matched to cards by index (`FEATURE_ICON_PATHS[i] ?? []` in
+   * Home.astro), so a card inserted into the copy without its icon renders an
+   * empty <svg> in silence, and every icon after it shifts one card along.
+   */
+  for (const route of ['/', '/en']) {
+    const html = pages.get(route);
+    const icons = [
+      ...html.matchAll(/<div class="feature-card__icon"[^>]*>([\s\S]*?)<\/div>/gu),
+    ].map((m) => m[1]);
+    assert.ok(icons.length >= 6, `${route} has ${icons.length} feature icons`);
+    icons.forEach((svg, i) => {
+      assert.match(svg, /<path\b/u, `${route}: feature card ${i + 1} draws no icon`);
+    });
+  }
+});
+
+test('the French landing page never breaks a line before its punctuation', () => {
+  /*
+   * French puts a space before : ; ! ? » and after «. An ordinary space there
+   * lets the browser wrap, so a line can start with a lone colon. The copy uses
+   * a narrow no-break space (U+202F) instead; this reads the rendered text.
+   */
+  const text = pages
+    .get('/')
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gu, '')
+    .replace(/<[^>]+>/gu, ' ');
+  const breakable = [...text.matchAll(/.{0,20}(?:[ \t\r\n][:;!?»]|«[ \t\r\n]).{0,20}/gu)];
+  assert.deepEqual(
+    breakable.map((m) => m[0].trim()),
+    [],
+    'French punctuation after an ordinary space: use U+202F',
+  );
+});
+
 test('the stats band ships empty and is filled from the API, never prefilled', () => {
   /*
    * The three figures here were 120 / 45 / 3 000, hardcoded and untrue. Server

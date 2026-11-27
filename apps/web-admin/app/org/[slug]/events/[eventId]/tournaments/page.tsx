@@ -1,12 +1,10 @@
 'use client';
 
 import {
-  Button,
   DataTable,
   DataTableCell,
   DataTableHead,
   DataTableRow,
-  Modal,
   StatusHelp,
   TournamentColorDot,
   statusPillClass,
@@ -21,11 +19,12 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
-import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
+import { useBusyRows } from '../_hooks/useBusyRows';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
 import { statusChangeQuestion } from './_lib/status-change-question';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
+import { TournamentRowActions } from './_components/TournamentRowActions';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -115,9 +114,7 @@ export default function EventTournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [eventName, setEventName] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<Tournament | null>(null);
-  const [deletionRequestTarget, setDeletionRequestTarget] = useState<Tournament | null>(null);
+  const { isBusy, setBusy } = useBusyRows();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -181,7 +178,7 @@ export default function EventTournamentsPage() {
     if (nextStatus === tournament.status) return;
     const question = statusChangeQuestion(nextStatus, tournament.name, t);
     if (question && !(await confirm(question))) return;
-    setBusyId(tournament.id);
+    setBusy(tournament.id, true);
     setError(null);
     setNotice(null);
     try {
@@ -199,53 +196,7 @@ export default function EventTournamentsPage() {
       setNotice(t('organizer.tournaments.statusUpdated'));
       load();
     } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function archiveTournament(tournament: Tournament) {
-    const question = statusChangeQuestion('archived', tournament.name, t);
-    if (question && !(await confirm(question))) return;
-    setBusyId(tournament.id);
-    setError(null);
-    setNotice(null);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournament.id}`, {
-        method: 'PATCH',
-        body: { status: 'archived' },
-      });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('organizer.tournaments.archiveError'));
-        if (message) setError(message);
-        return;
-      }
-      setNotice(t('organizer.tournaments.archived'));
-      load();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function hardDeleteTournament() {
-    if (!confirmDelete) return;
-    setBusyId(confirmDelete.id);
-    setError(null);
-    setNotice(null);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${confirmDelete.id}`, {
-        method: 'DELETE',
-      });
-      if (!r.ok) {
-        // A hard delete is refused by what still points at the tournament.
-        const message = failureMessage(r, t, t('organizer.tournaments.deleteError'));
-        if (message) setError(message);
-        return;
-      }
-      setConfirmDelete(null);
-      setNotice(t('organizer.tournaments.deleted'));
-      load();
-    } finally {
-      setBusyId(null);
+      setBusy(tournament.id, false);
     }
   }
 
@@ -401,7 +352,7 @@ export default function EventTournamentsPage() {
                       <select
                         value={tournament.status}
                         onChange={(event) => void changeStatus(tournament, event.target.value)}
-                        disabled={isReadOnly || busyId === tournament.id}
+                        disabled={isReadOnly || isBusy(tournament.id)}
                         aria-label={t('organizer.tournaments.status')}
                         className={[
                           statusPillClass(tournamentStatusSemantic(tournament.status), 'light', {
@@ -422,14 +373,23 @@ export default function EventTournamentsPage() {
                     </span>
                   </DataTableCell>
                   <DataTableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
-                        className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
-                      >
-                        {t('organizer.tournaments.edit')}
-                      </Link>
-                      {(() => {
+                    <TournamentRowActions
+                      tournament={tournament}
+                      slug={slug}
+                      eventId={eventId}
+                      isArchived={isArchived}
+                      isReadOnly={isReadOnly}
+                      busy={isBusy(tournament.id)}
+                      onBusyChange={(busy) => setBusy(tournament.id, busy)}
+                      onError={(message) => {
+                        setError(message);
+                        if (message === null) setNotice(null);
+                      }}
+                      onChanged={(message) => {
+                        setNotice(message);
+                        load();
+                      }}
+                      extra={(() => {
                         if (tournament.status !== 'draft') return null;
                         const wizardStep = computeWizardStep({
                           id: tournament.id,
@@ -457,38 +417,7 @@ export default function EventTournamentsPage() {
                           </>
                         );
                       })()}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="cancel"
-                        disabled={
-                          busyId === tournament.id || tournament.status === 'archived' || isReadOnly
-                        }
-                        onClick={() => void archiveTournament(tournament)}
-                      >
-                        {t('organizer.tournaments.archive')}
-                      </Button>
-                      {isArchived ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="danger"
-                          onClick={() => setDeletionRequestTarget(tournament)}
-                        >
-                          {t('organizer.deletionRequest.requestDeletion')}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="danger"
-                          disabled={busyId === tournament.id}
-                          onClick={() => setConfirmDelete(tournament)}
-                        >
-                          {t('organizer.tournaments.hardDelete')}
-                        </Button>
-                      )}
-                    </div>
+                    />
                   </DataTableCell>
                 </DataTableRow>
               ))}
@@ -504,46 +433,7 @@ export default function EventTournamentsPage() {
         </div>
       )}
 
-      {confirmDelete && (
-        <Modal
-          open
-          onClose={() => setConfirmDelete(null)}
-          busy={busyId === confirmDelete.id}
-          size="md"
-          title={t('organizer.tournaments.deleteTitle')}
-          footer={
-            <>
-              <Button type="button" variant="cancel" onClick={() => setConfirmDelete(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                loading={busyId === confirmDelete.id}
-                onClick={() => void hardDeleteTournament()}
-              >
-                {t('organizer.tournaments.confirmHardDelete')}
-              </Button>
-            </>
-          }
-        >
-          <p className="mt-2 text-sm text-foreground-secondary">
-            {t('organizer.tournaments.deleteWarning', { name: confirmDelete.name })}
-          </p>
-        </Modal>
-      )}
-
       {confirmDialog}
-
-      {deletionRequestTarget && (
-        <RequestDeletionModal
-          targetType="tournament"
-          targetId={deletionRequestTarget.id}
-          targetLabel={deletionRequestTarget.name}
-          onSuccess={() => setDeletionRequestTarget(null)}
-          onClose={() => setDeletionRequestTarget(null)}
-        />
-      )}
     </main>
   );
 }

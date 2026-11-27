@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { MatchesService } from './matches.service';
 
 /**
@@ -13,6 +13,8 @@ const BOUT = 'm1';
 const COMPLETED = {
   id: BOUT,
   status: 'completed',
+  red_registration_id: 'red',
+  blue_registration_id: 'blue',
   winner_registration_id: 'red',
   end_reason: 'forfeit',
   ended_at: '2026-04-25T09:01:00.000Z',
@@ -20,6 +22,8 @@ const COMPLETED = {
 const SCHEDULED = {
   id: BOUT,
   status: 'scheduled',
+  red_registration_id: 'red',
+  blue_registration_id: 'blue',
   winner_registration_id: null,
   end_reason: null,
   ended_at: null,
@@ -49,15 +53,50 @@ describe('MatchesService.updateStatus: completed is the one status it writes (S9
   it('completed on a completed bout is still written, with no such filter', async () => {
     const { db, service } = setup();
 
-    await service.updateStatus(BOUT, { status: 'completed' } as never);
+    await service.updateStatus(BOUT, { status: 'completed', winnerRegistrationId: 'red' });
 
     const [write] = writesTo(db, 'matches');
     expect(Object.keys(write?.row as Record<string, unknown>).sort()).toEqual([
+      'end_reason',
       'ended_at',
       'status',
       'updated_at',
+      'winner_registration_id',
     ]);
     expect(write?.filters).not.toContainEqual(NOT_COMPLETED);
+  });
+
+  // Ruling 1010: a result by hand is its winner alone. An old reason kept beside it overrode it:
+  // `max_doubles` read as a loss for both, `time_limit` let a correction decide the bout again.
+  it('clears the reason the bout ended before, so the named winner is the result', async () => {
+    const { db, service } = setup({ ...COMPLETED, end_reason: 'max_doubles' });
+
+    await service.updateStatus(BOUT, { status: 'completed', winnerRegistrationId: 'blue' });
+
+    expect(writesTo(db, 'matches')[0]?.row).toMatchObject({
+      winner_registration_id: 'blue',
+      end_reason: null,
+    });
+  });
+
+  // Ruling 1010: the winner is one of the bout's two fighters, or nothing is written.
+  it('refuses a winner who is not in the bout, and writes nothing', async () => {
+    const { db, completion, service } = setup(SCHEDULED);
+
+    await expect(
+      service.updateStatus(BOUT, { status: 'completed', winnerRegistrationId: 'someone-else' }),
+    ).rejects.toMatchObject({ response: { code: 'winner_not_in_bout' } });
+
+    expect(writesTo(db, 'matches')).toEqual([]);
+    expect(completion.onMatchCompleted).not.toHaveBeenCalled();
+  });
+
+  it('reads the two fighters it checks the winner against', async () => {
+    const { db, service } = setup(SCHEDULED);
+
+    await service.updateStatus(BOUT, { status: 'completed', winnerRegistrationId: 'blue' });
+
+    expect(selectsFor(db.from, 'matches')[0]).toBe('red_registration_id, blue_registration_id');
   });
 
   it('completed with a winner writes the winner, then hands off', async () => {

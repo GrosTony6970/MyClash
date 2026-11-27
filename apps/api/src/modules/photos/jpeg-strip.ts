@@ -19,7 +19,8 @@
  * memory is bounded only then, never by the file size. A progressive JPEG (a 0.5 MB file declaring
  * 48 MP took 290 MB in sharp) and a baseline one split into partial scans (0.75 MB, 8000×8000:
  * 400 MB) both make libjpeg keep every coefficient of the image (measured 2026-11-04), so both are
- * refused.
+ * refused. The phone page converts any other JPEG to this shape before sending it
+ * (`apps/web-public/src/lib/photos/camera-jpeg.ts`, ruling 1004); this check stays the authority.
  */
 
 import { PHOTO_HEIF_BRANDS, type PhotoFileRefusal } from '@myclash/types';

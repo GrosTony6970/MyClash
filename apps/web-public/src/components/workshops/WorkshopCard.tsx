@@ -20,6 +20,7 @@ export { firstSessionStart, groupWorkshopsByDay, WORKSHOP_UNSCHEDULED } from './
 /** Spots-left / almost-full / full pill — same thresholds as the public catalog. */
 export function capacityBadge(confirmed: number, capacity: number, t: TFn): ReactNode {
   const pct = confirmed / capacity;
+  const left = capacity - confirmed;
   if (pct >= 1)
     return (
       <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
@@ -29,12 +30,16 @@ export function capacityBadge(confirmed: number, capacity: number, t: TFn): Reac
   if (pct >= 0.8)
     return (
       <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-        {t('publicApp.workshops.almostFull')}
+        {left === 1
+          ? t('publicApp.workshops.almostFullSpot')
+          : t('publicApp.workshops.almostFullSpots', { count: left })}
       </span>
     );
   return (
     <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-      {t('publicApp.workshops.spotsLeft', { count: capacity - confirmed })}
+      {left === 1
+        ? t('publicApp.workshops.spotLeft')
+        : t('publicApp.workshops.spotsLeft', { count: left })}
     </span>
   );
 }

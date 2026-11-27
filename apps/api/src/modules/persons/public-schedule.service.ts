@@ -29,7 +29,12 @@ import { readEventPerson } from '../../common/auth/event-person-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
-import { readPersonWorkshops, type WorkshopEnrollment } from './person-workshops';
+import {
+  readPersonTeaching,
+  readPersonWorkshops,
+  type WorkshopEnrollment,
+  type WorkshopTeachingSession,
+} from './person-workshops';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
@@ -39,6 +44,7 @@ import { eliminationEnd } from './elimination-end';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import { resolveNextBoutEnds, type BoutRef } from '../schedule/next-bout-end';
 import { plannedLengthOf } from '../schedule/planned-length';
+import { endWithBlock, resolvePoolBlocks } from '../schedule/pool-block-ends';
 
 export interface ScheduleMatch {
   id: string;
@@ -128,8 +134,9 @@ export interface RefereeSlot {
 }
 
 /**
- * One of the fighter's Pools, from its earliest placed Match to the planned end
- * of its last, whoever fights them. A fighter is busy for the whole of it, not
+ * One of the fighter's Pools, from its earliest placed Match to the later of the
+ * planned end of its last, whoever fights them, and the end of the Pool's
+ * programme bar (operator, 2026-11-27). A fighter is busy for the whole of it, not
  * only their own bouts (ADR-017's hull; operator, 2026-09-17). Null times where
  * nothing is placed or the span could not be worked out.
  */
@@ -171,6 +178,9 @@ export interface PersonSchedule {
   phaseSpans: PhaseSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
+  /** The sessions the person teaches. Null = hidden by the same privacy choice as `workshops`
+   *  (ruling 132 hides a person's Workshops whether they attend or teach them). */
+  teaching: WorkshopTeachingSession[] | null;
   /** Sessions whose instructor refused the person: their own read only (ruling 236). */
   refusedWorkshopIds: string[];
 }
@@ -225,20 +235,45 @@ export class PublicScheduleService {
     personId: string,
     requesterPersonId: string | null,
   ): Promise<PersonSchedule> {
+    // Duties and taught sessions both key on the global person: read it once, for both.
+    const globalPersonId = this.fetchGlobalPersonId(personId);
     const [fights, refereeSlots, showWorkshops, timezone] = await Promise.all([
       this.fetchFights(eventId, personId),
-      this.fetchRefereeSlots(eventId, personId),
+      globalPersonId.then((id) => (id ? this.fetchRefereeSlots(eventId, id) : [])),
       this.privacy.canSeeWorkshops(personId, requesterPersonId),
       this.fetchTimezone(eventId),
     ]);
 
+    if (!showWorkshops) {
+      const hidden = { workshops: null, teaching: null, refusedWorkshopIds: [] };
+      return { personId, timezone, ...fights, refereeSlots, ...hidden };
+    }
     // A waitlist place and a refusal are the person's own business (rulings 235, 236).
     const own = requesterPersonId === personId;
-    const booked = showWorkshops
-      ? await readPersonWorkshops(this.supabase.service, personId, own)
-      : { workshops: null, refusedWorkshopIds: [] };
+    const db = this.supabase.service;
+    const [booked, teaching] = await Promise.all([
+      readPersonWorkshops(db, personId, own, (ids) =>
+        this.privacy.hiddenWorkshopGlobalPersonIds(ids),
+      ),
+      // A person linked to no global person (a guest's roster row) teaches nothing.
+      globalPersonId.then((id) => (id ? readPersonTeaching(db, eventId, id, own) : [])),
+    ]);
+    return { personId, timezone, ...fights, refereeSlots, ...booked, teaching };
+  }
 
-    return { personId, timezone, ...fights, refereeSlots, ...booked };
+  /**
+   * `referee_assignments` and `workshop_instructors` key on `global_persons.id`; the routes take
+   * the event-scoped `persons.id`. An unlinked person (null) holds neither. A failed read throws:
+   * a null would read as "no duty, no class", and her schedule would clash with nothing.
+   */
+  private async fetchGlobalPersonId(personId: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) throw new Error(`The person ${personId} could not be read: ${error.message}`);
+    return (data as { global_person_id: string | null } | null)?.global_person_id ?? null;
   }
 
   /**
@@ -283,10 +318,16 @@ export class PublicScheduleService {
     });
   }
 
+  /**
+   * Each Pool the fighter has a bout in, busy from its first bout to the later of its last
+   * bout's end and its programme bar's end — the same end the schedule header shows
+   * (operator, 2026-11-27; `pool-block-ends.ts`).
+   */
   private async poolSpansOf(eventId: string, matches: ScheduleMatch[]): Promise<PoolSpan[]> {
     // One entry per Pool, in the order its first bout comes: a Map keeps the first
     // insertion's place, and every bout of a Pool carries the same names.
     const pools = new Map<string, Omit<PoolSpan, 'startsAt' | 'endsAt'>>();
+    const tournamentOf = new Map<string, string>();
     for (const m of matches) {
       if (m.poolId) {
         pools.set(m.poolId, {
@@ -294,9 +335,19 @@ export class PublicScheduleService {
           poolName: m.poolName,
           tournamentName: m.tournamentName,
         });
+        if (m.tournamentId) tournamentOf.set(m.poolId, m.tournamentId);
       }
     }
-    return resolvePoolSpans(this.supabase.service, this.logger, eventId, [...pools.values()]);
+    const db = this.supabase.service;
+    const [spans, blocks] = await Promise.all([
+      resolvePoolSpans(db, this.logger, eventId, [...pools.values()]),
+      resolvePoolBlocks(db, this.logger, eventId, [...new Set(tournamentOf.values())]),
+    ]);
+    return spans.map((span) => {
+      const tournamentId = tournamentOf.get(span.poolId);
+      const own = tournamentId ? (blocks.get(tournamentId) ?? []) : [];
+      return { ...span, endsAt: endWithBlock(span, own) };
+    });
   }
 
   /**
@@ -387,8 +438,6 @@ export class PublicScheduleService {
                     winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
                     redRegistrationId: redReg,
                     blueRegistrationId: blueReg,
-                    redScore: (m['red_score'] as number) ?? 0,
-                    blueScore: (m['blue_score'] as number) ?? 0,
                     endReason: (m['end_reason'] as string | null) ?? null,
                   },
                   isRed ? 'red' : 'blue',
@@ -498,19 +547,8 @@ export class PublicScheduleService {
     return map;
   }
 
-  private async fetchRefereeSlots(eventId: string, personId: string): Promise<RefereeSlot[]> {
-    // Post-0063: referee_assignments keys on global_persons.id, but this
-    // controller takes the event-scoped persons.id. Resolve via
-    // persons.global_person_id; absent link → no referee slots.
-    const { data: personLink } = await this.supabase.service
-      .from('persons')
-      .select('global_person_id')
-      .eq('id', personId)
-      .maybeSingle();
-    const globalPersonId =
-      (personLink as { global_person_id: string | null } | null)?.global_person_id ?? null;
-    if (!globalPersonId) return [];
-
+  /** Post-0063: referee_assignments keys on global_persons.id (`fetchGlobalPersonId`). */
+  private async fetchRefereeSlots(eventId: string, globalPersonId: string): Promise<RefereeSlot[]> {
     // Embed the match (match-scoped rows) AND the assignment's own pool/lice
     // (pool-/lice-scoped rows that carry no match — e.g. a pool "Déclarant").
     const { data, error } = await this.supabase.service

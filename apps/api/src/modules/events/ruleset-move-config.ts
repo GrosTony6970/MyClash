@@ -20,7 +20,7 @@
  * colours, quick penalties) is the organiser's and stays. A built-in's other
  * version keeps them.
  */
-import { normalizeMatchFormatConfig, type RulesetRegistry } from '@myclash/rulesets';
+import { parseMatchFormatConfig, type RulesetRegistry } from '@myclash/rulesets';
 import type { TournamentScoringConfig } from '@myclash/types';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
@@ -50,14 +50,14 @@ function without(settings: Settings, key: string): Settings {
 }
 
 /**
- * A stored match format as the engine reads it, its legacy keys folded into the modern ones. One
+ * A stored match format as the engine parses it, its legacy keys folded into the modern ones. One
  * the engine refuses (a club seed is stored unchecked) is answered as stored: the sent keys then go
  * onto it and the normalize that follows decides, so a save that replaces the refused key repairs
  * the row, and any other save is refused in the engine's words.
  */
 function engineFormatOr(stored: unknown): unknown {
   try {
-    return normalizeMatchFormatConfig(stored);
+    return parseMatchFormatConfig(stored);
   } catch {
     return stored;
   }
@@ -67,7 +67,9 @@ function engineFormatOr(stored: unknown): unknown {
  * `base` with the caller's `patch` on top: the ONE merge of a settings write (a save, a create, a
  * move). The base's match format is normalized BEFORE the sent one goes on top, so a stored legacy
  * key (`firstToPoints`, which the normalizer prefers to `pointCap`) cannot beat the organiser's
- * new value; it is written normalized, as the engine reads it. Throws the engine's ZodError on a
+ * new value; it is written parsed (`parseMatchFormatConfig`), every key as the organiser set it.
+ * The direction a venues bout counts in is resolved at read, never stored: a countdown Tournament
+ * that tries venues and goes back to points counts down again. Throws the engine's ZodError on a
  * refused format: run it under `inEngineWords`.
  */
 function mergedSettings(base: unknown, patch: Settings | undefined): Settings {
@@ -78,7 +80,7 @@ function mergedSettings(base: unknown, patch: Settings | undefined): Settings {
     const own = engineFormatOr(stored['matchFormat'] ?? {});
     settings = {
       ...settings,
-      matchFormat: normalizeMatchFormatConfig(deepMergeJson(own, sent['matchFormat'])),
+      matchFormat: parseMatchFormatConfig(deepMergeJson(own, sent['matchFormat'])),
     };
   }
   return settings;

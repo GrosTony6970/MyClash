@@ -43,14 +43,25 @@ function config(over: Partial<MatchFormatConfig> = {}): MatchFormatConfig {
       bracket: [{ kind: 'sudden_death' }],
       finals: [{ kind: 'sudden_death' }],
     },
+    scoringUnit: 'points',
+    venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+    stopWhenDecided: true,
     ...over,
   };
 }
 
 const POOL = { phaseType: 'pool' as const, matchNumberLabel: 'L1-P1-M01' };
 const BRACKET = { phaseType: 'single_elim' as const, matchNumberLabel: 'QF1' };
-const BOTH_OUT = { redScore: 0, blueScore: 0, redBelowZero: 2, blueBelowZero: 1, doubles: 0 };
-const WIPED = { redScore: 0, blueScore: 0, doubles: 3 };
+const BOTH_OUT = {
+  redScore: 0,
+  blueScore: 0,
+  redBelowZero: 2,
+  blueBelowZero: 1,
+  doubles: 0,
+  redVenuesWon: 0,
+  blueVenuesWon: 0,
+};
+const WIPED = { redScore: 0, blueScore: 0, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 };
 
 describe('both out of points in a bout that counts down', () => {
   it('2026-04 reads the board: 0 - 0 is nobody', () => {
@@ -138,17 +149,38 @@ describe('a bout that counts up', () => {
   const editions: DecisionEdition[] = [EDITION_2026_04, EDITION_2026_10];
 
   it.each(editions)('is decided the same by both editions (%o)', (edition) => {
-    expect(roundOutcome(POOL, { redScore: 5, blueScore: 5, doubles: 0 }, up, edition)).toEqual({
+    expect(
+      roundOutcome(
+        POOL,
+        { redScore: 5, blueScore: 5, doubles: 0, redVenuesWon: 0, blueVenuesWon: 0 },
+        up,
+        edition,
+      ),
+    ).toEqual({
       autoOver: true,
       winnerColor: null,
       endReason: 'first_to_points',
     });
-    expect(roundOutcome(POOL, { redScore: 5, blueScore: 3, doubles: 3 }, up, edition)).toEqual({
+    expect(
+      roundOutcome(
+        POOL,
+        { redScore: 5, blueScore: 3, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+        up,
+        edition,
+      ),
+    ).toEqual({
       autoOver: true,
       winnerColor: 'red',
       endReason: 'first_to_points',
     });
-    expect(roundOutcome(POOL, { redScore: 2, blueScore: 1, doubles: 3 }, up, edition)).toEqual({
+    expect(
+      roundOutcome(
+        POOL,
+        { redScore: 2, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+        up,
+        edition,
+      ),
+    ).toEqual({
       autoOver: true,
       winnerColor: null,
       endReason: 'max_doubles',

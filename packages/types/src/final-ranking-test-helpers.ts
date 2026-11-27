@@ -36,6 +36,9 @@ export function mk(
     blueClubAbbrev: null,
     redScore,
     blueScore,
+    // A finished bout stores its result: the leader, as the server names it. The ranking reads
+    // the stored winner only (spec 2026-11-27-bout-result-is-stored).
+    winnerRegistrationId: redScore > blueScore ? red : blueScore > redScore ? blue : null,
   };
 }
 

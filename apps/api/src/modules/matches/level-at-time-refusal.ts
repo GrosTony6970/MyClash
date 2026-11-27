@@ -20,16 +20,25 @@ import type { LevelStep } from '@myclash/rulesets';
 import type { EndRefusal } from './time-limit-result';
 
 /**
- * TWO CODES, because they are two different instructions. `time_not_finished`
- * says keep fighting; `level_at_time_unresolved` says the time is up and the
- * phase has a remedy to play. One code covering both would tell a referee to
- * play sudden death while there was still a minute on the clock.
+ * A CODE PER INSTRUCTION. `time_not_finished` says keep fighting;
+ * `level_at_time_unresolved` says the time is up and the phase has a remedy to
+ * play. One code covering both would tell a referee to play sudden death while
+ * there was still a minute on the clock. `series_not_decided`: a best-of bout
+ * ends by its rounds, never by the clock.
  */
 export function endRefusal(refusal: EndRefusal): BadRequestException {
   if (refusal.reason === 'time_not_finished') {
     return new BadRequestException({
       message: 'Time is not finished — the bout cannot be stopped level before the limit',
       code: 'time_not_finished',
+    });
+  }
+  if (refusal.reason === 'series_not_decided') {
+    // The pad never sends it: its End of a best-of bout ends the ROUND. A raw API call
+    // reads this, so it needs no tablet copy.
+    return new BadRequestException({
+      message: 'A best-of bout ends by its rounds — end the round, not the bout',
+      code: 'series_not_decided',
     });
   }
   return levelAtTimeRefusal(refusal.step);

@@ -15,6 +15,7 @@
  * (`undefined`): a notice that flashes on every open says nothing.
  */
 import {
+  buttonsInForce,
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
   type MatchFormatConfig,
@@ -77,16 +78,54 @@ export function rulesOnPad(
   const stale = config !== undefined && (!rules || config === null || !config.fresh);
   const tournament = config ?? null;
   if (!rules) {
+    const matchFormat = wholeFormat(tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG);
     return {
-      scoringConfig: tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG,
-      matchFormat: tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
+      scoringConfig: inForce(tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG, matchFormat),
+      matchFormat,
       stale,
     };
   }
   const display = tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG;
+  const matchFormat = wholeFormat(rules.matchFormat);
   return {
-    scoringConfig: { ...display, afterblowMode: rules.afterblowMode, buttons: rules.buttons },
-    matchFormat: rules.matchFormat,
+    scoringConfig: inForce(
+      { ...display, afterblowMode: rules.afterblowMode, buttons: rules.buttons },
+      matchFormat,
+    ),
+    matchFormat,
     stale,
   };
+}
+
+/** The keys venues scoring added to the format: a copy kept before it holds none of them. */
+type VenuesKeys = 'scoringUnit' | 'venuesPerRound' | 'stopWhenDecided';
+
+/**
+ * A format as every reader on the pad takes it: whole. A copy the tablet kept before venues
+ * scoring (the bout's own rules, or its Tournament's `/match-config`) lacks the venues keys; each
+ * is filled from the default, so the copy scores as points, as it did, and never reads a venue
+ * count of `undefined`.
+ */
+function wholeFormat(
+  format: Omit<MatchFormatConfig, VenuesKeys> & Partial<Pick<MatchFormatConfig, VenuesKeys>>,
+): MatchFormatConfig {
+  return {
+    ...format,
+    scoringUnit: format.scoringUnit ?? DEFAULT_MATCH_FORMAT_CONFIG.scoringUnit,
+    venuesPerRound: format.venuesPerRound ?? DEFAULT_MATCH_FORMAT_CONFIG.venuesPerRound,
+    stopWhenDecided: format.stopWhenDecided ?? DEFAULT_MATCH_FORMAT_CONFIG.stopWhenDecided,
+  };
+}
+
+/**
+ * The config with the buttons its format scores with (`buttonsInForce`): one `+1` per side in a
+ * venues bout. This is the one place the pad gets its buttons, so the stored ones are never
+ * re-seeded for venues. In points mode the config itself, the same object.
+ */
+function inForce(
+  scoringConfig: TournamentScoringConfig,
+  matchFormat: MatchFormatConfig,
+): TournamentScoringConfig {
+  const buttons = buttonsInForce(scoringConfig.buttons, matchFormat.scoringUnit);
+  return buttons === scoringConfig.buttons ? scoringConfig : { ...scoringConfig, buttons };
 }

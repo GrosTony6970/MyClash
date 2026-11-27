@@ -15,7 +15,7 @@
  *
  * SEED, DON'T RESOLVE. No SCORING ruleset is resolved here and
  * `@myclash/rulesets` is not reachable from this app. The arithmetic is
- * `computeAfterblowDeltas` for a hit and, via `./price-queued-cards`, the
+ * `exchangeDeltas` for a hit and, via `./price-queued-cards`, the
  * penalty catalogue's own per-card columns for a card — both on the allowlist in
  * `ARCHITECTURE.md` §7.3, both the server's own functions, and neither of them
  * the engine.
@@ -23,37 +23,49 @@
  * Pure: no Dexie, no React, no I/O. The caller supplies the rows.
  */
 import {
-  computeAfterblowDeltas,
+  exchangeDeltas,
   type PenaltyCard,
+  type ScoringUnit,
   type TournamentScoringConfig,
 } from '@myclash/types';
 import { liveProtestsOf, type ExchangeRow, type MatchProtest, type Penalty } from '@myclash/ui';
 import { isTap, kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
-/** Deltas an exchange contributes, on the pad's own reading of the config. */
+/**
+ * Deltas an exchange contributes, priced by the server's own pricer
+ * (`exchangeDeltas`) on the pad's reading of the config and the bout's unit.
+ *
+ * The raw button values are what was queued — the server nets them under the
+ * tournament's mode at read, which is precisely why offline scoring works on a
+ * ruleset the pad never resolved. Pricing them the same way here is what makes
+ * the provisional row agree with what will land: in a venues bout a clean hit
+ * is 1 whatever button a stale pad showed, and an afterblow wins nothing.
+ */
 function localDeltas(
   entry: OutboxEntry,
   config: TournamentScoringConfig,
+  scoringUnit: ScoringUnit,
 ): { scoreDelta: number | null; defenderDelta: number | null } {
-  if (entry.type === 'clean') {
-    return { scoreDelta: entry.firstStrikeValue ?? 0, defenderDelta: null };
-  }
-  if (entry.type === 'afterblow') {
-    // The raw button values are what was queued — the server nets them under
-    // the tournament's mode at read, which is precisely why offline scoring
-    // works on a ruleset the pad never resolved. Netting them the same way here
-    // is what makes the provisional row agree with what will land.
-    const d = computeAfterblowDeltas(
-      config.afterblowMode,
-      entry.firstStrikeValue ?? 0,
-      entry.afterblowValue ?? 0,
-    );
-    return { scoreDelta: d.attackerDelta, defenderDelta: d.defenderDelta };
-  }
   // A double and a no-exchange score for nobody. `exchangeDeltaLabel` already
   // renders a null delta as no delta.
-  return { scoreDelta: null, defenderDelta: null };
+  if (entry.type !== 'clean' && entry.type !== 'afterblow') {
+    return { scoreDelta: null, defenderDelta: null };
+  }
+  const striker = entry.firstStrikerColor ?? null;
+  const d = exchangeDeltas(
+    {
+      type: entry.type,
+      firstStrikerColor: striker,
+      firstStrikeValue: entry.firstStrikeValue ?? null,
+      afterblowValue: entry.afterblowValue ?? null,
+    },
+    config.afterblowMode,
+    scoringUnit,
+  );
+  const [own, other] = striker === 'blue' ? [d.blue, d.red] : [d.red, d.blue];
+  // A clean hit gives the other side no delta at all, not a zero one.
+  return { scoreDelta: own, defenderDelta: entry.type === 'clean' ? null : other };
 }
 
 /**
@@ -129,6 +141,8 @@ function pendingPenaltyRow(entry: OutboxEntry, priced: PricedCard | null): Penal
 export function pendingRowsForMatch(args: {
   entries: readonly OutboxEntry[];
   config: TournamentScoringConfig;
+  /** The bout's scoring unit (its `matchFormat`): a venues bout prices a clean hit at 1. */
+  scoringUnit: ScoringUnit;
   serverExchanges: readonly ExchangeRow[];
   serverPenalties: readonly Penalty[];
   serverProtests: readonly MatchProtest[];
@@ -199,7 +213,7 @@ export function pendingRowsForMatch(args: {
       continue;
     }
 
-    const { scoreDelta, defenderDelta } = localDeltas(entry, config);
+    const { scoreDelta, defenderDelta } = localDeltas(entry, config, args.scoringUnit);
     exchanges.push({
       // The clientUuid IS the id the server will give this row, so the React
       // key does not jump when it drains.

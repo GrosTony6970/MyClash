@@ -30,6 +30,9 @@ const matchFormat = {
     bracket: [{ kind: 'sudden_death' }],
     finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
   },
+  scoringUnit: 'points',
+  venuesPerRound: { pool: 5, swiss: 5, bracket: 5, finals: 7 },
+  stopWhenDecided: true,
 };
 const grammar = {
   targets: [

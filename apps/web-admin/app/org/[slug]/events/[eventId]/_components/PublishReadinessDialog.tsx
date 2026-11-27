@@ -1,15 +1,15 @@
 'use client';
 
-import { Button, Modal, statusPillTone } from '@myclash/ui';
+import { Button, Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   isOutstanding,
   readinessLabelKey,
   readinessMessageKey,
-  readinessSemantic,
   type ReadinessCheck,
   type ReadinessReport,
 } from '../readiness-copy';
+import { LevelMark } from './ReadinessPanel';
 
 interface Props {
   open: boolean;
@@ -79,13 +79,7 @@ function OutstandingRow({
   const label = t(readinessLabelKey(check));
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
-      <span
-        className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full border ${
-          statusPillTone(readinessSemantic(check.level), 'light').className
-        }`}
-        role="img"
-        aria-label={t(`organizer.readiness.level.${check.level}`)}
-      />
+      <LevelMark level={check.level} />
       <span className="font-medium text-foreground">
         {tournamentName ? `${tournamentName} — ${label}` : label}
       </span>

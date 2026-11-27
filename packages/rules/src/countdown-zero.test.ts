@@ -37,6 +37,9 @@ function config(over: Partial<MatchFormatConfig> = {}): MatchFormatConfig {
       bracket: [{ kind: 'sudden_death' }],
       finals: [{ kind: 'sudden_death' }],
     },
+    scoringUnit: 'points',
+    venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+    stopWhenDecided: true,
     ...over,
   };
 }
@@ -104,6 +107,9 @@ describe('the scorer of a bout that counts down', () => {
       redTimesHit: 2,
       blueTimesHit: 1,
       doubles: 0,
+      // One clean hit each; the afterblow wins nobody a venue.
+      redVenuesWon: 1,
+      blueVenuesWon: 1,
     });
     expect(Object.keys(score)).not.toContain('redBelowZero');
     expect(Object.keys(score)).not.toContain('blueBelowZero');

@@ -361,6 +361,8 @@ describe('PeopleContextService.enrich', () => {
             blueClubAbbrev: null,
             redScore: 5,
             blueScore: 3,
+            // The ranking reads the stored winner, never the score.
+            winnerRegistrationId: 'r-3',
           },
         ],
       }),

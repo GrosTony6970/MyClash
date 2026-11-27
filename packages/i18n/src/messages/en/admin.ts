@@ -1221,6 +1221,8 @@ export const admin = {
       'These rulesets are available to tournaments. System rulesets cannot be edited.',
     curatedEmpty: 'No curated rulesets yet.',
     curatedLoadError: 'Could not load curated rulesets.',
+    cloneSourceUnreadable:
+      "This ruleset's stored settings could not be read, so the copy starts from a blank form.",
     loadOneError: 'Could not load ruleset.',
     createButton: 'New ruleset',
     createTitle: 'Create custom ruleset',
@@ -1314,6 +1316,7 @@ export const admin = {
     systemPanelDirectionLowest: 'lowest first',
     systemPanelTrue: 'Yes',
     systemPanelFalse: 'No',
+    rankingKey_score: 'Score',
     rankingKey_ptsScored: 'Points scored',
     rankingKey_ptsConceded: 'Points conceded',
     rankingKey_W: 'Wins',
@@ -1365,10 +1368,32 @@ export const admin = {
       doubleHits: 'Double hits',
       hitsGiven: 'Hits given',
       hitsReceived: 'Hits received',
+      pointsReceived: 'Points received',
       pointsPerVictory: 'Points per victory',
       pointsPerTie: 'Points per tie',
       pointsPerLoss: 'Points per loss',
       doublePenalty: 'Double-hit penalty',
+    },
+    variableMeaningsTitle: 'What each word means',
+    // One plain sentence per formula variable, shown under the formula editor.
+    variableMeaning: {
+      victories: 'How many bouts the fighter won.',
+      ties: 'How many bouts ended in a draw.',
+      losses: 'How many bouts the fighter lost.',
+      doubleHits:
+        'How many double hits the fighter was part of. Both fighters get one for each double.',
+      hitsGiven:
+        "The points the fighter's hits scored, by the value of each target. A deep hit worth 2 adds 2.",
+      hitsReceived:
+        'How many times the fighter was hit. A deep hit counts once, whatever it is worth. An afterblow counts as a hit on the fighter who struck first.',
+      pointsReceived:
+        "The points the opponents' hits scored on the fighter, by the value of each target. A deep hit worth 2 adds 2.",
+      pointsPerVictory:
+        'A number from Constants, the same for every fighter. Multiply Victories by it to give each win its weight.',
+      pointsPerTie: 'A number from Constants, the same for every fighter, for each draw.',
+      pointsPerLoss: 'A number from Constants, the same for every fighter, for each loss.',
+      doublePenalty:
+        "What the fighter's double hits cost. It comes from the Double-hit penalty section, or from the Double-hit penalty constant when that section has none.",
     },
     versionHistoryTitle: 'Version history',
     versionHistoryEmpty: 'No published versions yet.',

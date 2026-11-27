@@ -27,7 +27,7 @@ export interface ClosedRound {
    * The three max-doubles values are one per `maxDoubleHitOutcome`. Only
    * `'max_doubles'` means loss for both; see `maxDoubleHitEndReason`.
    */
-  endReason: 'first_to_points' | MaxDoubleHitEndReason | 'time_limit' | null;
+  endReason: 'first_to_points' | 'venue_limit' | MaxDoubleHitEndReason | 'time_limit' | null;
 }
 
 export type RoundCorrection =

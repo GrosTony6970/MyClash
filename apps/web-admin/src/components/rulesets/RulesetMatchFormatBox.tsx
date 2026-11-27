@@ -2,7 +2,7 @@
 
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { bestOfOptions } from '@/lib/best-of-options';
-import { NumberField, SelectField } from './RulesetFormFields';
+import { CheckField, NumberField, SelectField } from './RulesetFormFields';
 import {
   acceptsLeaf,
   differsFromEngine,
@@ -11,6 +11,7 @@ import {
   withOwn,
   withoutOwn,
   type BestOfLeaf,
+  type LeafValue,
   type MatchFormatLeaf,
   type OwnMatchFormat,
 } from './ruleset-own-values';
@@ -24,6 +25,8 @@ interface Props {
   onValidity: (leaf: MatchFormatLeaf, valid: boolean) => void;
   /** False for an engine with no doubles ceiling (Points cap): the field is not shown. */
   hasMaxDoubles: boolean;
+  /** False for an engine that scores in points only (Points cap): no unit choice, no venue fields. */
+  hasVenues: boolean;
   disabled?: boolean;
 }
 
@@ -37,14 +40,23 @@ interface NumberSpec {
 
 const TIME = { min: 0, max: 3600, nullable: true };
 
-/** The box's kinds of field, each wired to one leaf of the ruleset's own match format. */
-function leafFields({ own, loaded, onChange, onValidity, disabled }: Props, t: Translator) {
-  const affordance = (leaf: MatchFormatLeaf) => ({
+/** A phase's won-venues count: 1 to 50. */
+const VENUES = { min: 1, max: 50 };
+
+/** What every field of the box shares: its badge, its Reset and its edit. */
+function affordanceOf({ own, onChange, disabled }: Props, leaf: MatchFormatLeaf) {
+  return {
     modified: differsFromEngine(own, leaf),
     onReset: () => onChange(withoutOwn(own, leaf)),
-    onChange: (v: number | string | null) => onChange(withOwn(own, leaf, v)),
+    onChange: (v: LeafValue) => onChange(withOwn(own, leaf, v)),
     disabled,
-  });
+  };
+}
+
+/** The box's kinds of field, each wired to one leaf of the ruleset's own match format. */
+function leafFields(props: Props, t: Translator) {
+  const { own, loaded, onChange, onValidity } = props;
+  const affordance = (leaf: MatchFormatLeaf) => affordanceOf(props, leaf);
   const number = (leaf: MatchFormatLeaf, spec: NumberSpec) => (
     <NumberField
       {...spec}
@@ -79,7 +91,53 @@ function leafFields({ own, loaded, onChange, onValidity, disabled }: Props, t: T
       />
     );
   };
-  return { number, select, bestOf };
+  const check = (leaf: MatchFormatLeaf, label: string, hint: string) => (
+    <CheckField
+      {...affordance(leaf)}
+      label={label}
+      hint={hint}
+      checked={shownLeaf(own, leaf) as boolean}
+      engineLabel={t(engineLeaf(leaf) ? 'admin.common.yes' : 'admin.common.no')}
+    />
+  );
+  return { number, select, bestOf, check };
+}
+
+/** The "Score by" choice, and in venues mode the won venues per phase and the stop flag. */
+function venueFields(
+  { number, select, check }: ReturnType<typeof leafFields>,
+  venues: boolean,
+  t: Translator,
+) {
+  return (
+    <>
+      {select('scoringUnit', t('organizer.tournaments.settings.scoringUnitLabel'), {
+        points: t('organizer.tournaments.settings.scoringUnitPoints'),
+        venues: t('organizer.tournaments.settings.scoringUnitVenues'),
+      })}
+      {venues && (
+        <>
+          {number('venuesPerRoundPool', {
+            label: t('organizer.tournaments.settings.venuesPerRoundPool'),
+            ...VENUES,
+          })}
+          {number('venuesPerRoundBracket', {
+            label: t('organizer.tournaments.settings.venuesPerRoundBracket'),
+            ...VENUES,
+          })}
+          {number('venuesPerRoundFinals', {
+            label: t('organizer.tournaments.settings.venuesPerRoundFinals'),
+            ...VENUES,
+          })}
+          {check(
+            'stopWhenDecided',
+            t('organizer.tournaments.settings.stopWhenDecidedLabel'),
+            t('organizer.tournaments.settings.stopWhenDecidedHelp'),
+          )}
+        </>
+      )}
+    </>
+  );
 }
 
 /**
@@ -89,7 +147,10 @@ function leafFields({ own, loaded, onChange, onValidity, disabled }: Props, t: T
  */
 export function RulesetMatchFormatBox(props: Props) {
   const { t } = useI18n();
-  const { number, select, bestOf } = leafFields(props, t);
+  const fields = leafFields(props, t);
+  const { number, select, bestOf } = fields;
+  // Venues mode counts up from nothing: no point cap, no direction (the server forces 'normal').
+  const venues = props.hasVenues && shownLeaf(props.own, 'scoringUnit') === 'venues';
 
   return (
     <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
@@ -98,15 +159,18 @@ export function RulesetMatchFormatBox(props: Props) {
       </h3>
       <p className="mb-3 text-xs text-muted">{t('admin.srcComponents.matchFormatDefaultsHelp')}</p>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {number('pointCap', { label: t('admin.srcComponents.pointCapLabel'), min: 1, max: 50 })}
+        {props.hasVenues && venueFields(fields, venues, t)}
+        {!venues &&
+          number('pointCap', { label: t('admin.srcComponents.pointCapLabel'), min: 1, max: 50 })}
         {select('timerMode', t('admin.srcComponents.timerModeLabel'), {
           countdown: t('admin.srcComponents.timerModeCountdown'),
           countup: t('admin.srcComponents.timerModeCountup'),
         })}
-        {select('scoringDirection', t('admin.srcComponents.scoringDirectionLabel'), {
-          normal: t('admin.srcComponents.scoringDirectionNormal'),
-          reverse_zero_loses: t('admin.srcComponents.scoringDirectionReverse'),
-        })}
+        {!venues &&
+          select('scoringDirection', t('admin.srcComponents.scoringDirectionLabel'), {
+            normal: t('admin.srcComponents.scoringDirectionNormal'),
+            reverse_zero_loses: t('admin.srcComponents.scoringDirectionReverse'),
+          })}
         {number('pool', { label: t('admin.srcComponents.timeLimitPoolLabel'), ...TIME })}
         {number('bracket', { label: t('admin.srcComponents.timeLimitBracketLabel'), ...TIME })}
         {number('finals', { label: t('admin.srcComponents.timeLimitFinalsLabel'), ...TIME })}

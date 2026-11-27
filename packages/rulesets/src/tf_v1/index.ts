@@ -52,6 +52,18 @@ const TF_V1_RANKING_CHAIN: RankingRule[] = [
 ];
 
 /**
+ * TF_v1's afterblow rule. FFAMHE scores the retaliation at a flat 1 regardless
+ * of target — see the ARCHITECTURE.md FAL columns (1-1, 2-1; no 2-2). One owner
+ * for the metadata below and for a copy of TF_v1 (`./as-formula.ts`).
+ */
+export const TF_V1_AFTERBLOW = {
+  hasAfterblow: true,
+  defaultAfterblowMode: 'deductive',
+  afterblowValuation: 'fixed',
+  afterblowFixedValue: 1,
+} as const;
+
+/**
  * What every version of TF_v1 shares: the maths, the config, the standings.
  * The versions differ in their end decision only (ruling "TF_v1 version",
  * 2026-10-16), and the FAL 2026 golden test holds the maths of all of them.
@@ -117,14 +129,9 @@ const TF_V1_SHARED = {
   rankingChain: TF_V1_RANKING_CHAIN,
 
   metadata: {
-    hasAfterblow: true,
+    ...TF_V1_AFTERBLOW,
     // The pool-only doubles ceiling is TF_v1's rule; Generic_PointsCap has none.
     hasMaxDoubles: true,
-    defaultAfterblowMode: 'deductive',
-    // FFAMHE scores the retaliation at a flat 1 regardless of target — see
-    // the ARCHITECTURE.md FAL columns (1-1, 2-1; no 2-2).
-    afterblowValuation: 'fixed',
-    afterblowFixedValue: 1,
     winBonus: TFv1DefaultConfig.winBonus,
     doublePenaltyFormula: formatDoublePenalty(TFv1DefaultConfig.doublePenaltyFormula),
     targets: TFv1DefaultConfig.targets,

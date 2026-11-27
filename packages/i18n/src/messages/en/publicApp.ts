@@ -506,7 +506,6 @@ export const publicApp = {
       kindFinal: 'Final',
       kindSemiFinal: 'Semi-final',
       kindQuarterFinal: 'Quarter-final',
-      kindRoundOf: 'Round of {count}',
       kindSwiss: 'Swiss',
       kindSwissRound: 'Swiss round {round}',
       swissProgress: 'Swiss · round {done} of {total}',
@@ -517,6 +516,8 @@ export const publicApp = {
       referee: 'Referee',
       /** A fighter's elimination bracket, as a clash names it: "Elimination · Longsword Open". */
       eliminationBlock: 'Elimination',
+      /** A fighter's Pool phase, as a schedule group names it: "Longsword Open · Pools". */
+      poolsBlock: 'Pools',
       conflictsWith: 'Conflicts with: {items}',
       live: 'Live',
       won: 'Won {a}–{b}',
@@ -530,6 +531,10 @@ export const publicApp = {
       emptyAll: 'Nothing scheduled yet.',
       matchCount: '{count} matches',
       matchCountOne: '{count} match',
+      /** A Workshop card's end: "until 18:00". */
+      until: 'until {time}',
+      /** An attended Workshop's instructors: "with Jean Dupont and Ana Ruiz". */
+      withInstructors: 'with {names}',
       clashCheckIncomplete:
         "We couldn't work out when {count} of your commitments end, so they aren't checked for clashes.",
       clashCheckIncompleteOne:
@@ -1177,7 +1182,6 @@ export const publicApp = {
       final: 'Final',
       semiFinals: 'Semi-finals',
       quarterFinals: 'Quarter-finals',
-      roundOf: 'Round of {count}',
       pools: 'Pools',
       swiss: 'Swiss',
     },
@@ -1426,7 +1430,9 @@ export const publicApp = {
     emptySearch: 'No workshops match your search.',
     dateToBeAnnounced: 'Date to be announced',
     full: 'Full',
-    almostFull: 'Almost full',
+    almostFullSpot: 'Almost full · 1 spot',
+    almostFullSpots: 'Almost full · {count} spots',
+    spotLeft: '1 spot left',
     spotsLeft: '{count} spots left',
     durationMinutes: '{count} min',
     moreSessions: '+{count} more',
@@ -1514,7 +1520,8 @@ export const publicApp = {
   },
   photoSend: {
     title: 'Send photos',
-    pick: 'Take or choose photos',
+    takePhoto: 'Take a photo',
+    choosePhotos: 'Choose photos',
     nameLabel: 'Your name',
     captionLabel: 'Caption',
     optional: 'optional',
@@ -1975,6 +1982,5 @@ export const publicApp = {
     deepTargetsTitle: 'Deep-target hunters',
     deepTargetsCaption: 'Deepest target ({points} pts)',
     pointDistributionTitle: 'Target zones',
-    pointDistributionSegment: '{points} pt',
   },
 } as const satisfies MessageTree;

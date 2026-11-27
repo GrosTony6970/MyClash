@@ -781,6 +781,15 @@ export const organizer = {
       bestOfN: 'Au meilleur des {n}',
       bestOfHelp:
         'Nombre de manches; gagner la majorité des manches remporte le match. Manche unique = comportement actuel.',
+      scoringUnitLabel: 'Score par',
+      scoringUnitPoints: 'Points (valeur des cibles)',
+      scoringUnitVenues: 'Venues (1 par venue gagnée)',
+      venuesPerRoundPool: 'Venues gagnées par manche (poule)',
+      venuesPerRoundBracket: 'Venues gagnées par manche (tableau)',
+      venuesPerRoundFinals: 'Venues gagnées par manche (finales)',
+      stopWhenDecidedLabel: "Arrêter la manche dès qu'elle est décidée",
+      stopWhenDecidedHelp:
+        'Désactivé : toutes les venues gagnées sont jouées, même quand le résultat ne peut plus changer.',
       softClock: 'Horloge souple',
       maxDoubleHits: 'Doubles maximum',
       maxDoubleHitOutcome: 'Résultat au plafond de doubles',
@@ -1041,7 +1050,7 @@ export const organizer = {
       live: 'En direct',
       completed: 'Terminé',
       visibility: 'Visibilité : {status}',
-      tournaments: 'Tournois',
+      tournamentsSection: 'Tournois ({count})',
       participants: 'Participants',
       uniqueFighters: 'Combattants uniques',
       uniqueReferees: 'Arbitres uniques',
@@ -1263,7 +1272,6 @@ export const organizer = {
     },
     pointDistribution: {
       title: 'Zones de cible',
-      segment: '{points} pt',
       noWeapon: 'Sans arme',
     },
     referees: {
@@ -1277,6 +1285,11 @@ export const organizer = {
       colCards: 'Cartons',
       colProtests: 'Réclamations',
       colAvgTime: 'Temps moy.',
+      colAvgLead: 'Moy. déclarant',
+      colAvgAssessor: 'Moy. assesseur',
+      colAvgTable: 'Moy. table',
+      searchReferee: 'Rechercher un arbitre',
+      noMatch: 'Aucun arbitre ne correspond.',
       empty: 'Aucun arbitrage enregistré pour le moment.',
     },
   },
@@ -1801,6 +1814,12 @@ export const organizer = {
       fighterOut:
         'Ce combattant est hors du tournoi (retiré ou disqualifié) : réintégrez-le d’abord.',
       fieldChanged: 'Les combattants ont changé pendant l’appariement de la ronde : réessayez.',
+      poolPhaseMissing:
+        'Le classement par rang de poule demande une phase de poules dans ce tournoi, et il n’y en a pas.',
+      poolPhaseOpen:
+        'Le classement par rang de poule demande que tous les combats de poule soient terminés : certains sont encore ouverts.',
+      ratingCoverageLow:
+        'Seuls {rated} combattants sur {total} ({percent} %) ont un classement HEMA, sous les {threshold} % requis. Tirez au sort, ou baissez le seuil.',
     },
     rounds: {
       roundHasRecords: 'Cette ronde porte un carton noir ou un forfait : annulez-le d’abord.',
@@ -2536,7 +2555,6 @@ export const organizer = {
     roundFinal: 'Finale',
     roundSemis: 'Demi-finales',
     roundQuarters: 'Quarts de finale',
-    roundOfN: 'Tableau de {n}',
     printTitle: '{name} — Classement final',
     tournamentFallback: 'Tournoi',
   },
@@ -2788,6 +2806,9 @@ export const organizer = {
     refereesUnassign: 'Retirer',
     refereesUnassigned: 'Non affecté',
     refereesTournamentTabsLabel: 'Changer de tournoi',
+    refereesFilterLabel: 'Rechercher un arbitre',
+    refereesFilterPlaceholder: "Nom de l'arbitre",
+    refereesFilterNoMatch: "Aucun combat n'a d'arbitre correspondant à « {query} ».",
   },
   pools: {
     tabs: {
@@ -2916,8 +2937,10 @@ export const organizer = {
         diff: 'Différentiel : points marqués moins points encaissés.',
         doubles:
           "Doubles (les deux combattants touchent en même temps) ; moins il y en a, mieux c'est.",
-        hitsGiven: 'Touches nettes portées aux adversaires.',
-        hitsReceived: "Touches nettes reçues ; moins il y en a, mieux c'est.",
+        hitsGiven:
+          'Points marqués par les touches de ce combattant, selon la valeur de chaque cible, contre-frappes comprises.',
+        hitsReceived:
+          "Nombre de fois où ce combattant a été touché, contre-frappes comprises ; une touche profonde compte une fois. Moins il y en a, mieux c'est.",
         status: 'Indique si tous les matchs de poule de ce combattant sont terminés.',
       },
     },

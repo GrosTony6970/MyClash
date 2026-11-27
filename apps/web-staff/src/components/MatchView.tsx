@@ -22,7 +22,12 @@ import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
-import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
+import {
+  boutStatusOnPad,
+  resultUnconfirmed,
+  tabletResult,
+  tabletWinner,
+} from '../offline/pad-clock';
 import type { PressedOn } from '../offline/db';
 import { queuePress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
@@ -32,7 +37,7 @@ import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import { pointCapWinnerColor, protestRulesOf } from '@myclash/types';
+import { protestRulesOf } from '@myclash/types';
 import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import { editionOf } from '../lib/bout-edition';
 import type { PadBoutRules } from '../lib/bout-read';
@@ -42,12 +47,13 @@ import {
   settledConfig,
   type HeldMatchConfig,
 } from '../lib/bout-rules';
+import { padPointCap, venuesCounterOnPad } from '../lib/venues-pad';
 import { cardCatalogueKey } from '../lib/penalty-catalogue';
 import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
-import { endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
+import { decidedSide, endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
 import { padRequest } from '../offline/drill-request';
 import { serverNextSequence } from '../lib/sequence-seed';
 
@@ -282,6 +288,7 @@ export function MatchView({
     cardKey: match.rules ? cardCatalogueKey(match.rules.cardRulesetId) : null,
     refreshKey,
     config: scoringConfig,
+    scoringUnit: matchFormat.scoringUnit,
     syncPendingCount: syncState?.pendingCount ?? 0,
     syncRejectedCount: syncState?.rejectedCount ?? 0,
   });
@@ -533,8 +540,9 @@ export function MatchView({
   const limitMs =
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null;
 
-  // Which side (if any) has won by reaching the point cap — drives the gold
-  // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
+  // Which side (if any) has won by reaching the point cap, or in a venues bout
+  // the venue limit (`decidedSide`) — drives the gold score highlight.
+  // Reverse-aware (in reverse scoring, hitting 0 loses).
   // Reads the provisional score on purpose: it only paints a numeral gold, and
   // a referee needs to see the cap coming while the tablet is offline. It
   // cannot end a bout: the result overlay opens on the CLOCK being ended, and
@@ -542,7 +550,7 @@ export function MatchView({
   // side went in a bout that counts down: with both at zero, one has won. Every
   // rule of the end here asks with the edition of the bout's own version.
   const edition = editionOf(match);
-  const capWinnerSide = pointCapWinnerColor(series, matchFormat, edition);
+  const capWinnerSide = decidedSide(series, match, matchFormat, edition);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // The controls' clock buttons. "End match" before the cap or the time is asked
@@ -591,8 +599,12 @@ export function MatchView({
   const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
   const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match, edition));
   // A board at 0 - 0 that a fighter won (a bout that counts down): the
-  // tablet's own result names that fighter, as the server's row will.
-  const ownWinner = seriesDecided ? undefined : ownResult.winner;
+  // tablet's own result names that fighter, as the server's row will. A
+  // series decided here is won by its rounds (`series.decided`); naming it
+  // here means the result screen never has to guess a winner from a score.
+  const ownWinner = seriesDecided
+    ? (series.decided?.winnerColor ?? undefined)
+    : tabletWinner(ownResult);
   // Why the bout ended, for the result screen: the tablet's own reason while
   // its result is not confirmed (an End at the doubles limit), then the
   // server's. A decided series says its rounds, never its last round's reason.
@@ -780,6 +792,7 @@ export function MatchView({
         currentRound={series.round}
         redRoundWins={series.redRoundWins}
         blueRoundWins={series.blueRoundWins}
+        venues={venuesCounterOnPad(match, matchFormat, series.redVenuesWon + series.blueVenuesWon)}
       />
 
       {match.lockedAt && (
@@ -858,7 +871,7 @@ export function MatchView({
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && redScore > blueScore}
           readOnly={!!match.lockedAt}
-          pointCap={matchFormat.pointCap}
+          pointCap={padPointCap(matchFormat)}
           reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
@@ -919,7 +932,7 @@ export function MatchView({
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && blueScore > redScore}
           readOnly={!!match.lockedAt}
-          pointCap={matchFormat.pointCap}
+          pointCap={padPointCap(matchFormat)}
           reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}

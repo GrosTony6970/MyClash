@@ -6,7 +6,9 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
+import type { AfterblowMode } from '@myclash/types';
+import { exchangeDeltas, type ScoringUnit } from '@myclash/rules';
+import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { DEFAULT_EVENT_TIMEZONE, dayStartUtcIso } from '@myclash/time';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -24,7 +26,8 @@ import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
 import { unplayedMatchColumns } from './unplayed-match-columns';
-import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
+import { BOUT_RULES, afterblowModeOf, boutEngineOf, boutRulesOf } from './bout-rules';
+import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
 import { nextSequence } from './timeline-sequence';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
@@ -143,7 +146,9 @@ export class MatchesService {
    * Public endpoint — no auth required (same as getMatch).
    */
   async getMatchSummary(matchId: string) {
-    const summary = (await matchSummaries(this.supabase.service, [matchId])).get(matchId);
+    const summary = (
+      await matchSummaries(this.supabase.service, [matchId], this.rulesets ?? null)
+    ).get(matchId);
     if (!summary) throw new NotFoundException(`Match ${matchId} not found`);
     return summary;
   }
@@ -232,8 +237,30 @@ export class MatchesService {
     return eventId;
   }
 
+  /**
+   * Mark a bout completed by hand. Ruling 1010: it names its winner, one of the bout's two
+   * fighters (the DTO requires one). A completion with no winner wrote no result and no reason
+   * whatever the score; a draw comes from the clock, which stores why.
+   */
   async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
-    return this.setStatus(matchId, dto.status, dto.winnerRegistrationId);
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('red_registration_id, blue_registration_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+    const sides = [data['red_registration_id'], data['blue_registration_id']];
+    if (!sides.includes(dto.winnerRegistrationId)) {
+      throw new BadRequestException({
+        message: 'The winner of a bout marked completed must be one of its two fighters',
+        code: 'winner_not_in_bout',
+      });
+    }
+    return this.setStatus(matchId, {
+      status: dto.status,
+      winnerRegistrationId: dto.winnerRegistrationId,
+    });
   }
 
   /**
@@ -249,7 +276,7 @@ export class MatchesService {
     // that is owned before the write so a refusal leaves the row alone. There
     // is no transaction, so ordering is the guarantee.
     await this.uncomplete(matchId, 'match status set to voided', context, discardDependents);
-    return this.setStatus(matchId, 'voided');
+    return this.setStatus(matchId, { status: 'voided' });
   }
 
   /**
@@ -265,19 +292,25 @@ export class MatchesService {
    * `voidMatch` had already falsified by routing through it. An unobserved
    * failure there is a bracket that silently did not advance, in front of a
    * caller about to act on the response.
+   *
+   * A RESULT BY HAND IS ITS WINNER ALONE (ruling 1010). The reason a bout ended before is cleared:
+   * a result is its winner and its reason, and an old `max_doubles` read beside a named winner was
+   * still a loss for both, and an old `time_limit` let the next correction decide the bout again
+   * from the board, over the winner named here.
    */
   private async setStatus(
     matchId: string,
-    status: UpdateMatchStatusDto['status'] | 'voided',
-    winnerRegistrationId?: string,
+    result: { status: 'voided' } | { status: 'completed'; winnerRegistrationId: string },
   ) {
+    const { status } = result;
     const updates: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
     };
-    if (status === 'completed') {
+    if (result.status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
+      updates['winner_registration_id'] = result.winnerRegistrationId;
+      updates['end_reason'] = null;
     }
 
     const { data, error } = await this.supabase.service
@@ -565,8 +598,8 @@ export class MatchesService {
 
     // Compute netted score deltas for materialized columns (raw afterblow
     // values are still stored below — only the deltas apply the mode).
-    const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
-    const { redDelta, blueDelta } = this.computeDeltas(dto, afterblowMode);
+    const pricing = await this.pricingOf(matchId, dto.type);
+    const { redDelta, blueDelta } = this.computeDeltas(dto, pricing);
 
     const insertRow = (sequence: number) =>
       this.supabase.service
@@ -903,7 +936,7 @@ export class MatchesService {
     // admin's. An organiser there has the void, which files a request.
     await this.frozenResults?.assertResultMutationAllowed(matchId, context?.userId);
 
-    const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
+    const pricing = await this.pricingOf(matchId, dto.type);
     const { redDelta, blueDelta } = this.computeDeltas(
       {
         clientUuid: randomUUID(),
@@ -915,7 +948,7 @@ export class MatchesService {
         afterblowValue: dto.afterblowValue,
         noExchangeReason: dto.noExchangeReason,
       },
-      afterblowMode,
+      pricing,
     );
 
     const replacement = {
@@ -1161,53 +1194,64 @@ export class MatchesService {
    */
   private computeDeltas(
     dto: CreateExchangeDto,
-    afterblowMode: AfterblowMode = 'full',
+    { afterblowMode, scoringUnit }: BoutPricing,
   ): { redDelta: number; blueDelta: number } {
-    let redDelta = 0;
-    let blueDelta = 0;
-
-    switch (dto.type) {
-      case 'clean':
-        if (dto.firstStrikerColor === 'red') redDelta = dto.firstStrikeValue ?? 0;
-        else if (dto.firstStrikerColor === 'blue') blueDelta = dto.firstStrikeValue ?? 0;
-        break;
-      case 'afterblow': {
-        const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
-          afterblowMode,
-          dto.firstStrikeValue ?? 0,
-          dto.afterblowValue ?? 0,
-        );
-        if (dto.firstStrikerColor === 'red') {
-          redDelta = attackerDelta;
-          blueDelta = defenderDelta;
-        } else if (dto.firstStrikerColor === 'blue') {
-          blueDelta = attackerDelta;
-          redDelta = defenderDelta;
-        }
-        break;
-      }
-      case 'double':
-      case 'no_exchange':
-        break;
-    }
-
-    return { redDelta, blueDelta };
+    // The one pricing function the scorer and the pad share. In venues mode it
+    // prices a clean hit at 1 whatever value the button posted (a stale pad), and
+    // an afterblow at 0/0.
+    const { red, blue } = exchangeDeltas(
+      {
+        type: dto.type,
+        firstStrikerColor: dto.firstStrikerColor ?? null,
+        firstStrikeValue: dto.firstStrikeValue ?? null,
+        afterblowValue: dto.afterblowValue ?? null,
+      },
+      afterblowMode,
+      scoringUnit,
+    );
+    return { redDelta: red, blueDelta: blue };
   }
 
   /**
-   * The bout's afterblow mode, from its copy of its rules (defaults to 'full'). Used at exchange
-   * write to net the materialized score deltas; the raw afterblow values are preserved on the row.
+   * What an exchange of `type` is priced under, the one copy for every write. A double and a
+   * no-exchange price at 0 in every mode, so they need no read of the bout.
    */
-  private async getAfterblowMode(matchId: string): Promise<AfterblowMode> {
+  private async pricingOf(matchId: string, type: CreateExchangeDto['type']): Promise<BoutPricing> {
+    if (type === 'double' || type === 'no_exchange') {
+      return { afterblowMode: 'full', scoringUnit: 'points' };
+    }
+    return this.getBoutPricing(matchId);
+  }
+
+  /**
+   * The bout's pricing, from its copy of its rules: its afterblow mode (defaults to 'full') and
+   * the scoring unit its scorer reads (points or venues). Used at exchange write to price the
+   * materialized score deltas; the raw button values are preserved on the row.
+   */
+  private async getBoutPricing(matchId: string): Promise<BoutPricing> {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(`id, ${BOUT_RULES}`)
       .eq('id', matchId)
       .maybeSingle();
     if (error) throw new Error(`The rules of bout ${matchId} were not read: ${error.message}`);
-    return afterblowModeOf(
-      boutRulesOf((data as Record<string, unknown> | null) ?? { id: matchId }),
-    );
+    const row = (data as Record<string, unknown> | null) ?? { id: matchId };
+    const rules = boutRulesOf(row);
+    // The unit the scorer reads: `scoredMatchFormat` of the bout's copy, so a
+    // ruleset without venues prices in points here as it does there. The copy
+    // is already in hand; nothing reads the Tournament. Without a resolver (a
+    // test wiring) the stored format is read as it stands.
+    let scoringUnit: ScoringUnit;
+    if (this.rulesets) {
+      const { code, version } = boutEngineOf(row);
+      const ruleset = await scoredRuleset(this.rulesets, code, version);
+      scoringUnit = scoredMatchFormat(rules.rulesetConfig, ruleset).scoringUnit;
+    } else {
+      scoringUnit = normalizeMatchFormatConfig(
+        (rules.rulesetConfig as { matchFormat?: unknown }).matchFormat ?? {},
+      ).scoringUnit;
+    }
+    return { afterblowMode: afterblowModeOf(rules), scoringUnit };
   }
 
   /**
@@ -1300,6 +1344,9 @@ export class MatchesService {
 }
 
 type ColorRow = { id: string; first_striker_color: string | null };
+
+/** What an exchange is priced under: no default, so a caller that loses the unit cannot compile. */
+type BoutPricing = { afterblowMode: AfterblowMode; scoringUnit: ScoringUnit };
 
 /**
  * The colour swap's rows, for ONE upsert on `id`: each hit maps to its own next

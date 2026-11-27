@@ -19,8 +19,6 @@ function winnerSide(match: PoolMatchRow): 'red' | 'blue' | null {
     winnerRegistrationId: match.winner_registration_id,
     redRegistrationId: match.red_registration_id,
     blueRegistrationId: match.blue_registration_id,
-    redScore: match.red_score,
-    blueScore: match.blue_score,
   });
 }
 

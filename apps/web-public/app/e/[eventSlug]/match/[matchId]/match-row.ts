@@ -26,7 +26,7 @@ export interface RoundSnapshot {
   redScore: number;
   blueScore: number;
   winnerColor: 'red' | 'blue' | null;
-  endReason: 'first_to_points' | 'max_doubles' | 'time_limit' | null;
+  endReason: 'first_to_points' | 'max_doubles' | 'time_limit' | 'venue_limit' | null;
 }
 
 export interface MatchRow {

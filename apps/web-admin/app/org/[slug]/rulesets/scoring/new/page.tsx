@@ -2,9 +2,8 @@
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
+import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS, tfV1AsFormula } from '@myclash/rulesets';
 import type {
-  BucketDiff,
   DoublePenaltySpec,
   FormulaConstants,
   FormulaNode,
@@ -22,12 +21,7 @@ import {
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
 import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../../src/components/rulesets/AfterblowGrammarEditor';
-import {
-  cloneCodedBase,
-  type CodedCloneBase,
-} from '../../../../../../src/components/rulesets/clone-source';
-import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
-import { ForkLineagePanel } from '../../../../../../src/components/rulesets/LineageLamps';
+import { rulesetEditorKind } from '../../../../../../src/components/rulesets/ruleset-kind';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -69,29 +63,51 @@ interface OrgRulesetCatalogRow {
   afterblow_mode: 'full' | 'deductive' | null;
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
-  /** Set on a coded fork. Load-bearing here: without it `rulesetFormInitial`
-   *  reads the FLAT columns, which are null on a fork, and the clone silently
-   *  loses the fork's own values held in its tf_config. */
+  /** Set on a coded fork of TF v1: a copy of it is a copy of TF v1. */
   base_code: string | null;
-  base_version: string | null;
   /** TF v1's canonical store of its own values — without it a TF v1 clone
    *  would silently lose them. */
   tf_config: RulesetRowLike['tf_config'];
-  /** Server-computed lineage of the SOURCE vs its base, surfaced so the
-   *  operator can see what they are copying. Never derived client-side. */
-  lineage: { base: string; diff: BucketDiff } | null;
+}
+
+/**
+ * A copy of TF v1 (the built-in, or a club's coded copy of it) is a formula
+ * ruleset the club can edit freely, starting from TF v1 written as a formula
+ * (ruling 2026-11-27). It scores exactly as TF v1 until edited:
+ * `tf_v1.as-formula.parity.test.ts`. Its match format is its source's own.
+ */
+function tfCopyInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
+  const { formula, grammar } = tfV1AsFormula(row.tf_config);
+  return {
+    name: `${row.name} (copy)`,
+    description: row.description ?? '',
+    version: '1.0.0',
+    scoreFormula: formula.scoreFormula,
+    constants: formula.constants,
+    tiebreakers: formula.tiebreakers,
+    ownMatchFormat: rulesetFormInitial(row).ownMatchFormat,
+    ownCoded: {},
+    doublePenaltyFormula: formula.doublePenaltyFormula,
+    targets: grammar.targets,
+    afterblow: {
+      hasAfterblow: grammar.hasAfterblow,
+      afterblowValuation: grammar.afterblowValuation,
+      afterblowFixedValue: grammar.afterblowFixedValue,
+      afterblowMode: grammar.defaultAfterblowMode,
+    },
+  };
 }
 
 /** Build a fresh-create form value from a ruleset being cloned: copy the
  *  config, append "(copy)" to the name, reset the version. */
 function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
+  if (rulesetEditorKind(row.code, row.base_code) === 'tf') return tfCopyInitial(row);
   const formula =
     row.score_formula && 'type' in (row.score_formula as object)
       ? (row.score_formula as FormulaNode)
       : null;
   // The source's own values come from the same shared hydration the edit
-  // pages use, so a copy carries what its source set (a TF v1 copy's from
-  // tf_config) and nothing filled in.
+  // pages use, so a copy carries what its source set and nothing filled in.
   const { ownMatchFormat, ownCoded, doublePenaltyFormula, targets, afterblow } =
     rulesetFormInitial(row);
   return {
@@ -132,17 +148,6 @@ export default function OrgNewScoringRulesetPage() {
   // Wait for the clone source before rendering the form so RulesetForm seeds
   // from the cloned values (it reads `initial` once, on mount).
   const [cloneLoading, setCloneLoading] = useState<boolean>(Boolean(cloneFrom));
-  // Set when the source is TF v1 (the built-in, or a fork of it):
-  // the copy stays coded, so the form shows the dials instead of an empty
-  // formula editor and the submit goes to the fork endpoint. Set in the same
-  // batch as `initial`, which is safe because rendering is gated on
-  // `cloneLoading` and RulesetForm reads `initial` once, on mount.
-  const [codedBase, setCodedBase] = useState<CodedCloneBase | null>(null);
-  // A coded copy writes its source's tf_config with only the author's changes applied.
-  const [sourceTfConfig, setSourceTfConfig] = useState<RulesetRowLike['tf_config']>(null);
-  const [sourceLineage, setSourceLineage] = useState<{ base: string; diff: BucketDiff } | null>(
-    null,
-  );
 
   // Without the org id nothing on this page can be saved — `busy={busy || !orgId}`
   // keeps the submit disabled — so a refused resolve has to be said out loud.
@@ -183,10 +188,13 @@ export default function OrgNewScoringRulesetPage() {
         if (cancelled || !r.ok) return;
         const src = r.data.find((row) => row.id === cloneFrom);
         if (!src) return;
-        setInitial(cloneInitial(src));
-        setCodedBase(cloneCodedBase(src));
-        setSourceTfConfig(src.tf_config);
-        setSourceLineage(src.lineage);
+        // A TF v1 source whose stored settings do not parse cannot be copied:
+        // say so, and leave the blank form.
+        try {
+          setInitial(cloneInitial(src));
+        } catch {
+          setError(t('admin.rulesets.cloneSourceUnreadable'));
+        }
       })
       .finally(() => {
         if (!cancelled) setCloneLoading(false);
@@ -194,7 +202,7 @@ export default function OrgNewScoringRulesetPage() {
     return () => {
       cancelled = true;
     };
-  }, [orgId, cloneFrom]);
+  }, [orgId, cloneFrom, t]);
 
   return (
     <main className="mx-auto w-full max-w-4xl p-8">
@@ -218,21 +226,14 @@ export default function OrgNewScoringRulesetPage() {
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
         <>
-          {sourceLineage && (
-            <div className="mb-6">
-              <ForkLineagePanel base={sourceLineage.base} diff={sourceLineage.diff} />
-            </div>
-          )}
           <RulesetForm
             initial={initial}
             validateUrl={
               orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
             }
-            // Cloning TF v1 or a copy of it keeps it coded: show the dials, not
-            // an empty formula editor. A copy of Points cap is a formula ruleset
-            // (ruling 133). `code` stays unset — the new row's code is generated
-            // server-side.
-            baseCode={codedBase?.baseCode ?? null}
+            // Every copy is a formula ruleset: of Points cap (ruling 133), and
+            // of TF v1 (ruling 2026-11-27). `code` stays unset — the new row's
+            // code is generated server-side.
             busy={busy || !orgId}
             submitLabel={t('admin.rulesets.createButton')}
             onSubmit={(data) =>
@@ -240,26 +241,11 @@ export default function OrgNewScoringRulesetPage() {
                 if (!orgId) return;
                 setBusy(true);
                 setError(null);
-                // A coded copy goes to the fork endpoint (which reuses the
-                // base's engine and stores the dials in tf_config); a formula
-                // ruleset posts the flat shape to plain create, as before.
-                const base = `/api/v1/organizations/${orgId}/custom-rulesets`;
-                const path = codedBase ? `${base}/fork` : base;
-                const body = codedBase
-                  ? {
-                      baseCode: codedBase.baseCode,
-                      baseVersion: codedBase.baseVersion,
-                      name: data.name,
-                      description: data.description,
-                      version: data.version,
-                      targets: data.targets,
-                      tfConfig: codedRulesetTfConfig(sourceTfConfig, data, initial.targets),
-                    }
-                  : data;
-                const r = await apiRequest<{ id: string }>(apiUrl, path, {
-                  method: 'POST',
-                  body,
-                });
+                const r = await apiRequest<{ id: string }>(
+                  apiUrl,
+                  `/api/v1/organizations/${orgId}/custom-rulesets`,
+                  { method: 'POST', body: data },
+                );
                 if (!r.ok) {
                   const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
                   if (message) setError(message);

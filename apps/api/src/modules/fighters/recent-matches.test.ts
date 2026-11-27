@@ -19,8 +19,8 @@ describe('buildProfileRecentMatch', () => {
   const own = new Set(['me']);
   const names = new Map([['opp', 'Jane Doe']]);
 
-  it('marks the fighter on red, resolves the opponent, and wins by score', () => {
-    const r = buildProfileRecentMatch(base, own, names);
+  it('marks the fighter on red, resolves the opponent, and wins by the stored winner', () => {
+    const r = buildProfileRecentMatch({ ...base, winnerRegistrationId: 'me' }, own, names);
     expect(r.isRed).toBe(true);
     expect(r.opponentName).toBe('Jane Doe');
     expect(r.outcome).toBe('win');
@@ -28,7 +28,13 @@ describe('buildProfileRecentMatch', () => {
     expect(r.eventSlug).toBe('fosse-aux-lions');
   });
 
-  it('handles the fighter on blue (isRed=false) and a draw by score', () => {
+  it('reads no stored winner as a draw, whoever is ahead on points', () => {
+    // 5-4 with no winner: the score does not decide a finished bout (spec
+    // 2026-11-27-bout-result-is-stored).
+    expect(buildProfileRecentMatch(base, own, names).outcome).toBe('draw');
+  });
+
+  it('handles the fighter on blue (isRed=false) and a draw', () => {
     const r = buildProfileRecentMatch(
       { ...base, redRegistrationId: 'opp', blueRegistrationId: 'me', redScore: 4, blueScore: 4 },
       own,

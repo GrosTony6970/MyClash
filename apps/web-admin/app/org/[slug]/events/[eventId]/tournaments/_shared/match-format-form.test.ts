@@ -33,6 +33,47 @@ describe('matchFormatForm', () => {
   });
 });
 
+describe('a venues form', () => {
+  const VENUES = {
+    ...RULES,
+    matchFormat: normalizeMatchFormatConfig({
+      scoringUnit: 'venues',
+      venuesPerRound: { pool: 7, bracket: 9, finals: 11 },
+      stopWhenDecided: false,
+    }),
+  };
+
+  it('holds the unit, the three phases and the stop flag', () => {
+    const form = matchFormatForm(VENUES);
+    expect(form).toMatchObject({
+      scoringUnit: 'venues',
+      venuesPerRound: { pool: 7, bracket: 9, finals: 11 },
+      stopWhenDecided: false,
+    });
+    expect(Object.keys(form.venuesPerRound)).toEqual(['pool', 'bracket', 'finals']);
+  });
+
+  it('sends the unit, the phases and the stop flag', () => {
+    const matchFormat = (
+      matchFormatBody(matchFormatForm(VENUES))['rulesetConfig'] as {
+        matchFormat: Record<string, unknown>;
+      }
+    ).matchFormat;
+    expect(matchFormat).toMatchObject({
+      scoringUnit: 'venues',
+      venuesPerRound: { pool: 7, bracket: 9, finals: 11 },
+      stopWhenDecided: false,
+    });
+  });
+
+  it('sends scoringUnit points when the form is switched back', () => {
+    const back = { ...matchFormatForm(VENUES), scoringUnit: 'points' as const };
+    expect(matchFormatBody(back)['rulesetConfig']).toMatchObject({
+      matchFormat: { scoringUnit: 'points' },
+    });
+  });
+});
+
 describe('matchFormatBody', () => {
   it('sends the match format under the settings and the afterblow mode under the scoring', () => {
     const body = matchFormatBody(matchFormatForm(RULES));

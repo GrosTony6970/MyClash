@@ -13,6 +13,7 @@ import {
   formulaRow,
   pointsCapRow,
   tfForkRow,
+  tfV1Row,
   VICTORIES,
 } from '../../../../../../src/components/rulesets/scoring-page.fixtures';
 import OrgNewScoringRulesetPage from './page';
@@ -64,8 +65,82 @@ describe('an organisation’s new scoring ruleset', () => {
   });
 });
 
+/** TF_v1 written as a formula: (victories × pointsPerVictory + hitsGiven) / (hitsReceived + doublePenalty). */
+const TF_V1_FORMULA = {
+  type: 'binop',
+  op: '/',
+  left: {
+    type: 'binop',
+    op: '+',
+    left: {
+      type: 'binop',
+      op: '*',
+      left: { type: 'var', name: 'victories' },
+      right: { type: 'var', name: 'pointsPerVictory' },
+    },
+    right: { type: 'var', name: 'hitsGiven' },
+  },
+  right: {
+    type: 'binop',
+    op: '+',
+    left: { type: 'var', name: 'hitsReceived' },
+    right: { type: 'var', name: 'doublePenalty' },
+  },
+};
+const TF_V1_TIEBREAKERS = [
+  { variable: 'victories', direction: 'desc' },
+  { variable: 'doubleHits', direction: 'asc' },
+  { variable: 'hitsReceived', direction: 'asc' },
+];
+const TF_V1_AFTERBLOW = {
+  hasAfterblow: true,
+  afterblowMode: 'deductive',
+  afterblowValuation: 'fixed',
+  afterblowFixedValue: 1,
+};
+
+/** The one save of a copy: the live preview's validate call is no save. */
+function writes(): { path: string; body: Record<string, unknown> }[] {
+  return page.saves.filter((s) => !s.path.endsWith('/validate'));
+}
+
+describe('a copy of TF_v1 (ruling 2026-11-27)', () => {
+  it('is a formula ruleset that starts as TF_v1 written as a formula', async () => {
+    query.params = new URLSearchParams({ cloneFrom: 'rs-tf' });
+    page = await openPenaltyPage(<OrgNewScoringRulesetPage />, {
+      ...ORG,
+      '/api/v1/organizations/org-1/custom-rulesets': [tfV1Row()],
+    });
+
+    await save();
+
+    expect(writes().map((s) => s.path)).toEqual(['/api/v1/organizations/org-1/custom-rulesets']);
+    const create = writes()[0]!.body;
+    expect(create['scoreFormula']).toEqual(TF_V1_FORMULA);
+    expect(create['constants']).toMatchObject({ pointsPerVictory: 3 });
+    expect(create['doublePenaltyFormula']).toBe('n*(n-1)/3');
+    expect(create['tiebreakers']).toEqual(TF_V1_TIEBREAKERS);
+    expect(create).toMatchObject(TF_V1_AFTERBLOW);
+    expect(create['matchFormatDefaults']).toEqual({ timeLimitsSeconds: { pool: 120 } });
+    expect(create).not.toHaveProperty('baseCode');
+    expect(create).not.toHaveProperty('tfConfig');
+  });
+
+  it('opens the formula and the tie-breakers for editing', async () => {
+    query.params = new URLSearchParams({ cloneFrom: 'rs-tf' });
+    page = await openPenaltyPage(<OrgNewScoringRulesetPage />, {
+      ...ORG,
+      '/api/v1/organizations/org-1/custom-rulesets': [tfV1Row()],
+    });
+
+    const buttons = [...document.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(buttons).toContain('+ Victories');
+    expect(buttons).toContain('+ Add tie-breaker');
+  });
+});
+
 describe('a copy of a club’s TF_v1 copy', () => {
-  it('posts the source’s own tf_config, win bonus and targets included', async () => {
+  it('carries the source’s win bonus, targets and match format into the formula', async () => {
     query.params = new URLSearchParams({ cloneFrom: 'rs-fork' });
     page = await openPenaltyPage(<OrgNewScoringRulesetPage />, {
       ...ORG,
@@ -74,11 +149,27 @@ describe('a copy of a club’s TF_v1 copy', () => {
 
     await save();
 
-    const fork = page.saves.find(
-      (s) => s.path === '/api/v1/organizations/org-1/custom-rulesets/fork',
+    expect(writes().map((s) => s.path)).toEqual(['/api/v1/organizations/org-1/custom-rulesets']);
+    const create = writes()[0]!.body;
+    expect(create['scoreFormula']).toEqual(TF_V1_FORMULA);
+    expect(create['constants']).toMatchObject({ pointsPerVictory: FORK_TF_CONFIG.winBonus });
+    expect(create['targets']).toEqual(FORK_TF_CONFIG.targets);
+    expect(create['matchFormatDefaults']).toEqual(FORK_TF_CONFIG.matchFormat);
+    expect(create['tiebreakers']).toEqual(TF_V1_TIEBREAKERS);
+  });
+
+  it('says so when the source’s stored settings cannot be read', async () => {
+    query.params = new URLSearchParams({ cloneFrom: 'rs-fork' });
+    page = await openPenaltyPage(<OrgNewScoringRulesetPage />, {
+      ...ORG,
+      '/api/v1/organizations/org-1/custom-rulesets': [
+        { ...tfForkRow(), tf_config: { winBonus: 'five' } },
+      ],
+    });
+
+    expect(document.body.textContent).toContain(
+      "This ruleset's stored settings could not be read, so the copy starts from a blank form.",
     );
-    expect(fork?.body['tfConfig']).toEqual(FORK_TF_CONFIG);
-    expect(fork?.body['targets']).toEqual(FORK_TF_CONFIG.targets);
   });
 });
 

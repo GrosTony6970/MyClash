@@ -19,7 +19,8 @@ interface MatchSummary {
   opponentName: string;
   ourScore: number;
   opponentScore: number;
-  outcome: 'win' | 'loss' | 'draw';
+  /** Null while the bout is not finished: no W, D or L until it has a result. */
+  outcome: 'win' | 'loss' | 'draw' | null;
   status: string;
 }
 
@@ -130,18 +131,20 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span
-                    className={[
-                      'rounded-full px-2 py-0.5 text-xs font-bold',
-                      won
-                        ? 'bg-success/15 text-success'
-                        : draw
-                          ? 'bg-warning/15 text-warning'
-                          : 'bg-danger/15 text-danger',
-                    ].join(' ')}
-                  >
-                    {won ? 'W' : draw ? 'D' : 'L'}
-                  </span>
+                  {match.outcome !== null && (
+                    <span
+                      className={[
+                        'rounded-full px-2 py-0.5 text-xs font-bold',
+                        won
+                          ? 'bg-success/15 text-success'
+                          : draw
+                            ? 'bg-warning/15 text-warning'
+                            : 'bg-danger/15 text-danger',
+                      ].join(' ')}
+                    >
+                      {won ? 'W' : draw ? 'D' : 'L'}
+                    </span>
+                  )}
                   <p className="font-mono text-sm font-bold tabular-nums text-foreground">
                     {match.ourScore}-{match.opponentScore}
                   </p>

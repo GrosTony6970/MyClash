@@ -1,11 +1,107 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateReferee,
+  fightGroup,
   fightHeaderEnd,
   partitionAtBars,
   refereeAssignmentKey,
+  scheduleWorkshops,
 } from './schedule-model';
-import type { RefereeSlot } from './types';
+import type { RefereeSlot, WorkshopEnrollment, WorkshopTeachingSession } from './types';
+
+describe('scheduleWorkshops', () => {
+  const session = (id: string) => ({
+    workshopSlug: `w-${id}`,
+    workshopName: `Workshop ${id}`,
+    sessionStart: '2027-05-22T14:00:00Z',
+    sessionEnd: '2027-05-22T16:00:00Z',
+    location: 'Hall C',
+  });
+  const taught = (id: string, sessionCancelled = false): WorkshopTeachingSession => ({
+    sessionId: id,
+    ...session(id),
+    sessionCancelled,
+  });
+  const booked = (id: string, over: Partial<WorkshopEnrollment> = {}): WorkshopEnrollment => ({
+    workshopId: id,
+    ...session(id),
+    status: 'confirmed',
+    sessionCancelled: false,
+    instructorNames: ['Jean Dupont'],
+    ...over,
+  });
+
+  it('says of each session whether she teaches it or attends it', () => {
+    const rows = scheduleWorkshops({
+      teaching: [taught('s-teach')],
+      workshops: [booked('s-seat'), booked('s-wait', { status: 'waitlisted' })],
+    });
+    expect(rows.map((r) => [r.key, r.role, r.waitlisted, r.instructorNames])).toEqual([
+      ['ws-s-teach', 'teaching', false, []],
+      ['ws-s-seat', 'attending', false, ['Jean Dupont']],
+      ['ws-s-wait', 'attending', true, ['Jean Dupont']],
+    ]);
+  });
+
+  it('shows a session she teaches and booked once, as taught; her booking of another run stays', () => {
+    const rows = scheduleWorkshops({
+      teaching: [taught('s-sat')],
+      workshops: [booked('s-sat'), booked('s-sun')],
+    });
+    expect(rows.map((r) => [r.key, r.role])).toEqual([
+      ['ws-s-sat', 'teaching'],
+      ['ws-s-sun', 'attending'],
+    ]);
+  });
+
+  it('keeps a cancelled session taught, marked; reads an older cached copy as attending only', () => {
+    expect(scheduleWorkshops({ teaching: [taught('s-off', true)], workshops: [] })).toEqual([
+      expect.objectContaining({ role: 'teaching', sessionCancelled: true }),
+    ]);
+    // A copy cached before the API sent `teaching` or `instructorNames`.
+    const old = { ...booked('s-old'), instructorNames: undefined, sessionCancelled: undefined };
+    expect(scheduleWorkshops({ workshops: [old] })).toEqual([
+      expect.objectContaining({
+        role: 'attending',
+        sessionCancelled: false,
+        instructorNames: [],
+      }),
+    ]);
+    // Hidden by privacy: both null.
+    expect(scheduleWorkshops({ teaching: null, workshops: null })).toEqual([]);
+  });
+});
+
+describe('fightGroup', () => {
+  // Saturday's Pool bouts and Sunday's elimination bout of one Tournament both read
+  // "Longsword Open" (operator, 2026-11-27).
+  const WORDS: Record<string, string> = {
+    'publicApp.me.schedule.poolsBlock': 'Pools',
+    'publicApp.me.schedule.eliminationBlock': 'Elimination',
+    'publicApp.me.hub.kindSwiss': 'Swiss',
+    'publicApp.me.hub.competing': 'Competing',
+  };
+  const t = (key: string) => WORDS[key] ?? `[${key}]`;
+  const open = (phase: 'pool' | 'bracket' | 'swiss' | null) => ({
+    tournamentName: 'Longsword Open',
+    phase,
+  });
+
+  it('names the phase in the title, and puts each phase in its own group', () => {
+    const groups = (['pool', 'bracket', 'swiss'] as const).map((p) => fightGroup(open(p), t));
+    expect(groups.map((g) => g.title)).toEqual([
+      'Longsword Open · Pools',
+      'Longsword Open · Elimination',
+      'Longsword Open · Swiss',
+    ]);
+    expect(new Set(groups.map((g) => g.key)).size).toBe(3);
+  });
+
+  it('keeps the bare Tournament title for a bout with no phase', () => {
+    expect(fightGroup(open(null), t).title).toBe('Longsword Open');
+    expect(fightGroup({ tournamentName: null, phase: null }, t).title).toBe('Competing');
+  });
+});
 
 function slot(over: Partial<RefereeSlot>): RefereeSlot {
   return {

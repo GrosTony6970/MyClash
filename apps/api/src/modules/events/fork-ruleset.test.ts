@@ -235,6 +235,7 @@ describe('buildCodedForkRow (pure)', () => {
     afterblowFixedValue: 1,
     defaultAfterblowMode: 'deductive' as const,
     hasMaxDoubles: true,
+    hasVenues: true,
   };
 
   it('maps grammar to columns and marks the row private + published', () => {

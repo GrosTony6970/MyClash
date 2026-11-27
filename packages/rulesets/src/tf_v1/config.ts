@@ -11,7 +11,7 @@ import { z } from 'zod';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
-  normalizeMatchFormatConfig,
+  parseMatchFormatConfig,
 } from '../match-format';
 import { DEFAULT_DOUBLE_PENALTY_FORMULA, DoublePenaltySpecSchema } from './double-penalty';
 import { DEFAULT_TARGETS, TargetsSchema, withDerivedTargets } from './targets';
@@ -51,7 +51,7 @@ const TFv1ConfigObjectSchema = z.object({
     })
     .default({ deepTarget: 2, shallowTarget: 1 }),
   matchFormat: z
-    .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
+    .preprocess((value) => parseMatchFormatConfig(value), MatchFormatConfigSchema)
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
   /**
    * Either a whitelisted formula KEY (selecting one of DOUBLE_PENALTY_FORMULAS)

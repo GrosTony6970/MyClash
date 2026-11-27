@@ -492,12 +492,12 @@ FULL`, the `supabase_realtime` publication).
 From `match_events` and `exchanges`:
 
 - **Match duration (active)**: sum of intervals between `start`/`resume` and `halt`/`end`. Persisted as `matches.duration_active_ms` when the `end` clock action fires.
-- **Match duration (total)**: `ended_at - started_at`. Persisted as `matches.duration_total_ms` when the `end` clock action fires.
+- **Match duration (total)**: `ended_at` minus the clock's `startedAt`, the origin of the pad's "Temps total" (below), so a referee's clock Reset restarts it too; not `matches.started_at`, which keeps the bout's first Start. Persisted as `matches.duration_total_ms` when the `end` clock action fires.
 - **Judging overhead**: `duration_total_ms − duration_active_ms` — time spent outside active fighting (deliberation, cards, border calls). Available to organisers via the match list (`GET /api/v1/matches?phaseId=...`).
 - **Time between exchanges**: `exchanges.duration_since_prev_ms`, computed at insert.
 - **Currently running matches**: `matches WHERE status='running'`, indexed for the live view.
 
-The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace.
+The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace. It counts from the clock's `startedAt` (the shared fold, `packages/rules/src/clock.ts`). The referee's clock Reset clears it, and the next Resume starts it again at zero. "Start round N" of a best-of match writes the same `reset_clock` row, but keeps it: the server folds a `reset_clock` that follows a `round_advance` row with `opensRound`, so the timer covers the whole match.
 
 ### 5.4bis Venues, and what `event_kind` changes
 
@@ -776,7 +776,8 @@ Three things the contract used to declare and no longer does, because nothing ca
   because the field did. A ruleset validates its own config inside its own methods.
 - **`isMatchOver`'s `clockMs`**, and the `time_limit` branch both built-ins hung off it. The only
   production call passed a literal `0`, so that branch could never fire. A single fight that runs
-  out of time is completed by `ClockService`, which sets no winner and no end reason.
+  out of time is completed by `ClockService` (`timeLimitResult`), which stores the leader as
+  winner with `time_limit`, or no winner with `time_limit` for a draw.
 - **`computeFinalRanking?`** was implemented by no ruleset and called by nobody. The real
   final-ranking authority is a free function in `@myclash/rules`, and no ruleset influences it.
 
@@ -861,7 +862,7 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `displayClockMs` (`@myclash/rules`)                  | turn elapsed active time into the numeral on the clock                                                                                     |
 | `pointCapWinnerColor` (`@myclash/rules`)             | paint the score gold when a side reaches the cap                                                                                           |
 | `applyScoringDirection` (`@myclash/rules`)           | read a `reverse_zero_loses` score down from the cap, on the pad and the bout-flow chart                                                    |
-| `winnerColorFrom` (`@myclash/rules`)                 | name the winner on the end-of-clock overlay and the TV endcard — the ladder behind `resolveMatchWinner`, which the pad already calls       |
+| `winnerColorFrom` (`@myclash/rules`)                 | name the stored winner on the end-of-clock overlay and the TV endcard — the rule behind `resolveMatchWinner`, which the pad already calls  |
 | `pendingLevelStep` (`@myclash/rules`)                | name the remedy a LEVEL bout is waiting on — extra time, sudden death — on the button that applies it and the clock face that announces it |
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
 | `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
@@ -872,6 +873,8 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `belowZero` (`@myclash/rules`)                       | say how far under zero each side went in a bout that counts down, its unsent hits included, so both at zero names the same winner          |
 | `EDITION_2026_10` (`@myclash/rules`)                 | ask `roundOutcome` and `pointCapWinnerColor` with today's end decision when a bout carries no edition the pad knows: a name                |
 | `isDecisionEdition` (`@myclash/rules`)               | check the edition the server sends with a bout, or the tablet kept, before a decider is asked with it: an unknown name would throw there   |
+| `exchangeDeltas` (`@myclash/rules`)                  | price a queued hit with the server's pricer — its button value, or 1 in venues mode — and say which side it won a venue for                |
+| `getEffectiveVenuesPerRound` (`@myclash/rules`)      | read N, the venues of the round the pad closes, by the server's own phase dispatch                                                         |
 
 **Both fighters out of points in a bout that counts down.** A `reverse_zero_loses` board stops at
 zero, so one afterblow can leave both sides at 0. The scorer (`computeMatchFormatScore`) then says
@@ -904,6 +907,82 @@ The provisional score itself remains display-only —
 `apps/web-staff/src/offline/pending-events.ts` computes it for rows still in the
 outbox, and nothing derived on the pad is ever stored. Hard rule 1 is unchanged:
 the server is the only thing that DERIVES a persisted score.
+
+### 7.4 The match format: scoring by points or by venues
+
+A bout counts target points (`scoringUnit: 'points'`, the default) or won venues
+(`'venues'`). A venue is an exchange won by a clean hit: the striker wins it and
+scores 1, whatever the button. An afterblow, a double and a no-exchange win no
+venue and score nothing in venues mode. A card is not a venue, but its points go
+on the board as in points mode. Three fields of `MatchFormatConfig` carry the
+mode, in the three places that must agree (`@myclash/rules` `MatchFormatConfig`,
+`@myclash/rulesets` `MatchFormatConfigSchema`, the API's `matchFormatSchema`):
+
+- `scoringUnit`: `'points' | 'venues'`.
+- `venuesPerRound`: N, the won venues that end a round, per phase (pool, Swiss
+  falling back to pool, bracket, finals; default 5), read by
+  `getEffectiveVenuesPerRound`.
+- `stopWhenDecided`: end the round as soon as the lead cannot be caught (default
+  on), or play all N venues.
+
+In venues mode the point cap is still stored but never read: `isPointCapReached`
+answers false.
+
+**One pricer.** `exchangeDeltas` (`packages/rules/src/afterblow.ts`) says what
+one exchange is worth to each side, and which side it won a venue for (the
+striker of a clean hit, from the exchange type, never from the deltas). Every
+place that prices an exchange asks it: the scorer (`computeMatchFormatScore`,
+which counts `redVenuesWon` / `blueVenuesWon` on the score), the server's stored
+delta on a hit's save and edit (`computeDeltas` in `matches.service.ts`), and the
+pad's queued hit (`offline/pending-events.ts`). Who won a venue on a stored hit
+row is `isWonVenue` (`packages/ui/src/utils/venues-won.ts`), built on the same
+pricer; the pad's venue tally (`pad-series.ts`, its `wonVenue`) reads it.
+
+**When a venues round ends.** `roundOutcome` stays the one decider, for a single
+bout, a best-of round and the pad. In venues mode its `venueLimitOutcome` takes
+the cap's place. With `remaining` = N minus the venues won, the round ends when
+`remaining` is 0, or, with `stopWhenDecided`, when the lead on the BOARD (cards
+included) is greater than `remaining`. A lead equal to `remaining` plays on. The
+leader wins, with the end reason `venue_limit`. A level board at that moment (an
+even N, or a card) follows the rule of a level board at the cap: a phase whose
+chain allows a level end (`chainAllowsLevelEnd`) draws, and any other plays on
+until the next won venue decides. The doubles ceiling keeps its place in the
+order. The clock is unchanged: it ends a round that stalls, as in points mode.
+
+**The pad's buttons.** `buttonsInForce` (`@myclash/types`) puts the stored
+buttons in force by the unit, at read: a venues bout shows one `+1` per side, and
+one `1-1` where a stored afterblow button is shown (§10, "A bout scores with its
+own rules"). The stored buttons are never rewritten, so a switch of the unit
+needs no write. The server prices a venues clean hit at 1 whatever value
+arrives.
+
+**The direction: stored, and in force.** A venues bout always counts up. That is
+how the format is READ, not what is stored. `parseMatchFormatConfig`
+(`@myclash/rulesets`) is the format as stored: validated, legacy keys folded, the
+organiser's direction kept. Every write stores it. `formatInForce` puts it in
+force: a venues format counts up (`scoringDirection: 'normal'`).
+`normalizeMatchFormatConfig` is the two in a row, for every reader that plays
+the format. So a countdown Tournament that tries venues and goes back to points
+counts down again. The settings screens and the wizard edit the stored direction:
+`GET /tournaments/:id` answers its `effectiveRules.matchFormat` with
+`editedMatchFormat` (the ruleset's strips, the stored direction), and the pad,
+the TV and the scorer read `scoredMatchFormat`, which is that format put in
+force.
+
+**A ruleset that offers no venues.** `RulesetMetadata.hasVenues` is false for
+`Generic_PointsCap` alone; a ruleset that says nothing offers venues. It is
+honoured in four places: the Generic engine scores in points whatever the
+Tournament stores; `scoredMatchFormat` forces `scoringUnit: 'points'` before the
+format is put in force, so the round lifecycle, the pad and the TV play points
+(and the stored direction); the TV and the public bout page show the format
+through the same strip (`match-summaries.ts`, the `/display` payload); and the
+admin screens offer no "Score by" choice (`ruleset_grammar.hasVenues`).
+
+**The "Venues 3/5" counter.** In a venues bout the pad header and the TV
+scoreboard show the venues won in the open round over N, beside "Round 2/3".
+Both count from the hit rows they already hold, by `isWonVenue`
+(`venuesCounterOnPad`, `venuesWonInRound`); nothing is added to the display
+payload.
 
 ---
 
@@ -954,11 +1033,23 @@ governs only whether the ruleset appears in the platform-wide catalog for _other
 | **Formula**    | `score_formula` (AST)        | a `FormulaRuleset` built from the stored grammar          |
 | **Coded fork** | `base_code` + `base_version` | short-circuits to `registry.get(base_code, base_version)` |
 
-The coded fork exists because TF*v1's ranking (score, then wins, doubles, timesHit, seed) is an
-algorithm, not an expression — re-authoring it as a formula AST is explicitly ruled out, since the DSL
-cannot carry its tiebreak chain. A fork that wants TF_v1's **maths** with different **parameters**
-therefore keeps pointing at the coded engine while supplying its own config. `base_version` pins \_which*
-coded version the fork tracks, so a later TF_v1@2.0.0 cannot silently change a fork of 1.0.0.
+A coded fork comes from a Tournament's **"Customise this format"** only (ruling 140): a photo of
+the Tournament's TF_v1 settings, pointing at the coded engine with its own config. `base_version`
+pins _which_ coded version the fork tracks, so a later TF_v1@2.0.0 cannot silently change a fork of
+1.0.0.
+
+An organisation's **Clone** or **Adopt** of TF_v1 (or of a coded fork of it) is a **formula**
+ruleset the club can edit freely (rulings 1005-1008), like a copy of Points cap (ruling 133). It
+starts from `tfV1AsFormula(tf_config)` (`packages/rulesets/src/tf_v1/as-formula.ts`):
+`(victories × pointsPerVictory + hitsGiven) / (hitsReceived + doublePenalty)`, the source's win
+bonus, double penalty and targets, TF_v1's tie-breakers and afterblow rule. Until edited it scores
+and ranks exactly as TF_v1, which `tf_v1.as-formula.parity.test.ts` proves on the FAL 2026 data and
+on the afterblow golden bout. Three formula rules make that hold, for every club formula:
+`hitsReceived` is TF_v1's times-hit count (`pointsReceived` is the points those hits were worth),
+`x / 0 = x`, and the server's bout score counts the value of the button pressed. Both count a win
+from the bout's stored winner only: a finished bout's result is its stored winner and end reason,
+never its score (`winnerColorFrom`, `boutOutcomes`; spec
+`docs/superpowers/archive/specs/2026-11-27-bout-result-is-stored-design.md`, rulings 1009-1010).
 
 ### 7bis.3 A pin is a pointer, resolved at read time
 
@@ -1092,7 +1183,7 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 
 | Actor            | Endpoints                                                                                                                                                                               |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Organisation** | `GET catalog` · `POST fork` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                         |
+| **Organisation** | `GET catalog` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                                       |
 | **Super admin**  | `POST :id/publish` / `:id/unpublish` · `GET :id/versions` · `POST :id/versions/:versionId/rollback` · `POST :id/set-default` · `POST :id/approve-public` · `POST :id/reject-submission` |
 
 ### 7bis.6 Ruleset versions: what a version decides
@@ -1123,8 +1214,8 @@ after it is decided as it was fought (operator ruling "TF_v1 version", 2026-10-1
   `normalizeRulesetVersion` reads it as 1.0.0, the old rule, and every writer stores the full form.
 - **New work gets the latest.** A new Tournament, and a fork of a built-in with no base version
   named, take `latestVersionOf(code)`; the pickers list the latest version of each code, and a
-  Tournament on an older one shows it as "earlier end rules". Adopting another club's fork keeps that
-  fork's base version.
+  Tournament on an older one shows it as "earlier end rules". A copy of a club's TF_v1 fork is a new
+  formula ruleset, so it takes today's edition like every club ruleset created (§7bis.2).
 - **A version move.** On a built-in, moving to its other version keeps the Tournament's settings; a
   club ruleset's other version is its content, so the settings follow it (`settingsAfterMove`,
   `apps/api/src/modules/events/ruleset-move-config.ts`, rulings "A version move", "Club version").
@@ -1856,7 +1947,10 @@ bouts is where an official sees that entries still wait.
   bout read (`rules`), and the display from its Tournament's `/match-config`
   (`lib/bout-rules.ts`, `rulesOnPad`). A bout read without its own rules takes
   its Tournament's as the tablet last read them, and the "not confirmed" notice
-  says so.
+  says so. In both cases the buttons are put in force by the format's scoring
+  unit (`buttonsInForce`, `@myclash/types`): a venues bout shows one `+1` per
+  side (and one `1-1` where a stored afterblow button is shown), derived at read and
+  never written over the stored buttons.
 - **The Next and Previous tiles** are the server's once it has answered for the
   bout on screen, and "no neighbour" is such an answer. Until then they come
   from the order the tablet keeps (`usePadNeighbours`), so a bout opened from
@@ -2046,7 +2140,7 @@ When a user views their **My Schedule**, the system computes their personal sche
 2. **Referee assignments** — hard, cannot reschedule.
 3. **Workshop enrollments** — soft, user choice.
 
-For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conflict**. A fighter is busy for a whole **block**, not only their own bouts: their Pool, their Swiss phase, and their elimination bracket from its first bout (whoever fights it) until they are out — a lost completed bout with nothing of theirs left to fight there; while still in, to the bracket's end (operator, 2026-11-23; the API sends `poolSpans` and `phaseSpans`, `duty-windows.ts`, `elimination-end.ts`). Every clash line, on every page and between two bouts too, names the block, never the opponent: "Pool 1 · Longsword Open", "Elimination · Longsword Open", "Swiss · Longsword Open" (`conflicts.ts`, `blockLabel`). A Workshop session's line adds the block's whole window, "Conflicts with Pool 1 · Longsword Open (09:00–12:00)": the block wins over a bout inside it. A referee duty is named by its round: "Referee · Quarter-final · Longsword Open" (`workshop-clash.ts`). The user can:
+For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conflict**. A fighter is busy for a whole **block**, not only their own bouts: their Pool, until the later of its last bout's end and its programme bar's end (operator, 2026-11-27; `pool-block-ends.ts`), their Swiss phase, and their elimination bracket from its first bout (whoever fights it) until they are out — a lost completed bout with nothing of theirs left to fight there; while still in, to the bracket's end (operator, 2026-11-23; the API sends `poolSpans` and `phaseSpans`, `duty-windows.ts`, `elimination-end.ts`). Every clash line, on every page and between two bouts too, names the block, never the opponent: "Pool 1 · Longsword Open", "Elimination · Longsword Open", "Swiss · Longsword Open" (`conflicts.ts`, `blockLabel`). A Workshop session's line adds the block's whole window, "Conflicts with Pool 1 · Longsword Open (09:00–12:00)": the block wins over a bout inside it. A referee duty is named by its round: "Referee · Quarter-final · Longsword Open" (`workshop-clash.ts`). The user can:
 
 - Cancel the workshop enrollment.
 - Acknowledge the conflict (warning persists, but user proceeds).
@@ -2112,7 +2206,13 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - A person's schedule reads a booking by what it IS (`apps/api/src/modules/persons/person-workshops.ts`):
   anybody the person's privacy lets in reads the seats; the person alone reads their waitlist places,
   marked, and the sessions whose instructor refused them (rulings 235, 236). A refusal is a removal,
-  not a ban (ruling 219): the person's "Register again" removes it, then books.
+  not a ban (ruling 219): the person's "Register again" removes it, then books. Each seat names its
+  instructors, less those who hide their Workshops (ruling 132). The sessions the person TEACHES
+  come apart, as `teaching` (`readPersonTeaching`, keyed on the global person), behind the same
+  privacy switch — an instructor line is no seat; a draft Workshop shows on the instructor's own
+  read only. The schedules show both, each card marked
+  "Instructor" or "Attending" (`WorkshopRoleChip`); a session taught and booked shows once, as
+  taught (`scheduleWorkshops`), and a taught session takes part in the clash check.
 - Two pages book: the personal Workshops page (an account) and the public Workshop page
   `/e/[eventSlug]/w/[workshopSlug]` (an account or a guest session, ruling 261). Both read the
   caller's bookings from `GET /events/:event/my-schedule` and draw them with one set of controls
@@ -2135,8 +2235,9 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   in the reader's language by one owner (`refusalWords`): the public page in its short message, the
   personal page in a line under that session's button until the next tap (ruling 294).
 - What the public page says beside the controls (rulings 266, 267, 270, 271, 272). A clash with the
-  caller's own fights and duties, warned and never blocked, from the one owner both pages ask
-  (`workshop-clash.ts`). A bookings read that failed, with a Retry. After a booking's 401, who the
+  caller's own fights, duties, the classes they teach ("Instructor · Demo Workshop 6") and the
+  sessions they already booked (a seat or a waitlist place), warned and never blocked, from the
+  one owner both pages ask (`workshop-clash.ts`). A session never warns of itself. A bookings read that failed, with a Retry. After a booking's 401, who the
   door did not know: a visitor reads the two ways in (the participants list, or sign in), a
   signed-in account with no roster row at the Event reads that it is not on the list
   (`unknownCaller` asks `/me`). A guest of the Event reads that a guest gets no alert: an alert goes
@@ -3769,7 +3870,11 @@ complete the bout first, and the End once wrote `time_limit` over their reason. 
 in play carries no result (ruling 331, `noResultColumns`): the clock's reopen and a Start on a
 bout a forfeit ended before it began clear the winner and the end reason, so the next End names
 who leads on the board. `PATCH /status` takes no bout out of completed (ruling 338): it read no
-sheet and put no score back. A voided bout keeps its own.
+sheet and put no score back. A voided bout keeps its own. A bout completed through it names its
+winner, one of its two fighters (ruling 1010, `winner_not_in_bout`), and clears the end reason: a
+result by hand is its winner alone. A level bout the clock ends as a draw stores `time_limit` with
+no winner; a clock End on a best-of bout still in play is refused (`series_not_decided`), since
+its rounds end it.
 A clock action over HTTP goes through `ScoringService.clockAction`: a bout a live record cut
 short (the record found it not completed) reads its sheet again once the clock has put it back
 in play. A bout fought to its end does not, by the board or under an override: a sheet at the
@@ -5213,7 +5318,10 @@ The server keeps the picture and nothing else. `jpeg-strip.ts` walks the JPEG an
 segments that draw the image, by whitelist: EXIF, GPS, thumbnails, comments and everything after
 the first end-of-image marker go. The picture bytes are copied as sent, with no re-compression.
 Only what phone cameras write is accepted (one baseline or extended-sequential frame in one scan,
-at most 64 megapixels), so decode memory is bounded. `photo-preview.ts` makes a 1024-pixel preview
+at most 64 megapixels), so decode memory is bounded. The phone page sends a JPEG of that shape as it
+is; any other JPEG (a website's, often progressive, or a Google Photos cloud copy) it draws on a
+canvas and sends as a new baseline JPEG, re-compressed (`camera-jpeg.ts`, ruling 1004). The API's
+check is unchanged and stays the authority. `photo-preview.ts` makes a 1024-pixel preview
 from the stripped bytes. The objects are written first and the row last.
 
 In `live` mode the photo is public at once. In `approve` mode it waits for a moderator.
@@ -5467,6 +5575,9 @@ The rules:
 - **A referee role is shown by the skill's name** (`skillName ?? role`) in `my_events` and
   `my_schedule`, as the app does. `my_upcoming` and the `my_stats` role keys carry the raw role:
   their services hold no name. `my_schedule`'s duties carry the duty's `roundCode`.
+- **`my_schedule` lists the Workshops taught and booked**, by start, each with its `role`
+  (teaching, attending), `waitlisted`, and the `instructors` of a session attended. A session
+  taught and booked is listed once, as taught — the app's rule (`scheduleWorkshops`).
 - **A Swiss Tournament lists no round standings.** `tournament_standings` answers
   `swiss: { rounds, roundsCompleted }` (null when there is no Swiss phase) and nothing more of
   it. A double-elimination bracket keeps its last round whole: the bronze split is for

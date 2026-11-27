@@ -175,6 +175,21 @@ export const BestOfConfigSchema = z
   })
   .default({ pool: 1, bracket: 1, finals: 1 });
 
+const ScoringUnitSchema = z.enum(['points', 'venues']);
+
+/** Venues a round is fought over: a whole number from 1 to 50. */
+const VenueCountSchema = z.number().int().positive().max(50);
+
+const VenuesPerRoundConfigSchema = z
+  .object({
+    pool: VenueCountSchema.default(5),
+    /** Optional, falling back to `pool` — see `timeLimitsSeconds.swiss`. */
+    swiss: VenueCountSchema.optional(),
+    bracket: VenueCountSchema.default(5),
+    finals: VenueCountSchema.default(5),
+  })
+  .default({ pool: 5, bracket: 5, finals: 5 });
+
 export const MatchFormatConfigSchema = z.object({
   // Federal-rulebook (FFAMHE) baseline. A ruleset stores only the values its
   // author changed, in tf_config.matchFormat (TF v1 and its copies) or
@@ -207,6 +222,12 @@ export const MatchFormatConfigSchema = z.object({
   // Pool draws; bracket and finals play extra time and then sudden death. See
   // `pendingLevelStep` and `chainAllowsLevelEnd`.
   levelAtTime: LevelAtTimeConfigSchema,
+  // Points (every format before venues) or venues: a round of N won exchanges,
+  // ended early once the lead cannot be caught unless `stopWhenDecided` is off.
+  // The last two are read only in venues mode. See `roundOutcome`.
+  scoringUnit: ScoringUnitSchema.default('points'),
+  venuesPerRound: VenuesPerRoundConfigSchema,
+  stopWhenDecided: z.boolean().default(true),
 });
 
 /**
@@ -235,7 +256,34 @@ type LegacyMatchFormatConfig = {
   maxDoubles?: number | null;
 };
 
+/**
+ * A match format as it is READ for use: its stored keys ({@link parseMatchFormatConfig}), in force
+ * ({@link formatInForce}). Every reader of a format asks this; a write stores the parse.
+ */
 export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
+  return formatInForce(parseMatchFormatConfig(input));
+}
+
+/**
+ * The format in force: a venues bout always counts up. Resolved at read, once, so every reader
+ * of a resolved format (the engine, the pad, the bout-flow chart) sees the one answer, and never
+ * stored: a countdown Tournament that tries venues and goes back to points counts down again.
+ * A write-time refusal cannot carry it either: the API's match-format schema is a partial PATCH
+ * shape, and a cross-field refine on this schema would break every reader of its `.shape`.
+ *
+ * Asked AFTER a ruleset's own strip (`scoredMatchFormat` in the API): a ruleset that forces
+ * points plays its stored direction.
+ */
+export function formatInForce(format: MatchFormatConfig): MatchFormatConfig {
+  return format.scoringUnit === 'venues' ? { ...format, scoringDirection: 'normal' } : format;
+}
+
+/**
+ * A match format as stored: validated, its legacy keys folded into the modern ones, and every
+ * key as the organiser set it. What a write stores; a reader asks
+ * {@link normalizeMatchFormatConfig}.
+ */
+export function parseMatchFormatConfig(input: unknown): MatchFormatConfig {
   if (!input || typeof input !== 'object') return DEFAULT_MATCH_FORMAT_CONFIG;
 
   const raw = input as Record<string, unknown> & LegacyMatchFormatConfig;
@@ -257,7 +305,11 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
     // And the doubles outcome: a ruleset stores only the fields its author
     // changed (operator ruling 59), so a format holding this key alone is
     // ordinary, and the legacy branch would drop it.
-    'maxDoubleHitOutcome' in raw;
+    'maxDoubleHitOutcome' in raw ||
+    // The venues keys, the same trap a fourth time: alone, each was dropped.
+    'scoringUnit' in raw ||
+    'venuesPerRound' in raw ||
+    'stopWhenDecided' in raw;
 
   if (hasSharedShape) {
     const parsed = MatchFormatConfigSchema.parse(raw);

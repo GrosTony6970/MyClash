@@ -242,6 +242,17 @@ const bestOfSchema = z
   })
   .strict();
 
+/** Venues a round is fought over, per phase: mirrors the rulesets `VenuesPerRoundConfigSchema`. */
+const venueCount = z.number().int().min(1).max(50);
+const venuesPerRoundSchema = z
+  .object({
+    pool: venueCount.optional(),
+    swiss: venueCount.optional(),
+    bracket: venueCount.optional(),
+    finals: venueCount.optional(),
+  })
+  .strict();
+
 /**
  * What a LEVEL bout is worth, per phase — an ordered chain of remedies the
  * referee works down until someone leads. Mirrors the rulesets
@@ -294,6 +305,10 @@ const matchFormatSchema = z
     scoringDirection: z.enum(['normal', 'reverse_zero_loses']).optional(),
     bestOf: bestOfSchema.optional(),
     levelAtTime: levelAtTimeSchema.optional(),
+    // `.strict()` again: these three 400 a whole PATCH when the surface sends them unlisted.
+    scoringUnit: z.enum(['points', 'venues']).optional(),
+    venuesPerRound: venuesPerRoundSchema.optional(),
+    stopWhenDecided: z.boolean().optional(),
   })
   .strict();
 

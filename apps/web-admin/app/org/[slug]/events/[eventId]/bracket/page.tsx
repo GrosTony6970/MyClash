@@ -34,6 +34,7 @@ import { diffRoleAssignments } from './diff-role-assignments';
 import { seedingDriftBanner, type SeedingDrift } from './seeding-drift-banner';
 import { countPlayedMatches } from './regenerate-impact';
 import { deriveDoubleElimPodium } from './derive-de-podium';
+import { slotFromMatchRow, type IncomingMatchRow } from './slot-from-match-row';
 import {
   DoubleElimPodiumOptions,
   podiumFromBracket,
@@ -609,15 +610,7 @@ export default function BracketPage() {
       : 'phase_id=eq.00000000-0000-0000-0000-000000000000',
     event: '*',
     onEvent: (payload) => {
-      const incoming = payload.new as {
-        id: string;
-        bracket_slot_id?: string | null;
-        red_score?: number | null;
-        blue_score?: number | null;
-        status?: string;
-        red_registration_id?: string | null;
-        blue_registration_id?: string | null;
-      } | null;
+      const incoming = payload.new as IncomingMatchRow | null;
       if (!incoming?.bracket_slot_id) {
         refreshBracket();
         return;
@@ -628,13 +621,7 @@ export default function BracketPage() {
           ...prev,
           slots: prev.slots.map((s) =>
             s.matchId === incoming.id || s.id === incoming.bracket_slot_id
-              ? {
-                  ...s,
-                  matchId: incoming.id,
-                  redScore: incoming.red_score ?? s.redScore,
-                  blueScore: incoming.blue_score ?? s.blueScore,
-                  status: incoming.status ?? s.status,
-                }
+              ? slotFromMatchRow(s, incoming)
               : s,
           ),
         };
@@ -2048,8 +2035,6 @@ function podiumSide(slot: BracketSlotData): 'red' | 'blue' | null {
     winnerRegistrationId: slot.winnerRegistrationId,
     redRegistrationId: slot.redRegistrationId,
     blueRegistrationId: slot.blueRegistrationId,
-    redScore: slot.redScore,
-    blueScore: slot.blueScore,
   });
 }
 

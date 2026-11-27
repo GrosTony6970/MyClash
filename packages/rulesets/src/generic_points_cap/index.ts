@@ -9,15 +9,17 @@
  * score (for clubs that just want simple pool play)."
  */
 import { z } from 'zod';
+import { exchangeDeltas } from '@myclash/rules';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
   computeMatchFormatScore,
-  normalizeMatchFormatConfig,
+  parseMatchFormatConfig,
   pointCapEndsBout,
   EDITION_2026_04,
   EDITION_2026_10,
   type DecisionEdition,
+  type MatchFormatConfig,
 } from '../match-format';
 import type {
   AfterblowMode,
@@ -36,7 +38,7 @@ import type {
 
 export const GenericPointsCapConfigSchema = z.object({
   matchFormat: z
-    .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
+    .preprocess((value) => parseMatchFormatConfig(value), MatchFormatConfigSchema)
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
   pointsCap: z.number().int().positive().optional(),
   timeLimitSeconds: z.number().int().positive().nullable().optional(),
@@ -56,7 +58,7 @@ export function normalizeGenericPointsCapConfig(config: unknown): GenericPointsC
   if (parsed.pointsCap !== undefined || parsed.timeLimitSeconds !== undefined) {
     return {
       ...parsed,
-      matchFormat: normalizeMatchFormatConfig({
+      matchFormat: parseMatchFormatConfig({
         ...parsed.matchFormat,
         pointCap: parsed.pointsCap ?? parsed.matchFormat.pointCap,
         timeLimitsSeconds:
@@ -95,27 +97,40 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
 }
 
 /**
- * The scoring half, honouring whatever ceiling the config carries.
- *
- * Exported for `createFormulaRuleset`, which reuses this ruleset's hit remapping
- * but keeps its doubles ceiling. `Generic_PointsCap.computeMatchScore` calls it
- * through {@link withoutMaxDoubles}.
+ * The format this ruleset plays: in points, whatever unit it stores, so in the direction it
+ * stores (a venues bout counts up only when read in venues: `formatInForce`). Its scorer and its
+ * end both read this, since the cap is never reached in venues mode (`isPointCapReached`).
  */
-export function computeGenericPointsCapScore(
-  match: Pick<Match, 'phaseType'>,
-  exchanges: Exchange[],
-  config: unknown,
-): MatchScore {
-  return computeScore(match, exchanges, normalizeGenericPointsCapConfig(config));
-}
+const inPoints = (matchFormat: MatchFormatConfig): MatchFormatConfig => ({
+  ...matchFormat,
+  scoringUnit: 'points',
+});
 
+/**
+ * Every hit is worth the one fixed `pointValues.hit`, and an afterblow counts as
+ * a clean hit. A club formula ruleset no longer scores this way: it counts the
+ * button's value (ruling 2026-11-27).
+ *
+ * The venues are counted on the exchanges AS FOUGHT, not as rewritten below: an
+ * afterblow is priced as a clean hit here, and still wins nobody a venue.
+ *
+ * Always in points: this ruleset does not offer venues mode, and its
+ * `isMatchOver` ends a bout on the cap only. A format holding
+ * `scoringUnit: 'venues'` would otherwise price every hit at 1 here while the
+ * bout still ended on points. Stripped here rather than in the schema, for the
+ * reason `withoutMaxDoubles` gives: a club formula ruleset parses through the
+ * same schema and DOES offer venues.
+ */
 function computeScore(
   match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],
   config: GenericPointsCapConfig,
 ): MatchScore {
   const hitValue = config.pointValues.hit;
-  return computeMatchFormatScore(
+  const venues = exchanges
+    .filter((exchange) => !exchange.voided)
+    .map((exchange) => exchangeDeltas(exchange, 'full', 'points').venue);
+  const score = computeMatchFormatScore(
     match,
     exchanges.map((exchange) =>
       exchange.type === 'clean' || exchange.type === 'afterblow'
@@ -127,8 +142,13 @@ function computeScore(
           }
         : exchange,
     ),
-    config.matchFormat,
+    inPoints(config.matchFormat),
   );
+  return {
+    ...score,
+    redVenuesWon: venues.filter((venue) => venue === 'red').length,
+    blueVenuesWon: venues.filter((venue) => venue === 'blue').length,
+  };
 }
 
 // ── Match end ─────────────────────────────────────────────────────────────────
@@ -150,7 +170,7 @@ function matchOver(
   config: GenericPointsCapConfig,
   edition: DecisionEdition,
 ): MatchEndDecision {
-  if (pointCapEndsBout(match, score, config.matchFormat, edition)) {
+  if (pointCapEndsBout(match, score, inPoints(config.matchFormat), edition)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   return { isOver: false, reason: null };
@@ -257,6 +277,8 @@ const GENERIC_SHARED = {
     // No doubles ceiling. Declared so the tournament form stops offering one,
     // the same way `hasAfterblow` stops it offering afterblow controls.
     hasMaxDoubles: false,
+    // No venues mode: it scores and ends in points only (see `computeScore`).
+    hasVenues: false,
     defaultAfterblowMode: null,
     afterblowValuation: null,
     afterblowFixedValue: null,

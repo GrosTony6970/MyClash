@@ -8,8 +8,10 @@
  * 400-line cap.
  */
 import { BadRequestException } from '@nestjs/common';
+import { tfV1AsFormula } from '@myclash/rulesets';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService } from './custom-rulesets.service';
+import { CreateCustomRulesetDto } from './dto/custom-rulesets.dto';
 import { supabaseRpc } from '../../../common/testing/supabase-chain';
 import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
@@ -253,5 +255,46 @@ describe('CustomRulesetsService.validateAndPreview', () => {
     const res = service.validateAndPreview({ ...validInput, targets: [{ name: '', value: 1 }] });
     expect(res.ok).toBe(false);
     expect(res.errors.some((e) => /target/i.test(e))).toBe(true);
+  });
+});
+
+describe('a copy of TF_v1 (ruling 1005): the body the clone page posts', () => {
+  // What `tfCopyInitial` on the org create page sends, as `RulesetForm` submits it.
+  const { formula, grammar } = tfV1AsFormula({ winBonus: 5, matchFormat: { pointCap: 7 } });
+  const body = {
+    name: 'Club TF',
+    description: '',
+    version: '1.0.0',
+    ...formula,
+    matchFormatDefaults: { pointCap: 7 },
+    targets: grammar.targets,
+    hasAfterblow: grammar.hasAfterblow,
+    afterblowMode: grammar.defaultAfterblowMode,
+    afterblowValuation: grammar.afterblowValuation,
+    afterblowFixedValue: grammar.afterblowFixedValue,
+  };
+
+  it('passes the create schema', () => {
+    expect(CreateCustomRulesetDto.schema.safeParse(body).success).toBe(true);
+  });
+
+  it('is created as a formula ruleset carrying the seed', async () => {
+    vi.clearAllMocks();
+    const chain = makeChain({ data: { id: 'new-1' }, error: null });
+    fromMock.mockReturnValue(chain);
+    const service = new CustomRulesetsService(mockSupabase as never, createRulesetRegistry());
+
+    await expect(service.createForOrg('org-1', body as never, 'actor')).resolves.toMatchObject({
+      id: 'new-1',
+    });
+    expect(chain['insert']).toHaveBeenCalledWith(
+      expect.objectContaining({
+        score_formula: formula.scoreFormula,
+        tiebreakers: formula.tiebreakers,
+        double_penalty_formula: 'n*(n-1)/3',
+        has_afterblow: true,
+        afterblow_mode: 'deductive',
+      }),
+    );
   });
 });

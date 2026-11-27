@@ -144,6 +144,9 @@ export interface RefereeHistoryEntry {
 export interface RefereeStats {
   totalMatches: number;
   averageRefereeTimeMs: number;
+  /** Mean time of the Matches held in each role; 0 for a role never held. A Match held in two
+   *  roles counts in both. */
+  averageTimeMsByRole: Record<RefereeRole, number>;
   /** Distinct events the referee has officiated at (counted from assignments). */
   eventsWorked: number;
   roles: Record<RefereeRole, number>;
@@ -168,11 +171,8 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
     if (isRefereeRole(assignment.role)) roles[assignment.role] += 1;
   }
 
-  const durations = [...matchIds].map((matchId) => durationByMatch.get(matchId) ?? 0);
-  const averageRefereeTimeMs =
-    durations.length === 0
-      ? 0
-      : Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
+  const averageRefereeTimeMs = averageTimeOf(matchIds, durationByMatch);
+  const averageTimeMsByRole = averageTimeByRole(mine, durationByMatch);
 
   const eventsWorked = new Set(
     mine.map((assignment) => assignment.eventId).filter((id): id is string => Boolean(id)),
@@ -220,6 +220,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
   return {
     totalMatches: matchIds.size,
     averageRefereeTimeMs,
+    averageTimeMsByRole,
     eventsWorked,
     roles,
     cards,
@@ -262,6 +263,31 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
           }),
         }
       : {}),
+  };
+}
+
+/** Mean time of the given Matches, each counted once; a Match with no recorded time counts as 0. */
+function averageTimeOf(matchIds: Iterable<string>, durationByMatch: Map<string, number>): number {
+  const durations = [...new Set(matchIds)].map((matchId) => durationByMatch.get(matchId) ?? 0);
+  return durations.length === 0
+    ? 0
+    : Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
+}
+
+/** Mean time of the Matches held in each role; a Match held in two roles counts in both. */
+function averageTimeByRole(
+  mine: RefereeAssignmentInput[],
+  durationByMatch: Map<string, number>,
+): Record<RefereeRole, number> {
+  const of = (role: RefereeRole) =>
+    averageTimeOf(
+      mine.filter((a) => a.role === role).map((a) => a.matchId),
+      durationByMatch,
+    );
+  return {
+    arbitre_declarant: of('arbitre_declarant'),
+    arbitre_assesseur: of('arbitre_assesseur'),
+    arbitre_table: of('arbitre_table'),
   };
 }
 

@@ -249,16 +249,12 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       } satisfies FighterEventStat);
 
     // One rule, shared with the standings tables and the recent-form strip
-    // below. This used to consult the winner ALONE, so a bout with none — every
-    // bout that ran out of time, before the clock started naming one — counted
-    // toward `matches` and landed in NEITHER column, quietly inflating the
-    // denominator of every win rate on the page.
+    // below. A bout with no winner is a draw (or a loss for both), never in
+    // NEITHER column: that once inflated the denominator of every win rate.
     const outcome = boutOutcomes({
       winnerRegistrationId: match.winnerRegistrationId,
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
-      redScore: match.redScore,
-      blueScore: match.blueScore,
       endReason: match.endReason,
     })[match.redRegistrationId === registrationId ? 'red' : 'blue'];
 
@@ -342,8 +338,6 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
         winnerRegistrationId: match.winnerRegistrationId,
         redRegistrationId: match.redRegistrationId,
         blueRegistrationId: match.blueRegistrationId,
-        redScore: match.redScore,
-        blueScore: match.blueScore,
         endReason: match.endReason,
       })[match.redRegistrationId === registrationId ? 'red' : 'blue'];
       return [

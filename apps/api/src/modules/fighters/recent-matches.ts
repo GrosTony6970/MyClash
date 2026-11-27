@@ -10,9 +10,11 @@ export type BoutSides = Parameters<typeof boutOutcomes>[0];
  * which must agree with the paginated match history and the career recent-form —
  * is unit-testable in isolation.
  *
- * Outcome rule mirrors getPaginatedMatches: an explicit winner_registration_id
- * decides; absent one, the score decides (equal score = draw). Deriving from the
- * score alone (the old FE behaviour) could not tell a draw from a loss.
+ * Outcome rule mirrors getPaginatedMatches (`boutOutcomes`): the stored
+ * winner_registration_id decides; absent one, the bout is a draw (or a loss for
+ * both at the doubles limit). The score never decides it: deriving from the
+ * score alone (the old FE behaviour) could not tell a draw from a loss, and a
+ * forfeit can be won on the lower score.
  */
 
 /** A match row flattened from the PostgREST embed, plus the event context

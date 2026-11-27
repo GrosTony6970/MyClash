@@ -28,12 +28,21 @@ export interface MyScheduleAnswer {
     start: string | null;
     end: string | null;
   }[];
+  /** The sessions the person teaches and the ones they booked, by start (untimed last). A session
+   *  both taught and booked is listed once, as taught. */
   workshops: {
     name: string;
+    /** Whether the person teaches the session or attends it. */
+    role: 'teaching' | 'attending';
     start: string | null;
     end: string | null;
     location: string | null;
     cancelled: boolean;
+    /** A place on the waiting list, not a seat. Never for a session taught. */
+    waitlisted: boolean;
+    /** Who teaches a session the person attends (less instructors who hide their Workshops);
+     *  empty for one they teach. */
+    instructors: string[];
   }[];
 }
 
@@ -96,12 +105,38 @@ function toAnswer(event: McpEvent, schedule: PersonSchedule): MyScheduleAnswer {
       start: s.startsAt ?? s.scheduledAt,
       end: s.endsAt,
     })),
-    workshops: (schedule.workshops ?? []).map((w) => ({
-      name: w.workshopName,
-      start: w.sessionStart,
-      end: w.sessionEnd,
-      location: w.location,
-      cancelled: w.sessionCancelled,
-    })),
+    workshops: workshopsOf(schedule),
   };
+}
+
+/** The classes taught, then the seats and waitlist places not on one of them, by start. */
+function workshopsOf(schedule: PersonSchedule): MyScheduleAnswer['workshops'] {
+  const teaching = schedule.teaching ?? [];
+  const taught = new Set(teaching.map((s) => s.sessionId));
+  const rows: MyScheduleAnswer['workshops'] = [
+    ...teaching.map((s) => ({
+      name: s.workshopName,
+      role: 'teaching' as const,
+      start: s.sessionStart,
+      end: s.sessionEnd,
+      location: s.location,
+      cancelled: s.sessionCancelled,
+      waitlisted: false,
+      instructors: [],
+    })),
+    ...(schedule.workshops ?? [])
+      .filter((w) => !taught.has(w.workshopId))
+      .map((w) => ({
+        name: w.workshopName,
+        role: 'attending' as const,
+        start: w.sessionStart,
+        end: w.sessionEnd,
+        location: w.location,
+        cancelled: w.sessionCancelled,
+        waitlisted: w.status === 'waitlisted',
+        instructors: w.instructorNames,
+      })),
+  ];
+  // Untimed last; ISO UTC strings sort as times.
+  return rows.sort((a, b) => (a.start ?? '￿').localeCompare(b.start ?? '￿'));
 }

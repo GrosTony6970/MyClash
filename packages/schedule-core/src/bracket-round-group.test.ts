@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { parseBracketRound } from './bracket-round-group';
 
 describe('parseBracketRound', () => {
-  it('labels a play-in code as "Play-ins"', () => {
-    expect(parseBracketRound('LSW-B-PI-M5')?.label).toBe('Play-ins');
+  it('reads a play-in code as PI', () => {
+    expect(parseBracketRound('LSW-B-PI-M5')?.token).toBe('PI');
   });
 
-  it('labels QF/SF/F by their named rounds', () => {
-    expect(parseBracketRound('LSW-B-QF-M1')?.label).toBe('Quarter-finals');
-    expect(parseBracketRound('LSW-B-SF-M1')?.label).toBe('Semi-finals');
-    expect(parseBracketRound('LSW-B-F-M1')?.label).toBe('Final');
+  it('reads QF/SF/F as their named rounds', () => {
+    expect(parseBracketRound('LSW-B-QF-M1')?.token).toBe('QF');
+    expect(parseBracketRound('LSW-B-SF-M1')?.token).toBe('SF');
+    expect(parseBracketRound('LSW-B-F-M1')?.token).toBe('F');
   });
 
-  it('labels R<k> rounds as "Round of <k>"', () => {
-    expect(parseBracketRound('LSW-B-R16-M1')?.label).toBe('Round of 16');
-    expect(parseBracketRound('LSW-B-R32-M1')?.label).toBe('Round of 32');
+  it('reads R<k> rounds', () => {
+    expect(parseBracketRound('LSW-B-R16-M1')?.token).toBe('R16');
+    expect(parseBracketRound('LSW-B-R32-M1')?.token).toBe('R32');
   });
 
   it('returns null for pool codes and missing codes', () => {
@@ -39,18 +39,18 @@ describe('parseBracketRound', () => {
     expect(ordered).toEqual(['PI', 'R32', 'R16', 'QF', 'SF', 'F']);
   });
 
-  it('falls back to "Round <n>" for the B<n> token (double-elim / unknown size)', () => {
+  it('reads the B<n> fallback token (double-elim / unknown size)', () => {
     const r = parseBracketRound('LSW-B-B4-M1');
-    expect(r?.label).toBe('Round 4');
+    expect(r?.token).toBe('B4');
     // Fallback rounds sort after the named single-elim rounds.
     expect(r!.order).toBeGreaterThan(parseBracketRound('LSW-B-F-M1')!.order);
   });
 });
 
 describe('parseBracketRound — Swiss', () => {
-  it('labels an S<n> code as "Swiss Round n"', () => {
-    expect(parseBracketRound('LSW-S1-M1')?.label).toBe('Swiss Round 1');
-    expect(parseBracketRound('LSW-S5-M12')?.label).toBe('Swiss Round 5');
+  it('reads an S<n> code as its Swiss round', () => {
+    expect(parseBracketRound('LSW-S1-M1')?.token).toBe('S1');
+    expect(parseBracketRound('LSW-S5-M12')?.token).toBe('S5');
   });
 
   it('keeps the S<n> token so the group key is per round, not per phase', () => {
@@ -75,7 +75,7 @@ describe('parseBracketRound — Swiss', () => {
   it('does not mistake a weapon abbreviation or match number for a round', () => {
     // weaponAbbr strips digits, so no abbreviation can match /^S\d+$/ —
     // "Sabre" is SBR and a hypothetical S-weapon is still letters-only.
-    expect(parseBracketRound('SBR-B-QF-M1')?.label).toBe('Quarter-finals');
+    expect(parseBracketRound('SBR-B-QF-M1')?.token).toBe('QF');
     expect(parseBracketRound('SBR-P1-M3')).toBeNull();
   });
 });
@@ -83,13 +83,10 @@ describe('parseBracketRound — Swiss', () => {
 describe('parseBracketRound — double elimination', () => {
   const parse = (token: string) => parseBracketRound(`LSW-B-${token}-M1`);
 
-  it('labels winners, losers and grand-final rounds distinctly', () => {
-    expect(parse('WBF')?.label).toBe('Winners Final');
-    expect(parse('WBSF')?.label).toBe('Winners Semi-finals');
-    expect(parse('WBR16')?.label).toBe('Winners Round of 16');
-    expect(parse('LB3')?.label).toBe('Losers Round 3');
-    expect(parse('GF')?.label).toBe('Grand Final');
-    expect(parse('GFR')?.label).toBe('Grand Final Reset');
+  it('reads winners, losers and grand-final rounds distinctly', () => {
+    for (const token of ['WBF', 'WBSF', 'WBR16', 'LB3', 'GF', 'GFR']) {
+      expect(parse(token)?.token).toBe(token);
+    }
   });
 
   it('orders play-ins → winners → losers → grand final', () => {

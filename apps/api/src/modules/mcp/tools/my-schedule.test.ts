@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PersonSchedule } from '../../persons/public-schedule.service';
 import { expectNoRawIds } from './no-raw-ids.test-helper';
-import { mySchedule } from './my-schedule';
+import { mySchedule, type MyScheduleAnswer } from './my-schedule';
 
 const caller = { userId: 'user-1', email: 'a@b.c', clientId: 'c' };
 const EVENT_ID = '00000001-aaaa-4bbb-8ccc-000000000001';
@@ -115,8 +115,10 @@ const schedule = {
       location: 'Hall 2',
       status: 'confirmed',
       sessionCancelled: false,
+      instructorNames: ['Jean Dupont'],
     },
   ],
+  teaching: [],
   refusedWorkshopIds: ['00000008-aaaa-4bbb-8ccc-000000000008'],
 } as unknown as PersonSchedule;
 
@@ -173,13 +175,61 @@ describe('my_schedule', () => {
       workshops: [
         {
           name: 'Footwork',
+          role: 'attending',
           start: '2026-03-14T13:00:00Z',
           end: '2026-03-14T14:00:00Z',
           location: 'Hall 2',
           cancelled: false,
+          waitlisted: false,
+          instructors: ['Jean Dupont'],
         },
       ],
     });
+    expectNoRawIds(result);
+  });
+
+  it('lists the classes the person teaches, once, among their seats and waitlist places, by start', async () => {
+    const double = supabaseDouble({
+      event: eventRow,
+      person: { data: { id: PERSON_ID }, error: null },
+    });
+    const seat = schedule.workshops![0]!;
+    const getSchedule = vi.fn().mockResolvedValue({
+      ...schedule,
+      teaching: [
+        {
+          sessionId: '00000009-aaaa-4bbb-8ccc-000000000009',
+          workshopSlug: 'cutting',
+          workshopName: 'Cutting',
+          sessionStart: '2026-03-14T15:00:00Z',
+          sessionEnd: '2026-03-14T16:00:00Z',
+          location: 'Hall 1',
+          sessionCancelled: false,
+        },
+        // Taught AND booked: listed once, as taught.
+        { ...schedule.workshops![0]!, sessionId: seat.workshopId, sessionCancelled: false },
+      ],
+      workshops: [
+        seat,
+        {
+          ...seat,
+          workshopId: '0000000a-aaaa-4bbb-8ccc-00000000000a',
+          workshopName: 'Messer',
+          sessionStart: '2026-03-14T08:00:00Z',
+          status: 'waitlisted',
+          instructorNames: [],
+        },
+      ],
+    });
+    const result = await mySchedule('fal-2026', caller, depsFor(double, getSchedule));
+
+    expect(
+      (result as MyScheduleAnswer).workshops.map((w) => [w.name, w.role, w.waitlisted]),
+    ).toEqual([
+      ['Messer', 'attending', true],
+      ['Footwork', 'teaching', false],
+      ['Cutting', 'teaching', false],
+    ]);
     expectNoRawIds(result);
   });
 

@@ -16,9 +16,11 @@ import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bracketToken } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
-import type { Match as RulesetMatch } from '@myclash/rulesets';
+import type { Match as RulesetMatch, Ruleset } from '@myclash/rulesets';
 import { isOver } from '../../common/live-status';
-import { asRow } from './bout-rules';
+import { asRow, boutEngineOf } from './bout-rules';
+import type { RulesetResolver } from './ruleset-resolver.service';
+import { scoredMatchFormat } from './scored-match-format';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import {
@@ -35,7 +37,7 @@ const VIEW_SELECT =
 /** `lice_id` is on the bout's row, not on the view; so is its copy of its rules (its format). */
 const ROUND_SELECT =
   'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, ' +
-  'match_rules(ruleset_config)';
+  'match_rules(ruleset_code, ruleset_version, ruleset_config)';
 
 /** Ids per read: a longer `in.(…)` list makes an address some proxies refuse. */
 const IDS_PER_READ = 100;
@@ -68,6 +70,8 @@ interface SummaryContext {
   bouts: Map<string, Row>;
   lices: Map<string, Row>;
   referees: Map<string, RefereeAssignmentRow[]>;
+  /** The ruleset each bout's copy names, by bout id: none for a bout whose ruleset is not read. */
+  rulesets: Map<string, Ruleset>;
 }
 
 export type MatchSummary = ReturnType<typeof summaryOf>;
@@ -98,12 +102,21 @@ async function rowsById(
 
 const byId = (table: string, select: string) => ({ table, select, column: 'id', key: 'id' });
 
-async function contextOf(db: SupabaseClient, views: ViewRow[]): Promise<SummaryContext> {
+async function contextOf(
+  db: SupabaseClient,
+  views: ViewRow[],
+  resolver: RulesetResolver | null,
+): Promise<SummaryContext> {
   const bouts = await rowsById(
     db,
     byId('matches', ROUND_SELECT),
     views.map((row) => row.match_id),
   );
+  const rulesets = new Map<string, Ruleset>();
+  for (const [id, bout] of bouts) {
+    const ruleset = resolver && (await shownRulesetOf(id, bout, resolver));
+    if (ruleset) rulesets.set(id, ruleset);
+  }
   const eventIds = [...new Set(views.map((row) => row.event_id))];
   const referees = new Map<string, RefereeAssignmentRow[]>();
   for (const eventId of eventIds) {
@@ -111,6 +124,7 @@ async function contextOf(db: SupabaseClient, views: ViewRow[]): Promise<SummaryC
   }
   return {
     bouts,
+    rulesets,
     referees,
     tournaments: await rowsById(
       db,
@@ -193,7 +207,7 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
   const event = context.events.get(row.event_id);
   // The format the bout is fought under: its copy's, not its Tournament's of now (ruling E: the
   // public bout page shows the bout's copy).
-  const matchFormat = boutMatchFormat(row.match_id, bout);
+  const matchFormat = boutMatchFormat(row.match_id, bout, context.rulesets.get(row.match_id));
   const liceId = (bout?.['lice_id'] as string | null | undefined) ?? null;
   // A public field, joined into a sentence by the public match page: names
   // only, each once, whatever the number of roles a person holds.
@@ -243,10 +257,15 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
  * "no format", and the log names the bout. A bout with no copy (a fault: every bout holds one)
  * says the same, logged; one deleted since the list was read too, not logged (an ordinary race,
  * the piste read polls). The public bout page and the TV draw the default for none.
+ *
+ * With its `ruleset`, it is the format the bout is scored with (`scoredMatchFormat`): a ruleset
+ * with no venues or no doubles ceiling (Points cap) shows points and no ceiling, as it scores.
+ * Without (its ruleset was not read, `shownRulesetOf` logs why), it is the copy as stored.
  */
 export function boutMatchFormat(
   matchId: string,
   bout: Row | undefined,
+  ruleset: Ruleset | undefined,
 ): ReturnType<typeof normalizeMatchFormatConfig> | null {
   if (!bout) return null; // deleted since the list was read: the list drops it next read
   const copy = asRow(bout['match_rules']);
@@ -255,11 +274,34 @@ export function boutMatchFormat(
     return null;
   }
   try {
-    return normalizeMatchFormatConfig(asRow(copy['ruleset_config'])?.['matchFormat'] ?? {});
+    const config = asRow(copy['ruleset_config']);
+    if (ruleset) return scoredMatchFormat(config, ruleset);
+    return normalizeMatchFormatConfig(config?.['matchFormat'] ?? {});
   } catch (err) {
     logger.error(`Bout ${matchId} has a match format that does not read`, err);
     return null;
   }
+}
+
+/**
+ * The ruleset a bout's copy names, so its format is shown as it is scored. None, and a warning,
+ * for a copy that names none or a ruleset that does not resolve or is not read: the format is
+ * then shown as stored, which a bout on a ruleset that strips nothing shows the same.
+ */
+export async function shownRulesetOf(
+  matchId: string,
+  bout: Row,
+  rulesets: RulesetResolver,
+): Promise<Ruleset | undefined> {
+  try {
+    const { code, version } = boutEngineOf(bout);
+    const ruleset = await rulesets.resolve(code, version);
+    if (ruleset) return ruleset;
+    logger.warn(`Bout ${matchId}: ${code}@${version} does not resolve`);
+  } catch (err) {
+    logger.warn(`Bout ${matchId}: its ruleset was not read: ${String(err)}`);
+  }
+  return undefined;
 }
 
 /** Where the bout stands in its rounds, from its own row. */
@@ -276,10 +318,15 @@ function roundStateOf(bout: Row | undefined) {
 /**
  * The summary of each bout of `matchIds` that the view holds, by bout id. A bout
  * the view does not hold has no entry: the caller says what that means.
+ *
+ * `rulesets` gives each bout its format as it is scored (`boutMatchFormat`). Null for a caller
+ * that reads no format (a bout's name), or one wired without a resolver: the format is then the
+ * copy as stored.
  */
 export async function matchSummaries(
   db: SupabaseClient,
   matchIds: string[],
+  rulesets: RulesetResolver | null,
 ): Promise<Map<string, MatchSummary>> {
   const views = [
     ...(
@@ -295,6 +342,6 @@ export async function matchSummaries(
       )
     ).values(),
   ] as unknown as ViewRow[];
-  const context = await contextOf(db, views);
+  const context = await contextOf(db, views, rulesets);
   return new Map(views.map((row) => [row.match_id, summaryOf(row, context)]));
 }

@@ -52,7 +52,8 @@ export interface MatchEndDecision {
    * The three max-doubles values are one per `maxDoubleHitOutcome`, resolved at
    * the moment the bout ends — only `'max_doubles'` means loss for both.
    */
-  reason: 'time_limit' | 'first_to_points' | MaxDoubleHitEndReason | 'manual' | null;
+  reason:
+    'time_limit' | 'first_to_points' | 'venue_limit' | MaxDoubleHitEndReason | 'manual' | null;
 }
 
 export interface FighterAggregates {
@@ -119,6 +120,14 @@ export interface RulesetMetadata {
    * penalty. A ruleset can have one, both or neither.
    */
   hasMaxDoubles?: boolean;
+  /**
+   * Whether this ruleset offers venues mode (`scoringUnit: 'venues'`). Declared
+   * for the reason `hasMaxDoubles` is: the unit lives on the SHARED match
+   * format, so a Tournament can store `venues` under a ruleset that only ever
+   * scores in points. `false` is the only value that strips it; an older ruleset
+   * that declares nothing keeps the format as stored.
+   */
+  hasVenues?: boolean;
   /**
    * How an afterblow is WORTH points, when the ruleset has them at all.
    *

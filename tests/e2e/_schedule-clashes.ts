@@ -12,7 +12,8 @@
  *   A span never clashes with its own bouts.
  * - A bout lasts its planned length; with none, it ends where the API fell back on. No end, no
  *   window: it takes no part.
- * - A referee duty, and a Workshop session (waitlisted too, not a cancelled one), are commitments.
+ * - A referee duty, and a Workshop session (waitlisted too, not a cancelled one), are commitments
+ *   — one the person teaches as well as one they booked; a session that is both counts once.
  * - Two commitments clash when their windows overlap at all, half-open.
  */
 
@@ -56,6 +57,14 @@ export interface ScheduleRead {
     sessionStart: string | null;
     sessionEnd: string | null;
     sessionCancelled?: boolean;
+  }> | null;
+  /** The sessions the person teaches. Null: hidden with `workshops`. */
+  teaching?: Array<{
+    sessionId: string;
+    workshopName: string;
+    sessionStart: string | null;
+    sessionEnd: string | null;
+    sessionCancelled: boolean;
   }> | null;
 }
 
@@ -137,8 +146,16 @@ export function commitments(
     const t = timed(`duty-${duty.id}`, label, duty.startsAt, duty.endsAt);
     if (t) items.push({ ...t, dutyId: duty.id });
   }
+  // A session the person both teaches and booked counts once (`scheduleWorkshops`).
+  const taught = new Set<string>();
+  for (const s of read.teaching ?? []) {
+    taught.add(s.sessionId);
+    if (s.sessionCancelled) continue;
+    const t = timed(`ws-${s.sessionId}`, s.workshopName, s.sessionStart, s.sessionEnd);
+    if (t) items.push(t);
+  }
   for (const w of read.workshops ?? extraWorkshops ?? []) {
-    if (w.sessionCancelled) continue;
+    if (w.sessionCancelled || taught.has(w.workshopId)) continue;
     const t = timed(`ws-${w.workshopId}`, w.workshopName, w.sessionStart, w.sessionEnd);
     if (t) items.push(t);
   }

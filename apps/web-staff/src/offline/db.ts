@@ -110,7 +110,7 @@ export interface BoutNames {
  * What an End was pressed on: the score on the screen at the tap. `winner` is
  * the fighter the point cap gave the bout or the round to, when it gave it
  * (`pressedOn`): in a bout that counts down with both fighters out of points,
- * the two numbers do not name that fighter. With none, the result reads its
+ * the two numbers do not name that fighter. With none, `tabletWinner` reads its
  * leader from the two numbers.
  *
  * `endReason`: the End was pressed on a bout at its doubles limit, and this is
@@ -124,10 +124,13 @@ export interface PressedOn {
   endReason?: LimitReason;
 }
 
-/** The reasons a bout ends for at its doubles limit, one per outcome of the format. */
+/**
+ * The reasons a bout ends for at its doubles limit, one per outcome of the format. The venue
+ * limit is none of them: it wipes no board.
+ */
 export type LimitReason = Exclude<
   NonNullable<ReturnType<typeof roundOutcome>['endReason']>,
-  'first_to_points'
+  'first_to_points' | 'venue_limit'
 >;
 
 /** `none`: pressed with no network; `seen`: a network answered after the tap (`press-queue.ts`). */

@@ -71,6 +71,7 @@ describe('deriveFighterStats', () => {
         ],
         2,
         1,
+        'fighter-A',
       ),
       // m2: A scores 1, C scores 1 → tie
       bout(
@@ -93,6 +94,7 @@ describe('deriveFighterStats', () => {
         ],
         0,
         2,
+        'fighter-D',
       ),
     ];
 
@@ -103,6 +105,7 @@ describe('deriveFighterStats', () => {
     expect(stats.doubleHits).toBe(1);
     expect(stats.hitsGiven).toBe(3); // 2 + 1 + 0
     expect(stats.hitsReceived).toBe(4); // 1 + 1 + 2
+    expect(stats.pointsReceived).toBe(4); // every hit is worth 1 here
   });
 
   it('ignores a fighter who did not fight the bout', () => {
@@ -117,6 +120,7 @@ describe('deriveFighterStats', () => {
       doubleHits: 0,
       hitsGiven: 0,
       hitsReceived: 0,
+      pointsReceived: 0,
     });
   });
 });
@@ -170,15 +174,17 @@ describe('deriveFighterStats at the doubles ceiling', () => {
     });
   });
 
-  it('leaves the other two ceiling reasons to the board', () => {
-    // 'max_doubles_result_stands' keeps the board and a null reason is every
-    // ordinary bout, so both are decided by the stored score like anything else.
-    for (const reason of ['max_doubles_result_stands', null]) {
-      expect(deriveFighterStats('A', [ceilingBout(reason)], 'full')).toMatchObject({
-        victories: 1,
-        losses: 0,
-      });
-    }
+  it('leaves the other ceiling reasons to the stored winner, never the board', () => {
+    // 'max_doubles_result_stands' keeps the board, and the server stores its
+    // leader as the winner: that is what counts.
+    const stands = { ...ceilingBout('max_doubles_result_stands'), winnerRegistrationId: 'A' };
+    expect(deriveFighterStats('A', [stands], 'full')).toMatchObject({ victories: 1, losses: 0 });
+    // No winner stored is a draw, though red is one hit ahead (spec
+    // 2026-11-27-bout-result-is-stored): the board decides nothing on its own.
+    expect(deriveFighterStats('A', [ceilingBout(null)], 'full')).toMatchObject({
+      victories: 0,
+      ties: 1,
+    });
   });
 });
 
@@ -252,7 +258,7 @@ describe('deriveFighterStats scores the bout that was fought', () => {
   });
 
   it('still counts the hits that were landed, which is a different question', () => {
-    // `hitsGiven`/`hitsReceived` are named for hits and stay on the exchanges.
+    // `hitsGiven`/`hitsReceived` come from the exchanges, not from the result.
     // A really did land two, and forfeiting does not un-land them.
     expect(deriveFighterStats('A', [forfeited], 'full')).toMatchObject({
       hitsGiven: 2,
@@ -294,5 +300,51 @@ describe('deriveFighterStats afterblow netting', () => {
     expect(deriveFighterStats('B', [afterblowBout], 'full').hitsGiven).toBe(1);
     expect(deriveFighterStats('A', [afterblowBout], 'deductive').hitsGiven).toBe(1);
     expect(deriveFighterStats('B', [afterblowBout], 'deductive').hitsGiven).toBe(0);
+  });
+
+  it('counts the fighter who struck first as hit once, and their points by mode', () => {
+    // A struck first (2) and took the afterblow (1): one hit on A, worth 1 in
+    // full and 0 in deductive (the retaliation pays the defender nothing).
+    expect(deriveFighterStats('A', [afterblowBout], 'full')).toMatchObject({
+      hitsReceived: 1,
+      pointsReceived: 1,
+    });
+    expect(deriveFighterStats('A', [afterblowBout], 'deductive')).toMatchObject({
+      hitsReceived: 1,
+      pointsReceived: 0,
+    });
+  });
+});
+
+describe('deriveFighterStats: hits received is a count, points received is points', () => {
+  it('counts a deep hit worth 2 once in hitsReceived and twice in pointsReceived', () => {
+    const deep: ScoredMatch = {
+      id: 'm1',
+      redRegistrationId: 'A',
+      blueRegistrationId: 'B',
+      winnerRegistrationId: 'B',
+      endReason: null,
+      redScore: 0,
+      blueScore: 2,
+      exchanges: [
+        {
+          id: 'e1',
+          clientUuid: 'c',
+          matchId: 'm1',
+          sequence: 1,
+          type: 'clean',
+          occurredAt: '',
+          firstStrikerColor: 'blue',
+          firstStrikeValue: 2,
+          afterblowValue: null,
+          noExchangeReason: null,
+          voided: false,
+        },
+      ],
+    };
+    expect(deriveFighterStats('A', [deep], 'full')).toMatchObject({
+      hitsReceived: 1,
+      pointsReceived: 2,
+    });
   });
 });

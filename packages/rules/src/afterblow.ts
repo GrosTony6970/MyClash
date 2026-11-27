@@ -25,6 +25,8 @@
  * starts, so a caller that loses the mode does not throw — it silently scores a
  * deductive tournament in full mode.
  */
+import type { Exchange } from './domain';
+import type { ScoringUnit } from './match-format';
 
 /**
  * How afterblow points are applied.
@@ -52,4 +54,50 @@ export function computeAfterblowDeltas(
     return { attackerDelta: Math.max(0, attackerPts - defenderPts), defenderDelta: 0 };
   }
   return { attackerDelta: attackerPts, defenderDelta: defenderPts };
+}
+
+/**
+ * What one exchange is worth to each side, and which side it won a venue for.
+ *
+ * The ONE per-exchange pricer. Three places price an exchange from its button
+ * value — the scorer, the server's delta on save, and the pad's queued hit — and
+ * venues mode changes that price. Three copies would each have to learn the new
+ * rule, and one that did not would log "+2" while the board moved by 1.
+ *
+ *   points  a clean hit is its button value to the striker; an afterblow nets
+ *           through {@link computeAfterblowDeltas}; a double and a no-exchange
+ *           are worth nothing — the arithmetic as it always was
+ *   venues  a clean hit is 1 to the striker, whatever the button; nothing else
+ *           scores, whatever the button values or the afterblow mode
+ *
+ * `venue` is the striker of a clean hit in BOTH modes, read from the exchange
+ * TYPE and never from the deltas: an afterblow scores in points mode and still
+ * wins nobody a venue. In points mode the count is simply the clean hits.
+ */
+export function exchangeDeltas(
+  ex: Pick<Exchange, 'type' | 'firstStrikerColor' | 'firstStrikeValue' | 'afterblowValue'>,
+  afterblowMode: AfterblowMode,
+  unit: ScoringUnit,
+): { red: number; blue: number; venue: 'red' | 'blue' | null } {
+  const striker = ex.firstStrikerColor;
+  if (striker === null) return { red: 0, blue: 0, venue: null };
+  // The striker's points and the other side's, as red and blue.
+  const sides = (own: number, other: number) =>
+    striker === 'red' ? { red: own, blue: other } : { red: other, blue: own };
+
+  if (ex.type === 'clean') {
+    const value = unit === 'venues' ? 1 : (ex.firstStrikeValue ?? 0);
+    return { ...sides(value, 0), venue: striker };
+  }
+  // Venues only when it says venues: a format read off an older copy, with no
+  // unit, prices as points did.
+  if (ex.type === 'afterblow' && unit !== 'venues') {
+    const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
+      afterblowMode,
+      ex.firstStrikeValue ?? 0,
+      ex.afterblowValue ?? 0,
+    );
+    return { ...sides(attackerDelta, defenderDelta), venue: null };
+  }
+  return { red: 0, blue: 0, venue: null };
 }
