@@ -10,7 +10,6 @@ import { fold, matchByCode, tournamentBouts } from './match-by-code';
 import { isRefusal, type McpRefusal } from './mcp-answer';
 import { readableTournamentId, type McpEvent } from './readable-event';
 import {
-  eventSkills,
   holderOf,
   judgeSwap,
   missingSkillRefusal,
@@ -18,9 +17,9 @@ import {
   refereeWriteRefusal,
   rowsAfterWrite,
   type CrewRow,
-  type RefereeSkill,
   type WriteMatch,
 } from './referee-write-gate';
+import { eventSkills, type RefereeSkill } from '../../referees/event-skills';
 import { sealConfirmation } from './write-confirmation';
 
 export interface PreviewRefereeArgs {

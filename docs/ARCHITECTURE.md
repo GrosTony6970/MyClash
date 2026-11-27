@@ -5573,15 +5573,15 @@ confirmation is sealed, and everything else is a name or a code.
 4. The Match by its round code (call O).
 5. The role among the Event's skills (call P).
 6. A swap only: the referee by full name (call Q).
-7. The Match's crew (`readCrewRows`, `referee-write-gate.ts:146-171`): every active
+7. The Match's crew (`readCrewRows`, `referee-write-gate.ts:130-155`): every active
    `referee_assignments` row of the Match, its Pool and its Lice, all roles, with `person_id`. This
    read throws on an error. `fetchRefereeAssignmentIndex` answers `[]` on an error, which here would
    read as "nobody holds the role" and pass the holder check.
-8. The holder (`holderOf`, `referee-write-gate.ts:178-187`): the winning tier's row for the role
+8. The holder (`holderOf`, `referee-write-gate.ts:162-171`): the winning tier's row for the role
    (`winningAssignmentRows`, `matches/resolve-match-referees.ts:96-113`), or none. Two rows of one
    role in one tier take the lowest person id, so preview and apply name the same holder.
 9. A swap: the same person as the holder refuses. Else the checker judges it (`judgeSwap`,
-   `referee-write-gate.ts:264-289`, through `AssignmentBoardService.judgeVerdict`). Impossible
+   `referee-write-gate.ts:248-273`, through `AssignmentBoardService.judgeVerdict`). Impossible
    refuses, with every Impossible reason in words. Discouraged and Fine answer. A removal is not
    judged (call M).
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
@@ -5616,7 +5616,7 @@ confirmation is sealed, and everything else is a name or a code.
    level, or a referee off the roster refuses with "The referees of (code) changed since the preview.
    Preview the change again." A referee who lost the role's skill since the preview refuses with
    the preview's own sentence, "(name) does not hold the (role) skill at (Event)." One helper owns
-   that test and its words for both tools (`missingSkillRefusal`, `referee-write-gate.ts:200-213`).
+   that test and its words for both tools (`missingSkillRefusal`, `referee-write-gate.ts:184-197`).
    It runs before the checker, whose skill check would throw a 400 (`qualifiedCandidate`,
    `referees/write-verdict.ts`) and give the generic failure. Impossible refuses with its reasons
    in words. A warning the person did not see refuses and names it (call I).
@@ -5680,7 +5680,7 @@ The calls made (the operator may overrule):
   `@myclash/rulesets/scheduling/referee-reason-text`, beside the checker that owns the codes. The
   translator is a parameter, so the package takes no i18n dependency. Web-admin and the API call
   the same switch and the same `organizer.refereeBoard.reasons.*` keys. The API words them in
-  English (`createTranslator(messages.en)`, `referee-write-gate.ts:241`): Claude reads English and
+  English (`createTranslator(messages.en)`, `referee-write-gate.ts:225`): Claude reads English and
   answers the person in their language (spec call F). The words are fragments said after a name,
   so a warning reads "(name) (reason)." and an Impossible refusal reads "(name) cannot take (role)
   on (code): (reasons)."

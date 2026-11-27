@@ -13,7 +13,6 @@ import {
   refereeReasonsText,
 } from '@myclash/rulesets/scheduling/referee-reason-text';
 import { ForbiddenException } from '@nestjs/common';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { assertCanManageEvent } from '../../../common/auth/event-authz';
 import { isOver } from '../../../common/live-status';
 import { OperationalUnavailableException } from '../../../common/operational-exception';
@@ -24,6 +23,7 @@ import {
   type MatchRefereeTarget,
 } from '../../matches/resolve-match-referees';
 import { ROUND_CODE_INPUTS, roundCodeFromMatchRow } from '../../matches/round-code.helper';
+import type { RefereeSkill } from '../../referees/event-skills';
 import { isRefereeBoardLocked } from '../../referees/referee-lock';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import type { McpRefusal } from './mcp-answer';
@@ -81,22 +81,6 @@ export async function refereeWriteRefusal(
 export const LOCKED_REFUSAL: McpRefusal = {
   refusal: 'Referee assignments are locked at this Event. Unlock them in MyClash first.',
 };
-
-/** A referee role: a `referee_skills` row, global (`event_id` null) or the Event's own. */
-export interface RefereeSkill {
-  id: string;
-  name: string;
-}
-
-/** The Event's roles (call P), also a draft's role names (call U). A failed read throws. */
-export async function eventSkills(db: SupabaseClient, eventId: string): Promise<RefereeSkill[]> {
-  const { data, error } = await db
-    .from('referee_skills')
-    .select('id, name, event_id')
-    .or(`event_id.is.null,event_id.eq.${eventId}`);
-  if (error) throw new Error(`referee skills read failed: ${error.message}`);
-  return ((data ?? []) as { id: string; name: string }[]).map(({ id, name }) => ({ id, name }));
-}
 
 /** A `matches` select that names the bout (its round code), its piste, start, Pool and Lice. */
 export const MATCH_SELECT = `id, match_number_label, scheduled_at, pool_id, lice_id, lices(name), ${ROUND_CODE_INPUTS}`;

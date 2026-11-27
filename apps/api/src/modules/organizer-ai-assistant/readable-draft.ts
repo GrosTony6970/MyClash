@@ -12,7 +12,7 @@ import { inListChunks } from '../../common/postgrest-in-list';
 import { readInstant } from '../../common/read-instant';
 import { containsUuidShape, isUuidShape } from '../../common/uuid-shape';
 import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
-import { eventSkills } from '../mcp/tools/referee-write-gate';
+import { eventSkills } from '../referees/event-skills';
 import { rosterDisplayName, type RosterPersonName } from '../referees/roster-display-name';
 
 /**

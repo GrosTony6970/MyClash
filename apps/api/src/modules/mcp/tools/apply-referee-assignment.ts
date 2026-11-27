@@ -29,7 +29,6 @@ import { appName } from './connector-app-name';
 import { isRefusal, type McpRefusal } from './mcp-answer';
 import { runOnePerEvent } from './one-write-per-event';
 import {
-  eventSkills,
   holderOf,
   impossibleRefusal,
   judgeSwap,
@@ -42,11 +41,11 @@ import {
   rowsAfterWrite,
   toWriteMatch,
   type GateEvent,
-  type RefereeSkill,
   type RosterReferee,
   type WriteMatch,
   type WritePerson,
 } from './referee-write-gate';
+import { eventSkills, type RefereeSkill } from '../../referees/event-skills';
 import { openConfirmation, type ConfirmationPayload } from './write-confirmation';
 
 const logger = new Logger('ApplyRefereeAssignment');
