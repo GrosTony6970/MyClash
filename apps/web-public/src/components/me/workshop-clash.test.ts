@@ -286,6 +286,66 @@ describe('a session against the classes she teaches', () => {
     expect(clashOf(session('14:00', '16:00'), commitments)).toBeNull();
   });
 
+  /** A seat (or a waitlist place) she already holds, as the schedule read sends it. */
+  const booked = (
+    id: string,
+    start: string,
+    end: string,
+    over: Partial<NonNullable<PersonSchedule['workshops']>[number]> = {},
+  ): NonNullable<PersonSchedule['workshops']>[number] => ({
+    workshopId: id,
+    workshopSlug: 'jean',
+    workshopName: "Jean's class",
+    sessionStart: at(start),
+    sessionEnd: at(end),
+    location: null,
+    status: 'confirmed',
+    sessionCancelled: false,
+    instructorNames: ['Jean Dupont'],
+    ...over,
+  });
+
+  it('warns of a session she already booked at that hour, a seat or a waitlist place', () => {
+    for (const status of ['confirmed', 'waitlisted'] as const) {
+      const { commitments } = commitmentsOf(
+        schedule({ workshops: [booked('s-jean', '09:00', '11:00', { status })] }),
+        t,
+      );
+      const clash = clashOf(session('10:00', '12:00'), commitments)!;
+      expect(clashWords(clash, (iso) => iso.slice(11, 16))).toEqual({
+        item: "Jean's class",
+        time: '09:00–11:00',
+      });
+    }
+  });
+
+  it('holds nothing for a booked session that was cancelled, nor for the session itself', () => {
+    const { commitments, unchecked } = commitmentsOf(
+      schedule({
+        workshops: [
+          booked('s-off', '09:00', '11:00', { sessionCancelled: true }),
+          booked('s-1', '14:00', '16:00'),
+        ],
+      }),
+      t,
+    );
+    expect(clashOf(session('10:00', '12:00'), commitments)).toBeNull();
+    // `session` is s-1: she booked it, and it does not warn of itself.
+    expect(clashOf(session('14:00', '16:00'), commitments)).toBeNull();
+    expect(unchecked).toBe(0);
+  });
+
+  it('counts a session she teaches and booked once, as her class', () => {
+    const { commitments } = commitmentsOf(
+      schedule({
+        teaching: [taught('s-demo', '14:00', '16:00')],
+        workshops: [booked('s-demo', '14:00', '16:00')],
+      }),
+      t,
+    );
+    expect(commitments.map((c) => c.label)).toEqual(['Instructor · Demo Workshop 6']);
+  });
+
   it('reads a schedule cached before the API sent the classes as holding none', () => {
     expect(commitmentsOf(schedule({}), t)).toEqual({ commitments: [], unchecked: 0 });
   });

@@ -2141,8 +2141,9 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   in the reader's language by one owner (`refusalWords`): the public page in its short message, the
   personal page in a line under that session's button until the next tap (ruling 294).
 - What the public page says beside the controls (rulings 266, 267, 270, 271, 272). A clash with the
-  caller's own fights, duties and the classes they teach ("Instructor · Demo Workshop 6"), warned
-  and never blocked, from the one owner both pages ask (`workshop-clash.ts`). A bookings read that failed, with a Retry. After a booking's 401, who the
+  caller's own fights, duties, the classes they teach ("Instructor · Demo Workshop 6") and the
+  sessions they already booked (a seat or a waitlist place), warned and never blocked, from the
+  one owner both pages ask (`workshop-clash.ts`). A session never warns of itself. A bookings read that failed, with a Retry. After a booking's 401, who the
   door did not know: a visitor reads the two ways in (the participants list, or sign in), a
   signed-in account with no roster row at the Event reads that it is not on the list
   (`unknownCaller` asks `/me`). A guest of the Event reads that a guest gets no alert: an alert goes
