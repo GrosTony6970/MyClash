@@ -15,6 +15,7 @@ import {
 import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { rulesetHelp } from './rulesetHelp';
+import { rankingKeyLabel } from './ranking-key-label';
 import { RulesetPreviewPanel } from './RulesetPreviewPanel';
 import { FormulaEditor } from './FormulaEditor';
 import { TargetsEditor } from './TargetsEditor';
@@ -442,14 +443,6 @@ function SystemRulesetPanel({
 }) {
   const { t } = useI18n();
 
-  function formatRankingKey(key: string): string {
-    // Soft i18n: known keys get a translated label; anything else falls back
-    // to the raw key (camelCase looks readable enough).
-    const i18nKey = `admin.rulesets.rankingKey_${key}`;
-    const translated = t(i18nKey);
-    return translated === i18nKey ? key : translated;
-  }
-
   function formatDirection(direction: 'asc' | 'desc'): string {
     return direction === 'desc'
       ? t('admin.rulesets.systemPanelDirectionHighest')
@@ -525,7 +518,7 @@ function SystemRulesetPanel({
                 className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2"
               >
                 <span className="w-6 font-mono text-xs text-muted">{idx + 1}.</span>
-                <span className="font-medium">{formatRankingKey(rule.key)}</span>
+                <span className="font-medium">{rankingKeyLabel(rule.key, t)}</span>
                 <span className="ml-auto rounded bg-background px-2 py-0.5 text-[11px] font-medium text-foreground-secondary">
                   {formatDirection(rule.direction)}
                 </span>

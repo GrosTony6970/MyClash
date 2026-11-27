@@ -1314,6 +1314,7 @@ export const admin = {
     systemPanelDirectionLowest: "plus bas d'abord",
     systemPanelTrue: 'Oui',
     systemPanelFalse: 'Non',
+    rankingKey_score: 'Score',
     rankingKey_ptsScored: 'Points marqués',
     rankingKey_ptsConceded: 'Points concédés',
     rankingKey_W: 'Victoires',
