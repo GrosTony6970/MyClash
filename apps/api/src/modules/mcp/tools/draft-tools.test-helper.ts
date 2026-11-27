@@ -116,6 +116,7 @@ export const assertOrgRole = vi.fn();
 export const createDraftFromAction = vi.fn();
 export const usableRulesetVersion = vi.fn();
 export const getClient = vi.fn();
+export const placeMatches = vi.fn();
 
 /** The draft `createDraftFromAction` answers: every field of the API's draft, ids included. */
 export function savedDraft(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -149,6 +150,7 @@ export function resetWorld(): void {
   assertOrgRole.mockReset().mockResolvedValue('admin');
   createDraftFromAction.mockReset().mockResolvedValue(savedDraft());
   usableRulesetVersion.mockReset().mockResolvedValue('1.1.0');
+  placeMatches.mockReset().mockResolvedValue(undefined);
   getClient.mockReset().mockResolvedValue({ data: { client_name: 'Claude' }, error: null });
 }
 
@@ -192,6 +194,7 @@ export function harness(domain: string | null = 'myclash.fr') {
     supabase: { service: { ...supabase.service, auth: { admin: { oauth: { getClient } } } } },
     orgs: { assertOrgRole },
     assistant: { createDraftFromAction },
+    placement: { placeMatches },
     events: { usableRulesetVersion },
     domain,
   } as never;

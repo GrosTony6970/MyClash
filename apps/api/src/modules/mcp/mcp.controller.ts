@@ -16,6 +16,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import { MatchesService } from '../matches/matches.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
@@ -69,6 +70,7 @@ export class McpController {
     private readonly refereeBoard: AssignmentBoardService,
     private readonly qualifications: QualificationsService,
     private readonly assistant: OrganizerAIAssistantService,
+    private readonly placement: MatchPlacementService,
     config: ConfigService,
   ) {
     // Derived once: the tools never read the environment. No secret, no key: a write preview
@@ -133,6 +135,7 @@ export class McpController {
       qualifications: this.qualifications,
       confirmKey: this.confirmKey,
       assistant: this.assistant,
+      placement: this.placement,
       domain: this.domain,
     };
   }

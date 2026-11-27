@@ -10,7 +10,10 @@
  * The races it accepts: the gate and `createDraftFromAction` each ask the admin bar. An admin
  * removed between the two gets the generic failure, not the admin refusal. And a draft can go
  * stale between its save and Apply: the slug is taken, Pools are made, the weapon is retired
- * from the catalogue. Apply asks each again and marks the draft failed; the link then shows why.
+ * from the catalogue, the schedule board fills a piste the draft places a bout on, the
+ * registrations a bracket without `qualifyCount` counts at Apply change. Apply asks each again;
+ * a busy piste refuses before any bout moves and the draft stays ready, the others mark it
+ * failed. The link then shows why.
  */
 import type { ReadableDraftAction } from '@myclash/types';
 import { ForbiddenException } from '@nestjs/common';

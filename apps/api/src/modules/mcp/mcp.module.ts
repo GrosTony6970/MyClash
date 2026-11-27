@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../events/events.module';
 import { FightersModule } from '../fighters/fighters.module';
+import { MatchPlacementModule } from '../matches/match-placement.module';
 import { MatchesModule } from '../matches/matches.module';
 import { MeModule } from '../me/me.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -24,6 +25,7 @@ import { ProtectedResourceController } from './protected-resource.controller';
     EventsModule,
     FightersModule,
     MatchesModule,
+    MatchPlacementModule,
     MeModule,
     OrganizationsModule,
     OrganizerAIAssistantModule,

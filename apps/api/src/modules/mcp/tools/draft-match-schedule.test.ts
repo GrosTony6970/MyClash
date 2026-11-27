@@ -1,3 +1,4 @@
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { READ_PAGE } from '../../../common/postgrest-in-list';
 import { filtersFor, queriedTables, selectsFor } from '../../../common/testing/supabase-chain';
@@ -22,6 +23,7 @@ import {
   PHASE,
   PISTE_2,
   PISTE_3,
+  placeMatches,
   resetWorld,
   savedDraft,
   TOURNAMENT,
@@ -141,9 +143,47 @@ describe('draft_match_schedule saves one draft', () => {
       },
     ]);
   });
+
+  it('after the placement owner checked every placement together, writing nothing', async () => {
+    await run().result;
+    expect(placeMatches).toHaveBeenCalledTimes(1);
+    expect(placeMatches).toHaveBeenCalledWith(
+      EVENT,
+      [
+        { matchId: M04, liceId: PISTE_2, scheduledAt: '2026-03-14T13:30:00.000Z' },
+        { matchId: M05, liceId: PISTE_3, scheduledAt: '2026-03-14T13:30:00.000Z' },
+      ],
+      { checkOnly: true },
+    );
+    expect(placeMatches.mock.invocationCallOrder[0]!).toBeLessThan(
+      createDraftFromAction.mock.invocationCallOrder[0]!,
+    );
+  });
 });
 
 describe('draft_match_schedule refuses', () => {
+  it('placements on a busy piste, in its own words: the owner names a bout by id', async () => {
+    placeMatches.mockRejectedValue(
+      new ConflictException(
+        `Piste already busy: this bout overlaps match ${M05} on the same piste`,
+      ),
+    );
+    const answer = await run().result;
+    expect(answer).toEqual({
+      refusal:
+        'A piste in this draft is busy at that time: a bout overlaps another one on its piste, ' +
+        'in this draft or already in the schedule. Change the time or the piste.',
+    });
+    expectNoRawIds(answer);
+    expect(createDraftFromAction).not.toHaveBeenCalled();
+  });
+
+  it('nothing when the check fails otherwise: the generic failure, not a refusal', async () => {
+    placeMatches.mockRejectedValue(new BadRequestException('matches read failed'));
+    await expect(run().result).rejects.toThrow('matches read failed');
+    expect(createDraftFromAction).not.toHaveBeenCalled();
+  });
+
   async function refused(placements: DraftPlacement[] = STORY) {
     const answer = await run(placements).result;
     expect(createDraftFromAction).not.toHaveBeenCalled();

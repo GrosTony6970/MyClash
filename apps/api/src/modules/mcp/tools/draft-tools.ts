@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { createTournamentSchema, rulesetCodeSchema } from '../../events/dto/events.dto';
 import { catalogWeaponName } from '../../fighters/weapon-catalog.util';
 import { generateBracketSchema, generatePoolsSchema } from '../../phases/dto/phases.dto';
+import { buildBracketShape } from '../../phases/bracket-shape';
 import { existingPhase } from '../../phases/existing-phase';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import {
@@ -129,6 +130,22 @@ export interface DraftBracketArgs {
   bracketSize?: number;
 }
 
+/**
+ * A bracket Generate Bracket cannot build refuses in the builder's words ("bracketSize (8) must
+ * be ≥ fighterCount (16)"). Only with `qualifyCount`: without it, the count is the Tournament's
+ * registrations at Apply, which can change before then, so Apply asks.
+ */
+function bracketShapeRefusal(args: DraftBracketArgs): McpRefusal | null {
+  if (args.qualifyCount === undefined) return null;
+  try {
+    buildBracketShape(args.qualifyCount, args);
+    return null;
+  } catch (refused) {
+    if (!(refused instanceof BadRequestException)) throw refused;
+    return { refusal: `MyClash cannot build this bracket: ${refused.message}.` };
+  }
+}
+
 /** `draft_bracket`: the bracket of a Tournament that has none yet. */
 export async function draftBracket(
   args: DraftBracketArgs,
@@ -146,6 +163,8 @@ export async function draftBracket(
       refusal: `The Tournament "${args.tournament}" already has a bracket. Change it in MyClash.`,
     };
   }
+  const shape = bracketShapeRefusal(args);
+  if (shape) return shape;
   const action = {
     kind: 'generate_bracket',
     tournamentId: found.tournamentId,

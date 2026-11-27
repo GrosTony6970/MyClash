@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { EventsService } from '../events/events.service';
 import type { FightersService } from '../fighters/fighters.service';
+import type { MatchPlacementService } from '../matches/match-placement.service';
 import type { MatchesService } from '../matches/matches.service';
 import type { MeEventsService } from '../me/me-events.service';
 import type { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
@@ -52,6 +53,8 @@ export interface McpToolDeps extends EventAuthzDeps {
   confirmKey: Buffer | null;
   /** The drafts Claude saves for the person to apply in MyClash (slice 4b). */
   assistant: OrganizerAIAssistantService;
+  /** The one placement owner: a schedule draft's placements are checked by it, never written. */
+  placement: MatchPlacementService;
   /** `DOMAIN`, for a draft's admin link; null when unset (a draft tool then fails). */
   domain: string | null;
 }

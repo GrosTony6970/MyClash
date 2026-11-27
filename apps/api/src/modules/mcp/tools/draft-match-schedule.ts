@@ -4,11 +4,13 @@
  * draft of one `schedule_match` action per placement.
  *
  * Each Match by its round code in the Tournament, each piste by its name in the Event, each start
- * on the Event's wall clock, stored as the UTC instant. A piste two bouts would hold at once is
- * not checked here: Apply refuses it (`assertNoCollision`), as for a draft made in the app.
+ * on the Event's wall clock, stored as the UTC instant. A piste two bouts would hold at once,
+ * in the draft or on the board, refuses before the save: Apply runs one placement per action, so
+ * a draft that collides would move its first bouts and fail on the next. Apply checks them all
+ * again before it moves any (the board can fill between the draft and Apply).
  */
 import { zonedToUtcIso } from '@myclash/time';
-import { Logger } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { eventZone, unknownZoneWarning } from '../../../common/event-clock';
@@ -122,7 +124,37 @@ export async function draftMatchSchedule(
     }
     actions.push(action);
   }
+  const busy = await busyPisteRefusal(deps, event.id, actions);
+  if (busy) return busy;
   return saveDraft(gate, actions, caller, deps);
+}
+
+/**
+ * The placements, checked together by the one placement owner (`checkOnly`: it writes nothing),
+ * against each other and against the board. Its own 409 names a bout by id, so the refusal is
+ * this tool's words. Any other throw is the generic failure.
+ */
+async function busyPisteRefusal(
+  deps: McpToolDeps,
+  eventId: string,
+  actions: readonly ScheduleAction[],
+): Promise<McpRefusal | null> {
+  const placements = actions.map(({ matchId, liceId, scheduledAt }) => ({
+    matchId,
+    liceId,
+    scheduledAt,
+  }));
+  try {
+    await deps.placement.placeMatches(eventId, placements, { checkOnly: true });
+    return null;
+  } catch (refused) {
+    if (!(refused instanceof ConflictException)) throw refused;
+    return {
+      refusal:
+        'A piste in this draft is busy at that time: a bout overlaps another one on its piste, ' +
+        'in this draft or already in the schedule. Change the time or the piste.',
+    };
+  }
 }
 
 const placement = z.object({
@@ -143,8 +175,8 @@ export function registerDraftMatchSchedule(
         "Draft when and where a Tournament's Matches are fought: the Event slug (`event`), the " +
         'Tournament slug (`tournament`) and `placements`, 1 to 50, each a Match by its round ' +
         'code (`match`, as LSW-P2-M04), a piste by its name (`piste`) and a `start` on the ' +
-        "Event's own clock as YYYY-MM-DD HH:MM (never UTC). One draft holds them all. A piste " +
-        'that another bout holds at that time is refused when the person presses Apply.' +
+        "Event's own clock as YYYY-MM-DD HH:MM (never UTC). One draft holds them all. Refuses a " +
+        'piste that another bout holds at that time, in the draft or in the schedule.' +
         DRAFT_NEXT,
       inputSchema: {
         event: slug,

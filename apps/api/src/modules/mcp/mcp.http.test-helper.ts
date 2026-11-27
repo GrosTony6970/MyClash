@@ -19,6 +19,7 @@ import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { EventsService } from '../events/events.service';
 import { FightersService } from '../fighters/fighters.service';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import { MatchesService } from '../matches/matches.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
@@ -109,6 +110,7 @@ function doorProviders() {
     { provide: AssignmentBoardService, useValue: {} },
     { provide: QualificationsService, useValue: {} },
     { provide: OrganizerAIAssistantService, useValue: { createDraftFromAction } },
+    { provide: MatchPlacementService, useValue: {} },
     { provide: FightersService, useValue: { getMyDashboard } },
     { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
   ];

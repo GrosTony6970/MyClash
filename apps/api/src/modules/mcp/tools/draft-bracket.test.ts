@@ -84,6 +84,15 @@ describe('draft_bracket saves one draft', () => {
     const [, , actions] = createDraftFromAction.mock.calls[0]!;
     expect(actions).toEqual([{ kind: 'generate_bracket', tournamentId: TOURNAMENT }]);
   });
+
+  it('with a size but no count: the count is the registrations at Apply, and Apply asks', async () => {
+    const { result } = run({ qualifyCount: undefined, bracketSize: 12 });
+    expect(await result).toEqual({ draft: READABLE, link: LINK, status: 'ready' });
+    const [, , actions] = createDraftFromAction.mock.calls[0]!;
+    expect(actions).toEqual([
+      { kind: 'generate_bracket', tournamentId: TOURNAMENT, bracketSize: 12 },
+    ]);
+  });
 });
 
 describe('draft_bracket refuses', () => {
@@ -134,6 +143,20 @@ describe('draft_bracket refuses', () => {
     expect(await result).toEqual({
       refusal: 'The Tournament "longsword-open" already has a bracket. Change it in MyClash.',
     });
+    expect(createDraftFromAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ qualifyCount: 16, bracketSize: 8 }, 'bracketSize (8) must be ≥ fighterCount (16)'],
+    [
+      { qualifyCount: 8, bracketSize: 12, phaseType: 'double_elim' as const },
+      'bracketSize must be a power of 2 (got 12)',
+    ],
+  ])('a bracket Generate Bracket cannot build: %o', async (shape, words) => {
+    const { result } = run(shape);
+    const answer = await result;
+    expect(answer).toEqual({ refusal: `MyClash cannot build this bracket: ${words}.` });
+    expectNoRawIds(answer);
     expect(createDraftFromAction).not.toHaveBeenCalled();
   });
 
