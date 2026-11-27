@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { queriedTables } from '../../common/testing/supabase-chain';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import {
   chain,
   mockSupabaseFrom,
@@ -148,6 +150,27 @@ describe('OrganizerAIAssistantService.applyDraft, a schedule draft that collides
       message: 'A bout of this draft overlaps another on its piste.',
     });
     expect(placement.placeMatches).toHaveBeenCalledTimes(call + 1);
+  });
+
+  it('refuses one bout placed twice, through the real placement owner, before the claim', async () => {
+    // A draft from the chat or a form edit can name M04 on two pistes; only the board's input
+    // check refused that. The placement owner refuses it now, for every door.
+    scheduleDraft([
+      [MATCH_1, '14:30'],
+      [MATCH_1, '15:00'],
+    ]);
+    const owner = new MatchPlacementService(
+      { service: { from: mockSupabaseFrom } } as never,
+      {
+        refresh: vi.fn(),
+      } as never,
+    );
+
+    await expect(service(owner).applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      new BadRequestException('Name each Match once'),
+    );
+    // The draft's read and the membership read; no claim.
+    expect(queriedTables(mockSupabaseFrom)).toEqual(['organizer_ai_assistant_drafts', 'matches']);
   });
 
   it('leaves a refusal that is not a collision as the owner threw it', async () => {

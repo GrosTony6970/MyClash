@@ -93,14 +93,15 @@ export const refereeBoard = {
   judgeWrite: vi.fn().mockResolvedValue({ stored: [], matchIds: [], skippedMatchIds: [] }),
 };
 
-export function service() {
+/** The service on the doubles; `placementOwner` replaces the placement double (the real one). */
+export function service(placementOwner: unknown = placement) {
   return new OrganizerAIAssistantService(
     supabase as never,
     aiUsage as never,
     orgs as never,
     events as never,
     phases as never,
-    placement as never,
+    placementOwner as never,
     refereeBoard as never,
   );
 }

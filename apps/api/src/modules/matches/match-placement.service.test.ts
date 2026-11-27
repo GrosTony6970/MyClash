@@ -310,6 +310,19 @@ describe('MatchPlacementService.placeMatches', () => {
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
+  it('refuses one Match placed twice in a batch, before any read, and writes nothing', async () => {
+    const { service, supabase } = makeService(seed());
+
+    await expect(
+      service.placeMatches(EVENT, [
+        { matchId: 'm-1', liceId: LICE, scheduledAt: at('10:00') },
+        { matchId: 'm-1', liceId: LICE, scheduledAt: at('11:00') },
+      ]),
+    ).rejects.toThrow(new BadRequestException('Name each Match once'));
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(supabase.writes).toEqual([]);
+  });
+
   it('refuses a Match that does not exist', async () => {
     const { service } = makeService(seed());
 

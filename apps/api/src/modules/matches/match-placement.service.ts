@@ -132,6 +132,11 @@ export class MatchPlacementService {
   ): Promise<void> {
     if (placements.length === 0) return;
 
+    // One Match twice in a batch: the batch check judges it at two places, and `write` runs both
+    // updates of its one row at once. Refused here, before any read, so every door gets it.
+    const ids = placements.flatMap((placement) => placement.matchId ?? []);
+    if (new Set(ids).size < ids.length) throw new BadRequestException('Name each Match once');
+
     for (const placement of placements) {
       if (placement.scheduledAt != null && readInstant(placement.scheduledAt) === null) {
         // Before `matchWindowMs`, which throws a RangeError — a scrubbed 500.

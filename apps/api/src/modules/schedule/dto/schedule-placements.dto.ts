@@ -38,6 +38,8 @@ export const schedulePlacementsSchema = z
       .array(placementSchema)
       .min(1)
       .max(PLACEMENTS_MAX)
+      // Input validation at the board's door. The rule's owner is `placeMatches`, which refuses
+      // one Match twice for every door.
       .refine((rows) => new Set(rows.map((row) => row.matchId)).size === rows.length, {
         message: 'Name each Match once',
       }),

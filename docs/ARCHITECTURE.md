@@ -4903,7 +4903,9 @@ run window's piste change, a resize, the "+N" catch-up, Clear run, Clear day, a 
 Unscheduled panel, undo and redo. The body is `placements`: 1–2000 rows of `{ matchId, liceId,
 scheduledAt }`, each Match once, `null` to clear, no length. The service checks the editor bar, then
 that every Match is this Event's, then hands the batch as sent to `placeMatches`, which judges the
-pistes for the whole batch before it writes a row. The board used to send one
+pistes for the whole batch before it writes a row. "Each Match once" is the owner's rule:
+`placeMatches` refuses a batch that names one Match twice (400, before any read), for every door;
+the body's own check is input validation at the board's door. The board used to send one
 `PATCH /api/v1/matches/:id/schedule` per bout, all at once, and the server judged each against bouts
 that had not moved yet, so a Pool dragged later could be half refused and split in two. That route
 stays: the referee board's single-bout drop still uses it. The batch's id reads — Event membership
