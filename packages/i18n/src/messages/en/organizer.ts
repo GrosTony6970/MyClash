@@ -1762,6 +1762,12 @@ export const organizer = {
       fighterOut:
         'This fighter is out of the tournament (withdrawn or disqualified): bring them back first.',
       fieldChanged: 'The field changed while the round was being paired: try again.',
+      poolPhaseMissing:
+        'Seeding by pool rank needs a pool phase in this tournament, and there is none.',
+      poolPhaseOpen:
+        'Seeding by pool rank needs every pool bout finished: some bouts are still open.',
+      ratingCoverageLow:
+        'Only {rated} of {total} fighters ({percent}%) have a HEMA rating, below the {threshold}% required. Seed by random draw, or lower the threshold.',
     },
     rounds: {
       roundHasRecords: 'This round holds a black card or a forfeit: take it back first.',

@@ -1752,6 +1752,12 @@ export const organizer = {
       fighterOut:
         'Ce combattant est hors du tournoi (retiré ou disqualifié) : réintégrez-le d’abord.',
       fieldChanged: 'Les combattants ont changé pendant l’appariement de la ronde : réessayez.',
+      poolPhaseMissing:
+        'Le classement par rang de poule demande une phase de poules dans ce tournoi, et il n’y en a pas.',
+      poolPhaseOpen:
+        'Le classement par rang de poule demande que tous les combats de poule soient terminés : certains sont encore ouverts.',
+      ratingCoverageLow:
+        'Seuls {rated} combattants sur {total} ({percent} %) ont un classement HEMA, sous les {threshold} % requis. Tirez au sort, ou baissez le seuil.',
     },
     rounds: {
       roundHasRecords: 'Cette ronde porte un carton noir ou un forfait : annulez-le d’abord.',
