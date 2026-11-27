@@ -47,31 +47,24 @@ export function ProtestLimitFields({
             className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>
-        <label className="flex-1">
-          <span className="block text-xs font-medium text-foreground-secondary mb-1">
-            {t('organizer.tournaments.settings.protestOfferPenalty')}
-          </span>
-          <select
-            value={offerRef ?? ''}
-            onChange={(e) => setData({ ...data, protestOfferRef: e.target.value || null })}
-            className="w-full rounded-md border border-border px-3 py-2 text-sm"
-          >
-            <option value="">{t('organizer.tournaments.settings.protestOfferNone')}</option>
-            {offerRef !== null && !offerListed && (
-              <option value={offerRef}>
-                {offerMissing
-                  ? t('organizer.tournaments.settings.protestOfferMissing', { ref: offerRef })
-                  : offerRef}
-              </option>
-            )}
-            {penaltyEntries.map((e) => (
-              <option key={e.id} value={e.ref_number}>
-                {`${e.ref_number} · ${e.short_name}`}
-              </option>
-            ))}
-          </select>
-        </label>
+        <OfferSelect
+          offerRef={offerRef}
+          offerListed={offerListed}
+          offerMissing={offerMissing}
+          penaltyEntries={penaltyEntries}
+          onChange={(ref) => setData({ ...data, protestOfferRef: ref })}
+        />
       </div>
+      <ProtestNotes limitInvalid={limitInvalid} noOffer={noOffer} />
+    </div>
+  );
+}
+
+/** Why a limit is refused, what the limit means, and that the pad will offer no penalty. */
+function ProtestNotes({ limitInvalid, noOffer }: { limitInvalid: boolean; noOffer: boolean }) {
+  const { t } = useI18n();
+  return (
+    <>
       {limitInvalid && (
         <p role="alert" className="text-[11px] text-danger">
           {t('organizer.tournaments.settings.protestLimitInvalid')}
@@ -85,6 +78,49 @@ export function ProtestLimitFields({
           {t('organizer.tournaments.settings.protestNoOfferNote')}
         </p>
       )}
-    </div>
+    </>
+  );
+}
+
+/** The penalty offered past the limit: None, a stored ref the list lacks, then the list's own. */
+function OfferSelect({
+  offerRef,
+  offerListed,
+  offerMissing,
+  penaltyEntries,
+  onChange,
+}: {
+  offerRef: string | null;
+  offerListed: boolean;
+  offerMissing: boolean;
+  penaltyEntries: readonly PenaltyEntry[];
+  onChange: (ref: string | null) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <label className="flex-1">
+      <span className="block text-xs font-medium text-foreground-secondary mb-1">
+        {t('organizer.tournaments.settings.protestOfferPenalty')}
+      </span>
+      <select
+        value={offerRef ?? ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-full rounded-md border border-border px-3 py-2 text-sm"
+      >
+        <option value="">{t('organizer.tournaments.settings.protestOfferNone')}</option>
+        {offerRef !== null && !offerListed && (
+          <option value={offerRef}>
+            {offerMissing
+              ? t('organizer.tournaments.settings.protestOfferMissing', { ref: offerRef })
+              : offerRef}
+          </option>
+        )}
+        {penaltyEntries.map((e) => (
+          <option key={e.id} value={e.ref_number}>
+            {`${e.ref_number} · ${e.short_name}`}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
